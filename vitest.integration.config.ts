@@ -1,9 +1,14 @@
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
+export default defineConfig(async () => ({
   plugins: [
     cloudflareTest({
+      miniflare: {
+        bindings: {
+          BETTER_AUTH_SECRET: "integration-test-only-secret-with-at-least-32-characters",
+        },
+      },
       wrangler: {
         configPath: "./apps/worker/wrangler.jsonc",
       },
@@ -12,6 +17,9 @@ export default defineConfig({
   test: {
     exclude: ["**/node_modules/**", "**/dist/**"],
     include: ["apps/**/*.integration.test.ts"],
+    provide: {
+      controlMigrations: await readD1Migrations("apps/worker/src/control/migrations"),
+    },
     testTimeout: 10_000,
   },
-});
+}));

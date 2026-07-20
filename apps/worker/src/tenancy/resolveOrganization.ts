@@ -27,7 +27,19 @@ export async function resolveOrganization(
   const cached = await env.ROUTING_CACHE.get(`host:${hostname}`, "json");
   const cachedRoute = organizationRouteSchema.safeParse(cached);
   if (cachedRoute.success) {
-    return success(cachedRoute.data);
+    const confirmedRow = await env.CONTROL_DB.prepare(
+      `SELECT organization_id AS organizationId, kind AS routeKind,
+        routing_version AS routingVersion
+       FROM organization_domains
+       WHERE hostname = ? AND organization_id = ? AND routing_version = ? AND status = 'active'
+       LIMIT 1`,
+    )
+      .bind(hostname, cachedRoute.data.organizationId, cachedRoute.data.routingVersion)
+      .first<OrganizationRoute>();
+    const confirmedRoute = organizationRouteSchema.safeParse(confirmedRow);
+    if (confirmedRoute.success) {
+      return success(confirmedRoute.data);
+    }
   }
 
   const row = await env.CONTROL_DB.prepare(

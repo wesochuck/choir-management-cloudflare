@@ -11,9 +11,12 @@ const startupConfigSchema = z.object({
   PRODUCT_BASE_DOMAIN: z.string().min(1).max(253),
 });
 
+const betterAuthSecretSchema = z.string().min(32).max(4096);
+
 export interface Env {
   readonly APP_ENV: string;
   readonly ASSETS: Fetcher;
+  readonly BETTER_AUTH_SECRET: string;
   readonly BUILD_VERSION: string;
   readonly CONTROL_DB: D1Database;
   readonly EXTERNAL_EFFECTS_MODE: string;
@@ -29,6 +32,7 @@ export interface Env {
 export type StartupConfig = z.infer<typeof startupConfigSchema>;
 
 export function validateStartupConfig(env: Env): StartupConfig {
+  betterAuthSecretSchema.parse(env.BETTER_AUTH_SECRET);
   return startupConfigSchema.parse({
     APP_ENV: env.APP_ENV,
     BUILD_VERSION: env.BUILD_VERSION,

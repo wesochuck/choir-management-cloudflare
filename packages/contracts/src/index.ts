@@ -20,6 +20,15 @@ export const healthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+export const organizationContextResponseSchema = z.object({
+  organizationId: organizationIdSchema,
+  requestId: requestIdSchema,
+  role: z.enum(["owner", "administrator", "member"]),
+  userId: z.string().min(1),
+});
+
+export type OrganizationContextResponse = z.infer<typeof organizationContextResponseSchema>;
+
 export const problemDetailsSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),

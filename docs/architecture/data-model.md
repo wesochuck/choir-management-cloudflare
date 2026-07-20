@@ -12,9 +12,14 @@ D1 contains only global entry and routing state:
 - Stripe connected-account and Organization communications routing metadata;
 - encrypted credential envelopes where dynamic Organization credentials are unavoidable.
 
-The initial forward migration establishes Organization, domain, membership, invitation, platform
-administration, audit, and integration-routing tables. Better Auth tables are added through a later
-forward expansion once its pinned adapter contract is implemented.
+The initial forward migration establishes the Organization/domain registry and platform control
+records. `0002_better_auth.sql` adds the schema generated from pinned Better Auth `1.6.23`,
+including native-D1 identity, session, hashed verification, Organization member/invitation,
+TOTP/recovery, rate-limit, and session-bound Platform Administrator MFA assertion tables. Better
+Auth shares the existing `organizations` registry; its `member` and `invitation` tables are
+authoritative for portal access. The unused foundation-only `organization_memberships` and
+`organization_invitations` tables remain non-authoritative until a rollback-safe contract migration
+removes or repurposes them.
 
 D1 must never contain roster, event, music, communication, payment, ticket, donation, or other
 Organization-operational rows.

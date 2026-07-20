@@ -1,5 +1,6 @@
 # Local-only defaults. Copy to apps/worker/.dev.vars and keep real values untracked.
 APP_ENV=local
+BETTER_AUTH_SECRET=replace-with-output-from-openssl-rand-base64-48
 PRODUCT_BASE_DOMAIN=localhost
 PLATFORM_EMAIL_MODE=capture
 EXTERNAL_EFFECTS_MODE=fake

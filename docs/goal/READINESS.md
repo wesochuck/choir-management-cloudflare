@@ -1,8 +1,9 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete and Milestone
-1 foundation is partially complete. Permanent staging foundation is healthy. Production is not
-launched.
+**Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
+is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity and
+tenant-boundary core is implemented locally. Permanent staging foundation is healthy. Production is
+not launched.
 
 ## Repository topology
 
@@ -41,9 +42,9 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `3cf3ba50-44f1-4f17-974e-63109fa5a46f`
+- Current verified Worker version: `e7b1c955-3d32-4cff-9d99-55bc2843a89a`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
-  `0001_initial.sql` applied
+  `0001_initial.sql` and `0002_better_auth.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
 - KV: `choir-management-routing-staging` (`9c7f20b2c8024b1b98d17a682c70cf97`)
@@ -57,20 +58,36 @@ Verified over public HTTPS on July 20, 2026:
 
 - `/api/health` returned HTTP 200 and a validated staging health payload.
 - `/api/ready` returned HTTP 200 after querying the migrated D1 binding.
+- `/api/auth/get-session` returned HTTP 200 with no session, proving the request-scoped Better Auth
+  handler can initialize against remote D1 and the stored Worker secret.
+- `/api/auth/sign-up/email` returned HTTP 404, proving public email/password registration remains
+  disabled in staging.
 - `/` returned the deployed Vite application shell.
 
 ## Completed foundation checks
 
 - `npm run check:parity`: 145 inventory entries validated.
-- `npm run typecheck`: passed across all six workspaces.
+- `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
-- `npm test`: 2 files / 5 tests passed.
-- `npm run test:integration`: 1 file / 2 workerd tests passed.
+- `npm test`: 3 files / 8 tests passed.
+- `npm run test:integration`: 2 files / 13 workerd tests passed.
 - `npm run test:e2e`: desktop and mobile Chromium smoke tests passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
-- `npm install` audit: zero known vulnerabilities.
+- `npm audit --audit-level=high`: zero known vulnerabilities.
 
-Run the full current gate again after the remaining documentation/CI changes and before syncing or
+The current identity proof uses Better Auth `1.6.23` directly against D1. It covers no public
+registration, invitation-created pending identities, hashed email OTP storage and sign-in, optional
+password support, session retrieval, TOTP/recovery-code enrollment, mandatory recent
+session-specific MFA for Platform Administrators, revoked Platform Administrator denial, stale
+invitation denial, client Organization-ID alteration, cross-membership denial, and D1 confirmation
+of poisoned KV route hints. Capture-mode platform email is bounded and in-memory; codes and recovery
+values are never logged or persisted by the capture adapter.
+
+The authentication handler is available on the exact product base hostname. Organization subdomains
+must also be registered as active canonical domains in D1; merely matching the product domain suffix
+is insufficient.
+
+Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
 
 ## Remaining secure or external prerequisites
@@ -107,9 +124,11 @@ These do not prevent local implementation of Milestones 0–4:
 
 ## Resume point
 
-1. Create the local seed commit, then authenticate GitHub and publish the private repository when
-   the secure interactive login is available.
+1. Preserve the verified local identity checkpoint, then authenticate GitHub and publish the private
+   repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 identity/control-plane/tenancy proof while provider credentials are pending.
+3. Continue Milestone 2 with Organization provisioning/profile linkage, scoped Platform
+   Administrator elevation/audit, session management UI, and the remaining cross-resource isolation
+   probes while provider credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

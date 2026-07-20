@@ -38,78 +38,84 @@ The initial repository scaffold owns these exact files. Each feature milestone m
 new files to this map before implementation and must verify every listed file before declaring the
 milestone complete.
 
-| Path                                                  | Responsibility                                                                       |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `AGENTS.md`                                           | Cloudflare-specific engineering rules plus carried-forward domain and frontend rules |
-| `CONTEXT.md`                                          | Copied and maintained ubiquitous language                                            |
-| `README.md`                                           | Local setup, environments, repository relationship, and common commands              |
-| `package.json`                                        | npm workspace scripts and shared quality gates                                       |
-| `package-lock.json`                                   | Single reproducible dependency graph promoted unchanged                              |
-| `tsconfig.base.json`                                  | Strict shared TypeScript configuration                                               |
-| `eslint.config.js`                                    | Type, React, Workers, and complexity safety rules                                    |
-| `prettier.config.mjs`                                 | Repository formatting policy                                                         |
-| `.dev.vars.example`                                   | Non-secret local configuration contract                                              |
-| `.github/workflows/ci.yml`                            | Static checks, unit/integration tests, parity validation, and build                  |
-| `.github/workflows/deploy-staging.yml`                | Automatic `main` deployment to permanent staging                                     |
-| `.github/workflows/deploy-production.yml`             | Approved same-commit promotion and smoke/rollback checks                             |
-| `apps/web/package.json`                               | React application package                                                            |
-| `apps/web/index.html`                                 | Vite application entry document                                                      |
-| `apps/web/vite.config.ts`                             | Frontend build and test configuration                                                |
-| `apps/web/src/main.tsx`                               | Browser bootstrap                                                                    |
-| `apps/web/src/App.tsx`                                | Route composition and top-level providers                                            |
-| `apps/web/src/styles/theme.css`                       | Semantic design tokens and light/dark themes                                         |
-| `apps/worker/package.json`                            | Worker application package                                                           |
-| `apps/worker/wrangler.jsonc`                          | Local bindings and named staging/production environments                             |
-| `apps/worker/src/index.ts`                            | Worker fetch, queue, scheduled, and workflow entry points                            |
-| `apps/worker/src/router.ts`                           | Typed HTTP route composition                                                         |
-| `apps/worker/src/env.ts`                              | Binding and secret types; startup validation                                         |
-| `apps/worker/src/organization/OrganizationStore.ts`   | Per-Organization SQLite Durable Object boundary                                      |
-| `apps/worker/src/organization/schema.ts`              | Operational schema and schema-version registry                                       |
-| `apps/worker/src/organization/migrations.ts`          | Ordered, forward-compatible Organization migrations                                  |
-| `apps/worker/src/control/schema.ts`                   | Control-plane D1 schema definitions                                                  |
-| `apps/worker/src/control/migrations/0001_initial.sql` | Initial control-plane schema                                                         |
-| `apps/worker/src/auth/config.ts`                      | Better Auth configuration and adapters                                               |
-| `apps/worker/src/tenancy/resolveOrganization.ts`      | Hostname-to-Organization resolution                                                  |
-| `apps/worker/src/tenancy/authorizeOrganization.ts`    | Membership and Platform Administrator authorization                                  |
-| `apps/worker/src/jobs/consumer.ts`                    | Queue dispatch, retries, and dead-letter behavior                                    |
-| `apps/worker/src/jobs/contracts.ts`                   | Versioned, Organization-scoped job payloads                                          |
-| `apps/worker/src/publication/publishOrganization.ts`  | Public projection generation and cache versioning                                    |
-| `packages/contracts/package.json`                     | Shared API contract package                                                          |
-| `packages/contracts/src/index.ts`                     | Public exports for schemas and DTOs                                                  |
-| `packages/domain/package.json`                        | Pure domain rules and calculations                                                   |
-| `packages/domain/src/index.ts`                        | Public domain exports                                                                |
-| `packages/ui/package.json`                            | Repository-owned Radix-based UI package                                              |
-| `packages/ui/src/index.ts`                            | Stable component exports                                                             |
-| `packages/testkit/package.json`                       | Factories, fixtures, and environment harnesses                                       |
-| `packages/testkit/src/index.ts`                       | Shared test utilities                                                                |
-| `docs/parity/feature-matrix.yaml`                     | Route, workflow, background-task, export, and visual parity ledger                   |
-| `docs/parity/csv-contracts/README.md`                 | Versioned CSV behavior and fixture index                                             |
-| `docs/parity/signed-link-behavior.md`                 | Purpose, authorization, expiry, and revocation contracts                             |
-| `docs/architecture/runtime.md`                        | Runtime boundaries and request flows                                                 |
-| `docs/architecture/data-model.md`                     | Control-plane and Organization schemas                                               |
-| `docs/architecture/environments.md`                   | Local, preview, staging, and production resources                                    |
-| `docs/runbooks/rollback.md`                           | Worker rollback and forward-compatible data response                                 |
-| `docs/runbooks/provider-failure.md`                   | Email, SMS, Stripe, queue, and webhook incident handling                             |
-| `tsconfig.json`                                       | Root project-service typing for repository configuration files                       |
-| `vitest.config.ts`                                    | Node unit-test discovery and defaults                                                |
-| `vitest.integration.config.ts`                        | Cloudflare workerd integration-test configuration                                    |
-| `playwright.config.ts`                                | Desktop/mobile browser-test projects and preview server                              |
-| `scripts/check-parity-matrix.mjs`                     | Standalone executable parity-ledger validation                                       |
-| `scripts/capture-baseline-screenshots.mjs`            | Development-only deterministic Parity Bridge screenshot capture                      |
-| `apps/web/tsconfig.json`                              | Strict browser/e2e TypeScript project                                                |
-| `apps/web/e2e/foundation.spec.ts`                     | Foundation desktop/mobile browser smoke coverage                                     |
-| `apps/worker/tsconfig.json`                           | Strict Worker and Cloudflare-test TypeScript project                                 |
-| `apps/worker/worker-configuration.d.ts`               | Wrangler-generated binding and module-export declarations                            |
-| `apps/worker/test/health.integration.test.ts`         | Workerd health, headers, and API fallback coverage                                   |
-| `apps/worker/src/workflows/ProvisioningWorkflow.ts`   | Resumable Organization-store provisioning entry point                                |
-| `packages/contracts/tsconfig.json`                    | Strict shared-contract TypeScript project                                            |
-| `packages/domain/tsconfig.json`                       | Strict pure-domain TypeScript project                                                |
-| `packages/domain/src/index.test.ts`                   | Foundation domain-result and performer-rule coverage                                 |
-| `packages/ui/tsconfig.json`                           | Strict repository-owned UI TypeScript project                                        |
-| `packages/testkit/tsconfig.json`                      | Strict deterministic fixture TypeScript project                                      |
-| `docs/parity/historical-plan-classification.md`       | Code/test-backed status of every legacy historical plan                              |
-| `docs/parity/fixtures/organizations.json`             | Deterministic two-Organization isolation seed                                        |
-| `docs/parity/screenshots/README.md`                   | Baseline screenshot provenance and regeneration contract                             |
+| Path                                                      | Responsibility                                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `AGENTS.md`                                               | Cloudflare-specific engineering rules plus carried-forward domain and frontend rules |
+| `CONTEXT.md`                                              | Copied and maintained ubiquitous language                                            |
+| `README.md`                                               | Local setup, environments, repository relationship, and common commands              |
+| `package.json`                                            | npm workspace scripts and shared quality gates                                       |
+| `package-lock.json`                                       | Single reproducible dependency graph promoted unchanged                              |
+| `tsconfig.base.json`                                      | Strict shared TypeScript configuration                                               |
+| `eslint.config.js`                                        | Type, React, Workers, and complexity safety rules                                    |
+| `prettier.config.mjs`                                     | Repository formatting policy                                                         |
+| `.dev.vars.example`                                       | Non-secret local configuration contract                                              |
+| `.github/workflows/ci.yml`                                | Static checks, unit/integration tests, parity validation, and build                  |
+| `.github/workflows/deploy-staging.yml`                    | Automatic `main` deployment to permanent staging                                     |
+| `.github/workflows/deploy-production.yml`                 | Approved same-commit promotion and smoke/rollback checks                             |
+| `apps/web/package.json`                                   | React application package                                                            |
+| `apps/web/index.html`                                     | Vite application entry document                                                      |
+| `apps/web/vite.config.ts`                                 | Frontend build and test configuration                                                |
+| `apps/web/src/main.tsx`                                   | Browser bootstrap                                                                    |
+| `apps/web/src/App.tsx`                                    | Route composition and top-level providers                                            |
+| `apps/web/src/styles/theme.css`                           | Semantic design tokens and light/dark themes                                         |
+| `apps/worker/package.json`                                | Worker application package                                                           |
+| `apps/worker/wrangler.jsonc`                              | Local bindings and named staging/production environments                             |
+| `apps/worker/src/index.ts`                                | Worker fetch, queue, scheduled, and workflow entry points                            |
+| `apps/worker/src/router.ts`                               | Typed HTTP route composition                                                         |
+| `apps/worker/src/env.ts`                                  | Binding and secret types; startup validation                                         |
+| `apps/worker/src/organization/OrganizationStore.ts`       | Per-Organization SQLite Durable Object boundary                                      |
+| `apps/worker/src/organization/schema.ts`                  | Operational schema and schema-version registry                                       |
+| `apps/worker/src/organization/migrations.ts`              | Ordered, forward-compatible Organization migrations                                  |
+| `apps/worker/src/control/schema.ts`                       | Control-plane D1 schema definitions                                                  |
+| `apps/worker/src/control/migrations/0001_initial.sql`     | Initial control-plane schema                                                         |
+| `apps/worker/src/auth/config.ts`                          | Better Auth configuration and adapters                                               |
+| `apps/worker/src/auth/platformEmail.ts`                   | Secret-safe transactional auth-email delivery and deterministic test capture         |
+| `apps/worker/src/auth/platformEmail.test.ts`              | Platform-email mode, capture, and secret-redaction tests                             |
+| `apps/worker/src/auth/platformAdministrator.ts`           | Mandatory-MFA Platform Administrator enrollment and recent-session assertions        |
+| `apps/worker/src/control/migrations/0002_better_auth.sql` | Forward-only native-D1 Better Auth and plugin schema                                 |
+| `apps/worker/src/tenancy/resolveOrganization.ts`          | Hostname-to-Organization resolution                                                  |
+| `apps/worker/src/tenancy/authorizeOrganization.ts`        | Membership and Platform Administrator authorization                                  |
+| `apps/worker/src/jobs/consumer.ts`                        | Queue dispatch, retries, and dead-letter behavior                                    |
+| `apps/worker/src/jobs/contracts.ts`                       | Versioned, Organization-scoped job payloads                                          |
+| `apps/worker/src/publication/publishOrganization.ts`      | Public projection generation and cache versioning                                    |
+| `packages/contracts/package.json`                         | Shared API contract package                                                          |
+| `packages/contracts/src/index.ts`                         | Public exports for schemas and DTOs                                                  |
+| `packages/domain/package.json`                            | Pure domain rules and calculations                                                   |
+| `packages/domain/src/index.ts`                            | Public domain exports                                                                |
+| `packages/ui/package.json`                                | Repository-owned Radix-based UI package                                              |
+| `packages/ui/src/index.ts`                                | Stable component exports                                                             |
+| `packages/testkit/package.json`                           | Factories, fixtures, and environment harnesses                                       |
+| `packages/testkit/src/index.ts`                           | Shared test utilities                                                                |
+| `docs/parity/feature-matrix.yaml`                         | Route, workflow, background-task, export, and visual parity ledger                   |
+| `docs/parity/csv-contracts/README.md`                     | Versioned CSV behavior and fixture index                                             |
+| `docs/parity/signed-link-behavior.md`                     | Purpose, authorization, expiry, and revocation contracts                             |
+| `docs/architecture/runtime.md`                            | Runtime boundaries and request flows                                                 |
+| `docs/architecture/data-model.md`                         | Control-plane and Organization schemas                                               |
+| `docs/architecture/environments.md`                       | Local, preview, staging, and production resources                                    |
+| `docs/runbooks/rollback.md`                               | Worker rollback and forward-compatible data response                                 |
+| `docs/runbooks/provider-failure.md`                       | Email, SMS, Stripe, queue, and webhook incident handling                             |
+| `tsconfig.json`                                           | Root project-service typing for repository configuration files                       |
+| `vitest.config.ts`                                        | Node unit-test discovery and defaults                                                |
+| `vitest.integration.config.ts`                            | Cloudflare workerd integration-test configuration                                    |
+| `playwright.config.ts`                                    | Desktop/mobile browser-test projects and preview server                              |
+| `scripts/check-parity-matrix.mjs`                         | Standalone executable parity-ledger validation                                       |
+| `scripts/capture-baseline-screenshots.mjs`                | Development-only deterministic Parity Bridge screenshot capture                      |
+| `apps/web/tsconfig.json`                                  | Strict browser/e2e TypeScript project                                                |
+| `apps/web/e2e/foundation.spec.ts`                         | Foundation desktop/mobile browser smoke coverage                                     |
+| `apps/worker/tsconfig.json`                               | Strict Worker and Cloudflare-test TypeScript project                                 |
+| `apps/worker/worker-configuration.d.ts`                   | Wrangler-generated binding and module-export declarations                            |
+| `apps/worker/test/health.integration.test.ts`             | Workerd health, headers, and API fallback coverage                                   |
+| `apps/worker/test/auth.integration.test.ts`               | Workerd invitation-only auth, OTP, session, and canonical-host coverage              |
+| `apps/worker/src/workflows/ProvisioningWorkflow.ts`       | Resumable Organization-store provisioning entry point                                |
+| `types/vitest.d.ts`                                       | Typed migration fixtures injected into Worker integration tests                      |
+| `packages/contracts/tsconfig.json`                        | Strict shared-contract TypeScript project                                            |
+| `packages/domain/tsconfig.json`                           | Strict pure-domain TypeScript project                                                |
+| `packages/domain/src/index.test.ts`                       | Foundation domain-result and performer-rule coverage                                 |
+| `packages/ui/tsconfig.json`                               | Strict repository-owned UI TypeScript project                                        |
+| `packages/testkit/tsconfig.json`                          | Strict deterministic fixture TypeScript project                                      |
+| `docs/parity/historical-plan-classification.md`           | Code/test-backed status of every legacy historical plan                              |
+| `docs/parity/fixtures/organizations.json`                 | Deterministic two-Organization isolation seed                                        |
+| `docs/parity/screenshots/README.md`                       | Baseline screenshot provenance and regeneration contract                             |
 
 ## Target Architecture
 
