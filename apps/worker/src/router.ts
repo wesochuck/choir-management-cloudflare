@@ -1,4 +1,6 @@
 import {
+  organizationMfaPolicyRequestSchema,
+  organizationMfaVerificationRequestSchema,
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
   type HealthResponse,
@@ -17,6 +19,7 @@ import {
   confirmPlatformAdministratorMfaEnrollment,
   recordPlatformMfaAssertion,
 } from "./auth/platformAdministrator";
+import { recordOrganizationMfaAssertion, setOrganizationMfaPolicy } from "./auth/organizationMfa";
 import {
   createPlatformElevation,
   getPlatformOrganizationContext,
@@ -59,6 +62,31 @@ async function resolveCanonicalOrganizationId(requestUrl: URL, env: Env): Promis
   return resolvedOrganization.ok && resolvedOrganization.value.routeKind === "canonical"
     ? resolvedOrganization.value.organizationId
     : null;
+}
+
+async function verifySecondFactor(
+  auth: ReturnType<typeof createAuth>,
+  headers: Headers,
+  verification:
+    | { readonly code: string; readonly method: "recovery_code" }
+    | { readonly code: string; readonly method: "totp" },
+): Promise<boolean> {
+  try {
+    if (verification.method === "totp") {
+      await auth.api.verifyTOTP({
+        body: { code: verification.code, trustDevice: false },
+        headers,
+      });
+    } else {
+      await auth.api.verifyBackupCode({
+        body: { code: verification.code, disableSession: true, trustDevice: false },
+        headers,
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 router.use("*", requestId());
@@ -185,7 +213,8 @@ router.get("/api/organization/context", async (context) => {
   const authorization = await authorizeOrganizationMember(
     context.env.CONTROL_DB,
     resolvedOrganization.value.organizationId,
-    session?.user.id ?? null,
+    session?.session.id,
+    session?.user.id,
   );
   if (!authorization.ok) {
     const problem: ProblemDetails = {
@@ -256,7 +285,8 @@ router.post("/api/organization/invitations", async (context) => {
   const authorization = await authorizeOrganizationMember(
     context.env.CONTROL_DB,
     resolvedOrganization.value.organizationId,
-    session?.user.id ?? null,
+    session?.session.id,
+    session?.user.id,
   );
   if (!authorization.ok) {
     return context.json(
@@ -326,6 +356,184 @@ router.post("/api/organization/invitations", async (context) => {
       409,
     );
   }
+});
+
+router.patch("/api/organization/auth-policy", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Organization authentication policy requires a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const parsedBody = organizationMfaPolicyRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!parsedBody.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Organization MFA policy is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  if (authorization.value.role !== "owner") {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "Only an Organization Owner may change the Organization MFA policy.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+
+  const updated = await setOrganizationMfaPolicy(context.env.CONTROL_DB, {
+    actorUserId: authorization.value.userId,
+    mfaRequired: parsedBody.data.mfaRequired,
+    organizationId,
+    requestId: context.get("requestId"),
+  });
+  if (!updated.ok) {
+    return context.json(
+      {
+        code: updated.error.code,
+        message: updated.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ mfaRequired: updated.value.mfaRequired, organizationId });
+});
+
+router.post("/api/organization/mfa/verify", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Organization MFA requires a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const parsedBody = organizationMfaVerificationRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!parsedBody.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Organization MFA code and method are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+    { enforceMfa: false },
+  );
+  if (!authorization.ok || !session) {
+    const code = authorization.ok ? "unauthorized" : authorization.error.code;
+    const message = authorization.ok ? "Sign in is required." : authorization.error.message;
+    return context.json(
+      { code, message, requestId: context.get("requestId") } satisfies ProblemDetails,
+      code === "unauthorized" ? 401 : 403,
+    );
+  }
+  if (!authorization.value.mfaRequired) {
+    return context.json(
+      {
+        code: "conflict",
+        message: "This Organization does not currently require MFA.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      409,
+    );
+  }
+
+  if (!(await verifySecondFactor(auth, context.req.raw.headers, parsedBody.data))) {
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Organization MFA verification failed.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      401,
+    );
+  }
+
+  const assertion = await recordOrganizationMfaAssertion(context.env.CONTROL_DB, {
+    method: parsedBody.data.method,
+    organizationId,
+    sessionId: session.session.id,
+    userId: authorization.value.userId,
+  });
+  if (!assertion.ok) {
+    return context.json(
+      {
+        code: assertion.error.code,
+        message: assertion.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      assertion.error.code === "conflict" ? 409 : 403,
+    );
+  }
+  return context.json({
+    expiresAt: new Date(assertion.value.expiresAt).toISOString(),
+    organizationId,
+    status: "verified" as const,
+  });
 });
 
 router.post("/api/platform/mfa/confirm-enrollment", async (context) => {

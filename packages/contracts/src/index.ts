@@ -29,6 +29,15 @@ export const organizationContextResponseSchema = z.object({
 
 export type OrganizationContextResponse = z.infer<typeof organizationContextResponseSchema>;
 
+export const organizationMfaPolicyRequestSchema = z.object({
+  mfaRequired: z.boolean(),
+});
+
+export const organizationMfaVerificationRequestSchema = z.discriminatedUnion("method", [
+  z.object({ code: z.string().regex(/^\d{6}$/), method: z.literal("totp") }),
+  z.object({ code: z.string().min(8).max(128), method: z.literal("recovery_code") }),
+]);
+
 export const organizationProvisionRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z

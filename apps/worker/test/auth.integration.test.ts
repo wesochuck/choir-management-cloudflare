@@ -523,6 +523,126 @@ describe("host-derived Organization authorization", () => {
     const context = organizationContextResponseSchema.parse(await contextResponse.json());
     expect(context.organizationId).toBe("organization-alpha");
   });
+
+  it("enforces optional MFA per Organization and per session", async () => {
+    await seedInvitedUser();
+    await seedOrganizations(true);
+    await testEnv.CONTROL_DB.prepare(
+      "UPDATE member SET role = 'owner' WHERE organizationId = ? AND userId = ?",
+    )
+      .bind("organization-alpha", "user-invited-member")
+      .run();
+    let sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+
+    const enableResponse = await fetchWorker(
+      authRequest(
+        "/api/auth/two-factor/enable",
+        {
+          body: JSON.stringify({}),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    const enrollment = enrollmentResponseSchema.parse(await enableResponse.json());
+    const enrollmentResponse = await fetchWorker(
+      authRequest(
+        "/api/auth/two-factor/verify-totp",
+        {
+          body: JSON.stringify({
+            code: await generateTotp(enrollment.totpURI),
+            trustDevice: false,
+          }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(enrollmentResponse.status).toBe(200);
+    sessionCookie = enrollmentResponse.headers.get("set-cookie")?.split(";", 1)[0] ?? sessionCookie;
+
+    const policyResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/auth-policy",
+        {
+          body: JSON.stringify({ mfaRequired: true }),
+          headers: { cookie: sessionCookie },
+          method: "PATCH",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(policyResponse.status).toBe(200);
+    await expect(policyResponse.json()).resolves.toMatchObject({
+      mfaRequired: true,
+      organizationId: "organization-alpha",
+    });
+
+    const beforeVerification = await fetchWorker(
+      new Request("http://alpha.localhost/api/organization/context", {
+        headers: { cookie: sessionCookie, origin: ALPHA_AUTH_ORIGIN },
+      }),
+    );
+    expect(beforeVerification.status).toBe(401);
+    await expect(beforeVerification.json()).resolves.toMatchObject({
+      message: "A recent Organization MFA verification is required.",
+    });
+
+    const verificationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/mfa/verify",
+        {
+          body: JSON.stringify({
+            code: await generateTotp(enrollment.totpURI),
+            method: "totp",
+          }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(verificationResponse.status).toBe(200);
+
+    const authorizedResponse = await fetchWorker(
+      new Request("http://alpha.localhost/api/organization/context", {
+        headers: { cookie: sessionCookie, origin: ALPHA_AUTH_ORIGIN },
+      }),
+    );
+    expect(authorizedResponse.status).toBe(200);
+
+    await testEnv.CONTROL_DB.prepare(
+      "UPDATE organizations SET mfa_required = 1 WHERE id = 'organization-bravo'",
+    ).run();
+    const otherOrganizationResponse = await fetchWorker(
+      new Request("http://bravo.localhost/api/organization/context", {
+        headers: { cookie: sessionCookie, origin: "http://bravo.localhost" },
+      }),
+    );
+    expect(otherOrganizationResponse.status).toBe(401);
+
+    const secondSessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const otherSessionResponse = await fetchWorker(
+      new Request("http://alpha.localhost/api/organization/context", {
+        headers: { cookie: secondSessionCookie, origin: ALPHA_AUTH_ORIGIN },
+      }),
+    );
+    expect(otherSessionResponse.status).toBe(401);
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT actor_user_id AS actorUserId, action
+         FROM platform_audit_events
+         WHERE organization_id = ? AND action = 'organization.auth_policy.updated'`,
+      )
+        .bind("organization-alpha")
+        .first(),
+    ).resolves.toEqual({
+      action: "organization.auth_policy.updated",
+      actorUserId: "user-invited-member",
+    });
+  });
 });
 
 describe("Platform Administrator MFA", () => {

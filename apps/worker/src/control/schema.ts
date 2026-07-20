@@ -5,6 +5,7 @@ export const controlPlaneTables = [
   "organizations",
   "organization_domains",
   "organization_memberships",
+  "organization_mfa_assertions",
   "organization_invitations",
   "platform_administrators",
   "platform_elevations",

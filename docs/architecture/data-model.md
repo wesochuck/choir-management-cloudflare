@@ -26,6 +26,10 @@ Membership-to-Profile link, and a session column plus active-scope indexes for b
 Administrator elevation. Existing rows remain valid; application authorization requires a
 session-bound elevation for edits, so a null-session row never grants access.
 
+`0004_organization_mfa.sql` adds an Owner-controlled policy flag and expiring assertions keyed by
+Better Auth session plus Organization. Email one-time-code sign-in establishes identity but cannot
+satisfy an Organization MFA policy; TOTP or a recovery code must create the scoped assertion.
+
 D1 must never contain roster, event, music, communication, payment, ticket, donation, or other
 Organization-operational rows.
 

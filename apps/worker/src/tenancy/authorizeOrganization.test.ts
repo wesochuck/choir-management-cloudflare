@@ -5,6 +5,7 @@ import { authorizeOrganization } from "./authorizeOrganization";
 describe("authorizeOrganization", () => {
   const membership = {
     active: true,
+    mfaRequired: false,
     organizationId: "organization-alpha",
     role: "administrator",
     userId: "user-1",

@@ -42,10 +42,9 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `554f29b2-443f-4ff0-b1c9-fed29a0e4681`
+- Current verified Worker version: `5e5a2378-90eb-4e0c-8b32-25976e2f136c`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
-  `0001_initial.sql`, `0002_better_auth.sql`, and `0003_provisioning.sql` applied; no migrations
-  pending
+  `0001_initial.sql` through `0004_organization_mfa.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
 - KV: `choir-management-routing-staging` (`9c7f20b2c8024b1b98d17a682c70cf97`)
@@ -67,6 +66,8 @@ Verified over public HTTPS on July 20, 2026:
   Organization provisioning smoke request created no D1 Organization row.
 - Organization-scoped Platform context/elevation routes rejected the global workers.dev base host,
   as required before a registered canonical Organization hostname exists.
+- Organization MFA policy/verification routes rejected the global workers.dev base host, and the
+  scoped assertion table was verified in remote D1 without creating an Organization.
 - `/` returned the deployed Vite application shell.
 
 ## Completed foundation checks
@@ -75,7 +76,7 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 3 files / 8 tests passed.
-- `npm run test:integration`: 2 files / 17 workerd tests passed.
+- `npm run test:integration`: 2 files / 18 workerd tests passed.
 - `npm run test:e2e`: desktop and mobile Chromium smoke tests passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
@@ -88,8 +89,10 @@ Administrators, revoked Platform Administrator denial, stale invitation denial, 
 Organization-ID alteration, cross-membership denial, and D1 confirmation of poisoned KV route hints.
 It also covers completed Organization provisioning Workflows and session-bound, Organization-scoped
 Platform edit elevation, cross-Organization denial, explicit revocation, and actor attribution.
-Capture-mode platform email is bounded and in-memory; codes and recovery values are never logged or
-persisted by the capture adapter.
+Optional Organization MFA is Owner-controlled and its 12-hour assertions are bound to the exact
+Organization, user, and session; email OTP alone does not satisfy it. Capture-mode platform email is
+bounded and in-memory; codes and recovery values are never logged or persisted by the capture
+adapter.
 
 The authentication handler is available on the exact product base hostname. Organization subdomains
 must also be registered as active canonical domains in D1; merely matching the product domain suffix
@@ -136,7 +139,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with optional Organization MFA policy, Profile linkage, custom-domain
-   registration, Platform/session management UI, and the remaining cross-resource isolation probes
-   while provider credentials are pending.
+3. Continue Milestone 2 with Profile linkage, custom-domain registration, Platform/session
+   management UI, and the remaining cross-resource isolation probes while provider credentials are
+   pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

@@ -3,6 +3,8 @@ import { failure, success, type DomainResult } from "@choir/domain";
 export type OrganizationRole = "administrator" | "member" | "owner";
 
 interface BetterAuthMemberRow {
+  readonly assertionExpiresAt: number | null;
+  readonly mfaRequired: number;
   readonly organizationId: string;
   readonly role: string;
   readonly userId: string;
@@ -10,6 +12,7 @@ interface BetterAuthMemberRow {
 
 export interface OrganizationAuthorizationContext {
   readonly active: boolean;
+  readonly mfaRequired: boolean;
   readonly organizationId: string;
   readonly role: OrganizationRole;
   readonly userId: string;
@@ -43,20 +46,29 @@ function normalizeBetterAuthRole(role: string): OrganizationRole | null {
 export async function authorizeOrganizationMember(
   database: D1Database,
   resolvedOrganizationId: string,
-  userId: string | null,
+  sessionId: string | null | undefined,
+  userId: string | null | undefined,
+  options: { readonly enforceMfa?: boolean; readonly now?: Date } = {},
 ): Promise<DomainResult<OrganizationAuthorizationContext>> {
-  if (!userId) {
+  if (!sessionId || !userId) {
     return failure("unauthorized", "Sign in is required.");
   }
 
   const row = await database
     .prepare(
-      `SELECT organizationId, role, userId
-       FROM member
-       WHERE organizationId = ? AND userId = ?
+      `SELECT m.organizationId, m.role, m.userId,
+        o.mfa_required AS mfaRequired,
+        oma.expires_at AS assertionExpiresAt
+       FROM member m
+       JOIN organizations o ON o.id = m.organizationId
+       LEFT JOIN organization_mfa_assertions oma
+         ON oma.organization_id = m.organizationId
+         AND oma.user_id = m.userId
+         AND oma.session_id = ?
+       WHERE m.organizationId = ? AND m.userId = ?
        LIMIT 1`,
     )
-    .bind(resolvedOrganizationId, userId)
+    .bind(sessionId, resolvedOrganizationId, userId)
     .first<BetterAuthMemberRow>();
   const role = row ? normalizeBetterAuthRole(row.role) : null;
   if (!row || !role) {
@@ -65,9 +77,18 @@ export async function authorizeOrganizationMember(
       "This identity is not an active member of the requested Organization.",
     );
   }
+  const mfaRequired = row.mfaRequired === 1;
+  if (
+    options.enforceMfa !== false &&
+    mfaRequired &&
+    (!row.assertionExpiresAt || row.assertionExpiresAt <= (options.now ?? new Date()).getTime())
+  ) {
+    return failure("unauthorized", "A recent Organization MFA verification is required.");
+  }
 
   return authorizeOrganization(resolvedOrganizationId, {
     active: true,
+    mfaRequired,
     organizationId: row.organizationId,
     role,
     userId: row.userId,
