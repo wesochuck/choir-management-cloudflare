@@ -1,0 +1,164 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "choir-management-cloudflare-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 1,
+    },
+  },
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "../web/dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "vars": {
+    "APP_ENV": "local",
+    "BUILD_VERSION": "development",
+    "EXTERNAL_EFFECTS_MODE": "fake",
+    "PLATFORM_EMAIL_MODE": "capture",
+    "PRODUCT_BASE_DOMAIN": "localhost",
+  },
+  "d1_databases": [
+    {
+      "binding": "CONTROL_DB",
+      "database_name": "choir-management-control-local",
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "src/control/migrations",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ORGANIZATION_STORE",
+        "class_name": "OrganizationStore",
+      },
+    ],
+  },
+  "exports": {
+    "OrganizationStore": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+  },
+  "kv_namespaces": [
+    {
+      "binding": "ROUTING_CACHE",
+      "id": "00000000000000000000000000000001",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ORGANIZATION_FILES",
+      "bucket_name": "choir-management-local",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "JOBS_QUEUE",
+        "queue": "choir-management-jobs-local",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "choir-management-jobs-local",
+        "dead_letter_queue": "choir-management-jobs-dlq-local",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+      },
+    ],
+  },
+  "workflows": [
+    {
+      "binding": "PROVISIONING_WORKFLOW",
+      "name": "choir-management-provisioning-local",
+      "class_name": "ProvisioningWorkflow",
+    },
+  ],
+  "env": {
+    "staging": {
+      "name": "choir-management-cloudflare-staging",
+      "d1_databases": [
+        {
+          "binding": "CONTROL_DB",
+          "database_name": "choir-management-control-staging",
+          "database_id": "9f543949-192f-49a7-aa59-7cf589b4a62f",
+          "migrations_dir": "src/control/migrations",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "ORGANIZATION_STORE",
+            "class_name": "OrganizationStore",
+          },
+        ],
+      },
+      "kv_namespaces": [
+        {
+          "binding": "ROUTING_CACHE",
+          "id": "9c7f20b2c8024b1b98d17a682c70cf97",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "ORGANIZATION_FILES",
+          "bucket_name": "choir-management-staging",
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "JOBS_QUEUE",
+            "queue": "choir-management-jobs-staging",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "choir-management-jobs-staging",
+            "dead_letter_queue": "choir-management-jobs-dlq-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 5,
+          },
+        ],
+      },
+      "workflows": [
+        {
+          "binding": "PROVISIONING_WORKFLOW",
+          "name": "choir-management-provisioning-staging",
+          "class_name": "ProvisioningWorkflow",
+        },
+      ],
+      "vars": {
+        "APP_ENV": "staging",
+        "BUILD_VERSION": "staging",
+        "EXTERNAL_EFFECTS_MODE": "fake",
+        "PLATFORM_EMAIL_MODE": "capture",
+        "PRODUCT_BASE_DOMAIN": "choir-management-cloudflare-staging.wes-osborn-account.workers.dev",
+      },
+    },
+    "production": {
+      "name": "choir-management-cloudflare-production-inert",
+      "workers_dev": false,
+      "vars": {
+        "APP_ENV": "production",
+        "BUILD_VERSION": "unreleased",
+        "EXTERNAL_EFFECTS_MODE": "disabled",
+        "PLATFORM_EMAIL_MODE": "disabled",
+        "PRODUCT_BASE_DOMAIN": "invalid.example",
+      },
+    },
+  },
+}

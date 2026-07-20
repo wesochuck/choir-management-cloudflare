@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "organizations": [
+    {
+      "id": "organization-alpha",
+      "name": "Example Chorale",
+      "slug": "example-chorale",
+      "canonicalHost": "example-chorale.staging.example.invalid"
+    },
+    {
+      "id": "organization-bravo",
+      "name": "Second Chorus",
+      "slug": "second-chorus",
+      "canonicalHost": "second-chorus.staging.example.invalid"
+    }
+  ],
+  "notes": [
+    "Reserved .invalid hostnames keep this fixture incapable of routing public traffic.",
+    "Use both Organizations in every adversarial tenant-isolation suite."
+  ]
+}

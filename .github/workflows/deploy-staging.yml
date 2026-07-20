@@ -1,0 +1,60 @@
+name: Deploy staging
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: permanent-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - name: Check out the CI-qualified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install reproducible dependencies
+        run: npm ci
+
+      - name: Build once
+        run: npm run build
+
+      - name: Apply forward-only control-plane migrations
+        run: >-
+          npm run wrangler -- d1 migrations apply CONTROL_DB --config apps/worker/wrangler.jsonc
+          --env staging --remote
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Deploy the CI-qualified commit
+        run: >-
+          npm run wrangler -- deploy --config apps/worker/wrangler.jsonc --env staging --var
+          BUILD_VERSION:${{ github.event.workflow_run.head_sha }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Record staging provenance
+        run: |
+          echo "Commit: ${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Lockfile: $(sha256sum package-lock.json | cut -d ' ' -f 1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "URL: https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev" >> "$GITHUB_STEP_SUMMARY"

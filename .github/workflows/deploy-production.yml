@@ -1,0 +1,67 @@
+name: Promote qualified commit to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact permanent-staging-qualified commit SHA
+        required: true
+        type: string
+      confirmation:
+        description: Type DEPLOY PRODUCTION after separate production approval
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: ${{ inputs.confirmation == 'DEPLOY PRODUCTION' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Check out the approved commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install exact lockfile
+        run: npm ci
+
+      - name: Verify immutable release identity
+        run: test "$(git rev-parse HEAD)" = "${{ inputs.release_sha }}"
+
+      - name: Refuse the inert production placeholder
+        run: >-
+          ! grep -q 'invalid.example' apps/worker/wrangler.jsonc
+
+      - name: Build approved commit
+        run: npm run build
+
+      - name: Apply forward-only production expansion
+        run: >-
+          npm run wrangler -- d1 migrations apply CONTROL_DB --config apps/worker/wrangler.jsonc
+          --env production --remote
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Deploy approved commit
+        run: >-
+          npm run wrangler -- deploy --config apps/worker/wrangler.jsonc --env production --var
+          BUILD_VERSION:${{ inputs.release_sha }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

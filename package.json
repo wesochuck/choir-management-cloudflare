@@ -1,0 +1,54 @@
+{
+  "name": "choir-management-cloudflare",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "audit": "npm audit --audit-level=high",
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build",
+    "check:parity": "node scripts/check-parity-matrix.mjs",
+    "deploy:staging": "npm run build && WRANGLER_LOG_PATH=.wrangler/logs wrangler deploy --config apps/worker/wrangler.jsonc --env staging",
+    "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run --config vitest.config.ts",
+    "test:e2e": "playwright test --config playwright.config.ts",
+    "test:integration": "npm run build -w @choir/web && WRANGLER_LOG_PATH=.wrangler/logs vitest run --config vitest.integration.config.ts",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "wrangler": "WRANGLER_LOG_PATH=.wrangler/logs wrangler"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.6",
+    "@cloudflare/workers-types": "5.20260719.1",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.61.1",
+    "@types/node": "26.1.1",
+    "eslint": "10.7.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.3",
+    "globals": "17.7.0",
+    "prettier": "3.9.5",
+    "typescript": "6.0.2",
+    "typescript-eslint": "8.65.0",
+    "@vitest/coverage-v8": "4.1.10",
+    "vitest": "4.1.10",
+    "wrangler": "4.112.0",
+    "yaml": "2.9.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "sharp@0.34.5": true,
+    "workerd@1.20260714.1": true,
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true
+  }
+}
