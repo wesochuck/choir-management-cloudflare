@@ -29,6 +29,49 @@ export const organizationContextResponseSchema = z.object({
 
 export type OrganizationContextResponse = z.infer<typeof organizationContextResponseSchema>;
 
+export const organizationProvisionRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(2)
+    .max(63)
+    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/),
+});
+
+export type OrganizationProvisionRequest = z.infer<typeof organizationProvisionRequestSchema>;
+
+export const organizationProvisionResponseSchema = z.object({
+  canonicalHostname: z.string().min(1).max(253),
+  canonicalStatus: z.enum(["active", "pending"]),
+  lifecycleState: z.literal("provisioning"),
+  organizationId: z.uuid(),
+  requestId: requestIdSchema,
+  workflowId: z.string().min(1).max(128),
+});
+
+export type OrganizationProvisionResponse = z.infer<typeof organizationProvisionResponseSchema>;
+
+export const platformElevationRequestSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+export type PlatformElevationRequest = z.infer<typeof platformElevationRequestSchema>;
+
+export const platformOrganizationContextResponseSchema = z.object({
+  canEdit: z.boolean(),
+  elevationExpiresAt: z.iso.datetime().nullable(),
+  elevationId: z.uuid().nullable(),
+  organizationId: organizationIdSchema,
+  requestId: requestIdSchema,
+  userId: z.string().min(1),
+});
+
+export type PlatformOrganizationContextResponse = z.infer<
+  typeof platformOrganizationContextResponseSchema
+>;
+
 export const problemDetailsSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),

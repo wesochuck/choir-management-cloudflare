@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { ProvisioningParams } from "./workflows/ProvisioningWorkflow";
+
 export const appEnvironmentSchema = z.enum(["local", "preview", "staging", "production"]);
 export type AppEnvironment = z.infer<typeof appEnvironmentSchema>;
 
@@ -25,7 +27,7 @@ export interface Env {
   readonly ORGANIZATION_STORE: DurableObjectNamespace;
   readonly PLATFORM_EMAIL_MODE: string;
   readonly PRODUCT_BASE_DOMAIN: string;
-  readonly PROVISIONING_WORKFLOW: Workflow;
+  readonly PROVISIONING_WORKFLOW: Workflow<ProvisioningParams>;
   readonly ROUTING_CACHE: KVNamespace;
 }
 

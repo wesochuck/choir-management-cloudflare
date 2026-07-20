@@ -1,9 +1,9 @@
 # Goal Readiness and Operating State
 
 **Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
-is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity and
-tenant-boundary core is implemented locally. Permanent staging foundation is healthy. Production is
-not launched.
+is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
+tenant-boundary, provisioning, and scoped-elevation core is deployed to permanent staging.
+Production is not launched.
 
 ## Repository topology
 
@@ -42,9 +42,10 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `e7b1c955-3d32-4cff-9d99-55bc2843a89a`
+- Current verified Worker version: `554f29b2-443f-4ff0-b1c9-fed29a0e4681`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
-  `0001_initial.sql` and `0002_better_auth.sql` applied; no migrations pending
+  `0001_initial.sql`, `0002_better_auth.sql`, and `0003_provisioning.sql` applied; no migrations
+  pending
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
 - KV: `choir-management-routing-staging` (`9c7f20b2c8024b1b98d17a682c70cf97`)
@@ -62,6 +63,10 @@ Verified over public HTTPS on July 20, 2026:
   handler can initialize against remote D1 and the stored Worker secret.
 - `/api/auth/sign-up/email` returned HTTP 404, proving public email/password registration remains
   disabled in staging.
+- Anonymous `/api/platform/context` and `/api/platform/organizations` requests were denied. The
+  Organization provisioning smoke request created no D1 Organization row.
+- Organization-scoped Platform context/elevation routes rejected the global workers.dev base host,
+  as required before a registered canonical Organization hostname exists.
 - `/` returned the deployed Vite application shell.
 
 ## Completed foundation checks
@@ -70,18 +75,21 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 3 files / 8 tests passed.
-- `npm run test:integration`: 2 files / 13 workerd tests passed.
+- `npm run test:integration`: 2 files / 17 workerd tests passed.
 - `npm run test:e2e`: desktop and mobile Chromium smoke tests passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
 The current identity proof uses Better Auth `1.6.23` directly against D1. It covers no public
 registration, invitation-created pending identities, hashed email OTP storage and sign-in, optional
-password support, session retrieval, TOTP/recovery-code enrollment, mandatory recent
-session-specific MFA for Platform Administrators, revoked Platform Administrator denial, stale
-invitation denial, client Organization-ID alteration, cross-membership denial, and D1 confirmation
-of poisoned KV route hints. Capture-mode platform email is bounded and in-memory; codes and recovery
-values are never logged or persisted by the capture adapter.
+password support, session retrieval/listing/revocation, multi-Organization selection without tenant
+selection, TOTP/recovery-code enrollment, mandatory recent session-specific MFA for Platform
+Administrators, revoked Platform Administrator denial, stale invitation denial, client
+Organization-ID alteration, cross-membership denial, and D1 confirmation of poisoned KV route hints.
+It also covers completed Organization provisioning Workflows and session-bound, Organization-scoped
+Platform edit elevation, cross-Organization denial, explicit revocation, and actor attribution.
+Capture-mode platform email is bounded and in-memory; codes and recovery values are never logged or
+persisted by the capture adapter.
 
 The authentication handler is available on the exact product base hostname. Organization subdomains
 must also be registered as active canonical domains in D1; merely matching the product domain suffix
@@ -128,7 +136,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with Organization provisioning/profile linkage, scoped Platform
-   Administrator elevation/audit, session management UI, and the remaining cross-resource isolation
-   probes while provider credentials are pending.
+3. Continue Milestone 2 with optional Organization MFA policy, Profile linkage, custom-domain
+   registration, Platform/session management UI, and the remaining cross-resource isolation probes
+   while provider credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

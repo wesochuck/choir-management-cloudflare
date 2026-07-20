@@ -1,4 +1,12 @@
-import type { HealthResponse, OrganizationContextResponse, ProblemDetails } from "@choir/contracts";
+import {
+  organizationProvisionRequestSchema,
+  platformElevationRequestSchema,
+  type HealthResponse,
+  type OrganizationContextResponse,
+  type OrganizationProvisionResponse,
+  type PlatformOrganizationContextResponse,
+  type ProblemDetails,
+} from "@choir/contracts";
 import { Hono } from "hono";
 import { requestId } from "hono/request-id";
 import { z } from "zod";
@@ -9,6 +17,15 @@ import {
   confirmPlatformAdministratorMfaEnrollment,
   recordPlatformMfaAssertion,
 } from "./auth/platformAdministrator";
+import {
+  createPlatformElevation,
+  getPlatformOrganizationContext,
+  revokePlatformElevation,
+} from "./auth/platformElevation";
+import {
+  beginOrganizationProvisioning,
+  OrganizationProvisioningError,
+} from "./control/provisionOrganization";
 import type { Env } from "./env";
 import { validateStartupConfig } from "./env";
 import { authorizeOrganizationMember } from "./tenancy/authorizeOrganization";
@@ -22,6 +39,27 @@ interface WorkerHonoEnvironment {
 }
 
 export const router = new Hono<WorkerHonoEnvironment>();
+
+async function isAuthorizedPlatformHostname(requestUrl: URL, env: Env): Promise<boolean> {
+  if (isProductBaseHost(requestUrl.hostname, env.PRODUCT_BASE_DOMAIN)) {
+    return true;
+  }
+  if (!isCanonicalAuthHost(requestUrl.hostname, env.PRODUCT_BASE_DOMAIN)) {
+    return false;
+  }
+  const resolvedOrganization = await resolveOrganization(requestUrl, env);
+  return resolvedOrganization.ok && resolvedOrganization.value.routeKind === "canonical";
+}
+
+async function resolveCanonicalOrganizationId(requestUrl: URL, env: Env): Promise<string | null> {
+  if (!isCanonicalAuthHost(requestUrl.hostname, env.PRODUCT_BASE_DOMAIN)) {
+    return null;
+  }
+  const resolvedOrganization = await resolveOrganization(requestUrl, env);
+  return resolvedOrganization.ok && resolvedOrganization.value.routeKind === "canonical"
+    ? resolvedOrganization.value.organizationId
+    : null;
+}
 
 router.use("*", requestId());
 router.use("*", async (context, next) => {
@@ -291,9 +329,9 @@ router.post("/api/organization/invitations", async (context) => {
 });
 
 router.post("/api/platform/mfa/confirm-enrollment", async (context) => {
-  const config = validateStartupConfig(context.env);
+  validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
-  if (!isCanonicalAuthHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
     return context.json(
       {
         code: "not_found",
@@ -334,9 +372,9 @@ const platformMfaVerificationSchema = z.discriminatedUnion("method", [
 ]);
 
 router.post("/api/platform/mfa/verify", async (context) => {
-  const config = validateStartupConfig(context.env);
+  validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
-  if (!isCanonicalAuthHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
     return context.json(
       {
         code: "not_found",
@@ -440,9 +478,9 @@ router.post("/api/platform/mfa/verify", async (context) => {
 });
 
 router.get("/api/platform/context", async (context) => {
-  const config = validateStartupConfig(context.env);
+  validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
-  if (!isCanonicalAuthHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
     return context.json(
       {
         code: "not_found",
@@ -480,6 +518,258 @@ router.get("/api/platform/context", async (context) => {
     mfaVerifiedUntil: new Date(authorization.value.mfaVerifiedUntil).toISOString(),
     userId: authorization.value.userId,
   });
+});
+
+router.post("/api/platform/organizations", async (context) => {
+  const config = validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Organization provisioning is available only on the product base hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+
+  const parsedBody = organizationProvisionRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!parsedBody.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Organization name and unique hostname slug are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+
+  try {
+    const started = await beginOrganizationProvisioning(context.env, {
+      ...parsedBody.data,
+      actorUserId: authorization.value.userId,
+      requestId: context.get("requestId"),
+    });
+    const response: OrganizationProvisionResponse = {
+      ...started,
+      lifecycleState: "provisioning",
+      requestId: context.get("requestId"),
+    };
+    return context.json(response, 202);
+  } catch (error: unknown) {
+    const workflowDispatchFailed =
+      error instanceof OrganizationProvisioningError && error.phase === "workflow";
+    return context.json(
+      {
+        code: workflowDispatchFailed ? "service_unavailable" : "conflict",
+        message: workflowDispatchFailed
+          ? "The Organization registry was created, but provisioning could not be dispatched."
+          : "The Organization name or hostname slug is already in use.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      workflowDispatchFailed ? 503 : 409,
+    );
+  }
+});
+
+router.get("/api/platform/organization-context", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Platform Organization access requires a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok || !session) {
+    const code = authorization.ok ? "unauthorized" : authorization.error.code;
+    const message = authorization.ok ? "Sign in is required." : authorization.error.message;
+    return context.json(
+      { code, message, requestId: context.get("requestId") } satisfies ProblemDetails,
+      code === "unauthorized" ? 401 : 403,
+    );
+  }
+
+  const platformContext = await getPlatformOrganizationContext(
+    context.env.CONTROL_DB,
+    organizationId,
+    session.session.id,
+    authorization.value.userId,
+  );
+  const response: PlatformOrganizationContextResponse = {
+    ...platformContext,
+    requestId: context.get("requestId"),
+  };
+  return context.json(response);
+});
+
+router.post("/api/platform/elevations", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Platform edit elevation requires a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok || !session) {
+    const code = authorization.ok ? "unauthorized" : authorization.error.code;
+    const message = authorization.ok ? "Sign in is required." : authorization.error.message;
+    return context.json(
+      { code, message, requestId: context.get("requestId") } satisfies ProblemDetails,
+      code === "unauthorized" ? 401 : 403,
+    );
+  }
+
+  const parsedBody = platformElevationRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!parsedBody.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A concise reason is required before enabling Platform Administrator edits.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const platformContext = await createPlatformElevation(context.env.CONTROL_DB, {
+    actorUserId: authorization.value.userId,
+    organizationId,
+    reason: parsedBody.data.reason,
+    requestId: context.get("requestId"),
+    sessionId: session.session.id,
+  });
+  const response: PlatformOrganizationContextResponse = {
+    ...platformContext,
+    requestId: context.get("requestId"),
+  };
+  return context.json(response, 201);
+});
+
+router.delete("/api/platform/elevations/:elevationId", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  const elevationId = z.uuid().safeParse(context.req.param("elevationId"));
+  if (!organizationId || !elevationId.success) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "The scoped Platform Administrator elevation was not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok || !session) {
+    const code = authorization.ok ? "unauthorized" : authorization.error.code;
+    const message = authorization.ok ? "Sign in is required." : authorization.error.message;
+    return context.json(
+      { code, message, requestId: context.get("requestId") } satisfies ProblemDetails,
+      code === "unauthorized" ? 401 : 403,
+    );
+  }
+
+  const revoked = await revokePlatformElevation(context.env.CONTROL_DB, {
+    actorUserId: authorization.value.userId,
+    elevationId: elevationId.data,
+    organizationId,
+    requestId: context.get("requestId"),
+    sessionId: session.session.id,
+  });
+  if (!revoked.ok) {
+    return context.json(
+      {
+        code: revoked.error.code,
+        message: revoked.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ elevationId: revoked.value.elevationId, status: "revoked" as const });
 });
 
 router.notFound((context) => {

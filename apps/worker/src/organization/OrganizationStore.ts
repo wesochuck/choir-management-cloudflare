@@ -4,11 +4,94 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { deliveryJobSchema } from "../jobs/contracts";
 import { migrateOrganization } from "./migrations";
+import { currentOrganizationSchemaVersion } from "./schema";
 
 const completionSchema = z.object({
   completedAt: z.iso.datetime(),
   idempotencyKey: z.string().min(1).max(256),
 });
+
+const organizationProvisioningSchema = z.object({
+  actorUserId: z.string().min(1).max(128),
+  canonicalHostname: z.string().min(1).max(253),
+  canonicalStatus: z.enum(["active", "pending"]),
+  name: z.string().min(1).max(120),
+  organizationId: z.string().min(1).max(128),
+  requestId: z.uuid(),
+  slug: z.string().min(2).max(63),
+});
+
+interface OrganizationMetadataRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly name: string;
+  readonly organizationId: string;
+  readonly slug: string;
+}
+
+async function provisionOrganizationStore(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = organizationProvisioningSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_provisioning_request" }, { status: 400 });
+  }
+  const existing = storage.sql
+    .exec<OrganizationMetadataRow>(
+      `SELECT organization_id AS organizationId, name, slug
+       FROM organization_metadata
+       LIMIT 1`,
+    )
+    .toArray()
+    .at(0);
+  if (
+    existing &&
+    (existing.organizationId !== parsed.data.organizationId ||
+      existing.name !== parsed.data.name ||
+      existing.slug !== parsed.data.slug)
+  ) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT INTO organization_metadata
+        (organization_id, name, slug, lifecycle_state, created_at, updated_at)
+       VALUES (?, ?, ?, 'active', ?, ?)
+       ON CONFLICT(organization_id) DO UPDATE SET
+         lifecycle_state = 'active', updated_at = excluded.updated_at`,
+      parsed.data.organizationId,
+      parsed.data.name,
+      parsed.data.slug,
+      occurredAt,
+      occurredAt,
+    );
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'platform_administrator', ?, 'organization.provisioned',
+         'organization', ?, ?, ?, ?)`,
+      `organization-provisioned:${parsed.data.requestId}`,
+      parsed.data.actorUserId,
+      parsed.data.organizationId,
+      parsed.data.requestId,
+      JSON.stringify({
+        canonicalHostname: parsed.data.canonicalHostname,
+        canonicalStatus: parsed.data.canonicalStatus,
+        name: parsed.data.name,
+        slug: parsed.data.slug,
+      }),
+      occurredAt,
+    );
+  });
+  return Response.json({
+    organizationId: parsed.data.organizationId,
+    schemaVersion: currentOrganizationSchemaVersion,
+    status: "active",
+  });
+}
 
 export class OrganizationStore extends DurableObject<Env> {
   constructor(state: DurableObjectState, env: Env) {
@@ -21,6 +104,10 @@ export class OrganizationStore extends DurableObject<Env> {
 
     if (request.method === "GET" && url.pathname === "/internal/health") {
       return Response.json({ status: "ok" });
+    }
+
+    if (request.method === "POST" && url.pathname === "/internal/provision") {
+      return provisionOrganizationStore(this.ctx.storage, request);
     }
 
     if (request.method === "POST" && url.pathname === "/internal/jobs/claim") {

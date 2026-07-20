@@ -1,8 +1,13 @@
-import { organizationContextResponseSchema } from "@choir/contracts";
+import {
+  organizationContextResponseSchema,
+  organizationProvisionResponseSchema,
+  platformOrganizationContextResponseSchema,
+} from "@choir/contracts";
 import { env } from "cloudflare:workers";
 import {
   applyD1Migrations,
   createExecutionContext,
+  introspectWorkflow,
   reset,
   waitOnExecutionContext,
 } from "cloudflare:test";
@@ -212,6 +217,45 @@ async function signInInvitedUser(origin = BASE_AUTH_ORIGIN): Promise<string> {
   return signInEmail(INVITED_EMAIL, origin);
 }
 
+async function grantPlatformAdministratorForCurrentSession(): Promise<string> {
+  const session = await testEnv.CONTROL_DB.prepare(
+    "SELECT id FROM session WHERE userId = ? ORDER BY createdAt DESC LIMIT 1",
+  )
+    .bind("user-invited-member")
+    .first<{ id: string }>();
+  if (!session) {
+    throw new Error("The Platform Administrator test session was not created.");
+  }
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  await testEnv.CONTROL_DB.batch([
+    testEnv.CONTROL_DB.prepare(
+      "UPDATE user SET twoFactorEnabled = 1, updatedAt = ? WHERE id = ?",
+    ).bind(now, "user-invited-member"),
+    testEnv.CONTROL_DB.prepare(
+      `INSERT INTO twoFactor
+        (id, secret, backupCodes, userId, verified, failedVerificationCount, lockedUntil)
+       VALUES (?, ?, ?, ?, 1, 0, NULL)`,
+    ).bind(
+      crypto.randomUUID(),
+      "integration-test-encrypted-secret",
+      "integration-test-encrypted-backup-codes",
+      "user-invited-member",
+    ),
+    testEnv.CONTROL_DB.prepare(
+      `INSERT INTO platform_administrators
+        (user_id, granted_by, granted_at, mfa_enrolled_at, recovery_codes_confirmed_at)
+       VALUES (?, 'bootstrap', ?, ?, ?)`,
+    ).bind("user-invited-member", nowIso, nowIso, nowIso),
+    testEnv.CONTROL_DB.prepare(
+      `INSERT INTO platform_mfa_assertions
+        (session_id, user_id, method, verified_at, expires_at)
+       VALUES (?, ?, 'totp', ?, ?)`,
+    ).bind(session.id, "user-invited-member", now, now + 15 * 60 * 1000),
+  ]);
+  return session.id;
+}
+
 beforeEach(async () => {
   await applyD1Migrations(testEnv.CONTROL_DB, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
@@ -322,6 +366,53 @@ describe("Better Auth Worker integration", () => {
       testEnv.CONTROL_DB.prepare("SELECT COUNT(*) AS count FROM user").first(),
     ).resolves.toEqual({ count: 0 });
   });
+
+  it("lists and revokes the user's own active sessions", async () => {
+    await seedInvitedUser();
+    const firstSessionCookie = await signInInvitedUser();
+    const secondSessionCookie = await signInInvitedUser();
+    const sessionRows = await testEnv.CONTROL_DB.prepare(
+      "SELECT token FROM session WHERE userId = ?",
+    )
+      .bind("user-invited-member")
+      .all<{ token: string }>();
+    const secondSessionToken = sessionRows.results.find((row) =>
+      decodeURIComponent(secondSessionCookie).includes(row.token),
+    )?.token;
+    expect(secondSessionToken).toBeDefined();
+
+    const listResponse = await fetchWorker(
+      authRequest("/api/auth/list-sessions", {
+        headers: { cookie: firstSessionCookie },
+      }),
+    );
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toHaveLength(2);
+
+    const revokeResponse = await fetchWorker(
+      authRequest("/api/auth/revoke-session", {
+        body: JSON.stringify({ token: secondSessionToken }),
+        headers: { cookie: firstSessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(revokeResponse.status).toBe(200);
+
+    const revokedSessionResponse = await fetchWorker(
+      authRequest("/api/auth/get-session", {
+        headers: { cookie: secondSessionCookie },
+      }),
+    );
+    await expect(revokedSessionResponse.json()).resolves.toBeNull();
+    const retainedSessionResponse = await fetchWorker(
+      authRequest("/api/auth/get-session", {
+        headers: { cookie: firstSessionCookie },
+      }),
+    );
+    await expect(retainedSessionResponse.json()).resolves.toMatchObject({
+      user: { id: "user-invited-member" },
+    });
+  });
 });
 
 describe("host-derived Organization authorization", () => {
@@ -389,6 +480,48 @@ describe("host-derived Organization authorization", () => {
 
     expect(response.status).toBe(200);
     expect(organizationContextResponseSchema.parse(body).organizationId).toBe("organization-alpha");
+  });
+
+  it("supports multi-Organization selection without allowing it to select tenant storage", async () => {
+    await seedInvitedUser();
+    await seedOrganizations(true);
+    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+
+    const listResponse = await fetchWorker(
+      authRequest(
+        "/api/auth/organization/list",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(listResponse.status).toBe(200);
+    const organizations = z
+      .array(z.object({ id: z.string(), slug: z.string() }))
+      .parse(await listResponse.json());
+    expect(new Set(organizations.map((organization) => organization.slug))).toEqual(
+      new Set(["alpha", "bravo"]),
+    );
+
+    const selectResponse = await fetchWorker(
+      authRequest(
+        "/api/auth/organization/set-active",
+        {
+          body: JSON.stringify({ organizationId: "organization-bravo" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(selectResponse.status).toBe(200);
+
+    const contextResponse = await fetchWorker(
+      new Request("http://alpha.localhost/api/organization/context", {
+        headers: { cookie: sessionCookie, origin: ALPHA_AUTH_ORIGIN },
+      }),
+    );
+    const context = organizationContextResponseSchema.parse(await contextResponse.json());
+    expect(context.organizationId).toBe("organization-alpha");
   });
 });
 
@@ -488,6 +621,171 @@ describe("Platform Administrator MFA", () => {
       authRequest("/api/platform/context", { headers: { cookie: sessionCookie } }),
     );
     expect(revokedResponse.status).toBe(403);
+  });
+
+  it("bounds edit elevation to one Organization and supports explicit revocation", async () => {
+    await seedInvitedUser();
+    await seedOrganizations(true);
+    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    await grantPlatformAdministratorForCurrentSession();
+
+    const initialResponse = await fetchWorker(
+      authRequest(
+        "/api/platform/organization-context",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    const initialContext = platformOrganizationContextResponseSchema.parse(
+      await initialResponse.json(),
+    );
+    expect(initialContext).toMatchObject({
+      canEdit: false,
+      organizationId: "organization-alpha",
+      userId: "user-invited-member",
+    });
+
+    const elevationResponse = await fetchWorker(
+      authRequest(
+        "/api/platform/elevations",
+        {
+          body: JSON.stringify({ reason: "Verify scoped Organization maintenance" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(elevationResponse.status).toBe(201);
+    const elevatedContext = platformOrganizationContextResponseSchema.parse(
+      await elevationResponse.json(),
+    );
+    expect(elevatedContext.canEdit).toBe(true);
+
+    const bravoResponse = await fetchWorker(
+      authRequest(
+        "/api/platform/organization-context",
+        { headers: { cookie: sessionCookie } },
+        "http://bravo.localhost",
+      ),
+    );
+    const bravoContext = platformOrganizationContextResponseSchema.parse(
+      await bravoResponse.json(),
+    );
+    expect(bravoContext).toMatchObject({
+      canEdit: false,
+      organizationId: "organization-bravo",
+    });
+
+    const revokeResponse = await fetchWorker(
+      authRequest(
+        `/api/platform/elevations/${elevatedContext.elevationId ?? "missing"}`,
+        { headers: { cookie: sessionCookie }, method: "DELETE" },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(revokeResponse.status).toBe(200);
+
+    const revokedResponse = await fetchWorker(
+      authRequest(
+        "/api/platform/organization-context",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    await expect(revokedResponse.json()).resolves.toMatchObject({ canEdit: false });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT action, actor_user_id AS actorUserId, organization_id AS organizationId
+         FROM platform_audit_events
+         WHERE target_id = ?
+         ORDER BY occurred_at`,
+      )
+        .bind(elevatedContext.elevationId)
+        .all(),
+    ).resolves.toMatchObject({
+      results: [
+        {
+          action: "platform.elevation.created",
+          actorUserId: "user-invited-member",
+          organizationId: "organization-alpha",
+        },
+        {
+          action: "platform.elevation.revoked",
+          actorUserId: "user-invited-member",
+          organizationId: "organization-alpha",
+        },
+      ],
+    });
+  });
+
+  it("starts audited Organization provisioning from the exact product base host", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+    await grantPlatformAdministratorForCurrentSession();
+    const workflowIntrospector = await introspectWorkflow(testEnv.PROVISIONING_WORKFLOW);
+    try {
+      const response = await fetchWorker(
+        authRequest("/api/platform/organizations", {
+          body: JSON.stringify({ name: "Organization Charlie", slug: "charlie" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(202);
+      const provisioning = organizationProvisionResponseSchema.parse(await response.json());
+      expect(provisioning).toMatchObject({
+        canonicalHostname: "charlie.localhost",
+        canonicalStatus: "active",
+        lifecycleState: "provisioning",
+      });
+
+      const workflowInstances = await workflowIntrospector.get();
+      expect(workflowInstances).toHaveLength(1);
+      await workflowInstances[0]?.waitForStatus("complete");
+
+      await expect(
+        testEnv.CONTROL_DB.prepare(
+          `SELECT name, slug, lifecycle_state AS lifecycleState,
+            provisioning_workflow_id AS workflowId
+           FROM organizations WHERE id = ?`,
+        )
+          .bind(provisioning.organizationId)
+          .first(),
+      ).resolves.toEqual({
+        lifecycleState: "active",
+        name: "Organization Charlie",
+        slug: "charlie",
+        workflowId: provisioning.workflowId,
+      });
+      await expect(
+        testEnv.CONTROL_DB.prepare(
+          `SELECT action, actor_user_id AS actorUserId
+           FROM platform_audit_events
+           WHERE organization_id = ? AND action = 'organization.provisioning.requested'`,
+        )
+          .bind(provisioning.organizationId)
+          .first(),
+      ).resolves.toEqual({
+        action: "organization.provisioning.requested",
+        actorUserId: "user-invited-member",
+      });
+
+      const wrongHostResponse = await fetchWorker(
+        authRequest(
+          "/api/platform/organizations",
+          {
+            body: JSON.stringify({ name: "Wrong Host", slug: "wrong-host" }),
+            headers: { cookie: sessionCookie },
+            method: "POST",
+          },
+          "http://charlie.localhost",
+        ),
+      );
+      expect(wrongHostResponse.status).toBe(404);
+    } finally {
+      await workflowIntrospector.dispose();
+    }
   });
 });
 

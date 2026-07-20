@@ -21,6 +21,11 @@ authoritative for portal access. The unused foundation-only `organization_member
 `organization_invitations` tables remain non-authoritative until a rollback-safe contract migration
 removes or repurposes them.
 
+`0003_provisioning.sql` adds Organization provisioning/Workflow metadata, a nullable Better Auth
+Membership-to-Profile link, and a session column plus active-scope indexes for bounded Platform
+Administrator elevation. Existing rows remain valid; application authorization requires a
+session-bound elevation for edits, so a null-session row never grants access.
+
 D1 must never contain roster, event, music, communication, payment, ticket, donation, or other
 Organization-operational rows.
 
