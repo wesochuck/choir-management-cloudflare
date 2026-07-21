@@ -46,5 +46,8 @@ Organization Export. They do not bypass repository authorization or schema-versi
 
 The deployed foundation exposes `/api/health` and `/api/ready`, serves the Vite shell through
 Workers static assets, has real isolated staging bindings, and keeps external effects in
-fake/capture mode. Domain routes remain tracked as planned or partial in
-`docs/parity/feature-matrix.yaml`.
+fake/capture mode. Provisioned Organization stores schedule their own alarm, create at most one
+stable cleanup job per due interval in a bounded SQLite outbox, and re-enqueue the same job identity
+when delivery acknowledgment is uncertain. The consumer's per-Organization idempotency ledger
+prevents another logical effect. Domain-specific cleanup behavior remains partial until its parity
+wave; all status remains tracked in `docs/parity/feature-matrix.yaml`.

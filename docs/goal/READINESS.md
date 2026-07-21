@@ -44,7 +44,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `72cc9dee-5875-43ed-a093-a87b03d51464`
+- Current verified Worker version: `b97291dc-daef-4500-9920-dc0085e9a4a3`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -130,6 +130,12 @@ Verified over public HTTPS on July 20–21, 2026:
   public-host rejection, per-Organization R2 prefixes, metadata/R2 agreement, and actor-attributed
   upload audit. Cross-Organization file IDs and deliberately poisoned metadata keys fail closed
   without returning the other Organization's bytes.
+- After the Organization-scheduler deployment, health and readiness returned HTTP 200 and remote D1
+  remained Organization-empty. No live alarm was manufactured because staging has no provisioned
+  Organization store. Organization schema version 5 will add its stable scheduled-job outbox lazily
+  on first store access. Workerd alarm tests prove provisioning schedules the alarm, one due
+  interval creates a bounded stable job, and an uncertain enqueue acknowledgment resends the same
+  job ID and Organization-scoped idempotency key instead of creating another logical job.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -142,7 +148,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
-- `npm run test:integration`: 5 files / 33 workerd tests passed.
+- `npm run test:integration`: 6 files / 34 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -186,6 +192,14 @@ event; failed finalization removes both the new object and its pending reservati
 the R2 key from the authoritative hostname Organization plus file ID, require ready metadata in that
 exact Organization store, and verify stored size and R2 Organization/file metadata before streaming.
 Custom public hosts and client-supplied Organization IDs cannot select private storage.
+
+Each provisioned Organization store now owns a daily alarm and a bounded ten-job SQLite outbox. A
+due alarm transactionally creates one stable stale-checkout-cleanup envelope and advances the next
+due time before enqueueing; it never calls a provider inside the transaction. Queue failure leaves
+the row pending and schedules a one-minute retry. A crash after enqueue but before marking the row
+replays the same job ID/idempotency key, which the owning Organization's consumer ledger
+deduplicates. The actual stale-checkout domain behavior remains intentionally partial until the
+ticketing parity wave.
 
 Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
 inside the hostname-resolved Organization Durable Object. The linkage is unique within that

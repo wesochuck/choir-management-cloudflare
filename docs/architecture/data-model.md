@@ -49,9 +49,10 @@ table needed for control-plane linkage; full roster fields and behavior remain o
 parity wave. Version 3 adds nullable failed-attempt timing to the job ledger so a later Cloudflare
 delivery can safely reclaim retryable work. Version 4 adds private-file metadata and pending/ready
 state; bytes remain in Organization-prefixed R2 while authorization metadata and upload audit stay
-inside the owning Organization store. Feature milestones expand this schema with typed repositories.
-Contract or removal migrations occur only after old and new Worker versions are both safe throughout
-the rollback window.
+inside the owning Organization store. Version 5 adds a stable scheduled-job outbox; enqueue
+uncertainty can resend the same job ID/idempotency key without creating a second logical effect.
+Feature milestones expand this schema with typed repositories. Contract or removal migrations occur
+only after old and new Worker versions are both safe throughout the rollback window.
 
 ## R2 and KV
 

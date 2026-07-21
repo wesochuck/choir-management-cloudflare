@@ -77,6 +77,7 @@ milestone complete.
 | `apps/worker/src/organization/OrganizationStore.ts`            | Per-Organization SQLite Durable Object boundary                                      |
 | `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                       |
 | `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                  |
+| `apps/worker/src/organization/scheduler.ts`                    | Per-Organization alarm and stable queue outbox orchestration                         |
 | `apps/worker/src/control/schema.ts`                            | Control-plane D1 schema definitions                                                  |
 | `apps/worker/src/control/migrations/0001_initial.sql`          | Initial control-plane schema                                                         |
 | `apps/worker/src/auth/config.ts`                               | Better Auth configuration and adapters                                               |
@@ -133,6 +134,7 @@ milestone complete.
 | `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                            |
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
+| `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `types/vitest.d.ts`                                            | Typed migration fixtures injected into Worker integration tests                      |
 | `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                            |

@@ -10,6 +10,7 @@ import {
   privateOrganizationFileKey,
 } from "../storage/privateFiles";
 import { migrateOrganization } from "./migrations";
+import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { currentOrganizationSchemaVersion } from "./schema";
 
 const completionSchema = z.object({
@@ -142,6 +143,7 @@ async function provisionOrganizationStore(
       occurredAt,
     );
   });
+  await ensureOrganizationAlarm(storage);
   return Response.json({
     organizationId: parsed.data.organizationId,
     schemaVersion: currentOrganizationSchemaVersion,
@@ -409,5 +411,9 @@ export class OrganizationStore extends DurableObject<Env> {
     }
 
     return Response.json({ code: "not_found" }, { status: 404 });
+  }
+
+  override async alarm(): Promise<void> {
+    await runOrganizationAlarm(this.ctx.storage, this.env.JOBS_QUEUE);
   }
 }

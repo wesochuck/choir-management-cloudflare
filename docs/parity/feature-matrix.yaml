@@ -597,7 +597,8 @@
         "milestone": 3,
         "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1494",
-        "targetEvidence": ["apps/worker/src/jobs/consumer.ts"],
+        "targetEvidence":
+          ["apps/worker/src/jobs/consumer.ts", "apps/worker/test/jobs.integration.test.ts"],
       },
       {
         "id": "api.queue-settings",
@@ -953,9 +954,13 @@
         "task": "cleanup-stale-payments",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/cleanupTask.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/test/scheduler.integration.test.ts",
+          ],
       },
     ],
   "csvContracts":

@@ -74,6 +74,21 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
   },
+  {
+    version: 5,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS scheduled_job_outbox (
+        job_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        due_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        enqueued_at TEXT
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_scheduled_job_outbox_pending
+       ON scheduled_job_outbox(enqueued_at, due_at)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
