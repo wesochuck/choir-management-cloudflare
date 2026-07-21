@@ -18,6 +18,9 @@
   --color-primary-strong: #0c2b44;
   --color-accent: #d56d4a;
   --color-border: #d8d0c3;
+  --color-danger: #a53b36;
+  --color-danger-surface: #fff0ed;
+  --color-info-surface: #eef6f8;
   --color-success: #297a63;
   --color-shadow: rgb(23 63 95 / 14%);
   --radius-card: 1.25rem;
@@ -35,6 +38,9 @@
     --color-primary-strong: #ffddb5;
     --color-accent: #f08a67;
     --color-border: #355264;
+    --color-danger: #ffaaa2;
+    --color-danger-surface: #452b2d;
+    --color-info-surface: #1b3c49;
     --color-success: #75d1b4;
     --color-shadow: rgb(0 0 0 / 30%);
   }
@@ -67,6 +73,17 @@ a:focus-visible {
   outline-offset: 0.25rem;
 }
 
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 0.2rem solid var(--color-accent);
+  outline-offset: 0.18rem;
+}
+
 .app-shell {
   min-height: 100vh;
 }
@@ -84,6 +101,19 @@ footer {
   justify-content: space-between;
   gap: 1rem;
   min-height: 5rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.header-actions nav a {
+  font-size: 0.9rem;
+  font-weight: 750;
+  text-decoration-thickness: 0.12rem;
+  text-underline-offset: 0.25rem;
 }
 
 .brand {
@@ -193,8 +223,15 @@ h2 {
   padding: 0.75rem 1.1rem;
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-control);
+  cursor: pointer;
   font-weight: 750;
   text-decoration: none;
+}
+
+.button:disabled,
+.text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .button--primary {
@@ -204,6 +241,13 @@ h2 {
 
 .button--secondary {
   background: transparent;
+  color: var(--color-primary);
+}
+
+.button--danger {
+  border-color: var(--color-danger);
+  background: transparent;
+  color: var(--color-danger);
 }
 
 .hero__art {
@@ -257,6 +301,210 @@ h2 {
 .foundation {
   padding-block: 5rem 8rem;
   border-top: 1px solid var(--color-border);
+}
+
+.auth-layout,
+.account-layout {
+  display: grid;
+  min-height: calc(100vh - 10rem);
+  padding-block: clamp(3rem, 8vw, 7rem);
+}
+
+.auth-layout {
+  place-items: start center;
+}
+
+.auth-card {
+  width: min(100%, 35rem);
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-raised);
+  box-shadow: 0 1.5rem 4rem var(--color-shadow);
+}
+
+.auth-card h1,
+.account-heading h1 {
+  max-width: none;
+  font-size: clamp(2.5rem, 7vw, 4.5rem);
+}
+
+.auth-card__intro,
+.auth-card__help,
+.account-heading p,
+.section-description,
+.account-list p {
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.auth-card__intro {
+  margin: 1.25rem 0 2rem;
+  font-size: 1.05rem;
+}
+
+.auth-card__help {
+  margin: 2rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+.form-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.field label {
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.field input {
+  min-height: 3.25rem;
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 0.1rem;
+  text-underline-offset: 0.2rem;
+}
+
+.notice {
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  line-height: 1.5;
+}
+
+.notice p {
+  margin-top: 0;
+}
+
+.notice--error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-surface);
+  color: var(--color-danger);
+}
+
+.notice--info {
+  background: var(--color-info-surface);
+}
+
+.account-layout {
+  align-content: start;
+}
+
+.account-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.account-heading p:last-child {
+  margin-bottom: 0;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.account-section {
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.section-heading--compact h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.section-description {
+  margin: 1rem 0 1.5rem;
+}
+
+.account-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.account-list h3,
+.account-list p {
+  margin: 0;
+}
+
+.account-list h3 {
+  font-size: 1rem;
+}
+
+.account-list p {
+  margin-top: 0.25rem;
+  font-size: 0.84rem;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.empty-state {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+  line-height: 1.6;
 }
 
 .section-heading {
@@ -318,6 +566,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .account-grid {
+    grid-template-columns: 1fr;
+  }
+
   .module-card {
     min-height: auto;
   }
@@ -331,6 +583,11 @@ footer {
     padding-block: 1rem;
   }
 
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   h1 {
     font-size: clamp(3rem, 16vw, 4.6rem);
   }
@@ -338,6 +595,17 @@ footer {
   .hero__actions,
   .button {
     width: 100%;
+  }
+
+  .account-heading,
+  .account-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .form-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

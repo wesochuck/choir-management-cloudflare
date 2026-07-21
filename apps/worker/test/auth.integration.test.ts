@@ -1,4 +1,5 @@
 import {
+  accountOrganizationsResponseSchema,
   organizationContextResponseSchema,
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
@@ -415,6 +416,53 @@ describe("Better Auth Worker integration", () => {
     await expect(retainedSessionResponse.json()).resolves.toMatchObject({
       user: { id: "user-invited-member" },
     });
+  });
+
+  it("lists only the signed-in user's Organizations from a canonical product host", async () => {
+    await seedInvitedUser();
+    await seedOrganizations(true);
+    const sessionCookie = await signInInvitedUser();
+
+    const anonymousResponse = await fetchWorker(
+      authRequest("/api/account/organizations?organizationId=organization-bravo"),
+    );
+    expect(anonymousResponse.status).toBe(401);
+
+    const response = await fetchWorker(
+      authRequest("/api/account/organizations?organizationId=organization-no-access", {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(accountOrganizationsResponseSchema.parse(await response.json()).organizations).toEqual([
+      {
+        canonicalHostname: "alpha.localhost",
+        canonicalStatus: "active",
+        lifecycleState: "active",
+        name: "Organization Alpha",
+        organizationId: "organization-alpha",
+        profileId: null,
+        role: "administrator",
+        slug: "alpha",
+      },
+      {
+        canonicalHostname: "bravo.localhost",
+        canonicalStatus: "active",
+        lifecycleState: "active",
+        name: "Organization Bravo",
+        organizationId: "organization-bravo",
+        profileId: null,
+        role: "member",
+        slug: "bravo",
+      },
+    ]);
+
+    const publicHostResponse = await fetchWorker(
+      new Request("https://public.example.test/api/account/organizations", {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    expect(publicHostResponse.status).toBe(404);
   });
 });
 

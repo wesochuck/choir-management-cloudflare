@@ -29,6 +29,59 @@ export const organizationContextResponseSchema = z.object({
 
 export type OrganizationContextResponse = z.infer<typeof organizationContextResponseSchema>;
 
+export const accountOrganizationSchema = z.object({
+  canonicalHostname: z.string().min(1).max(253),
+  canonicalStatus: z.enum(["active", "disabled", "pending"]),
+  lifecycleState: z.enum(["active", "provisioning", "suspended"]),
+  name: z.string().min(1).max(120),
+  organizationId: organizationIdSchema,
+  profileId: z.uuid().nullable(),
+  role: z.enum(["owner", "administrator", "member"]),
+  slug: z.string().min(1).max(63),
+});
+
+export const accountOrganizationsResponseSchema = z.object({
+  organizations: z.array(accountOrganizationSchema),
+});
+
+export type AccountOrganization = z.infer<typeof accountOrganizationSchema>;
+export type AccountOrganizationsResponse = z.infer<typeof accountOrganizationsResponseSchema>;
+
+const authDateSchema = z.union([z.string().min(1), z.number()]);
+
+export const authUserSchema = z.object({
+  createdAt: authDateSchema,
+  email: z.email(),
+  emailVerified: z.boolean(),
+  id: z.string().min(1),
+  image: z.string().nullable().optional(),
+  name: z.string(),
+  twoFactorEnabled: z.boolean().optional(),
+  updatedAt: authDateSchema,
+});
+
+export const authSessionSchema = z.object({
+  activeOrganizationId: z.string().nullable().optional(),
+  createdAt: authDateSchema,
+  expiresAt: authDateSchema,
+  id: z.string().min(1),
+  ipAddress: z.string().nullable().optional(),
+  token: z.string().min(1),
+  updatedAt: authDateSchema,
+  userAgent: z.string().nullable().optional(),
+  userId: z.string().min(1),
+});
+
+export const currentAuthSessionSchema = z
+  .object({ session: authSessionSchema, user: authUserSchema })
+  .nullable();
+
+export const authSessionListSchema = z.array(authSessionSchema);
+
+export type AuthSession = z.infer<typeof authSessionSchema>;
+export type AuthUser = z.infer<typeof authUserSchema>;
+export type CurrentAuthSession = z.infer<typeof currentAuthSessionSchema>;
+
 export const organizationMfaPolicyRequestSchema = z.object({
   mfaRequired: z.boolean(),
 });

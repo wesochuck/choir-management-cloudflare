@@ -2,8 +2,8 @@
 
 **Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
-tenant-boundary, provisioning, scoped-elevation, and Public Website Domain registration core is
-deployed to permanent staging. Production is not launched.
+tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
+OTP/session-management core is deployed to permanent staging. Production is not launched.
 
 ## Repository topology
 
@@ -42,7 +42,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `79559921-2881-40dd-bdab-3b7fbab5851d`
+- Current verified Worker version: `07fa7787-995d-4312-80c8-3cf17a0c582e`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -73,6 +73,11 @@ Verified over public HTTPS on July 20, 2026:
 - Public Website Domain registration rejected the global workers.dev base host because no canonical
   Organization hostname was present. Remote D1 still contained zero Organizations, and no D1
   migrations were pending after the deployment.
+- `/login` returned the deployed invitation-only OTP interface. Anonymous session retrieval returned
+  HTTP 200 with `null`, while `/api/account/organizations` returned HTTP 401 without a session.
+- Remote D1 contained zero users and zero Organizations after the account-shell smoke checks. The
+  live login page was visually inspected at desktop width; desktop and mobile authenticated flows
+  are covered with deterministic browser fakes because staging email remains capture-only.
 - `/` returned the deployed Vite application shell.
 
 ## Completed foundation checks
@@ -81,8 +86,9 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 3 files / 8 tests passed.
-- `npm run test:integration`: 2 files / 20 workerd tests passed.
-- `npm run test:e2e`: desktop and mobile Chromium smoke tests passed.
+- `npm run test:integration`: 2 files / 21 workerd tests passed.
+- `npm run test:e2e`: 4 desktop/mobile Chromium foundation and authenticated-account journeys
+  passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
@@ -109,6 +115,13 @@ product namespace, and cross-Organization duplicates. Disabling a domain increme
 version, records the actor, and removes its KV hint. A custom public hostname never exposes auth or
 Organization administration routes. Domain activation remains intentionally absent until a managed
 Cloudflare zone enables validated custom-hostname lifecycle work.
+
+The deployed browser shell now provides non-enumerating invitation-only email-code sign-in, safe
+session listing/revocation, sign-out, and a D1 membership-derived Organization chooser. Client
+Organization IDs cannot influence this list, Better Auth session tokens are never rendered or
+persisted by the page, and account routes are unavailable on custom public hosts. `workers.dev`
+sessions intentionally remain host-only; cross-subdomain cookies must not be enabled until a managed
+product domain is selected and explicitly reviewed.
 
 The authentication handler is available on the exact product base hostname. Organization subdomains
 must also be registered as active canonical domains in D1; merely matching the product domain suffix
@@ -155,6 +168,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with Platform/session management UI, validated custom-domain activation, and
-   the remaining cross-resource isolation probes while provider credentials are pending.
+3. Continue Milestone 2 with Platform Administrator enrollment/elevation UI, user-managed password
+   UI, validated custom-domain activation, and the remaining cross-resource isolation probes while
+   provider credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

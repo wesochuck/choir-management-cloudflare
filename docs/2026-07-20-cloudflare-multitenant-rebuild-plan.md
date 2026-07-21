@@ -57,6 +57,9 @@ milestone complete.
 | `apps/web/vite.config.ts`                                      | Frontend build and test configuration                                                |
 | `apps/web/src/main.tsx`                                        | Browser bootstrap                                                                    |
 | `apps/web/src/App.tsx`                                         | Route composition and top-level providers                                            |
+| `apps/web/src/auth/api.ts`                                     | Same-origin typed browser client for identity, sessions, and Organization choices    |
+| `apps/web/src/auth/SignInView.tsx`                             | Invitation-only email one-time-code sign-in flow                                     |
+| `apps/web/src/account/AccountView.tsx`                         | Signed-in identity, Organization chooser, and session-revocation surface             |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
 | `apps/worker/wrangler.jsonc`                                   | Local bindings and named staging/production environments                             |
@@ -74,6 +77,7 @@ milestone complete.
 | `apps/worker/src/auth/platformAdministrator.ts`                | Mandatory-MFA Platform Administrator enrollment and recent-session assertions        |
 | `apps/worker/src/auth/platformElevation.ts`                    | Time-bounded, session-bound Platform Administrator Organization edit elevation       |
 | `apps/worker/src/auth/organizationMfa.ts`                      | Optional Organization policy and Organization/session-bound MFA assertions           |
+| `apps/worker/src/auth/accountOrganizations.ts`                 | Membership-scoped account Organization summaries for the authenticated shell         |
 | `apps/worker/src/control/migrations/0002_better_auth.sql`      | Forward-only native-D1 Better Auth and plugin schema                                 |
 | `apps/worker/src/control/migrations/0003_provisioning.sql`     | Provisioning state, membership-to-Profile linkage, and elevation lookup indexes      |
 | `apps/worker/src/control/migrations/0004_organization_mfa.sql` | Optional Organization MFA policy and scoped assertion storage                        |
@@ -110,6 +114,7 @@ milestone complete.
 | `scripts/capture-baseline-screenshots.mjs`                     | Development-only deterministic Parity Bridge screenshot capture                      |
 | `apps/web/tsconfig.json`                                       | Strict browser/e2e TypeScript project                                                |
 | `apps/web/e2e/foundation.spec.ts`                              | Foundation desktop/mobile browser smoke coverage                                     |
+| `apps/web/e2e/auth.spec.ts`                                    | OTP, account, Organization-choice, and session-management browser coverage           |
 | `apps/worker/tsconfig.json`                                    | Strict Worker and Cloudflare-test TypeScript project                                 |
 | `apps/worker/worker-configuration.d.ts`                        | Wrangler-generated binding and module-export declarations                            |
 | `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                   |

@@ -16,6 +16,7 @@ import { requestId } from "hono/request-id";
 import { z } from "zod";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
+import { listAccountOrganizations } from "./auth/accountOrganizations";
 import {
   authorizePlatformAdministratorSession,
   confirmPlatformAdministratorMfaEnrollment,
@@ -176,6 +177,44 @@ router.on(["GET", "POST"], "/api/auth/*", async (context) => {
     },
   });
   return auth.handler(context.req.raw);
+});
+
+router.get("/api/account/organizations", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Account management requires a canonical product hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Sign in is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      401,
+    );
+  }
+
+  return context.json({
+    organizations: await listAccountOrganizations(context.env.CONTROL_DB, session.user.id),
+  });
 });
 
 router.get("/api/organization/context", async (context) => {
