@@ -59,6 +59,7 @@ const calendarCredentialRequestSchema = z.discriminatedUnion("action", [
 const calendarFeedValidationSchema = z.object({
   organizationId: z.string().min(1).max(128),
   profileId: z.uuid(),
+  readAt: z.iso.datetime(),
   revocationVersion: z.number().int().positive(),
 });
 
@@ -83,6 +84,24 @@ interface CalendarProfileRow {
   readonly [column: string]: SqlStorageValue;
   readonly calendarFeedVersion: number;
   readonly displayName: string;
+}
+
+interface CalendarEventRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly callTime: string;
+  readonly details: string;
+  readonly directRsvp: string | null;
+  readonly durationMinutes: number | null;
+  readonly id: string;
+  readonly location: string;
+  readonly parentRsvp: string | null;
+  readonly setListApproved: number;
+  readonly setListJson: string;
+  readonly startsAt: string;
+  readonly title: string;
+  readonly type: "Performance" | "Rehearsal";
+  readonly venueAddress: string;
+  readonly venueName: string;
 }
 
 interface JobLedgerRow {
@@ -390,11 +409,74 @@ async function validateCalendarFeed(
   if (profile?.calendarFeedVersion !== parsed.data.revocationVersion) {
     return Response.json({ code: "calendar_feed_not_found" }, { status: 404 });
   }
+  const readAt = new Date(parsed.data.readAt);
+  const earliest = new Date(readAt.getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString();
+  const latest = new Date(readAt.getTime() + 365 * 24 * 60 * 60 * 1_000).toISOString();
+  const rows = storage.sql
+    .exec<CalendarEventRow>(
+      `SELECT e.id, e.title, e.type, e.starts_at AS startsAt,
+         e.duration_minutes AS durationMinutes, e.call_time AS callTime,
+         e.location, e.details, e.set_list_json AS setListJson,
+         e.set_list_approved AS setListApproved,
+         COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
+         direct.rsvp AS directRsvp, parent.rsvp AS parentRsvp
+       FROM events e
+       LEFT JOIN venues v ON v.id = e.venue_id
+       LEFT JOIN event_rosters direct
+         ON direct.event_id = e.id AND direct.profile_id = ?
+       LEFT JOIN event_rosters parent
+         ON parent.event_id = e.parent_performance_id AND parent.profile_id = ?
+       WHERE e.is_archived = 0 AND e.starts_at >= ? AND e.starts_at <= ?
+       ORDER BY e.starts_at ASC, e.id ASC
+       LIMIT 500`,
+      parsed.data.profileId,
+      parsed.data.profileId,
+      earliest,
+      latest,
+    )
+    .toArray();
+  const events = rows.flatMap((event) => {
+    let resolvedRsvp = event.directRsvp ?? "Pending";
+    if (
+      event.type === "Rehearsal" &&
+      resolvedRsvp === "Pending" &&
+      event.parentRsvp !== null &&
+      event.parentRsvp !== "Pending"
+    ) {
+      resolvedRsvp = event.parentRsvp;
+    }
+    if (resolvedRsvp !== "Yes" && resolvedRsvp !== "Pending") return [];
+    return [
+      {
+        callTime: event.callTime,
+        details: event.details,
+        durationMinutes: event.durationMinutes,
+        id: event.id,
+        location: event.location,
+        resolvedRsvp,
+        setListApproved: event.setListApproved === 1,
+        setListJson: event.setListJson,
+        startsAt: event.startsAt,
+        title: event.title,
+        type: event.type,
+        venueAddress: event.venueAddress,
+        venueName: event.venueName,
+      },
+    ];
+  });
   return Response.json({
     calendarFeedVersion: profile.calendarFeedVersion,
+    events,
     organizationName: organization.name,
     profileId: parsed.data.profileId,
     profileName: profile.displayName,
+    timezone:
+      storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+          "SELECT timezone FROM organization_metadata LIMIT 1",
+        )
+        .toArray()
+        .at(0)?.timezone ?? "UTC",
   });
 }
 

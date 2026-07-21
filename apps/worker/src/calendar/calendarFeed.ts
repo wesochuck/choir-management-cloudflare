@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
+import { renderCalendarIcs } from "./calendarIcs";
 
 const CALENDAR_FEED_LIFETIME_SECONDS = 10 * 365 * 24 * 60 * 60;
 
@@ -13,9 +14,27 @@ const calendarCredentialResponseSchema = z.object({
 
 const calendarFeedResponseSchema = z.object({
   calendarFeedVersion: z.number().int().positive(),
+  events: z.array(
+    z.object({
+      callTime: z.string().max(5_000),
+      details: z.string().max(100_000),
+      durationMinutes: z.number().int().positive().nullable(),
+      id: z.string().min(1).max(128),
+      location: z.string().max(2_000),
+      resolvedRsvp: z.enum(["Pending", "Yes"]),
+      setListApproved: z.boolean(),
+      setListJson: z.string().max(500_000),
+      startsAt: z.iso.datetime(),
+      title: z.string().min(1).max(500),
+      type: z.enum(["Performance", "Rehearsal"]),
+      venueAddress: z.string().max(2_000),
+      venueName: z.string().max(500),
+    }),
+  ),
   organizationName: z.string().min(1).max(120),
   profileId: z.uuid(),
   profileName: z.string().min(1).max(200),
+  timezone: z.string().min(1).max(100),
 });
 
 interface MembershipProfileRow {
@@ -31,15 +50,6 @@ export interface CalendarFeedUrls {
 export interface CalendarFeedDocument {
   readonly body: string;
   readonly filename: string;
-}
-
-function escapeIcsText(value: string): string {
-  return value
-    .replaceAll("\\", "\\\\")
-    .replaceAll("\r\n", "\\n")
-    .replaceAll("\n", "\\n")
-    .replaceAll(",", "\\,")
-    .replaceAll(";", "\\;");
 }
 
 function safeFilename(value: string): string {
@@ -150,6 +160,7 @@ export async function readCalendarFeed(
       body: JSON.stringify({
         organizationId,
         profileId: profileId.data,
+        readAt: now.toISOString(),
         revocationVersion: revocationVersion.data,
       }),
       headers: { "content-type": "application/json" },
@@ -164,16 +175,18 @@ export async function readCalendarFeed(
     throw new Error("The Organization store rejected the calendar feed request.");
   }
 
-  const body = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Choir Management Tool//EN",
-    "CALSCALE:GREGORIAN",
-    `X-WR-CALNAME:${escapeIcsText(feed.data.organizationName)}`,
-    `X-WR-CALDESC:${escapeIcsText(`Personal schedule for ${feed.data.profileName}`)}`,
-    "END:VCALENDAR",
-    "",
-  ].join("\r\n");
+  let body: string;
+  try {
+    body = renderCalendarIcs({
+      events: feed.data.events,
+      generatedAt: now,
+      organizationName: feed.data.organizationName,
+      profileName: feed.data.profileName,
+      timezone: feed.data.timezone,
+    });
+  } catch {
+    throw new Error("The Organization calendar projection is invalid.");
+  }
   return {
     body,
     filename: `${safeFilename(feed.data.organizationName)}-${profileId.data}.ics`,

@@ -25,7 +25,7 @@
         "path": "/",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "partial",
+        "status": "implemented",
         "baselineEvidence": "src/App.tsx:305; src/views/PublicLandingView.tsx",
         "targetEvidence": ["apps/web/src/App.tsx"],
       },
@@ -805,6 +805,8 @@
         "targetEvidence":
           [
             "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/src/calendar/calendarIcs.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
             "apps/worker/test/calendarFeed.integration.test.ts",
           ],
       },

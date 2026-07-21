@@ -51,8 +51,13 @@ delivery can safely reclaim retryable work. Version 4 adds private-file metadata
 state; bytes remain in Organization-prefixed R2 while authorization metadata and upload audit stay
 inside the owning Organization store. Version 5 adds a stable scheduled-job outbox; enqueue
 uncertainty can resend the same job ID/idempotency key without creating a second logical effect.
-Feature milestones expand this schema with typed repositories. Contract or removal migrations occur
-only after old and new Worker versions are both safe throughout the rollback window.
+Version 6 adds per-Profile calendar-feed revocation. Version 7 adds the bounded calendar read model:
+Organization timezone, venues, performances/rehearsals, parent-performance linkage, event rosters,
+RSVPs, call times, details, and approved set lists. These rows remain wholly inside the owning
+Organization store and are sufficient for tenant-local calendar projection without placing
+operational data in D1. Feature milestones expand this schema with typed repositories. Contract or
+removal migrations occur only after old and new Worker versions are both safe throughout the
+rollback window.
 
 ## R2 and KV
 

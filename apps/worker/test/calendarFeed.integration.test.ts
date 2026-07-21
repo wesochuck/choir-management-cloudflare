@@ -44,7 +44,7 @@ async function seedOrganization(
         `INSERT INTO organizations
           (id, name, slug, lifecycle_state, durable_object_key,
            operational_schema_version, created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 6, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'active', ?, 7, ?, ?, ?)`,
       )
       .bind(organizationId, name, slug, organizationId, now, now, now),
     controlDatabase
@@ -213,5 +213,97 @@ describe("calendar feed credentials", () => {
         apiRequest("alpha.localhost", "/api/singer/calendar-feed-url", cookie),
       ),
     ).toMatchObject({ status: 404 });
+  });
+
+  it("renders Organization-local events with RSVP inheritance, venues, and call times", async () => {
+    const eventStart = new Date(Date.now() + 10 * 24 * 60 * 60 * 1_000);
+    eventStart.setUTCHours(23, 0, 0, 0);
+    const rehearsalStart = new Date(eventStart.getTime() + 24 * 60 * 60 * 1_000);
+    const localStartParts = new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
+      month: "2-digit",
+      timeZone: "America/New_York",
+      year: "numeric",
+    }).formatToParts(eventStart);
+    const localHour = Number(localStartParts.find((part) => part.type === "hour")?.value);
+    const callTime = `${String(localHour - 1).padStart(2, "0")}:00`;
+    const stub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const now = new Date().toISOString();
+      state.storage.sql.exec("UPDATE organization_metadata SET timezone = 'America/New_York'");
+      state.storage.sql.exec(
+        `INSERT INTO venues (id, name, address, created_at, updated_at)
+         VALUES ('venue-main', 'Main Sanctuary', '123 Main St', ?, ?)`,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events
+          (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
+           parent_performance_id, details, set_list_json, set_list_approved,
+           is_archived, created_at, updated_at)
+         VALUES
+          ('performance-main', 'Summer, Concert', 'Performance', ?, 150, ?, '', 'venue-main',
+           NULL, 'Black folders',
+           '[{"title":"Finale","composer":"Composer","isFeaturedNumber":true,"performerCredits":[{"displayName":"Soloist"}]}]',
+           1, 0, ?, ?),
+          ('rehearsal-child', 'Dress Rehearsal', 'Rehearsal', ?, NULL, '', 'Choir Room', NULL,
+           'performance-main', '', '[]', 0, 0, ?, ?),
+          ('event-declined', 'Declined Event', 'Performance', ?, 90, '', '', NULL,
+           NULL, '', '[]', 0, 0, ?, ?)`,
+        eventStart.toISOString(),
+        callTime,
+        now,
+        now,
+        rehearsalStart.toISOString(),
+        now,
+        now,
+        new Date(rehearsalStart.getTime() + 24 * 60 * 60 * 1_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO event_rosters (event_id, profile_id, rsvp, created_at, updated_at)
+         VALUES
+          ('performance-main', ?, 'Yes', ?, ?),
+          ('rehearsal-child', ?, 'Pending', ?, ?),
+          ('event-declined', ?, 'No', ?, ?)`,
+        ALPHA_PROFILE_ID,
+        now,
+        now,
+        ALPHA_PROFILE_ID,
+        now,
+        now,
+        ALPHA_PROFILE_ID,
+        now,
+        now,
+      );
+      return null;
+    });
+
+    const cookie = await signIn();
+    const credentialResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/singer/calendar-feed-url", cookie),
+    );
+    const credential = calendarFeedUrlsResponseSchema.parse(await credentialResponse.json());
+    const feedResponse = await exports.default.fetch(new Request(credential.httpsUrl));
+    expect(feedResponse.status).toBe(200);
+    const feed = await feedResponse.text();
+    expect(feed).toContain("SUMMARY:Summer\\, Concert");
+    expect(feed).toContain("SUMMARY:Call Time: Summer\\, Concert");
+    expect(feed).toContain("LOCATION:Main Sanctuary\\, 123 Main St");
+    expect(feed).toContain("SUMMARY:Dress Rehearsal");
+    expect(feed).toContain("Your Status: Attending");
+    expect(feed).toContain("Set List:\\n1. Finale (Composer)\\n   Solo — Soloist");
+    expect(feed).not.toContain("Declined Event");
+    expect(feed).toContain(
+      `DTSTART:${new Date(eventStart.getTime() - 60 * 60 * 1_000)
+        .toISOString()
+        .replaceAll("-", "")
+        .replaceAll(":", "")
+        .replace(/\.\d{3}Z$/, "Z")}`,
+    );
   });
 });

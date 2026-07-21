@@ -45,7 +45,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `501b0128-4019-4773-aa07-9c97b2cc0d24`
+- Current verified Worker version: `561f111b-fd5b-4fd3-b76c-fad7fe6a2da6`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -162,6 +162,15 @@ Verified over public HTTPS on July 20–21, 2026:
   Organization schema version 6 adds per-Profile calendar revocation lazily. Workerd tests prove
   canonical-host issuance, Organization/profile binding, custom-public rejection, valid calendar
   output, explicit reset, immediate old-link revocation, missing-link denial, and reset audit.
+- Organization schema version 7 adds the calendar operational read model within each owning Durable
+  Object: Organization timezone, venues, performances/rehearsals, parent-performance linkage, event
+  rosters, RSVPs, call times, details, and approved set lists. Focused workerd proof covers venue
+  projection, Pending rehearsal inheritance from an attending parent performance, declined-event
+  exclusion, approved set-list inclusion, and timezone-aware call-time VEVENTs.
+- After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
+  and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
+  migrations and still contained zero Organizations, fleet schema preparations, or dead letters.
+  Worker version `561f111b-fd5b-4fd3-b76c-fad7fe6a2da6` is the verified staging checkpoint.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -244,9 +253,10 @@ member on the canonical Organization host must have a linked Organization Profil
 Organization MFA before receiving the ten-year bounded feed address. The token is purpose,
 Organization, Profile, and per-Profile revocation-version bound; reset increments that version in
 the owning Durable Object and records an actor-attributed audit event. Feed reads are canonical-host
-only, generic on failure, no-store/no-referrer, and never log or audit token bytes. The current feed
-is a valid empty iCalendar shell; event, venue, roster, RSVP inheritance, call-time, and approved
-set-list population remain explicitly partial until those operational schemas are ported.
+only, generic on failure, no-store/no-referrer, and never log or audit token bytes. The feed now
+projects events from the owning Organization store for the preceding 30 days through one year,
+including venue/location fallback, direct and inherited RSVP filtering, type-based default
+durations, separate timezone-aware call-time events, details, and attending-only approved set lists.
 
 Recent-MFA Platform Administrators on the product base hostname can now start and inspect one fleet
 schema-preparation run at a time. Each Workflow instance loads at most 20 stale active
@@ -368,7 +378,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue with the event, venue, roster, and RSVP operational slice so calendar feeds can populate
-   parity events, then bind the next signed product flow. Return to validated custom-domain
-   activation when a managed zone is available.
+3. Continue from the bounded calendar read model into event/venue/roster write APIs and UI, then
+   bind the next signed product flow. Return to validated custom-domain activation when a managed
+   zone is available.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

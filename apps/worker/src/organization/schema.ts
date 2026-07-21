@@ -95,6 +95,48 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE profiles ADD COLUMN calendar_feed_version INTEGER NOT NULL DEFAULT 1",
     ],
   },
+  {
+    version: 7,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN timezone TEXT NOT NULL DEFAULT 'UTC'",
+      `CREATE TABLE IF NOT EXISTS venues (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        address TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE TABLE IF NOT EXISTS events (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('Performance', 'Rehearsal')),
+        starts_at TEXT NOT NULL,
+        duration_minutes INTEGER,
+        call_time TEXT NOT NULL DEFAULT '',
+        location TEXT NOT NULL DEFAULT '',
+        venue_id TEXT,
+        parent_performance_id TEXT,
+        details TEXT NOT NULL DEFAULT '',
+        set_list_json TEXT NOT NULL DEFAULT '[]',
+        set_list_approved INTEGER NOT NULL DEFAULT 0 CHECK (set_list_approved IN (0, 1)),
+        is_archived INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_events_calendar
+       ON events(is_archived, starts_at)`,
+      `CREATE TABLE IF NOT EXISTS event_rosters (
+        event_id TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        rsvp TEXT NOT NULL DEFAULT 'Pending' CHECK (rsvp IN ('Yes', 'No', 'Pending')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (event_id, profile_id)
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_event_rosters_profile
+       ON event_rosters(profile_id, event_id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

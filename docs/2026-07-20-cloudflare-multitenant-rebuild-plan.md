@@ -106,6 +106,7 @@ milestone complete.
 | `apps/worker/src/storage/privateFiles.ts`                      | Host-authorized private R2 upload/download orchestration                             |
 | `apps/worker/src/security/signedLinks.ts`                      | Versioned purpose-separated Organization-bound token signing                         |
 | `apps/worker/src/calendar/calendarFeed.ts`                     | Calendar credential issuance, revocation, and feed rendering                         |
+| `apps/worker/src/calendar/calendarIcs.ts`                      | Pure timezone-aware Organization calendar projection and iCalendar rendering         |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
