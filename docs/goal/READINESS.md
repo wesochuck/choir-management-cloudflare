@@ -75,9 +75,10 @@ Verified over public HTTPS on July 20, 2026:
   migrations were pending after the deployment.
 - `/login` returned the deployed invitation-only OTP interface. Anonymous session retrieval returned
   HTTP 200 with `null`, while `/api/account/organizations` returned HTTP 401 without a session.
-- Remote D1 contained zero users and zero Organizations after the account-shell smoke checks. The
-  live login page was visually inspected at desktop width; desktop and mobile authenticated flows
-  are covered with deterministic browser fakes because staging email remains capture-only.
+- Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
+  the account-shell smoke checks. The live login page was visually inspected at desktop width;
+  desktop and mobile authenticated flows are covered with deterministic browser fakes because
+  staging email remains capture-only.
 - `/` returned the deployed Vite application shell.
 
 ## Completed foundation checks
@@ -85,7 +86,7 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run check:parity`: 145 inventory entries validated.
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
-- `npm test`: 3 files / 8 tests passed.
+- `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
 - `npm run test:integration`: 2 files / 21 workerd tests passed.
 - `npm run test:e2e`: 4 desktop/mobile Chromium foundation and authenticated-account journeys
   passed.
@@ -123,6 +124,13 @@ persisted by the page, and account routes are unavailable on custom public hosts
 sessions intentionally remain host-only; cross-subdomain cookies must not be enabled until a managed
 product domain is selected and explicitly reviewed.
 
+The first staging Platform Administrator identity is now provisioned through the production-refusing
+`npm run bootstrap:staging-platform-admin` operator command. Its second identical invocation wrote
+zero rows. Remote D1 verification found exactly one user, one active Platform Administrator grant,
+one bootstrap audit event, one pending MFA enrollment, zero sessions, and zero Organizations. The
+identity email is stored in D1 and is intentionally not repeated in this handoff. No password, OTP,
+session, TOTP secret, or recovery code was created by bootstrap.
+
 The authentication handler is available on the exact product base hostname. Organization subdomains
 must also be registered as active canonical domains in D1; merely matching the product domain suffix
 is insufficient.
@@ -144,8 +152,8 @@ These do not prevent local implementation of Milestones 0–4:
 - Enable the paid Cloudflare Email Sending entitlement and a verified platform sender domain before
   platform-email staging qualification. `wrangler email sending list` currently returns unauthorized
   code 2036; Email Routing has no configured zones.
-- Record allowlisted staging recipients and the initial Platform Administrator email identity
-  without placing credentials here.
+- Record allowlisted staging recipients before platform-email qualification. The initial Platform
+  Administrator identity is already provisioned in D1 but cannot enroll until email delivery works.
 - Supply Stripe Connect test credentials/webhook secret and Brevo test credentials/verified
   sender/SMS number only at their Milestone 5 staging gates.
 

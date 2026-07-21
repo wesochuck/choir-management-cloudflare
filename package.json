@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "audit": "npm audit --audit-level=high",
+    "bootstrap:staging-platform-admin": "node scripts/bootstrap-staging-platform-admin.mjs",
     "build": "npm run build --workspaces --if-present",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build",
     "check:parity": "node scripts/check-parity-matrix.mjs",

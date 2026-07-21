@@ -91,4 +91,18 @@ configured. The deployment currently uses:
 - Dead-letter queue: `choir-management-jobs-dlq-staging`
 - Workflow: `choir-management-provisioning-staging`
 
+The first Platform Administrator grant is an explicit, staging-only operator action. It uses the
+authenticated local Wrangler session and refuses to target production by construction:
+
+```bash
+npm run bootstrap:staging-platform-admin -- \
+  --email platform-administrator@example.com \
+  --name "Platform Administrator"
+```
+
+The command is idempotent for an existing identity/grant and writes an audit event only when it adds
+the grant. It does not create a password, session, one-time code, or MFA secret. After platform
+email is enabled, the user signs in by email code, enrolls TOTP, saves the generated recovery codes,
+and confirms enrollment before any Platform Administrator route authorizes the session.
+
 Production configuration is deliberately inert and must not be deployed as part of the active goal.

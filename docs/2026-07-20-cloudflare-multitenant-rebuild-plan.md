@@ -112,6 +112,8 @@ milestone complete.
 | `playwright.config.ts`                                         | Desktop/mobile browser-test projects and preview server                              |
 | `scripts/check-parity-matrix.mjs`                              | Standalone executable parity-ledger validation                                       |
 | `scripts/capture-baseline-screenshots.mjs`                     | Development-only deterministic Parity Bridge screenshot capture                      |
+| `scripts/bootstrap-staging-platform-admin.mjs`                 | Production-refusing, Wrangler-authenticated first Platform Administrator grant       |
+| `scripts/bootstrap-staging-platform-admin.test.mjs`            | Bootstrap validation, escaping, audit, and environment-refusal unit coverage         |
 | `apps/web/tsconfig.json`                                       | Strict browser/e2e TypeScript project                                                |
 | `apps/web/e2e/foundation.spec.ts`                              | Foundation desktop/mobile browser smoke coverage                                     |
 | `apps/web/e2e/auth.spec.ts`                                    | OTP, account, Organization-choice, and session-management browser coverage           |
