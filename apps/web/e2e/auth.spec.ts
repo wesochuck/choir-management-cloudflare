@@ -208,6 +208,7 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
 test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page }) => {
   let assertionReady = false;
   let enrollmentComplete = false;
+  let schemaPreparationStarted = false;
   let twoFactorEnabled = false;
   const recoveryCodes = Array.from(
     { length: 10 },
@@ -370,6 +371,31 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
       status: 200,
     });
   });
+  await page.route("**/api/platform/fleet-schema-preparation", async (route) => {
+    if (route.request().method() === "POST") {
+      schemaPreparationStarted = true;
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        currentVersion: 5,
+        preparation: schemaPreparationStarted
+          ? {
+              completedAt: null,
+              processedCount: 0,
+              runId: "77777777-7777-4777-8777-777777777777",
+              startedAt: "2026-07-21T18:00:00.000Z",
+              status: "running",
+              targetVersion: 5,
+              updatedAt: "2026-07-21T18:00:00.000Z",
+              workflowId: "fleet-schema-browser-test-0",
+            }
+          : null,
+        requestId: "33333333-3333-4333-8333-333333333333",
+      }),
+      contentType: "application/json",
+      status: route.request().method() === "POST" ? 202 : 200,
+    });
+  });
   await page.route("**/api/platform/mfa/verify", async (route) => {
     assertionReady = true;
     await route.fulfill({
@@ -407,6 +433,8 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await expect(
     platformSection.getByText("No jobs have reached the dead-letter queue."),
   ).toBeVisible();
+  await platformSection.getByRole("button", { name: "Prepare schemas" }).click();
+  await expect(platformSection.getByRole("button", { name: "Preparation running" })).toBeDisabled();
   await platformSection.getByLabel("Organization name").fill("Staging Choir");
   await platformSection.getByLabel("Hostname slug").fill("staging-choir");
   await platformSection.getByRole("button", { name: "Create Organization" }).click();

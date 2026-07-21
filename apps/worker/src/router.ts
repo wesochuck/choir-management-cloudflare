@@ -16,6 +16,7 @@ import {
   type OrganizationProvisionResponse,
   type PlatformOrganizationSummary,
   type PlatformJobDeadLetterSummary,
+  type PlatformFleetSchemaPreparation,
   type PlatformOrganizationContextResponse,
   type ProblemDetails,
   type PrivateFileResponse,
@@ -46,8 +47,13 @@ import {
   beginOrganizationProvisioning,
   OrganizationProvisioningError,
 } from "./control/provisionOrganization";
+import {
+  beginFleetSchemaPreparation,
+  FleetSchemaPreparationError,
+} from "./control/prepareFleetSchema";
 import type { Env } from "./env";
 import { validateStartupConfig } from "./env";
+import { currentOrganizationSchemaVersion } from "./organization/schema";
 import { readPublishedOrganization } from "./publication/publishOrganization";
 import {
   MAX_PRIVATE_FILE_BYTES,
@@ -109,6 +115,8 @@ interface PlatformDeadLetterRow {
   readonly organizationId: string | null;
   readonly queueName: string;
 }
+
+type PlatformFleetSchemaPreparationRow = PlatformFleetSchemaPreparation;
 
 interface InvitationControlRow {
   readonly createdAt: number | string;
@@ -2215,6 +2223,130 @@ router.get("/api/platform/context", async (context) => {
       : ({ kind: "product_base" } as const),
     userId: authorization.value.userId,
   });
+});
+
+router.get("/api/platform/fleet-schema-preparation", async (context) => {
+  const config = validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Fleet schema preparation is available only on the product base hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  const preparation = await context.env.CONTROL_DB.prepare(
+    `SELECT id AS runId, target_version AS targetVersion, status,
+      processed_count AS processedCount, started_at AS startedAt,
+      updated_at AS updatedAt, completed_at AS completedAt
+     FROM fleet_schema_preparations
+     ORDER BY started_at DESC, id DESC LIMIT 1`,
+  ).first<PlatformFleetSchemaPreparationRow>();
+  return context.json({
+    currentVersion: currentOrganizationSchemaVersion,
+    preparation,
+    requestId: context.get("requestId"),
+  });
+});
+
+router.post("/api/platform/fleet-schema-preparation", async (context) => {
+  const config = validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Fleet schema preparation is available only on the product base hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  try {
+    const started = await beginFleetSchemaPreparation(context.env, {
+      actorUserId: authorization.value.userId,
+      requestId: context.get("requestId"),
+    });
+    return context.json(
+      {
+        currentVersion: currentOrganizationSchemaVersion,
+        preparation: {
+          completedAt: null,
+          processedCount: 0,
+          runId: started.runId,
+          startedAt: started.startedAt,
+          status: "running" as const,
+          targetVersion: started.targetVersion,
+          updatedAt: started.startedAt,
+          workflowId: started.workflowId,
+        },
+        requestId: context.get("requestId"),
+      },
+      202,
+    );
+  } catch (error: unknown) {
+    const workflowDispatchFailed =
+      error instanceof FleetSchemaPreparationError && error.phase === "workflow";
+    return context.json(
+      {
+        code: workflowDispatchFailed ? "service_unavailable" : "conflict",
+        message: workflowDispatchFailed
+          ? "The schema-preparation run was recorded, but its Workflow could not be dispatched."
+          : "Another fleet schema-preparation run is active.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      workflowDispatchFailed ? 503 : 409,
+    );
+  }
 });
 
 router.get("/api/platform/job-dead-letters", async (context) => {

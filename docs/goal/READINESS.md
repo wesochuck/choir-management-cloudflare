@@ -44,15 +44,16 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `66e93a94-7503-46a8-98de-d91fa19451e9`
+- Current verified Worker version: `e7402804-b514-4c0d-913f-84f65f855d71`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
-  `0001_initial.sql` through `0006_job_dead_letters.sql` applied; no migrations pending
+  `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
 - KV: `choir-management-routing-staging` (`9c7f20b2c8024b1b98d17a682c70cf97`)
 - Queue: `choir-management-jobs-staging`
 - Dead-letter queue: `choir-management-jobs-dlq-staging`
 - Workflow: `choir-management-provisioning-staging`
+- Fleet schema Workflow: `choir-management-fleet-schema-staging`
 - External effects: `fake`
 - Platform email: `capture`
 - Signed-link secret: configured independently in the staging Worker secret store
@@ -148,6 +149,12 @@ Verified over public HTTPS on July 20–21, 2026:
   returned HTTP 200, proving the required startup binding is present. Focused unit tests cover
   tampering, truncation, oversized inputs, expiry, future issuance, and Organization, purpose,
   subject, resource, and revocation-version mismatches.
+- After the fleet-schema deployment, health and readiness returned HTTP 200, the recent-MFA Platform
+  endpoint returned HTTP 401 anonymously after edge propagation, and D1 had no pending migrations,
+  Organizations, or schema-preparation runs. Staging now has a separate fleet schema Workflow
+  binding. Workerd tests prepare 21 stale Organization stores as bounded 20+1 chained instances,
+  verify each Durable Object identity before advancing D1, and mark a mismatched registry/store run
+  failed so another run is not permanently blocked.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -161,7 +168,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run lint`: passed.
 - `npm test`: 5 files / 13 tests passed, including staging-bootstrap safety and adversarial
   signed-link coverage.
-- `npm run test:integration`: 6 files / 35 workerd tests passed.
+- `npm run test:integration`: 7 files / 37 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -224,6 +231,14 @@ binding, optional exact subject/resource/revocation matching, purpose-separated 
 fixed 32-byte signature comparison. Product routes will bind this core to their own authoritative
 resource and revocation checks as each signed public flow is implemented; no product flow is marked
 complete merely because the shared cryptographic foundation exists.
+
+Recent-MFA Platform Administrators on the product base hostname can now start and inspect one fleet
+schema-preparation run at a time. Each Workflow instance loads at most 20 stale active
+Organizations, asks the exact named Durable Object to verify its stored Organization identity and
+applied schema, then advances D1 and idempotently creates one continuation. Deterministic identity
+conflicts fail closed without retry churn; transient step failures retain Workflow retries.
+Completion and failure both release the single-running-run constraint, and run-level
+start/completion events are audited.
 
 Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
 inside the hostname-resolved Organization Durable Object. The linkage is unique within that
@@ -337,7 +352,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 3 with the bounded fleet schema-preparation Workflow, then bind the
-   signed-link core to calendar-feed revocation and the first concrete product flows. Return to
-   validated custom-domain activation when a managed zone is available.
+3. Continue Milestone 3 by binding the signed-link core to calendar-feed revocation and the first
+   concrete product flows. Return to validated custom-domain activation when a managed zone is
+   available.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

@@ -13,6 +13,7 @@ import {
   organizationProfileLinkResponseSchema,
   platformMfaStatusResponseSchema,
   platformJobDeadLettersResponseSchema,
+  platformFleetSchemaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
   platformOrganizationsResponseSchema,
   publicDomainResponseSchema,
@@ -54,6 +55,7 @@ const testEnv: Env = {
   BUILD_VERSION: env.BUILD_VERSION,
   CONTROL_DB: requireBinding(env.CONTROL_DB, "CONTROL_DB"),
   EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE,
+  FLEET_SCHEMA_WORKFLOW: requireBinding(env.FLEET_SCHEMA_WORKFLOW, "FLEET_SCHEMA_WORKFLOW"),
   JOBS_DLQ_NAME: env.JOBS_DLQ_NAME,
   JOBS_QUEUE: requireBinding(env.JOBS_QUEUE, "JOBS_QUEUE"),
   ORGANIZATION_FILES: requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES"),
@@ -1460,6 +1462,7 @@ describe("Platform Administrator MFA", () => {
     const sessionCookie = await signInInvitedUser();
     await grantPlatformAdministratorForCurrentSession();
     const workflowIntrospector = await introspectWorkflow(testEnv.PROVISIONING_WORKFLOW);
+    const fleetWorkflowIntrospector = await introspectWorkflow(testEnv.FLEET_SCHEMA_WORKFLOW);
     try {
       await testEnv.CONTROL_DB.prepare(
         `INSERT INTO job_dead_letters
@@ -1592,6 +1595,49 @@ describe("Platform Administrator MFA", () => {
         ],
       });
 
+      const initialFleetResponse = await fetchWorker(
+        authRequest("/api/platform/fleet-schema-preparation", {
+          headers: { cookie: sessionCookie },
+        }),
+      );
+      expect(initialFleetResponse.status).toBe(200);
+      expect(
+        platformFleetSchemaStatusResponseSchema.parse(await initialFleetResponse.json()),
+      ).toMatchObject({ preparation: null });
+      const fleetStartResponse = await fetchWorker(
+        authRequest("/api/platform/fleet-schema-preparation", {
+          body: JSON.stringify({}),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        }),
+      );
+      expect(fleetStartResponse.status).toBe(202);
+      const fleetStart = platformFleetSchemaStatusResponseSchema.parse(
+        await fleetStartResponse.json(),
+      );
+      expect(fleetStart.preparation).toMatchObject({ processedCount: 0, status: "running" });
+      const fleetInstances = await fleetWorkflowIntrospector.get();
+      expect(fleetInstances).toHaveLength(1);
+      await fleetInstances[0]?.waitForStatus("complete");
+      const completedFleetResponse = await fetchWorker(
+        authRequest("/api/platform/fleet-schema-preparation", {
+          headers: { cookie: sessionCookie },
+        }),
+      );
+      expect(
+        platformFleetSchemaStatusResponseSchema.parse(await completedFleetResponse.json()),
+      ).toMatchObject({
+        preparation: { processedCount: 0, status: "completed" },
+      });
+      const scopedFleetResponse = await fetchWorker(
+        authRequest(
+          "/api/platform/fleet-schema-preparation",
+          { headers: { cookie: sessionCookie } },
+          "http://charlie.localhost",
+        ),
+      );
+      expect(scopedFleetResponse.status).toBe(404);
+
       const paginationCreatedAt = "2030-01-01T00:00:00.000Z";
       await testEnv.CONTROL_DB.batch(
         Array.from({ length: 25 }, (_, index) => {
@@ -1666,6 +1712,7 @@ describe("Platform Administrator MFA", () => {
       expect(wrongHostDirectoryResponse.status).toBe(404);
     } finally {
       await workflowIntrospector.dispose();
+      await fleetWorkflowIntrospector.dispose();
     }
   });
 });

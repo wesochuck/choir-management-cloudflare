@@ -332,6 +332,28 @@ export const platformJobDeadLettersResponseSchema = z.object({
 export type PlatformJobDeadLetterSummary = z.infer<typeof platformJobDeadLetterSummarySchema>;
 export type PlatformJobDeadLettersResponse = z.infer<typeof platformJobDeadLettersResponseSchema>;
 
+export const platformFleetSchemaPreparationSchema = z.object({
+  completedAt: z.iso.datetime().nullable(),
+  processedCount: z.number().int().nonnegative(),
+  runId: z.uuid(),
+  startedAt: z.iso.datetime(),
+  status: z.enum(["running", "completed", "failed"]),
+  targetVersion: z.number().int().positive(),
+  updatedAt: z.iso.datetime(),
+  workflowId: z.string().min(1).max(100).optional(),
+});
+
+export const platformFleetSchemaStatusResponseSchema = z.object({
+  currentVersion: z.number().int().positive(),
+  preparation: platformFleetSchemaPreparationSchema.nullable(),
+  requestId: requestIdSchema,
+});
+
+export type PlatformFleetSchemaPreparation = z.infer<typeof platformFleetSchemaPreparationSchema>;
+export type PlatformFleetSchemaStatusResponse = z.infer<
+  typeof platformFleetSchemaStatusResponseSchema
+>;
+
 export const platformElevationRequestSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });

@@ -1,5 +1,6 @@
 export const controlPlaneTables = [
   "account",
+  "fleet_schema_preparations",
   "invitation",
   "member",
   "organizations",

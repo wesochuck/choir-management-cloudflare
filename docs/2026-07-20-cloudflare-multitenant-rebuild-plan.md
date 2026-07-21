@@ -92,7 +92,9 @@ milestone complete.
 | `apps/worker/src/control/migrations/0004_organization_mfa.sql` | Optional Organization MFA policy and scoped assertion storage                        |
 | `apps/worker/src/control/migrations/0005_profile_link.sql`     | Unique Membership-to-Organization-Profile linkage contract                           |
 | `apps/worker/src/control/migrations/0006_job_dead_letters.sql` | Payload-free queue dead-letter operational metadata                                  |
+| `apps/worker/src/control/migrations/0007_fleet_schema.sql`     | Bounded fleet schema-preparation run registry                                        |
 | `apps/worker/src/control/provisionOrganization.ts`             | Atomic Organization registry, canonical-host, Workflow, and audit orchestration      |
+| `apps/worker/src/control/prepareFleetSchema.ts`                | Audited bounded fleet schema Workflow dispatch                                       |
 | `apps/worker/src/tenancy/resolveOrganization.ts`               | Hostname-to-Organization resolution                                                  |
 | `apps/worker/src/tenancy/authorizeOrganization.ts`             | Membership and Platform Administrator authorization                                  |
 | `apps/worker/src/tenancy/linkOrganizationProfile.ts`           | Organization-store-confirmed Membership-to-Profile identity linkage                  |
@@ -137,8 +139,10 @@ milestone complete.
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |
+| `apps/worker/test/fleetSchema.integration.test.ts`             | Bounded chained fleet schema Workflow and identity proof                             |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
+| `apps/worker/src/workflows/FleetSchemaWorkflow.ts`             | Chained bounded Organization-store schema preparation                                |
 | `types/vitest.d.ts`                                            | Typed migration fixtures injected into Worker integration tests                      |
 | `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                            |
 | `packages/domain/tsconfig.json`                                | Strict pure-domain TypeScript project                                                |

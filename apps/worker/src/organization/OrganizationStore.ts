@@ -38,6 +38,10 @@ const organizationProvisioningSchema = z.object({
 });
 
 const profileIdSchema = z.uuid();
+const schemaPreparationRequestSchema = z.object({
+  organizationId: z.string().min(1).max(128),
+  targetVersion: z.number().int().positive(),
+});
 
 interface OrganizationMetadataRow {
   readonly [column: string]: SqlStorageValue;
@@ -49,6 +53,11 @@ interface OrganizationMetadataRow {
 interface OrganizationIdentityRow {
   readonly [column: string]: SqlStorageValue;
   readonly organizationId: string;
+}
+
+interface OrganizationSchemaVersionRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly schemaVersion: number;
 }
 
 interface JobLedgerRow {
@@ -229,6 +238,38 @@ async function failJob(storage: DurableObjectStorage, request: Request): Promise
   return Response.json({ failed: result.rowsWritten === 1 });
 }
 
+async function prepareOrganizationSchema(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = schemaPreparationRequestSchema.safeParse(await request.json());
+  if (!parsed.success || parsed.data.targetVersion > currentOrganizationSchemaVersion) {
+    return Response.json({ code: "invalid_schema_preparation" }, { status: 400 });
+  }
+  const organization = storage.sql
+    .exec<OrganizationIdentityRow>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0);
+  if (organization?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const version = storage.sql
+    .exec<OrganizationSchemaVersionRow>(
+      "SELECT MAX(version) AS schemaVersion FROM organization_schema_migrations",
+    )
+    .toArray()
+    .at(0);
+  if (!version || version.schemaVersion < parsed.data.targetVersion) {
+    return Response.json({ code: "schema_preparation_incomplete" }, { status: 503 });
+  }
+  return Response.json({
+    organizationId: organization.organizationId,
+    schemaVersion: version.schemaVersion,
+  });
+}
+
 async function reservePrivateFile(
   storage: DurableObjectStorage,
   request: Request,
@@ -375,6 +416,8 @@ async function dispatchPostRequest(
       return failJob(storage, request);
     case "/internal/provision":
       return provisionOrganizationStore(storage, request);
+    case "/internal/schema/prepare":
+      return prepareOrganizationSchema(storage, request);
     default:
       return null;
   }

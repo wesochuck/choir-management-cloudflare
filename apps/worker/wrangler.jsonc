@@ -88,6 +88,11 @@
   },
   "workflows": [
     {
+      "binding": "FLEET_SCHEMA_WORKFLOW",
+      "name": "choir-management-fleet-schema-local",
+      "class_name": "FleetSchemaWorkflow",
+    },
+    {
       "binding": "PROVISIONING_WORKFLOW",
       "name": "choir-management-provisioning-local",
       "class_name": "ProvisioningWorkflow",
@@ -148,6 +153,11 @@
         ],
       },
       "workflows": [
+        {
+          "binding": "FLEET_SCHEMA_WORKFLOW",
+          "name": "choir-management-fleet-schema-staging",
+          "class_name": "FleetSchemaWorkflow",
+        },
         {
           "binding": "PROVISIONING_WORKFLOW",
           "name": "choir-management-provisioning-staging",

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { OrganizationStore } from "./organization/OrganizationStore";
+import type { FleetSchemaParams } from "./workflows/FleetSchemaWorkflow";
 import type { ProvisioningParams } from "./workflows/ProvisioningWorkflow";
 
 export const appEnvironmentSchema = z.enum(["local", "preview", "staging", "production"]);
@@ -25,6 +26,7 @@ export interface Env {
   readonly BUILD_VERSION: string;
   readonly CONTROL_DB: D1Database;
   readonly EXTERNAL_EFFECTS_MODE: string;
+  readonly FLEET_SCHEMA_WORKFLOW: Workflow<FleetSchemaParams>;
   readonly JOBS_QUEUE: Queue;
   readonly JOBS_DLQ_NAME: string;
   readonly ORGANIZATION_FILES: R2Bucket;

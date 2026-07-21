@@ -12,6 +12,7 @@ import {
   organizationMfaVerificationResponseSchema,
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
+  platformFleetSchemaStatusResponseSchema,
   platformJobDeadLettersResponseSchema,
   platformElevationRevocationResponseSchema,
   platformMfaEnrollmentResponseSchema,
@@ -36,6 +37,7 @@ import {
   type OrganizationProvisionRequest,
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
+  type PlatformFleetSchemaStatusResponse,
   type PlatformJobDeadLettersResponse,
   type PlatformOrganizationContextResponse,
   type PlatformOrganizationsResponse,
@@ -269,6 +271,23 @@ export async function listPlatformJobDeadLetters(
     signal: signal ?? null,
   });
   return platformJobDeadLettersResponseSchema.parse(await response.json());
+}
+
+export async function getPlatformFleetSchemaStatus(
+  signal?: AbortSignal,
+): Promise<PlatformFleetSchemaStatusResponse> {
+  const response = await request("/api/platform/fleet-schema-preparation", {
+    signal: signal ?? null,
+  });
+  return platformFleetSchemaStatusResponseSchema.parse(await response.json());
+}
+
+export async function startPlatformFleetSchemaPreparation(): Promise<PlatformFleetSchemaStatusResponse> {
+  const response = await request("/api/platform/fleet-schema-preparation", {
+    body: JSON.stringify({}),
+    method: "POST",
+  });
+  return platformFleetSchemaStatusResponseSchema.parse(await response.json());
 }
 
 export async function provisionOrganization(

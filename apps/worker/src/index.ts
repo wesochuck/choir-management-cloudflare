@@ -1,10 +1,11 @@
 import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
 import { router } from "./router";
+import { FleetSchemaWorkflow } from "./workflows/FleetSchemaWorkflow";
 import { ProvisioningWorkflow } from "./workflows/ProvisioningWorkflow";
 import type { Env } from "./env";
 
-export { OrganizationStore, ProvisioningWorkflow };
+export { FleetSchemaWorkflow, OrganizationStore, ProvisioningWorkflow };
 
 const worker = {
   async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {

@@ -1,5 +1,6 @@
 import type {
   PlatformContextResponse,
+  PlatformFleetSchemaStatusResponse,
   PlatformJobDeadLetterSummary,
   PlatformOrganizationContextResponse,
   PlatformOrganizationSummary,
@@ -10,10 +11,12 @@ import {
   AuthApiError,
   createPlatformElevation,
   getPlatformOrganizationContext,
+  getPlatformFleetSchemaStatus,
   listPlatformJobDeadLetters,
   listPlatformOrganizations,
   provisionOrganization,
   revokePlatformElevation,
+  startPlatformFleetSchemaPreparation,
 } from "../auth/api";
 
 type PlatformScope = PlatformContextResponse["scope"];
@@ -35,6 +38,11 @@ type DeadLetterState =
       readonly hasMore: boolean;
       readonly status: "ready";
     };
+
+type FleetSchemaState =
+  | { readonly status: "error" }
+  | { readonly status: "loading" }
+  | { readonly result: PlatformFleetSchemaStatusResponse; readonly status: "ready" };
 
 type ElevationState =
   | { readonly status: "error" }
@@ -124,6 +132,73 @@ function QueueDeadLetterDirectory() {
       {deadLetters.status === "ready" && deadLetters.hasMore ? (
         <p>Showing the 25 most recent queue failures.</p>
       ) : null}
+    </div>
+  );
+}
+
+function FleetSchemaPreparation() {
+  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState<FleetSchemaState>({ status: "loading" });
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    getPlatformFleetSchemaStatus(abortController.signal)
+      .then((result) => {
+        setState({ result, status: "ready" });
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setState({ status: "error" });
+        }
+      });
+    return () => {
+      abortController.abort();
+    };
+  }, []);
+
+  async function startPreparation() {
+    setBusy(true);
+    try {
+      setState({ result: await startPlatformFleetSchemaPreparation(), status: "ready" });
+    } catch {
+      setState({ status: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const running = state.status === "ready" && state.result.preparation?.status === "running";
+  return (
+    <div className="platform-directory" aria-live="polite">
+      <h4>Organization schema preparation</h4>
+      <p>
+        Run the bounded Workflow before code requires a newer Organization schema. Each Durable
+        Object confirms its own identity and version before the control plane advances.
+      </p>
+      {state.status === "loading" ? <p>Loading schema preparation status…</p> : null}
+      {state.status === "error" ? (
+        <p className="notice notice--error" role="alert">
+          Schema preparation status could not be loaded. Refresh and try again.
+        </p>
+      ) : null}
+      {state.status === "ready" ? (
+        <p>
+          Deployed schema version: {String(state.result.currentVersion)}.{" "}
+          {state.result.preparation
+            ? `Latest run: ${state.result.preparation.status}; ${String(state.result.preparation.processedCount)} Organizations prepared.`
+            : "No fleet preparation has run yet."}
+        </p>
+      ) : null}
+      <button
+        className="button button--secondary"
+        disabled={busy || running || state.status === "loading"}
+        onClick={() => {
+          void startPreparation();
+        }}
+        type="button"
+      >
+        {busy ? "Starting preparation…" : running ? "Preparation running" : "Prepare schemas"}
+      </button>
     </div>
   );
 }
@@ -350,6 +425,7 @@ function OrganizationDirectory() {
       </div>
 
       <QueueDeadLetterDirectory />
+      <FleetSchemaPreparation />
     </div>
   );
 }
