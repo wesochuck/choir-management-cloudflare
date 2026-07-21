@@ -369,7 +369,8 @@ h2 {
   font-weight: 750;
 }
 
-.field input {
+.field input,
+.field textarea {
   min-height: 3.25rem;
   width: 100%;
   padding: 0.75rem 0.9rem;
@@ -377,6 +378,10 @@ h2 {
   border-radius: var(--radius-control);
   background: var(--color-surface);
   color: var(--color-text);
+}
+
+.field textarea {
+  resize: vertical;
 }
 
 .field select,
@@ -440,6 +445,12 @@ h2 {
   color: var(--color-text);
 }
 
+.notice--warning {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  color: var(--color-text);
+}
+
 .account-layout {
   align-content: start;
 }
@@ -476,6 +487,10 @@ h2 {
 }
 
 .account-section--security {
+  grid-column: 1 / -1;
+}
+
+.account-section--organization-security {
   grid-column: 1 / -1;
 }
 
@@ -620,6 +635,57 @@ h2 {
 
 .platform-elevation-active .notice {
   margin: 0;
+}
+
+.organization-security-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.organization-security-status .notice {
+  margin: 0;
+}
+
+.organization-policy {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.organization-policy h3,
+.organization-policy .section-description,
+.organization-enrollment-start h3,
+.organization-enrollment-start p,
+.organization-verification h3 {
+  margin-top: 0;
+}
+
+.danger-confirmation {
+  display: grid;
+  gap: 1rem;
+}
+
+.danger-confirmation p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.organization-mfa-enrollment,
+.organization-verification,
+.organization-enrollment-start {
+  margin-top: 1.5rem;
+}
+
+.organization-verification {
+  max-width: 40rem;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
 }
 
 .section-heading--compact h2 {

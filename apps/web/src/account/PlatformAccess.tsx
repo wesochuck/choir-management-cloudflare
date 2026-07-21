@@ -3,13 +3,13 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import {
   AuthApiError,
-  beginPlatformMfaEnrollment,
+  beginAccountMfaEnrollment,
   confirmPlatformMfaEnrollment,
   getPlatformContext,
   getPlatformMfaStatus,
-  regeneratePlatformRecoveryCodes,
+  regenerateAccountRecoveryCodes,
   verifyPlatformMfa,
-  verifyPlatformTotpEnrollment,
+  verifyAccountTotpEnrollment,
 } from "../auth/api";
 import { PlatformOperations } from "./PlatformOperations";
 
@@ -319,12 +319,12 @@ export function PlatformAccess() {
     try {
       if (accessState.twoFactorEnabled) {
         setEnrollmentSecrets({
-          backupCodes: await regeneratePlatformRecoveryCodes(),
+          backupCodes: await regenerateAccountRecoveryCodes(),
           totpURI: null,
           totpVerified: true,
         });
       } else {
-        const enrollment = await beginPlatformMfaEnrollment();
+        const enrollment = await beginAccountMfaEnrollment();
         setEnrollmentSecrets({
           backupCodes: enrollment.backupCodes,
           totpURI: enrollment.totpURI,
@@ -346,7 +346,7 @@ export function PlatformAccess() {
     setActionError(null);
     setBusy(true);
     try {
-      await verifyPlatformTotpEnrollment(enrollmentCode);
+      await verifyAccountTotpEnrollment(enrollmentCode);
       setEnrollmentSecrets((current) => (current ? { ...current, totpVerified: true } : current));
       setEnrollmentCode("");
     } catch {

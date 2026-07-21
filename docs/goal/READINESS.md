@@ -43,7 +43,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `b26c3c0e-e25c-4ca9-a9a5-3c9256c94296`
+- Current verified Worker version: `24385d26-1226-43fc-aa69-a66140da54f4`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -85,6 +85,10 @@ Verified over public HTTPS on July 20, 2026:
 - `/api/platform/context` and both GET/POST forms of `/api/platform/organizations` returned HTTP 401
   without a session after the Platform operations deployment. Remote D1 still contained zero
   Organizations and zero scoped elevations, so the smoke requests had no control-plane side effects.
+- `/api/organization/auth-status`, `/api/organization/auth-policy`, and
+  `/api/organization/mfa/verify` returned HTTP 404 on the global workers.dev base after the
+  Organization MFA browser deployment, proving hostname resolution precedes policy or factor work.
+  Remote D1 still contained zero Organization MFA assertions and zero two-factor rows.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -98,8 +102,8 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
 - `npm run test:integration`: 2 files / 22 workerd tests passed.
-- `npm run test:e2e`: 8 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
-  provisioning, and scoped-elevation journeys passed.
+- `npm run test:e2e`: 10 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
+  provisioning, scoped-elevation, and Organization MFA journeys passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
@@ -149,6 +153,13 @@ paginated Organization metadata directory and audited provisioning form. A canon
 host instead exposes the hostname-derived scope as read-only and allows a reasoned 15-minute edit
 elevation with explicit revocation. The browser never sends an Organization ID to select either the
 directory or the scoped elevation, and workers.dev canonical hostnames remain visibly pending.
+
+On a canonical Organization host, a signed member can now see only that hostname-derived
+Organization's authentication policy, enroll an authenticator while retaining recovery codes, and
+create a 12-hour assertion bound to the Organization, identity, and current session. Owners alone
+can enable the policy; disabling it requires a valid current Organization assertion plus a visible
+browser confirmation with Cancel. The status bootstrap endpoint does not expose operational data or
+bypass MFA on protected Organization routes.
 
 The first staging Platform Administrator identity is now provisioned through the production-refusing
 `npm run bootstrap:staging-platform-admin` operator command. Its second identical invocation wrote
@@ -202,6 +213,6 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with validated custom-domain activation and the remaining cross-resource
-   isolation probes while provider credentials are pending.
+3. Continue Milestone 2 with browser invitation lifecycle, validated custom-domain activation, and
+   the remaining cross-resource isolation probes while provider credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

@@ -1,7 +1,10 @@
 import {
   accountSecurityResponseSchema,
   accountOrganizationsResponseSchema,
+  organizationAuthStatusResponseSchema,
   organizationContextResponseSchema,
+  organizationMfaPolicyResponseSchema,
+  organizationMfaVerificationResponseSchema,
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
   platformMfaStatusResponseSchema,
@@ -696,6 +699,24 @@ describe("host-derived Organization authorization", () => {
     expect(enrollmentResponse.status).toBe(200);
     sessionCookie = enrollmentResponse.headers.get("set-cookie")?.split(";", 1)[0] ?? sessionCookie;
 
+    const initialStatusResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/auth-status",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(
+      organizationAuthStatusResponseSchema.parse(await initialStatusResponse.json()),
+    ).toMatchObject({
+      mfaRequired: false,
+      mfaVerifiedUntil: null,
+      organizationId: "organization-alpha",
+      role: "owner",
+      twoFactorEnabled: true,
+      twoFactorVerified: true,
+    });
+
     const policyResponse = await fetchWorker(
       authRequest(
         "/api/organization/auth-policy",
@@ -708,7 +729,7 @@ describe("host-derived Organization authorization", () => {
       ),
     );
     expect(policyResponse.status).toBe(200);
-    await expect(policyResponse.json()).resolves.toMatchObject({
+    expect(organizationMfaPolicyResponseSchema.parse(await policyResponse.json())).toMatchObject({
       mfaRequired: true,
       organizationId: "organization-alpha",
     });
@@ -738,6 +759,9 @@ describe("host-derived Organization authorization", () => {
       ),
     );
     expect(verificationResponse.status).toBe(200);
+    expect(
+      organizationMfaVerificationResponseSchema.parse(await verificationResponse.json()),
+    ).toMatchObject({ organizationId: "organization-alpha", status: "verified" });
 
     const authorizedResponse = await fetchWorker(
       new Request("http://alpha.localhost/api/organization/context", {
@@ -745,6 +769,17 @@ describe("host-derived Organization authorization", () => {
       }),
     );
     expect(authorizedResponse.status).toBe(200);
+    const verifiedStatusResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/auth-status",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(
+      organizationAuthStatusResponseSchema.parse(await verifiedStatusResponse.json())
+        .mfaVerifiedUntil,
+    ).not.toBeNull();
 
     await testEnv.CONTROL_DB.prepare(
       "UPDATE organizations SET mfa_required = 1 WHERE id = 'organization-bravo'",
@@ -755,6 +790,20 @@ describe("host-derived Organization authorization", () => {
       }),
     );
     expect(otherOrganizationResponse.status).toBe(401);
+    const otherOrganizationStatusResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/auth-status",
+        { headers: { cookie: sessionCookie } },
+        "http://bravo.localhost",
+      ),
+    );
+    expect(
+      organizationAuthStatusResponseSchema.parse(await otherOrganizationStatusResponse.json()),
+    ).toMatchObject({
+      mfaRequired: true,
+      mfaVerifiedUntil: null,
+      organizationId: "organization-bravo",
+    });
 
     const secondSessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     const otherSessionResponse = await fetchWorker(
@@ -763,6 +812,16 @@ describe("host-derived Organization authorization", () => {
       }),
     );
     expect(otherSessionResponse.status).toBe(401);
+    const otherSessionStatusResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/auth-status",
+        { headers: { cookie: secondSessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(
+      organizationAuthStatusResponseSchema.parse(await otherSessionStatusResponse.json()),
+    ).toMatchObject({ mfaVerifiedUntil: null, organizationId: "organization-alpha" });
     await expect(
       testEnv.CONTROL_DB.prepare(
         `SELECT actor_user_id AS actorUserId, action

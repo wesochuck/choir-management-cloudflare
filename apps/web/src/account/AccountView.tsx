@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { listAccountOrganizations, listActiveSessions, revokeSession, signOut } from "../auth/api";
 import { AccountSecurity } from "./AccountSecurity";
+import { OrganizationAccess } from "./OrganizationAccess";
 import { PlatformAccess } from "./PlatformAccess";
 
 interface AccountViewProps {
@@ -160,6 +161,7 @@ export function AccountView({ currentSession, onSignedOut }: AccountViewProps) {
       {resources.status === "ready" ? (
         <div className="account-grid">
           <PlatformAccess />
+          <OrganizationAccess />
           <AccountSecurity />
           <section className="account-section" aria-labelledby="organizations-title">
             <div className="section-heading section-heading--compact">

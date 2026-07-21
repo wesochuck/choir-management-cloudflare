@@ -3,6 +3,9 @@ import {
   accountSecurityResponseSchema,
   authSessionListSchema,
   currentAuthSessionSchema,
+  organizationAuthStatusResponseSchema,
+  organizationMfaPolicyResponseSchema,
+  organizationMfaVerificationResponseSchema,
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
   platformElevationRevocationResponseSchema,
@@ -17,6 +20,9 @@ import {
   type AccountSecurityResponse,
   type AuthSession,
   type CurrentAuthSession,
+  type OrganizationAuthStatusResponse,
+  type OrganizationMfaPolicyResponse,
+  type OrganizationMfaVerificationResponse,
   type OrganizationProvisionRequest,
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
@@ -126,7 +132,7 @@ export async function getPlatformMfaStatus(
   return platformMfaStatusResponseSchema.parse(await response.json());
 }
 
-export async function beginPlatformMfaEnrollment(): Promise<PlatformMfaEnrollmentResponse> {
+export async function beginAccountMfaEnrollment(): Promise<PlatformMfaEnrollmentResponse> {
   const response = await request("/api/auth/two-factor/enable", {
     body: JSON.stringify({}),
     method: "POST",
@@ -134,14 +140,14 @@ export async function beginPlatformMfaEnrollment(): Promise<PlatformMfaEnrollmen
   return platformMfaEnrollmentResponseSchema.parse(await response.json());
 }
 
-export async function verifyPlatformTotpEnrollment(code: string): Promise<void> {
+export async function verifyAccountTotpEnrollment(code: string): Promise<void> {
   await request("/api/auth/two-factor/verify-totp", {
     body: JSON.stringify({ code, trustDevice: false }),
     method: "POST",
   });
 }
 
-export async function regeneratePlatformRecoveryCodes(): Promise<readonly string[]> {
+export async function regenerateAccountRecoveryCodes(): Promise<readonly string[]> {
   const response = await request("/api/auth/two-factor/generate-backup-codes", {
     body: JSON.stringify({}),
     method: "POST",
@@ -220,4 +226,32 @@ export async function revokePlatformElevation(elevationId: string): Promise<void
     method: "DELETE",
   });
   platformElevationRevocationResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationAuthStatus(
+  signal?: AbortSignal,
+): Promise<OrganizationAuthStatusResponse> {
+  const response = await request("/api/organization/auth-status", { signal: signal ?? null });
+  return organizationAuthStatusResponseSchema.parse(await response.json());
+}
+
+export async function setOrganizationMfaPolicy(
+  mfaRequired: boolean,
+): Promise<OrganizationMfaPolicyResponse> {
+  const response = await request("/api/organization/auth-policy", {
+    body: JSON.stringify({ mfaRequired }),
+    method: "PATCH",
+  });
+  return organizationMfaPolicyResponseSchema.parse(await response.json());
+}
+
+export async function verifyOrganizationMfa(
+  method: "recovery_code" | "totp",
+  code: string,
+): Promise<OrganizationMfaVerificationResponse> {
+  const response = await request("/api/organization/mfa/verify", {
+    body: JSON.stringify({ code, method }),
+    method: "POST",
+  });
+  return organizationMfaVerificationResponseSchema.parse(await response.json());
 }

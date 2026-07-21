@@ -25,7 +25,11 @@ import {
   getPlatformAdministratorMfaStatus,
   recordPlatformMfaAssertion,
 } from "./auth/platformAdministrator";
-import { recordOrganizationMfaAssertion, setOrganizationMfaPolicy } from "./auth/organizationMfa";
+import {
+  getOrganizationMfaStatus,
+  recordOrganizationMfaAssertion,
+  setOrganizationMfaPolicy,
+} from "./auth/organizationMfa";
 import {
   createPlatformElevation,
   getPlatformOrganizationContext,
@@ -574,6 +578,73 @@ router.post("/api/organization/invitations", async (context) => {
   }
 });
 
+router.get("/api/organization/auth-status", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Organization authentication status requires a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+    { enforceMfa: false },
+  );
+  if (!authorization.ok || !session) {
+    const code = authorization.ok ? "unauthorized" : authorization.error.code;
+    const message = authorization.ok ? "Sign in is required." : authorization.error.message;
+    return context.json(
+      { code, message, requestId: context.get("requestId") } satisfies ProblemDetails,
+      code === "unauthorized" ? 401 : 403,
+    );
+  }
+
+  const status = await getOrganizationMfaStatus(context.env.CONTROL_DB, {
+    organizationId,
+    sessionId: session.session.id,
+    userId: authorization.value.userId,
+  });
+  if (!status.ok) {
+    return context.json(
+      {
+        code: status.error.code,
+        message: status.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+  return context.json({
+    mfaRequired: status.value.mfaRequired,
+    mfaVerifiedUntil: status.value.mfaVerifiedUntil
+      ? new Date(status.value.mfaVerifiedUntil).toISOString()
+      : null,
+    organizationId,
+    requestId: context.get("requestId"),
+    role: authorization.value.role,
+    twoFactorEnabled: status.value.twoFactorEnabled,
+    twoFactorVerified: status.value.twoFactorVerified,
+  });
+});
+
 router.patch("/api/organization/auth-policy", async (context) => {
   validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
@@ -653,7 +724,11 @@ router.patch("/api/organization/auth-policy", async (context) => {
       404,
     );
   }
-  return context.json({ mfaRequired: updated.value.mfaRequired, organizationId });
+  return context.json({
+    mfaRequired: updated.value.mfaRequired,
+    organizationId,
+    requestId: context.get("requestId"),
+  });
 });
 
 router.post("/api/organization/mfa/verify", async (context) => {
@@ -748,6 +823,7 @@ router.post("/api/organization/mfa/verify", async (context) => {
   return context.json({
     expiresAt: new Date(assertion.value.expiresAt).toISOString(),
     organizationId,
+    requestId: context.get("requestId"),
     status: "verified" as const,
   });
 });

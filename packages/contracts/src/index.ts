@@ -110,6 +110,35 @@ export const organizationMfaVerificationRequestSchema = z.discriminatedUnion("me
   z.object({ code: z.string().min(8).max(128), method: z.literal("recovery_code") }),
 ]);
 
+export const organizationAuthStatusResponseSchema = z.object({
+  mfaRequired: z.boolean(),
+  mfaVerifiedUntil: z.iso.datetime().nullable(),
+  organizationId: organizationIdSchema,
+  requestId: requestIdSchema,
+  role: z.enum(["owner", "administrator", "member"]),
+  twoFactorEnabled: z.boolean(),
+  twoFactorVerified: z.boolean(),
+});
+
+export const organizationMfaPolicyResponseSchema = z.object({
+  mfaRequired: z.boolean(),
+  organizationId: organizationIdSchema,
+  requestId: requestIdSchema,
+});
+
+export const organizationMfaVerificationResponseSchema = z.object({
+  expiresAt: z.iso.datetime(),
+  organizationId: organizationIdSchema,
+  requestId: requestIdSchema,
+  status: z.literal("verified"),
+});
+
+export type OrganizationAuthStatusResponse = z.infer<typeof organizationAuthStatusResponseSchema>;
+export type OrganizationMfaPolicyResponse = z.infer<typeof organizationMfaPolicyResponseSchema>;
+export type OrganizationMfaVerificationResponse = z.infer<
+  typeof organizationMfaVerificationResponseSchema
+>;
+
 export const organizationProfileLinkRequestSchema = z.object({
   profileId: z.uuid(),
 });

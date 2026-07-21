@@ -158,6 +158,17 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
       status: 200,
     });
   });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        code: "not_found",
+        message: "No canonical Organization hostname is active.",
+        requestId: "55555555-5555-4555-8555-555555555555",
+      }),
+      contentType: "application/json",
+      status: 404,
+    });
+  });
 
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
@@ -257,6 +268,17 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
       }),
       contentType: "application/json",
       status: 200,
+    });
+  });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        code: "not_found",
+        message: "No canonical Organization hostname is active.",
+        requestId: "55555555-5555-4555-8555-555555555555",
+      }),
+      contentType: "application/json",
+      status: 404,
     });
   });
   await page.route("**/api/auth/two-factor/enable", async (route) => {
@@ -440,6 +462,17 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
       status: 200,
     });
   });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        code: "forbidden",
+        message: "This identity is not an active Organization Member.",
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 403,
+    });
+  });
   await page.route("**/api/platform/context", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -504,4 +537,178 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
   await expect(platformSection.getByText("Platform edits enabled.")).toBeVisible();
   await platformSection.getByRole("button", { name: "End edit access" }).click();
   await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
+});
+
+test("enrolls, verifies, and safely manages an Organization MFA policy", async ({ page }) => {
+  let mfaRequired = false;
+  let mfaVerifiedUntil: string | null = null;
+  let twoFactorEnabled = false;
+  let twoFactorVerified = false;
+  const requestId = "55555555-5555-4555-8555-555555555555";
+  const recoveryCodes = Array.from(
+    { length: 10 },
+    (_, index) => `organization-recovery-${String(index + 1).padStart(2, "0")}`,
+  );
+
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ session: currentSession, user: currentUser }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/organizations", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        organizations: [
+          {
+            canonicalHostname: "alpha.localhost",
+            canonicalStatus: "active",
+            lifecycleState: "active",
+            name: "Organization Alpha",
+            organizationId: "organization-alpha",
+            profileId: null,
+            role: "owner",
+            slug: "alpha",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/security", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ passwordSet: false, requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/list-sessions", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify([currentSession]),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        activePlatformAdministrator: false,
+        enrollmentComplete: false,
+        requestId,
+        twoFactorEnabled,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        mfaRequired,
+        mfaVerifiedUntil,
+        organizationId: "organization-alpha",
+        requestId,
+        role: "owner",
+        twoFactorEnabled,
+        twoFactorVerified,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/auth-policy", async (route) => {
+    mfaRequired = !mfaRequired;
+    mfaVerifiedUntil = null;
+    await route.fulfill({
+      body: JSON.stringify({ mfaRequired, organizationId: "organization-alpha", requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/two-factor/enable", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        backupCodes: recoveryCodes,
+        totpURI:
+          "otpauth://totp/Choir%20Management:member%40example.test?secret=JBSWY3DPEHPK3PXP&issuer=Choir%20Management",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/two-factor/verify-totp", async (route) => {
+    twoFactorEnabled = true;
+    twoFactorVerified = true;
+    await route.fulfill({
+      body: JSON.stringify({ status: true }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/mfa/verify", async (route) => {
+    mfaVerifiedUntil = "2026-07-21T08:00:00.000Z";
+    await route.fulfill({
+      body: JSON.stringify({
+        expiresAt: mfaVerifiedUntil,
+        organizationId: "organization-alpha",
+        requestId,
+        status: "verified",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/account");
+  const organizationSection = page.getByRole("region", { name: "Organization security" });
+  await expect(organizationSection.getByText("MFA not required")).toBeVisible();
+  await organizationSection
+    .getByRole("button", { name: "Require MFA for this Organization" })
+    .click();
+  await expect(organizationSection.getByText("MFA required")).toBeVisible();
+  await organizationSection.getByRole("button", { name: "Start Organization MFA setup" }).click();
+  await expect(organizationSection.getByLabel("Organization MFA recovery codes")).toContainText(
+    "organization-recovery-01",
+  );
+  await organizationSection.getByLabel("3. Verify authenticator code").fill("123456");
+  await organizationSection.getByRole("button", { name: "Verify authenticator" }).click();
+  await organizationSection
+    .getByRole("checkbox", {
+      name: "I saved these Organization MFA recovery codes in a secure place.",
+    })
+    .check();
+  await organizationSection
+    .getByRole("button", { name: "Continue to Organization verification" })
+    .click();
+  await organizationSection.getByLabel("6-digit Organization code").fill("654321");
+  await organizationSection.getByRole("button", { name: "Verify Organization access" }).click();
+  await expect(organizationSection.getByText(/Verified until/)).toBeVisible();
+  await expect(page.getByText("organization-recovery-01")).toHaveCount(0);
+
+  await organizationSection.getByRole("button", { name: "Stop requiring MFA" }).click();
+  const confirmation = organizationSection.getByRole("group", {
+    name: "Confirm MFA policy change",
+  });
+  await confirmation.getByRole("button", { name: "Cancel" }).click();
+  await expect(
+    organizationSection.getByRole("button", { name: "Stop requiring MFA" }),
+  ).toBeVisible();
+  await organizationSection.getByRole("button", { name: "Stop requiring MFA" }).click();
+  await confirmation.getByRole("button", { name: "Confirm: stop requiring MFA" }).click();
+  await expect(organizationSection.getByText("MFA not required")).toBeVisible();
 });
