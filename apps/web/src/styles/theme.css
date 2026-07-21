@@ -494,6 +494,10 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.account-section--organization-invitations {
+  grid-column: 1 / -1;
+}
+
 .password-form {
   max-width: 34rem;
 }
@@ -686,6 +690,35 @@ h2 {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface-raised);
+}
+
+.organization-invitation-form {
+  max-width: 40rem;
+}
+
+.invitation-details {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+.invitation-details div {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.invitation-details dt {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+
+.invitation-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .section-heading--compact h2 {

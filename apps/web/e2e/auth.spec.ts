@@ -673,6 +673,18 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
       status: 200,
     });
   });
+  await page.route("**/api/organization/invitations", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        expiresAt: "2026-07-22T08:00:00.000Z",
+        id: "77777777-7777-4777-8777-777777777777",
+        requestId,
+        status: "pending",
+      }),
+      contentType: "application/json",
+      status: 201,
+    });
+  });
 
   await page.goto("/account");
   const organizationSection = page.getByRole("region", { name: "Organization security" });
@@ -700,6 +712,16 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(organizationSection.getByText(/Verified until/)).toBeVisible();
   await expect(page.getByText("organization-recovery-01")).toHaveCount(0);
 
+  const invitationSection = page.getByRole("region", { name: "Invite a member" });
+  await invitationSection.getByLabel("Email address").fill("future.member@example.test");
+  await invitationSection
+    .getByLabel("Organization role")
+    .selectOption({ label: "Organization Administrator" });
+  await invitationSection.getByRole("button", { name: "Create invitation" }).click();
+  await expect(invitationSection.getByRole("status")).toContainText(
+    "Invitation created for future.member@example.test",
+  );
+
   await organizationSection.getByRole("button", { name: "Stop requiring MFA" }).click();
   const confirmation = organizationSection.getByRole("group", {
     name: "Confirm MFA policy change",
@@ -711,4 +733,84 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await organizationSection.getByRole("button", { name: "Stop requiring MFA" }).click();
   await confirmation.getByRole("button", { name: "Confirm: stop requiring MFA" }).click();
   await expect(organizationSection.getByText("MFA not required")).toBeVisible();
+});
+
+test("signs in as the recipient and accepts an Organization invitation", async ({ page }) => {
+  let signedIn = false;
+  const invitationId = "77777777-7777-4777-8777-777777777777";
+
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(signedIn ? { session: currentSession, user: currentUser } : null),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/email-otp/send-verification-otp", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ success: true }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/sign-in/email-otp", async (route) => {
+    signedIn = true;
+    await route.fulfill({
+      body: JSON.stringify({ token: "not-used-by-browser-ui", user: currentUser }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/organization/get-invitation**", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        email: currentUser.email,
+        expiresAt: "2026-07-22T08:00:00.000Z",
+        id: invitationId,
+        inviterEmail: "owner@example.test",
+        inviterId: "organization-owner",
+        organizationId: "organization-alpha",
+        organizationName: "Organization Alpha",
+        organizationSlug: "alpha",
+        role: "member",
+        status: "pending",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/organization/accept-invitation", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ invitation: { id: invitationId }, member: { role: "member" } }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto(`/accept-invitation?id=${invitationId}`);
+  await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
+  await page.getByLabel("Email address").fill(currentUser.email);
+  await page.getByRole("button", { name: "Send sign-in code" }).click();
+  await page.getByLabel("6-digit sign-in code").fill("123456");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Join Organization Alpha." })).toBeVisible();
+  await expect(page.getByText(currentUser.email)).toBeVisible();
+  await expect(page.getByText("Organization Member")).toBeVisible();
+  await page.getByRole("button", { name: "Accept Organization invitation" }).click();
+  await expect(page.getByRole("heading", { name: "You joined Organization Alpha." })).toBeVisible();
+  await expect(page.getByText("Your Organization Membership is ready.")).toBeVisible();
 });

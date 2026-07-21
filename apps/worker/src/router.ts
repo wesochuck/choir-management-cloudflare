@@ -1,5 +1,6 @@
 import {
   accountPasswordRequestSchema,
+  organizationInvitationRequestSchema,
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
   organizationProfileLinkRequestSchema,
@@ -81,6 +82,30 @@ function parsePlatformOrganizationCursor(
 
 function encodePlatformOrganizationCursor(row: PlatformOrganizationRow): string {
   return `${row.createdAt}|${row.organizationId}`;
+}
+
+async function ensurePendingInvitationIdentity(
+  database: D1Database,
+  auth: ReturnType<typeof createAuth>,
+  headers: Headers,
+  invitationId: string,
+  email: string,
+): Promise<void> {
+  const now = Date.now();
+  const defaultName = email.split("@", 1)[0] ?? "Invited member";
+  try {
+    await database
+      .prepare(
+        `INSERT OR IGNORE INTO user
+          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+         VALUES (?, ?, ?, 0, ?, ?, 0)`,
+      )
+      .bind(crypto.randomUUID(), defaultName, email, now, now)
+      .run();
+  } catch {
+    await auth.api.cancelInvitation({ body: { invitationId }, headers }).catch(() => undefined);
+    throw new Error("Pending invitation identity creation failed.");
+  }
 }
 
 async function isAuthorizedPlatformHostname(requestUrl: URL, env: Env): Promise<boolean> {
@@ -454,14 +479,6 @@ router.get("/api/organization/context", async (context) => {
   return context.json(response);
 });
 
-const organizationInvitationSchema = z.object({
-  email: z
-    .email()
-    .max(320)
-    .transform((email) => email.toLowerCase()),
-  role: z.enum(["owner", "administrator", "member"]),
-});
-
 router.post("/api/organization/invitations", async (context) => {
   const config = validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
@@ -480,7 +497,7 @@ router.post("/api/organization/invitations", async (context) => {
       404,
     );
   }
-  const parsedBody = organizationInvitationSchema.safeParse(
+  const parsedBody = organizationInvitationRequestSchema.safeParse(
     await context.req.json<unknown>().catch(() => null),
   );
   if (!parsedBody.success) {
@@ -539,29 +556,29 @@ router.post("/api/organization/invitations", async (context) => {
     );
   }
 
+  const email = parsedBody.data.email.toLowerCase();
   const betterAuthRole = parsedBody.data.role === "administrator" ? "admin" : parsedBody.data.role;
   try {
     const invitation = await auth.api.createInvitation({
       body: {
-        email: parsedBody.data.email,
+        email,
         organizationId: resolvedOrganization.value.organizationId,
         role: betterAuthRole,
       },
       headers: context.req.raw.headers,
     });
-    const now = Date.now();
-    const defaultName = parsedBody.data.email.split("@", 1)[0] ?? "Invited member";
-    await context.env.CONTROL_DB.prepare(
-      `INSERT OR IGNORE INTO user
-        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-       VALUES (?, ?, ?, 0, ?, ?, 0)`,
-    )
-      .bind(crypto.randomUUID(), defaultName, parsedBody.data.email, now, now)
-      .run();
+    await ensurePendingInvitationIdentity(
+      context.env.CONTROL_DB,
+      auth,
+      context.req.raw.headers,
+      invitation.id,
+      email,
+    );
     return context.json(
       {
         expiresAt: invitation.expiresAt.toISOString(),
         id: invitation.id,
+        requestId: context.get("requestId"),
         status: invitation.status,
       },
       201,

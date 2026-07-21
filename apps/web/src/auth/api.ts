@@ -4,6 +4,8 @@ import {
   authSessionListSchema,
   currentAuthSessionSchema,
   organizationAuthStatusResponseSchema,
+  organizationInvitationDetailsSchema,
+  organizationInvitationResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
   organizationProvisionResponseSchema,
@@ -21,6 +23,9 @@ import {
   type AuthSession,
   type CurrentAuthSession,
   type OrganizationAuthStatusResponse,
+  type OrganizationInvitationDetails,
+  type OrganizationInvitationRequest,
+  type OrganizationInvitationResponse,
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
   type OrganizationProvisionRequest,
@@ -254,4 +259,32 @@ export async function verifyOrganizationMfa(
     method: "POST",
   });
   return organizationMfaVerificationResponseSchema.parse(await response.json());
+}
+
+export async function createOrganizationInvitation(
+  invitation: OrganizationInvitationRequest,
+): Promise<OrganizationInvitationResponse> {
+  const response = await request("/api/organization/invitations", {
+    body: JSON.stringify(invitation),
+    method: "POST",
+  });
+  return organizationInvitationResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationInvitation(
+  invitationId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationInvitationDetails> {
+  const search = new URLSearchParams({ id: invitationId });
+  const response = await request(`/api/auth/organization/get-invitation?${search.toString()}`, {
+    signal: signal ?? null,
+  });
+  return organizationInvitationDetailsSchema.parse(await response.json());
+}
+
+export async function acceptOrganizationInvitation(invitationId: string): Promise<void> {
+  await request("/api/auth/organization/accept-invitation", {
+    body: JSON.stringify({ invitationId }),
+    method: "POST",
+  });
 }

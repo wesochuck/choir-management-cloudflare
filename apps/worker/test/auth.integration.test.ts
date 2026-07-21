@@ -3,6 +3,8 @@ import {
   accountOrganizationsResponseSchema,
   organizationAuthStatusResponseSchema,
   organizationContextResponseSchema,
+  organizationInvitationDetailsSchema,
+  organizationInvitationResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
   organizationProvisionResponseSchema,
@@ -62,8 +64,6 @@ const enrollmentResponseSchema = z.object({
   backupCodes: z.array(z.string()),
   totpURI: z.url(),
 });
-
-const invitationResponseSchema = z.object({ id: z.string().min(1), status: z.literal("pending") });
 
 function authRequest(path: string, init?: RequestInit, origin = BASE_AUTH_ORIGIN): Request {
   const headers = new Headers(init?.headers);
@@ -1441,14 +1441,23 @@ describe("Organization invitations", () => {
       ),
     );
     expect(invitationResponse.status).toBe(201);
-    const invitation = invitationResponseSchema.parse(await invitationResponse.json());
+    const invitation = organizationInvitationResponseSchema.parse(await invitationResponse.json());
     expect(invitation.status).toBe("pending");
-    expect(
-      readCapturedPlatformEmailsForTest().some(
-        (message) =>
-          message.kind === "organization-invitation" && message.recipient === invitedEmail,
+    const invitationEmail = readCapturedPlatformEmailsForTest().find(
+      (message) => message.kind === "organization-invitation" && message.recipient === invitedEmail,
+    );
+    expect(invitationEmail?.text).toContain(
+      `http://alpha.localhost/accept-invitation?id=${invitation.id}`,
+    );
+
+    const wrongRecipientDetailsResponse = await fetchWorker(
+      authRequest(
+        `/api/auth/organization/get-invitation?id=${encodeURIComponent(invitation.id)}`,
+        { headers: { cookie: inviterCookie } },
+        ALPHA_AUTH_ORIGIN,
       ),
-    ).toBe(true);
+    );
+    expect(wrongRecipientDetailsResponse.status).toBe(403);
 
     const pendingUser = await testEnv.CONTROL_DB.prepare(
       "SELECT id, emailVerified FROM user WHERE email = ?",
@@ -1458,6 +1467,23 @@ describe("Organization invitations", () => {
     expect(pendingUser).toMatchObject({ emailVerified: 0 });
 
     const invitedCookie = await signInEmail(invitedEmail, ALPHA_AUTH_ORIGIN);
+    const invitationDetailsResponse = await fetchWorker(
+      authRequest(
+        `/api/auth/organization/get-invitation?id=${encodeURIComponent(invitation.id)}`,
+        { headers: { cookie: invitedCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(invitationDetailsResponse.status).toBe(200);
+    expect(
+      organizationInvitationDetailsSchema.parse(await invitationDetailsResponse.json()),
+    ).toMatchObject({
+      email: invitedEmail,
+      id: invitation.id,
+      organizationId: "organization-alpha",
+      organizationName: "Organization Alpha",
+      role: "member",
+    });
     const acceptResponse = await fetchWorker(
       authRequest(
         "/api/auth/organization/accept-invitation",

@@ -64,6 +64,8 @@ milestone complete.
 | `apps/web/src/account/PlatformOperations.tsx`                  | Platform Administrator Organization provisioning and scoped-elevation UI             |
 | `apps/web/src/account/AccountSecurity.tsx`                     | User-managed password creation and change UI                                         |
 | `apps/web/src/account/OrganizationAccess.tsx`                  | Hostname-scoped Organization MFA enrollment, verification, and Owner policy UI       |
+| `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation on the hostname-derived Organization         |
+| `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
 | `apps/worker/wrangler.jsonc`                                   | Local bindings and named staging/production environments                             |

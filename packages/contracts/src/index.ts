@@ -139,6 +139,34 @@ export type OrganizationMfaVerificationResponse = z.infer<
   typeof organizationMfaVerificationResponseSchema
 >;
 
+export const organizationInvitationRequestSchema = z.object({
+  email: z.email().max(320),
+  role: z.enum(["owner", "administrator", "member"]),
+});
+
+export const organizationInvitationResponseSchema = z.object({
+  expiresAt: z.iso.datetime(),
+  id: z.string().min(1).max(128),
+  requestId: requestIdSchema,
+  status: z.literal("pending"),
+});
+
+export const organizationInvitationDetailsSchema = z.object({
+  email: z.email(),
+  expiresAt: z.iso.datetime(),
+  id: z.string().min(1).max(128),
+  inviterEmail: z.email(),
+  organizationId: organizationIdSchema,
+  organizationName: z.string().min(1).max(120),
+  organizationSlug: z.string().min(1).max(63),
+  role: z.enum(["owner", "admin", "member"]),
+  status: z.literal("pending"),
+});
+
+export type OrganizationInvitationRequest = z.infer<typeof organizationInvitationRequestSchema>;
+export type OrganizationInvitationResponse = z.infer<typeof organizationInvitationResponseSchema>;
+export type OrganizationInvitationDetails = z.infer<typeof organizationInvitationDetailsSchema>;
+
 export const organizationProfileLinkRequestSchema = z.object({
   profileId: z.uuid(),
 });

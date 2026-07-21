@@ -43,7 +43,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `24385d26-1226-43fc-aa69-a66140da54f4`
+- Current verified Worker version: `ec8e7bd8-e4d1-4ad5-878e-a11d939ea356`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -89,6 +89,10 @@ Verified over public HTTPS on July 20, 2026:
   `/api/organization/mfa/verify` returned HTTP 404 on the global workers.dev base after the
   Organization MFA browser deployment, proving hostname resolution precedes policy or factor work.
   Remote D1 still contained zero Organization MFA assertions and zero two-factor rows.
+- `/accept-invitation` returned the deployed application shell. Native invitation detail and accept
+  endpoints returned HTTP 401 anonymously, invitation creation returned HTTP 404 on the global base
+  host, and public email/password registration remained HTTP 404. Remote D1 still contained zero
+  invitations, Memberships, Organizations, and sessions.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -102,8 +106,8 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
 - `npm run test:integration`: 2 files / 22 workerd tests passed.
-- `npm run test:e2e`: 10 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
-  provisioning, scoped-elevation, and Organization MFA journeys passed.
+- `npm run test:e2e`: 12 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
+  provisioning, scoped-elevation, Organization MFA, and invitation-acceptance journeys passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
@@ -161,6 +165,14 @@ can enable the policy; disabling it requires a valid current Organization assert
 browser confirmation with Cancel. The status bootstrap endpoint does not expose operational data or
 bypass MFA on protected Organization routes.
 
+Organization Owners and Administrators now have a hostname-scoped invitation form; only Owners may
+select the Owner role, and an active Organization MFA policy blocks creation until the current
+session is verified. Invitation email links return to `/accept-invitation`; an anonymous recipient
+signs in by email code, and Better Auth reveals details or accepts only after matching the verified
+session email, pending state, expiry, inviter membership, and membership limit. A failed pending-
+identity write compensates by canceling the just-created invitation. Stale-invitation and wrong-
+recipient rejection are covered in workerd.
+
 The first staging Platform Administrator identity is now provisioned through the production-refusing
 `npm run bootstrap:staging-platform-admin` operator command. Its second identical invocation wrote
 zero rows. Remote D1 verification found exactly one user, one active Platform Administrator grant,
@@ -213,6 +225,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with browser invitation lifecycle, validated custom-domain activation, and
-   the remaining cross-resource isolation probes while provider credentials are pending.
+3. Continue Milestone 2 with password recovery, pending-invitation cancellation/rejection, validated
+   custom-domain activation, and the remaining cross-resource isolation probes while provider
+   credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

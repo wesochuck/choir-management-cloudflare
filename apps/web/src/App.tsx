@@ -2,6 +2,7 @@ import { healthResponseSchema, type CurrentAuthSession } from "@choir/contracts"
 import { useEffect, useState } from "react";
 
 import { AccountView } from "./account/AccountView";
+import { AcceptInvitationView } from "./auth/AcceptInvitationView";
 import { getCurrentSession } from "./auth/api";
 import { SignInView } from "./auth/SignInView";
 
@@ -158,8 +159,23 @@ export function App() {
     window.location.assign("/");
   }
 
+  function finishInvitationSignIn() {
+    window.location.assign(`/accept-invitation${window.location.search}`);
+  }
+
   let content;
-  if (pathname === "/login") {
+  if (pathname === "/accept-invitation") {
+    content =
+      sessionState.status === "checking" ? (
+        <AccountLoading />
+      ) : sessionState.status === "authenticated" ? (
+        <AcceptInvitationView
+          invitationId={new URLSearchParams(window.location.search).get("id")}
+        />
+      ) : (
+        <SignInView onSignedIn={finishInvitationSignIn} />
+      );
+  } else if (pathname === "/login") {
     content =
       sessionState.status === "authenticated" ? (
         <AlreadySignedIn session={sessionState.session} />
