@@ -3,6 +3,7 @@ import {
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
   platformOrganizationContextResponseSchema,
+  publicDomainResponseSchema,
 } from "@choir/contracts";
 import { env } from "cloudflare:workers";
 import {
@@ -721,6 +722,125 @@ describe("host-derived Organization authorization", () => {
       action: "organization.membership.profile_linked",
       actorUserId: "user-invited-member",
     });
+  });
+
+  it("registers Public Website Domains without exposing authenticated routes", async () => {
+    await seedInvitedUser();
+    await seedOrganizations(true);
+    await testEnv.CONTROL_DB.prepare("UPDATE member SET role = 'owner' WHERE userId = ?")
+      .bind("user-invited-member")
+      .run();
+    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+
+    const registrationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/public-domains",
+        {
+          body: JSON.stringify({ hostname: "Public.Example.Test." }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(registrationResponse.status).toBe(201);
+    const domain = publicDomainResponseSchema.parse(await registrationResponse.json());
+    expect(domain).toMatchObject({
+      hostname: "public.example.test",
+      organizationId: "organization-alpha",
+      routingVersion: 1,
+      status: "pending",
+    });
+
+    const productHostnameResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/public-domains",
+        {
+          body: JSON.stringify({ hostname: "fake.alpha.localhost" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(productHostnameResponse.status).toBe(400);
+
+    const ipAddressResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/public-domains",
+        {
+          body: JSON.stringify({ hostname: "192.0.2.1" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(ipAddressResponse.status).toBe(400);
+
+    const crossOrganizationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/public-domains",
+        {
+          body: JSON.stringify({ hostname: domain.hostname }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        "http://bravo.localhost",
+      ),
+    );
+    expect(crossOrganizationResponse.status).toBe(409);
+
+    await testEnv.CONTROL_DB.prepare(
+      "UPDATE organization_domains SET status = 'active' WHERE id = ?",
+    )
+      .bind(domain.domainId)
+      .run();
+    await testEnv.ROUTING_CACHE.put(
+      `host:${domain.hostname}`,
+      JSON.stringify({
+        organizationId: "organization-alpha",
+        routeKind: "custom_public",
+        routingVersion: 1,
+      }),
+    );
+    const authOnPublicDomain = await fetchWorker(
+      new Request(`http://${domain.hostname}/api/auth/get-session`, {
+        headers: { origin: `http://${domain.hostname}` },
+      }),
+    );
+    expect(authOnPublicDomain.status).toBe(404);
+    const organizationRouteOnPublicDomain = await fetchWorker(
+      new Request(`http://${domain.hostname}/api/organization/context`, {
+        headers: { cookie: sessionCookie, origin: `http://${domain.hostname}` },
+      }),
+    );
+    expect(organizationRouteOnPublicDomain.status).toBe(404);
+
+    const disableResponse = await fetchWorker(
+      authRequest(
+        `/api/organization/public-domains/${domain.domainId}`,
+        { headers: { cookie: sessionCookie }, method: "DELETE" },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(disableResponse.status).toBe(200);
+    expect(publicDomainResponseSchema.parse(await disableResponse.json())).toMatchObject({
+      routingVersion: 2,
+      status: "disabled",
+    });
+    await expect(testEnv.ROUTING_CACHE.get(`host:${domain.hostname}`)).resolves.toBeNull();
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT COUNT(*) AS count FROM platform_audit_events
+         WHERE target_id = ? AND action IN (
+           'organization.public_domain.registered',
+           'organization.public_domain.disabled'
+         )`,
+      )
+        .bind(domain.domainId)
+        .first(),
+    ).resolves.toEqual({ count: 2 });
   });
 });
 

@@ -59,6 +59,12 @@ immutable versioned keys and a derived pointer.
 KV contains only derived hostname routes and published-projection pointers. D1 and the Organization
 store remain authoritative; KV values never grant permissions.
 
+Public Website Domain registration creates a pending `custom_public` D1 record only after hostname
+validation and canonical-Organization authorization. Activation is a separate provider validation
+lifecycle and must not be inferred from registration. Disabling a domain advances its routing
+version and removes the corresponding KV hint; D1 remains the source of truth. Custom public
+hostnames serve public projections only and never expose authentication or administration routes.
+
 ## Portability
 
 Organization Export is a resumable logical snapshot, not a database backup. It produces a private

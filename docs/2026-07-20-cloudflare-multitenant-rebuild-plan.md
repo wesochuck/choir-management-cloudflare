@@ -82,6 +82,7 @@ milestone complete.
 | `apps/worker/src/tenancy/resolveOrganization.ts`               | Hostname-to-Organization resolution                                                  |
 | `apps/worker/src/tenancy/authorizeOrganization.ts`             | Membership and Platform Administrator authorization                                  |
 | `apps/worker/src/tenancy/linkOrganizationProfile.ts`           | Organization-store-confirmed Membership-to-Profile identity linkage                  |
+| `apps/worker/src/tenancy/registerPublicDomain.ts`              | Pending Public Website Domain registration, disablement, and routing-cache safety    |
 | `apps/worker/src/jobs/consumer.ts`                             | Queue dispatch, retries, and dead-letter behavior                                    |
 | `apps/worker/src/jobs/contracts.ts`                            | Versioned, Organization-scoped job payloads                                          |
 | `apps/worker/src/publication/publishOrganization.ts`           | Public projection generation and cache versioning                                    |

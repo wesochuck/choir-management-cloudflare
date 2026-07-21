@@ -2,8 +2,8 @@
 
 **Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
-tenant-boundary, provisioning, and scoped-elevation core is deployed to permanent staging.
-Production is not launched.
+tenant-boundary, provisioning, scoped-elevation, and Public Website Domain registration core is
+deployed to permanent staging. Production is not launched.
 
 ## Repository topology
 
@@ -42,7 +42,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `8754287d-7d5b-43ee-b9e9-38012a2b263a`
+- Current verified Worker version: `79559921-2881-40dd-bdab-3b7fbab5851d`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -70,6 +70,9 @@ Verified over public HTTPS on July 20, 2026:
   scoped assertion table was verified in remote D1 without creating an Organization.
 - The Membership-to-Profile route rejected the global base host, and remote D1 confirmed the unique
   Organization/Profile linkage index without creating an Organization.
+- Public Website Domain registration rejected the global workers.dev base host because no canonical
+  Organization hostname was present. Remote D1 still contained zero Organizations, and no D1
+  migrations were pending after the deployment.
 - `/` returned the deployed Vite application shell.
 
 ## Completed foundation checks
@@ -78,7 +81,7 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 3 files / 8 tests passed.
-- `npm run test:integration`: 2 files / 19 workerd tests passed.
+- `npm run test:integration`: 2 files / 20 workerd tests passed.
 - `npm run test:e2e`: desktop and mobile Chromium smoke tests passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
@@ -99,6 +102,13 @@ adapter.
 Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
 inside the hostname-resolved Organization Durable Object. The linkage is unique within that
 Organization and actor-attributed; a Profile in another Organization store is rejected.
+
+Organization Owners may register normalized Public Website Domains as pending D1 routing records
+from their canonical product hostname. Registration rejects IP literals, invalid DNS hostnames, the
+product namespace, and cross-Organization duplicates. Disabling a domain increments its routing
+version, records the actor, and removes its KV hint. A custom public hostname never exposes auth or
+Organization administration routes. Domain activation remains intentionally absent until a managed
+Cloudflare zone enables validated custom-hostname lifecycle work.
 
 The authentication handler is available on the exact product base hostname. Organization subdomains
 must also be registered as active canonical domains in D1; merely matching the product domain suffix
@@ -145,6 +155,6 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with custom-domain registration, Platform/session management UI, and the
-   remaining cross-resource isolation probes while provider credentials are pending.
+3. Continue Milestone 2 with Platform/session management UI, validated custom-domain activation, and
+   the remaining cross-resource isolation probes while provider credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

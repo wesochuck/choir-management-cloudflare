@@ -49,6 +49,42 @@ export const organizationProfileLinkResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const publicWebsiteHostnameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .transform((hostname) => hostname.replace(/\.$/, ""))
+  .refine(
+    (hostname) =>
+      hostname.length <= 253 &&
+      hostname.includes(".") &&
+      !/^\d+(?:\.\d+){3}$/.test(hostname) &&
+      !/^\d+$/.test(hostname.split(".").at(-1) ?? "") &&
+      hostname
+        .split(".")
+        .every(
+          (label) =>
+            label.length >= 1 &&
+            label.length <= 63 &&
+            /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label),
+        ),
+    "A valid DNS hostname is required.",
+  );
+
+export const publicDomainRegistrationRequestSchema = z.object({
+  hostname: publicWebsiteHostnameSchema,
+});
+
+export const publicDomainResponseSchema = z.object({
+  domainId: z.uuid(),
+  hostname: publicWebsiteHostnameSchema,
+  organizationId: organizationIdSchema,
+  routingVersion: z.number().int().positive(),
+  status: z.enum(["active", "disabled", "pending"]),
+});
+
+export type PublicDomainResponse = z.infer<typeof publicDomainResponseSchema>;
+
 export const organizationProvisionRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z
