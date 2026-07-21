@@ -5,7 +5,9 @@ import {
   currentAuthSessionSchema,
   organizationAuthStatusResponseSchema,
   organizationInvitationDetailsSchema,
+  organizationInvitationActionResponseSchema,
   organizationInvitationResponseSchema,
+  organizationInvitationsResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
   organizationProvisionResponseSchema,
@@ -24,8 +26,10 @@ import {
   type CurrentAuthSession,
   type OrganizationAuthStatusResponse,
   type OrganizationInvitationDetails,
+  type OrganizationInvitationActionResponse,
   type OrganizationInvitationRequest,
   type OrganizationInvitationResponse,
+  type OrganizationInvitationsResponse,
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
   type OrganizationProvisionRequest,
@@ -328,16 +332,48 @@ export async function getOrganizationInvitation(
   invitationId: string,
   signal?: AbortSignal,
 ): Promise<OrganizationInvitationDetails> {
-  const search = new URLSearchParams({ id: invitationId });
-  const response = await request(`/api/auth/organization/get-invitation?${search.toString()}`, {
-    signal: signal ?? null,
-  });
+  const response = await request(
+    `/api/organization/invitations/${encodeURIComponent(invitationId)}`,
+    { signal: signal ?? null },
+  );
   return organizationInvitationDetailsSchema.parse(await response.json());
 }
 
 export async function acceptOrganizationInvitation(invitationId: string): Promise<void> {
-  await request("/api/auth/organization/accept-invitation", {
-    body: JSON.stringify({ invitationId }),
-    method: "POST",
-  });
+  const response = await request(
+    `/api/organization/invitations/${encodeURIComponent(invitationId)}/accept`,
+    {
+      method: "POST",
+    },
+  );
+  organizationInvitationActionResponseSchema.parse(await response.json());
+}
+
+export async function rejectOrganizationInvitation(invitationId: string): Promise<void> {
+  const response = await request(
+    `/api/organization/invitations/${encodeURIComponent(invitationId)}/reject`,
+    {
+      method: "POST",
+    },
+  );
+  organizationInvitationActionResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationInvitations(
+  signal?: AbortSignal,
+): Promise<OrganizationInvitationsResponse> {
+  const response = await request("/api/organization/invitations", { signal: signal ?? null });
+  return organizationInvitationsResponseSchema.parse(await response.json());
+}
+
+export async function cancelOrganizationInvitation(
+  invitationId: string,
+): Promise<OrganizationInvitationActionResponse> {
+  const response = await request(
+    `/api/organization/invitations/${encodeURIComponent(invitationId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+  return organizationInvitationActionResponseSchema.parse(await response.json());
 }

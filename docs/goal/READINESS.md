@@ -1,6 +1,6 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
+**Prepared:** July 21, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
 tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
 OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging.
@@ -43,7 +43,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `8972cbb3-525d-47f1-9b92-1e317f715047`
+- Current verified Worker version: `e01a663c-be6b-4aa9-a0a0-30028c193e4d`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -101,6 +101,12 @@ Verified over public HTTPS on July 20, 2026:
   capture-only. Remote D1 still contained one bootstrap identity and active Platform Administrator
   grant, with zero accounts, sessions, Organizations, Memberships, invitations, two-factor rows, or
   Organization MFA assertions.
+- After the invitation-lifecycle deployment, health and readiness returned HTTP 200. A browser-
+  shaped request to Better Auth's native Organization invitation endpoint returned the application's
+  generic HTTP 404, proving browser callers cannot supply an Organization ID around the hostname-
+  bound wrapper. The custom invitation list returned HTTP 404 on the global workers.dev base before
+  session or invitation processing. Remote D1 retained zero invitations, Memberships, Organizations,
+  and sessions, and migrations `0001` through `0005` remained fully applied with none pending.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -113,8 +119,8 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
-- `npm run test:integration`: 2 files / 24 workerd tests passed.
-- `npm run test:e2e`: 14 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
+- `npm run test:integration`: 2 files / 26 workerd tests passed.
+- `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
@@ -182,11 +188,17 @@ bypass MFA on protected Organization routes.
 
 Organization Owners and Administrators now have a hostname-scoped invitation form; only Owners may
 select the Owner role, and an active Organization MFA policy blocks creation until the current
-session is verified. Invitation email links return to `/accept-invitation`; an anonymous recipient
-signs in by email code, and Better Auth reveals details or accepts only after matching the verified
-session email, pending state, expiry, inviter membership, and membership limit. A failed pending-
-identity write compensates by canceling the just-created invitation. Stale-invitation and wrong-
-recipient rejection are covered in workerd.
+session is verified. Pending invitations are listed only for the hostname-derived Organization and
+can be canceled with visible confirmation; Administrators cannot cancel an Owner invitation.
+Invitation email links return to `/accept-invitation`; an anonymous recipient signs in by email
+code, and Better Auth reveals details, accepts, or rejects only after matching the verified session
+email, pending state, expiry, inviter membership, membership limit, and hostname-derived
+Organization. All native Better Auth Organization HTTP endpoints except read-only membership listing
+and active- Organization selection are hidden from browser callers, while internal typed API calls
+remain available to the wrappers. Create, cancel, accept, and reject transitions are
+actor-attributed in the Platform audit log. A failed pending-identity write compensates by canceling
+the just-created invitation. Stale, cross-host, native-bypass, and wrong-recipient cases are covered
+in workerd.
 
 The first staging Platform Administrator identity is now provisioned through the production-refusing
 `npm run bootstrap:staging-platform-admin` operator command. Its second identical invocation wrote
@@ -240,7 +252,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with pending-invitation cancellation/rejection, validated custom-domain
-   activation, and the remaining cross-resource isolation probes while provider credentials are
+3. Continue Milestone 2 with validated custom-domain activation when a managed zone is available,
+   and complete the remaining cross-resource isolation probes while provider credentials are
    pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

@@ -725,6 +725,32 @@ h2 {
   max-width: 40rem;
 }
 
+.organization-pending-invitations {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.organization-pending-invitations > h3,
+.organization-invitation-list h4,
+.organization-invitation-list p {
+  margin-top: 0;
+}
+
+.organization-invitation-list h4 {
+  margin-bottom: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.organization-invitation-list .danger-confirmation {
+  flex: 0 1 28rem;
+}
+
+.auth-card > .danger-confirmation,
+.auth-card > .button + .button {
+  margin-top: 1rem;
+}
+
 .invitation-details {
   display: grid;
   gap: 0.75rem;

@@ -139,9 +139,11 @@ export type OrganizationMfaVerificationResponse = z.infer<
   typeof organizationMfaVerificationResponseSchema
 >;
 
+export const organizationInvitationRoleSchema = z.enum(["owner", "administrator", "member"]);
+
 export const organizationInvitationRequestSchema = z.object({
   email: z.email().max(320),
-  role: z.enum(["owner", "administrator", "member"]),
+  role: organizationInvitationRoleSchema,
 });
 
 export const organizationInvitationResponseSchema = z.object({
@@ -159,13 +161,39 @@ export const organizationInvitationDetailsSchema = z.object({
   organizationId: organizationIdSchema,
   organizationName: z.string().min(1).max(120),
   organizationSlug: z.string().min(1).max(63),
-  role: z.enum(["owner", "admin", "member"]),
+  role: organizationInvitationRoleSchema,
   status: z.literal("pending"),
+});
+
+export const organizationInvitationSummarySchema = z.object({
+  createdAt: z.iso.datetime(),
+  email: z.email(),
+  expiresAt: z.iso.datetime(),
+  id: z.string().min(1).max(128),
+  role: organizationInvitationRoleSchema,
+  status: z.literal("pending"),
+});
+
+export const organizationInvitationsResponseSchema = z.object({
+  invitations: z.array(organizationInvitationSummarySchema).max(50),
+  requestId: requestIdSchema,
+  truncated: z.boolean(),
+});
+
+export const organizationInvitationActionResponseSchema = z.object({
+  id: z.string().min(1).max(128),
+  requestId: requestIdSchema,
+  status: z.enum(["accepted", "canceled", "rejected"]),
 });
 
 export type OrganizationInvitationRequest = z.infer<typeof organizationInvitationRequestSchema>;
 export type OrganizationInvitationResponse = z.infer<typeof organizationInvitationResponseSchema>;
 export type OrganizationInvitationDetails = z.infer<typeof organizationInvitationDetailsSchema>;
+export type OrganizationInvitationSummary = z.infer<typeof organizationInvitationSummarySchema>;
+export type OrganizationInvitationsResponse = z.infer<typeof organizationInvitationsResponseSchema>;
+export type OrganizationInvitationActionResponse = z.infer<
+  typeof organizationInvitationActionResponseSchema
+>;
 
 export const organizationProfileLinkRequestSchema = z.object({
   profileId: z.uuid(),
