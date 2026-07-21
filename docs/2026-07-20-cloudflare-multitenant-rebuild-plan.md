@@ -130,6 +130,7 @@ milestone complete.
 | `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                   |
 | `apps/worker/test/auth.integration.test.ts`                    | Workerd invitation-only auth, OTP, session, and canonical-host coverage              |
 | `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                            |
+| `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `types/vitest.d.ts`                                            | Typed migration fixtures injected into Worker integration tests                      |
 | `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                            |

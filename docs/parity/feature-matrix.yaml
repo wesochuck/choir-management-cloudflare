@@ -1353,9 +1353,13 @@
           "all object keys are Organization-scoped and private substitutions are rejected",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "partial",
+        "status": "implemented",
         "baselineEvidence": "accepted ADR 0004 and legacy file authorization rules",
-        "targetEvidence": ["apps/worker/src/publication/publishOrganization.ts"],
+        "targetEvidence":
+          [
+            "apps/worker/src/publication/publishOrganization.ts",
+            "apps/worker/test/publication.integration.test.ts",
+          ],
       },
     ],
   "responsiveStates":

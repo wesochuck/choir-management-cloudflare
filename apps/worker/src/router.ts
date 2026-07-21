@@ -46,6 +46,7 @@ import {
 } from "./control/provisionOrganization";
 import type { Env } from "./env";
 import { validateStartupConfig } from "./env";
+import { readPublishedOrganization } from "./publication/publishOrganization";
 import { authorizeOrganizationMember } from "./tenancy/authorizeOrganization";
 import { linkOrganizationProfile } from "./tenancy/linkOrganizationProfile";
 import {
@@ -247,7 +248,13 @@ async function verifySecondFactor(
 router.use("*", requestId());
 router.use("*", async (context, next) => {
   await next();
-  context.header("cache-control", "no-store");
+  const publicProjectionResponse =
+    new URL(context.req.url).pathname === "/api/public/projection" &&
+    (context.res.status === 200 || context.res.status === 304);
+  context.header(
+    "cache-control",
+    publicProjectionResponse ? "public, max-age=60, stale-while-revalidate=300" : "no-store",
+  );
   context.header("referrer-policy", "strict-origin-when-cross-origin");
   context.header("x-content-type-options", "nosniff");
   context.header("x-frame-options", "DENY");
@@ -288,6 +295,41 @@ router.get("/api/ready", async (context) => {
     };
     return context.json(problem, 503);
   }
+});
+
+router.get("/api/public/projection", async (context) => {
+  validateStartupConfig(context.env);
+  const resolvedOrganization = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolvedOrganization.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "No published Organization website is available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const published = await readPublishedOrganization(
+    context.env,
+    resolvedOrganization.value.organizationId,
+  );
+  if (!published) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "No published Organization website is available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  context.header("etag", published.httpEtag);
+  context.header("vary", "Host");
+  if (context.req.header("if-none-match") === published.httpEtag) {
+    return context.body(null, 304);
+  }
+  return context.json(published.projection);
 });
 
 router.on(["GET", "POST"], "/api/auth/*", async (context) => {

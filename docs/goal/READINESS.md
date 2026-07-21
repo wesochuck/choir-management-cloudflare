@@ -44,7 +44,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `66c74867-13ca-40ad-a909-104604e1527e`
+- Current verified Worker version: `920fd91c-68b4-4a5d-85c1-284ab900b9a2`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -116,6 +116,12 @@ Verified over public HTTPS on July 20–21, 2026:
   completion, duplicate acknowledgment, malformed-message acknowledgment, and isolation of the same
   idempotency key across two Organization stores. Remote D1 remained unchanged with no migrations
   pending.
+- After the published-projection deployment, health and readiness returned HTTP 200 and the global
+  workers.dev base returned the hostname-first HTTP 404 from `/api/public/projection` after edge
+  propagation. Remote D1 still contained zero Organizations and domains, so staging had no
+  Organization projection to publish or fetch. Workerd tests use the real KV, R2, and D1 bindings to
+  prove canonical/custom-public reads, immutable version retention, conditional ETags, and rejection
+  of both a cross-Organization KV-key substitution and a mismatched R2 body under the expected key.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -128,7 +134,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
-- `npm run test:integration`: 3 files / 29 workerd tests passed.
+- `npm run test:integration`: 4 files / 31 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -157,8 +163,17 @@ without another external effect. Completion and failure transitions match the jo
 key, and attempt. The same idempotency key is intentionally independent in another Organization's
 Durable Object. Sandbox provider effects remain unconfigured and staging continues in fake mode.
 
+Public projection publication validates a one-megabyte boundary, writes immutable versioned JSON
+only beneath `organizations/{organizationId}/published/`, and advances the KV pointer only after R2
+succeeds. Public reads first resolve and confirm the request hostname from authoritative D1, then
+require the pointer Organization ID, exact derived key, version, and stored projection Organization
+ID/version to agree. Poisoned KV and R2 values fail closed with a generic 404. Successful reads are
+short-cacheable by host and ETag and do not invoke the Organization Durable Object.
+
 Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
 inside the hostname-resolved Organization Durable Object. The linkage is unique within that
+Organization and actor-attributed; a Profile in another Organization store is rejected.
+
 Organization Owners may register normalized Public Website Domains as pending D1 routing records
 from their canonical product hostname. Registration rejects IP literals, invalid DNS hostnames, the
 product namespace, and cross-Organization duplicates. Disabling a domain increments its routing
