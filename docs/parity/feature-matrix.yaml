@@ -233,9 +233,15 @@
         "path": "/admin/roster",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:339; src/views/admin/RosterView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/domain/src/rosterCsv.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/profiles.integration.test.ts",
+            "apps/web/src/account/OrganizationCalendar.tsx",
+          ],
       },
       {
         "id": "route.admin.events",
@@ -1176,6 +1182,7 @@
           [
             "apps/worker/src/organization/profiles.ts",
             "apps/worker/test/profiles.integration.test.ts",
+            "packages/domain/src/rosterCsv.ts",
             "apps/web/src/account/OrganizationCalendar.tsx",
             "apps/web/e2e/auth.spec.ts",
           ],

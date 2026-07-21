@@ -163,6 +163,8 @@ milestone complete.
 | `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                            |
 | `packages/domain/tsconfig.json`                                | Strict pure-domain TypeScript project                                                |
 | `packages/domain/src/index.test.ts`                            | Foundation domain-result and performer-rule coverage                                 |
+| `packages/domain/src/rosterCsv.ts`                             | Deterministic baseline-compatible roster CSV renderer                                |
+| `packages/domain/src/rosterCsv.test.ts`                        | Roster CSV quoting, status, and section-leader contract proof                        |
 | `packages/ui/tsconfig.json`                                    | Strict repository-owned UI TypeScript project                                        |
 | `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                      |
 | `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                              |

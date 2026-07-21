@@ -485,6 +485,17 @@ export function OrganizationCalendar({
           </div>
           {manager ? (
             <div className="calendar-management-grid">
+              <div className="form-stack">
+                <h3>Roster export</h3>
+                <p>Download the baseline-compatible Organization roster as CSV.</p>
+                <a
+                  className="button button--secondary"
+                  download="choir_roster_export.csv"
+                  href="/api/organization/profiles/export.csv"
+                >
+                  Download roster CSV
+                </a>
+              </div>
               <form
                 className="form-stack"
                 onSubmit={(formEvent) => {

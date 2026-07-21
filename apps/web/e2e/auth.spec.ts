@@ -989,6 +989,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await organizationCalendar.getByRole("button", { name: "Save Profile" }).click();
   await expect(organizationCalendar.getByText("Profile updated.")).toBeVisible();
   await expect(organizationCalendar.getByText("On Break · S2")).toBeVisible();
+  const rosterDownload = organizationCalendar.getByRole("link", { name: "Download roster CSV" });
+  await expect(rosterDownload).toHaveAttribute("href", "/api/organization/profiles/export.csv");
+  await expect(rosterDownload).toHaveAttribute("download", "choir_roster_export.csv");
   await organizationCalendar.getByRole("button", { name: "Delete venue" }).click();
   const venueDeletion = organizationCalendar.getByRole("group", { name: "Delete Browser Hall" });
   await venueDeletion.getByRole("button", { name: "Keep venue" }).click();

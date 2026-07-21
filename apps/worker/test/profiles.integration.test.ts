@@ -142,7 +142,7 @@ describe("Organization Profiles", () => {
     const updatedResponse = await exports.default.fetch(
       apiRequest("alpha.localhost", `/api/organization/profiles/${created.id}`, cookie, {
         body: JSON.stringify({
-          displayName: "Alpha Singer Updated",
+          displayName: 'Alpha "Ace", Singer',
           doNotEmail: true,
           globalStatus: "Idle",
           isSectionLeader: true,
@@ -162,7 +162,7 @@ describe("Organization Profiles", () => {
     expect(updatedResponse.status).toBe(200);
     const updated = organizationProfileResponseSchema.parse(await updatedResponse.json());
     expect(updated).toMatchObject({
-      displayName: "Alpha Singer Updated",
+      displayName: 'Alpha "Ace", Singer',
       doNotEmail: true,
       globalStatus: "Idle",
       isSectionLeader: true,
@@ -171,6 +171,38 @@ describe("Organization Profiles", () => {
       showInDirectory: false,
       voicePart: "S1",
     });
+    await controlDatabase
+      .prepare(
+        `UPDATE member SET profileId = ?
+         WHERE organizationId = 'organization-alpha' AND userId = 'profile-manager'`,
+      )
+      .bind(created.id)
+      .run();
+
+    const rosterExport = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles/export.csv", cookie),
+    );
+    expect(rosterExport.status).toBe(200);
+    expect(rosterExport.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(rosterExport.headers.get("cache-control")).toBe("no-store");
+    expect(rosterExport.headers.get("content-disposition")).toBe(
+      'attachment; filename="choir_roster_export.csv"',
+    );
+    expect(await rosterExport.text()).toBe(
+      [
+        "Name,Email,Phone,Voice Part,Status",
+        '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
+        "",
+        "Section Leaders",
+        "Name,Email,Phone,Voice Part,Status",
+        '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
+      ].join("\n"),
+    );
+    expect(
+      await exports.default.fetch(
+        apiRequest("bravo.localhost", "/api/organization/profiles/export.csv", cookie),
+      ),
+    ).toMatchObject({ status: 403 });
 
     const alphaList = organizationProfilesResponseSchema.parse(
       await (

@@ -7,6 +7,11 @@ import {
 
 import type { Env } from "../env";
 
+interface ProfileEmailRow {
+  readonly email: string;
+  readonly profileId: string;
+}
+
 function organizationStub(env: Env, organizationId: string): DurableObjectStub {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
@@ -21,6 +26,22 @@ export async function listOrganizationProfiles(
   if (!response.ok) throw new Error("The Organization store rejected the Profile list request.");
   return organizationProfilesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .profiles;
+}
+
+export async function listOrganizationProfileEmails(
+  database: D1Database,
+  organizationId: string,
+): Promise<ReadonlyMap<string, string>> {
+  const result = await database
+    .prepare(
+      `SELECT m.profileId AS profileId, u.email
+       FROM member m
+       JOIN user u ON u.id = m.userId
+       WHERE m.organizationId = ? AND m.profileId IS NOT NULL`,
+    )
+    .bind(organizationId)
+    .all<ProfileEmailRow>();
+  return new Map(result.results.map(({ email, profileId }) => [profileId, email]));
 }
 
 export async function createOrganizationProfile(

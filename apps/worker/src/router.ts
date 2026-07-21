@@ -33,6 +33,7 @@ import { Hono, type Context } from "hono";
 import { requestId } from "hono/request-id";
 import { z } from "zod";
 import { isValidTimeZone } from "@choir/domain";
+import { renderRosterCsv } from "@choir/domain";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
@@ -81,6 +82,7 @@ import { validateStartupConfig } from "./env";
 import { currentOrganizationSchemaVersion } from "./organization/schema";
 import {
   createOrganizationProfile,
+  listOrganizationProfileEmails,
   listOrganizationProfiles,
   updateOrganizationProfile,
 } from "./organization/profiles";
@@ -1167,6 +1169,46 @@ router.get("/api/organization/profiles", async (context) => {
       {
         code: "service_unavailable",
         message: "Organization Profiles are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/profiles/export.csv", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const [profiles, emails] = await Promise.all([
+      listOrganizationProfiles(context.env, authorization.organizationId),
+      listOrganizationProfileEmails(context.env.CONTROL_DB, authorization.organizationId),
+    ]);
+    const csv = renderRosterCsv(
+      profiles.map((profile) => ({
+        displayName: profile.displayName,
+        email: emails.get(profile.id) ?? "",
+        globalStatus: profile.globalStatus,
+        isSectionLeader: profile.isSectionLeader,
+        phone: profile.phone,
+        voicePart: profile.voicePart,
+      })),
+    );
+    return context.body(csv, 200, {
+      "cache-control": "private, no-store",
+      "content-disposition": 'attachment; filename="choir_roster_export.csv"',
+      "content-type": "text/csv; charset=utf-8",
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization roster export could not be generated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
