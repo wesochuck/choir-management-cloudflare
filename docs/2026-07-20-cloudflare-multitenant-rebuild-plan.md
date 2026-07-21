@@ -100,6 +100,7 @@ milestone complete.
 | `apps/worker/src/jobs/contracts.ts`                            | Versioned, Organization-scoped job payloads                                          |
 | `apps/worker/src/publication/publishOrganization.ts`           | Public projection generation and cache versioning                                    |
 | `apps/worker/src/storage/privateFiles.ts`                      | Host-authorized private R2 upload/download orchestration                             |
+| `apps/worker/src/security/signedLinks.ts`                      | Versioned purpose-separated Organization-bound token signing                         |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -135,6 +136,7 @@ milestone complete.
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |
+| `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `types/vitest.d.ts`                                            | Typed migration fixtures injected into Worker integration tests                      |
 | `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                            |

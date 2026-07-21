@@ -10,6 +10,7 @@ declare global {
   namespace Cloudflare {
     interface Env {
       readonly BETTER_AUTH_SECRET: string;
+      readonly SIGNED_LINK_SECRET: string;
     }
   }
 }

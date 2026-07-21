@@ -7,6 +7,8 @@ export default defineConfig(async () => ({
       miniflare: {
         bindings: {
           BETTER_AUTH_SECRET: "integration-test-only-secret-with-at-least-32-characters",
+          SIGNED_LINK_SECRET:
+            "different-integration-signed-link-secret-with-at-least-32-characters",
         },
       },
       wrangler: {

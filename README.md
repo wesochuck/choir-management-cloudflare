@@ -40,9 +40,10 @@ cp .dev.vars.example apps/worker/.dev.vars
 npm run dev
 ```
 
-Generate a unique local Better Auth secret with `openssl rand -base64 48` and replace the
-`BETTER_AUTH_SECRET` placeholder in the untracked `apps/worker/.dev.vars` file. Never reuse the
-local value in staging or production.
+Generate two independent local secrets with separate `openssl rand -base64 48` invocations and
+replace the `BETTER_AUTH_SECRET` and `SIGNED_LINK_SECRET` placeholders in the untracked
+`apps/worker/.dev.vars` file. Never reuse either local value in staging or production, and never use
+the Better Auth secret to sign public or private links.
 
 Wrangler writes task-local logs beneath `.wrangler/logs`; project scripts set `WRANGLER_LOG_PATH` so
 sandboxed development does not attempt to write macOS preference directories.

@@ -60,6 +60,7 @@ const testEnv: Env = {
   PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
   PROVISIONING_WORKFLOW: requireBinding(env.PROVISIONING_WORKFLOW, "PROVISIONING_WORKFLOW"),
   ROUTING_CACHE: requireBinding(env.ROUTING_CACHE, "ROUTING_CACHE"),
+  SIGNED_LINK_SECRET: requireBinding(env.SIGNED_LINK_SECRET, "SIGNED_LINK_SECRET"),
 };
 
 const enrollmentResponseSchema = z.object({

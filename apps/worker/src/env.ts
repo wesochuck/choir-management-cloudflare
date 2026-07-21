@@ -15,6 +15,7 @@ const startupConfigSchema = z.object({
 });
 
 const betterAuthSecretSchema = z.string().min(32).max(4096);
+const signedLinkSecretSchema = z.string().min(32).max(4096);
 
 export interface Env {
   readonly APP_ENV: string;
@@ -30,12 +31,14 @@ export interface Env {
   readonly PRODUCT_BASE_DOMAIN: string;
   readonly PROVISIONING_WORKFLOW: Workflow<ProvisioningParams>;
   readonly ROUTING_CACHE: KVNamespace;
+  readonly SIGNED_LINK_SECRET: string;
 }
 
 export type StartupConfig = z.infer<typeof startupConfigSchema>;
 
 export function validateStartupConfig(env: Env): StartupConfig {
   betterAuthSecretSchema.parse(env.BETTER_AUTH_SECRET);
+  signedLinkSecretSchema.parse(env.SIGNED_LINK_SECRET);
   return startupConfigSchema.parse({
     APP_ENV: env.APP_ENV,
     BUILD_VERSION: env.BUILD_VERSION,
