@@ -21,11 +21,30 @@ const organizationProvisioningSchema = z.object({
   slug: z.string().min(2).max(63),
 });
 
+const profileIdSchema = z.uuid();
+
 interface OrganizationMetadataRow {
   readonly [column: string]: SqlStorageValue;
   readonly name: string;
   readonly organizationId: string;
   readonly slug: string;
+}
+
+function getProfileIdentity(storage: DurableObjectStorage, encodedProfileId: string): Response {
+  const profileId = profileIdSchema.safeParse(decodeURIComponent(encodedProfileId));
+  if (!profileId.success) {
+    return Response.json({ code: "invalid_profile_id" }, { status: 400 });
+  }
+  const profile = storage.sql
+    .exec<Record<string, SqlStorageValue> & { id: string }>(
+      "SELECT id FROM profiles WHERE id = ? LIMIT 1",
+      profileId.data,
+    )
+    .toArray()
+    .at(0);
+  return profile
+    ? Response.json({ exists: true, profileId: profile.id })
+    : Response.json({ code: "profile_not_found" }, { status: 404 });
 }
 
 async function provisionOrganizationStore(
@@ -108,6 +127,11 @@ export class OrganizationStore extends DurableObject<Env> {
 
     if (request.method === "POST" && url.pathname === "/internal/provision") {
       return provisionOrganizationStore(this.ctx.storage, request);
+    }
+
+    const profileIdentityPrefix = "/internal/profiles/";
+    if (request.method === "GET" && url.pathname.startsWith(profileIdentityPrefix)) {
+      return getProfileIdentity(this.ctx.storage, url.pathname.slice(profileIdentityPrefix.length));
     }
 
     if (request.method === "POST" && url.pathname === "/internal/jobs/claim") {

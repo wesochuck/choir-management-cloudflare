@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { OrganizationStore } from "./organization/OrganizationStore";
 import type { ProvisioningParams } from "./workflows/ProvisioningWorkflow";
 
 export const appEnvironmentSchema = z.enum(["local", "preview", "staging", "production"]);
@@ -24,7 +25,7 @@ export interface Env {
   readonly EXTERNAL_EFFECTS_MODE: string;
   readonly JOBS_QUEUE: Queue;
   readonly ORGANIZATION_FILES: R2Bucket;
-  readonly ORGANIZATION_STORE: DurableObjectNamespace;
+  readonly ORGANIZATION_STORE: DurableObjectNamespace<OrganizationStore>;
   readonly PLATFORM_EMAIL_MODE: string;
   readonly PRODUCT_BASE_DOMAIN: string;
   readonly PROVISIONING_WORKFLOW: Workflow<ProvisioningParams>;

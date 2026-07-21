@@ -77,9 +77,11 @@ milestone complete.
 | `apps/worker/src/control/migrations/0002_better_auth.sql`      | Forward-only native-D1 Better Auth and plugin schema                                 |
 | `apps/worker/src/control/migrations/0003_provisioning.sql`     | Provisioning state, membership-to-Profile linkage, and elevation lookup indexes      |
 | `apps/worker/src/control/migrations/0004_organization_mfa.sql` | Optional Organization MFA policy and scoped assertion storage                        |
+| `apps/worker/src/control/migrations/0005_profile_link.sql`     | Unique Membership-to-Organization-Profile linkage contract                           |
 | `apps/worker/src/control/provisionOrganization.ts`             | Atomic Organization registry, canonical-host, Workflow, and audit orchestration      |
 | `apps/worker/src/tenancy/resolveOrganization.ts`               | Hostname-to-Organization resolution                                                  |
 | `apps/worker/src/tenancy/authorizeOrganization.ts`             | Membership and Platform Administrator authorization                                  |
+| `apps/worker/src/tenancy/linkOrganizationProfile.ts`           | Organization-store-confirmed Membership-to-Profile identity linkage                  |
 | `apps/worker/src/jobs/consumer.ts`                             | Queue dispatch, retries, and dead-letter behavior                                    |
 | `apps/worker/src/jobs/contracts.ts`                            | Versioned, Organization-scoped job payloads                                          |
 | `apps/worker/src/publication/publishOrganization.ts`           | Public projection generation and cache versioning                                    |

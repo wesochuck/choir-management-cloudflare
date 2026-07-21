@@ -1,6 +1,7 @@
 import {
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
+  organizationProfileLinkRequestSchema,
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
   type HealthResponse,
@@ -32,6 +33,7 @@ import {
 import type { Env } from "./env";
 import { validateStartupConfig } from "./env";
 import { authorizeOrganizationMember } from "./tenancy/authorizeOrganization";
+import { linkOrganizationProfile } from "./tenancy/linkOrganizationProfile";
 import { resolveOrganization } from "./tenancy/resolveOrganization";
 
 interface WorkerHonoEnvironment {
@@ -534,6 +536,101 @@ router.post("/api/organization/mfa/verify", async (context) => {
     organizationId,
     status: "verified" as const,
   });
+});
+
+router.put("/api/organization/members/:membershipId/profile", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  const membershipId = z.string().min(1).max(128).safeParse(context.req.param("membershipId"));
+  if (!organizationId || !membershipId.success) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "The Organization Membership was not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const parsedBody = organizationProfileLinkRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!parsedBody.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Organization Profile ID is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  if (authorization.value.role === "member") {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "Only Organization Owners and Administrators may link Profiles.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+
+  try {
+    const linked = await linkOrganizationProfile(context.env, {
+      actorUserId: authorization.value.userId,
+      membershipId: membershipId.data,
+      organizationId,
+      profileId: parsedBody.data.profileId,
+      requestId: context.get("requestId"),
+    });
+    if (!linked.ok) {
+      return context.json(
+        {
+          code: linked.error.code,
+          message: linked.error.message,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        linked.error.code === "conflict" ? 409 : 404,
+      );
+    }
+    return context.json({ ...linked.value, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization Profile verification is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
 });
 
 router.post("/api/platform/mfa/confirm-enrollment", async (context) => {

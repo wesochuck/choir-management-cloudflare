@@ -1,6 +1,7 @@
 import {
   organizationContextResponseSchema,
   organizationProvisionResponseSchema,
+  organizationProfileLinkResponseSchema,
   platformOrganizationContextResponseSchema,
 } from "@choir/contracts";
 import { env } from "cloudflare:workers";
@@ -9,6 +10,7 @@ import {
   createExecutionContext,
   introspectWorkflow,
   reset,
+  runInDurableObject,
   waitOnExecutionContext,
 } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -640,6 +642,83 @@ describe("host-derived Organization authorization", () => {
         .first(),
     ).resolves.toEqual({
       action: "organization.auth_policy.updated",
+      actorUserId: "user-invited-member",
+    });
+  });
+
+  it("links a Membership only to a Profile in the host Organization store", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const alphaProfileId = "c9ea355d-8ac2-4dc4-af06-27828846dba8";
+    const bravoProfileId = "0cd25a2b-71cc-4437-8524-2445074bbd18";
+    const now = new Date().toISOString();
+
+    const alphaObjectId = testEnv.ORGANIZATION_STORE.idFromName("organization-alpha");
+    await runInDurableObject(testEnv.ORGANIZATION_STORE.get(alphaObjectId), (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, ?, ?, ?)`,
+        alphaProfileId,
+        "Alpha Profile",
+        now,
+        now,
+      );
+    });
+    const bravoObjectId = testEnv.ORGANIZATION_STORE.idFromName("organization-bravo");
+    await runInDurableObject(testEnv.ORGANIZATION_STORE.get(bravoObjectId), (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, ?, ?, ?)`,
+        bravoProfileId,
+        "Bravo Profile",
+        now,
+        now,
+      );
+    });
+
+    const linkResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/members/member-alpha/profile",
+        {
+          body: JSON.stringify({ profileId: alphaProfileId }),
+          headers: { cookie: sessionCookie },
+          method: "PUT",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(linkResponse.status).toBe(200);
+    expect(organizationProfileLinkResponseSchema.parse(await linkResponse.json())).toMatchObject({
+      membershipId: "member-alpha",
+      organizationId: "organization-alpha",
+      profileId: alphaProfileId,
+    });
+
+    const crossOrganizationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/members/member-alpha/profile",
+        {
+          body: JSON.stringify({ profileId: bravoProfileId }),
+          headers: { cookie: sessionCookie },
+          method: "PUT",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(crossOrganizationResponse.status).toBe(404);
+    await expect(
+      testEnv.CONTROL_DB.prepare("SELECT profileId FROM member WHERE id = 'member-alpha'").first(),
+    ).resolves.toEqual({ profileId: alphaProfileId });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT actor_user_id AS actorUserId, action
+         FROM platform_audit_events
+         WHERE target_id = 'member-alpha'
+           AND action = 'organization.membership.profile_linked'`,
+      ).first(),
+    ).resolves.toEqual({
+      action: "organization.membership.profile_linked",
       actorUserId: "user-invited-member",
     });
   });

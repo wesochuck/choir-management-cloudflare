@@ -42,9 +42,9 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `5e5a2378-90eb-4e0c-8b32-25976e2f136c`
+- Current verified Worker version: `8754287d-7d5b-43ee-b9e9-38012a2b263a`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
-  `0001_initial.sql` through `0004_organization_mfa.sql` applied; no migrations pending
+  `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
 - KV: `choir-management-routing-staging` (`9c7f20b2c8024b1b98d17a682c70cf97`)
@@ -68,6 +68,8 @@ Verified over public HTTPS on July 20, 2026:
   as required before a registered canonical Organization hostname exists.
 - Organization MFA policy/verification routes rejected the global workers.dev base host, and the
   scoped assertion table was verified in remote D1 without creating an Organization.
+- The Membership-to-Profile route rejected the global base host, and remote D1 confirmed the unique
+  Organization/Profile linkage index without creating an Organization.
 - `/` returned the deployed Vite application shell.
 
 ## Completed foundation checks
@@ -76,7 +78,7 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 3 files / 8 tests passed.
-- `npm run test:integration`: 2 files / 18 workerd tests passed.
+- `npm run test:integration`: 2 files / 19 workerd tests passed.
 - `npm run test:e2e`: desktop and mobile Chromium smoke tests passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
@@ -93,6 +95,10 @@ Optional Organization MFA is Owner-controlled and its 12-hour assertions are bou
 Organization, user, and session; email OTP alone does not satisfy it. Capture-mode platform email is
 bounded and in-memory; codes and recovery values are never logged or persisted by the capture
 adapter.
+
+Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
+inside the hostname-resolved Organization Durable Object. The linkage is unique within that
+Organization and actor-attributed; a Profile in another Organization store is rejected.
 
 The authentication handler is available on the exact product base hostname. Organization subdomains
 must also be registered as active canonical domains in D1; merely matching the product domain suffix
@@ -139,7 +145,6 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with Profile linkage, custom-domain registration, Platform/session
-   management UI, and the remaining cross-resource isolation probes while provider credentials are
-   pending.
+3. Continue Milestone 2 with custom-domain registration, Platform/session management UI, and the
+   remaining cross-resource isolation probes while provider credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

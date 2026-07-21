@@ -38,6 +38,17 @@ export const organizationMfaVerificationRequestSchema = z.discriminatedUnion("me
   z.object({ code: z.string().min(8).max(128), method: z.literal("recovery_code") }),
 ]);
 
+export const organizationProfileLinkRequestSchema = z.object({
+  profileId: z.uuid(),
+});
+
+export const organizationProfileLinkResponseSchema = z.object({
+  membershipId: z.string().min(1).max(128),
+  organizationId: organizationIdSchema,
+  profileId: z.uuid(),
+  requestId: requestIdSchema,
+});
+
 export const organizationProvisionRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z

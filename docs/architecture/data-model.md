@@ -30,6 +30,10 @@ session-bound elevation for edits, so a null-session row never grants access.
 Better Auth session plus Organization. Email one-time-code sign-in establishes identity but cannot
 satisfy an Organization MFA policy; TOTP or a recovery code must create the scoped assertion.
 
+`0005_profile_link.sql` makes each non-null Membership Profile ID unique within its Organization. D1
+stores only this identity link; the Profile record remains in the Organization Durable Object and
+must be confirmed there before the link is written.
+
 D1 must never contain roster, event, music, communication, payment, ticket, donation, or other
 Organization-operational rows.
 
@@ -40,9 +44,11 @@ the authoritative Organization ID after hostname resolution and authorization. T
 is ordered and append-only; applied versions are recorded in `organization_schema_migrations`.
 
 The foundation migration creates Organization metadata, append-only audit events, an idempotent job
-ledger, and scheduler state. Feature milestones expand this schema with typed repositories. Contract
-or removal migrations occur only after old and new Worker versions are both safe throughout the
-rollback window.
+ledger, and scheduler state. Organization schema version 2 introduces the minimal Profile identity
+table needed for control-plane linkage; full roster fields and behavior remain owned by the roster
+parity wave. Feature milestones expand this schema with typed repositories. Contract or removal
+migrations occur only after old and new Worker versions are both safe throughout the rollback
+window.
 
 ## R2 and KV
 
