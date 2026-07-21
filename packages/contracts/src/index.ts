@@ -106,6 +106,12 @@ export const organizationEventsResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const organizationEventArchiveResponseSchema = z.object({
+  eventId: z.uuid(),
+  requestId: requestIdSchema,
+  status: z.literal("archived"),
+});
+
 export const organizationRsvpRequestSchema = z.object({
   profileId: z.uuid(),
   rsvp: z.enum(["Yes", "No", "Pending"]),
@@ -116,12 +122,25 @@ export const organizationRsvpSchema = organizationRsvpRequestSchema.extend({
   updatedAt: z.iso.datetime(),
 });
 
+export const organizationCalendarSettingsRequestSchema = z.object({
+  timezone: z.string().trim().min(1).max(100),
+});
+
+export const organizationCalendarSettingsResponseSchema =
+  organizationCalendarSettingsRequestSchema.extend({ requestId: requestIdSchema });
+
 export type OrganizationVenueRequest = z.infer<typeof organizationVenueRequestSchema>;
 export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
 export type OrganizationEventRequest = z.infer<typeof organizationEventRequestSchema>;
 export type OrganizationEvent = z.infer<typeof organizationEventSchema>;
+export type OrganizationEventArchiveResponse = z.infer<
+  typeof organizationEventArchiveResponseSchema
+>;
 export type OrganizationRsvpRequest = z.infer<typeof organizationRsvpRequestSchema>;
 export type OrganizationRsvp = z.infer<typeof organizationRsvpSchema>;
+export type OrganizationCalendarSettings = z.infer<
+  typeof organizationCalendarSettingsRequestSchema
+>;
 
 export const accountOrganizationSchema = z.object({
   canonicalHostname: z.string().min(1).max(253),

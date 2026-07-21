@@ -14,6 +14,7 @@ import {
   listOrganizationEventsFromStore,
   listOrganizationVenuesFromStore,
   manageOrganizationCalendarInStore,
+  readOrganizationCalendarSettingsFromStore,
 } from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { currentOrganizationSchemaVersion } from "./schema";
@@ -713,6 +714,31 @@ async function dispatchPostRequest(
   }
 }
 
+function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response | null {
+  const organizationId = url.searchParams.get("organizationId");
+  switch (url.pathname) {
+    case "/internal/health":
+      return Response.json({ status: "ok" });
+    case "/internal/profiles":
+      return listProfiles(storage, organizationId);
+    case "/internal/calendar/venues":
+      return listOrganizationVenuesFromStore(storage, organizationId);
+    case "/internal/calendar/events":
+      return listOrganizationEventsFromStore(storage, organizationId);
+    case "/internal/calendar/settings":
+      return readOrganizationCalendarSettingsFromStore(storage, organizationId);
+  }
+  const profileIdentityPrefix = "/internal/profiles/";
+  if (url.pathname.startsWith(profileIdentityPrefix)) {
+    return getProfileIdentity(storage, url.pathname.slice(profileIdentityPrefix.length));
+  }
+  const privateFilePrefix = "/internal/files/";
+  if (url.pathname.startsWith(privateFilePrefix)) {
+    return getPrivateFileMetadata(storage, url.pathname.slice(privateFilePrefix.length));
+  }
+  return null;
+}
+
 export class OrganizationStore extends DurableObject<Env> {
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
@@ -722,42 +748,15 @@ export class OrganizationStore extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
-    if (request.method === "GET" && url.pathname === "/internal/health") {
-      return Response.json({ status: "ok" });
-    }
-
     if (request.method === "POST") {
       const response = await dispatchPostRequest(this.ctx.storage, url.pathname, request);
       if (response) {
         return response;
       }
     }
-
-    if (request.method === "GET" && url.pathname === "/internal/profiles") {
-      return listProfiles(this.ctx.storage, url.searchParams.get("organizationId"));
-    }
-
-    if (request.method === "GET" && url.pathname === "/internal/calendar/venues") {
-      return listOrganizationVenuesFromStore(
-        this.ctx.storage,
-        url.searchParams.get("organizationId"),
-      );
-    }
-    if (request.method === "GET" && url.pathname === "/internal/calendar/events") {
-      return listOrganizationEventsFromStore(
-        this.ctx.storage,
-        url.searchParams.get("organizationId"),
-      );
-    }
-
-    const profileIdentityPrefix = "/internal/profiles/";
-    if (request.method === "GET" && url.pathname.startsWith(profileIdentityPrefix)) {
-      return getProfileIdentity(this.ctx.storage, url.pathname.slice(profileIdentityPrefix.length));
-    }
-
-    const privateFilePrefix = "/internal/files/";
-    if (request.method === "GET" && url.pathname.startsWith(privateFilePrefix)) {
-      return getPrivateFileMetadata(this.ctx.storage, url.pathname.slice(privateFilePrefix.length));
+    if (request.method === "GET") {
+      const response = dispatchGetRequest(this.ctx.storage, url);
+      if (response) return response;
     }
 
     return Response.json({ code: "not_found" }, { status: 404 });

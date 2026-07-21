@@ -1183,10 +1183,11 @@
         "workflow": "event clone with roster copy and reset set-list/attendance state",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/views/admin/events/useEventCloneWorkflow.ts; test/eventService.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          ["apps/web/src/account/OrganizationCalendar.tsx", "apps/web/e2e/auth.spec.ts"],
       },
       {
         "id": "workflow.rsvp-attendance",

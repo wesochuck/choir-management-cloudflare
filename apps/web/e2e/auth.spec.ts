@@ -41,7 +41,34 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route("**/api/organization/events", async (route) => {
     await route.fulfill({
-      body: JSON.stringify({ events: [], requestId }),
+      body: JSON.stringify({
+        events: [
+          {
+            callTime: "18:00",
+            createdAt: "2026-07-20T20:00:00.000Z",
+            details: "Black folders",
+            durationMinutes: 150,
+            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            location: "",
+            parentPerformanceId: null,
+            setList: [{ title: "Finale" }],
+            setListApproved: true,
+            startsAt: "2026-08-20T23:00:00.000Z",
+            title: "Browser Concert",
+            type: "Performance",
+            updatedAt: "2026-07-20T20:00:00.000Z",
+            venueId: null,
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/calendar-settings", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ requestId, timezone: "America/New_York" }),
       contentType: "application/json",
       status: 200,
     });
@@ -815,7 +842,15 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(organizationSection.getByText("MFA not required")).toBeVisible();
   const organizationCalendar = page.getByRole("region", { name: "Profiles and calendar" });
   await expect(organizationCalendar.getByRole("heading", { name: "Create Profile" })).toBeVisible();
-  await expect(organizationCalendar.getByText("No events have been created yet.")).toBeVisible();
+  await expect(
+    organizationCalendar.getByRole("heading", { name: "Browser Concert" }),
+  ).toBeVisible();
+  await organizationCalendar.getByRole("button", { name: "Clone" }).click();
+  await expect(organizationCalendar.getByLabel("Title")).toHaveValue("Browser Concert copy");
+  await expect(organizationCalendar.getByLabel("Parent performance")).toHaveValue("");
+  await organizationCalendar.getByRole("button", { name: "Archive" }).click();
+  await expect(organizationCalendar.getByRole("button", { name: "Confirm archive" })).toBeVisible();
+  await organizationCalendar.getByRole("button", { name: "Cancel", exact: true }).click();
   const calendarSection = page.getByRole("region", { name: "Calendar subscription" });
   await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
     /browser-calendar-token-1/,

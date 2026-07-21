@@ -1,6 +1,8 @@
 import {
   calendarFeedUrlsResponseSchema,
+  organizationCalendarSettingsResponseSchema,
   organizationEventSchema,
+  organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
   organizationProfileResponseSchema,
   organizationRsvpSchema,
@@ -131,6 +133,24 @@ afterEach(async () => {
 describe("Organization calendar management", () => {
   it("creates isolated venue/event/RSVP data that populates the signed calendar feed", async () => {
     const cookie = await signIn();
+    const invalidTimezone = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/calendar-settings", cookie, {
+        body: JSON.stringify({ timezone: "Not/A_Zone" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(invalidTimezone.status).toBe(400);
+    const timezoneResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/calendar-settings", cookie, {
+        body: JSON.stringify({ timezone: "America/New_York" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(
+      organizationCalendarSettingsResponseSchema.parse(await timezoneResponse.json()).timezone,
+    ).toBe("America/New_York");
     const profile = organizationProfileResponseSchema.parse(
       await (
         await post("alpha.localhost", "/api/organization/profiles", cookie, {
@@ -181,6 +201,45 @@ describe("Organization calendar management", () => {
         })
       ).json(),
     );
+    const updatedPerformanceResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/events/${performance.id}`, cookie, {
+        body: JSON.stringify({
+          callTime: performance.callTime,
+          details: performance.details,
+          durationMinutes: performance.durationMinutes,
+          location: performance.location,
+          parentPerformanceId: performance.parentPerformanceId,
+          setList: performance.setList,
+          setListApproved: performance.setListApproved,
+          startsAt: performance.startsAt,
+          title: "API Concert Updated",
+          type: performance.type,
+          venueId: performance.venueId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(organizationEventSchema.parse(await updatedPerformanceResponse.json()).title).toBe(
+      "API Concert Updated",
+    );
+    const archivedCandidate = organizationEventSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/events", cookie, {
+          startsAt: new Date(new Date(startsAt).getTime() + 48 * 60 * 60 * 1_000).toISOString(),
+          title: "Archive Me",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    const archiveResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/events/${archivedCandidate.id}`, cookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(organizationEventArchiveResponseSchema.parse(await archiveResponse.json()).status).toBe(
+      "archived",
+    );
     for (const [eventId, rsvp] of [
       [performance.id, "Yes"],
       [rehearsal.id, "Pending"],
@@ -206,7 +265,10 @@ describe("Organization calendar management", () => {
       ).json(),
     );
     expect(venues.venues.map((item) => item.name)).toEqual(["Main Sanctuary"]);
-    expect(events.events.map((item) => item.title)).toEqual(["API Concert", "API Rehearsal"]);
+    expect(events.events.map((item) => item.title)).toEqual([
+      "API Concert Updated",
+      "API Rehearsal",
+    ]);
     expect(
       organizationVenuesResponseSchema.parse(
         await (
@@ -221,7 +283,7 @@ describe("Organization calendar management", () => {
       ).json(),
     );
     const feed = await (await exports.default.fetch(new Request(credential.httpsUrl))).text();
-    expect(feed).toContain("SUMMARY:API Concert");
+    expect(feed).toContain("SUMMARY:API Concert Updated");
     expect(feed).toContain("SUMMARY:API Rehearsal");
     expect(feed).toContain("LOCATION:Main Sanctuary\\, 123 Main St");
 
@@ -231,10 +293,11 @@ describe("Organization calendar management", () => {
         state.storage.sql
           .exec<{ count: number }>(
             `SELECT COUNT(*) AS count FROM audit_events
-             WHERE action IN ('venue.created', 'event.created', 'event.rsvp.updated')`,
+             WHERE action IN ('organization.timezone.updated', 'venue.created',
+               'event.created', 'event.updated', 'event.archived', 'event.rsvp.updated')`,
           )
           .one().count,
     );
-    expect(auditCount).toBe(5);
+    expect(auditCount).toBe(9);
   });
 });

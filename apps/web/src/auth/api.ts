@@ -10,7 +10,9 @@ import {
   organizationInvitationResponseSchema,
   organizationInvitationsResponseSchema,
   organizationEventSchema,
+  organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
+  organizationCalendarSettingsResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
   organizationProfileResponseSchema,
@@ -43,6 +45,7 @@ import {
   type OrganizationInvitationsResponse,
   type OrganizationEvent,
   type OrganizationEventRequest,
+  type OrganizationCalendarSettings,
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
   type OrganizationProfile,
@@ -252,6 +255,24 @@ export async function createOrganizationEvent(
   return organizationEventSchema.parse(await response.json());
 }
 
+export async function updateOrganizationEvent(
+  eventId: string,
+  event: OrganizationEventRequest,
+): Promise<OrganizationEvent> {
+  const response = await request(`/api/organization/events/${encodeURIComponent(eventId)}`, {
+    body: JSON.stringify(event),
+    method: "PUT",
+  });
+  return organizationEventSchema.parse(await response.json());
+}
+
+export async function archiveOrganizationEvent(eventId: string): Promise<void> {
+  const response = await request(`/api/organization/events/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+  });
+  organizationEventArchiveResponseSchema.parse(await response.json());
+}
+
 export async function setOrganizationEventRsvp(
   eventId: string,
   profileId: string,
@@ -262,6 +283,25 @@ export async function setOrganizationEventRsvp(
     method: "PUT",
   });
   return organizationRsvpSchema.parse(await response.json());
+}
+
+export async function getOrganizationCalendarSettings(
+  signal?: AbortSignal,
+): Promise<OrganizationCalendarSettings> {
+  const response = await request("/api/organization/calendar-settings", {
+    signal: signal ?? null,
+  });
+  return organizationCalendarSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationCalendarSettings(
+  timezone: string,
+): Promise<OrganizationCalendarSettings> {
+  const response = await request("/api/organization/calendar-settings", {
+    body: JSON.stringify({ timezone }),
+    method: "PUT",
+  });
+  return organizationCalendarSettingsResponseSchema.parse(await response.json());
 }
 
 export async function updateAccountPassword(

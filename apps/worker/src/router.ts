@@ -2,6 +2,7 @@ import {
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
   organizationEventRequestSchema,
+  organizationCalendarSettingsRequestSchema,
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
   organizationProfileRequestSchema,
@@ -29,15 +30,20 @@ import {
 import { Hono, type Context } from "hono";
 import { requestId } from "hono/request-id";
 import { z } from "zod";
+import { isValidTimeZone } from "@choir/domain";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
 import {
   createOrganizationEvent,
   createOrganizationVenue,
+  archiveOrganizationEvent,
   listOrganizationEvents,
   listOrganizationVenues,
+  readOrganizationCalendarSettings,
   setOrganizationEventRsvp,
+  updateOrganizationCalendarSettings,
+  updateOrganizationEvent,
 } from "./calendar/organizationCalendar";
 import { listAccountOrganizations } from "./auth/accountOrganizations";
 import {
@@ -1263,6 +1269,75 @@ router.get("/api/organization/venues", async (context) => {
   }
 });
 
+router.get("/api/organization/calendar-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      ...(await readOrganizationCalendarSettings(context.env, authorization.organizationId)),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization calendar settings are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/calendar-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationCalendarSettingsRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success || !isValidTimeZone(body.data.timezone)) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid IANA Organization timezone is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const settings = await updateOrganizationCalendarSettings(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...settings, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization timezone could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
 router.post("/api/organization/venues", async (context) => {
   const authorization = await authorizeCalendarRoute(context, true);
   if (!authorization.ok) {
@@ -1369,6 +1444,94 @@ router.post("/api/organization/events", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization event could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/events/:eventId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const body = organizationEventRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!eventId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event and event details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const event = await updateOrganizationEvent(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+      body.data,
+    );
+    return context.json({ ...event, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization event could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.delete("/api/organization/events/:eventId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const result = await archiveOrganizationEvent(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+    );
+    return context.json({ ...result, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization event could not be archived.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

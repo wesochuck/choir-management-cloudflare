@@ -45,7 +45,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `3e7ca69a-40a3-4dfe-bc1c-63562a5511bc`
+- Current verified Worker version: `0a029217-db3f-473d-94ec-beb73a9f9ef0`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -176,6 +176,11 @@ Verified over public HTTPS on July 20–21, 2026:
   shell referenced the new `index-B37McvUL.js` and `index-BXKIqtgg.css` assets. Remote D1 still had
   no pending migrations and zero Organizations, fleet schema preparations, or dead letters. Worker
   version `3e7ca69a-40a3-4dfe-bc1c-63562a5511bc` is the verified staging checkpoint.
+- After the timezone/event-lifecycle deployment, health and readiness returned HTTP 200 and the
+  calendar-settings probe on the global workers.dev base returned hostname-first HTTP 404. The live
+  shell referenced `index-Cne-LBhi.js` and `index-BaMelGzn.css`; D1 remained unchanged with zero
+  Organizations, fleet schema preparations, or dead letters. Worker version
+  `0a029217-db3f-473d-94ec-beb73a9f9ef0` is the verified staging checkpoint.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -187,9 +192,9 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run check:parity`: 145 inventory entries validated.
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
-- `npm test`: 5 files / 13 tests passed, including staging-bootstrap safety and adversarial
-  signed-link coverage.
-- `npm run test:integration`: 8 files / 39 workerd tests passed.
+- `npm test`: 5 files / 15 tests passed, including staging-bootstrap safety, IANA timezone/DST
+  conversion, and adversarial signed-link coverage.
+- `npm run test:integration`: 10 files / 42 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -270,6 +275,13 @@ actor-audited, referenced venues/parent performances/Profiles are verified insid
 boundary, and the account UI exposes the working management forms after Organization MFA. Workerd
 proof creates the operational records exclusively through these APIs and then verifies that the same
 Profile's signed feed contains the resulting performance and inherited rehearsal.
+
+Organization calendar settings now validate and persist an IANA timezone, and shared pure domain
+logic converts Organization-local event input using the DST offset in effect on that event date.
+Nonexistent spring-forward times fail validation. Owners and Administrators can edit and archive
+events with append-only audits; archive is soft and removes the event from operational lists and
+feeds. The UI requires explicit archive confirmation and can prepare a safe clone with the set list,
+approval, and parent-performance linkage reset before creating a new event.
 
 Recent-MFA Platform Administrators on the product base hostname can now start and inspect one fleet
 schema-preparation run at a time. Each Workflow instance loads at most 20 stale active
@@ -391,7 +403,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue the event/roster wave with update/archive/clone, self-service RSVP, attendance, and
-   Organization timezone settings, then bind the next signed product flow. Return to validated
-   custom-domain activation when a managed zone is available.
+3. Continue the event/roster wave with self-service RSVP, attendance, richer Profile fields,
+   venue/event deletion rules, and import/export, then bind the next signed product flow. Return to
+   validated custom-domain activation when a managed zone is available.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

@@ -1,8 +1,10 @@
 import {
   organizationEventRequestSchema,
+  organizationCalendarSettingsRequestSchema,
   organizationRsvpRequestSchema,
   organizationVenueRequestSchema,
 } from "@choir/contracts";
+import { isValidTimeZone } from "@choir/domain";
 import { z } from "zod";
 
 const actorSchema = z.object({
@@ -17,6 +19,14 @@ const managementRequestSchema = z.discriminatedUnion("action", [
     event: organizationEventRequestSchema.extend({ id: z.uuid() }),
   }),
   actorSchema.extend({
+    action: z.literal("update_event"),
+    event: organizationEventRequestSchema.extend({ id: z.uuid() }),
+  }),
+  actorSchema.extend({
+    action: z.literal("archive_event"),
+    eventId: z.uuid(),
+  }),
+  actorSchema.extend({
     action: z.literal("create_venue"),
     venue: organizationVenueRequestSchema.extend({ id: z.uuid() }),
   }),
@@ -25,7 +35,14 @@ const managementRequestSchema = z.discriminatedUnion("action", [
     eventId: z.uuid(),
     rsvp: organizationRsvpRequestSchema,
   }),
+  actorSchema.extend({
+    action: z.literal("update_timezone"),
+    settings: organizationCalendarSettingsRequestSchema,
+  }),
 ]);
+
+type ManagementRequest = z.infer<typeof managementRequestSchema>;
+type EventOperation = Extract<ManagementRequest, { readonly event: unknown }>;
 
 interface IdentityRow {
   readonly [column: string]: SqlStorageValue;
@@ -164,50 +181,54 @@ export function listOrganizationEventsFromStore(
   return Response.json({ events });
 }
 
-export async function manageOrganizationCalendarInStore(
+export function readOrganizationCalendarSettingsFromStore(
   storage: DurableObjectStorage,
-  request: Request,
-): Promise<Response> {
-  const parsed = managementRequestSchema.safeParse(await request.json());
-  if (!parsed.success)
-    return Response.json({ code: "invalid_calendar_operation" }, { status: 400 });
-  if (!identityMatches(storage, parsed.data.organizationId)) {
-    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  organizationId: string | null,
+): Response {
+  if (!identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
-  const occurredAt = new Date().toISOString();
-  if (parsed.data.action === "create_venue") {
-    const venue = parsed.data.venue;
-    storage.transactionSync(() => {
-      storage.sql.exec(
-        "INSERT INTO venues (id, name, address, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        venue.id,
-        venue.name,
-        venue.address,
-        occurredAt,
-        occurredAt,
-      );
-      insertAudit(storage, parsed.data, "venue.created", "venue", venue.id, venue, occurredAt);
-    });
-    return Response.json({ ...venue, createdAt: occurredAt, updatedAt: occurredAt });
+  const timezone = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
+  return Response.json({ timezone });
+}
+
+function eventReferenceError(
+  storage: DurableObjectStorage,
+  event: EventOperation["event"],
+): Response | null {
+  if (event.venueId && !recordExists(storage, "venues", event.venueId)) {
+    return Response.json({ code: "venue_not_found" }, { status: 404 });
   }
-  if (parsed.data.action === "create_event") {
-    const event = parsed.data.event;
-    if (event.venueId && !recordExists(storage, "venues", event.venueId)) {
-      return Response.json({ code: "venue_not_found" }, { status: 404 });
-    }
-    if (event.parentPerformanceId) {
-      const parent = storage.sql
-        .exec<{ readonly [column: string]: SqlStorageValue; readonly type: string }>(
-          "SELECT type FROM events WHERE id = ? LIMIT 1",
-          event.parentPerformanceId,
-        )
-        .toArray()
-        .at(0);
-      if (parent?.type !== "Performance") {
-        return Response.json({ code: "parent_performance_not_found" }, { status: 404 });
-      }
-    }
-    storage.transactionSync(() => {
+  if (!event.parentPerformanceId) return null;
+  const parent = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly type: string }>(
+      "SELECT type FROM events WHERE id = ? LIMIT 1",
+      event.parentPerformanceId,
+    )
+    .toArray()
+    .at(0);
+  return parent?.type === "Performance"
+    ? null
+    : Response.json({ code: "parent_performance_not_found" }, { status: 404 });
+}
+
+function writeEvent(
+  storage: DurableObjectStorage,
+  operation: EventOperation,
+  occurredAt: string,
+): Response {
+  const event = operation.event;
+  const referenceError = eventReferenceError(storage, event);
+  if (referenceError) return referenceError;
+  if (operation.action === "update_event" && !recordExists(storage, "events", event.id)) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+  storage.transactionSync(() => {
+    if (operation.action === "create_event") {
       storage.sql.exec(
         `INSERT INTO events
           (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
@@ -229,21 +250,123 @@ export async function manageOrganizationCalendarInStore(
         occurredAt,
         occurredAt,
       );
+    } else {
+      storage.sql.exec(
+        `UPDATE events SET title = ?, type = ?, starts_at = ?, duration_minutes = ?,
+           call_time = ?, location = ?, venue_id = ?, parent_performance_id = ?, details = ?,
+           set_list_json = ?, set_list_approved = ?, updated_at = ?
+         WHERE id = ?`,
+        event.title,
+        event.type,
+        event.startsAt,
+        event.durationMinutes,
+        event.callTime,
+        event.location,
+        event.venueId,
+        event.parentPerformanceId,
+        event.details,
+        JSON.stringify(event.setList),
+        event.setListApproved ? 1 : 0,
+        occurredAt,
+        event.id,
+      );
+    }
+    insertAudit(
+      storage,
+      operation,
+      operation.action === "create_event" ? "event.created" : "event.updated",
+      "event",
+      event.id,
+      { startsAt: event.startsAt, title: event.title, type: event.type },
+      occurredAt,
+    );
+  });
+  const createdAt =
+    operation.action === "create_event"
+      ? occurredAt
+      : storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly createdAt: string }>(
+            "SELECT created_at AS createdAt FROM events WHERE id = ?",
+            event.id,
+          )
+          .one().createdAt;
+  return Response.json({ ...event, createdAt, updatedAt: occurredAt });
+}
+
+export async function manageOrganizationCalendarInStore(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = managementRequestSchema.safeParse(await request.json());
+  if (!parsed.success)
+    return Response.json({ code: "invalid_calendar_operation" }, { status: 400 });
+  if (!identityMatches(storage, parsed.data.organizationId)) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const occurredAt = new Date().toISOString();
+  if (parsed.data.action === "update_timezone") {
+    const operation = parsed.data;
+    if (!isValidTimeZone(operation.settings.timezone)) {
+      return Response.json({ code: "invalid_timezone" }, { status: 400 });
+    }
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        "UPDATE organization_metadata SET timezone = ?, updated_at = ?",
+        operation.settings.timezone,
+        occurredAt,
+      );
       insertAudit(
         storage,
-        parsed.data,
-        "event.created",
-        "event",
-        event.id,
-        {
-          startsAt: event.startsAt,
-          title: event.title,
-          type: event.type,
-        },
+        operation,
+        "organization.timezone.updated",
+        "organization",
+        operation.organizationId,
+        { timezone: operation.settings.timezone },
         occurredAt,
       );
     });
-    return Response.json({ ...event, createdAt: occurredAt, updatedAt: occurredAt });
+    return Response.json(operation.settings);
+  }
+  if (parsed.data.action === "create_venue") {
+    const venue = parsed.data.venue;
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        "INSERT INTO venues (id, name, address, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        venue.id,
+        venue.name,
+        venue.address,
+        occurredAt,
+        occurredAt,
+      );
+      insertAudit(storage, parsed.data, "venue.created", "venue", venue.id, venue, occurredAt);
+    });
+    return Response.json({ ...venue, createdAt: occurredAt, updatedAt: occurredAt });
+  }
+  if (parsed.data.action === "create_event" || parsed.data.action === "update_event") {
+    return writeEvent(storage, parsed.data, occurredAt);
+  }
+  if (parsed.data.action === "archive_event") {
+    const operation = parsed.data;
+    if (!recordExists(storage, "events", operation.eventId)) {
+      return Response.json({ code: "event_not_found" }, { status: 404 });
+    }
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        "UPDATE events SET is_archived = 1, updated_at = ? WHERE id = ?",
+        occurredAt,
+        operation.eventId,
+      );
+      insertAudit(
+        storage,
+        operation,
+        "event.archived",
+        "event",
+        operation.eventId,
+        { archived: true },
+        occurredAt,
+      );
+    });
+    return Response.json({ eventId: operation.eventId, status: "archived" });
   }
   const rsvpOperation = parsed.data;
   if (!recordExists(storage, "events", rsvpOperation.eventId)) {

@@ -1,3 +1,4 @@
+import { datePartInTimeZone, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { z } from "zod";
 
 const setListItemSchema = z.object({
@@ -48,81 +49,6 @@ function formatUtc(date: Date): string {
     .replaceAll("-", "")
     .replaceAll(":", "")
     .replace(/\.\d{3}Z$/, "Z");
-}
-
-interface TimeZoneParts {
-  readonly day: number;
-  readonly hour: number;
-  readonly minute: number;
-  readonly month: number;
-  readonly second: number;
-  readonly year: number;
-}
-
-function timeZoneParts(date: Date, timezone: string): TimeZoneParts {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-    minute: "2-digit",
-    month: "2-digit",
-    second: "2-digit",
-    timeZone: timezone,
-    year: "numeric",
-  }).formatToParts(date);
-  const read = (type: Intl.DateTimeFormatPartTypes): number => {
-    const value = Number(parts.find((part) => part.type === type)?.value);
-    if (!Number.isInteger(value)) throw new Error(`Missing ${type} for timezone ${timezone}.`);
-    return value;
-  };
-  return {
-    day: read("day"),
-    hour: read("hour"),
-    minute: read("minute"),
-    month: read("month"),
-    second: read("second"),
-    year: read("year"),
-  };
-}
-
-function localDatePart(date: Date, timezone: string): string {
-  const parts = timeZoneParts(date, timezone);
-  return `${String(parts.year).padStart(4, "0")}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
-}
-
-function localDateTimeToUtc(datePart: string, time: string, timezone: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
-  const timeMatch = /^(\d{2}):(\d{2})$/.exec(time);
-  if (!match || !timeMatch) return null;
-  const desired = Date.UTC(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-    Number(timeMatch[1]),
-    Number(timeMatch[2]),
-  );
-  let candidate = desired;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const parts = timeZoneParts(new Date(candidate), timezone);
-    const represented = Date.UTC(
-      parts.year,
-      parts.month - 1,
-      parts.day,
-      parts.hour === 24 ? 0 : parts.hour,
-      parts.minute,
-      parts.second,
-    );
-    candidate += desired - represented;
-  }
-  const result = new Date(candidate);
-  const resultParts = timeZoneParts(result, timezone);
-  return resultParts.year === Number(match[1]) &&
-    resultParts.month === Number(match[2]) &&
-    resultParts.day === Number(match[3]) &&
-    (resultParts.hour === 24 ? 0 : resultParts.hour) === Number(timeMatch[1]) &&
-    resultParts.minute === Number(timeMatch[2])
-    ? result
-    : null;
 }
 
 function performerCredit(item: z.infer<typeof setListItemSchema>): string {
@@ -186,11 +112,11 @@ export function renderCalendarIcs(input: CalendarProjection): string {
       : event.location;
     const uid = `event-${event.id}@choir-management.local`;
     if (event.callTime) {
-      const callStart = localDateTimeToUtc(
-        localDatePart(start, input.timezone),
-        event.callTime,
+      const callStartIso = zonedLocalDateTimeToUtc(
+        `${datePartInTimeZone(start, input.timezone)}T${event.callTime}`,
         input.timezone,
       );
+      const callStart = callStartIso ? new Date(callStartIso) : null;
       if (callStart && callStart < start) {
         lines.push(
           "BEGIN:VEVENT",

@@ -115,6 +115,7 @@ milestone complete.
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
 | `packages/domain/src/index.ts`                                 | Public domain exports                                                                |
+| `packages/domain/src/calendarTime.ts`                          | Shared IANA timezone validation and local-to-UTC calendar conversion                 |
 | `packages/ui/package.json`                                     | Repository-owned Radix-based UI package                                              |
 | `packages/ui/src/index.ts`                                     | Stable component exports                                                             |
 | `packages/testkit/package.json`                                | Factories, fixtures, and environment harnesses                                       |

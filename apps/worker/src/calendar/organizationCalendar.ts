@@ -1,15 +1,19 @@
 import {
   organizationEventSchema,
+  organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
+  organizationCalendarSettingsResponseSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
   organizationVenuesResponseSchema,
   type OrganizationEvent,
   type OrganizationEventRequest,
+  type OrganizationEventArchiveResponse,
   type OrganizationRsvp,
   type OrganizationRsvpRequest,
   type OrganizationVenue,
   type OrganizationVenueRequest,
+  type OrganizationCalendarSettings,
 } from "@choir/contracts";
 
 import type { Env } from "../env";
@@ -98,6 +102,27 @@ export async function createOrganizationEvent(
   );
 }
 
+export async function updateOrganizationEvent(
+  env: Env,
+  actor: ActorContext,
+  eventId: string,
+  event: OrganizationEventRequest,
+): Promise<OrganizationEvent> {
+  return organizationEventSchema.parse(
+    await mutate(env, { action: "update_event", ...actor, event: { ...event, id: eventId } }),
+  );
+}
+
+export async function archiveOrganizationEvent(
+  env: Env,
+  actor: ActorContext,
+  eventId: string,
+): Promise<Omit<OrganizationEventArchiveResponse, "requestId">> {
+  return organizationEventArchiveResponseSchema
+    .omit({ requestId: true })
+    .parse(await mutate(env, { action: "archive_event", ...actor, eventId }));
+}
+
 export async function setOrganizationEventRsvp(
   env: Env,
   actor: ActorContext,
@@ -107,4 +132,28 @@ export async function setOrganizationEventRsvp(
   return organizationRsvpSchema.parse(
     await mutate(env, { action: "set_rsvp", ...actor, eventId, rsvp }),
   );
+}
+
+export async function readOrganizationCalendarSettings(
+  env: Env,
+  organizationId: string,
+): Promise<OrganizationCalendarSettings> {
+  const url = new URL("https://organization.internal/internal/calendar/settings");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok)
+    throw new Error("The Organization store rejected the calendar settings request.");
+  return organizationCalendarSettingsResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
+}
+
+export async function updateOrganizationCalendarSettings(
+  env: Env,
+  actor: ActorContext,
+  settings: OrganizationCalendarSettings,
+): Promise<OrganizationCalendarSettings> {
+  return organizationCalendarSettingsResponseSchema
+    .omit({ requestId: true })
+    .parse(await mutate(env, { action: "update_timezone", ...actor, settings }));
 }

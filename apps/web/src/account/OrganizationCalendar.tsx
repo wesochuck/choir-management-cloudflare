@@ -5,23 +5,29 @@ import type {
   OrganizationProfile,
   OrganizationVenue,
 } from "@choir/contracts";
+import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { useEffect, useState } from "react";
 
 import {
   AuthApiError,
+  archiveOrganizationEvent,
   createOrganizationEvent,
   createOrganizationProfile,
   createOrganizationVenue,
+  getOrganizationCalendarSettings,
   listOrganizationEvents,
   listOrganizationProfiles,
   listOrganizationVenues,
   setOrganizationEventRsvp,
+  updateOrganizationCalendarSettings,
+  updateOrganizationEvent,
 } from "../auth/api";
 
 interface Resources {
   readonly events: readonly OrganizationEvent[];
   readonly profiles: readonly OrganizationProfile[];
   readonly venues: readonly OrganizationVenue[];
+  readonly timezone: string;
 }
 
 type ResourceState =
@@ -43,17 +49,11 @@ const emptyEvent: OrganizationEventRequest = {
   venueId: null,
 };
 
-function utcInputToIso(value: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null;
-  const date = new Date(`${value}:00.000Z`);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
-}
-
-function displayEventDate(value: string): string {
+function displayEventDate(value: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "UTC",
+    timeZone: timezone,
   }).format(new Date(value));
 }
 
@@ -66,6 +66,126 @@ function readRsvp(value: string): "No" | "Pending" | "Yes" {
   return "Pending";
 }
 
+function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
+  return {
+    callTime: event.callTime,
+    details: event.details,
+    durationMinutes: event.durationMinutes,
+    location: event.location,
+    parentPerformanceId: event.parentPerformanceId,
+    setList: event.setList,
+    setListApproved: event.setListApproved,
+    startsAt: event.startsAt,
+    title: event.title,
+    type: event.type,
+    venueId: event.venueId,
+  };
+}
+
+function EventActions(props: {
+  readonly archiveConfirmId: string | null;
+  readonly busy: boolean;
+  readonly event: OrganizationEvent;
+  readonly onArchive: (eventId: string) => void;
+  readonly onCancelArchive: () => void;
+  readonly onClone: (event: OrganizationEvent) => void;
+  readonly onEdit: (event: OrganizationEvent) => void;
+  readonly onRequestArchive: (eventId: string) => void;
+  readonly visible: boolean;
+}) {
+  if (!props.visible) return null;
+  return (
+    <div className="button-row">
+      <button
+        className="button button--secondary"
+        disabled={props.busy}
+        onClick={() => {
+          props.onEdit(props.event);
+        }}
+        type="button"
+      >
+        Edit
+      </button>
+      <button
+        className="button button--secondary"
+        disabled={props.busy}
+        onClick={() => {
+          props.onClone(props.event);
+        }}
+        type="button"
+      >
+        Clone
+      </button>
+      {props.archiveConfirmId === props.event.id ? (
+        <>
+          <button
+            className="button button--danger"
+            disabled={props.busy}
+            onClick={() => {
+              props.onArchive(props.event.id);
+            }}
+            type="button"
+          >
+            Confirm archive
+          </button>
+          <button
+            className="text-button"
+            disabled={props.busy}
+            onClick={props.onCancelArchive}
+            type="button"
+          >
+            Cancel
+          </button>
+        </>
+      ) : (
+        <button
+          className="button button--danger"
+          disabled={props.busy}
+          onClick={() => {
+            props.onRequestArchive(props.event.id);
+          }}
+          type="button"
+        >
+          Archive
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CalendarNotices(props: {
+  readonly enabled: boolean;
+  readonly error: string | null;
+  readonly resourceStatus: ResourceState["status"];
+  readonly success: string | null;
+}) {
+  return (
+    <>
+      {!props.enabled ? (
+        <p className="notice notice--warning">Verify Organization MFA to load operational data.</p>
+      ) : null}
+      {props.enabled && props.resourceStatus === "loading" ? (
+        <p>Loading Organization calendar…</p>
+      ) : null}
+      {props.enabled && props.resourceStatus === "error" ? (
+        <p className="notice notice--error" role="alert">
+          Organization calendar data could not be loaded.
+        </p>
+      ) : null}
+      {props.error ? (
+        <p className="notice notice--error" role="alert">
+          {props.error}
+        </p>
+      ) : null}
+      {props.success ? (
+        <p className="notice notice--success" role="status">
+          {props.success}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export function OrganizationCalendar({
   context,
   enabled,
@@ -74,15 +194,18 @@ export function OrganizationCalendar({
   readonly enabled: boolean;
 }) {
   const [busy, setBusy] = useState(false);
+  const [archiveConfirmId, setArchiveConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<OrganizationEventRequest>(emptyEvent);
   const [eventStart, setEventStart] = useState("");
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [profileName, setProfileName] = useState("");
   const [resources, setResources] = useState<ResourceState>({ status: "loading" });
   const [rsvpEventId, setRsvpEventId] = useState("");
   const [rsvpProfileId, setRsvpProfileId] = useState("");
   const [rsvpStatus, setRsvpStatus] = useState<"No" | "Pending" | "Yes">("Pending");
   const [success, setSuccess] = useState<string | null>(null);
+  const [timezoneInput, setTimezoneInput] = useState("UTC");
   const [venueAddress, setVenueAddress] = useState("");
   const [venueName, setVenueName] = useState("");
   const manager = context.role !== "member";
@@ -94,9 +217,11 @@ export function OrganizationCalendar({
       listOrganizationProfiles(controller.signal),
       listOrganizationVenues(controller.signal),
       listOrganizationEvents(controller.signal),
+      getOrganizationCalendarSettings(controller.signal),
     ])
-      .then(([profiles, venues, events]) => {
-        setResources({ events, profiles, status: "ready", venues });
+      .then(([profiles, venues, events, settings]) => {
+        setTimezoneInput(settings.timezone);
+        setResources({ events, profiles, status: "ready", timezone: settings.timezone, venues });
       })
       .catch((loadError: unknown) => {
         if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
@@ -153,30 +278,91 @@ export function OrganizationCalendar({
   }
 
   async function addEvent() {
-    const startsAt = utcInputToIso(eventStart);
+    const startsAt =
+      resources.status === "ready" ? zonedLocalDateTimeToUtc(eventStart, resources.timezone) : null;
     if (!startsAt) {
-      setError("Enter the event start date and time in UTC.");
+      setError("Enter a valid event time in the Organization timezone.");
       return;
     }
     beginAction();
     try {
-      const created = await createOrganizationEvent({ ...event, startsAt });
+      const saved = editingEventId
+        ? await updateOrganizationEvent(editingEventId, { ...event, startsAt })
+        : await createOrganizationEvent({ ...event, startsAt });
       setResources((current) =>
         current.status === "ready"
           ? {
               ...current,
-              events: [...current.events, created].toSorted((left, right) =>
-                left.startsAt.localeCompare(right.startsAt),
-              ),
+              events: (editingEventId
+                ? current.events.map((candidate) => (candidate.id === saved.id ? saved : candidate))
+                : [...current.events, saved]
+              ).toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
             }
           : current,
       );
+      setEditingEventId(null);
       setEvent(emptyEvent);
       setEventStart("");
-      setSuccess("Event created.");
+      setSuccess(editingEventId ? "Event updated." : "Event created.");
       setBusy(false);
     } catch (actionError: unknown) {
       failAction(actionError, "The event could not be created.");
+    }
+  }
+
+  function beginEdit(candidate: OrganizationEvent) {
+    if (resources.status !== "ready") return;
+    setEditingEventId(candidate.id);
+    setEvent(eventRequestFrom(candidate));
+    setEventStart(utcToZonedLocalDateTime(candidate.startsAt, resources.timezone) ?? "");
+    setError(null);
+    setSuccess(null);
+  }
+
+  function beginClone(candidate: OrganizationEvent) {
+    if (resources.status !== "ready") return;
+    setEditingEventId(null);
+    setEvent({
+      ...eventRequestFrom(candidate),
+      parentPerformanceId: null,
+      setList: [],
+      setListApproved: false,
+      title: `${candidate.title} copy`,
+    });
+    setEventStart(utcToZonedLocalDateTime(candidate.startsAt, resources.timezone) ?? "");
+    setError(null);
+    setSuccess("Clone prepared. Adjust the date and save it as a new event.");
+  }
+
+  async function archiveEvent(eventId: string) {
+    beginAction();
+    try {
+      await archiveOrganizationEvent(eventId);
+      setResources((current) =>
+        current.status === "ready"
+          ? { ...current, events: current.events.filter((candidate) => candidate.id !== eventId) }
+          : current,
+      );
+      setArchiveConfirmId(null);
+      setSuccess("Event archived.");
+      setBusy(false);
+    } catch (actionError: unknown) {
+      failAction(actionError, "The event could not be archived.");
+    }
+  }
+
+  async function updateTimezone() {
+    beginAction();
+    try {
+      const settings = await updateOrganizationCalendarSettings(timezoneInput);
+      setResources((current) =>
+        current.status === "ready" ? { ...current, timezone: settings.timezone } : current,
+      );
+      setTimezoneInput(settings.timezone);
+      setSuccess("Organization timezone updated.");
+      setBusy(false);
+    } catch (actionError: unknown) {
+      failAction(actionError, "The Organization timezone could not be updated.");
     }
   }
 
@@ -200,25 +386,12 @@ export function OrganizationCalendar({
         <p className="eyebrow">Operations</p>
         <h2 id="organization-calendar-title">Profiles and calendar</h2>
       </div>
-      {!enabled ? (
-        <p className="notice notice--warning">Verify Organization MFA to load operational data.</p>
-      ) : null}
-      {enabled && resources.status === "loading" ? <p>Loading Organization calendar…</p> : null}
-      {enabled && resources.status === "error" ? (
-        <p className="notice notice--error" role="alert">
-          Organization calendar data could not be loaded.
-        </p>
-      ) : null}
-      {error ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="notice notice--success" role="status">
-          {success}
-        </p>
-      ) : null}
+      <CalendarNotices
+        enabled={enabled}
+        error={error}
+        resourceStatus={resources.status}
+        success={success}
+      />
       {enabled && resources.status === "ready" ? (
         <>
           <div className="calendar-summary-grid">
@@ -237,6 +410,38 @@ export function OrganizationCalendar({
           </div>
           {manager ? (
             <div className="calendar-management-grid">
+              <form
+                className="form-stack"
+                onSubmit={(formEvent) => {
+                  formEvent.preventDefault();
+                  void updateTimezone();
+                }}
+              >
+                <h3>Organization timezone</h3>
+                <div className="field">
+                  <label htmlFor="organization-timezone">IANA timezone</label>
+                  <input
+                    id="organization-timezone"
+                    list="common-timezones"
+                    maxLength={100}
+                    onChange={(change) => {
+                      setTimezoneInput(change.target.value);
+                    }}
+                    required
+                    value={timezoneInput}
+                  />
+                  <datalist id="common-timezones">
+                    <option value="UTC" />
+                    <option value="America/New_York" />
+                    <option value="America/Chicago" />
+                    <option value="America/Denver" />
+                    <option value="America/Los_Angeles" />
+                  </datalist>
+                </div>
+                <button className="button button--primary" disabled={busy} type="submit">
+                  Save timezone
+                </button>
+              </form>
               <form
                 className="form-stack"
                 onSubmit={(formEvent) => {
@@ -303,7 +508,7 @@ export function OrganizationCalendar({
                   void addEvent();
                 }}
               >
-                <h3>Create event</h3>
+                <h3>{editingEventId ? "Edit event" : "Create event"}</h3>
                 <div className="field">
                   <label htmlFor="event-title">Title</label>
                   <input
@@ -333,7 +538,7 @@ export function OrganizationCalendar({
                   </select>
                 </div>
                 <div className="field">
-                  <label htmlFor="event-start">Start (UTC)</label>
+                  <label htmlFor="event-start">Start ({resources.timezone})</label>
                   <input
                     id="event-start"
                     onChange={(change) => {
@@ -406,8 +611,22 @@ export function OrganizationCalendar({
                   />
                 </div>
                 <button className="button button--primary" disabled={busy} type="submit">
-                  Create event
+                  {editingEventId ? "Save event" : "Create event"}
                 </button>
+                {editingEventId ? (
+                  <button
+                    className="button button--secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setEditingEventId(null);
+                      setEvent(emptyEvent);
+                      setEventStart("");
+                    }}
+                    type="button"
+                  >
+                    Cancel edit
+                  </button>
+                ) : null}
               </form>
               <form
                 className="form-stack"
@@ -484,9 +703,25 @@ export function OrganizationCalendar({
                     <div>
                       <h3>{item.title}</h3>
                       <p>
-                        {item.type} · {displayEventDate(item.startsAt)} UTC
+                        {item.type} · {displayEventDate(item.startsAt, resources.timezone)} (
+                        {resources.timezone})
                       </p>
                     </div>
+                    <EventActions
+                      archiveConfirmId={archiveConfirmId}
+                      busy={busy}
+                      event={item}
+                      onArchive={(eventId) => {
+                        void archiveEvent(eventId);
+                      }}
+                      onCancelArchive={() => {
+                        setArchiveConfirmId(null);
+                      }}
+                      onClone={beginClone}
+                      onEdit={beginEdit}
+                      onRequestArchive={setArchiveConfirmId}
+                      visible={manager}
+                    />
                   </li>
                 ))}
               </ul>
