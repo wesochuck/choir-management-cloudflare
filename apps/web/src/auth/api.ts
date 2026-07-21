@@ -3,9 +3,13 @@ import {
   accountSecurityResponseSchema,
   authSessionListSchema,
   currentAuthSessionSchema,
+  organizationProvisionResponseSchema,
   platformContextResponseSchema,
+  platformElevationRevocationResponseSchema,
   platformMfaEnrollmentResponseSchema,
   platformMfaStatusResponseSchema,
+  platformOrganizationContextResponseSchema,
+  platformOrganizationsResponseSchema,
   platformRecoveryCodesResponseSchema,
   problemDetailsSchema,
   type AccountOrganization,
@@ -13,7 +17,11 @@ import {
   type AccountSecurityResponse,
   type AuthSession,
   type CurrentAuthSession,
+  type OrganizationProvisionRequest,
+  type OrganizationProvisionResponse,
   type PlatformContextResponse,
+  type PlatformOrganizationContextResponse,
+  type PlatformOrganizationsResponse,
   type PlatformMfaEnrollmentResponse,
   type PlatformMfaStatusResponse,
 } from "@choir/contracts";
@@ -161,4 +169,55 @@ export async function verifyPlatformMfa(
 export async function getPlatformContext(): Promise<PlatformContextResponse> {
   const response = await request("/api/platform/context");
   return platformContextResponseSchema.parse(await response.json());
+}
+
+export async function listPlatformOrganizations(
+  cursor: string | null = null,
+  signal?: AbortSignal,
+): Promise<PlatformOrganizationsResponse> {
+  const search = new URLSearchParams();
+  if (cursor) {
+    search.set("cursor", cursor);
+  }
+  const suffix = search.size > 0 ? `?${search.toString()}` : "";
+  const response = await request(`/api/platform/organizations${suffix}`, {
+    signal: signal ?? null,
+  });
+  return platformOrganizationsResponseSchema.parse(await response.json());
+}
+
+export async function provisionOrganization(
+  organization: OrganizationProvisionRequest,
+): Promise<OrganizationProvisionResponse> {
+  const response = await request("/api/platform/organizations", {
+    body: JSON.stringify(organization),
+    method: "POST",
+  });
+  return organizationProvisionResponseSchema.parse(await response.json());
+}
+
+export async function getPlatformOrganizationContext(
+  signal?: AbortSignal,
+): Promise<PlatformOrganizationContextResponse> {
+  const response = await request("/api/platform/organization-context", {
+    signal: signal ?? null,
+  });
+  return platformOrganizationContextResponseSchema.parse(await response.json());
+}
+
+export async function createPlatformElevation(
+  reason: string,
+): Promise<PlatformOrganizationContextResponse> {
+  const response = await request("/api/platform/elevations", {
+    body: JSON.stringify({ reason }),
+    method: "POST",
+  });
+  return platformOrganizationContextResponseSchema.parse(await response.json());
+}
+
+export async function revokePlatformElevation(elevationId: string): Promise<void> {
+  const response = await request(`/api/platform/elevations/${encodeURIComponent(elevationId)}`, {
+    method: "DELETE",
+  });
+  platformElevationRevocationResponseSchema.parse(await response.json());
 }

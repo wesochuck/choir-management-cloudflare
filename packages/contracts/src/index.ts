@@ -181,6 +181,26 @@ export const organizationProvisionResponseSchema = z.object({
 
 export type OrganizationProvisionResponse = z.infer<typeof organizationProvisionResponseSchema>;
 
+export const platformOrganizationSummarySchema = z.object({
+  canonicalHostname: z.string().min(1).max(253),
+  canonicalStatus: z.enum(["active", "disabled", "pending"]),
+  lifecycleState: z.enum(["active", "provisioning", "suspended"]),
+  name: z.string().min(1).max(120),
+  operationalSchemaVersion: z.number().int().nonnegative(),
+  organizationId: organizationIdSchema,
+  provisionedAt: z.iso.datetime().nullable(),
+  slug: z.string().min(2).max(63),
+});
+
+export const platformOrganizationsResponseSchema = z.object({
+  nextCursor: z.string().min(1).max(128).nullable(),
+  organizations: z.array(platformOrganizationSummarySchema).max(25),
+  requestId: requestIdSchema,
+});
+
+export type PlatformOrganizationSummary = z.infer<typeof platformOrganizationSummarySchema>;
+export type PlatformOrganizationsResponse = z.infer<typeof platformOrganizationsResponseSchema>;
+
 export const platformElevationRequestSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });
@@ -198,6 +218,15 @@ export const platformOrganizationContextResponseSchema = z.object({
 
 export type PlatformOrganizationContextResponse = z.infer<
   typeof platformOrganizationContextResponseSchema
+>;
+
+export const platformElevationRevocationResponseSchema = z.object({
+  elevationId: z.uuid(),
+  status: z.literal("revoked"),
+});
+
+export type PlatformElevationRevocationResponse = z.infer<
+  typeof platformElevationRevocationResponseSchema
 >;
 
 export const platformMfaStatusResponseSchema = z.object({
@@ -220,6 +249,11 @@ export const platformRecoveryCodesResponseSchema = z.object({
 export const platformContextResponseSchema = z.object({
   mfaMethod: z.enum(["recovery_code", "totp"]),
   mfaVerifiedUntil: z.iso.datetime(),
+  requestId: requestIdSchema,
+  scope: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("product_base") }),
+    z.object({ kind: z.literal("organization"), organizationId: organizationIdSchema }),
+  ]),
   userId: z.string().min(1),
 });
 

@@ -11,6 +11,7 @@ import {
   verifyPlatformMfa,
   verifyPlatformTotpEnrollment,
 } from "../auth/api";
+import { PlatformOperations } from "./PlatformOperations";
 
 type AccessState =
   | { readonly status: "error" }
@@ -419,6 +420,7 @@ export function PlatformAccess() {
           <strong>Platform access is ready.</strong> Verified with {accessState.context.mfaMethod};
           expires {displayDate(accessState.context.mfaVerifiedUntil)}.
         </div>
+        <PlatformOperations scope={accessState.context.scope} />
       </PlatformSection>
     );
   }

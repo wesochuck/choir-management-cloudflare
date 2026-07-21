@@ -9,6 +9,7 @@ import {
   type HealthResponse,
   type OrganizationContextResponse,
   type OrganizationProvisionResponse,
+  type PlatformOrganizationSummary,
   type PlatformOrganizationContextResponse,
   type ProblemDetails,
 } from "@choir/contracts";
@@ -53,6 +54,30 @@ interface WorkerHonoEnvironment {
 }
 
 export const router = new Hono<WorkerHonoEnvironment>();
+
+const PLATFORM_ORGANIZATION_PAGE_SIZE = 25;
+const platformOrganizationCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(128)]);
+
+interface PlatformOrganizationRow extends PlatformOrganizationSummary {
+  readonly createdAt: string;
+}
+
+function parsePlatformOrganizationCursor(
+  value: string | null,
+): readonly [createdAt: string, organizationId: string] | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  if (value.length > 128) {
+    return undefined;
+  }
+  const parsed = platformOrganizationCursorSchema.safeParse(value.split("|"));
+  return parsed.success ? parsed.data : undefined;
+}
+
+function encodePlatformOrganizationCursor(row: PlatformOrganizationRow): string {
+  return `${row.createdAt}|${row.organizationId}`;
+}
 
 async function isAuthorizedPlatformHostname(requestUrl: URL, env: Env): Promise<boolean> {
   if (isProductBaseHost(requestUrl.hostname, env.PRODUCT_BASE_DOMAIN)) {
@@ -1213,7 +1238,11 @@ router.post("/api/platform/mfa/verify", async (context) => {
 router.get("/api/platform/context", async (context) => {
   validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
-  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
+  const productBaseScope = isProductBaseHost(requestUrl.hostname, context.env.PRODUCT_BASE_DOMAIN);
+  const organizationId = productBaseScope
+    ? null
+    : await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!productBaseScope && !organizationId) {
     return context.json(
       {
         code: "not_found",
@@ -1249,7 +1278,107 @@ router.get("/api/platform/context", async (context) => {
   return context.json({
     mfaMethod: authorization.value.mfaMethod,
     mfaVerifiedUntil: new Date(authorization.value.mfaVerifiedUntil).toISOString(),
+    requestId: context.get("requestId"),
+    scope: organizationId
+      ? ({ kind: "organization", organizationId } as const)
+      : ({ kind: "product_base" } as const),
     userId: authorization.value.userId,
+  });
+});
+
+router.get("/api/platform/organizations", async (context) => {
+  const config = validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+    return context.json(
+      {
+        code: "not_found",
+        message:
+          "The Platform Organization directory is available only on the product base hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+
+  const cursor = parsePlatformOrganizationCursor(requestUrl.searchParams.get("cursor"));
+  if (cursor === undefined) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "The Organization directory cursor is invalid.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+
+  const baseQuery = `SELECT o.id AS organizationId, o.name, o.slug,
+      o.lifecycle_state AS lifecycleState,
+      o.operational_schema_version AS operationalSchemaVersion,
+      o.provisioned_at AS provisionedAt, o.created_at AS createdAt,
+      d.hostname AS canonicalHostname, d.status AS canonicalStatus
+    FROM organizations o
+    INNER JOIN organization_domains d
+      ON d.organization_id = o.id AND d.kind = 'canonical'`;
+  const statement = cursor
+    ? context.env.CONTROL_DB.prepare(
+        `${baseQuery}
+         WHERE o.created_at < ? OR (o.created_at = ? AND o.id < ?)
+         ORDER BY o.created_at DESC, o.id DESC
+         LIMIT ?`,
+      ).bind(cursor[0], cursor[0], cursor[1], PLATFORM_ORGANIZATION_PAGE_SIZE + 1)
+    : context.env.CONTROL_DB.prepare(
+        `${baseQuery}
+         ORDER BY o.created_at DESC, o.id DESC
+         LIMIT ?`,
+      ).bind(PLATFORM_ORGANIZATION_PAGE_SIZE + 1);
+  const rows = await statement.all<PlatformOrganizationRow>();
+  const organizations = rows.results.slice(0, PLATFORM_ORGANIZATION_PAGE_SIZE).map((row) => ({
+    canonicalHostname: row.canonicalHostname,
+    canonicalStatus: row.canonicalStatus,
+    lifecycleState: row.lifecycleState,
+    name: row.name,
+    operationalSchemaVersion: row.operationalSchemaVersion,
+    organizationId: row.organizationId,
+    provisionedAt: row.provisionedAt,
+    slug: row.slug,
+  }));
+  const cursorRow =
+    organizations.length === PLATFORM_ORGANIZATION_PAGE_SIZE
+      ? rows.results[PLATFORM_ORGANIZATION_PAGE_SIZE - 1]
+      : undefined;
+  return context.json({
+    nextCursor:
+      rows.results.length > PLATFORM_ORGANIZATION_PAGE_SIZE && cursorRow
+        ? encodePlatformOrganizationCursor(cursorRow)
+        : null,
+    organizations,
+    requestId: context.get("requestId"),
   });
 });
 

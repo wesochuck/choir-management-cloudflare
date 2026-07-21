@@ -303,7 +303,35 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
       body: JSON.stringify({
         mfaMethod: "totp",
         mfaVerifiedUntil: "2026-07-20T20:15:00.000Z",
+        requestId: "33333333-3333-4333-8333-333333333333",
+        scope: { kind: "product_base" },
         userId: currentUser.id,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/organizations", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        body: JSON.stringify({
+          canonicalHostname: "staging-choir.example.test",
+          canonicalStatus: "pending",
+          lifecycleState: "provisioning",
+          organizationId: "99999999-9999-4999-8999-999999999999",
+          requestId: "33333333-3333-4333-8333-333333333333",
+          workflowId: "organization-provision-browser-test",
+        }),
+        contentType: "application/json",
+        status: 202,
+      });
+      return;
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        nextCursor: null,
+        organizations: [],
+        requestId: "33333333-3333-4333-8333-333333333333",
       }),
       contentType: "application/json",
       status: 200,
@@ -340,5 +368,140 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await platformSection.getByLabel("6-digit code").fill("654321");
   await platformSection.getByRole("button", { name: "Verify Platform access" }).click();
   await expect(platformSection.getByRole("status")).toContainText("Platform access is ready");
+  await expect(
+    platformSection.getByRole("heading", { name: "Organization provisioning" }),
+  ).toBeVisible();
+  await platformSection.getByLabel("Organization name").fill("Staging Choir");
+  await platformSection.getByLabel("Hostname slug").fill("staging-choir");
+  await platformSection.getByRole("button", { name: "Create Organization" }).click();
+  await expect(platformSection.getByText("Staging Choir", { exact: true })).toBeVisible();
+  await expect(platformSection.getByText("Provisioning", { exact: true })).toBeVisible();
+  await expect(platformSection.getByRole("status").last()).toContainText(
+    "canonical hostname remains pending",
+  );
   await expect(page.getByText("recovery-01")).toHaveCount(0);
+});
+
+test("enables and ends scoped Platform Administrator edit access", async ({ page }) => {
+  let canEdit = false;
+  const elevationId = "88888888-8888-4888-8888-888888888888";
+  const requestId = "33333333-3333-4333-8333-333333333333";
+
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ session: currentSession, user: currentUser }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/organizations", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ organizations: [] }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/security", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ passwordSet: false, requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/list-sessions", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify([currentSession]),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        activePlatformAdministrator: true,
+        enrollmentComplete: true,
+        requestId,
+        twoFactorEnabled: true,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/context", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        mfaMethod: "totp",
+        mfaVerifiedUntil: "2026-07-20T20:15:00.000Z",
+        requestId,
+        scope: { kind: "organization", organizationId: "organization-alpha" },
+        userId: currentUser.id,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/organization-context", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        canEdit,
+        elevationExpiresAt: canEdit ? "2026-07-20T20:15:00.000Z" : null,
+        elevationId: canEdit ? elevationId : null,
+        organizationId: "organization-alpha",
+        requestId,
+        userId: currentUser.id,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/elevations", async (route) => {
+    canEdit = true;
+    await route.fulfill({
+      body: JSON.stringify({
+        canEdit: true,
+        elevationExpiresAt: "2026-07-20T20:15:00.000Z",
+        elevationId,
+        organizationId: "organization-alpha",
+        requestId,
+        userId: currentUser.id,
+      }),
+      contentType: "application/json",
+      status: 201,
+    });
+  });
+  await page.route("**/api/platform/elevations/*", async (route) => {
+    canEdit = false;
+    await route.fulfill({
+      body: JSON.stringify({ elevationId, status: "revoked" }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/account");
+  const platformSection = page.getByRole("region", { name: "Platform Administrator access" });
+  await expect(platformSection.getByRole("heading", { name: "Organization access" })).toBeVisible();
+  await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
+  await platformSection
+    .getByLabel("Reason for enabling edits")
+    .fill("Review Organization configuration");
+  await platformSection
+    .getByRole("button", { name: "Enable Platform edits for 15 minutes" })
+    .click();
+  await expect(platformSection.getByText("Platform edits enabled.")).toBeVisible();
+  await platformSection.getByRole("button", { name: "End edit access" }).click();
+  await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
 });

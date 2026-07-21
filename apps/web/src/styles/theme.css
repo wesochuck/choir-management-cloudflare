@@ -552,6 +552,76 @@ h2 {
   margin-top: 1.5rem;
 }
 
+.platform-operations {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.section-heading--nested h3,
+.section-heading--nested p,
+.platform-directory h4 {
+  margin-top: 0;
+}
+
+.section-heading--nested p {
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.platform-provisioning-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 1rem;
+  max-width: 48rem;
+  margin-top: 1.5rem;
+}
+
+.platform-provisioning-form .button {
+  justify-self: start;
+}
+
+.platform-directory {
+  margin-top: 2rem;
+}
+
+.platform-organization-list h5,
+.platform-organization-list p {
+  margin: 0;
+}
+
+.platform-organization-list h5 {
+  font-size: 1rem;
+}
+
+.platform-organization-list .status-pill {
+  display: inline-block;
+  margin-top: 0.65rem;
+}
+
+.platform-load-more {
+  margin-top: 1rem;
+}
+
+.platform-elevation-form {
+  max-width: 40rem;
+  margin-top: 1.5rem;
+}
+
+.platform-elevation-form .status-pill {
+  justify-self: start;
+  margin: 0;
+}
+
+.platform-elevation-form textarea {
+  resize: vertical;
+}
+
+.platform-elevation-active .notice {
+  margin: 0;
+}
+
 .section-heading--compact h2 {
   font-size: clamp(2rem, 4vw, 3rem);
 }
@@ -677,6 +747,11 @@ footer {
 
   .mfa-enrollment {
     grid-template-columns: 1fr;
+  }
+
+  .platform-provisioning-form {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .module-card {

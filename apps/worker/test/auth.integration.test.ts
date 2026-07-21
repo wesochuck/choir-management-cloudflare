@@ -6,6 +6,7 @@ import {
   organizationProfileLinkResponseSchema,
   platformMfaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
+  platformOrganizationsResponseSchema,
   publicDomainResponseSchema,
 } from "@choir/contracts";
 import { env } from "cloudflare:workers";
@@ -1072,6 +1073,7 @@ describe("Platform Administrator MFA", () => {
     expect(authorized.status).toBe(200);
     await expect(authorized.json()).resolves.toMatchObject({
       mfaMethod: "totp",
+      scope: { kind: "product_base" },
       userId: "user-invited-member",
     });
 
@@ -1202,6 +1204,21 @@ describe("Platform Administrator MFA", () => {
     await grantPlatformAdministratorForCurrentSession();
     const workflowIntrospector = await introspectWorkflow(testEnv.PROVISIONING_WORKFLOW);
     try {
+      const initialDirectoryResponse = await fetchWorker(
+        authRequest("/api/platform/organizations", { headers: { cookie: sessionCookie } }),
+      );
+      expect(initialDirectoryResponse.status).toBe(200);
+      expect(
+        platformOrganizationsResponseSchema.parse(await initialDirectoryResponse.json()),
+      ).toMatchObject({ nextCursor: null, organizations: [] });
+
+      const invalidCursorResponse = await fetchWorker(
+        authRequest("/api/platform/organizations?cursor=invalid", {
+          headers: { cookie: sessionCookie },
+        }),
+      );
+      expect(invalidCursorResponse.status).toBe(400);
+
       const response = await fetchWorker(
         authRequest("/api/platform/organizations", {
           body: JSON.stringify({ name: "Organization Charlie", slug: "charlie" }),
@@ -1248,6 +1265,78 @@ describe("Platform Administrator MFA", () => {
         actorUserId: "user-invited-member",
       });
 
+      const directoryResponse = await fetchWorker(
+        authRequest("/api/platform/organizations", { headers: { cookie: sessionCookie } }),
+      );
+      expect(directoryResponse.status).toBe(200);
+      expect(
+        platformOrganizationsResponseSchema.parse(await directoryResponse.json()),
+      ).toMatchObject({
+        nextCursor: null,
+        organizations: [
+          {
+            canonicalHostname: "charlie.localhost",
+            canonicalStatus: "active",
+            lifecycleState: "active",
+            name: "Organization Charlie",
+            organizationId: provisioning.organizationId,
+            slug: "charlie",
+          },
+        ],
+      });
+
+      const paginationCreatedAt = "2030-01-01T00:00:00.000Z";
+      await testEnv.CONTROL_DB.batch(
+        Array.from({ length: 25 }, (_, index) => {
+          const suffix = String(index).padStart(2, "0");
+          const organizationId = `pagination-organization-${suffix}`;
+          return [
+            testEnv.CONTROL_DB.prepare(
+              `INSERT INTO organizations
+                (id, name, slug, lifecycle_state, durable_object_key,
+                 operational_schema_version, created_at, updated_at, provisioned_at)
+               VALUES (?, ?, ?, 'active', ?, 1, ?, ?, ?)`,
+            ).bind(
+              organizationId,
+              `Pagination Organization ${suffix}`,
+              `pagination-${suffix}`,
+              organizationId,
+              paginationCreatedAt,
+              paginationCreatedAt,
+              paginationCreatedAt,
+            ),
+            testEnv.CONTROL_DB.prepare(
+              `INSERT INTO organization_domains
+                (id, organization_id, hostname, kind, status, routing_version,
+                 created_at, updated_at)
+               VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
+            ).bind(
+              `pagination-domain-${suffix}`,
+              organizationId,
+              `pagination-${suffix}.localhost`,
+              paginationCreatedAt,
+              paginationCreatedAt,
+            ),
+          ];
+        }).flat(),
+      );
+      const firstPageResponse = await fetchWorker(
+        authRequest("/api/platform/organizations", { headers: { cookie: sessionCookie } }),
+      );
+      const firstPage = platformOrganizationsResponseSchema.parse(await firstPageResponse.json());
+      expect(firstPage.organizations).toHaveLength(25);
+      expect(firstPage.nextCursor).not.toBeNull();
+      const secondPageResponse = await fetchWorker(
+        authRequest(
+          `/api/platform/organizations?cursor=${encodeURIComponent(firstPage.nextCursor ?? "")}`,
+          { headers: { cookie: sessionCookie } },
+        ),
+      );
+      const secondPage = platformOrganizationsResponseSchema.parse(await secondPageResponse.json());
+      expect(secondPage.nextCursor).toBeNull();
+      expect(secondPage.organizations).toHaveLength(1);
+      expect(secondPage.organizations[0]?.organizationId).toBe(provisioning.organizationId);
+
       const wrongHostResponse = await fetchWorker(
         authRequest(
           "/api/platform/organizations",
@@ -1260,6 +1349,14 @@ describe("Platform Administrator MFA", () => {
         ),
       );
       expect(wrongHostResponse.status).toBe(404);
+      const wrongHostDirectoryResponse = await fetchWorker(
+        authRequest(
+          "/api/platform/organizations",
+          { headers: { cookie: sessionCookie } },
+          "http://charlie.localhost",
+        ),
+      );
+      expect(wrongHostDirectoryResponse.status).toBe(404);
     } finally {
       await workflowIntrospector.dispose();
     }
