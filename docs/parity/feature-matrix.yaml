@@ -537,9 +537,10 @@
         "path": "/api/singer/rsvp",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/singerRsvp.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/test/selfServiceRsvp.integration.test.ts"],
       },
       {
         "id": "api.resolve-placeholders",
@@ -1201,6 +1202,8 @@
           [
             "apps/worker/src/calendar/organizationCalendar.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/web/src/account/MySchedule.tsx",
           ],
       },
       {

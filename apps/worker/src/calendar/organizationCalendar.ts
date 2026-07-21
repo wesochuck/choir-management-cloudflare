@@ -6,6 +6,7 @@ import {
   organizationRsvpSchema,
   organizationVenueSchema,
   organizationVenuesResponseSchema,
+  singerEventsResponseSchema,
   type OrganizationEvent,
   type OrganizationEventRequest,
   type OrganizationEventArchiveResponse,
@@ -14,6 +15,7 @@ import {
   type OrganizationVenue,
   type OrganizationVenueRequest,
   type OrganizationCalendarSettings,
+  type SingerEvent,
 } from "@choir/contracts";
 
 import type { Env } from "../env";
@@ -156,4 +158,19 @@ export async function updateOrganizationCalendarSettings(
   return organizationCalendarSettingsResponseSchema
     .omit({ requestId: true })
     .parse(await mutate(env, { action: "update_timezone", ...actor, settings }));
+}
+
+export async function listMemberSchedule(
+  env: Env,
+  organizationId: string,
+  profileId: string,
+  now = new Date(),
+): Promise<readonly SingerEvent[]> {
+  const url = new URL("https://organization.internal/internal/calendar/member-events");
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("profileId", profileId);
+  url.searchParams.set("readAt", now.toISOString());
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) throw new Error("The Organization store rejected the member schedule request.");
+  return singerEventsResponseSchema.pick({ events: true }).parse(await response.json()).events;
 }

@@ -12,6 +12,7 @@ import {
 import { migrateOrganization } from "./migrations";
 import {
   listOrganizationEventsFromStore,
+  listMemberEventsFromStore,
   listOrganizationVenuesFromStore,
   manageOrganizationCalendarInStore,
   readOrganizationCalendarSettingsFromStore,
@@ -727,6 +728,12 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return listOrganizationEventsFromStore(storage, organizationId);
     case "/internal/calendar/settings":
       return readOrganizationCalendarSettingsFromStore(storage, organizationId);
+    case "/internal/calendar/member-events":
+      return listMemberEventsFromStore(storage, {
+        organizationId,
+        profileId: url.searchParams.get("profileId"),
+        readAt: url.searchParams.get("readAt"),
+      });
   }
   const profileIdentityPrefix = "/internal/profiles/";
   if (url.pathname.startsWith(profileIdentityPrefix)) {

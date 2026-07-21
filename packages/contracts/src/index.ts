@@ -122,6 +122,33 @@ export const organizationRsvpSchema = organizationRsvpRequestSchema.extend({
   updatedAt: z.iso.datetime(),
 });
 
+export const singerRsvpRequestSchema = z.object({
+  rsvp: z.enum(["Yes", "No", "Pending"]),
+});
+
+export const singerEventSchema = z.object({
+  callTime: z.string().max(5),
+  details: z.string().max(100_000),
+  directRsvp: z.enum(["Yes", "No", "Pending"]),
+  durationMinutes: z.number().int().positive().nullable(),
+  id: z.uuid(),
+  inheritedFromParent: z.boolean(),
+  location: z.string().max(2_000),
+  resolvedRsvp: z.enum(["Yes", "No", "Pending"]),
+  startsAt: z.iso.datetime(),
+  title: z.string().min(1).max(500),
+  type: z.enum(["Performance", "Rehearsal"]),
+  venueAddress: z.string().max(2_000),
+  venueName: z.string().max(500),
+});
+
+export const singerEventsResponseSchema = z.object({
+  events: z.array(singerEventSchema).max(500),
+  profileId: z.uuid(),
+  requestId: requestIdSchema,
+  timezone: z.string().min(1).max(100),
+});
+
 export const organizationCalendarSettingsRequestSchema = z.object({
   timezone: z.string().trim().min(1).max(100),
 });
@@ -138,6 +165,8 @@ export type OrganizationEventArchiveResponse = z.infer<
 >;
 export type OrganizationRsvpRequest = z.infer<typeof organizationRsvpRequestSchema>;
 export type OrganizationRsvp = z.infer<typeof organizationRsvpSchema>;
+export type SingerEvent = z.infer<typeof singerEventSchema>;
+export type SingerEventsResponse = z.infer<typeof singerEventsResponseSchema>;
 export type OrganizationCalendarSettings = z.infer<
   typeof organizationCalendarSettingsRequestSchema
 >;

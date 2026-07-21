@@ -69,6 +69,7 @@ milestone complete.
 | `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation on the hostname-derived Organization         |
 | `apps/web/src/account/CalendarSubscription.tsx`                | Member calendar subscription and explicit credential reset                           |
 | `apps/web/src/account/OrganizationCalendar.tsx`                | Profile, venue, event, and RSVP Organization management UI                           |
+| `apps/web/src/account/MySchedule.tsx`                          | Linked-Profile member schedule and self-service RSVP UI                              |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -102,6 +103,7 @@ milestone complete.
 | `apps/worker/src/tenancy/resolveOrganization.ts`               | Hostname-to-Organization resolution                                                  |
 | `apps/worker/src/tenancy/authorizeOrganization.ts`             | Membership and Platform Administrator authorization                                  |
 | `apps/worker/src/tenancy/linkOrganizationProfile.ts`           | Organization-store-confirmed Membership-to-Profile identity linkage                  |
+| `apps/worker/src/tenancy/linkedOrganizationProfile.ts`         | Control-plane lookup of the caller's linked Organization Profile                     |
 | `apps/worker/src/tenancy/registerPublicDomain.ts`              | Pending Public Website Domain registration, disablement, and routing-cache safety    |
 | `apps/worker/src/jobs/consumer.ts`                             | Queue dispatch, retries, and dead-letter behavior                                    |
 | `apps/worker/src/jobs/contracts.ts`                            | Versioned, Organization-scoped job payloads                                          |
@@ -151,6 +153,7 @@ milestone complete.
 | `apps/worker/test/calendarFeed.integration.test.ts`            | Organization-bound calendar credential and revocation proof                          |
 | `apps/worker/test/calendarManagement.integration.test.ts`      | Venue, event, and RSVP authorization and Organization-isolation proof                |
 | `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                |
+| `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof        |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `apps/worker/src/workflows/FleetSchemaWorkflow.ts`             | Chained bounded Organization-store schema preparation                                |

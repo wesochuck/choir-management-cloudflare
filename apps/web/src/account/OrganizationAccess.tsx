@@ -13,6 +13,7 @@ import {
 import { OrganizationInvitations } from "./OrganizationInvitations";
 import { CalendarSubscription } from "./CalendarSubscription";
 import { OrganizationCalendar } from "./OrganizationCalendar";
+import { MySchedule } from "./MySchedule";
 
 type AccessState =
   | { readonly status: "error" }
@@ -662,6 +663,7 @@ export function OrganizationAccess() {
         />
       </section>
       <OrganizationCalendar context={context} enabled={!needsVerification} />
+      <MySchedule enabled={!needsVerification} />
       <CalendarSubscription enabled={!needsVerification} />
       <OrganizationInvitations context={context} />
     </>

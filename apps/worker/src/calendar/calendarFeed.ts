@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
+import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
 import { renderCalendarIcs } from "./calendarIcs";
 
 const CALENDAR_FEED_LIFETIME_SECONDS = 10 * 365 * 24 * 60 * 60;
@@ -37,10 +38,6 @@ const calendarFeedResponseSchema = z.object({
   timezone: z.string().min(1).max(100),
 });
 
-interface MembershipProfileRow {
-  readonly profileId: string | null;
-}
-
 export interface CalendarFeedUrls {
   readonly expiresAt: string;
   readonly httpsUrl: string;
@@ -61,21 +58,6 @@ function safeFilename(value: string): string {
   );
 }
 
-async function linkedProfileId(
-  database: D1Database,
-  organizationId: string,
-  userId: string,
-): Promise<string | null> {
-  const membership = await database
-    .prepare(
-      `SELECT profileId FROM member
-       WHERE organizationId = ? AND userId = ? LIMIT 1`,
-    )
-    .bind(organizationId, userId)
-    .first<MembershipProfileRow>();
-  return membership?.profileId ?? null;
-}
-
 export async function createCalendarFeedUrls(
   env: Env,
   input: {
@@ -87,7 +69,11 @@ export async function createCalendarFeedUrls(
   },
   now = new Date(),
 ): Promise<CalendarFeedUrls | null> {
-  const profileId = await linkedProfileId(env.CONTROL_DB, input.organizationId, input.actorUserId);
+  const profileId = await linkedOrganizationProfileId(
+    env.CONTROL_DB,
+    input.organizationId,
+    input.actorUserId,
+  );
   if (!profileId) {
     return null;
   }

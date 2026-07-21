@@ -20,6 +20,7 @@ import {
   organizationRsvpSchema,
   organizationVenueSchema,
   organizationVenuesResponseSchema,
+  singerEventsResponseSchema,
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
   platformFleetSchemaStatusResponseSchema,
@@ -51,6 +52,7 @@ import {
   type OrganizationProfile,
   type OrganizationRsvp,
   type OrganizationVenue,
+  type SingerEventsResponse,
   type OrganizationProvisionRequest,
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
@@ -302,6 +304,22 @@ export async function updateOrganizationCalendarSettings(
     method: "PUT",
   });
   return organizationCalendarSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getMySchedule(signal?: AbortSignal): Promise<SingerEventsResponse> {
+  const response = await request("/api/singer/events", { signal: signal ?? null });
+  return singerEventsResponseSchema.parse(await response.json());
+}
+
+export async function setMyEventRsvp(
+  eventId: string,
+  rsvp: "No" | "Pending" | "Yes",
+): Promise<OrganizationRsvp> {
+  const response = await request(`/api/singer/events/${encodeURIComponent(eventId)}/rsvp`, {
+    body: JSON.stringify({ rsvp }),
+    method: "PUT",
+  });
+  return organizationRsvpSchema.parse(await response.json());
 }
 
 export async function updateAccountPassword(

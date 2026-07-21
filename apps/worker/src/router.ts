@@ -8,6 +8,7 @@ import {
   organizationProfileRequestSchema,
   organizationRsvpRequestSchema,
   organizationVenueRequestSchema,
+  singerRsvpRequestSchema,
   organizationProfileLinkRequestSchema,
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
@@ -40,6 +41,7 @@ import {
   archiveOrganizationEvent,
   listOrganizationEvents,
   listOrganizationVenues,
+  listMemberSchedule,
   readOrganizationCalendarSettings,
   setOrganizationEventRsvp,
   updateOrganizationCalendarSettings,
@@ -86,6 +88,7 @@ import {
 } from "./storage/privateFiles";
 import { authorizeOrganizationMember } from "./tenancy/authorizeOrganization";
 import { linkOrganizationProfile } from "./tenancy/linkOrganizationProfile";
+import { linkedOrganizationProfileId } from "./tenancy/linkedOrganizationProfile";
 import {
   disablePublicDomain,
   listPublicDomains,
@@ -1237,6 +1240,113 @@ router.post("/api/organization/profiles", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization Profile could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/singer/events", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for a personal schedule.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const [events, settings] = await Promise.all([
+      listMemberSchedule(context.env, authorization.organizationId, profileId),
+      readOrganizationCalendarSettings(context.env, authorization.organizationId),
+    ]);
+    return context.json({
+      events,
+      profileId,
+      requestId: context.get("requestId"),
+      timezone: settings.timezone,
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The personal Organization schedule is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/singer/events/:eventId/rsvp", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const body = singerRsvpRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!eventId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event and RSVP are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required to RSVP.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const rsvp = await setOrganizationEventRsvp(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+      { profileId, rsvp: body.data.rsvp },
+    );
+    return context.json({ ...rsvp, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The RSVP could not be updated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

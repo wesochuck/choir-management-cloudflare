@@ -45,7 +45,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `0a029217-db3f-473d-94ec-beb73a9f9ef0`
+- Current verified Worker version: `9a38ac58-bda9-4057-ae2a-e47f3a7e75b7`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -181,6 +181,11 @@ Verified over public HTTPS on July 20–21, 2026:
   shell referenced `index-Cne-LBhi.js` and `index-BaMelGzn.css`; D1 remained unchanged with zero
   Organizations, fleet schema preparations, or dead letters. Worker version
   `0a029217-db3f-473d-94ec-beb73a9f9ef0` is the verified staging checkpoint.
+- After the linked-Profile self-service RSVP deployment, health and readiness returned HTTP 200 and
+  the member-schedule probe on the global workers.dev base returned hostname-first HTTP 404. The
+  live shell referenced `index-3c2_k15Q.js` and `index-CYr0wmls.css`; D1 remained unchanged with
+  zero Organizations, fleet schema preparations, or dead letters. Worker version
+  `9a38ac58-bda9-4057-ae2a-e47f3a7e75b7` is the verified staging checkpoint.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -194,7 +199,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run lint`: passed.
 - `npm test`: 5 files / 15 tests passed, including staging-bootstrap safety, IANA timezone/DST
   conversion, and adversarial signed-link coverage.
-- `npm run test:integration`: 10 files / 42 workerd tests passed.
+- `npm run test:integration`: 11 files / 43 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -282,6 +287,13 @@ Nonexistent spring-forward times fail validation. Owners and Administrators can 
 events with append-only audits; archive is soft and removes the event from operational lists and
 feeds. The UI requires explicit archive confirmation and can prepare a safe clone with the set list,
 approval, and parent-performance linkage reset before creating a new event.
+
+Linked-Profile members now have a personal schedule and self-service RSVP surface. The API derives
+the Profile from the authenticated Membership after canonical-host resolution and Organization MFA;
+it never accepts a caller-selected Profile identity. Rehearsal Pending status visibly inherits a
+non-Pending parent-performance RSVP until the member makes a direct choice. Workerd proof attempts
+to inject another Organization's Profile ID, verifies the owning Profile is the only row changed,
+and verifies the same identity receives a separate schedule on another canonical Organization host.
 
 Recent-MFA Platform Administrators on the product base hostname can now start and inspect one fleet
 schema-preparation run at a time. Each Workflow instance loads at most 20 stale active

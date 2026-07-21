@@ -73,6 +73,52 @@ test.beforeEach(async ({ page }) => {
       status: 200,
     });
   });
+  await page.route("**/api/singer/events", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        events: [
+          {
+            callTime: "18:00",
+            details: "Black folders",
+            directRsvp: "Pending",
+            durationMinutes: 120,
+            id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            inheritedFromParent: true,
+            location: "Choir Room",
+            resolvedRsvp: "Yes",
+            startsAt: "2026-08-19T23:00:00.000Z",
+            title: "My Rehearsal",
+            type: "Rehearsal",
+            venueAddress: "",
+            venueName: "",
+          },
+        ],
+        profileId: "11111111-1111-4111-8111-111111111111",
+        requestId,
+        timezone: "America/New_York",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/singer/events/*/rsvp", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    const rsvp =
+      typeof body === "object" && body !== null && "rsvp" in body && typeof body.rsvp === "string"
+        ? body.rsvp
+        : "Pending";
+    await route.fulfill({
+      body: JSON.stringify({
+        eventId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        profileId: "11111111-1111-4111-8111-111111111111",
+        requestId,
+        rsvp,
+        updatedAt: "2026-07-20T20:10:00.000Z",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
 });
 
 test("completes OTP sign-in and manages Organizations and sessions", async ({ page }) => {
@@ -851,6 +897,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await organizationCalendar.getByRole("button", { name: "Archive" }).click();
   await expect(organizationCalendar.getByRole("button", { name: "Confirm archive" })).toBeVisible();
   await organizationCalendar.getByRole("button", { name: "Cancel", exact: true }).click();
+  const mySchedule = page.getByRole("region", { name: "My schedule" });
+  await expect(mySchedule.getByRole("heading", { name: "My Rehearsal" })).toBeVisible();
+  await expect(mySchedule.getByText(/inherited from the parent performance: Yes/)).toBeVisible();
+  await mySchedule.getByLabel("Your RSVP").selectOption("No");
+  await expect(mySchedule.getByText("Your RSVP was updated.")).toBeVisible();
   const calendarSection = page.getByRole("region", { name: "Calendar subscription" });
   await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
     /browser-calendar-token-1/,

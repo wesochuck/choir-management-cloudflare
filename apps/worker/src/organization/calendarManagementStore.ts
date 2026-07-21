@@ -76,6 +76,22 @@ interface EventRow {
   readonly venueId: string | null;
 }
 
+interface MemberEventRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly callTime: string;
+  readonly details: string;
+  readonly directRsvp: "No" | "Pending" | "Yes" | null;
+  readonly durationMinutes: number | null;
+  readonly id: string;
+  readonly location: string;
+  readonly parentRsvp: "No" | "Pending" | "Yes" | null;
+  readonly startsAt: string;
+  readonly title: string;
+  readonly type: "Performance" | "Rehearsal";
+  readonly venueAddress: string;
+  readonly venueName: string;
+}
+
 function identityMatches(storage: DurableObjectStorage, organizationId: string | null): boolean {
   if (!organizationId) return false;
   const row = storage.sql
@@ -194,6 +210,72 @@ export function readOrganizationCalendarSettingsFromStore(
     )
     .one().timezone;
   return Response.json({ timezone });
+}
+
+export function listMemberEventsFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly organizationId: string | null;
+    readonly profileId: string | null;
+    readonly readAt: string | null;
+  },
+): Response {
+  const profileId = z.uuid().safeParse(input.profileId);
+  const readAt = z.iso.datetime().safeParse(input.readAt);
+  if (!identityMatches(storage, input.organizationId) || !profileId.success || !readAt.success) {
+    return Response.json({ code: "member_schedule_not_found" }, { status: 404 });
+  }
+  if (!recordExists(storage, "profiles", profileId.data)) {
+    return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  const now = new Date(readAt.data);
+  const earliest = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString();
+  const latest = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1_000).toISOString();
+  const events = storage.sql
+    .exec<MemberEventRow>(
+      `SELECT e.id, e.title, e.type, e.starts_at AS startsAt,
+         e.duration_minutes AS durationMinutes, e.call_time AS callTime,
+         e.location, e.details,
+         COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
+         direct.rsvp AS directRsvp, parent.rsvp AS parentRsvp
+       FROM events e
+       LEFT JOIN venues v ON v.id = e.venue_id
+       LEFT JOIN event_rosters direct
+         ON direct.event_id = e.id AND direct.profile_id = ?
+       LEFT JOIN event_rosters parent
+         ON parent.event_id = e.parent_performance_id AND parent.profile_id = ?
+       WHERE e.is_archived = 0 AND e.starts_at >= ? AND e.starts_at <= ?
+       ORDER BY e.starts_at ASC, e.id ASC LIMIT 500`,
+      profileId.data,
+      profileId.data,
+      earliest,
+      latest,
+    )
+    .toArray()
+    .map((event) => {
+      const directRsvp = event.directRsvp ?? "Pending";
+      const inherits =
+        event.type === "Rehearsal" &&
+        directRsvp === "Pending" &&
+        event.parentRsvp !== null &&
+        event.parentRsvp !== "Pending";
+      return {
+        callTime: event.callTime,
+        details: event.details,
+        directRsvp,
+        durationMinutes: event.durationMinutes,
+        id: event.id,
+        inheritedFromParent: inherits,
+        location: event.location,
+        resolvedRsvp: inherits ? event.parentRsvp : directRsvp,
+        startsAt: event.startsAt,
+        title: event.title,
+        type: event.type,
+        venueAddress: event.venueAddress,
+        venueName: event.venueName,
+      };
+    });
+  return Response.json({ events });
 }
 
 function eventReferenceError(

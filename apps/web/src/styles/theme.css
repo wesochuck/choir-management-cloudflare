@@ -529,6 +529,15 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.account-section--my-schedule {
+  grid-column: 1 / -1;
+}
+
+.schedule-rsvp {
+  flex: 0 1 12rem;
+  width: 100%;
+}
+
 .calendar-summary-grid,
 .calendar-management-grid {
   display: grid;
