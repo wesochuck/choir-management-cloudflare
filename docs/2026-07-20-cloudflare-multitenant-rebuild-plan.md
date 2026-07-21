@@ -98,6 +98,7 @@ milestone complete.
 | `apps/worker/src/jobs/consumer.ts`                             | Queue dispatch, retries, and dead-letter behavior                                    |
 | `apps/worker/src/jobs/contracts.ts`                            | Versioned, Organization-scoped job payloads                                          |
 | `apps/worker/src/publication/publishOrganization.ts`           | Public projection generation and cache versioning                                    |
+| `apps/worker/src/storage/privateFiles.ts`                      | Host-authorized private R2 upload/download orchestration                             |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -131,6 +132,7 @@ milestone complete.
 | `apps/worker/test/auth.integration.test.ts`                    | Workerd invitation-only auth, OTP, session, and canonical-host coverage              |
 | `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                            |
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
+| `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `types/vitest.d.ts`                                            | Typed migration fixtures injected into Worker integration tests                      |
 | `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                            |

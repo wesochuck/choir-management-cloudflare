@@ -242,6 +242,21 @@ export const publicDomainResponseSchema = z.object({
 
 export type PublicDomainResponse = z.infer<typeof publicDomainResponseSchema>;
 
+export const privateFileResponseSchema = z.object({
+  contentType: z.string().min(1).max(128),
+  fileName: z.string().min(1).max(255),
+  id: z.uuid(),
+  requestId: requestIdSchema,
+  sizeBytes: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(10 * 1024 * 1024),
+  uploadedAt: z.iso.datetime(),
+});
+
+export type PrivateFileResponse = z.infer<typeof privateFileResponseSchema>;
+
 export const organizationProvisionRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z

@@ -44,7 +44,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `920fd91c-68b4-4a5d-85c1-284ab900b9a2`
+- Current verified Worker version: `72cc9dee-5875-43ed-a093-a87b03d51464`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -122,6 +122,14 @@ Verified over public HTTPS on July 20–21, 2026:
   Organization projection to publish or fetch. Workerd tests use the real KV, R2, and D1 bindings to
   prove canonical/custom-public reads, immutable version retention, conditional ETags, and rejection
   of both a cross-Organization KV-key substitution and a mismatched R2 body under the expected key.
+- After the private-file deployment, health returned HTTP 200 and both upload and download probes on
+  the generic workers.dev base returned hostname-first HTTP 404. The rejected upload did not create
+  an Organization or invoke an Organization store. Organization schema version 4 will add its
+  private-file metadata table lazily when a provisioned store is opened. Workerd tests prove member
+  authorization, canonical-host-only access, ignored client Organization-ID substitution, custom-
+  public-host rejection, per-Organization R2 prefixes, metadata/R2 agreement, and actor-attributed
+  upload audit. Cross-Organization file IDs and deliberately poisoned metadata keys fail closed
+  without returning the other Organization's bytes.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -134,7 +142,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
-- `npm run test:integration`: 4 files / 31 workerd tests passed.
+- `npm run test:integration`: 5 files / 33 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -169,6 +177,15 @@ succeeds. Public reads first resolve and confirm the request hostname from autho
 require the pointer Organization ID, exact derived key, version, and stored projection Organization
 ID/version to agree. Poisoned KV and R2 values fail closed with a generic 404. Successful reads are
 short-cacheable by host and ETag and do not invoke the Organization Durable Object.
+
+Private file uploads require a validated UUID, encoded safe display name, explicit content type,
+matching content length, a ten-megabyte limit, and an active hostname-derived Organization
+Membership (including Organization MFA when policy requires it). The owning Organization store
+reserves metadata before R2 is written and atomically marks it ready with an append-only audit
+event; failed finalization removes both the new object and its pending reservation. Downloads derive
+the R2 key from the authoritative hostname Organization plus file ID, require ready metadata in that
+exact Organization store, and verify stored size and R2 Organization/file metadata before streaming.
+Custom public hosts and client-supplied Organization IDs cannot select private storage.
 
 Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
 inside the hostname-resolved Organization Durable Object. The linkage is unique within that

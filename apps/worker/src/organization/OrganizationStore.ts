@@ -3,6 +3,12 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { deliveryJobSchema } from "../jobs/contracts";
+import {
+  privateFileIdSchema,
+  privateFileReservationSchema,
+  privateFileTransitionSchema,
+  privateOrganizationFileKey,
+} from "../storage/privateFiles";
 import { migrateOrganization } from "./migrations";
 import { currentOrganizationSchemaVersion } from "./schema";
 
@@ -39,11 +45,26 @@ interface OrganizationMetadataRow {
   readonly slug: string;
 }
 
+interface OrganizationIdentityRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly organizationId: string;
+}
+
 interface JobLedgerRow {
   readonly [column: string]: SqlStorageValue;
   readonly attempt: number;
   readonly jobId: string;
   readonly status: string;
+}
+
+interface PrivateFileMetadataRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly contentType: string;
+  readonly fileName: string;
+  readonly id: string;
+  readonly sizeBytes: number;
+  readonly storageKey: string;
+  readonly uploadedAt: string;
 }
 
 function getProfileIdentity(storage: DurableObjectStorage, encodedProfileId: string): Response {
@@ -206,6 +227,157 @@ async function failJob(storage: DurableObjectStorage, request: Request): Promise
   return Response.json({ failed: result.rowsWritten === 1 });
 }
 
+async function reservePrivateFile(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = privateFileReservationSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_private_file" }, { status: 400 });
+  }
+  const organization = storage.sql
+    .exec<OrganizationIdentityRow>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0);
+  if (organization?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const storageKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+  try {
+    storage.sql.exec(
+      `INSERT INTO private_files
+        (id, storage_key, file_name, content_type, size_bytes, status,
+         uploaded_by, request_id, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      parsed.data.fileId,
+      storageKey,
+      parsed.data.fileName,
+      parsed.data.contentType,
+      parsed.data.sizeBytes,
+      parsed.data.actorUserId,
+      parsed.data.requestId,
+      new Date().toISOString(),
+    );
+    return Response.json({ reserved: true, storageKey });
+  } catch {
+    return Response.json({ code: "private_file_conflict" }, { status: 409 });
+  }
+}
+
+async function finalizePrivateFile(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = privateFileTransitionSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
+  }
+  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+  if (parsed.data.storageKey !== expectedKey) {
+    return Response.json({ code: "private_file_scope_conflict" }, { status: 409 });
+  }
+  const uploadedAt = new Date().toISOString();
+  const ready = storage.transactionSync(() => {
+    const result = storage.sql.exec(
+      `UPDATE private_files SET status = 'ready', ready_at = ?
+       WHERE id = ? AND storage_key = ? AND uploaded_by = ? AND request_id = ?
+         AND status = 'pending'`,
+      uploadedAt,
+      parsed.data.fileId,
+      expectedKey,
+      parsed.data.actorUserId,
+      parsed.data.requestId,
+    );
+    if (result.rowsWritten !== 1) {
+      return false;
+    }
+    storage.sql.exec(
+      `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_member', ?, 'organization.file.uploaded',
+           'private_file', ?, ?, ?, ?)`,
+      `private-file-uploaded:${parsed.data.requestId}`,
+      parsed.data.actorUserId,
+      parsed.data.fileId,
+      parsed.data.requestId,
+      JSON.stringify({ fileId: parsed.data.fileId, storageKey: expectedKey }),
+      uploadedAt,
+    );
+    return true;
+  });
+  return ready
+    ? Response.json({ ready: true, uploadedAt })
+    : Response.json({ code: "private_file_not_reserved" }, { status: 409 });
+}
+
+async function abortPrivateFile(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = privateFileTransitionSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
+  }
+  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+  storage.sql.exec(
+    `DELETE FROM private_files
+     WHERE id = ? AND storage_key = ? AND uploaded_by = ? AND request_id = ?
+       AND status = 'pending'`,
+    parsed.data.fileId,
+    expectedKey,
+    parsed.data.actorUserId,
+    parsed.data.requestId,
+  );
+  return Response.json({ aborted: true });
+}
+
+function getPrivateFileMetadata(storage: DurableObjectStorage, encodedFileId: string): Response {
+  const fileId = privateFileIdSchema.safeParse(decodeURIComponent(encodedFileId));
+  if (!fileId.success) {
+    return Response.json({ code: "private_file_not_found" }, { status: 404 });
+  }
+  const metadata = storage.sql
+    .exec<PrivateFileMetadataRow>(
+      `SELECT id, storage_key AS storageKey, file_name AS fileName,
+        content_type AS contentType, size_bytes AS sizeBytes, ready_at AS uploadedAt
+       FROM private_files WHERE id = ? AND status = 'ready' LIMIT 1`,
+      fileId.data,
+    )
+    .toArray()
+    .at(0);
+  return metadata
+    ? Response.json(metadata)
+    : Response.json({ code: "private_file_not_found" }, { status: 404 });
+}
+
+async function dispatchPostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
+  switch (pathname) {
+    case "/internal/files/abort":
+      return abortPrivateFile(storage, request);
+    case "/internal/files/ready":
+      return finalizePrivateFile(storage, request);
+    case "/internal/files/reserve":
+      return reservePrivateFile(storage, request);
+    case "/internal/jobs/claim":
+      return claimJob(storage, request);
+    case "/internal/jobs/complete":
+      return completeJob(storage, request);
+    case "/internal/jobs/fail":
+      return failJob(storage, request);
+    case "/internal/provision":
+      return provisionOrganizationStore(storage, request);
+    default:
+      return null;
+  }
+}
+
 export class OrganizationStore extends DurableObject<Env> {
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
@@ -219,8 +391,11 @@ export class OrganizationStore extends DurableObject<Env> {
       return Response.json({ status: "ok" });
     }
 
-    if (request.method === "POST" && url.pathname === "/internal/provision") {
-      return provisionOrganizationStore(this.ctx.storage, request);
+    if (request.method === "POST") {
+      const response = await dispatchPostRequest(this.ctx.storage, url.pathname, request);
+      if (response) {
+        return response;
+      }
     }
 
     const profileIdentityPrefix = "/internal/profiles/";
@@ -228,16 +403,9 @@ export class OrganizationStore extends DurableObject<Env> {
       return getProfileIdentity(this.ctx.storage, url.pathname.slice(profileIdentityPrefix.length));
     }
 
-    if (request.method === "POST" && url.pathname === "/internal/jobs/claim") {
-      return claimJob(this.ctx.storage, request);
-    }
-
-    if (request.method === "POST" && url.pathname === "/internal/jobs/complete") {
-      return completeJob(this.ctx.storage, request);
-    }
-
-    if (request.method === "POST" && url.pathname === "/internal/jobs/fail") {
-      return failJob(this.ctx.storage, request);
+    const privateFilePrefix = "/internal/files/";
+    if (request.method === "GET" && url.pathname.startsWith(privateFilePrefix)) {
+      return getPrivateFileMetadata(this.ctx.storage, url.pathname.slice(privateFilePrefix.length));
     }
 
     return Response.json({ code: "not_found" }, { status: 404 });

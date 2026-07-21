@@ -1358,6 +1358,8 @@
         "targetEvidence":
           [
             "apps/worker/src/publication/publishOrganization.ts",
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/test/files.integration.test.ts",
             "apps/worker/test/publication.integration.test.ts",
           ],
       },

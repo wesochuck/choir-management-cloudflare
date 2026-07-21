@@ -57,6 +57,23 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     version: 3,
     statements: ["ALTER TABLE job_ledger ADD COLUMN failed_at TEXT"],
   },
+  {
+    version: 4,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS private_files (
+        id TEXT PRIMARY KEY,
+        storage_key TEXT NOT NULL UNIQUE,
+        file_name TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'ready')),
+        uploaded_by TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        ready_at TEXT
+      ) STRICT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

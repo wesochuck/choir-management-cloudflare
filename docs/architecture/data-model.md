@@ -46,9 +46,12 @@ is ordered and append-only; applied versions are recorded in `organization_schem
 The foundation migration creates Organization metadata, append-only audit events, an idempotent job
 ledger, and scheduler state. Organization schema version 2 introduces the minimal Profile identity
 table needed for control-plane linkage; full roster fields and behavior remain owned by the roster
-parity wave. Feature milestones expand this schema with typed repositories. Contract or removal
-migrations occur only after old and new Worker versions are both safe throughout the rollback
-window.
+parity wave. Version 3 adds nullable failed-attempt timing to the job ledger so a later Cloudflare
+delivery can safely reclaim retryable work. Version 4 adds private-file metadata and pending/ready
+state; bytes remain in Organization-prefixed R2 while authorization metadata and upload audit stay
+inside the owning Organization store. Feature milestones expand this schema with typed repositories.
+Contract or removal migrations occur only after old and new Worker versions are both safe throughout
+the rollback window.
 
 ## R2 and KV
 
