@@ -301,6 +301,37 @@ export const platformOrganizationsResponseSchema = z.object({
 export type PlatformOrganizationSummary = z.infer<typeof platformOrganizationSummarySchema>;
 export type PlatformOrganizationsResponse = z.infer<typeof platformOrganizationsResponseSchema>;
 
+export const platformJobDeadLetterSummarySchema = z.object({
+  firstSeenAt: z.iso.datetime(),
+  idempotencyKey: z.string().min(1).max(256).nullable(),
+  jobId: z.uuid().nullable(),
+  jobKind: z
+    .enum([
+      "attendance_report",
+      "communication_delivery",
+      "organization_export",
+      "projection_publish",
+      "stale_checkout_cleanup",
+    ])
+    .nullable(),
+  lastSeenAt: z.iso.datetime(),
+  messageId: z.string().min(1).max(256),
+  messageValid: z.boolean(),
+  observationCount: z.number().int().positive(),
+  observedAttempt: z.number().int().nonnegative(),
+  organizationId: organizationIdSchema.nullable(),
+  queueName: z.string().min(1).max(128),
+});
+
+export const platformJobDeadLettersResponseSchema = z.object({
+  deadLetters: z.array(platformJobDeadLetterSummarySchema).max(25),
+  nextCursor: z.string().min(1).max(512).nullable(),
+  requestId: requestIdSchema,
+});
+
+export type PlatformJobDeadLetterSummary = z.infer<typeof platformJobDeadLetterSummarySchema>;
+export type PlatformJobDeadLettersResponse = z.infer<typeof platformJobDeadLettersResponseSchema>;
+
 export const platformElevationRequestSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });

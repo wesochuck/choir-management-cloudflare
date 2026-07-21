@@ -1,5 +1,6 @@
 import type {
   PlatformContextResponse,
+  PlatformJobDeadLetterSummary,
   PlatformOrganizationContextResponse,
   PlatformOrganizationSummary,
 } from "@choir/contracts";
@@ -9,6 +10,7 @@ import {
   AuthApiError,
   createPlatformElevation,
   getPlatformOrganizationContext,
+  listPlatformJobDeadLetters,
   listPlatformOrganizations,
   provisionOrganization,
   revokePlatformElevation,
@@ -22,6 +24,15 @@ type DirectoryState =
   | {
       readonly nextCursor: string | null;
       readonly organizations: readonly PlatformOrganizationSummary[];
+      readonly status: "ready";
+    };
+
+type DeadLetterState =
+  | { readonly status: "error" }
+  | { readonly status: "loading" }
+  | {
+      readonly deadLetters: readonly PlatformJobDeadLetterSummary[];
+      readonly hasMore: boolean;
       readonly status: "ready";
     };
 
@@ -52,6 +63,69 @@ function organizationStatus(organization: PlatformOrganizationSummary): string {
     return "Hostname setup pending";
   }
   return "Ready";
+}
+
+function QueueDeadLetterDirectory() {
+  const [deadLetters, setDeadLetters] = useState<DeadLetterState>({ status: "loading" });
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    listPlatformJobDeadLetters(null, abortController.signal)
+      .then((result) => {
+        setDeadLetters({
+          deadLetters: result.deadLetters,
+          hasMore: result.nextCursor !== null,
+          status: "ready",
+        });
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setDeadLetters({ status: "error" });
+        }
+      });
+    return () => {
+      abortController.abort();
+    };
+  }, []);
+
+  return (
+    <div className="platform-directory" aria-live="polite">
+      <h4>Queue dead letters</h4>
+      <p>Operational metadata only. Message payloads are never copied into the control plane.</p>
+      {deadLetters.status === "loading" ? <p>Loading queue failures…</p> : null}
+      {deadLetters.status === "error" ? (
+        <p className="notice notice--error" role="alert">
+          Queue dead-letter visibility could not be loaded. Refresh and try again.
+        </p>
+      ) : null}
+      {deadLetters.status === "ready" && deadLetters.deadLetters.length === 0 ? (
+        <p className="empty-state">No jobs have reached the dead-letter queue.</p>
+      ) : null}
+      {deadLetters.status === "ready" && deadLetters.deadLetters.length > 0 ? (
+        <ul className="account-list platform-organization-list">
+          {deadLetters.deadLetters.map((deadLetter) => (
+            <li key={`${deadLetter.queueName}:${deadLetter.messageId}`}>
+              <div>
+                <h5>{deadLetter.jobKind ?? "Invalid queue message"}</h5>
+                <p>
+                  {deadLetter.organizationId ?? "No validated Organization"} · observed{" "}
+                  {displayDate(deadLetter.lastSeenAt)}
+                </p>
+                <span className="status-pill">
+                  {deadLetter.observationCount === 1
+                    ? "Recorded once"
+                    : `Recorded ${String(deadLetter.observationCount)} times`}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {deadLetters.status === "ready" && deadLetters.hasMore ? (
+        <p>Showing the 25 most recent queue failures.</p>
+      ) : null}
+    </div>
+  );
 }
 
 function OrganizationDirectory() {
@@ -274,6 +348,8 @@ function OrganizationDirectory() {
           </button>
         ) : null}
       </div>
+
+      <QueueDeadLetterDirectory />
     </div>
   );
 }

@@ -44,9 +44,9 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `9f922f45-45c6-447c-920f-a3832a875847`
+- Current verified Worker version: `66e93a94-7503-46a8-98de-d91fa19451e9`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
-  `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
+  `0001_initial.sql` through `0006_job_dead_letters.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
 - KV: `choir-management-routing-staging` (`9c7f20b2c8024b1b98d17a682c70cf97`)
@@ -117,6 +117,12 @@ Verified over public HTTPS on July 20–21, 2026:
   completion, duplicate acknowledgment, malformed-message acknowledgment, and isolation of the same
   idempotency key across two Organization stores. Remote D1 remained unchanged with no migrations
   pending.
+- After the dead-letter-visibility deployment, health and readiness returned HTTP 200, the new D1
+  table was empty, staging still contained zero Organizations, and the unauthenticated Platform
+  endpoint returned HTTP 401. The deployed Worker is now the active consumer for both the main jobs
+  queue and its dead-letter queue. Workerd tests prove idempotent metadata capture without a payload
+  or body column; the browser/API surface requires the product base hostname, an active Platform
+  Administrator grant, and recent session-specific MFA.
 - After the published-projection deployment, health and readiness returned HTTP 200 and the global
   workers.dev base returned the hostname-first HTTP 404 from `/api/public/projection` after edge
   propagation. Remote D1 still contained zero Organizations and domains, so staging had no
@@ -155,7 +161,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run lint`: passed.
 - `npm test`: 5 files / 13 tests passed, including staging-bootstrap safety and adversarial
   signed-link coverage.
-- `npm run test:integration`: 6 files / 34 workerd tests passed.
+- `npm run test:integration`: 6 files / 35 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -183,6 +189,11 @@ failed or interrupted claim, while completed work and same-attempt duplicates ar
 without another external effect. Completion and failure transitions match the job ID, idempotency
 key, and attempt. The same idempotency key is intentionally independent in another Organization's
 Durable Object. Sandbox provider effects remain unconfigured and staging continues in fake mode.
+Messages that exhaust the main queue retry policy now enter a separately consumed dead-letter queue.
+Its consumer writes only bounded operational identifiers and timestamps to D1, upserts repeated
+observations idempotently, and acknowledges only after persistence. Platform Administrators can see
+the most recent records without exposing or copying Organization message payloads into the control
+plane.
 
 Public projection publication validates a one-megabyte boundary, writes immutable versioned JSON
 only beneath `organizations/{organizationId}/published/`, and advances the KV pointer only after R2
@@ -326,7 +337,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue the Milestone 3 Organization storage/file/publication foundation and use those surfaces
-   to finish R2 key-substitution and public-read isolation proof. Return to validated custom-domain
-   activation when a managed zone is available.
+3. Continue Milestone 3 with the bounded fleet schema-preparation Workflow, then bind the
+   signed-link core to calendar-feed revocation and the first concrete product flows. Return to
+   validated custom-domain activation when a managed zone is available.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

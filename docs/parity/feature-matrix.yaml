@@ -598,7 +598,11 @@
         "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1494",
         "targetEvidence":
-          ["apps/worker/src/jobs/consumer.ts", "apps/worker/test/jobs.integration.test.ts"],
+          [
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/src/control/migrations/0006_job_dead_letters.sql",
+            "apps/worker/test/jobs.integration.test.ts",
+          ],
       },
       {
         "id": "api.queue-settings",
@@ -920,7 +924,8 @@
         "milestone": 3,
         "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/emailQueueTask.ts",
-        "targetEvidence": ["apps/worker/src/jobs/consumer.ts"],
+        "targetEvidence":
+          ["apps/worker/src/jobs/consumer.ts", "apps/web/src/account/PlatformOperations.tsx"],
       },
       {
         "id": "task.event-reminder",

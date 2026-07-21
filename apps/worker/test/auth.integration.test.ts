@@ -12,6 +12,7 @@ import {
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
   platformMfaStatusResponseSchema,
+  platformJobDeadLettersResponseSchema,
   platformOrganizationContextResponseSchema,
   platformOrganizationsResponseSchema,
   publicDomainResponseSchema,
@@ -53,6 +54,7 @@ const testEnv: Env = {
   BUILD_VERSION: env.BUILD_VERSION,
   CONTROL_DB: requireBinding(env.CONTROL_DB, "CONTROL_DB"),
   EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE,
+  JOBS_DLQ_NAME: env.JOBS_DLQ_NAME,
   JOBS_QUEUE: requireBinding(env.JOBS_QUEUE, "JOBS_QUEUE"),
   ORGANIZATION_FILES: requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES"),
   ORGANIZATION_STORE: requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE"),
@@ -1459,6 +1461,56 @@ describe("Platform Administrator MFA", () => {
     await grantPlatformAdministratorForCurrentSession();
     const workflowIntrospector = await introspectWorkflow(testEnv.PROVISIONING_WORKFLOW);
     try {
+      await testEnv.CONTROL_DB.prepare(
+        `INSERT INTO job_dead_letters
+          (id, queue_name, message_id, message_valid, observed_attempt,
+           organization_id, job_id, job_kind, idempotency_key,
+           first_seen_at, last_seen_at, observation_count)
+         VALUES (?, ?, ?, 1, 6, NULL, ?, 'organization_export', ?, ?, ?, 1)`,
+      )
+        .bind(
+          "choir-management-jobs-dlq-local:platform-visible-failure",
+          "choir-management-jobs-dlq-local",
+          "platform-visible-failure",
+          "33333333-3333-4333-8333-333333333333",
+          "organization-export:unassigned",
+          "2026-07-21T17:00:00.000Z",
+          "2026-07-21T17:00:00.000Z",
+        )
+        .run();
+      const deadLettersResponse = await fetchWorker(
+        authRequest("/api/platform/job-dead-letters", { headers: { cookie: sessionCookie } }),
+      );
+      expect(deadLettersResponse.status).toBe(200);
+      expect(
+        platformJobDeadLettersResponseSchema.parse(await deadLettersResponse.json()),
+      ).toMatchObject({
+        deadLetters: [
+          {
+            jobKind: "organization_export",
+            messageId: "platform-visible-failure",
+            messageValid: true,
+            observationCount: 1,
+            organizationId: null,
+          },
+        ],
+        nextCursor: null,
+      });
+      const invalidDeadLetterCursorResponse = await fetchWorker(
+        authRequest("/api/platform/job-dead-letters?cursor=invalid", {
+          headers: { cookie: sessionCookie },
+        }),
+      );
+      expect(invalidDeadLetterCursorResponse.status).toBe(400);
+      const scopedDeadLetterResponse = await fetchWorker(
+        authRequest(
+          "/api/platform/job-dead-letters",
+          { headers: { cookie: sessionCookie } },
+          ALPHA_AUTH_ORIGIN,
+        ),
+      );
+      expect(scopedDeadLetterResponse.status).toBe(404);
+
       const initialDirectoryResponse = await fetchWorker(
         authRequest("/api/platform/organizations", { headers: { cookie: sessionCookie } }),
       );

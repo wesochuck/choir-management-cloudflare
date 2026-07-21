@@ -1,4 +1,4 @@
-import { processDeliveryBatch } from "./jobs/consumer";
+import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
 import { router } from "./router";
 import { ProvisioningWorkflow } from "./workflows/ProvisioningWorkflow";
@@ -11,6 +11,10 @@ const worker = {
     return router.fetch(request, env, executionContext);
   },
   async queue(batch: MessageBatch, env: Env): Promise<void> {
+    if (batch.queue === env.JOBS_DLQ_NAME) {
+      await processDeadLetterBatch(batch, env);
+      return;
+    }
     await processDeliveryBatch(batch, env);
   },
   scheduled(event: ScheduledController, env: Env, executionContext: ExecutionContext): void {

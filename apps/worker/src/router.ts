@@ -15,6 +15,7 @@ import {
   type OrganizationInvitationSummary,
   type OrganizationProvisionResponse,
   type PlatformOrganizationSummary,
+  type PlatformJobDeadLetterSummary,
   type PlatformOrganizationContextResponse,
   type ProblemDetails,
   type PrivateFileResponse,
@@ -76,6 +77,7 @@ interface WorkerHonoEnvironment {
 export const router = new Hono<WorkerHonoEnvironment>();
 
 const PLATFORM_ORGANIZATION_PAGE_SIZE = 25;
+const PLATFORM_DEAD_LETTER_PAGE_SIZE = 25;
 const ORGANIZATION_INVITATION_PAGE_SIZE = 50;
 const browserOrganizationAuthAllowlist = new Set([
   "/api/auth/organization/list",
@@ -87,9 +89,25 @@ const invitationIdSchema = z
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 const platformOrganizationCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(128)]);
+const platformDeadLetterCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(512)]);
 
 interface PlatformOrganizationRow extends PlatformOrganizationSummary {
   readonly createdAt: string;
+}
+
+interface PlatformDeadLetterRow {
+  readonly firstSeenAt: string;
+  readonly id: string;
+  readonly idempotencyKey: string | null;
+  readonly jobId: string | null;
+  readonly jobKind: PlatformJobDeadLetterSummary["jobKind"];
+  readonly lastSeenAt: string;
+  readonly messageId: string;
+  readonly messageValid: number;
+  readonly observationCount: number;
+  readonly observedAttempt: number;
+  readonly organizationId: string | null;
+  readonly queueName: string;
 }
 
 interface InvitationControlRow {
@@ -215,6 +233,23 @@ function parsePlatformOrganizationCursor(
 
 function encodePlatformOrganizationCursor(row: PlatformOrganizationRow): string {
   return `${row.createdAt}|${row.organizationId}`;
+}
+
+function parsePlatformDeadLetterCursor(
+  value: string | null,
+): readonly [lastSeenAt: string, id: string] | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  if (value.length > 512) {
+    return undefined;
+  }
+  const parsed = platformDeadLetterCursorSchema.safeParse(value.split("|"));
+  return parsed.success ? parsed.data : undefined;
+}
+
+function encodePlatformDeadLetterCursor(row: PlatformDeadLetterRow): string {
+  return `${row.lastSeenAt}|${row.id}`;
 }
 
 async function ensurePendingInvitationIdentity(
@@ -2179,6 +2214,102 @@ router.get("/api/platform/context", async (context) => {
       ? ({ kind: "organization", organizationId } as const)
       : ({ kind: "product_base" } as const),
     userId: authorization.value.userId,
+  });
+});
+
+router.get("/api/platform/job-dead-letters", async (context) => {
+  const config = validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Queue dead-letter visibility is available only on the product base hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+
+  const cursor = parsePlatformDeadLetterCursor(requestUrl.searchParams.get("cursor"));
+  if (cursor === undefined) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "The queue dead-letter cursor is invalid.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+
+  const baseQuery = `SELECT id, queue_name AS queueName, message_id AS messageId,
+      message_valid AS messageValid, observed_attempt AS observedAttempt,
+      organization_id AS organizationId, job_id AS jobId, job_kind AS jobKind,
+      idempotency_key AS idempotencyKey, first_seen_at AS firstSeenAt,
+      last_seen_at AS lastSeenAt, observation_count AS observationCount
+    FROM job_dead_letters`;
+  const statement = cursor
+    ? context.env.CONTROL_DB.prepare(
+        `${baseQuery}
+         WHERE last_seen_at < ? OR (last_seen_at = ? AND id < ?)
+         ORDER BY last_seen_at DESC, id DESC
+         LIMIT ?`,
+      ).bind(cursor[0], cursor[0], cursor[1], PLATFORM_DEAD_LETTER_PAGE_SIZE + 1)
+    : context.env.CONTROL_DB.prepare(
+        `${baseQuery}
+         ORDER BY last_seen_at DESC, id DESC
+         LIMIT ?`,
+      ).bind(PLATFORM_DEAD_LETTER_PAGE_SIZE + 1);
+  const rows = await statement.all<PlatformDeadLetterRow>();
+  const deadLetters = rows.results.slice(0, PLATFORM_DEAD_LETTER_PAGE_SIZE).map((row) => ({
+    firstSeenAt: row.firstSeenAt,
+    idempotencyKey: row.idempotencyKey,
+    jobId: row.jobId,
+    jobKind: row.jobKind,
+    lastSeenAt: row.lastSeenAt,
+    messageId: row.messageId,
+    messageValid: row.messageValid === 1,
+    observationCount: row.observationCount,
+    observedAttempt: row.observedAttempt,
+    organizationId: row.organizationId,
+    queueName: row.queueName,
+  }));
+  const cursorRow =
+    deadLetters.length === PLATFORM_DEAD_LETTER_PAGE_SIZE
+      ? rows.results[PLATFORM_DEAD_LETTER_PAGE_SIZE - 1]
+      : undefined;
+  return context.json({
+    deadLetters,
+    nextCursor:
+      rows.results.length > PLATFORM_DEAD_LETTER_PAGE_SIZE && cursorRow
+        ? encodePlatformDeadLetterCursor(cursorRow)
+        : null,
+    requestId: context.get("requestId"),
   });
 });
 

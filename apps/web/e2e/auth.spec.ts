@@ -359,6 +359,17 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
       status: 200,
     });
   });
+  await page.route("**/api/platform/job-dead-letters", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        deadLetters: [],
+        nextCursor: null,
+        requestId: "33333333-3333-4333-8333-333333333333",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/platform/mfa/verify", async (route) => {
     assertionReady = true;
     await route.fulfill({
@@ -392,6 +403,9 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await expect(platformSection.getByRole("status")).toContainText("Platform access is ready");
   await expect(
     platformSection.getByRole("heading", { name: "Organization provisioning" }),
+  ).toBeVisible();
+  await expect(
+    platformSection.getByText("No jobs have reached the dead-letter queue."),
   ).toBeVisible();
   await platformSection.getByLabel("Organization name").fill("Staging Choir");
   await platformSection.getByLabel("Hostname slug").fill("staging-choir");

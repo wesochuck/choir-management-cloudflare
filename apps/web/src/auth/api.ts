@@ -12,6 +12,7 @@ import {
   organizationMfaVerificationResponseSchema,
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
+  platformJobDeadLettersResponseSchema,
   platformElevationRevocationResponseSchema,
   platformMfaEnrollmentResponseSchema,
   platformMfaStatusResponseSchema,
@@ -35,6 +36,7 @@ import {
   type OrganizationProvisionRequest,
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
+  type PlatformJobDeadLettersResponse,
   type PlatformOrganizationContextResponse,
   type PlatformOrganizationsResponse,
   type PlatformMfaEnrollmentResponse,
@@ -252,6 +254,21 @@ export async function listPlatformOrganizations(
     signal: signal ?? null,
   });
   return platformOrganizationsResponseSchema.parse(await response.json());
+}
+
+export async function listPlatformJobDeadLetters(
+  cursor: string | null = null,
+  signal?: AbortSignal,
+): Promise<PlatformJobDeadLettersResponse> {
+  const search = new URLSearchParams();
+  if (cursor) {
+    search.set("cursor", cursor);
+  }
+  const suffix = search.size > 0 ? `?${search.toString()}` : "";
+  const response = await request(`/api/platform/job-dead-letters${suffix}`, {
+    signal: signal ?? null,
+  });
+  return platformJobDeadLettersResponseSchema.parse(await response.json());
 }
 
 export async function provisionOrganization(

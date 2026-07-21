@@ -4,6 +4,7 @@ import type { Env } from "../env";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 
 type JobConsumerEnv = Pick<Env, "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE">;
+type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB">;
 
 const claimResponseSchema = z.object({
   claimed: z.boolean(),
@@ -150,5 +151,52 @@ export async function processDeliveryBatch(
 ): Promise<void> {
   for (const message of batch.messages) {
     await processDeliveryMessage(message, env);
+  }
+}
+
+export async function processDeadLetterBatch(
+  batch: MessageBatch,
+  env: DeadLetterConsumerEnv,
+): Promise<void> {
+  for (const message of batch.messages) {
+    const parsed = deliveryJobSchema.safeParse(message.body);
+    const observedAt = new Date().toISOString();
+    const recordId = `${batch.queue}:${message.id}`;
+    await env.CONTROL_DB.prepare(
+      `INSERT INTO job_dead_letters
+        (id, queue_name, message_id, message_valid, observed_attempt,
+         organization_id, job_id, job_kind, idempotency_key,
+         first_seen_at, last_seen_at, observation_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+       ON CONFLICT(id) DO UPDATE SET
+         last_seen_at = excluded.last_seen_at,
+         observed_attempt = excluded.observed_attempt,
+         observation_count = job_dead_letters.observation_count + 1`,
+    )
+      .bind(
+        recordId,
+        batch.queue,
+        message.id,
+        parsed.success ? 1 : 0,
+        message.attempts,
+        parsed.success ? parsed.data.organizationId : null,
+        parsed.success ? parsed.data.jobId : null,
+        parsed.success ? parsed.data.kind : null,
+        parsed.success ? parsed.data.idempotencyKey : null,
+        observedAt,
+        observedAt,
+      )
+      .run();
+    message.ack();
+    console.error(
+      JSON.stringify({
+        event: "queue_job_dead_lettered",
+        jobId: parsed.success ? parsed.data.jobId : null,
+        kind: parsed.success ? parsed.data.kind : null,
+        messageId: message.id,
+        organizationId: parsed.success ? parsed.data.organizationId : null,
+        queue: batch.queue,
+      }),
+    );
   }
 }

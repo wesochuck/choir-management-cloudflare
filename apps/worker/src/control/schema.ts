@@ -12,6 +12,7 @@ export const controlPlaneTables = [
   "platform_mfa_assertions",
   "platform_audit_events",
   "integration_routes",
+  "job_dead_letters",
   "rateLimit",
   "session",
   "twoFactor",
