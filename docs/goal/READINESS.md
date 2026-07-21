@@ -3,7 +3,7 @@
 **Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
 tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
-OTP/session-management core is deployed to permanent staging. Production is not launched.
+OTP/session/MFA-management core is deployed to permanent staging. Production is not launched.
 
 ## Repository topology
 
@@ -42,7 +42,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `07fa7787-995d-4312-80c8-3cf17a0c582e`
+- Current verified Worker version: `bb01fbb8-b179-46c7-bcb6-e205ee915564`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -75,6 +75,9 @@ Verified over public HTTPS on July 20, 2026:
   migrations were pending after the deployment.
 - `/login` returned the deployed invitation-only OTP interface. Anonymous session retrieval returned
   HTTP 200 with `null`, while `/api/account/organizations` returned HTTP 401 without a session.
+- `/api/platform/mfa/status` and `/api/platform/mfa/confirm-enrollment` returned HTTP 401 without a
+  session after the MFA account deployment. The first status probe briefly reached the prior Worker
+  during edge propagation; a cache-busting retry reached the verified current version.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -88,8 +91,8 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
 - `npm run test:integration`: 2 files / 21 workerd tests passed.
-- `npm run test:e2e`: 4 desktop/mobile Chromium foundation and authenticated-account journeys
-  passed.
+- `npm run test:e2e`: 6 desktop/mobile Chromium foundation, authenticated-account, and Platform MFA
+  journeys passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
@@ -123,6 +126,11 @@ Organization IDs cannot influence this list, Better Auth session tokens are neve
 persisted by the page, and account routes are unavailable on custom public hosts. `workers.dev`
 sessions intentionally remain host-only; cross-subdomain cookies must not be enabled until a managed
 product domain is selected and explicitly reviewed.
+
+The account shell now detects the signed-in user's own Platform Administrator grant, supports new or
+interrupted TOTP enrollment, regenerates recovery codes when necessary, requires explicit recovery-
+code acknowledgment, and opens only a 15-minute factor-bound Platform session. Enrollment secrets
+and recovery codes remain in React memory only and disappear from the page after confirmation.
 
 The first staging Platform Administrator identity is now provisioned through the production-refusing
 `npm run bootstrap:staging-platform-admin` operator command. Its second identical invocation wrote
@@ -176,7 +184,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with Platform Administrator enrollment/elevation UI, user-managed password
-   UI, validated custom-domain activation, and the remaining cross-resource isolation probes while
-   provider credentials are pending.
+3. Continue Milestone 2 with Platform Administrator Organization provisioning/elevation UI,
+   user-managed password UI, validated custom-domain activation, and the remaining cross-resource
+   isolation probes while provider credentials are pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

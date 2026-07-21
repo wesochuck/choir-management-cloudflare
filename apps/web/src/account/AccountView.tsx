@@ -2,6 +2,7 @@ import type { AccountOrganization, AuthSession, CurrentAuthSession } from "@choi
 import { useEffect, useState } from "react";
 
 import { listAccountOrganizations, listActiveSessions, revokeSession, signOut } from "../auth/api";
+import { PlatformAccess } from "./PlatformAccess";
 
 interface AccountViewProps {
   readonly currentSession: NonNullable<CurrentAuthSession>;
@@ -157,6 +158,7 @@ export function AccountView({ currentSession, onSignedOut }: AccountViewProps) {
 
       {resources.status === "ready" ? (
         <div className="account-grid">
+          <PlatformAccess />
           <section className="account-section" aria-labelledby="organizations-title">
             <div className="section-heading section-heading--compact">
               <p className="eyebrow">Memberships</p>

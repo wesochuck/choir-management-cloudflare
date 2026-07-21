@@ -59,6 +59,26 @@ function isEnrollmentComplete(row: PlatformAdministratorRow): boolean {
   );
 }
 
+export interface PlatformAdministratorMfaStatus {
+  readonly activePlatformAdministrator: boolean;
+  readonly enrollmentComplete: boolean;
+  readonly twoFactorEnabled: boolean;
+}
+
+export async function getPlatformAdministratorMfaStatus(
+  database: D1Database,
+  userId: string,
+): Promise<PlatformAdministratorMfaStatus> {
+  const row = await findPlatformAdministrator(database, userId);
+  const activePlatformAdministrator = row !== null && row.revokedAt === null;
+  return {
+    activePlatformAdministrator,
+    enrollmentComplete: activePlatformAdministrator && isEnrollmentComplete(row),
+    twoFactorEnabled:
+      activePlatformAdministrator && row.twoFactorEnabled === 1 && row.twoFactorVerified === 1,
+  };
+}
+
 export async function confirmPlatformAdministratorMfaEnrollment(
   database: D1Database,
   userId: string | null,

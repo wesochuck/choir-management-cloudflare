@@ -3,6 +3,7 @@ import {
   organizationContextResponseSchema,
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
+  platformMfaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
   publicDomainResponseSchema,
 } from "@choir/contracts";
@@ -895,6 +896,18 @@ describe("host-derived Organization authorization", () => {
 describe("Platform Administrator MFA", () => {
   it("requires enrollment and a recent session-bound factor, then rejects revocation", async () => {
     await seedInvitedUser();
+    let sessionCookie = await signInInvitedUser();
+
+    const ordinaryUserStatus = await fetchWorker(
+      authRequest("/api/platform/mfa/status", { headers: { cookie: sessionCookie } }),
+    );
+    expect(ordinaryUserStatus.status).toBe(200);
+    expect(platformMfaStatusResponseSchema.parse(await ordinaryUserStatus.json())).toMatchObject({
+      activePlatformAdministrator: false,
+      enrollmentComplete: false,
+      twoFactorEnabled: false,
+    });
+
     const grantedAt = new Date().toISOString();
     await testEnv.CONTROL_DB.prepare(
       `INSERT INTO platform_administrators (user_id, granted_by, granted_at)
@@ -902,7 +915,15 @@ describe("Platform Administrator MFA", () => {
     )
       .bind("user-invited-member", "bootstrap", grantedAt)
       .run();
-    let sessionCookie = await signInInvitedUser();
+
+    const pendingStatus = await fetchWorker(
+      authRequest("/api/platform/mfa/status", { headers: { cookie: sessionCookie } }),
+    );
+    expect(platformMfaStatusResponseSchema.parse(await pendingStatus.json())).toMatchObject({
+      activePlatformAdministrator: true,
+      enrollmentComplete: false,
+      twoFactorEnabled: false,
+    });
 
     const beforeEnrollment = await fetchWorker(
       authRequest("/api/platform/context", { headers: { cookie: sessionCookie } }),
@@ -940,6 +961,15 @@ describe("Platform Administrator MFA", () => {
       }),
     );
     expect(confirmResponse.status).toBe(200);
+
+    const enrolledStatus = await fetchWorker(
+      authRequest("/api/platform/mfa/status", { headers: { cookie: sessionCookie } }),
+    );
+    expect(platformMfaStatusResponseSchema.parse(await enrolledStatus.json())).toMatchObject({
+      activePlatformAdministrator: true,
+      enrollmentComplete: true,
+      twoFactorEnabled: true,
+    });
 
     const beforeFreshFactor = await fetchWorker(
       authRequest("/api/platform/context", { headers: { cookie: sessionCookie } }),

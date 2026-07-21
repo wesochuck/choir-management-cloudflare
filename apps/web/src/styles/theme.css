@@ -74,12 +74,16 @@ a:focus-visible {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 0.2rem solid var(--color-accent);
   outline-offset: 0.18rem;
 }
@@ -375,6 +379,20 @@ h2 {
   color: var(--color-text);
 }
 
+.field select,
+.recovery-codes {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.field select {
+  min-height: 3.25rem;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -416,6 +434,12 @@ h2 {
   background: var(--color-info-surface);
 }
 
+.notice--success {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
+  color: var(--color-text);
+}
+
 .account-layout {
   align-content: start;
 }
@@ -445,6 +469,79 @@ h2 {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-surface);
+}
+
+.account-section--platform {
+  grid-column: 1 / -1;
+}
+
+.platform-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.platform-action h3,
+.platform-action p,
+.mfa-enrollment h3,
+.mfa-enrollment p,
+.platform-verification h3,
+.platform-verification p {
+  margin-top: 0;
+}
+
+.platform-action p,
+.mfa-enrollment p,
+.platform-verification p {
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.mfa-enrollment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.mfa-enrollment > *,
+.platform-verification {
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.recovery-codes {
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.65;
+}
+
+.recovery-confirmation {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 1rem;
+}
+
+.recovery-confirmation label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-weight: 700;
+}
+
+.recovery-confirmation input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.1rem;
+}
+
+.platform-verification {
+  max-width: 34rem;
+  margin-top: 1.5rem;
 }
 
 .section-heading--compact h2 {
@@ -570,6 +667,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .mfa-enrollment {
+    grid-template-columns: 1fr;
+  }
+
   .module-card {
     min-height: auto;
   }
@@ -598,7 +699,8 @@ footer {
   }
 
   .account-heading,
-  .account-list li {
+  .account-list li,
+  .platform-action {
     align-items: stretch;
     flex-direction: column;
   }

@@ -2,10 +2,17 @@ import {
   accountOrganizationsResponseSchema,
   authSessionListSchema,
   currentAuthSessionSchema,
+  platformContextResponseSchema,
+  platformMfaEnrollmentResponseSchema,
+  platformMfaStatusResponseSchema,
+  platformRecoveryCodesResponseSchema,
   problemDetailsSchema,
   type AccountOrganization,
   type AuthSession,
   type CurrentAuthSession,
+  type PlatformContextResponse,
+  type PlatformMfaEnrollmentResponse,
+  type PlatformMfaStatusResponse,
 } from "@choir/contracts";
 
 export class AuthApiError extends Error {
@@ -84,4 +91,56 @@ export async function listAccountOrganizations(
 ): Promise<readonly AccountOrganization[]> {
   const response = await request("/api/account/organizations", { signal: signal ?? null });
   return accountOrganizationsResponseSchema.parse(await response.json()).organizations;
+}
+
+export async function getPlatformMfaStatus(
+  signal?: AbortSignal,
+): Promise<PlatformMfaStatusResponse> {
+  const response = await request("/api/platform/mfa/status", { signal: signal ?? null });
+  return platformMfaStatusResponseSchema.parse(await response.json());
+}
+
+export async function beginPlatformMfaEnrollment(): Promise<PlatformMfaEnrollmentResponse> {
+  const response = await request("/api/auth/two-factor/enable", {
+    body: JSON.stringify({}),
+    method: "POST",
+  });
+  return platformMfaEnrollmentResponseSchema.parse(await response.json());
+}
+
+export async function verifyPlatformTotpEnrollment(code: string): Promise<void> {
+  await request("/api/auth/two-factor/verify-totp", {
+    body: JSON.stringify({ code, trustDevice: false }),
+    method: "POST",
+  });
+}
+
+export async function regeneratePlatformRecoveryCodes(): Promise<readonly string[]> {
+  const response = await request("/api/auth/two-factor/generate-backup-codes", {
+    body: JSON.stringify({}),
+    method: "POST",
+  });
+  return platformRecoveryCodesResponseSchema.parse(await response.json()).backupCodes;
+}
+
+export async function confirmPlatformMfaEnrollment(): Promise<void> {
+  await request("/api/platform/mfa/confirm-enrollment", {
+    body: JSON.stringify({}),
+    method: "POST",
+  });
+}
+
+export async function verifyPlatformMfa(
+  method: "recovery_code" | "totp",
+  code: string,
+): Promise<void> {
+  await request("/api/platform/mfa/verify", {
+    body: JSON.stringify({ code, method }),
+    method: "POST",
+  });
+}
+
+export async function getPlatformContext(): Promise<PlatformContextResponse> {
+  const response = await request("/api/platform/context");
+  return platformContextResponseSchema.parse(await response.json());
 }

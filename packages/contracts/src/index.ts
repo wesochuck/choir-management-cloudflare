@@ -181,6 +181,34 @@ export type PlatformOrganizationContextResponse = z.infer<
   typeof platformOrganizationContextResponseSchema
 >;
 
+export const platformMfaStatusResponseSchema = z.object({
+  activePlatformAdministrator: z.boolean(),
+  enrollmentComplete: z.boolean(),
+  requestId: requestIdSchema,
+  twoFactorEnabled: z.boolean(),
+});
+
+export const platformMfaEnrollmentResponseSchema = z.object({
+  backupCodes: z.array(z.string().min(8)).min(1),
+  totpURI: z.url(),
+});
+
+export const platformRecoveryCodesResponseSchema = z.object({
+  backupCodes: z.array(z.string().min(8)).min(1),
+  status: z.literal(true),
+});
+
+export const platformContextResponseSchema = z.object({
+  mfaMethod: z.enum(["recovery_code", "totp"]),
+  mfaVerifiedUntil: z.iso.datetime(),
+  userId: z.string().min(1),
+});
+
+export type PlatformMfaStatusResponse = z.infer<typeof platformMfaStatusResponseSchema>;
+export type PlatformMfaEnrollmentResponse = z.infer<typeof platformMfaEnrollmentResponseSchema>;
+export type PlatformRecoveryCodesResponse = z.infer<typeof platformRecoveryCodesResponseSchema>;
+export type PlatformContextResponse = z.infer<typeof platformContextResponseSchema>;
+
 export const problemDetailsSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),

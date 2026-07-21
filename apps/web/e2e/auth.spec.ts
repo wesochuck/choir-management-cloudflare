@@ -124,6 +124,18 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
       status: 200,
     });
   });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        activePlatformAdministrator: false,
+        enrollmentComplete: false,
+        requestId: "22222222-2222-4222-8222-222222222222",
+        twoFactorEnabled: false,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
 
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
@@ -150,4 +162,143 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
+});
+
+test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page }) => {
+  let assertionReady = false;
+  let enrollmentComplete = false;
+  let twoFactorEnabled = false;
+  const recoveryCodes = Array.from(
+    { length: 10 },
+    (_, index) => `recovery-${String(index + 1).padStart(2, "0")}`,
+  );
+
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ session: currentSession, user: currentUser }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/organizations", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ organizations: [] }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/list-sessions", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify([currentSession]),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        activePlatformAdministrator: true,
+        enrollmentComplete,
+        requestId: "22222222-2222-4222-8222-222222222222",
+        twoFactorEnabled,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/two-factor/enable", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        backupCodes: recoveryCodes,
+        totpURI:
+          "otpauth://totp/Choir%20Management:invited.member%40example.test?secret=JBSWY3DPEHPK3PXP&issuer=Choir%20Management",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/two-factor/verify-totp", async (route) => {
+    twoFactorEnabled = true;
+    await route.fulfill({
+      body: JSON.stringify({ status: true }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/mfa/confirm-enrollment", async (route) => {
+    enrollmentComplete = true;
+    await route.fulfill({
+      body: JSON.stringify({ status: "confirmed" }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/context", async (route) => {
+    if (!assertionReady) {
+      await route.fulfill({
+        body: JSON.stringify({
+          code: "unauthorized",
+          message: "A recent Platform Administrator MFA verification is required.",
+          requestId: "33333333-3333-4333-8333-333333333333",
+        }),
+        contentType: "application/json",
+        status: 401,
+      });
+      return;
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        mfaMethod: "totp",
+        mfaVerifiedUntil: "2026-07-20T20:15:00.000Z",
+        userId: currentUser.id,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/mfa/verify", async (route) => {
+    assertionReady = true;
+    await route.fulfill({
+      body: JSON.stringify({ expiresAt: "2026-07-20T20:15:00.000Z", status: "verified" }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/account");
+  const platformSection = page.getByRole("region", { name: "Platform Administrator access" });
+  await expect(
+    platformSection.getByRole("heading", { name: "Complete mandatory MFA" }),
+  ).toBeVisible();
+  await platformSection.getByRole("button", { name: "Start MFA setup" }).click();
+  await expect(platformSection.getByLabel("Platform Administrator recovery codes")).toContainText(
+    "recovery-01",
+  );
+  await platformSection.getByLabel("3. Verify the authenticator code").fill("123456");
+  await platformSection.getByRole("button", { name: "Verify authenticator" }).click();
+  await platformSection
+    .getByRole("checkbox", { name: "I saved these recovery codes in a secure place." })
+    .check();
+  await platformSection.getByRole("button", { name: "Confirm recovery codes" }).click();
+
+  await expect(
+    platformSection.getByRole("heading", { name: "Verify Platform Administrator access" }),
+  ).toBeVisible();
+  await platformSection.getByLabel("6-digit code").fill("654321");
+  await platformSection.getByRole("button", { name: "Verify Platform access" }).click();
+  await expect(platformSection.getByRole("status")).toContainText("Platform access is ready");
+  await expect(page.getByText("recovery-01")).toHaveCount(0);
 });

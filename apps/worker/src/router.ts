@@ -20,6 +20,7 @@ import { listAccountOrganizations } from "./auth/accountOrganizations";
 import {
   authorizePlatformAdministratorSession,
   confirmPlatformAdministratorMfaEnrollment,
+  getPlatformAdministratorMfaStatus,
   recordPlatformMfaAssertion,
 } from "./auth/platformAdministrator";
 import { recordOrganizationMfaAssertion, setOrganizationMfaPolicy } from "./auth/organizationMfa";
@@ -878,6 +879,43 @@ router.delete("/api/organization/public-domains/:domainId", async (context) => {
     );
   }
   return context.json({ ...disabled.value, requestId: context.get("requestId") });
+});
+
+router.get("/api/platform/mfa/status", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Platform administration requires a canonical product hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Sign in is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      401,
+    );
+  }
+  return context.json({
+    ...(await getPlatformAdministratorMfaStatus(context.env.CONTROL_DB, session.user.id)),
+    requestId: context.get("requestId"),
+  });
 });
 
 router.post("/api/platform/mfa/confirm-enrollment", async (context) => {
