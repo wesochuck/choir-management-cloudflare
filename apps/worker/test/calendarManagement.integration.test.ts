@@ -173,6 +173,20 @@ describe("Organization calendar management", () => {
         })
       ).json(),
     );
+    const disposableVenue = organizationVenueSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "",
+          name: "Disposable Hall",
+        })
+      ).json(),
+    );
+    const deleteDisposable = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/venues/${disposableVenue.id}`, cookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(deleteDisposable.status).toBe(200);
     const startsAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1_000).toISOString();
     const performance = organizationEventSchema.parse(
       await (
@@ -201,6 +215,12 @@ describe("Organization calendar management", () => {
         })
       ).json(),
     );
+    const linkedVenueDelete = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/venues/${venue.id}`, cookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(linkedVenueDelete.status).toBe(409);
     const updatedPerformanceResponse = await exports.default.fetch(
       api("alpha.localhost", `/api/organization/events/${performance.id}`, cookie, {
         body: JSON.stringify({
@@ -232,6 +252,12 @@ describe("Organization calendar management", () => {
         })
       ).json(),
     );
+    await post("alpha.localhost", "/api/organization/events", cookie, {
+      parentPerformanceId: archivedCandidate.id,
+      startsAt: new Date(new Date(startsAt).getTime() + 72 * 60 * 60 * 1_000).toISOString(),
+      title: "Archive Child",
+      type: "Rehearsal",
+    });
     const archiveResponse = await exports.default.fetch(
       api("alpha.localhost", `/api/organization/events/${archivedCandidate.id}`, cookie, {
         method: "DELETE",
@@ -276,6 +302,30 @@ describe("Organization calendar management", () => {
         ).json(),
       ).venues,
     ).toEqual([]);
+    await database
+      .prepare(
+        `UPDATE member SET role = 'member'
+         WHERE organizationId = 'organization-bravo' AND userId = 'calendar-manager'`,
+      )
+      .run();
+    const memberDelete = await exports.default.fetch(
+      api("bravo.localhost", `/api/organization/venues/${venue.id}`, cookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(memberDelete.status).toBe(403);
+    await database
+      .prepare(
+        `UPDATE member SET role = 'admin'
+         WHERE organizationId = 'organization-bravo' AND userId = 'calendar-manager'`,
+      )
+      .run();
+    const crossOrganizationDelete = await exports.default.fetch(
+      api("bravo.localhost", `/api/organization/venues/${venue.id}`, cookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(crossOrganizationDelete.status).toBe(404);
 
     const credential = calendarFeedUrlsResponseSchema.parse(
       await (
@@ -294,10 +344,23 @@ describe("Organization calendar management", () => {
           .exec<{ count: number }>(
             `SELECT COUNT(*) AS count FROM audit_events
              WHERE action IN ('organization.timezone.updated', 'venue.created',
-               'event.created', 'event.updated', 'event.archived', 'event.rsvp.updated')`,
+               'venue.deleted', 'event.created', 'event.updated', 'event.archived',
+               'event.rsvp.updated')`,
           )
           .one().count,
     );
-    expect(auditCount).toBe(9);
+    expect(auditCount).toBe(12);
+    const archiveSummary = await runInDurableObject<OrganizationStore, string>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ changeSummary: string }>(
+            `SELECT change_summary AS changeSummary FROM audit_events
+             WHERE action = 'event.archived' AND target_id = ?`,
+            archivedCandidate.id,
+          )
+          .one().changeSummary,
+    );
+    expect(archiveSummary).toBe('{"archived":true,"childEventsArchived":1}');
   });
 });

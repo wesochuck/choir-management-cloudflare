@@ -39,6 +39,7 @@ import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFee
 import {
   createOrganizationEvent,
   createOrganizationVenue,
+  deleteOrganizationVenue,
   archiveOrganizationEvent,
   listOrganizationEvents,
   listOrganizationEventAttendance,
@@ -1535,6 +1536,68 @@ router.post("/api/organization/venues", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization venue could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.delete("/api/organization/venues/:venueId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const venueId = z.uuid().safeParse(context.req.param("venueId"));
+  if (!venueId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid venue is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const status = await deleteOrganizationVenue(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      venueId.data,
+    );
+    if (status === "in_use") {
+      return context.json(
+        {
+          code: "venue_in_use",
+          message: "This venue is linked to an event and cannot be deleted.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    if (status === "not_found") {
+      return context.json(
+        {
+          code: "venue_not_found",
+          message: "The venue was not found in this Organization.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    return context.json({ requestId: context.get("requestId"), status, venueId: venueId.data });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization venue could not be deleted.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

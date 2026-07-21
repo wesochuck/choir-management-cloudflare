@@ -37,6 +37,10 @@ const managementRequestSchema = z.discriminatedUnion("action", [
     venue: organizationVenueRequestSchema.extend({ id: z.uuid() }),
   }),
   actorSchema.extend({
+    action: z.literal("delete_venue"),
+    venueId: z.uuid(),
+  }),
+  actorSchema.extend({
     action: z.literal("set_rsvp"),
     eventId: z.uuid(),
     rsvp: organizationRsvpRequestSchema,
@@ -49,6 +53,10 @@ const managementRequestSchema = z.discriminatedUnion("action", [
 
 type ManagementRequest = z.infer<typeof managementRequestSchema>;
 type EventOperation = Extract<ManagementRequest, { readonly event: unknown }>;
+type VenueOperation = Extract<
+  ManagementRequest,
+  { readonly action: "create_venue" | "delete_venue" }
+>;
 
 interface IdentityRow {
   readonly [column: string]: SqlStorageValue;
@@ -468,6 +476,53 @@ function writeEvent(
   return Response.json({ ...event, createdAt, updatedAt: occurredAt });
 }
 
+function writeVenue(
+  storage: DurableObjectStorage,
+  operation: VenueOperation,
+  occurredAt: string,
+): Response {
+  if (operation.action === "create_venue") {
+    const venue = operation.venue;
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        "INSERT INTO venues (id, name, address, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        venue.id,
+        venue.name,
+        venue.address,
+        occurredAt,
+        occurredAt,
+      );
+      insertAudit(storage, operation, "venue.created", "venue", venue.id, venue, occurredAt);
+    });
+    return Response.json({ ...venue, createdAt: occurredAt, updatedAt: occurredAt });
+  }
+  if (!recordExists(storage, "venues", operation.venueId)) {
+    return Response.json({ code: "venue_not_found" }, { status: 404 });
+  }
+  const referenceCount = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      "SELECT COUNT(*) AS count FROM events WHERE venue_id = ?",
+      operation.venueId,
+    )
+    .one().count;
+  if (referenceCount > 0) {
+    return Response.json({ code: "venue_in_use" }, { status: 409 });
+  }
+  storage.transactionSync(() => {
+    storage.sql.exec("DELETE FROM venues WHERE id = ?", operation.venueId);
+    insertAudit(
+      storage,
+      operation,
+      "venue.deleted",
+      "venue",
+      operation.venueId,
+      { deleted: true },
+      occurredAt,
+    );
+  });
+  return Response.json({ status: "deleted", venueId: operation.venueId });
+}
+
 export async function manageOrganizationCalendarInStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -505,20 +560,8 @@ export async function manageOrganizationCalendarInStore(
     });
     return Response.json(operation.settings);
   }
-  if (parsed.data.action === "create_venue") {
-    const venue = parsed.data.venue;
-    storage.transactionSync(() => {
-      storage.sql.exec(
-        "INSERT INTO venues (id, name, address, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        venue.id,
-        venue.name,
-        venue.address,
-        occurredAt,
-        occurredAt,
-      );
-      insertAudit(storage, parsed.data, "venue.created", "venue", venue.id, venue, occurredAt);
-    });
-    return Response.json({ ...venue, createdAt: occurredAt, updatedAt: occurredAt });
+  if (parsed.data.action === "create_venue" || parsed.data.action === "delete_venue") {
+    return writeVenue(storage, parsed.data, occurredAt);
   }
   if (parsed.data.action === "create_event" || parsed.data.action === "update_event") {
     return writeEvent(storage, parsed.data, occurredAt);
@@ -528,9 +571,21 @@ export async function manageOrganizationCalendarInStore(
     if (!recordExists(storage, "events", operation.eventId)) {
       return Response.json({ code: "event_not_found" }, { status: 404 });
     }
+    const childCount = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+        "SELECT COUNT(*) AS count FROM events WHERE parent_performance_id = ? AND is_archived = 0",
+        operation.eventId,
+      )
+      .one().count;
     storage.transactionSync(() => {
       storage.sql.exec(
         "UPDATE events SET is_archived = 1, updated_at = ? WHERE id = ?",
+        occurredAt,
+        operation.eventId,
+      );
+      storage.sql.exec(
+        `UPDATE events SET is_archived = 1, updated_at = ?
+         WHERE parent_performance_id = ? AND is_archived = 0`,
         occurredAt,
         operation.eventId,
       );
@@ -540,7 +595,7 @@ export async function manageOrganizationCalendarInStore(
         "event.archived",
         "event",
         operation.eventId,
-        { archived: true },
+        { archived: true, childEventsArchived: childCount },
         occurredAt,
       );
     });

@@ -20,6 +20,7 @@ import {
   organizationProfilesResponseSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
+  organizationVenueDeleteResponseSchema,
   organizationVenuesResponseSchema,
   singerEventsResponseSchema,
   organizationProvisionResponseSchema,
@@ -255,6 +256,13 @@ export async function createOrganizationVenue(
     method: "POST",
   });
   return organizationVenueSchema.parse(await response.json());
+}
+
+export async function deleteOrganizationVenue(venueId: string): Promise<void> {
+  const response = await request(`/api/organization/venues/${encodeURIComponent(venueId)}`, {
+    method: "DELETE",
+  });
+  organizationVenueDeleteResponseSchema.parse(await response.json());
 }
 
 export async function listOrganizationEvents(

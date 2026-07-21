@@ -69,7 +69,29 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route("**/api/organization/venues", async (route) => {
     await route.fulfill({
-      body: JSON.stringify({ requestId, venues: [] }),
+      body: JSON.stringify({
+        requestId,
+        venues: [
+          {
+            address: "100 Browser Way",
+            createdAt: "2026-07-20T20:00:00.000Z",
+            id: "22222222-2222-4222-8222-222222222222",
+            name: "Browser Hall",
+            updatedAt: "2026-07-20T20:00:00.000Z",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/venues/*", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        requestId,
+        status: "deleted",
+        venueId: "22222222-2222-4222-8222-222222222222",
+      }),
       contentType: "application/json",
       status: 200,
     });
@@ -967,6 +989,14 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await organizationCalendar.getByRole("button", { name: "Save Profile" }).click();
   await expect(organizationCalendar.getByText("Profile updated.")).toBeVisible();
   await expect(organizationCalendar.getByText("On Break · S2")).toBeVisible();
+  await organizationCalendar.getByRole("button", { name: "Delete venue" }).click();
+  const venueDeletion = organizationCalendar.getByRole("group", { name: "Delete Browser Hall" });
+  await venueDeletion.getByRole("button", { name: "Keep venue" }).click();
+  await expect(organizationCalendar.getByRole("heading", { name: "Browser Hall" })).toBeVisible();
+  await organizationCalendar.getByRole("button", { name: "Delete venue" }).click();
+  await venueDeletion.getByRole("button", { name: "Confirm delete" }).click();
+  await expect(organizationCalendar.getByText("Venue deleted.")).toBeVisible();
+  await expect(organizationCalendar.getByRole("heading", { name: "Browser Hall" })).toHaveCount(0);
   await organizationCalendar.getByRole("button", { name: "Clone" }).click();
   await expect(organizationCalendar.getByLabel("Title")).toHaveValue("Browser Concert copy");
   await expect(organizationCalendar.getByLabel("Parent performance")).toHaveValue("");

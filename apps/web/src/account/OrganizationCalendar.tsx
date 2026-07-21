@@ -15,6 +15,7 @@ import {
   createOrganizationEvent,
   createOrganizationProfile,
   createOrganizationVenue,
+  deleteOrganizationVenue,
   getOrganizationCalendarSettings,
   listOrganizationEvents,
   listOrganizationProfiles,
@@ -246,6 +247,7 @@ export function OrganizationCalendar({
   const [success, setSuccess] = useState<string | null>(null);
   const [timezoneInput, setTimezoneInput] = useState("UTC");
   const [venueAddress, setVenueAddress] = useState("");
+  const [venueDeleteConfirmId, setVenueDeleteConfirmId] = useState<string | null>(null);
   const [venueName, setVenueName] = useState("");
   const manager = context.role !== "member";
 
@@ -330,6 +332,23 @@ export function OrganizationCalendar({
       setBusy(false);
     } catch (actionError: unknown) {
       failAction(actionError, "The venue could not be created.");
+    }
+  }
+
+  async function removeVenue(venueId: string) {
+    beginAction();
+    try {
+      await deleteOrganizationVenue(venueId);
+      setResources((current) =>
+        current.status === "ready"
+          ? { ...current, venues: current.venues.filter((candidate) => candidate.id !== venueId) }
+          : current,
+      );
+      setVenueDeleteConfirmId(null);
+      setSuccess("Venue deleted.");
+      setBusy(false);
+    } catch (actionError: unknown) {
+      failAction(actionError, "The venue could not be deleted.");
     }
   }
 
@@ -877,6 +896,58 @@ export function OrganizationCalendar({
                 </li>
               ))}
             </ul>
+            <h3>Venues</h3>
+            {resources.venues.length === 0 ? (
+              <p className="empty-state">No venues have been created yet.</p>
+            ) : (
+              <ul className="account-list">
+                {resources.venues.map((item) => (
+                  <li key={item.id}>
+                    <div>
+                      <h3>{item.name}</h3>
+                      <p>{item.address || "No address"}</p>
+                    </div>
+                    {manager ? (
+                      venueDeleteConfirmId === item.id ? (
+                        <div className="button-row" role="group" aria-label={`Delete ${item.name}`}>
+                          <button
+                            className="button button--danger"
+                            disabled={busy}
+                            onClick={() => {
+                              void removeVenue(item.id);
+                            }}
+                            type="button"
+                          >
+                            Confirm delete
+                          </button>
+                          <button
+                            className="button button--secondary"
+                            disabled={busy}
+                            onClick={() => {
+                              setVenueDeleteConfirmId(null);
+                            }}
+                            type="button"
+                          >
+                            Keep venue
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="button button--secondary"
+                          disabled={busy}
+                          onClick={() => {
+                            setVenueDeleteConfirmId(item.id);
+                          }}
+                          type="button"
+                        >
+                          Delete venue
+                        </button>
+                      )
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
             <h3>Events</h3>
             {resources.events.length === 0 ? (
               <p className="empty-state">No events have been created yet.</p>

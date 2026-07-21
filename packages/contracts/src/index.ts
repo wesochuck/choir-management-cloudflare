@@ -80,6 +80,12 @@ export const organizationVenuesResponseSchema = z.object({
   venues: z.array(organizationVenueSchema).max(500),
 });
 
+export const organizationVenueDeleteResponseSchema = z.object({
+  requestId: requestIdSchema,
+  status: z.literal("deleted"),
+  venueId: z.uuid(),
+});
+
 export const organizationSetListItemSchema = z.object({
   composer: z.string().trim().max(300).optional(),
   isFeaturedNumber: z.boolean().optional(),
@@ -193,6 +199,7 @@ export const organizationCalendarSettingsResponseSchema =
 
 export type OrganizationVenueRequest = z.infer<typeof organizationVenueRequestSchema>;
 export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
+export type OrganizationVenueDeleteResponse = z.infer<typeof organizationVenueDeleteResponseSchema>;
 export type OrganizationEventRequest = z.infer<typeof organizationEventRequestSchema>;
 export type OrganizationEvent = z.infer<typeof organizationEventSchema>;
 export type OrganizationEventArchiveResponse = z.infer<

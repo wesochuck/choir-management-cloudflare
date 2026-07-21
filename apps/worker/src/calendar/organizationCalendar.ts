@@ -6,6 +6,7 @@ import {
   organizationCalendarSettingsResponseSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
+  organizationVenueDeleteResponseSchema,
   organizationVenuesResponseSchema,
   singerEventsResponseSchema,
   type OrganizationEvent,
@@ -112,6 +113,27 @@ export async function createOrganizationVenue(
       venue: { ...venue, id: crypto.randomUUID() },
     }),
   );
+}
+
+export async function deleteOrganizationVenue(
+  env: Env,
+  actor: ActorContext,
+  venueId: string,
+): Promise<"deleted" | "in_use" | "not_found"> {
+  const response = await stub(env, actor.organizationId).fetch(
+    "https://organization.internal/internal/calendar/manage",
+    {
+      body: JSON.stringify({ action: "delete_venue", ...actor, venueId }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (response.status === 409) return "in_use";
+  if (response.status === 404) return "not_found";
+  if (!response.ok) throw new Error("The Organization store rejected the venue deletion.");
+  return organizationVenueDeleteResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json()).status;
 }
 
 export async function listOrganizationEvents(
