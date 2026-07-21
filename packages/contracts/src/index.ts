@@ -29,6 +29,100 @@ export const organizationContextResponseSchema = z.object({
 
 export type OrganizationContextResponse = z.infer<typeof organizationContextResponseSchema>;
 
+export const organizationProfileRequestSchema = z.object({
+  displayName: z.string().trim().min(1).max(200),
+});
+
+export const organizationProfileSchema = z.object({
+  createdAt: z.iso.datetime(),
+  displayName: z.string().min(1).max(200),
+  id: z.uuid(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const organizationProfileResponseSchema = organizationProfileSchema.extend({
+  requestId: requestIdSchema,
+});
+
+export const organizationProfilesResponseSchema = z.object({
+  profiles: z.array(organizationProfileSchema).max(500),
+  requestId: requestIdSchema,
+});
+
+export type OrganizationProfileRequest = z.infer<typeof organizationProfileRequestSchema>;
+export type OrganizationProfile = z.infer<typeof organizationProfileSchema>;
+export type OrganizationProfileResponse = z.infer<typeof organizationProfileResponseSchema>;
+export type OrganizationProfilesResponse = z.infer<typeof organizationProfilesResponseSchema>;
+
+export const organizationVenueRequestSchema = z.object({
+  address: z.string().trim().max(2_000).default(""),
+  name: z.string().trim().min(1).max(500),
+});
+
+export const organizationVenueSchema = organizationVenueRequestSchema.extend({
+  createdAt: z.iso.datetime(),
+  id: z.uuid(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const organizationVenuesResponseSchema = z.object({
+  requestId: requestIdSchema,
+  venues: z.array(organizationVenueSchema).max(500),
+});
+
+export const organizationSetListItemSchema = z.object({
+  composer: z.string().trim().max(300).optional(),
+  isFeaturedNumber: z.boolean().optional(),
+  performerCredits: z
+    .array(z.object({ displayName: z.string().trim().max(200) }))
+    .max(100)
+    .optional(),
+  title: z.string().trim().min(1).max(300),
+  type: z.string().trim().max(100).optional(),
+});
+
+export const organizationEventRequestSchema = z.object({
+  callTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
+  details: z.string().max(100_000).default(""),
+  durationMinutes: z.number().int().positive().max(1_440).nullable().default(null),
+  location: z.string().trim().max(2_000).default(""),
+  parentPerformanceId: z.uuid().nullable().default(null),
+  setList: z.array(organizationSetListItemSchema).max(200).default([]),
+  setListApproved: z.boolean().default(false),
+  startsAt: z.iso.datetime(),
+  title: z.string().trim().min(1).max(500),
+  type: z.enum(["Performance", "Rehearsal"]),
+  venueId: z.uuid().nullable().default(null),
+});
+
+export const organizationEventSchema = organizationEventRequestSchema.extend({
+  createdAt: z.iso.datetime(),
+  id: z.uuid(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const organizationEventsResponseSchema = z.object({
+  events: z.array(organizationEventSchema).max(500),
+  requestId: requestIdSchema,
+});
+
+export const organizationRsvpRequestSchema = z.object({
+  profileId: z.uuid(),
+  rsvp: z.enum(["Yes", "No", "Pending"]),
+});
+
+export const organizationRsvpSchema = organizationRsvpRequestSchema.extend({
+  eventId: z.uuid(),
+  updatedAt: z.iso.datetime(),
+});
+
+export type OrganizationVenueRequest = z.infer<typeof organizationVenueRequestSchema>;
+export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
+export type OrganizationEventRequest = z.infer<typeof organizationEventRequestSchema>;
+export type OrganizationEvent = z.infer<typeof organizationEventSchema>;
+export type OrganizationRsvpRequest = z.infer<typeof organizationRsvpRequestSchema>;
+export type OrganizationRsvp = z.infer<typeof organizationRsvpSchema>;
+
 export const accountOrganizationSchema = z.object({
   canonicalHostname: z.string().min(1).max(253),
   canonicalStatus: z.enum(["active", "disabled", "pending"]),

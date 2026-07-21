@@ -68,6 +68,7 @@ milestone complete.
 | `apps/web/src/account/OrganizationAccess.tsx`                  | Hostname-scoped Organization MFA enrollment, verification, and Owner policy UI       |
 | `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation on the hostname-derived Organization         |
 | `apps/web/src/account/CalendarSubscription.tsx`                | Member calendar subscription and explicit credential reset                           |
+| `apps/web/src/account/OrganizationCalendar.tsx`                | Profile, venue, event, and RSVP Organization management UI                           |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -76,6 +77,8 @@ milestone complete.
 | `apps/worker/src/router.ts`                                    | Typed HTTP route composition                                                         |
 | `apps/worker/src/env.ts`                                       | Binding and secret types; startup validation                                         |
 | `apps/worker/src/organization/OrganizationStore.ts`            | Per-Organization SQLite Durable Object boundary                                      |
+| `apps/worker/src/organization/calendarManagementStore.ts`      | Venue, event, and RSVP SQLite repository inside the Organization boundary            |
+| `apps/worker/src/organization/profiles.ts`                     | Authenticated Organization Profile repository adapter                                |
 | `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                       |
 | `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                  |
 | `apps/worker/src/organization/scheduler.ts`                    | Per-Organization alarm and stable queue outbox orchestration                         |
@@ -107,6 +110,7 @@ milestone complete.
 | `apps/worker/src/security/signedLinks.ts`                      | Versioned purpose-separated Organization-bound token signing                         |
 | `apps/worker/src/calendar/calendarFeed.ts`                     | Calendar credential issuance, revocation, and feed rendering                         |
 | `apps/worker/src/calendar/calendarIcs.ts`                      | Pure timezone-aware Organization calendar projection and iCalendar rendering         |
+| `apps/worker/src/calendar/organizationCalendar.ts`             | Authenticated venue, event, and RSVP Organization repository adapter                 |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -144,6 +148,8 @@ milestone complete.
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |
 | `apps/worker/test/fleetSchema.integration.test.ts`             | Bounded chained fleet schema Workflow and identity proof                             |
 | `apps/worker/test/calendarFeed.integration.test.ts`            | Organization-bound calendar credential and revocation proof                          |
+| `apps/worker/test/calendarManagement.integration.test.ts`      | Venue, event, and RSVP authorization and Organization-isolation proof                |
+| `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `apps/worker/src/workflows/FleetSchemaWorkflow.ts`             | Chained bounded Organization-store schema preparation                                |

@@ -10,6 +10,11 @@ import {
   privateOrganizationFileKey,
 } from "../storage/privateFiles";
 import { migrateOrganization } from "./migrations";
+import {
+  listOrganizationEventsFromStore,
+  listOrganizationVenuesFromStore,
+  manageOrganizationCalendarInStore,
+} from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { currentOrganizationSchemaVersion } from "./schema";
 
@@ -38,6 +43,13 @@ const organizationProvisioningSchema = z.object({
 });
 
 const profileIdSchema = z.uuid();
+const profileCreateSchema = z.object({
+  actorUserId: z.string().min(1).max(128),
+  displayName: z.string().trim().min(1).max(200),
+  organizationId: z.string().min(1).max(128),
+  profileId: z.uuid(),
+  requestId: z.uuid(),
+});
 const schemaPreparationRequestSchema = z.object({
   organizationId: z.string().min(1).max(128),
   targetVersion: z.number().int().positive(),
@@ -84,6 +96,14 @@ interface CalendarProfileRow {
   readonly [column: string]: SqlStorageValue;
   readonly calendarFeedVersion: number;
   readonly displayName: string;
+}
+
+interface OrganizationProfileRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly createdAt: string;
+  readonly displayName: string;
+  readonly id: string;
+  readonly updatedAt: string;
 }
 
 interface CalendarEventRow {
@@ -136,6 +156,58 @@ function getProfileIdentity(storage: DurableObjectStorage, encodedProfileId: str
   return profile
     ? Response.json({ exists: true, profileId: profile.id })
     : Response.json({ code: "profile_not_found" }, { status: 404 });
+}
+
+function listProfiles(storage: DurableObjectStorage, organizationId: string | null): Response {
+  if (!organizationId || organizationIdentity(storage)?.organizationId !== organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const profiles = storage.sql
+    .exec<OrganizationProfileRow>(
+      `SELECT id, display_name AS displayName, created_at AS createdAt, updated_at AS updatedAt
+       FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
+    )
+    .toArray();
+  return Response.json({ profiles });
+}
+
+async function createProfile(storage: DurableObjectStorage, request: Request): Promise<Response> {
+  const parsed = profileCreateSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_profile" }, { status: 400 });
+  }
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT INTO profiles (id, display_name, created_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      parsed.data.profileId,
+      parsed.data.displayName,
+      occurredAt,
+      occurredAt,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'profile.created', 'profile', ?, ?, ?, ?)`,
+      `profile-created:${parsed.data.requestId}`,
+      parsed.data.actorUserId,
+      parsed.data.profileId,
+      parsed.data.requestId,
+      JSON.stringify({ displayName: parsed.data.displayName }),
+      occurredAt,
+    );
+  });
+  return Response.json({
+    createdAt: occurredAt,
+    displayName: parsed.data.displayName,
+    id: parsed.data.profileId,
+    updatedAt: occurredAt,
+  });
 }
 
 async function provisionOrganizationStore(
@@ -628,6 +700,10 @@ async function dispatchPostRequest(
       return manageCalendarCredential(storage, request);
     case "/internal/calendar/feed":
       return validateCalendarFeed(storage, request);
+    case "/internal/calendar/manage":
+      return manageOrganizationCalendarInStore(storage, request);
+    case "/internal/profiles":
+      return createProfile(storage, request);
     case "/internal/provision":
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
@@ -655,6 +731,23 @@ export class OrganizationStore extends DurableObject<Env> {
       if (response) {
         return response;
       }
+    }
+
+    if (request.method === "GET" && url.pathname === "/internal/profiles") {
+      return listProfiles(this.ctx.storage, url.searchParams.get("organizationId"));
+    }
+
+    if (request.method === "GET" && url.pathname === "/internal/calendar/venues") {
+      return listOrganizationVenuesFromStore(
+        this.ctx.storage,
+        url.searchParams.get("organizationId"),
+      );
+    }
+    if (request.method === "GET" && url.pathname === "/internal/calendar/events") {
+      return listOrganizationEventsFromStore(
+        this.ctx.storage,
+        url.searchParams.get("organizationId"),
+      );
     }
 
     const profileIdentityPrefix = "/internal/profiles/";

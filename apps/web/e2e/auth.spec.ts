@@ -23,6 +23,31 @@ const currentUser = {
   updatedAt: "2026-07-20T20:00:00.000Z",
 } as const;
 
+test.beforeEach(async ({ page }) => {
+  const requestId = "99999999-9999-4999-8999-999999999999";
+  await page.route("**/api/organization/profiles", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ profiles: [], requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/venues", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ requestId, venues: [] }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/events", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ events: [], requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+});
+
 test("completes OTP sign-in and manages Organizations and sessions", async ({ page }) => {
   let passwordSet = false;
   let signedIn = false;
@@ -788,6 +813,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await page.goto("/account");
   const organizationSection = page.getByRole("region", { name: "Organization security" });
   await expect(organizationSection.getByText("MFA not required")).toBeVisible();
+  const organizationCalendar = page.getByRole("region", { name: "Profiles and calendar" });
+  await expect(organizationCalendar.getByRole("heading", { name: "Create Profile" })).toBeVisible();
+  await expect(organizationCalendar.getByText("No events have been created yet.")).toBeVisible();
   const calendarSection = page.getByRole("region", { name: "Calendar subscription" });
   await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
     /browser-calendar-token-1/,

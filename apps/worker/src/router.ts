@@ -1,8 +1,12 @@
 import {
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
+  organizationEventRequestSchema,
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
+  organizationProfileRequestSchema,
+  organizationRsvpRequestSchema,
+  organizationVenueRequestSchema,
   organizationProfileLinkRequestSchema,
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
@@ -22,12 +26,19 @@ import {
   type ProblemDetails,
   type PrivateFileResponse,
 } from "@choir/contracts";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { requestId } from "hono/request-id";
 import { z } from "zod";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
+import {
+  createOrganizationEvent,
+  createOrganizationVenue,
+  listOrganizationEvents,
+  listOrganizationVenues,
+  setOrganizationEventRsvp,
+} from "./calendar/organizationCalendar";
 import { listAccountOrganizations } from "./auth/accountOrganizations";
 import {
   authorizePlatformAdministratorSession,
@@ -56,6 +67,7 @@ import {
 import type { Env } from "./env";
 import { validateStartupConfig } from "./env";
 import { currentOrganizationSchemaVersion } from "./organization/schema";
+import { createOrganizationProfile, listOrganizationProfiles } from "./organization/profiles";
 import { readPublishedOrganization } from "./publication/publishOrganization";
 import {
   MAX_PRIVATE_FILE_BYTES,
@@ -98,6 +110,63 @@ const invitationIdSchema = z
   .regex(/^[a-zA-Z0-9_-]+$/);
 const platformOrganizationCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(128)]);
 const platformDeadLetterCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(512)]);
+
+type CalendarAuthorization =
+  | { readonly ok: true; readonly organizationId: string; readonly userId: string }
+  | {
+      readonly code: string;
+      readonly message: string;
+      readonly ok: false;
+      readonly status: 401 | 403 | 404;
+    };
+
+async function authorizeCalendarRoute(
+  context: Context<WorkerHonoEnvironment>,
+  managerOnly: boolean,
+): Promise<CalendarAuthorization> {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return {
+      code: "not_found",
+      message: "Organization calendar management requires a registered canonical hostname.",
+      ok: false,
+      status: 404,
+    };
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return {
+      code: authorization.error.code,
+      message: authorization.error.message,
+      ok: false,
+      status: authorization.error.code === "unauthorized" ? 401 : 403,
+    };
+  }
+  if (managerOnly && authorization.value.role === "member") {
+    return {
+      code: "forbidden",
+      message: "Only Organization Owners and Administrators may manage calendar data.",
+      ok: false,
+      status: 403,
+    };
+  }
+  return { ok: true, organizationId, userId: authorization.value.userId };
+}
 
 interface PlatformOrganizationRow extends PlatformOrganizationSummary {
   readonly createdAt: string;
@@ -1031,6 +1100,326 @@ router.get("/api/organization/context", async (context) => {
     userId: authorization.value.userId,
   };
   return context.json(response);
+});
+
+router.get("/api/organization/profiles", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Organization Profiles require a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  try {
+    return context.json({
+      profiles: await listOrganizationProfiles(context.env, organizationId),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization Profiles are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/profiles", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Organization Profiles require a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const parsedBody = organizationProfileRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!parsedBody.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A Profile display name is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  if (authorization.value.role === "member") {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "Only Organization Owners and Administrators may create Profiles.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+  try {
+    const profile = await createOrganizationProfile(context.env, {
+      actorUserId: authorization.value.userId,
+      displayName: parsedBody.data.displayName,
+      organizationId,
+      requestId: context.get("requestId"),
+    });
+    return context.json({ ...profile, requestId: context.get("requestId") }, 201);
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization Profile could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/venues", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      requestId: context.get("requestId"),
+      venues: await listOrganizationVenues(context.env, authorization.organizationId),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization venues are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/venues", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationVenueRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid venue name and address are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const venue = await createOrganizationVenue(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...venue, requestId: context.get("requestId") }, 201);
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization venue could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/events", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      events: await listOrganizationEvents(context.env, authorization.organizationId),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization events are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/events", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationEventRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid event details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const event = await createOrganizationEvent(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...event, requestId: context.get("requestId") }, 201);
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization event could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/events/:eventId/rsvp", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const body = organizationRsvpRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!eventId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event, Profile, and RSVP are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const rsvp = await setOrganizationEventRsvp(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+      body.data,
+    );
+    return context.json({ ...rsvp, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization RSVP could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
 });
 
 router.post("/api/organization/invitations", async (context) => {

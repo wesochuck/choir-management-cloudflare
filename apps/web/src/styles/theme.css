@@ -518,6 +518,39 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.account-section--organization-calendar {
+  grid-column: 1 / -1;
+}
+
+.calendar-summary-grid,
+.calendar-management-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.calendar-summary-grid > div,
+.calendar-management-grid > form {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.calendar-summary-grid h3,
+.calendar-summary-grid p,
+.calendar-management-grid h3 {
+  margin-top: 0;
+}
+
+.calendar-event-form {
+  grid-column: span 2;
+}
+
+.calendar-event-list {
+  margin-top: 2rem;
+}
+
 .password-form {
   max-width: 34rem;
 }
@@ -897,6 +930,15 @@ footer {
 
   .account-grid {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-summary-grid,
+  .calendar-management-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-event-form {
+    grid-column: auto;
   }
 
   .mfa-enrollment {

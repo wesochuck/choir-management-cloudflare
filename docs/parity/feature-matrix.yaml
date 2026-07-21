@@ -242,18 +242,26 @@
         "path": "/admin/events",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:352; src/views/admin/EventsView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.event-roster",
         "path": "/admin/events/:eventId/roster",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:365; src/views/admin/EventRosterView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.setlists",
@@ -269,9 +277,13 @@
         "path": "/admin/venues",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:391; src/views/admin/VenuesView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.seating",
@@ -1147,10 +1159,14 @@
         "workflow": "profile CRUD, profile-without-login, import, export, and directory",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/services/profileService.ts; src/services/rosterService.ts; test/rosterService.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/profiles.ts",
+            "apps/worker/test/profiles.integration.test.ts",
+          ],
       },
       {
         "id": "workflow.seasons-dues",
@@ -1177,10 +1193,14 @@
         "workflow": "personalized/free RSVP, notes, balances, check-in, and finalization",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/views/public-rsvp; src/views/admin/attendance; test/attendanceRsvpSync.test.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/organizationCalendar.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "workflow.rehearsal-parent",

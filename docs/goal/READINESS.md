@@ -45,7 +45,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `561f111b-fd5b-4fd3-b76c-fad7fe6a2da6`
+- Current verified Worker version: `3e7ca69a-40a3-4dfe-bc1c-63562a5511bc`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -171,6 +171,11 @@ Verified over public HTTPS on July 20–21, 2026:
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.
   Worker version `561f111b-fd5b-4fd3-b76c-fad7fe6a2da6` is the verified staging checkpoint.
+- After the Profile/calendar-management deployment, health and readiness returned HTTP 200 and
+  Profile/event probes on the global workers.dev base returned hostname-first HTTP 404. The live
+  shell referenced the new `index-B37McvUL.js` and `index-BXKIqtgg.css` assets. Remote D1 still had
+  no pending migrations and zero Organizations, fleet schema preparations, or dead letters. Worker
+  version `3e7ca69a-40a3-4dfe-bc1c-63562a5511bc` is the verified staging checkpoint.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -257,6 +262,14 @@ only, generic on failure, no-store/no-referrer, and never log or audit token byt
 projects events from the owning Organization store for the preceding 30 days through one year,
 including venue/location fallback, direct and inherited RSVP filtering, type-based default
 durations, separate timezone-aware call-time events, details, and attending-only approved set lists.
+
+Authenticated canonical-host Organization APIs now create/list Profiles, venues, and events and set
+Profile RSVPs in the owning Durable Object. Owners and Administrators may mutate; Organization
+members may read the calendar directory but cannot use management mutations. Every mutation is
+actor-audited, referenced venues/parent performances/Profiles are verified inside the same tenant
+boundary, and the account UI exposes the working management forms after Organization MFA. Workerd
+proof creates the operational records exclusively through these APIs and then verifies that the same
+Profile's signed feed contains the resulting performance and inherited rehearsal.
 
 Recent-MFA Platform Administrators on the product base hostname can now start and inspect one fleet
 schema-preparation run at a time. Each Workflow instance loads at most 20 stale active
@@ -378,7 +391,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue from the bounded calendar read model into event/venue/roster write APIs and UI, then
-   bind the next signed product flow. Return to validated custom-domain activation when a managed
-   zone is available.
+3. Continue the event/roster wave with update/archive/clone, self-service RSVP, attendance, and
+   Organization timezone settings, then bind the next signed product flow. Return to validated
+   custom-domain activation when a managed zone is available.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

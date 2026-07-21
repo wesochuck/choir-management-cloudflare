@@ -9,8 +9,15 @@ import {
   organizationInvitationActionResponseSchema,
   organizationInvitationResponseSchema,
   organizationInvitationsResponseSchema,
+  organizationEventSchema,
+  organizationEventsResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
+  organizationProfileResponseSchema,
+  organizationProfilesResponseSchema,
+  organizationRsvpSchema,
+  organizationVenueSchema,
+  organizationVenuesResponseSchema,
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
   platformFleetSchemaStatusResponseSchema,
@@ -34,8 +41,13 @@ import {
   type OrganizationInvitationRequest,
   type OrganizationInvitationResponse,
   type OrganizationInvitationsResponse,
+  type OrganizationEvent,
+  type OrganizationEventRequest,
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
+  type OrganizationProfile,
+  type OrganizationRsvp,
+  type OrganizationVenue,
   type OrganizationProvisionRequest,
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
@@ -188,6 +200,68 @@ export async function resetCalendarFeedUrls(): Promise<CalendarFeedUrlsResponse>
     method: "POST",
   });
   return calendarFeedUrlsResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationProfiles(
+  signal?: AbortSignal,
+): Promise<readonly OrganizationProfile[]> {
+  const response = await request("/api/organization/profiles", { signal: signal ?? null });
+  return organizationProfilesResponseSchema.parse(await response.json()).profiles;
+}
+
+export async function createOrganizationProfile(displayName: string): Promise<OrganizationProfile> {
+  const response = await request("/api/organization/profiles", {
+    body: JSON.stringify({ displayName }),
+    method: "POST",
+  });
+  return organizationProfileResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationVenues(
+  signal?: AbortSignal,
+): Promise<readonly OrganizationVenue[]> {
+  const response = await request("/api/organization/venues", { signal: signal ?? null });
+  return organizationVenuesResponseSchema.parse(await response.json()).venues;
+}
+
+export async function createOrganizationVenue(
+  name: string,
+  address: string,
+): Promise<OrganizationVenue> {
+  const response = await request("/api/organization/venues", {
+    body: JSON.stringify({ address, name }),
+    method: "POST",
+  });
+  return organizationVenueSchema.parse(await response.json());
+}
+
+export async function listOrganizationEvents(
+  signal?: AbortSignal,
+): Promise<readonly OrganizationEvent[]> {
+  const response = await request("/api/organization/events", { signal: signal ?? null });
+  return organizationEventsResponseSchema.parse(await response.json()).events;
+}
+
+export async function createOrganizationEvent(
+  event: OrganizationEventRequest,
+): Promise<OrganizationEvent> {
+  const response = await request("/api/organization/events", {
+    body: JSON.stringify(event),
+    method: "POST",
+  });
+  return organizationEventSchema.parse(await response.json());
+}
+
+export async function setOrganizationEventRsvp(
+  eventId: string,
+  profileId: string,
+  rsvp: "No" | "Pending" | "Yes",
+): Promise<OrganizationRsvp> {
+  const response = await request(`/api/organization/events/${encodeURIComponent(eventId)}/rsvp`, {
+    body: JSON.stringify({ profileId, rsvp }),
+    method: "PUT",
+  });
+  return organizationRsvpSchema.parse(await response.json());
 }
 
 export async function updateAccountPassword(
