@@ -1,4 +1,5 @@
 import {
+  accountSecurityResponseSchema,
   accountOrganizationsResponseSchema,
   organizationContextResponseSchema,
   organizationProvisionResponseSchema,
@@ -464,6 +465,85 @@ describe("Better Auth Worker integration", () => {
       }),
     );
     expect(publicHostResponse.status).toBe(404);
+  });
+
+  it("lets an invited user set and then change only their own password", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+
+    const initialStatus = await fetchWorker(
+      authRequest("/api/account/security", { headers: { cookie: sessionCookie } }),
+    );
+    expect(accountSecurityResponseSchema.parse(await initialStatus.json()).passwordSet).toBe(false);
+
+    const shortPassword = await fetchWorker(
+      authRequest("/api/account/password", {
+        body: JSON.stringify({ mode: "set", newPassword: "too-short" }),
+        headers: { cookie: sessionCookie },
+        method: "PUT",
+      }),
+    );
+    expect(shortPassword.status).toBe(400);
+
+    const firstPassword = "correct-horse-battery-staple";
+    const setResponse = await fetchWorker(
+      authRequest("/api/account/password", {
+        body: JSON.stringify({ mode: "set", newPassword: firstPassword }),
+        headers: { cookie: sessionCookie },
+        method: "PUT",
+      }),
+    );
+    expect(setResponse.status).toBe(200);
+    expect(accountSecurityResponseSchema.parse(await setResponse.json()).passwordSet).toBe(true);
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        "SELECT password FROM account WHERE userId = ? AND providerId = 'credential'",
+      )
+        .bind("user-invited-member")
+        .first<{ password: string }>(),
+    ).resolves.not.toMatchObject({ password: firstPassword });
+
+    const wrongCurrentPassword = await fetchWorker(
+      authRequest("/api/account/password", {
+        body: JSON.stringify({
+          currentPassword: "incorrect-current-password",
+          mode: "change",
+          newPassword: "another-secure-password",
+        }),
+        headers: { cookie: sessionCookie },
+        method: "PUT",
+      }),
+    );
+    expect(wrongCurrentPassword.status).toBe(400);
+
+    const secondPassword = "a-different-secure-password";
+    const changeResponse = await fetchWorker(
+      authRequest("/api/account/password", {
+        body: JSON.stringify({
+          currentPassword: firstPassword,
+          mode: "change",
+          newPassword: secondPassword,
+        }),
+        headers: { cookie: sessionCookie },
+        method: "PUT",
+      }),
+    );
+    expect(changeResponse.status).toBe(200);
+
+    const oldPasswordSignIn = await fetchWorker(
+      authRequest("/api/auth/sign-in/email", {
+        body: JSON.stringify({ email: INVITED_EMAIL, password: firstPassword }),
+        method: "POST",
+      }),
+    );
+    expect(oldPasswordSignIn.status).toBeGreaterThanOrEqual(400);
+    const newPasswordSignIn = await fetchWorker(
+      authRequest("/api/auth/sign-in/email", {
+        body: JSON.stringify({ email: INVITED_EMAIL, password: secondPassword }),
+        method: "POST",
+      }),
+    );
+    expect(newPasswordSignIn.status).toBe(200);
   });
 });
 

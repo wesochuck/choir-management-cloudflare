@@ -24,6 +24,7 @@ const currentUser = {
 } as const;
 
 test("completes OTP sign-in and manages Organizations and sessions", async ({ page }) => {
+  let passwordSet = false;
   let signedIn = false;
   let sessions = [
     currentSession,
@@ -101,6 +102,27 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
       status: 200,
     });
   });
+  await page.route("**/api/account/security", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        passwordSet,
+        requestId: "44444444-4444-4444-8444-444444444444",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/password", async (route) => {
+    passwordSet = true;
+    await route.fulfill({
+      body: JSON.stringify({
+        passwordSet: true,
+        requestId: "44444444-4444-4444-8444-444444444444",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/auth/list-sessions", async (route) => {
     await route.fulfill({
       body: JSON.stringify(sessions),
@@ -153,6 +175,14 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await expect(page.getByText("Future Choir")).toBeVisible();
   await expect(page.getByText("Setup pending")).toBeVisible();
 
+  const passwordSection = page.getByRole("region", { name: "Account password" });
+  const userPassword = "a-user-managed-password";
+  await passwordSection.getByLabel("New password", { exact: true }).fill(userPassword);
+  await passwordSection.getByLabel("Confirm new password").fill(userPassword);
+  await passwordSection.getByRole("button", { name: "Add password" }).click();
+  await expect(passwordSection.getByRole("status")).toContainText("Password added");
+  await expect(passwordSection.getByLabel("Current password")).toBeVisible();
+
   const otherSession = page.getByRole("listitem", { name: "Session: Safari on iPad" });
   await expect(otherSession).toBeVisible();
   await otherSession.getByRole("button", { name: "Revoke session" }).click();
@@ -196,6 +226,16 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await page.route("**/api/account/organizations", async (route) => {
     await route.fulfill({
       body: JSON.stringify({ organizations: [] }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/security", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        passwordSet: false,
+        requestId: "44444444-4444-4444-8444-444444444444",
+      }),
       contentType: "application/json",
       status: 200,
     });

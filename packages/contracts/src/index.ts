@@ -47,6 +47,25 @@ export const accountOrganizationsResponseSchema = z.object({
 export type AccountOrganization = z.infer<typeof accountOrganizationSchema>;
 export type AccountOrganizationsResponse = z.infer<typeof accountOrganizationsResponseSchema>;
 
+const userManagedPasswordSchema = z.string().min(12).max(128);
+
+export const accountPasswordRequestSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("set"), newPassword: userManagedPasswordSchema }),
+  z.object({
+    currentPassword: z.string().min(1).max(128),
+    mode: z.literal("change"),
+    newPassword: userManagedPasswordSchema,
+  }),
+]);
+
+export const accountSecurityResponseSchema = z.object({
+  passwordSet: z.boolean(),
+  requestId: requestIdSchema,
+});
+
+export type AccountPasswordRequest = z.infer<typeof accountPasswordRequestSchema>;
+export type AccountSecurityResponse = z.infer<typeof accountSecurityResponseSchema>;
+
 const authDateSchema = z.union([z.string().min(1), z.number()]);
 
 export const authUserSchema = z.object({

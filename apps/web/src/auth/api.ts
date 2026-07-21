@@ -1,5 +1,6 @@
 import {
   accountOrganizationsResponseSchema,
+  accountSecurityResponseSchema,
   authSessionListSchema,
   currentAuthSessionSchema,
   platformContextResponseSchema,
@@ -8,6 +9,8 @@ import {
   platformRecoveryCodesResponseSchema,
   problemDetailsSchema,
   type AccountOrganization,
+  type AccountPasswordRequest,
+  type AccountSecurityResponse,
   type AuthSession,
   type CurrentAuthSession,
   type PlatformContextResponse,
@@ -91,6 +94,21 @@ export async function listAccountOrganizations(
 ): Promise<readonly AccountOrganization[]> {
   const response = await request("/api/account/organizations", { signal: signal ?? null });
   return accountOrganizationsResponseSchema.parse(await response.json()).organizations;
+}
+
+export async function getAccountSecurity(signal?: AbortSignal): Promise<AccountSecurityResponse> {
+  const response = await request("/api/account/security", { signal: signal ?? null });
+  return accountSecurityResponseSchema.parse(await response.json());
+}
+
+export async function updateAccountPassword(
+  password: AccountPasswordRequest,
+): Promise<AccountSecurityResponse> {
+  const response = await request("/api/account/password", {
+    body: JSON.stringify(password),
+    method: "PUT",
+  });
+  return accountSecurityResponseSchema.parse(await response.json());
 }
 
 export async function getPlatformMfaStatus(

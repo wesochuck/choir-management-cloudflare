@@ -61,6 +61,7 @@ milestone complete.
 | `apps/web/src/auth/SignInView.tsx`                             | Invitation-only email one-time-code sign-in flow                                     |
 | `apps/web/src/account/AccountView.tsx`                         | Signed-in identity, Organization chooser, and session-revocation surface             |
 | `apps/web/src/account/PlatformAccess.tsx`                      | Platform Administrator MFA enrollment and verification UI                            |
+| `apps/web/src/account/AccountSecurity.tsx`                     | User-managed password creation and change UI                                         |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
 | `apps/worker/wrangler.jsonc`                                   | Local bindings and named staging/production environments                             |
