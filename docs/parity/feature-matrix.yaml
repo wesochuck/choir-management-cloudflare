@@ -160,18 +160,28 @@
         "path": "/login",
         "owner": "apps/web",
         "milestone": 2,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/App.tsx:207; src/views/LoginView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/auth/SignInView.tsx",
+            "apps/web/e2e/auth.spec.ts",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
       },
       {
         "id": "route.auth.reset-password",
         "path": "/reset-password",
         "owner": "apps/web",
         "milestone": 2,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/App.tsx:208; src/views/ResetPasswordView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/auth/ForgotPasswordView.tsx",
+            "apps/web/src/auth/ResetPasswordView.tsx",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
       },
       {
         "id": "route.setup",

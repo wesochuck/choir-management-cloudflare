@@ -157,6 +157,8 @@ function EnrollmentNextStep(props: EnrollmentNextStepProps) {
 }
 
 interface EnrollmentPanelProps extends EnrollmentNextStepProps {
+  readonly enrollmentPassword: string;
+  readonly onPasswordChange: (password: string) => void;
   readonly onStart: () => void;
   readonly secrets: EnrollmentSecrets | null;
   readonly twoFactorEnabled: boolean;
@@ -169,23 +171,40 @@ function EnrollmentPanel(props: EnrollmentPanelProps) {
       buttonLabel = "Preparing MFA…";
     }
     return (
-      <div className="platform-action">
+      <form
+        className="platform-action mfa-start-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          props.onStart();
+        }}
+      >
         <div>
           <h3>Complete mandatory MFA</h3>
           <p>
             Platform Administrators must enroll an authenticator and retain recovery codes before
-            any platform operation is available.
+            any platform operation is available. If your account has a password, enter it to
+            authorize this security change.
           </p>
         </div>
-        <button
-          className="button button--primary"
-          disabled={props.busy}
-          onClick={props.onStart}
-          type="button"
-        >
-          {buttonLabel}
-        </button>
-      </div>
+        <div className="form-stack mfa-start-form__controls">
+          <div className="field">
+            <label htmlFor="platform-enrollment-password">Current password (if set)</label>
+            <input
+              autoComplete="current-password"
+              id="platform-enrollment-password"
+              maxLength={128}
+              onChange={(event) => {
+                props.onPasswordChange(event.target.value);
+              }}
+              type="password"
+              value={props.enrollmentPassword}
+            />
+          </div>
+          <button className="button button--primary" disabled={props.busy} type="submit">
+            {buttonLabel}
+          </button>
+        </div>
+      </form>
     );
   }
   return (
@@ -282,6 +301,7 @@ export function PlatformAccess() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [enrollmentCode, setEnrollmentCode] = useState("");
+  const [enrollmentPassword, setEnrollmentPassword] = useState("");
   const [enrollmentSecrets, setEnrollmentSecrets] = useState<EnrollmentSecrets | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationMethod, setVerificationMethod] = useState<"recovery_code" | "totp">("totp");
@@ -319,12 +339,12 @@ export function PlatformAccess() {
     try {
       if (accessState.twoFactorEnabled) {
         setEnrollmentSecrets({
-          backupCodes: await regenerateAccountRecoveryCodes(),
+          backupCodes: await regenerateAccountRecoveryCodes(enrollmentPassword),
           totpURI: null,
           totpVerified: true,
         });
       } else {
-        const enrollment = await beginAccountMfaEnrollment();
+        const enrollment = await beginAccountMfaEnrollment(enrollmentPassword);
         setEnrollmentSecrets({
           backupCodes: enrollment.backupCodes,
           totpURI: enrollment.totpURI,
@@ -332,8 +352,11 @@ export function PlatformAccess() {
         });
       }
     } catch {
-      setActionError("MFA setup could not be started. Refresh the page and try again.");
+      setActionError(
+        "MFA setup could not be started. If your account has a password, check it and try again.",
+      );
     } finally {
+      setEnrollmentPassword("");
       setBusy(false);
     }
   }
@@ -449,6 +472,7 @@ export function PlatformAccess() {
         acknowledgedRecoveryCodes={acknowledgedRecoveryCodes}
         busy={busy}
         enrollmentCode={enrollmentCode}
+        enrollmentPassword={enrollmentPassword}
         onAcknowledge={setAcknowledgedRecoveryCodes}
         onCodeChange={setEnrollmentCode}
         onConfirm={() => {
@@ -457,6 +481,7 @@ export function PlatformAccess() {
         onStart={() => {
           void startEnrollment();
         }}
+        onPasswordChange={setEnrollmentPassword}
         onVerify={() => {
           void verifyEnrollmentCode();
         }}

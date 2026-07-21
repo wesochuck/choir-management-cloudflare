@@ -59,6 +59,8 @@ milestone complete.
 | `apps/web/src/App.tsx`                                         | Route composition and top-level providers                                            |
 | `apps/web/src/auth/api.ts`                                     | Same-origin typed browser client for identity, sessions, and Organization choices    |
 | `apps/web/src/auth/SignInView.tsx`                             | Invitation-only email one-time-code sign-in flow                                     |
+| `apps/web/src/auth/ForgotPasswordView.tsx`                     | Non-enumerating password-recovery request flow for invited identities                |
+| `apps/web/src/auth/ResetPasswordView.tsx`                      | Single-use password-reset completion flow                                            |
 | `apps/web/src/account/AccountView.tsx`                         | Signed-in identity, Organization chooser, and session-revocation surface             |
 | `apps/web/src/account/PlatformAccess.tsx`                      | Platform Administrator MFA enrollment and verification UI                            |
 | `apps/web/src/account/PlatformOperations.tsx`                  | Platform Administrator Organization provisioning and scoped-elevation UI             |

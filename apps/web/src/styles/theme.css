@@ -405,6 +405,19 @@ h2 {
   gap: 0.75rem 1rem;
 }
 
+.auth-methods {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.auth-methods .text-button[aria-pressed="true"] {
+  color: var(--color-accent);
+  text-decoration-thickness: 0.18rem;
+}
+
 .text-button {
   padding: 0;
   border: 0;
@@ -414,6 +427,13 @@ h2 {
   font-weight: 700;
   text-decoration: underline;
   text-decoration-thickness: 0.1rem;
+  text-underline-offset: 0.2rem;
+}
+
+.text-link {
+  justify-self: start;
+  color: var(--color-primary);
+  font-weight: 700;
   text-underline-offset: 0.2rem;
 }
 
@@ -524,6 +544,15 @@ h2 {
 .platform-verification p {
   color: var(--color-text-muted);
   line-height: 1.6;
+}
+
+.mfa-start-form__controls {
+  flex: 0 1 22rem;
+  width: 100%;
+}
+
+.mfa-start-form__controls .button {
+  justify-self: start;
 }
 
 .mfa-enrollment {

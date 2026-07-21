@@ -92,6 +92,53 @@ export async function signInWithCode(email: string, otp: string): Promise<void> 
   });
 }
 
+export type PasswordSignInResult = "signed_in" | "two_factor_required";
+
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<PasswordSignInResult> {
+  const response = await request("/api/auth/sign-in/email", {
+    body: JSON.stringify({ email, password }),
+    method: "POST",
+  });
+  const body: unknown = await response.json();
+  return typeof body === "object" &&
+    body !== null &&
+    "twoFactorRedirect" in body &&
+    body.twoFactorRedirect === true
+    ? "two_factor_required"
+    : "signed_in";
+}
+
+export async function verifyPasswordSignInSecondFactor(
+  method: "recovery_code" | "totp",
+  code: string,
+): Promise<void> {
+  const path =
+    method === "totp"
+      ? "/api/auth/two-factor/verify-totp"
+      : "/api/auth/two-factor/verify-backup-code";
+  await request(path, {
+    body: JSON.stringify({ code, trustDevice: false }),
+    method: "POST",
+  });
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await request("/api/auth/request-password-reset", {
+    body: JSON.stringify({ email }),
+    method: "POST",
+  });
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await request("/api/auth/reset-password", {
+    body: JSON.stringify({ newPassword, token }),
+    method: "POST",
+  });
+}
+
 export async function signOut(): Promise<void> {
   await request("/api/auth/sign-out", { method: "POST" });
 }
@@ -137,9 +184,15 @@ export async function getPlatformMfaStatus(
   return platformMfaStatusResponseSchema.parse(await response.json());
 }
 
-export async function beginAccountMfaEnrollment(): Promise<PlatformMfaEnrollmentResponse> {
+function optionalPasswordBody(password: string): { readonly password?: string } {
+  return password.length > 0 ? { password } : {};
+}
+
+export async function beginAccountMfaEnrollment(
+  password = "",
+): Promise<PlatformMfaEnrollmentResponse> {
   const response = await request("/api/auth/two-factor/enable", {
-    body: JSON.stringify({}),
+    body: JSON.stringify(optionalPasswordBody(password)),
     method: "POST",
   });
   return platformMfaEnrollmentResponseSchema.parse(await response.json());
@@ -152,9 +205,9 @@ export async function verifyAccountTotpEnrollment(code: string): Promise<void> {
   });
 }
 
-export async function regenerateAccountRecoveryCodes(): Promise<readonly string[]> {
+export async function regenerateAccountRecoveryCodes(password = ""): Promise<readonly string[]> {
   const response = await request("/api/auth/two-factor/generate-backup-codes", {
-    body: JSON.stringify({}),
+    body: JSON.stringify(optionalPasswordBody(password)),
     method: "POST",
   });
   return platformRecoveryCodesResponseSchema.parse(await response.json()).backupCodes;

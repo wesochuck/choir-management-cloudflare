@@ -68,13 +68,16 @@ export function createAuth(context: AuthRequestContext) {
       maxPasswordLength: 128,
       minPasswordLength: 12,
       requireEmailVerification: true,
+      revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 30 * 60,
-      sendResetPassword: async ({ user, url }) => {
+      sendResetPassword: async ({ token, user }) => {
+        const resetUrl = new URL("/reset-password", origin);
+        resetUrl.hash = new URLSearchParams({ token }).toString();
         await sendPlatformEmail(env, {
           kind: "password-reset",
           recipient: user.email,
           subject: "Reset your Choir Management password",
-          text: `Use this link to reset your password: ${url}`,
+          text: `Use this link to reset your password: ${resetUrl.toString()}`,
         });
       },
     },

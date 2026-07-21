@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 
 import { AccountView } from "./account/AccountView";
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
+import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { getCurrentSession } from "./auth/api";
+import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 
 type ServiceState = "checking" | "offline" | "ready";
@@ -106,10 +108,39 @@ function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAut
   );
 }
 
+interface PasswordResetLocation {
+  readonly error: string | null;
+  readonly token: string | null;
+}
+
+function readPasswordResetLocation(pathname: string): PasswordResetLocation {
+  if (pathname !== "/reset-password") {
+    return { error: null, token: null };
+  }
+  const search = new URLSearchParams(window.location.search);
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const result = {
+    error: search.get("error"),
+    token: fragment.get("token") ?? search.get("token"),
+  };
+  return result;
+}
+
+function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLocation) {
+  if (pathname === "/forgot-password") {
+    return <ForgotPasswordView />;
+  }
+  if (pathname === "/reset-password") {
+    return <ResetPasswordView error={resetLocation.error} token={resetLocation.token} />;
+  }
+  return null;
+}
+
 export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
   const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  const [resetLocation] = useState(() => readPasswordResetLocation(pathname));
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -150,6 +181,12 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (pathname === "/reset-password" && (window.location.search || window.location.hash)) {
+      window.history.replaceState(null, "", "/reset-password");
+    }
+  }, [pathname]);
+
   function finishSignIn() {
     window.location.assign("/account");
   }
@@ -164,7 +201,10 @@ export function App() {
   }
 
   let content;
-  if (pathname === "/accept-invitation") {
+  const recoveryRoute = passwordRecoveryRoute(pathname, resetLocation);
+  if (recoveryRoute) {
+    content = recoveryRoute;
+  } else if (pathname === "/accept-invitation") {
     content =
       sessionState.status === "checking" ? (
         <AccountLoading />

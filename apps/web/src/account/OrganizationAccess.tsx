@@ -155,26 +155,60 @@ function OrganizationPolicy(props: PolicyProps) {
 
 function EnrollmentStart({
   busy,
+  enrollmentPassword,
+  onPasswordChange,
   onStart,
+  replacingCodes,
   visible,
 }: {
   readonly busy: boolean;
+  readonly enrollmentPassword: string;
+  readonly onPasswordChange: (password: string) => void;
   readonly onStart: () => void;
+  readonly replacingCodes: boolean;
   readonly visible: boolean;
 }) {
   if (!visible) {
     return null;
   }
   return (
-    <div className="platform-action organization-enrollment-start">
+    <form
+      className="platform-action mfa-start-form organization-enrollment-start"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onStart();
+      }}
+    >
       <div>
-        <h3>Set up an authenticator</h3>
-        <p>Save the recovery codes before verifying access to this Organization.</p>
+        <h3>{replacingCodes ? "Replace recovery codes" : "Set up an authenticator"}</h3>
+        <p>
+          Save the recovery codes before verifying access to this Organization. If your account has
+          a password, enter it to authorize this security change.
+        </p>
       </div>
-      <button className="button button--primary" disabled={busy} onClick={onStart} type="button">
-        {busy ? "Preparing MFA…" : "Start Organization MFA setup"}
-      </button>
-    </div>
+      <div className="form-stack mfa-start-form__controls">
+        <div className="field">
+          <label htmlFor="organization-enrollment-password">Current password (if set)</label>
+          <input
+            autoComplete="current-password"
+            id="organization-enrollment-password"
+            maxLength={128}
+            onChange={(event) => {
+              onPasswordChange(event.target.value);
+            }}
+            type="password"
+            value={enrollmentPassword}
+          />
+        </div>
+        <button className="button button--primary" disabled={busy} type="submit">
+          {busy
+            ? "Preparing MFA…"
+            : replacingCodes
+              ? "Generate replacement codes"
+              : "Start Organization MFA setup"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -347,7 +381,9 @@ export function OrganizationAccess() {
   const [busy, setBusy] = useState(false);
   const [confirmDisable, setConfirmDisable] = useState(false);
   const [enrollmentCode, setEnrollmentCode] = useState("");
+  const [enrollmentPassword, setEnrollmentPassword] = useState("");
   const [enrollmentSecrets, setEnrollmentSecrets] = useState<EnrollmentSecrets | null>(null);
+  const [replacementRequested, setReplacementRequested] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
   const [verificationMethod, setVerificationMethod] = useState<"recovery_code" | "totp">("totp");
@@ -414,21 +450,25 @@ export function OrganizationAccess() {
     try {
       if (accessState.context.twoFactorEnabled && accessState.context.twoFactorVerified) {
         setEnrollmentSecrets({
-          backupCodes: await regenerateAccountRecoveryCodes(),
+          backupCodes: await regenerateAccountRecoveryCodes(enrollmentPassword),
           totpURI: null,
           totpVerified: true,
         });
       } else {
-        const enrollment = await beginAccountMfaEnrollment();
+        const enrollment = await beginAccountMfaEnrollment(enrollmentPassword);
         setEnrollmentSecrets({
           backupCodes: enrollment.backupCodes,
           totpURI: enrollment.totpURI,
           totpVerified: false,
         });
       }
+      setReplacementRequested(false);
     } catch {
-      setActionError("Authenticator setup could not be started. Refresh and try again.");
+      setActionError(
+        "Authenticator setup could not be started. If your account has a password, check it and try again.",
+      );
     } finally {
+      setEnrollmentPassword("");
       setBusy(false);
     }
   }
@@ -574,10 +614,16 @@ export function OrganizationAccess() {
 
         <EnrollmentStart
           busy={busy}
+          enrollmentPassword={enrollmentPassword}
+          onPasswordChange={setEnrollmentPassword}
           onStart={() => {
             void startEnrollment();
           }}
-          visible={context.mfaRequired && !enrollmentComplete && !enrollmentSecrets}
+          replacingCodes={enrollmentComplete}
+          visible={
+            (replacementRequested || (context.mfaRequired && !enrollmentComplete)) &&
+            !enrollmentSecrets
+          }
         />
 
         <EnrollmentDetails
@@ -603,7 +649,9 @@ export function OrganizationAccess() {
             setVerificationCode("");
           }}
           onReplaceCodes={() => {
-            void startEnrollment();
+            setActionError(null);
+            setSuccessMessage(null);
+            setReplacementRequested(true);
           }}
           onVerify={() => {
             void verifyAccess();

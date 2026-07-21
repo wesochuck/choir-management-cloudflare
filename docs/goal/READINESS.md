@@ -3,8 +3,8 @@
 **Prepared:** July 20, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
 tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
-OTP/session/MFA/password/Platform-operations core is deployed to permanent staging. Production is
-not launched.
+OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging.
+Production is not launched.
 
 ## Repository topology
 
@@ -43,7 +43,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `ec8e7bd8-e4d1-4ad5-878e-a11d939ea356`
+- Current verified Worker version: `8972cbb3-525d-47f1-9b92-1e317f715047`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -93,6 +93,14 @@ Verified over public HTTPS on July 20, 2026:
   endpoints returned HTTP 401 anonymously, invitation creation returned HTTP 404 on the global base
   host, and public email/password registration remained HTTP 404. Remote D1 still contained zero
   invitations, Memberships, Organizations, and sessions.
+- `/login`, `/forgot-password`, and `/reset-password` returned HTTP 200 and rendered their expected
+  deployed browser views; the tokenless reset route showed only the safe invalid/expired-link state.
+  A synthetic fragment token was removed from the live browser URL while the reset form retained it
+  in memory; it was not submitted. Health and readiness remained HTTP 200, anonymous session
+  retrieval remained HTTP 200, and no live reset was requested because staging platform email is
+  capture-only. Remote D1 still contained one bootstrap identity and active Platform Administrator
+  grant, with zero accounts, sessions, Organizations, Memberships, invitations, two-factor rows, or
+  Organization MFA assertions.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -105,24 +113,26 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
-- `npm run test:integration`: 2 files / 22 workerd tests passed.
-- `npm run test:e2e`: 12 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
-  provisioning, scoped-elevation, Organization MFA, and invitation-acceptance journeys passed.
+- `npm run test:integration`: 2 files / 24 workerd tests passed.
+- `npm run test:e2e`: 14 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
+  provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
+  password-recovery journeys passed.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
 The current identity proof uses Better Auth `1.6.23` directly against D1. It covers no public
 registration, invitation-created pending identities, hashed email OTP storage and sign-in, optional
-password support, session retrieval/listing/revocation, multi-Organization selection without tenant
-selection, TOTP/recovery-code enrollment, mandatory recent session-specific MFA for Platform
-Administrators, revoked Platform Administrator denial, stale invitation denial, client
-Organization-ID alteration, cross-membership denial, and D1 confirmation of poisoned KV route hints.
-It also covers completed Organization provisioning Workflows and session-bound, Organization-scoped
-Platform edit elevation, cross-Organization denial, explicit revocation, and actor attribution.
-Optional Organization MFA is Owner-controlled and its 12-hour assertions are bound to the exact
-Organization, user, and session; email OTP alone does not satisfy it. Capture-mode platform email is
-bounded and in-memory; codes and recovery values are never logged or persisted by the capture
-adapter.
+password support, non-enumerating single-use password recovery with session revocation, password
+sign-in with native TOTP or recovery-code challenge completion, session
+retrieval/listing/revocation, multi-Organization selection without tenant selection,
+TOTP/recovery-code enrollment, mandatory recent session-specific MFA for Platform Administrators,
+revoked Platform Administrator denial, stale invitation denial, client Organization-ID alteration,
+cross-membership denial, and D1 confirmation of poisoned KV route hints. It also covers completed
+Organization provisioning Workflows and session-bound, Organization-scoped Platform edit elevation,
+cross-Organization denial, explicit revocation, and actor attribution. Optional Organization MFA is
+Owner-controlled and its 12-hour assertions are bound to the exact Organization, user, and session;
+email OTP alone does not satisfy it. Capture-mode platform email is bounded and in-memory; codes and
+recovery values are never logged or persisted by the capture adapter.
 
 Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
 inside the hostname-resolved Organization Durable Object. The linkage is unique within that
@@ -145,12 +155,17 @@ product domain is selected and explicitly reviewed.
 The account shell now detects the signed-in user's own Platform Administrator grant, supports new or
 interrupted TOTP enrollment, regenerates recovery codes when necessary, requires explicit recovery-
 code acknowledgment, and opens only a 15-minute factor-bound Platform session. Enrollment secrets
-and recovery codes remain in React memory only and disappear from the page after confirmation.
+and recovery codes remain in React memory only and disappear from the page after confirmation. If
+the user has added a password, Better Auth requires that current password before enrollment or
+recovery-code replacement; OTP-only identities may leave the field blank.
 
 Signed-in users may optionally add or change only their own password from the account shell. Better
 Auth performs hashing and current-password verification; plaintext passwords are never returned or
 logged, and no administrator-assigned-password surface exists. Email code remains the primary
-sign-in method, and users retain explicit control over active-session revocation.
+sign-in method. Password sign-in completes Better Auth's second-factor challenge for MFA-enabled
+accounts. Recovery requests return the same result for known and unknown email addresses; links are
+single-use, expire after 30 minutes, keep the token in a browser fragment that is removed into React
+memory before rendering, and revoke every existing session after a successful reset.
 
 After recent Platform Administrator MFA, the product base host now exposes a bounded, cursor-
 paginated Organization metadata directory and audited provisioning form. A canonical Organization
@@ -225,7 +240,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with password recovery, pending-invitation cancellation/rejection, validated
-   custom-domain activation, and the remaining cross-resource isolation probes while provider
-   credentials are pending.
+3. Continue Milestone 2 with pending-invitation cancellation/rejection, validated custom-domain
+   activation, and the remaining cross-resource isolation probes while provider credentials are
+   pending.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

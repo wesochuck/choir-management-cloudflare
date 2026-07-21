@@ -814,3 +814,94 @@ test("signs in as the recipient and accepts an Organization invitation", async (
   await expect(page.getByRole("heading", { name: "You joined Organization Alpha." })).toBeVisible();
   await expect(page.getByText("Your Organization Membership is ready.")).toBeVisible();
 });
+
+test("offers password MFA sign-in and completes non-enumerating account recovery", async ({
+  page,
+}) => {
+  const resetToken = "browser-reset-token-123456";
+
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
+  });
+  await page.route("**/api/auth/sign-in/email", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    expect(body).toEqual({
+      email: currentUser.email,
+      password: "member-password-value",
+    });
+    await route.fulfill({
+      body: JSON.stringify({ twoFactorMethods: ["totp"], twoFactorRedirect: true }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/request-password-reset", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    expect(body).toEqual({
+      email: currentUser.email,
+    });
+    await route.fulfill({
+      body: JSON.stringify({
+        message: "If this email exists in our system, check your email for the reset link",
+        status: true,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/reset-password", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    expect(body).toEqual({
+      newPassword: "a-new-browser-password",
+      token: resetToken,
+    });
+    await route.fulfill({
+      body: JSON.stringify({ status: true }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Password", exact: true }).click();
+  await page.getByLabel("Email address").fill(currentUser.email);
+  await page.getByLabel("Password", { exact: true }).fill("member-password-value");
+  await page.getByRole("button", { name: "Sign in with password" }).click();
+  await expect(page.getByRole("main").getByRole("status")).toContainText(
+    "Complete two-factor sign-in",
+  );
+  await expect(page.getByLabel("6-digit authenticator code")).toBeVisible();
+
+  await page.goto("/forgot-password");
+  await page.getByLabel("Email address").fill(currentUser.email.toUpperCase());
+  await page.getByRole("button", { name: "Send reset link" }).click();
+  await expect(page.getByRole("main").getByRole("status")).toContainText(
+    "If that email belongs to an invited account",
+  );
+
+  await page.goto(`/reset-password#token=${resetToken}`);
+  await expect(page).toHaveURL(/\/reset-password$/);
+  await page.getByLabel("New password", { exact: true }).fill("a-new-browser-password");
+  await page.getByLabel("Confirm new password").fill("a-different-password");
+  await page.getByRole("button", { name: "Reset password" }).click();
+  await expect(page.getByRole("alert")).toContainText("passwords do not match");
+  await page.getByLabel("Confirm new password").fill("a-new-browser-password");
+  await page.getByRole("button", { name: "Reset password" }).click();
+  await expect(page.getByRole("main").getByRole("status")).toContainText("password was reset");
+  await expect(
+    page.getByRole("main").getByRole("link", { name: "Sign in", exact: true }),
+  ).toBeVisible();
+});

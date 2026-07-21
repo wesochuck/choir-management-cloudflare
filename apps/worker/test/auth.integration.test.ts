@@ -136,6 +136,14 @@ async function fetchWorker(request: Request): Promise<Response> {
   return response;
 }
 
+function responseCookie(response: Response, name: string): string {
+  const cookie = response.headers
+    .getSetCookie()
+    .find((candidate) => candidate.startsWith(`${name}=`));
+  expect(cookie).toBeDefined();
+  return cookie?.split(";", 1)[0] ?? "";
+}
+
 async function seedInvitedUser(): Promise<void> {
   const now = Date.now();
   await testEnv.CONTROL_DB.prepare(
@@ -548,6 +556,191 @@ describe("Better Auth Worker integration", () => {
       }),
     );
     expect(newPasswordSignIn.status).toBe(200);
+  });
+
+  it("recovers only an invited identity with a single-use link and revokes its sessions", async () => {
+    await seedInvitedUser();
+    const firstSessionCookie = await signInInvitedUser();
+    await signInInvitedUser();
+    const oldPassword = "an-existing-secure-password";
+    const setResponse = await fetchWorker(
+      authRequest("/api/account/password", {
+        body: JSON.stringify({ mode: "set", newPassword: oldPassword }),
+        headers: { cookie: firstSessionCookie },
+        method: "PUT",
+      }),
+    );
+    expect(setResponse.status).toBe(200);
+
+    const requestBody = {
+      email: INVITED_EMAIL,
+    };
+    const requestResponse = await fetchWorker(
+      authRequest("/api/auth/request-password-reset", {
+        body: JSON.stringify(requestBody),
+        method: "POST",
+      }),
+    );
+    expect(requestResponse.status).toBe(200);
+    const requestResult: unknown = await requestResponse.json();
+
+    const unknownResponse = await fetchWorker(
+      authRequest("/api/auth/request-password-reset", {
+        body: JSON.stringify({ ...requestBody, email: "unknown@example.test" }),
+        method: "POST",
+      }),
+    );
+    expect(unknownResponse.status).toBe(200);
+    await expect(unknownResponse.json()).resolves.toEqual(requestResult);
+    expect(
+      readCapturedPlatformEmailsForTest().filter((message) => message.kind === "password-reset"),
+    ).toHaveLength(1);
+
+    const resetEmail = readCapturedPlatformEmailsForTest().find(
+      (message) => message.kind === "password-reset" && message.recipient === INVITED_EMAIL,
+    );
+    const linkPrefix = "Use this link to reset your password: ";
+    expect(resetEmail?.text.startsWith(linkPrefix)).toBe(true);
+    const resetLinkValue = resetEmail?.text.slice(linkPrefix.length);
+    if (!resetLinkValue) {
+      throw new Error("The captured reset email did not contain a link.");
+    }
+    const resetLink = new URL(resetLinkValue);
+    expect(resetLink.origin).toBe(BASE_AUTH_ORIGIN);
+    expect(resetLink.pathname).toBe("/reset-password");
+    expect(resetLink.search).toBe("");
+    const resetToken = new URLSearchParams(resetLink.hash.replace(/^#/, "")).get("token");
+    expect(resetToken).toMatch(/^[a-zA-Z0-9_-]+$/);
+
+    const newPassword = "a-recovered-secure-password";
+    const resetResponse = await fetchWorker(
+      authRequest("/api/auth/reset-password", {
+        body: JSON.stringify({ newPassword, token: resetToken }),
+        method: "POST",
+      }),
+    );
+    expect(resetResponse.status).toBe(200);
+    await expect(
+      testEnv.CONTROL_DB.prepare("SELECT COUNT(*) AS count FROM session WHERE userId = ?")
+        .bind("user-invited-member")
+        .first(),
+    ).resolves.toEqual({ count: 0 });
+
+    const reusedResponse = await fetchWorker(
+      authRequest("/api/auth/reset-password", {
+        body: JSON.stringify({ newPassword: "another-recovered-password", token: resetToken }),
+        method: "POST",
+      }),
+    );
+    expect(reusedResponse.status).toBe(400);
+
+    const oldPasswordSignIn = await fetchWorker(
+      authRequest("/api/auth/sign-in/email", {
+        body: JSON.stringify({ email: INVITED_EMAIL, password: oldPassword }),
+        method: "POST",
+      }),
+    );
+    expect(oldPasswordSignIn.status).toBeGreaterThanOrEqual(400);
+    const newPasswordSignIn = await fetchWorker(
+      authRequest("/api/auth/sign-in/email", {
+        body: JSON.stringify({ email: INVITED_EMAIL, password: newPassword }),
+        method: "POST",
+      }),
+    );
+    expect(newPasswordSignIn.status).toBe(200);
+  });
+
+  it("completes password sign-in challenges with TOTP and a recovery code", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+    const password = "a-password-with-second-factor";
+    const setResponse = await fetchWorker(
+      authRequest("/api/account/password", {
+        body: JSON.stringify({ mode: "set", newPassword: password }),
+        headers: { cookie: sessionCookie },
+        method: "PUT",
+      }),
+    );
+    expect(setResponse.status).toBe(200);
+
+    const enableResponse = await fetchWorker(
+      authRequest("/api/auth/two-factor/enable", {
+        body: JSON.stringify({ password }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(enableResponse.status).toBe(200);
+    const enrollment = enrollmentResponseSchema.parse(await enableResponse.json());
+    const verifyEnrollmentResponse = await fetchWorker(
+      authRequest("/api/auth/two-factor/verify-totp", {
+        body: JSON.stringify({
+          code: await generateTotp(enrollment.totpURI),
+          trustDevice: false,
+        }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(verifyEnrollmentResponse.status).toBe(200);
+
+    const beginPasswordSignIn = async () => {
+      const response = await fetchWorker(
+        authRequest("/api/auth/sign-in/email", {
+          body: JSON.stringify({ email: INVITED_EMAIL, password }),
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(200);
+      await expect(response.clone().json()).resolves.toMatchObject({
+        twoFactorMethods: ["totp"],
+        twoFactorRedirect: true,
+      });
+      return responseCookie(response, "choir-management.two_factor");
+    };
+
+    const totpChallengeCookie = await beginPasswordSignIn();
+    const totpResponse = await fetchWorker(
+      authRequest("/api/auth/two-factor/verify-totp", {
+        body: JSON.stringify({
+          code: await generateTotp(enrollment.totpURI),
+          trustDevice: false,
+        }),
+        headers: { cookie: totpChallengeCookie },
+        method: "POST",
+      }),
+    );
+    expect(totpResponse.status).toBe(200);
+    const totpSessionCookie = responseCookie(totpResponse, "choir-management.session_token");
+    const totpSessionResponse = await fetchWorker(
+      authRequest("/api/auth/get-session", { headers: { cookie: totpSessionCookie } }),
+    );
+    await expect(totpSessionResponse.json()).resolves.toMatchObject({
+      user: { id: "user-invited-member" },
+    });
+
+    const recoveryChallengeCookie = await beginPasswordSignIn();
+    const recoveryResponse = await fetchWorker(
+      authRequest("/api/auth/two-factor/verify-backup-code", {
+        body: JSON.stringify({
+          code: enrollment.backupCodes[0],
+          trustDevice: false,
+        }),
+        headers: { cookie: recoveryChallengeCookie },
+        method: "POST",
+      }),
+    );
+    expect(recoveryResponse.status).toBe(200);
+    const recoverySessionCookie = responseCookie(
+      recoveryResponse,
+      "choir-management.session_token",
+    );
+    const recoverySessionResponse = await fetchWorker(
+      authRequest("/api/auth/get-session", { headers: { cookie: recoverySessionCookie } }),
+    );
+    await expect(recoverySessionResponse.json()).resolves.toMatchObject({
+      user: { id: "user-invited-member" },
+    });
   });
 });
 
