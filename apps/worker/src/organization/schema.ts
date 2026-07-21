@@ -137,6 +137,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON event_rosters(profile_id, event_id)`,
     ],
   },
+  {
+    version: 8,
+    statements: [
+      `ALTER TABLE event_rosters ADD COLUMN attendance TEXT NOT NULL DEFAULT 'Pending'
+       CHECK (attendance IN ('Present', 'Absent', 'Pending'))`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

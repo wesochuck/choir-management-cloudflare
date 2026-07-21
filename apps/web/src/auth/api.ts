@@ -1,4 +1,5 @@
 import {
+  organizationAttendanceResponseSchema,
   accountOrganizationsResponseSchema,
   calendarFeedUrlsResponseSchema,
   accountSecurityResponseSchema,
@@ -39,6 +40,8 @@ import {
   type CalendarFeedUrlsResponse,
   type CurrentAuthSession,
   type OrganizationAuthStatusResponse,
+  type OrganizationAttendanceRow,
+  type OrganizationAttendanceUpdate,
   type OrganizationInvitationDetails,
   type OrganizationInvitationActionResponse,
   type OrganizationInvitationRequest,
@@ -285,6 +288,28 @@ export async function setOrganizationEventRsvp(
     method: "PUT",
   });
   return organizationRsvpSchema.parse(await response.json());
+}
+
+export async function listOrganizationEventAttendance(
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<readonly OrganizationAttendanceRow[]> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/attendance`,
+    { signal: signal ?? null },
+  );
+  return organizationAttendanceResponseSchema.parse(await response.json()).rows;
+}
+
+export async function updateOrganizationEventAttendance(
+  eventId: string,
+  updates: readonly OrganizationAttendanceUpdate[],
+): Promise<readonly OrganizationAttendanceRow[]> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/attendance`,
+    { body: JSON.stringify({ updates }), method: "PUT" },
+  );
+  return organizationAttendanceResponseSchema.parse(await response.json()).rows;
 }
 
 export async function getOrganizationCalendarSettings(

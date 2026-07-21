@@ -598,9 +598,15 @@
         "path": "/api/admin/bulk-upsert-attendance",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/bulkUpsertAttendance.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/calendarManagementStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/attendance.integration.test.ts",
+            "apps/web/src/account/AttendanceManager.tsx",
+          ],
       },
       {
         "id": "api.queue-process",
@@ -1203,6 +1209,8 @@
             "apps/worker/src/calendar/organizationCalendar.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
             "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/worker/test/attendance.integration.test.ts",
+            "apps/web/src/account/AttendanceManager.tsx",
             "apps/web/src/account/MySchedule.tsx",
           ],
       },

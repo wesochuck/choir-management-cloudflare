@@ -70,6 +70,7 @@ milestone complete.
 | `apps/web/src/account/CalendarSubscription.tsx`                | Member calendar subscription and explicit credential reset                           |
 | `apps/web/src/account/OrganizationCalendar.tsx`                | Profile, venue, event, and RSVP Organization management UI                           |
 | `apps/web/src/account/MySchedule.tsx`                          | Linked-Profile member schedule and self-service RSVP UI                              |
+| `apps/web/src/account/AttendanceManager.tsx`                   | Administrator event attendance bulk-update UI                                        |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -154,6 +155,7 @@ milestone complete.
 | `apps/worker/test/calendarManagement.integration.test.ts`      | Venue, event, and RSVP authorization and Organization-isolation proof                |
 | `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                |
 | `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof        |
+| `apps/worker/test/attendance.integration.test.ts`              | Attendance transaction, RSVP promotion, audit, and tenant-isolation proof            |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `apps/worker/src/workflows/FleetSchemaWorkflow.ts`             | Chained bounded Organization-store schema preparation                                |

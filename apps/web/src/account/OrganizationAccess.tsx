@@ -11,6 +11,7 @@ import {
   verifyOrganizationMfa,
 } from "../auth/api";
 import { OrganizationInvitations } from "./OrganizationInvitations";
+import { AttendanceManager } from "./AttendanceManager";
 import { CalendarSubscription } from "./CalendarSubscription";
 import { OrganizationCalendar } from "./OrganizationCalendar";
 import { MySchedule } from "./MySchedule";
@@ -663,6 +664,7 @@ export function OrganizationAccess() {
         />
       </section>
       <OrganizationCalendar context={context} enabled={!needsVerification} />
+      <AttendanceManager enabled={!needsVerification && context.role !== "member"} />
       <MySchedule enabled={!needsVerification} />
       <CalendarSubscription enabled={!needsVerification} />
       <OrganizationInvitations context={context} />

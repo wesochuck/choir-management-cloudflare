@@ -1,4 +1,5 @@
 import {
+  organizationAttendanceResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
@@ -8,6 +9,8 @@ import {
   organizationVenuesResponseSchema,
   singerEventsResponseSchema,
   type OrganizationEvent,
+  type OrganizationAttendanceRow,
+  type OrganizationAttendanceUpdate,
   type OrganizationEventRequest,
   type OrganizationEventArchiveResponse,
   type OrganizationRsvp,
@@ -40,6 +43,36 @@ async function listResource(
   const response = await stub(env, organizationId).fetch(url);
   if (!response.ok) throw new Error(`The Organization store rejected the ${resource} request.`);
   return response.json();
+}
+
+export async function listOrganizationEventAttendance(
+  env: Env,
+  organizationId: string,
+  eventId: string,
+): Promise<readonly OrganizationAttendanceRow[]> {
+  const url = new URL("https://organization.internal/internal/calendar/attendance");
+  url.searchParams.set("eventId", eventId);
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) throw new Error("The Organization store rejected the attendance request.");
+  return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(await response.json())
+    .rows;
+}
+
+export async function updateOrganizationEventAttendance(
+  env: Env,
+  actor: ActorContext,
+  eventId: string,
+  updates: readonly OrganizationAttendanceUpdate[],
+): Promise<readonly OrganizationAttendanceRow[]> {
+  return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(
+    await mutate(env, {
+      action: "bulk_attendance",
+      ...actor,
+      attendance: { updates },
+      eventId,
+    }),
+  ).rows;
 }
 
 async function mutate(

@@ -567,6 +567,24 @@ h2 {
   margin-top: 2rem;
 }
 
+.attendance-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.attendance-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.attendance-row small {
+  color: var(--color-text-muted);
+  display: block;
+}
+
 .password-form {
   max-width: 34rem;
 }

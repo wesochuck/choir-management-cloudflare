@@ -122,6 +122,31 @@ export const organizationRsvpSchema = organizationRsvpRequestSchema.extend({
   updatedAt: z.iso.datetime(),
 });
 
+export const organizationAttendanceStatusSchema = z.enum(["Present", "Absent", "Pending"]);
+
+export const organizationAttendanceUpdateSchema = z.object({
+  attendance: organizationAttendanceStatusSchema,
+  profileId: z.uuid(),
+});
+
+export const organizationAttendanceBulkRequestSchema = z.object({
+  updates: z.array(organizationAttendanceUpdateSchema).min(1).max(500),
+});
+
+export const organizationAttendanceRowSchema = z.object({
+  attendance: organizationAttendanceStatusSchema,
+  displayName: z.string().min(1).max(200),
+  profileId: z.uuid(),
+  rsvp: z.enum(["Yes", "No", "Pending"]),
+  updatedAt: z.iso.datetime().nullable(),
+});
+
+export const organizationAttendanceResponseSchema = z.object({
+  eventId: z.uuid(),
+  requestId: requestIdSchema,
+  rows: z.array(organizationAttendanceRowSchema).max(500),
+});
+
 export const singerRsvpRequestSchema = z.object({
   rsvp: z.enum(["Yes", "No", "Pending"]),
 });
@@ -165,6 +190,9 @@ export type OrganizationEventArchiveResponse = z.infer<
 >;
 export type OrganizationRsvpRequest = z.infer<typeof organizationRsvpRequestSchema>;
 export type OrganizationRsvp = z.infer<typeof organizationRsvpSchema>;
+export type OrganizationAttendanceStatus = z.infer<typeof organizationAttendanceStatusSchema>;
+export type OrganizationAttendanceUpdate = z.infer<typeof organizationAttendanceUpdateSchema>;
+export type OrganizationAttendanceRow = z.infer<typeof organizationAttendanceRowSchema>;
 export type SingerEvent = z.infer<typeof singerEventSchema>;
 export type SingerEventsResponse = z.infer<typeof singerEventsResponseSchema>;
 export type OrganizationCalendarSettings = z.infer<

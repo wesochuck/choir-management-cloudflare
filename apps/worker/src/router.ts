@@ -1,4 +1,5 @@
 import {
+  organizationAttendanceBulkRequestSchema,
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
   organizationEventRequestSchema,
@@ -40,12 +41,14 @@ import {
   createOrganizationVenue,
   archiveOrganizationEvent,
   listOrganizationEvents,
+  listOrganizationEventAttendance,
   listOrganizationVenues,
   listMemberSchedule,
   readOrganizationCalendarSettings,
   setOrganizationEventRsvp,
   updateOrganizationCalendarSettings,
   updateOrganizationEvent,
+  updateOrganizationEventAttendance,
 } from "./calendar/organizationCalendar";
 import { listAccountOrganizations } from "./auth/accountOrganizations";
 import {
@@ -1688,6 +1691,96 @@ router.put("/api/organization/events/:eventId/rsvp", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization RSVP could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/events/:eventId/attendance", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      eventId: eventId.data,
+      requestId: context.get("requestId"),
+      rows: await listOrganizationEventAttendance(
+        context.env,
+        authorization.organizationId,
+        eventId.data,
+      ),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization attendance is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/events/:eventId/attendance", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const body = organizationAttendanceBulkRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!eventId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event and attendance updates are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      eventId: eventId.data,
+      requestId: context.get("requestId"),
+      rows: await updateOrganizationEventAttendance(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        eventId.data,
+        body.data.updates,
+      ),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization attendance could not be updated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

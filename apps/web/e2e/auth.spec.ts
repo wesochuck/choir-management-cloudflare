@@ -66,6 +66,41 @@ test.beforeEach(async ({ page }) => {
       status: 200,
     });
   });
+  await page.route("**/api/organization/events/*/attendance", async (route) => {
+    let attendance = "Pending";
+    if (route.request().method() === "PUT") {
+      const body: unknown = route.request().postDataJSON();
+      if (
+        typeof body === "object" &&
+        body !== null &&
+        "updates" in body &&
+        Array.isArray(body.updates) &&
+        typeof body.updates[0] === "object" &&
+        body.updates[0] !== null &&
+        "attendance" in body.updates[0] &&
+        typeof body.updates[0].attendance === "string"
+      ) {
+        attendance = body.updates[0].attendance;
+      }
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        requestId,
+        rows: [
+          {
+            attendance,
+            displayName: "Browser Singer",
+            profileId: "11111111-1111-4111-8111-111111111111",
+            rsvp: attendance === "Present" ? "Yes" : "Pending",
+            updatedAt: "2026-07-20T20:10:00.000Z",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/organization/calendar-settings", async (route) => {
     await route.fulfill({
       body: JSON.stringify({ requestId, timezone: "America/New_York" }),
@@ -897,6 +932,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await organizationCalendar.getByRole("button", { name: "Archive" }).click();
   await expect(organizationCalendar.getByRole("button", { name: "Confirm archive" })).toBeVisible();
   await organizationCalendar.getByRole("button", { name: "Cancel", exact: true }).click();
+  const attendanceSection = page.getByRole("region", { name: "Attendance" });
+  await attendanceSection.getByLabel("Browser Singer attendance").selectOption("Present");
+  await attendanceSection.getByRole("button", { name: "Save attendance" }).click();
+  await expect(attendanceSection.getByRole("status")).toHaveText("Attendance saved.");
+  await expect(attendanceSection.getByText("RSVP: Yes")).toBeVisible();
   const mySchedule = page.getByRole("region", { name: "My schedule" });
   await expect(mySchedule.getByRole("heading", { name: "My Rehearsal" })).toBeVisible();
   await expect(mySchedule.getByText(/inherited from the parent performance: Yes/)).toBeVisible();

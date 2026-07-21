@@ -1,4 +1,5 @@
 import {
+  organizationAttendanceBulkRequestSchema,
   organizationEventRequestSchema,
   organizationCalendarSettingsRequestSchema,
   organizationRsvpRequestSchema,
@@ -14,6 +15,11 @@ const actorSchema = z.object({
 });
 
 const managementRequestSchema = z.discriminatedUnion("action", [
+  actorSchema.extend({
+    action: z.literal("bulk_attendance"),
+    attendance: organizationAttendanceBulkRequestSchema,
+    eventId: z.uuid(),
+  }),
   actorSchema.extend({
     action: z.literal("create_event"),
     event: organizationEventRequestSchema.extend({ id: z.uuid() }),
@@ -90,6 +96,15 @@ interface MemberEventRow {
   readonly type: "Performance" | "Rehearsal";
   readonly venueAddress: string;
   readonly venueName: string;
+}
+
+interface AttendanceRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly attendance: "Absent" | "Pending" | "Present";
+  readonly displayName: string;
+  readonly profileId: string;
+  readonly rsvp: "No" | "Pending" | "Yes";
+  readonly updatedAt: string | null;
 }
 
 function identityMatches(storage: DurableObjectStorage, organizationId: string | null): boolean {
@@ -210,6 +225,84 @@ export function readOrganizationCalendarSettingsFromStore(
     )
     .one().timezone;
   return Response.json({ timezone });
+}
+
+export function listEventAttendanceFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly eventId: string | null; readonly organizationId: string | null },
+): Response {
+  const eventId = z.uuid().safeParse(input.eventId);
+  if (!identityMatches(storage, input.organizationId) || !eventId.success) {
+    return Response.json({ code: "attendance_not_found" }, { status: 404 });
+  }
+  if (!recordExists(storage, "events", eventId.data)) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+  const rows = storage.sql
+    .exec<AttendanceRow>(
+      `SELECT p.id AS profileId, p.display_name AS displayName,
+         COALESCE(r.rsvp, 'Pending') AS rsvp,
+         COALESCE(r.attendance, 'Pending') AS attendance,
+         r.updated_at AS updatedAt
+       FROM profiles p
+       LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+       ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC LIMIT 500`,
+      eventId.data,
+    )
+    .toArray();
+  return Response.json({ eventId: eventId.data, rows });
+}
+
+function updateAttendance(
+  storage: DurableObjectStorage,
+  operation: Extract<ManagementRequest, { readonly action: "bulk_attendance" }>,
+  occurredAt: string,
+): Response {
+  if (!recordExists(storage, "events", operation.eventId)) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+  const profileIds = new Set(operation.attendance.updates.map(({ profileId }) => profileId));
+  if (profileIds.size !== operation.attendance.updates.length) {
+    return Response.json({ code: "duplicate_profile" }, { status: 400 });
+  }
+  if ([...profileIds].some((profileId) => !recordExists(storage, "profiles", profileId))) {
+    return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  storage.transactionSync(() => {
+    for (const update of operation.attendance.updates) {
+      storage.sql.exec(
+        `INSERT INTO event_rosters
+          (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(event_id, profile_id) DO UPDATE SET
+           attendance = excluded.attendance,
+           rsvp = CASE
+             WHEN excluded.attendance = 'Present' AND event_rosters.rsvp = 'Pending' THEN 'Yes'
+             ELSE event_rosters.rsvp
+           END,
+           updated_at = excluded.updated_at`,
+        operation.eventId,
+        update.profileId,
+        update.attendance === "Present" ? "Yes" : "Pending",
+        update.attendance,
+        occurredAt,
+        occurredAt,
+      );
+    }
+    insertAudit(
+      storage,
+      operation,
+      "event.attendance.updated",
+      "event",
+      operation.eventId,
+      { profileCount: operation.attendance.updates.length },
+      occurredAt,
+    );
+  });
+  return listEventAttendanceFromStore(storage, {
+    eventId: operation.eventId,
+    organizationId: operation.organizationId,
+  });
 }
 
 export function listMemberEventsFromStore(
@@ -386,6 +479,9 @@ export async function manageOrganizationCalendarInStore(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   const occurredAt = new Date().toISOString();
+  if (parsed.data.action === "bulk_attendance") {
+    return updateAttendance(storage, parsed.data, occurredAt);
+  }
   if (parsed.data.action === "update_timezone") {
     const operation = parsed.data;
     if (!isValidTimeZone(operation.settings.timezone)) {
