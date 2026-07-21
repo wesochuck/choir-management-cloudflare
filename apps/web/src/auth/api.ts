@@ -1,5 +1,6 @@
 import {
   accountOrganizationsResponseSchema,
+  calendarFeedUrlsResponseSchema,
   accountSecurityResponseSchema,
   authSessionListSchema,
   currentAuthSessionSchema,
@@ -25,6 +26,7 @@ import {
   type AccountPasswordRequest,
   type AccountSecurityResponse,
   type AuthSession,
+  type CalendarFeedUrlsResponse,
   type CurrentAuthSession,
   type OrganizationAuthStatusResponse,
   type OrganizationInvitationDetails,
@@ -173,6 +175,19 @@ export async function listAccountOrganizations(
 export async function getAccountSecurity(signal?: AbortSignal): Promise<AccountSecurityResponse> {
   const response = await request("/api/account/security", { signal: signal ?? null });
   return accountSecurityResponseSchema.parse(await response.json());
+}
+
+export async function getCalendarFeedUrls(signal?: AbortSignal): Promise<CalendarFeedUrlsResponse> {
+  const response = await request("/api/singer/calendar-feed-url", { signal: signal ?? null });
+  return calendarFeedUrlsResponseSchema.parse(await response.json());
+}
+
+export async function resetCalendarFeedUrls(): Promise<CalendarFeedUrlsResponse> {
+  const response = await request("/api/singer/calendar-feed-url/reset", {
+    body: JSON.stringify({}),
+    method: "POST",
+  });
+  return calendarFeedUrlsResponseSchema.parse(await response.json());
 }
 
 export async function updateAccountPassword(

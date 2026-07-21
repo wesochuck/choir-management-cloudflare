@@ -8,6 +8,7 @@ import {
   platformElevationRequestSchema,
   publicDomainRegistrationRequestSchema,
   type HealthResponse,
+  type CalendarFeedUrlsResponse,
   type OrganizationContextResponse,
   type OrganizationInvitationActionResponse,
   type OrganizationInvitationDetails,
@@ -26,6 +27,7 @@ import { requestId } from "hono/request-id";
 import { z } from "zod";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
+import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
 import { listAccountOrganizations } from "./auth/accountOrganizations";
 import {
   authorizePlatformAdministratorSession,
@@ -333,14 +335,18 @@ async function verifySecondFactor(
 router.use("*", requestId());
 router.use("*", async (context, next) => {
   await next();
+  const responsePath = new URL(context.req.url).pathname;
   const publicProjectionResponse =
-    new URL(context.req.url).pathname === "/api/public/projection" &&
+    responsePath === "/api/public/projection" &&
     (context.res.status === 200 || context.res.status === 304);
   context.header(
     "cache-control",
     publicProjectionResponse ? "public, max-age=60, stale-while-revalidate=300" : "no-store",
   );
-  context.header("referrer-policy", "strict-origin-when-cross-origin");
+  context.header(
+    "referrer-policy",
+    responsePath === "/api/calendar/feed" ? "no-referrer" : "strict-origin-when-cross-origin",
+  );
   context.header("x-content-type-options", "nosniff");
   context.header("x-frame-options", "DENY");
 });
@@ -415,6 +421,159 @@ router.get("/api/public/projection", async (context) => {
     return context.body(null, 304);
   }
   return context.json(published.projection);
+});
+
+router.get("/api/calendar/feed", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  const token = requestUrl.searchParams.get("token") ?? "";
+  if (!organizationId || token.length === 0 || token.length > 4096) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "The calendar feed is unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const feed = await readCalendarFeed(context.env, organizationId, token).catch(() => null);
+  if (!feed) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "The calendar feed is unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  context.header("content-disposition", `attachment; filename="${feed.filename}"`);
+  context.header("content-type", "text/calendar; charset=utf-8");
+  return context.body(feed.body);
+});
+
+router.get("/api/singer/calendar-feed-url", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Calendar subscriptions require a canonical Organization hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  const urls = await createCalendarFeedUrls(context.env, {
+    action: "read",
+    actorUserId: authorization.value.userId,
+    canonicalOrigin: requestUrl.origin,
+    organizationId,
+    requestId: context.get("requestId"),
+  });
+  if (!urls) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for calendar subscriptions.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({
+    ...urls,
+    requestId: context.get("requestId"),
+  } satisfies CalendarFeedUrlsResponse);
+});
+
+router.post("/api/singer/calendar-feed-url/reset", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Calendar subscriptions require a canonical Organization hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  const urls = await createCalendarFeedUrls(context.env, {
+    action: "reset",
+    actorUserId: authorization.value.userId,
+    canonicalOrigin: requestUrl.origin,
+    organizationId,
+    requestId: context.get("requestId"),
+  });
+  if (!urls) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for calendar subscriptions.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({
+    ...urls,
+    requestId: context.get("requestId"),
+  } satisfies CalendarFeedUrlsResponse);
 });
 
 router.put("/api/organization/files/:fileId", async (context) => {

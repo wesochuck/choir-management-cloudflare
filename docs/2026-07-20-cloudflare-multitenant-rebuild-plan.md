@@ -67,6 +67,7 @@ milestone complete.
 | `apps/web/src/account/AccountSecurity.tsx`                     | User-managed password creation and change UI                                         |
 | `apps/web/src/account/OrganizationAccess.tsx`                  | Hostname-scoped Organization MFA enrollment, verification, and Owner policy UI       |
 | `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation on the hostname-derived Organization         |
+| `apps/web/src/account/CalendarSubscription.tsx`                | Member calendar subscription and explicit credential reset                           |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -104,6 +105,7 @@ milestone complete.
 | `apps/worker/src/publication/publishOrganization.ts`           | Public projection generation and cache versioning                                    |
 | `apps/worker/src/storage/privateFiles.ts`                      | Host-authorized private R2 upload/download orchestration                             |
 | `apps/worker/src/security/signedLinks.ts`                      | Versioned purpose-separated Organization-bound token signing                         |
+| `apps/worker/src/calendar/calendarFeed.ts`                     | Calendar credential issuance, revocation, and feed rendering                         |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -140,6 +142,7 @@ milestone complete.
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |
 | `apps/worker/test/fleetSchema.integration.test.ts`             | Bounded chained fleet schema Workflow and identity proof                             |
+| `apps/worker/test/calendarFeed.integration.test.ts`            | Organization-bound calendar credential and revocation proof                          |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
 | `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                |
 | `apps/worker/src/workflows/FleetSchemaWorkflow.ts`             | Chained bounded Organization-store schema preparation                                |

@@ -32,7 +32,8 @@ generated file as baseline truth.
 - Node.js `v26.5.0` and npm/npx `11.17.0` are installed.
 - GitHub CLI `2.96.0` is installed but is not authenticated.
 - The Codex GitHub connector is authenticated as `wesochuck` for the legacy repository.
-- Wrangler `4.112.0` is pinned in the lockfile.
+- Wrangler `4.113.0` is pinned in the lockfile. Miniflare's transitive `sharp` is overridden to
+  `0.35.3` to clear the July 21 libvips advisories without downgrading the Cloudflare test pool.
 - Wrangler OAuth is authenticated through the macOS keyring as `cwosborn@gmail.com`.
 - Cloudflare account: `Wes Osborn Account` (`94c9ad3f9675d11eca39ca32ed5241e1`).
 - Playwright Chromium `149.0.7827.55` is installed in the normal local browser cache.
@@ -44,7 +45,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `e7402804-b514-4c0d-913f-84f65f855d71`
+- Current verified Worker version: `501b0128-4019-4773-aa07-9c97b2cc0d24`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -155,6 +156,12 @@ Verified over public HTTPS on July 20–21, 2026:
   binding. Workerd tests prepare 21 stale Organization stores as bounded 20+1 chained instances,
   verify each Durable Object identity before advancing D1, and mark a mismatched registry/store run
   failed so another run is not permanently blocked.
+- After the calendar-feed deployment, health and readiness returned HTTP 200; malformed feed and
+  credential probes on the global workers.dev base both returned hostname-first HTTP 404. Remote D1
+  still contained zero Organizations and schema-preparation runs with no migrations pending.
+  Organization schema version 6 adds per-Profile calendar revocation lazily. Workerd tests prove
+  canonical-host issuance, Organization/profile binding, custom-public rejection, valid calendar
+  output, explicit reset, immediate old-link revocation, missing-link denial, and reset audit.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -168,7 +175,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run lint`: passed.
 - `npm test`: 5 files / 13 tests passed, including staging-bootstrap safety and adversarial
   signed-link coverage.
-- `npm run test:integration`: 7 files / 37 workerd tests passed.
+- `npm run test:integration`: 8 files / 39 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -231,6 +238,15 @@ binding, optional exact subject/resource/revocation matching, purpose-separated 
 fixed 32-byte signature comparison. Product routes will bind this core to their own authoritative
 resource and revocation checks as each signed public flow is implemented; no product flow is marked
 complete merely because the shared cryptographic foundation exists.
+
+Calendar subscription is the first product flow bound to the signed-link core. An authenticated
+member on the canonical Organization host must have a linked Organization Profile and satisfy
+Organization MFA before receiving the ten-year bounded feed address. The token is purpose,
+Organization, Profile, and per-Profile revocation-version bound; reset increments that version in
+the owning Durable Object and records an actor-attributed audit event. Feed reads are canonical-host
+only, generic on failure, no-store/no-referrer, and never log or audit token bytes. The current feed
+is a valid empty iCalendar shell; event, venue, roster, RSVP inheritance, call-time, and approved
+set-list population remain explicitly partial until those operational schemas are ported.
 
 Recent-MFA Platform Administrators on the product base hostname can now start and inspect one fleet
 schema-preparation run at a time. Each Workflow instance loads at most 20 stale active
@@ -352,7 +368,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 3 by binding the signed-link core to calendar-feed revocation and the first
-   concrete product flows. Return to validated custom-domain activation when a managed zone is
-   available.
+3. Continue with the event, venue, roster, and RSVP operational slice so calendar feeds can populate
+   parity events, then bind the next signed product flow. Return to validated custom-domain
+   activation when a managed zone is available.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

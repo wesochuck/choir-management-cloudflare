@@ -42,6 +42,25 @@ const schemaPreparationRequestSchema = z.object({
   organizationId: z.string().min(1).max(128),
   targetVersion: z.number().int().positive(),
 });
+const calendarCredentialRequestSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("read"),
+    organizationId: z.string().min(1).max(128),
+    profileId: z.uuid(),
+  }),
+  z.object({
+    action: z.literal("reset"),
+    actorUserId: z.string().min(1).max(128),
+    organizationId: z.string().min(1).max(128),
+    profileId: z.uuid(),
+    requestId: z.uuid(),
+  }),
+]);
+const calendarFeedValidationSchema = z.object({
+  organizationId: z.string().min(1).max(128),
+  profileId: z.uuid(),
+  revocationVersion: z.number().int().positive(),
+});
 
 interface OrganizationMetadataRow {
   readonly [column: string]: SqlStorageValue;
@@ -58,6 +77,12 @@ interface OrganizationIdentityRow {
 interface OrganizationSchemaVersionRow {
   readonly [column: string]: SqlStorageValue;
   readonly schemaVersion: number;
+}
+
+interface CalendarProfileRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly calendarFeedVersion: number;
+  readonly displayName: string;
 }
 
 interface JobLedgerRow {
@@ -270,6 +295,109 @@ async function prepareOrganizationSchema(
   });
 }
 
+function organizationIdentity(storage: DurableObjectStorage): OrganizationMetadataRow | undefined {
+  return storage.sql
+    .exec<OrganizationMetadataRow>(
+      `SELECT organization_id AS organizationId, name, slug
+       FROM organization_metadata LIMIT 1`,
+    )
+    .toArray()
+    .at(0);
+}
+
+async function manageCalendarCredential(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = calendarCredentialRequestSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_calendar_credential_request" }, { status: 400 });
+  }
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const profile = storage.sql
+    .exec<CalendarProfileRow>(
+      `SELECT display_name AS displayName, calendar_feed_version AS calendarFeedVersion
+       FROM profiles WHERE id = ? LIMIT 1`,
+      parsed.data.profileId,
+    )
+    .toArray()
+    .at(0);
+  if (!profile) {
+    return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  if (parsed.data.action === "read") {
+    return Response.json({
+      calendarFeedVersion: profile.calendarFeedVersion,
+      displayName: profile.displayName,
+      profileId: parsed.data.profileId,
+    });
+  }
+
+  const resetAt = new Date().toISOString();
+  const nextVersion = profile.calendarFeedVersion + 1;
+  const resetActorUserId: string = parsed.data.actorUserId;
+  const resetRequestId: string = parsed.data.requestId;
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE profiles SET calendar_feed_version = ?, updated_at = ? WHERE id = ?`,
+      nextVersion,
+      resetAt,
+      parsed.data.profileId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'profile.calendar_feed.reset',
+         'profile', ?, ?, ?, ?)`,
+      `calendar-feed-reset:${resetRequestId}`,
+      resetActorUserId,
+      parsed.data.profileId,
+      resetRequestId,
+      JSON.stringify({ afterVersion: nextVersion, beforeVersion: profile.calendarFeedVersion }),
+      resetAt,
+    );
+  });
+  return Response.json({
+    calendarFeedVersion: nextVersion,
+    displayName: profile.displayName,
+    profileId: parsed.data.profileId,
+  });
+}
+
+async function validateCalendarFeed(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = calendarFeedValidationSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_calendar_feed" }, { status: 400 });
+  }
+  const organization = organizationIdentity(storage);
+  if (organization?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "calendar_feed_not_found" }, { status: 404 });
+  }
+  const profile = storage.sql
+    .exec<CalendarProfileRow>(
+      `SELECT display_name AS displayName, calendar_feed_version AS calendarFeedVersion
+       FROM profiles WHERE id = ? LIMIT 1`,
+      parsed.data.profileId,
+    )
+    .toArray()
+    .at(0);
+  if (profile?.calendarFeedVersion !== parsed.data.revocationVersion) {
+    return Response.json({ code: "calendar_feed_not_found" }, { status: 404 });
+  }
+  return Response.json({
+    calendarFeedVersion: profile.calendarFeedVersion,
+    organizationName: organization.name,
+    profileId: parsed.data.profileId,
+    profileName: profile.displayName,
+  });
+}
+
 async function reservePrivateFile(
   storage: DurableObjectStorage,
   request: Request,
@@ -414,6 +542,10 @@ async function dispatchPostRequest(
       return completeJob(storage, request);
     case "/internal/jobs/fail":
       return failJob(storage, request);
+    case "/internal/calendar/credential":
+      return manageCalendarCredential(storage, request);
+    case "/internal/calendar/feed":
+      return validateCalendarFeed(storage, request);
     case "/internal/provision":
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":

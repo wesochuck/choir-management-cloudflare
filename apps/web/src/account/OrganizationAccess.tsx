@@ -11,6 +11,7 @@ import {
   verifyOrganizationMfa,
 } from "../auth/api";
 import { OrganizationInvitations } from "./OrganizationInvitations";
+import { CalendarSubscription } from "./CalendarSubscription";
 
 type AccessState =
   | { readonly status: "error" }
@@ -659,6 +660,7 @@ export function OrganizationAccess() {
           visible={needsVerification && enrollmentComplete && !enrollmentSecrets}
         />
       </section>
+      <CalendarSubscription enabled={!needsVerification} />
       <OrganizationInvitations context={context} />
     </>
   );

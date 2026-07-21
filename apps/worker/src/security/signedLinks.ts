@@ -32,13 +32,16 @@ const signedLinkEnvelopeSchema = z.object({
 
 export type SignedLinkEnvelope = z.infer<typeof signedLinkEnvelopeSchema>;
 
-export interface VerifySignedLinkOptions {
+export interface VerifySignedLinkScopeOptions {
   readonly expectedOrganizationId: string;
   readonly expectedPurpose: z.infer<typeof signedLinkPurposeSchema>;
+  readonly now?: Date;
+}
+
+export interface VerifySignedLinkOptions extends VerifySignedLinkScopeOptions {
   readonly expectedResourceId?: string;
   readonly expectedRevocation?: string;
   readonly expectedSubjectId?: string;
-  readonly now?: Date;
 }
 
 function encodeBase64Url(bytes: Uint8Array): string {
@@ -124,22 +127,6 @@ function decodeSignedLinkToken(token: string): {
   }
 }
 
-function claimsMatch(
-  envelope: SignedLinkEnvelope,
-  options: VerifySignedLinkOptions,
-  nowSeconds: number,
-): boolean {
-  return (
-    envelope.issuedAt <= nowSeconds &&
-    envelope.expiresAt > nowSeconds &&
-    envelope.organizationId === options.expectedOrganizationId &&
-    envelope.purpose === options.expectedPurpose &&
-    envelope.resourceId === options.expectedResourceId &&
-    envelope.revocation === options.expectedRevocation &&
-    envelope.subjectId === options.expectedSubjectId
-  );
-}
-
 export async function issueSignedLink(secret: string, input: SignedLinkEnvelope): Promise<string> {
   if (secret.length < 32) {
     throw new Error("The signed-link secret is not configured securely.");
@@ -162,6 +149,20 @@ export async function verifySignedLink(
   token: string,
   options: VerifySignedLinkOptions,
 ): Promise<SignedLinkEnvelope | null> {
+  const envelope = await verifySignedLinkScope(secret, token, options);
+  return envelope &&
+    envelope.resourceId === options.expectedResourceId &&
+    envelope.revocation === options.expectedRevocation &&
+    envelope.subjectId === options.expectedSubjectId
+    ? envelope
+    : null;
+}
+
+export async function verifySignedLinkScope(
+  secret: string,
+  token: string,
+  options: VerifySignedLinkScopeOptions,
+): Promise<SignedLinkEnvelope | null> {
   if (secret.length < 32 || token.length === 0 || token.length > MAX_TOKEN_LENGTH) {
     return null;
   }
@@ -174,5 +175,10 @@ export async function verifySignedLink(
     return null;
   }
   const nowSeconds = Math.floor((options.now ?? new Date()).getTime() / 1000);
-  return claimsMatch(decoded.envelope, options, nowSeconds) ? decoded.envelope : null;
+  return decoded.envelope.issuedAt <= nowSeconds &&
+    decoded.envelope.expiresAt > nowSeconds &&
+    decoded.envelope.organizationId === options.expectedOrganizationId &&
+    decoded.envelope.purpose === options.expectedPurpose
+    ? decoded.envelope
+    : null;
 }

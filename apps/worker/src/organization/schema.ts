@@ -89,6 +89,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON scheduled_job_outbox(enqueued_at, due_at)`,
     ],
   },
+  {
+    version: 6,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN calendar_feed_version INTEGER NOT NULL DEFAULT 1",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

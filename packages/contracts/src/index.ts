@@ -257,6 +257,15 @@ export const privateFileResponseSchema = z.object({
 
 export type PrivateFileResponse = z.infer<typeof privateFileResponseSchema>;
 
+export const calendarFeedUrlsResponseSchema = z.object({
+  expiresAt: z.iso.datetime(),
+  httpsUrl: z.url(),
+  requestId: requestIdSchema,
+  webcalUrl: z.string().startsWith("webcal://"),
+});
+
+export type CalendarFeedUrlsResponse = z.infer<typeof calendarFeedUrlsResponseSchema>;
+
 export const organizationProvisionRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z

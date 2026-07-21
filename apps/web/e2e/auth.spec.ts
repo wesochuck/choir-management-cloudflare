@@ -582,6 +582,7 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
 });
 
 test("enrolls, verifies, and safely manages an Organization MFA policy", async ({ page }) => {
+  let calendarVersion = 1;
   let mfaRequired = false;
   let mfaVerifiedUntil: string | null = null;
   let twoFactorEnabled = false;
@@ -681,6 +682,22 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
       status: 200,
     });
   });
+  await page.route("**/api/singer/calendar-feed-url**", async (route) => {
+    if (route.request().method() === "POST") {
+      calendarVersion += 1;
+    }
+    const token = `browser-calendar-token-${String(calendarVersion)}`;
+    await route.fulfill({
+      body: JSON.stringify({
+        expiresAt: "2036-07-20T08:00:00.000Z",
+        httpsUrl: `http://alpha.localhost/api/calendar/feed?token=${token}`,
+        requestId,
+        webcalUrl: `webcal://alpha.localhost/api/calendar/feed?token=${token}`,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/organization/auth-policy", async (route) => {
     mfaRequired = !mfaRequired;
     mfaVerifiedUntil = null;
@@ -771,6 +788,20 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await page.goto("/account");
   const organizationSection = page.getByRole("region", { name: "Organization security" });
   await expect(organizationSection.getByText("MFA not required")).toBeVisible();
+  const calendarSection = page.getByRole("region", { name: "Calendar subscription" });
+  await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
+    /browser-calendar-token-1/,
+  );
+  await calendarSection.getByRole("button", { name: "Reset calendar address" }).click();
+  await calendarSection.getByRole("button", { name: "Keep current address" }).click();
+  await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
+    /browser-calendar-token-1/,
+  );
+  await calendarSection.getByRole("button", { name: "Reset calendar address" }).click();
+  await calendarSection.getByRole("button", { name: "Reset address" }).click();
+  await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
+    /browser-calendar-token-2/,
+  );
   await organizationSection
     .getByRole("button", { name: "Require MFA for this Organization" })
     .click();

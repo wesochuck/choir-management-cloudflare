@@ -800,9 +800,13 @@
         "path": "/api/calendar/feed",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1532",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/test/calendarFeed.integration.test.ts",
+          ],
       },
       {
         "id": "api.calendar-feed-url",
@@ -810,9 +814,13 @@
         "path": "/api/singer/calendar-feed-url",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1534",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/web/src/account/CalendarSubscription.tsx",
+          ],
       },
       {
         "id": "api.calendar-feed-reset",
@@ -820,9 +828,14 @@
         "path": "/api/singer/calendar-feed-url/reset",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1536",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/test/calendarFeed.integration.test.ts",
+            "apps/web/src/account/CalendarSubscription.tsx",
+          ],
       },
       {
         "id": "api.seating-profiles",
@@ -1086,9 +1099,14 @@
         "flow": "calendar-feed",
         "owner": "packages/domain",
         "milestone": 3,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/test/calendarFeed.integration.test.ts",
+          ],
       },
       {
         "id": "signed.ticket-scan",
