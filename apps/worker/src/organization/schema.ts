@@ -53,6 +53,10 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
   },
+  {
+    version: 3,
+    statements: ["ALTER TABLE job_ledger ADD COLUMN failed_at TEXT"],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

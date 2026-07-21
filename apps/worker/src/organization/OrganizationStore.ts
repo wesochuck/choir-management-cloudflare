@@ -7,8 +7,17 @@ import { migrateOrganization } from "./migrations";
 import { currentOrganizationSchemaVersion } from "./schema";
 
 const completionSchema = z.object({
+  attempt: z.number().int().min(1).max(10),
   completedAt: z.iso.datetime(),
   idempotencyKey: z.string().min(1).max(256),
+  jobId: z.uuid(),
+});
+
+const failureSchema = z.object({
+  attempt: z.number().int().min(1).max(10),
+  failedAt: z.iso.datetime(),
+  idempotencyKey: z.string().min(1).max(256),
+  jobId: z.uuid(),
 });
 
 const organizationProvisioningSchema = z.object({
@@ -28,6 +37,13 @@ interface OrganizationMetadataRow {
   readonly name: string;
   readonly organizationId: string;
   readonly slug: string;
+}
+
+interface JobLedgerRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly attempt: number;
+  readonly jobId: string;
+  readonly status: string;
 }
 
 function getProfileIdentity(storage: DurableObjectStorage, encodedProfileId: string): Response {
@@ -112,6 +128,84 @@ async function provisionOrganizationStore(
   });
 }
 
+async function claimJob(storage: DurableObjectStorage, request: Request): Promise<Response> {
+  const parsed = deliveryJobSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_job" }, { status: 400 });
+  }
+
+  const existing = storage.sql
+    .exec<JobLedgerRow>(
+      `SELECT status, attempt, job_id AS jobId
+       FROM job_ledger WHERE idempotency_key = ? LIMIT 1`,
+      parsed.data.idempotencyKey,
+    )
+    .toArray()
+    .at(0);
+  if (!existing) {
+    storage.sql.exec(
+      `INSERT INTO job_ledger
+        (idempotency_key, job_id, kind, status, attempt, claimed_at)
+       VALUES (?, ?, ?, 'claimed', ?, ?)`,
+      parsed.data.idempotencyKey,
+      parsed.data.jobId,
+      parsed.data.kind,
+      parsed.data.attempt,
+      new Date().toISOString(),
+    );
+    return Response.json({ claimed: true, status: "claimed" });
+  }
+  if (existing.jobId !== parsed.data.jobId) {
+    return Response.json({ code: "idempotency_key_conflict" }, { status: 409 });
+  }
+  if (existing.status === "completed" || parsed.data.attempt <= existing.attempt) {
+    return Response.json({ claimed: false, status: existing.status });
+  }
+  const reclaim = storage.sql.exec(
+    `UPDATE job_ledger
+     SET status = 'claimed', attempt = ?, claimed_at = ?, completed_at = NULL, failed_at = NULL
+     WHERE idempotency_key = ? AND job_id = ? AND attempt < ?`,
+    parsed.data.attempt,
+    new Date().toISOString(),
+    parsed.data.idempotencyKey,
+    parsed.data.jobId,
+    parsed.data.attempt,
+  );
+  return Response.json({ claimed: reclaim.rowsWritten === 1, status: "claimed" });
+}
+
+async function completeJob(storage: DurableObjectStorage, request: Request): Promise<Response> {
+  const parsed = completionSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_completion" }, { status: 400 });
+  }
+  const result = storage.sql.exec(
+    `UPDATE job_ledger SET status = 'completed', completed_at = ?, failed_at = NULL
+     WHERE idempotency_key = ? AND job_id = ? AND attempt = ? AND status = 'claimed'`,
+    parsed.data.completedAt,
+    parsed.data.idempotencyKey,
+    parsed.data.jobId,
+    parsed.data.attempt,
+  );
+  return Response.json({ completed: result.rowsWritten === 1 });
+}
+
+async function failJob(storage: DurableObjectStorage, request: Request): Promise<Response> {
+  const parsed = failureSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_failure" }, { status: 400 });
+  }
+  const result = storage.sql.exec(
+    `UPDATE job_ledger SET status = 'failed', completed_at = NULL, failed_at = ?
+     WHERE idempotency_key = ? AND job_id = ? AND attempt = ? AND status = 'claimed'`,
+    parsed.data.failedAt,
+    parsed.data.idempotencyKey,
+    parsed.data.jobId,
+    parsed.data.attempt,
+  );
+  return Response.json({ failed: result.rowsWritten === 1 });
+}
+
 export class OrganizationStore extends DurableObject<Env> {
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
@@ -135,47 +229,15 @@ export class OrganizationStore extends DurableObject<Env> {
     }
 
     if (request.method === "POST" && url.pathname === "/internal/jobs/claim") {
-      const parsed = deliveryJobSchema.safeParse(await request.json());
-      if (!parsed.success) {
-        return Response.json({ code: "invalid_job" }, { status: 400 });
-      }
-
-      const existing = this.ctx.storage.sql
-        .exec<{ status: string }>(
-          "SELECT status FROM job_ledger WHERE idempotency_key = ? LIMIT 1",
-          parsed.data.idempotencyKey,
-        )
-        .toArray()
-        .at(0);
-      if (existing) {
-        return Response.json({ claimed: false, status: existing.status });
-      }
-
-      this.ctx.storage.sql.exec(
-        `INSERT INTO job_ledger
-          (idempotency_key, job_id, kind, status, attempt, claimed_at)
-          VALUES (?, ?, ?, 'claimed', ?, ?)`,
-        parsed.data.idempotencyKey,
-        parsed.data.jobId,
-        parsed.data.kind,
-        parsed.data.attempt,
-        new Date().toISOString(),
-      );
-      return Response.json({ claimed: true, status: "claimed" });
+      return claimJob(this.ctx.storage, request);
     }
 
     if (request.method === "POST" && url.pathname === "/internal/jobs/complete") {
-      const parsed = completionSchema.safeParse(await request.json());
-      if (!parsed.success) {
-        return Response.json({ code: "invalid_completion" }, { status: 400 });
-      }
-      this.ctx.storage.sql.exec(
-        `UPDATE job_ledger SET status = 'completed', completed_at = ?
-         WHERE idempotency_key = ? AND status = 'claimed'`,
-        parsed.data.completedAt,
-        parsed.data.idempotencyKey,
-      );
-      return Response.json({ completed: true });
+      return completeJob(this.ctx.storage, request);
+    }
+
+    if (request.method === "POST" && url.pathname === "/internal/jobs/fail") {
+      return failJob(this.ctx.storage, request);
     }
 
     return Response.json({ code: "not_found" }, { status: 404 });

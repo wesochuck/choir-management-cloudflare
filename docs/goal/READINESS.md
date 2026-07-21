@@ -3,8 +3,9 @@
 **Prepared:** July 21, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
 tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
-OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging.
-Production is not launched.
+OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging. The
+Milestone 3 queue retry/idempotency/isolation foundation is now in progress. Production is not
+launched.
 
 ## Repository topology
 
@@ -43,7 +44,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `e01a663c-be6b-4aa9-a0a0-30028c193e4d`
+- Current verified Worker version: `66c74867-13ca-40ad-a909-104604e1527e`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0005_profile_link.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -55,7 +56,7 @@ secrets, or signing secrets in this file.
 - External effects: `fake`
 - Platform email: `capture`
 
-Verified over public HTTPS on July 20, 2026:
+Verified over public HTTPS on July 20–21, 2026:
 
 - `/api/health` returned HTTP 200 and a validated staging health payload.
 - `/api/ready` returned HTTP 200 after querying the migrated D1 binding.
@@ -107,6 +108,14 @@ Verified over public HTTPS on July 20, 2026:
   bound wrapper. The custom invitation list returned HTTP 404 on the global workers.dev base before
   session or invitation processing. Remote D1 retained zero invitations, Memberships, Organizations,
   and sessions, and migrations `0001` through `0005` remained fully applied with none pending.
+- After the queue-retry deployment, health and readiness again returned HTTP 200. The forward-only
+  Organization schema registry now adds version 3's nullable job-failure timestamp lazily when an
+  Organization store is next opened; old Worker code safely ignores the additive column. No live
+  synthetic queue message was sent because staging has no Organization records, while real workerd
+  queue/SQLite binding tests prove failed-attempt recording, higher-attempt reclamation, terminal
+  completion, duplicate acknowledgment, malformed-message acknowledgment, and isolation of the same
+  idempotency key across two Organization stores. Remote D1 remained unchanged with no migrations
+  pending.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -119,7 +128,7 @@ Verified over public HTTPS on July 20, 2026:
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
 - `npm test`: 4 files / 11 tests passed, including staging-bootstrap safety coverage.
-- `npm run test:integration`: 2 files / 26 workerd tests passed.
+- `npm run test:integration`: 3 files / 29 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed.
@@ -140,10 +149,16 @@ Owner-controlled and its 12-hour assertions are bound to the exact Organization,
 email OTP alone does not satisfy it. Capture-mode platform email is bounded and in-memory; codes and
 recovery values are never logged or persisted by the capture adapter.
 
+Queue consumers now replace the producer's attempt hint with Cloudflare's trusted delivery-attempt
+counter, claim work only in the Organization store named by the validated job envelope, and persist
+failed state before requesting a bounded exponential-backoff retry. A later attempt can reclaim a
+failed or interrupted claim, while completed work and same-attempt duplicates are acknowledged
+without another external effect. Completion and failure transitions match the job ID, idempotency
+key, and attempt. The same idempotency key is intentionally independent in another Organization's
+Durable Object. Sandbox provider effects remain unconfigured and staging continues in fake mode.
+
 Membership-to-Profile linkage stores only the Profile ID in D1 after confirming the Profile exists
 inside the hostname-resolved Organization Durable Object. The linkage is unique within that
-Organization and actor-attributed; a Profile in another Organization store is rejected.
-
 Organization Owners may register normalized Public Website Domains as pending D1 routing records
 from their canonical product hostname. Registration rejects IP literals, invalid DNS hostnames, the
 product namespace, and cross-Organization duplicates. Disabling a domain increments its routing
@@ -252,7 +267,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 2 with validated custom-domain activation when a managed zone is available,
-   and complete the remaining cross-resource isolation probes while provider credentials are
-   pending.
+3. Continue the Milestone 3 Organization storage/file/publication foundation and use those surfaces
+   to finish R2 key-substitution and public-read isolation proof. Return to validated custom-domain
+   activation when a managed zone is available.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.
