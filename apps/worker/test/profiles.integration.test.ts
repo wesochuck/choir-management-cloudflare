@@ -1,4 +1,5 @@
 import {
+  organizationProfileSchema,
   organizationProfileResponseSchema,
   organizationProfilesResponseSchema,
 } from "@choir/contracts";
@@ -42,7 +43,7 @@ async function provision(
         `INSERT INTO organizations
           (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
            created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 8, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'active', ?, 9, ?, ?, ?)`,
       )
       .bind(organizationId, name, slug, organizationId, now, now, now),
     controlDatabase
@@ -138,6 +139,39 @@ describe("Organization Profiles", () => {
     const created = organizationProfileResponseSchema.parse(await createdResponse.json());
     expect(created.displayName).toBe("Alpha Singer");
 
+    const updatedResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${created.id}`, cookie, {
+        body: JSON.stringify({
+          displayName: "Alpha Singer Updated",
+          doNotEmail: true,
+          globalStatus: "Idle",
+          isSectionLeader: true,
+          notes: "On Break through September",
+          phone: "555-0100",
+          receiveAdminNotifications: false,
+          receiveAttendanceReports: false,
+          receiveFinancialAlerts: true,
+          receiveRsvpDeclineNotices: true,
+          showInDirectory: false,
+          voicePart: "S1",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(updatedResponse.status).toBe(200);
+    const updated = organizationProfileResponseSchema.parse(await updatedResponse.json());
+    expect(updated).toMatchObject({
+      displayName: "Alpha Singer Updated",
+      doNotEmail: true,
+      globalStatus: "Idle",
+      isSectionLeader: true,
+      notes: "On Break through September",
+      phone: "555-0100",
+      showInDirectory: false,
+      voicePart: "S1",
+    });
+
     const alphaList = organizationProfilesResponseSchema.parse(
       await (
         await exports.default.fetch(
@@ -145,14 +179,7 @@ describe("Organization Profiles", () => {
         )
       ).json(),
     );
-    expect(alphaList.profiles).toEqual([
-      {
-        createdAt: created.createdAt,
-        displayName: "Alpha Singer",
-        id: created.id,
-        updatedAt: created.updatedAt,
-      },
-    ]);
+    expect(alphaList.profiles).toEqual([organizationProfileSchema.parse(updated)]);
     const bravoList = organizationProfilesResponseSchema.parse(
       await (
         await exports.default.fetch(
@@ -171,18 +198,18 @@ describe("Organization Profiles", () => {
       ),
     ).toMatchObject({ status: 403 });
 
-    const audit = await runInDurableObject<OrganizationStore, { actorId: string } | null>(
+    const auditCount = await runInDurableObject<OrganizationStore, number>(
       organizationStore.get(organizationStore.idFromName("organization-alpha")),
       (_instance, state) =>
         state.storage.sql
-          .exec<{ actorId: string }>(
-            `SELECT actor_id AS actorId FROM audit_events
-             WHERE action = 'profile.created' AND target_id = ?`,
+          .exec<{ count: number }>(
+            `SELECT COUNT(*) AS count FROM audit_events
+             WHERE action IN ('profile.created', 'profile.updated') AND target_id = ?
+               AND actor_id = 'profile-manager'`,
             created.id,
           )
-          .toArray()
-          .at(0) ?? null,
+          .one().count,
     );
-    expect(audit).toEqual({ actorId: "profile-manager" });
+    expect(auditCount).toBe(2);
   });
 });

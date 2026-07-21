@@ -1173,6 +1173,8 @@
           [
             "apps/worker/src/organization/profiles.ts",
             "apps/worker/test/profiles.integration.test.ts",
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/e2e/auth.spec.ts",
           ],
       },
       {

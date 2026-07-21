@@ -27,7 +27,42 @@ test.beforeEach(async ({ page }) => {
   const requestId = "99999999-9999-4999-8999-999999999999";
   await page.route("**/api/organization/profiles", async (route) => {
     await route.fulfill({
-      body: JSON.stringify({ profiles: [], requestId }),
+      body: JSON.stringify({
+        profiles: [
+          {
+            createdAt: "2026-07-20T20:00:00.000Z",
+            displayName: "Browser Singer",
+            doNotEmail: false,
+            globalStatus: "Active",
+            id: "11111111-1111-4111-8111-111111111111",
+            isSectionLeader: false,
+            notes: "",
+            phone: "",
+            receiveAdminNotifications: true,
+            receiveAttendanceReports: true,
+            receiveFinancialAlerts: false,
+            receiveRsvpDeclineNotices: false,
+            showInDirectory: true,
+            updatedAt: "2026-07-20T20:00:00.000Z",
+            voicePart: "S2",
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/profiles/*", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    await route.fulfill({
+      body: JSON.stringify({
+        ...(typeof body === "object" && body !== null ? body : {}),
+        createdAt: "2026-07-20T20:00:00.000Z",
+        id: "11111111-1111-4111-8111-111111111111",
+        requestId,
+        updatedAt: "2026-07-20T20:15:00.000Z",
+      }),
       contentType: "application/json",
       status: 200,
     });
@@ -926,6 +961,12 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(
     organizationCalendar.getByRole("heading", { name: "Browser Concert" }),
   ).toBeVisible();
+  await organizationCalendar.getByRole("button", { name: "Edit Profile" }).click();
+  await organizationCalendar.getByLabel("Phone").fill("555-0199");
+  await organizationCalendar.getByLabel("Status").selectOption("Idle");
+  await organizationCalendar.getByRole("button", { name: "Save Profile" }).click();
+  await expect(organizationCalendar.getByText("Profile updated.")).toBeVisible();
+  await expect(organizationCalendar.getByText("On Break · S2")).toBeVisible();
   await organizationCalendar.getByRole("button", { name: "Clone" }).click();
   await expect(organizationCalendar.getByLabel("Title")).toHaveValue("Browser Concert copy");
   await expect(organizationCalendar.getByLabel("Parent performance")).toHaveValue("");

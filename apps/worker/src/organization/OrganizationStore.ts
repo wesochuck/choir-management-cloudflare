@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
+import { organizationProfileRequestSchema } from "@choir/contracts";
 
 import type { Env } from "../env";
 import { deliveryJobSchema } from "../jobs/contracts";
@@ -48,11 +49,12 @@ const organizationProvisioningSchema = z.object({
 const profileIdSchema = z.uuid();
 const profileCreateSchema = z.object({
   actorUserId: z.string().min(1).max(128),
-  displayName: z.string().trim().min(1).max(200),
   organizationId: z.string().min(1).max(128),
+  profile: organizationProfileRequestSchema,
   profileId: z.uuid(),
   requestId: z.uuid(),
 });
+const profileUpdateSchema = profileCreateSchema;
 const schemaPreparationRequestSchema = z.object({
   organizationId: z.string().min(1).max(128),
   targetVersion: z.number().int().positive(),
@@ -105,8 +107,39 @@ interface OrganizationProfileRow {
   readonly [column: string]: SqlStorageValue;
   readonly createdAt: string;
   readonly displayName: string;
+  readonly doNotEmail: number;
+  readonly globalStatus: "Active" | "Idle" | "Inactive";
   readonly id: string;
+  readonly isSectionLeader: number;
+  readonly notes: string;
+  readonly phone: string;
+  readonly receiveAdminNotifications: number;
+  readonly receiveAttendanceReports: number;
+  readonly receiveFinancialAlerts: number;
+  readonly receiveRsvpDeclineNotices: number;
+  readonly showInDirectory: number;
   readonly updatedAt: string;
+  readonly voicePart: string;
+}
+
+function profileResult(row: OrganizationProfileRow) {
+  return {
+    createdAt: row.createdAt,
+    displayName: row.displayName,
+    doNotEmail: row.doNotEmail === 1,
+    globalStatus: row.globalStatus,
+    id: row.id,
+    isSectionLeader: row.isSectionLeader === 1,
+    notes: row.notes,
+    phone: row.phone,
+    receiveAdminNotifications: row.receiveAdminNotifications === 1,
+    receiveAttendanceReports: row.receiveAttendanceReports === 1,
+    receiveFinancialAlerts: row.receiveFinancialAlerts === 1,
+    receiveRsvpDeclineNotices: row.receiveRsvpDeclineNotices === 1,
+    showInDirectory: row.showInDirectory === 1,
+    updatedAt: row.updatedAt,
+    voicePart: row.voicePart,
+  };
 }
 
 interface CalendarEventRow {
@@ -167,10 +200,18 @@ function listProfiles(storage: DurableObjectStorage, organizationId: string | nu
   }
   const profiles = storage.sql
     .exec<OrganizationProfileRow>(
-      `SELECT id, display_name AS displayName, created_at AS createdAt, updated_at AS updatedAt
+      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
+         global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+         do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
+         receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
+         receive_admin_notifications AS receiveAdminNotifications,
+         receive_financial_alerts AS receiveFinancialAlerts,
+         is_section_leader AS isSectionLeader,
+         created_at AS createdAt, updated_at AS updatedAt
        FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
-    .toArray();
+    .toArray()
+    .map(profileResult);
   return Response.json({ profiles });
 }
 
@@ -183,12 +224,28 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   const occurredAt = new Date().toISOString();
+  const profile = parsed.data.profile;
   storage.transactionSync(() => {
     storage.sql.exec(
-      `INSERT INTO profiles (id, display_name, created_at, updated_at)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO profiles
+        (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
+         do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
+         receive_admin_notifications, receive_financial_alerts, is_section_leader,
+         created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       parsed.data.profileId,
-      parsed.data.displayName,
+      profile.displayName,
+      profile.phone,
+      profile.voicePart,
+      profile.globalStatus,
+      profile.notes,
+      profile.showInDirectory ? 1 : 0,
+      profile.doNotEmail ? 1 : 0,
+      profile.receiveAttendanceReports ? 1 : 0,
+      profile.receiveRsvpDeclineNotices ? 1 : 0,
+      profile.receiveAdminNotifications ? 1 : 0,
+      profile.receiveFinancialAlerts ? 1 : 0,
+      profile.isSectionLeader ? 1 : 0,
       occurredAt,
       occurredAt,
     );
@@ -201,16 +258,71 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
       parsed.data.actorUserId,
       parsed.data.profileId,
       parsed.data.requestId,
-      JSON.stringify({ displayName: parsed.data.displayName }),
+      JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
       occurredAt,
     );
   });
   return Response.json({
     createdAt: occurredAt,
-    displayName: parsed.data.displayName,
+    ...profile,
     id: parsed.data.profileId,
     updatedAt: occurredAt,
   });
+}
+
+async function updateProfile(storage: DurableObjectStorage, request: Request): Promise<Response> {
+  const parsed = profileUpdateSchema.safeParse(await request.json());
+  if (!parsed.success) return Response.json({ code: "invalid_profile" }, { status: 400 });
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const exists = storage.sql
+    .exec("SELECT 1 FROM profiles WHERE id = ? LIMIT 1", parsed.data.profileId)
+    .toArray().length;
+  if (exists === 0) return Response.json({ code: "profile_not_found" }, { status: 404 });
+  const occurredAt = new Date().toISOString();
+  const profile = parsed.data.profile;
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE profiles SET display_name = ?, phone = ?, voice_part = ?, global_status = ?,
+         notes = ?, show_in_directory = ?, do_not_email = ?, receive_attendance_reports = ?,
+         receive_rsvp_decline_notices = ?, receive_admin_notifications = ?,
+         receive_financial_alerts = ?, is_section_leader = ?, updated_at = ? WHERE id = ?`,
+      profile.displayName,
+      profile.phone,
+      profile.voicePart,
+      profile.globalStatus,
+      profile.notes,
+      profile.showInDirectory ? 1 : 0,
+      profile.doNotEmail ? 1 : 0,
+      profile.receiveAttendanceReports ? 1 : 0,
+      profile.receiveRsvpDeclineNotices ? 1 : 0,
+      profile.receiveAdminNotifications ? 1 : 0,
+      profile.receiveFinancialAlerts ? 1 : 0,
+      profile.isSectionLeader ? 1 : 0,
+      occurredAt,
+      parsed.data.profileId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'profile.updated', 'profile', ?, ?, ?, ?)`,
+      `profile-updated:${parsed.data.requestId}`,
+      parsed.data.actorUserId,
+      parsed.data.profileId,
+      parsed.data.requestId,
+      JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
+      occurredAt,
+    );
+  });
+  const createdAt = storage.sql
+    .exec<{ readonly createdAt: string }>(
+      "SELECT created_at AS createdAt FROM profiles WHERE id = ?",
+      parsed.data.profileId,
+    )
+    .one().createdAt;
+  return Response.json({ ...profile, createdAt, id: parsed.data.profileId, updatedAt: occurredAt });
 }
 
 async function provisionOrganizationStore(
@@ -707,6 +819,8 @@ async function dispatchPostRequest(
       return manageOrganizationCalendarInStore(storage, request);
     case "/internal/profiles":
       return createProfile(storage, request);
+    case "/internal/profiles/update":
+      return updateProfile(storage, request);
     case "/internal/provision":
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":

@@ -2,6 +2,7 @@ import {
   organizationProfileSchema,
   organizationProfilesResponseSchema,
   type OrganizationProfile,
+  type OrganizationProfileRequest,
 } from "@choir/contracts";
 
 import type { Env } from "../env";
@@ -26,8 +27,8 @@ export async function createOrganizationProfile(
   env: Env,
   input: {
     readonly actorUserId: string;
-    readonly displayName: string;
     readonly organizationId: string;
+    readonly profile: OrganizationProfileRequest;
     readonly requestId: string;
   },
 ): Promise<OrganizationProfile> {
@@ -43,6 +44,32 @@ export async function createOrganizationProfile(
   if (!response.ok) throw new Error("The Organization store rejected the Profile create request.");
   const profile = organizationProfileSchema.parse(await response.json());
   if (profile.id !== profileId) {
+    throw new Error("The Organization store returned a mismatched Profile identity.");
+  }
+  return profile;
+}
+
+export async function updateOrganizationProfile(
+  env: Env,
+  input: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly profile: OrganizationProfileRequest;
+    readonly profileId: string;
+    readonly requestId: string;
+  },
+): Promise<OrganizationProfile> {
+  const response = await organizationStub(env, input.organizationId).fetch(
+    "https://organization.internal/internal/profiles/update",
+    {
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) throw new Error("The Organization store rejected the Profile update request.");
+  const profile = organizationProfileSchema.parse(await response.json());
+  if (profile.id !== input.profileId) {
     throw new Error("The Organization store returned a mismatched Profile identity.");
   }
   return profile;

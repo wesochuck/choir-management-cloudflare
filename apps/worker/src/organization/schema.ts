@@ -144,6 +144,23 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        CHECK (attendance IN ('Present', 'Absent', 'Pending'))`,
     ],
   },
+  {
+    version: 9,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN phone TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE profiles ADD COLUMN voice_part TEXT NOT NULL DEFAULT ''",
+      `ALTER TABLE profiles ADD COLUMN global_status TEXT NOT NULL DEFAULT 'Active'
+       CHECK (global_status IN ('Active', 'Idle', 'Inactive'))`,
+      "ALTER TABLE profiles ADD COLUMN notes TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE profiles ADD COLUMN show_in_directory INTEGER NOT NULL DEFAULT 1 CHECK (show_in_directory IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN do_not_email INTEGER NOT NULL DEFAULT 0 CHECK (do_not_email IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN receive_attendance_reports INTEGER NOT NULL DEFAULT 1 CHECK (receive_attendance_reports IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN receive_rsvp_decline_notices INTEGER NOT NULL DEFAULT 0 CHECK (receive_rsvp_decline_notices IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN receive_admin_notifications INTEGER NOT NULL DEFAULT 1 CHECK (receive_admin_notifications IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN receive_financial_alerts INTEGER NOT NULL DEFAULT 0 CHECK (receive_financial_alerts IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN is_section_leader INTEGER NOT NULL DEFAULT 0 CHECK (is_section_leader IN (0, 1))",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

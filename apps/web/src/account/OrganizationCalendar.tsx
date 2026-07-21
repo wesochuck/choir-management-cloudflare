@@ -3,6 +3,7 @@ import type {
   OrganizationEvent,
   OrganizationEventRequest,
   OrganizationProfile,
+  OrganizationProfileRequest,
   OrganizationVenue,
 } from "@choir/contracts";
 import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
@@ -21,6 +22,7 @@ import {
   setOrganizationEventRsvp,
   updateOrganizationCalendarSettings,
   updateOrganizationEvent,
+  updateOrganizationProfile,
 } from "../auth/api";
 
 interface Resources {
@@ -49,6 +51,21 @@ const emptyEvent: OrganizationEventRequest = {
   venueId: null,
 };
 
+const emptyProfile: OrganizationProfileRequest = {
+  displayName: "",
+  doNotEmail: false,
+  globalStatus: "Active",
+  isSectionLeader: false,
+  notes: "",
+  phone: "",
+  receiveAdminNotifications: true,
+  receiveAttendanceReports: true,
+  receiveFinancialAlerts: false,
+  receiveRsvpDeclineNotices: false,
+  showInDirectory: true,
+  voicePart: "",
+};
+
 function displayEventDate(value: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -66,6 +83,10 @@ function readRsvp(value: string): "No" | "Pending" | "Yes" {
   return "Pending";
 }
 
+function profileStatusLabel(value: OrganizationProfile["globalStatus"]): string {
+  return value === "Idle" ? "On Break" : value;
+}
+
 function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
   return {
     callTime: event.callTime,
@@ -79,6 +100,23 @@ function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
     title: event.title,
     type: event.type,
     venueId: event.venueId,
+  };
+}
+
+function profileRequestFrom(profile: OrganizationProfile): OrganizationProfileRequest {
+  return {
+    displayName: profile.displayName,
+    doNotEmail: profile.doNotEmail,
+    globalStatus: profile.globalStatus,
+    isSectionLeader: profile.isSectionLeader,
+    notes: profile.notes,
+    phone: profile.phone,
+    receiveAdminNotifications: profile.receiveAdminNotifications,
+    receiveAttendanceReports: profile.receiveAttendanceReports,
+    receiveFinancialAlerts: profile.receiveFinancialAlerts,
+    receiveRsvpDeclineNotices: profile.receiveRsvpDeclineNotices,
+    showInDirectory: profile.showInDirectory,
+    voicePart: profile.voicePart,
   };
 }
 
@@ -199,7 +237,8 @@ export function OrganizationCalendar({
   const [event, setEvent] = useState<OrganizationEventRequest>(emptyEvent);
   const [eventStart, setEventStart] = useState("");
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
-  const [profileName, setProfileName] = useState("");
+  const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [resources, setResources] = useState<ResourceState>({ status: "loading" });
   const [rsvpEventId, setRsvpEventId] = useState("");
   const [rsvpProfileId, setRsvpProfileId] = useState("");
@@ -247,18 +286,35 @@ export function OrganizationCalendar({
   async function addProfile() {
     beginAction();
     try {
-      const profile = await createOrganizationProfile(profileName);
+      const saved = editingProfileId
+        ? await updateOrganizationProfile(editingProfileId, profile)
+        : await createOrganizationProfile(profile);
       setResources((current) =>
         current.status === "ready"
-          ? { ...current, profiles: [...current.profiles, profile] }
+          ? {
+              ...current,
+              profiles: editingProfileId
+                ? current.profiles.map((candidate) =>
+                    candidate.id === saved.id ? saved : candidate,
+                  )
+                : [...current.profiles, saved],
+            }
           : current,
       );
-      setProfileName("");
-      setSuccess("Profile created.");
+      setEditingProfileId(null);
+      setProfile(emptyProfile);
+      setSuccess(editingProfileId ? "Profile updated." : "Profile created.");
       setBusy(false);
     } catch (actionError: unknown) {
       failAction(actionError, "The Profile could not be created.");
     }
+  }
+
+  function beginProfileEdit(candidate: OrganizationProfile) {
+    setEditingProfileId(candidate.id);
+    setProfile(profileRequestFrom(candidate));
+    setError(null);
+    setSuccess(null);
   }
 
   async function addVenue() {
@@ -397,7 +453,7 @@ export function OrganizationCalendar({
           <div className="calendar-summary-grid">
             <div>
               <h3>Profiles</h3>
-              <p>{resources.profiles.length} active</p>
+              <p>{resources.profiles.length} total</p>
             </div>
             <div>
               <h3>Venues</h3>
@@ -449,22 +505,125 @@ export function OrganizationCalendar({
                   void addProfile();
                 }}
               >
-                <h3>Create Profile</h3>
+                <h3>{editingProfileId ? "Edit Profile" : "Create Profile"}</h3>
                 <div className="field">
                   <label htmlFor="profile-name">Display name</label>
                   <input
                     id="profile-name"
                     maxLength={200}
                     onChange={(change) => {
-                      setProfileName(change.target.value);
+                      setProfile((current) => ({ ...current, displayName: change.target.value }));
                     }}
                     required
-                    value={profileName}
+                    value={profile.displayName}
                   />
                 </div>
+                <div className="field">
+                  <label htmlFor="profile-phone">Phone</label>
+                  <input
+                    id="profile-phone"
+                    maxLength={50}
+                    onChange={(change) => {
+                      setProfile((current) => ({ ...current, phone: change.target.value }));
+                    }}
+                    value={profile.phone}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-voice-part">Voice part</label>
+                  <input
+                    id="profile-voice-part"
+                    maxLength={100}
+                    onChange={(change) => {
+                      setProfile((current) => ({ ...current, voicePart: change.target.value }));
+                    }}
+                    value={profile.voicePart}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-status">Status</label>
+                  <select
+                    id="profile-status"
+                    onChange={(change) => {
+                      const value = change.target.value;
+                      setProfile((current) => ({
+                        ...current,
+                        globalStatus: value === "Idle" || value === "Inactive" ? value : "Active",
+                      }));
+                    }}
+                    value={profile.globalStatus}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Idle">On Break</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-notes">Notes</label>
+                  <textarea
+                    id="profile-notes"
+                    maxLength={100000}
+                    onChange={(change) => {
+                      setProfile((current) => ({ ...current, notes: change.target.value }));
+                    }}
+                    rows={3}
+                    value={profile.notes}
+                  />
+                </div>
+                <label className="checkbox-row">
+                  <input
+                    checked={profile.showInDirectory}
+                    onChange={(change) => {
+                      setProfile((current) => ({
+                        ...current,
+                        showInDirectory: change.target.checked,
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  Show in directory
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    checked={profile.isSectionLeader}
+                    onChange={(change) => {
+                      setProfile((current) => ({
+                        ...current,
+                        isSectionLeader: change.target.checked,
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  Section leader
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    checked={profile.doNotEmail}
+                    onChange={(change) => {
+                      setProfile((current) => ({
+                        ...current,
+                        doNotEmail: change.target.checked,
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  Do not email
+                </label>
                 <button className="button button--primary" disabled={busy} type="submit">
-                  Create Profile
+                  {editingProfileId ? "Save Profile" : "Create Profile"}
                 </button>
+                {editingProfileId ? (
+                  <button
+                    className="button button--secondary"
+                    onClick={() => {
+                      setEditingProfileId(null);
+                      setProfile(emptyProfile);
+                    }}
+                    type="button"
+                  >
+                    Cancel Profile edit
+                  </button>
+                ) : null}
               </form>
               <form
                 className="form-stack"
@@ -693,6 +852,31 @@ export function OrganizationCalendar({
             </div>
           ) : null}
           <div className="calendar-event-list">
+            <h3>Profiles</h3>
+            <ul className="account-list">
+              {resources.profiles.map((item) => (
+                <li key={item.id}>
+                  <div>
+                    <h3>{item.displayName}</h3>
+                    <p>
+                      {profileStatusLabel(item.globalStatus)} · {item.voicePart || "No voice part"}
+                    </p>
+                  </div>
+                  {manager ? (
+                    <button
+                      className="button button--secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        beginProfileEdit(item);
+                      }}
+                      type="button"
+                    >
+                      Edit Profile
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
             <h3>Events</h3>
             {resources.events.length === 0 ? (
               <p className="empty-state">No events have been created yet.</p>

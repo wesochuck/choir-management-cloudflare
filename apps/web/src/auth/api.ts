@@ -53,6 +53,7 @@ import {
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
   type OrganizationProfile,
+  type OrganizationProfileRequest,
   type OrganizationRsvp,
   type OrganizationVenue,
   type SingerEventsResponse,
@@ -217,10 +218,23 @@ export async function listOrganizationProfiles(
   return organizationProfilesResponseSchema.parse(await response.json()).profiles;
 }
 
-export async function createOrganizationProfile(displayName: string): Promise<OrganizationProfile> {
+export async function createOrganizationProfile(
+  profile: OrganizationProfileRequest,
+): Promise<OrganizationProfile> {
   const response = await request("/api/organization/profiles", {
-    body: JSON.stringify({ displayName }),
+    body: JSON.stringify(profile),
     method: "POST",
+  });
+  return organizationProfileResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationProfile(
+  profileId: string,
+  profile: OrganizationProfileRequest,
+): Promise<OrganizationProfile> {
+  const response = await request(`/api/organization/profiles/${encodeURIComponent(profileId)}`, {
+    body: JSON.stringify(profile),
+    method: "PUT",
   });
   return organizationProfileResponseSchema.parse(await response.json());
 }

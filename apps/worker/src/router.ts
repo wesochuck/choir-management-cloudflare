@@ -78,7 +78,11 @@ import {
 import type { Env } from "./env";
 import { validateStartupConfig } from "./env";
 import { currentOrganizationSchemaVersion } from "./organization/schema";
-import { createOrganizationProfile, listOrganizationProfiles } from "./organization/profiles";
+import {
+  createOrganizationProfile,
+  listOrganizationProfiles,
+  updateOrganizationProfile,
+} from "./organization/profiles";
 import { readPublishedOrganization } from "./publication/publishOrganization";
 import {
   MAX_PRIVATE_FILE_BYTES,
@@ -1233,8 +1237,8 @@ router.post("/api/organization/profiles", async (context) => {
   try {
     const profile = await createOrganizationProfile(context.env, {
       actorUserId: authorization.value.userId,
-      displayName: parsedBody.data.displayName,
       organizationId,
+      profile: parsedBody.data,
       requestId: context.get("requestId"),
     });
     return context.json({ ...profile, requestId: context.get("requestId") }, 201);
@@ -1243,6 +1247,49 @@ router.post("/api/organization/profiles", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization Profile could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/profiles/:profileId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = z.uuid().safeParse(context.req.param("profileId"));
+  const profile = organizationProfileRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!profileId.success || !profile.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Profile and Profile details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const updated = await updateOrganizationProfile(context.env, {
+      actorUserId: authorization.userId,
+      organizationId: authorization.organizationId,
+      profile: profile.data,
+      profileId: profileId.data,
+      requestId: context.get("requestId"),
+    });
+    return context.json({ ...updated, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization Profile could not be updated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

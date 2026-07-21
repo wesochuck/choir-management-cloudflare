@@ -30,12 +30,22 @@ export const organizationContextResponseSchema = z.object({
 export type OrganizationContextResponse = z.infer<typeof organizationContextResponseSchema>;
 
 export const organizationProfileRequestSchema = z.object({
+  doNotEmail: z.boolean().default(false),
   displayName: z.string().trim().min(1).max(200),
+  globalStatus: z.enum(["Active", "Idle", "Inactive"]).default("Active"),
+  isSectionLeader: z.boolean().default(false),
+  notes: z.string().trim().max(100_000).default(""),
+  phone: z.string().trim().max(50).default(""),
+  receiveAdminNotifications: z.boolean().default(true),
+  receiveAttendanceReports: z.boolean().default(true),
+  receiveFinancialAlerts: z.boolean().default(false),
+  receiveRsvpDeclineNotices: z.boolean().default(false),
+  showInDirectory: z.boolean().default(true),
+  voicePart: z.string().trim().max(100).default(""),
 });
 
-export const organizationProfileSchema = z.object({
+export const organizationProfileSchema = organizationProfileRequestSchema.extend({
   createdAt: z.iso.datetime(),
-  displayName: z.string().min(1).max(200),
   id: z.uuid(),
   updatedAt: z.iso.datetime(),
 });
