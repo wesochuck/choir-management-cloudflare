@@ -46,8 +46,8 @@ secrets, or signing secrets in this file.
 - Product URL: <https://staging.musicsite.org>
 - Workers.dev diagnostic fallback:
   <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
-- Canonical Organization namespace: `{slug}.staging.musicsite.org` (Worker route active; wildcard
-  DNS pending the interactive dashboard sign-in recorded below)
+- Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
+  route active)
 - Worker: `choir-management-cloudflare-staging`
 - Current verified Worker version: `8d05d2b2-0cce-4140-81ce-9b92f85af5fd`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
@@ -63,7 +63,7 @@ secrets, or signing secrets in this file.
 - Platform email: `capture`
 - Signed-link secret: configured independently in the staging Worker secret store
 
-Verified over public HTTPS on July 20–21, 2026:
+Verified over public HTTPS on July 20–22, 2026:
 
 - `/api/health` returned HTTP 200 and a validated staging health payload.
 - `/api/ready` returned HTTP 200 after querying the migrated D1 binding.
@@ -315,10 +315,13 @@ Verified over public HTTPS on July 20–21, 2026:
   returned HTTP 200, the global-host music endpoint returned hostname-first HTTP 404, and the live
   shell referenced `index-CbLrNf-W.js` and `index-w0SxyIdp.css`. The workers.dev diagnostic health
   endpoint also remained HTTP 200. Cloudflare activated the exact custom domain and
-  `*.staging.musicsite.org/*` Worker route, but an unregistered Organization hostname does not yet
-  resolve because wildcard DNS requires an interactive dashboard login. D1 had no pending migrations
-  and remained at zero Organizations, fleet schema preparations, and dead letters. Worker version
-  `8d05d2b2-0cce-4140-81ce-9b92f85af5fd` is the verified staging checkpoint for commit
+  `*.staging.musicsite.org/*` Worker route. On July 22, a proxied AAAA wildcard DNS record for
+  `*.staging.musicsite.org` was added with Cloudflare's `100::` placeholder. A public-resolver probe
+  returned Cloudflare edge addresses; a TLS-verified request to
+  `unregistered-check.staging.musicsite.org/api/health` returned HTTP 200, while the same hostname's
+  Organization music endpoint returned the expected hostname-first HTTP 404. D1 had no pending
+  migrations and remained at zero Organizations, fleet schema preparations, and dead letters. Worker
+  version `8d05d2b2-0cce-4140-81ce-9b92f85af5fd` is the verified staging checkpoint for commit
   `81acb05449bfe6e05a32edf190bcd3f488a745d6`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
@@ -534,10 +537,6 @@ These do not prevent local implementation of Milestones 0–4:
   commit.
 - Create a least-privilege Cloudflare API token for GitHub Actions and store it, plus the account
   ID, as GitHub environment secrets. The local Wrangler OAuth credential must not be reused in CI.
-- Sign in to the in-app Cloudflare dashboard, then add the staging-only proxied wildcard DNS record
-  required by the active `*.staging.musicsite.org/*` Worker route. Wrangler OAuth can write Worker
-  routes but has read-only zone access, and the browser session is currently at the Cloudflare
-  sign-in screen. Do not share the password or MFA value with the agent.
 - Enable the paid Cloudflare Email Sending entitlement and a verified platform sender domain before
   platform-email staging qualification. `wrangler email sending list` currently returns unauthorized
   code 2036; Email Routing has no configured zones.
