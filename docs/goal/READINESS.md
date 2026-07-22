@@ -354,6 +354,13 @@ Verified over public HTTPS on July 20–22, 2026:
   preparations, and dead letters. A post-range-deployment wildcard probe carrying a `Range` header
   also returned the expected hostname-first HTTP 404. Worker version
   `1f7a9957-76fd-44d6-a7d1-0fb430ac4460` is the verified staging checkpoint for commit `188fcd3`.
+- After the dedicated set-list deployment, both the custom domain and workers.dev application shell
+  converged on `index-6QLFmS8a.js` and `index-BDEf9WYr.css`. Custom-domain API health and readiness
+  and workers.dev API health returned HTTP 200 with valid TLS. An unregistered wildcard
+  Organization hostname's member-schedule endpoint returned the expected hostname-first HTTP 404.
+  D1 had no pending migrations and remained at zero Organizations, fleet schema preparations, and
+  dead letters. Worker version `8743e9e8-3658-4cf7-9edb-b97528d03a87` is the verified staging
+  checkpoint for commit `92525c8`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
