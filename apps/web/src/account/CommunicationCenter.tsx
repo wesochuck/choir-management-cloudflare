@@ -3,16 +3,21 @@ import type {
   CommunicationChannel,
   CommunicationDeliverySummary,
   CommunicationMessage,
+  CommunicationTemplate,
 } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 import {
   AuthApiError,
+  deleteOrganizationCommunicationDraft,
+  deleteOrganizationCommunicationTemplate,
   getOrganizationCommunicationDeliverySummary,
   listOrganizationCommunications,
+  listOrganizationCommunicationTemplates,
   previewOrganizationCommunicationReach,
   retryOrganizationCommunicationDeliveries,
   saveOrganizationCommunicationDraft,
+  saveOrganizationCommunicationTemplate,
   sendOrganizationCommunication,
 } from "../auth/api";
 
@@ -39,6 +44,127 @@ function displayDate(value: string): string {
 function channelFromValue(value: string): CommunicationChannel {
   if (value === "SMS" || value === "Both") return value;
   return "Email";
+}
+
+function TemplateLibrary({
+  channel,
+  contentMarkdown,
+  onApply,
+  subject,
+}: {
+  readonly channel: CommunicationChannel;
+  readonly contentMarkdown: string;
+  readonly onApply: (template: CommunicationTemplate) => void;
+  readonly subject: string;
+}) {
+  const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    listOrganizationCommunicationTemplates(controller.signal)
+      .then(setTemplates)
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted) setError(failureMessage(failure));
+      });
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await saveOrganizationCommunicationTemplate({
+        channel,
+        contentMarkdown,
+        subject,
+        title,
+      });
+      setTemplates((current) => [...current, saved].sort((a, b) => a.title.localeCompare(b.title)));
+      setTitle("");
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(template: CommunicationTemplate) {
+    if (!window.confirm(`Delete template “${template.title}”?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteOrganizationCommunicationTemplate(template.id);
+      setTemplates((current) => current.filter(({ id }) => id !== template.id));
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="form-stack" aria-labelledby="communication-templates-heading">
+      <h3 id="communication-templates-heading">Templates</h3>
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {templates.length > 0 ? (
+        <ul className="account-list">
+          {templates.map((template) => (
+            <li key={template.id}>
+              <div>
+                <strong>{template.title}</strong>
+                <p>{template.channel}</p>
+              </div>
+              <span className="button-row">
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    onApply(template);
+                  }}
+                  type="button"
+                >
+                  Use template
+                </button>
+                {!template.isSystem ? (
+                  <button disabled={busy} onClick={() => void remove(template)} type="button">
+                    Delete
+                  </button>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No templates yet.</p>
+      )}
+      <div className="field">
+        <label htmlFor="communication-template-title">Save current message as a template</label>
+        <input
+          id="communication-template-title"
+          maxLength={200}
+          onChange={(event) => {
+            setTitle(event.target.value);
+          }}
+          value={title}
+        />
+      </div>
+      <button
+        disabled={busy || !title.trim() || !contentMarkdown.trim()}
+        onClick={() => void save()}
+        type="button"
+      >
+        Save template
+      </button>
+    </div>
+  );
 }
 
 export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) {
@@ -152,6 +278,21 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
       setSuccess(
         `${String(retried)} failed ${retried === 1 ? "delivery" : "deliveries"} queued again.`,
       );
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteDraft(message: CommunicationMessage) {
+    if (!window.confirm("Delete this communication draft?")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteOrganizationCommunicationDraft(message.id);
+      setMessages((current) => current.filter(({ id }) => id !== message.id));
+      setSuccess("Draft deleted.");
     } catch (failure: unknown) {
       setError(failureMessage(failure));
     } finally {
@@ -280,6 +421,18 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
         </div>
       </form>
 
+      <TemplateLibrary
+        channel={channel}
+        contentMarkdown={contentMarkdown}
+        onApply={(template) => {
+          setChannel(template.channel);
+          setContentMarkdown(template.contentMarkdown);
+          setSubject(template.subject);
+          setReach(null);
+        }}
+        subject={subject}
+      />
+
       <h3>History and drafts</h3>
       {messages.length === 0 ? (
         <p>No communications yet.</p>
@@ -298,7 +451,11 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
                 <button disabled={busy} onClick={() => void showDelivery(message)} type="button">
                   Delivery status
                 </button>
-              ) : null}
+              ) : (
+                <button disabled={busy} onClick={() => void deleteDraft(message)} type="button">
+                  Delete draft
+                </button>
+              )}
             </li>
           ))}
         </ul>

@@ -4,6 +4,9 @@ import {
   communicationMessagesResponseSchema,
   communicationReachResponseSchema,
   communicationRetryResponseSchema,
+  communicationDeleteResponseSchema,
+  communicationTemplateResponseSchema,
+  communicationTemplatesResponseSchema,
   memberProfileResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
   organizationMusicImportResponseSchema,
@@ -62,6 +65,8 @@ import {
   type CommunicationMessage,
   type CommunicationReach,
   type CommunicationSendRequest,
+  type CommunicationTemplate,
+  type CommunicationTemplateRequest,
   type AccountPasswordRequest,
   type AccountSecurityResponse,
   type AuthSession,
@@ -499,6 +504,41 @@ export async function retryOrganizationCommunicationDeliveries(messageId: string
     { method: "POST" },
   );
   return communicationRetryResponseSchema.parse(await response.json()).retried;
+}
+
+export async function deleteOrganizationCommunicationDraft(messageId: string): Promise<void> {
+  const response = await request(
+    `/api/organization/communications/drafts/${encodeURIComponent(messageId)}`,
+    { method: "DELETE" },
+  );
+  communicationDeleteResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationCommunicationTemplates(
+  signal?: AbortSignal,
+): Promise<readonly CommunicationTemplate[]> {
+  const response = await request("/api/organization/communications/templates", {
+    signal: signal ?? null,
+  });
+  return communicationTemplatesResponseSchema.parse(await response.json()).templates;
+}
+
+export async function saveOrganizationCommunicationTemplate(
+  template: CommunicationTemplateRequest,
+): Promise<CommunicationTemplate> {
+  const response = await request("/api/organization/communications/templates", {
+    body: JSON.stringify(template),
+    method: "POST",
+  });
+  return communicationTemplateResponseSchema.parse(await response.json());
+}
+
+export async function deleteOrganizationCommunicationTemplate(templateId: string): Promise<void> {
+  const response = await request(
+    `/api/organization/communications/templates/${encodeURIComponent(templateId)}`,
+    { method: "DELETE" },
+  );
+  communicationDeleteResponseSchema.parse(await response.json());
 }
 
 export async function deletePrivateOrganizationFile(fileId: string): Promise<void> {

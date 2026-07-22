@@ -3,6 +3,9 @@ import {
   communicationMessageResponseSchema,
   communicationReachResponseSchema,
   communicationRetryResponseSchema,
+  communicationDeleteResponseSchema,
+  communicationTemplateResponseSchema,
+  communicationTemplatesResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -156,9 +159,8 @@ describe("Organization communications", () => {
       { audience, channel: "SMS", contentMarkdown: "", subject: "" },
     );
     expect(draftResponse.status).toBe(201);
-    expect(communicationMessageResponseSchema.parse(await draftResponse.json()).status).toBe(
-      "Draft",
-    );
+    const draft = communicationMessageResponseSchema.parse(await draftResponse.json());
+    expect(draft.status).toBe("Draft");
     const outboxCount = await runInDurableObject<OrganizationStore, number>(
       stores.get(stores.idFromName("organization-alpha")),
       (_instance, state) =>
@@ -169,6 +171,49 @@ describe("Organization communications", () => {
           .one().count,
     );
     expect(outboxCount).toBe(0);
+    const template = communicationTemplateResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/templates", cookie, {
+          channel: "SMS",
+          contentMarkdown: "Hello {singerName}",
+          subject: "",
+          title: "Welcome",
+        })
+      ).json(),
+    );
+    const templates = communicationTemplatesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/communications/templates", cookie),
+        )
+      ).json(),
+    );
+    expect(templates.templates.map(({ title }) => title)).toEqual(["Welcome"]);
+    expect(
+      communicationDeleteResponseSchema.parse(
+        await (
+          await exports.default.fetch(
+            api(
+              "alpha.localhost",
+              `/api/organization/communications/templates/${template.id}`,
+              cookie,
+              { method: "DELETE" },
+            ),
+          )
+        ).json(),
+      ).status,
+    ).toBe("deleted");
+    expect(
+      communicationDeleteResponseSchema.parse(
+        await (
+          await exports.default.fetch(
+            api("alpha.localhost", `/api/organization/communications/drafts/${draft.id}`, cookie, {
+              method: "DELETE",
+            }),
+          )
+        ).json(),
+      ).status,
+    ).toBe("deleted");
     expect(
       (
         await write("alpha.localhost", "/api/organization/communications/send", cookie, {

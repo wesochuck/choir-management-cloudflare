@@ -6,6 +6,7 @@ import {
   communicationAudienceRequestSchema,
   communicationDraftRequestSchema,
   communicationSendRequestSchema,
+  communicationTemplateRequestSchema,
   organizationAttendanceBulkRequestSchema,
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
@@ -123,9 +124,13 @@ import {
 import {
   CommunicationRepositoryError,
   listOrganizationCommunications,
+  listCommunicationTemplates,
   previewCommunicationReach,
   readCommunicationDeliverySummary,
   retryCommunicationDeliveries,
+  deleteCommunicationDraft,
+  deleteCommunicationTemplate,
+  saveCommunicationTemplate,
   saveCommunicationDraft,
   sendOrganizationCommunication,
 } from "./organization/organizationCommunications";
@@ -2085,6 +2090,152 @@ router.get("/api/organization/communications", async (context) => {
       error,
       context.get("requestId"),
       "Communication history is temporarily unavailable.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.get("/api/organization/communications/templates", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  try {
+    return context.json({
+      requestId: context.get("requestId"),
+      templates: await listCommunicationTemplates(context.env, authorization.organizationId),
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "Communication templates are temporarily unavailable.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.post("/api/organization/communications/templates", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const body = communicationTemplateRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid communication template details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    const template = await saveCommunicationTemplate(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...template, requestId: context.get("requestId") }, 201);
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "The communication template could not be saved.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.delete("/api/organization/communications/templates/:templateId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const templateId = z.uuid().safeParse(context.req.param("templateId"));
+  if (!templateId.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid communication template is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    await deleteCommunicationTemplate(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      templateId.data,
+    );
+    return context.json({
+      id: templateId.data,
+      requestId: context.get("requestId"),
+      status: "deleted" as const,
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "The communication template could not be deleted.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.delete("/api/organization/communications/drafts/:messageId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const messageId = z.uuid().safeParse(context.req.param("messageId"));
+  if (!messageId.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid draft is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    await deleteCommunicationDraft(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      messageId.data,
+    );
+    return context.json({
+      id: messageId.data,
+      requestId: context.get("requestId"),
+      status: "deleted" as const,
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "The communication draft could not be deleted.",
     );
     return context.json(result.problem, result.status);
   }

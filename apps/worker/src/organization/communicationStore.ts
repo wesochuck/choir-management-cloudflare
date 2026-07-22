@@ -4,6 +4,8 @@ import {
   communicationDraftRequestSchema,
   communicationMessageSchema,
   communicationSendRequestSchema,
+  communicationTemplateRequestSchema,
+  communicationTemplateSchema,
   organizationRosterConfigurationRequestSchema,
 } from "@choir/contracts";
 import {
@@ -51,6 +53,19 @@ const retryOperationSchema = contextSchema.extend({
   jobId: z.uuid(),
   messageId: z.uuid(),
 });
+const saveTemplateOperationSchema = contextSchema.extend({
+  action: z.literal("save-template"),
+  template: communicationTemplateRequestSchema,
+  templateId: z.uuid(),
+});
+const deleteTemplateOperationSchema = contextSchema.extend({
+  action: z.literal("delete-template"),
+  templateId: z.uuid(),
+});
+const deleteDraftOperationSchema = contextSchema.extend({
+  action: z.literal("delete-draft"),
+  messageId: z.uuid(),
+});
 const deliveryResultOperationSchema = z.object({
   action: z.literal("delivery-result"),
   jobId: z.uuid(),
@@ -70,6 +85,9 @@ const operationSchema = z.discriminatedUnion("action", [
   saveOperationSchema,
   sendOperationSchema,
   retryOperationSchema,
+  saveTemplateOperationSchema,
+  deleteTemplateOperationSchema,
+  deleteDraftOperationSchema,
   deliveryResultOperationSchema,
 ]);
 
@@ -116,6 +134,17 @@ interface DeliveryRow {
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly updatedAt: string;
 }
+interface TemplateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly channel: "Both" | "Email" | "SMS";
+  readonly contentMarkdown: string;
+  readonly createdAt: string;
+  readonly id: string;
+  readonly isSystem: number;
+  readonly subject: string;
+  readonly title: string;
+  readonly updatedAt: string;
+}
 
 const messageColumns = `id, channel, status, subject, content_markdown AS contentMarkdown,
   audience_json AS audienceJson, reach_json AS reachJson, created_at AS createdAt,
@@ -159,14 +188,16 @@ function audit(
   targetId: string,
   summary: unknown,
   occurredAt: string,
+  targetType = "communication_message",
 ): void {
   storage.sql.exec(
     `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id,
       request_id, change_summary, occurred_at)
-     VALUES (?, 'organization_member', ?, ?, 'communication_message', ?, ?, ?, ?)`,
+     VALUES (?, 'organization_member', ?, ?, ?, ?, ?, ?, ?)`,
     `communication:${action}:${requestId}`,
     actorUserId,
     action,
+    targetType,
     targetId,
     requestId,
     JSON.stringify(summary),
@@ -390,6 +421,100 @@ function saveDraft(
   return Response.json(readMessage(storage, operation.messageId));
 }
 
+function saveTemplate(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof saveTemplateOperationSchema>,
+  now: string,
+): Response {
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT INTO communication_templates
+        (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+      operation.templateId,
+      operation.template.title,
+      operation.template.channel,
+      operation.template.subject,
+      operation.template.contentMarkdown,
+      now,
+      now,
+    );
+    audit(
+      storage,
+      operation.actorUserId,
+      operation.requestId,
+      "organization.communication.template.saved",
+      operation.templateId,
+      { channel: operation.template.channel, title: operation.template.title },
+      now,
+      "communication_template",
+    );
+  });
+  const row = storage.sql
+    .exec<TemplateRow>(
+      `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,
+        is_system AS isSystem, created_at AS createdAt, updated_at AS updatedAt
+       FROM communication_templates WHERE id = ? LIMIT 1`,
+      operation.templateId,
+    )
+    .one();
+  return Response.json(communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }));
+}
+
+function deleteTemplate(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof deleteTemplateOperationSchema>,
+  now: string,
+): Response {
+  const found = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly isSystem: number }>(
+      "SELECT is_system AS isSystem FROM communication_templates WHERE id = ? LIMIT 1",
+      operation.templateId,
+    )
+    .toArray()
+    .at(0);
+  if (!found) return Response.json({ code: "communication_template_not_found" }, { status: 404 });
+  if (found.isSystem === 1)
+    return Response.json({ code: "communication_system_template_protected" }, { status: 409 });
+  storage.transactionSync(() => {
+    storage.sql.exec("DELETE FROM communication_templates WHERE id = ?", operation.templateId);
+    audit(
+      storage,
+      operation.actorUserId,
+      operation.requestId,
+      "organization.communication.template.deleted",
+      operation.templateId,
+      {},
+      now,
+      "communication_template",
+    );
+  });
+  return Response.json({ id: operation.templateId, status: "deleted" });
+}
+
+function deleteDraft(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof deleteDraftOperationSchema>,
+  now: string,
+): Response {
+  const message = readMessage(storage, operation.messageId);
+  if (message?.status !== "Draft")
+    return Response.json({ code: "communication_draft_not_found" }, { status: 404 });
+  storage.transactionSync(() => {
+    storage.sql.exec("DELETE FROM communication_messages WHERE id = ?", operation.messageId);
+    audit(
+      storage,
+      operation.actorUserId,
+      operation.requestId,
+      "organization.communication.draft.deleted",
+      operation.messageId,
+      {},
+      now,
+    );
+  });
+  return Response.json({ id: operation.messageId, status: "deleted" });
+}
+
 async function retryMessage(
   storage: DurableObjectStorage,
   operation: z.infer<typeof retryOperationSchema>,
@@ -514,6 +639,9 @@ export async function manageCommunicationInStore(
   if (operation.action === "send") return sendMessage(storage, operation, now);
   if (operation.action === "save-draft") return saveDraft(storage, operation, now);
   if (operation.action === "retry") return retryMessage(storage, operation, now);
+  if (operation.action === "save-template") return saveTemplate(storage, operation, now);
+  if (operation.action === "delete-template") return deleteTemplate(storage, operation, now);
+  if (operation.action === "delete-draft") return deleteDraft(storage, operation, now);
   return recordDeliveryResults(storage, operation, now);
 }
 
@@ -531,6 +659,23 @@ export function listCommunicationMessagesFromStore(
     .toArray()
     .map(parseMessage);
   return Response.json({ messages });
+}
+
+export function listCommunicationTemplatesFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!organizationId || !identityMatches(storage, organizationId))
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  const templates = storage.sql
+    .exec<TemplateRow>(
+      `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,
+        is_system AS isSystem, created_at AS createdAt, updated_at AS updatedAt
+       FROM communication_templates ORDER BY is_system DESC, title COLLATE NOCASE, id LIMIT 200`,
+    )
+    .toArray()
+    .map((row) => communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }));
+  return Response.json({ templates });
 }
 
 export function readCommunicationSummaryFromStore(

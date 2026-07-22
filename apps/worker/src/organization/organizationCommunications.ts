@@ -3,12 +3,16 @@ import {
   communicationMessageSchema,
   communicationMessagesResponseSchema,
   communicationReachSchema,
+  communicationTemplateSchema,
+  communicationTemplatesResponseSchema,
   type CommunicationAudienceRequest,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
   type CommunicationMessage,
   type CommunicationReach,
   type CommunicationSendRequest,
+  type CommunicationTemplate,
+  type CommunicationTemplateRequest,
 } from "@choir/contracts";
 import { communicationReach } from "@choir/domain";
 import { z } from "zod";
@@ -220,6 +224,56 @@ export async function retryCommunicationDeliveries(
     messageId,
   });
   return retryResponseSchema.parse(await response.json()).retried;
+}
+
+export async function deleteCommunicationDraft(
+  env: Env,
+  context: ActorContext,
+  messageId: string,
+): Promise<void> {
+  await post(env, context.organizationId, "/internal/communications/manage", {
+    action: "delete-draft",
+    ...context,
+    messageId,
+  });
+}
+
+export async function listCommunicationTemplates(
+  env: Env,
+  organizationId: string,
+): Promise<readonly CommunicationTemplate[]> {
+  const url = new URL("https://organization.internal/internal/communications/templates");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) throw await failure(response);
+  return communicationTemplatesResponseSchema.omit({ requestId: true }).parse(await response.json())
+    .templates;
+}
+
+export async function saveCommunicationTemplate(
+  env: Env,
+  context: ActorContext,
+  template: CommunicationTemplateRequest,
+): Promise<CommunicationTemplate> {
+  const response = await post(env, context.organizationId, "/internal/communications/manage", {
+    action: "save-template",
+    ...context,
+    template,
+    templateId: crypto.randomUUID(),
+  });
+  return communicationTemplateSchema.parse(await response.json());
+}
+
+export async function deleteCommunicationTemplate(
+  env: Env,
+  context: ActorContext,
+  templateId: string,
+): Promise<void> {
+  await post(env, context.organizationId, "/internal/communications/manage", {
+    action: "delete-template",
+    ...context,
+    templateId,
+  });
 }
 
 export async function readCommunicationDeliveryJob(

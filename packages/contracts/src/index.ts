@@ -639,6 +639,28 @@ export const communicationSendRequestSchema = communicationDraftRequestSchema.su
   },
 );
 
+export const communicationTemplateRequestSchema = z
+  .object({
+    channel: communicationChannelSchema,
+    contentMarkdown: z.string().max(100_000),
+    subject: z.string().trim().max(300),
+    title: z.string().trim().min(1).max(200),
+  })
+  .superRefine((value, context) => {
+    if (value.channel !== "SMS" && value.subject.length === 0) {
+      context.addIssue({ code: "custom", message: "Email templates require a subject." });
+    }
+  });
+
+export const communicationTemplateSchema = communicationTemplateRequestSchema.and(
+  z.object({
+    createdAt: z.iso.datetime(),
+    id: z.uuid(),
+    isSystem: z.boolean(),
+    updatedAt: z.iso.datetime(),
+  }),
+);
+
 export const communicationReachSchema = z.object({
   both: z.number().int().nonnegative(),
   email: z.number().int().nonnegative(),
@@ -706,6 +728,18 @@ export const communicationRetryResponseSchema = z.object({
   requestId: requestIdSchema,
   retried: z.number().int().nonnegative(),
 });
+export const communicationTemplateResponseSchema = communicationTemplateSchema.and(
+  z.object({ requestId: requestIdSchema }),
+);
+export const communicationTemplatesResponseSchema = z.object({
+  requestId: requestIdSchema,
+  templates: z.array(communicationTemplateSchema).max(200),
+});
+export const communicationDeleteResponseSchema = z.object({
+  id: z.uuid(),
+  requestId: requestIdSchema,
+  status: z.literal("deleted"),
+});
 
 export type CommunicationAudienceRequest = z.infer<typeof communicationAudienceRequestSchema>;
 export type CommunicationChannel = z.infer<typeof communicationChannelSchema>;
@@ -714,6 +748,8 @@ export type CommunicationDraftRequest = z.infer<typeof communicationDraftRequest
 export type CommunicationMessage = z.infer<typeof communicationMessageSchema>;
 export type CommunicationReach = z.infer<typeof communicationReachSchema>;
 export type CommunicationSendRequest = z.infer<typeof communicationSendRequestSchema>;
+export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
+export type CommunicationTemplateRequest = z.infer<typeof communicationTemplateRequestSchema>;
 export type SingerLearningTrackPiece = z.infer<typeof singerLearningTrackPieceSchema>;
 
 export const accountOrganizationSchema = z.object({

@@ -30,6 +30,7 @@ import { listMusicPiecesFromStore, manageMusicInStore } from "./musicStore";
 import { listResourcesFromStore, manageResourceInStore } from "./resourceStore";
 import {
   listCommunicationMessagesFromStore,
+  listCommunicationTemplatesFromStore,
   manageCommunicationInStore,
   readCommunicationJobFromStore,
   readCommunicationSummaryFromStore,
@@ -1385,6 +1386,9 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
   }
   if (url.pathname === "/internal/communications") {
     return listCommunicationMessagesFromStore(storage, organizationId);
+  }
+  if (url.pathname === "/internal/communications/templates") {
+    return listCommunicationTemplatesFromStore(storage, organizationId);
   }
   if (url.pathname === "/internal/communications/summary") {
     return readCommunicationSummaryFromStore(
