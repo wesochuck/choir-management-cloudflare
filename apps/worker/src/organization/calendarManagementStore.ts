@@ -99,6 +99,7 @@ interface MemberEventRow {
   readonly id: string;
   readonly location: string;
   readonly parentRsvp: "No" | "Pending" | "Yes" | null;
+  readonly rsvpNote: string;
   readonly startsAt: string;
   readonly title: string;
   readonly type: "Performance" | "Rehearsal";
@@ -363,7 +364,8 @@ export function listMemberEventsFromStore(
          e.duration_minutes AS durationMinutes, e.call_time AS callTime,
          e.location, e.details,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
-         direct.rsvp AS directRsvp, parent.rsvp AS parentRsvp
+         direct.rsvp AS directRsvp, COALESCE(direct.rsvp_note, '') AS rsvpNote,
+         parent.rsvp AS parentRsvp
        FROM events e
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN event_rosters direct
@@ -394,6 +396,7 @@ export function listMemberEventsFromStore(
         inheritedFromParent: inherits,
         location: event.location,
         resolvedRsvp: inherits ? event.parentRsvp : directRsvp,
+        rsvpNote: event.rsvpNote,
         startsAt: event.startsAt,
         title: event.title,
         type: event.type,
@@ -634,14 +637,16 @@ export async function manageOrganizationCalendarInStore(
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
   storage.transactionSync(() => {
+    const rsvpNote = rsvpOperation.rsvp.rsvp === "No" ? rsvpOperation.rsvp.rsvpNote : "";
     storage.sql.exec(
-      `INSERT INTO event_rosters (event_id, profile_id, rsvp, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO event_rosters (event_id, profile_id, rsvp, rsvp_note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(event_id, profile_id) DO UPDATE SET
-         rsvp = excluded.rsvp, updated_at = excluded.updated_at`,
+         rsvp = excluded.rsvp, rsvp_note = excluded.rsvp_note, updated_at = excluded.updated_at`,
       rsvpOperation.eventId,
       rsvpOperation.rsvp.profileId,
       rsvpOperation.rsvp.rsvp,
+      rsvpNote,
       occurredAt,
       occurredAt,
     );
@@ -651,13 +656,14 @@ export async function manageOrganizationCalendarInStore(
       "event.rsvp.updated",
       "event_roster",
       `${rsvpOperation.eventId}:${rsvpOperation.rsvp.profileId}`,
-      { rsvp: rsvpOperation.rsvp.rsvp },
+      { hasNote: rsvpNote.length > 0, rsvp: rsvpOperation.rsvp.rsvp },
       occurredAt,
     );
   });
   return Response.json({
     eventId: rsvpOperation.eventId,
     ...rsvpOperation.rsvp,
+    rsvpNote: rsvpOperation.rsvp.rsvp === "No" ? rsvpOperation.rsvp.rsvpNote : "",
     updatedAt: occurredAt,
   });
 }

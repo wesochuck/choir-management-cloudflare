@@ -47,18 +47,24 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled]);
 
-  async function changeRsvp(eventId: string, rsvp: "No" | "Pending" | "Yes") {
+  async function changeRsvp(eventId: string, rsvp: "No" | "Pending" | "Yes", rsvpNote: string) {
     setBusyEventId(eventId);
     setFeedback(null);
     try {
-      await setMyEventRsvp(eventId, rsvp);
+      const saved = await setMyEventRsvp(eventId, rsvp, rsvpNote);
       setState((current) =>
         current.status === "ready"
           ? {
               ...current,
               events: current.events.map((event) =>
                 event.id === eventId
-                  ? { ...event, directRsvp: rsvp, inheritedFromParent: false, resolvedRsvp: rsvp }
+                  ? {
+                      ...event,
+                      directRsvp: saved.rsvp,
+                      inheritedFromParent: false,
+                      resolvedRsvp: saved.rsvp,
+                      rsvpNote: saved.rsvpNote,
+                    }
                   : event,
               ),
             }
@@ -135,7 +141,24 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                       onChange={(change) => {
                         const value = change.target.value;
                         const rsvp = value === "Yes" || value === "No" ? value : "Pending";
-                        void changeRsvp(event.id, rsvp);
+                        setState((current) =>
+                          current.status === "ready"
+                            ? {
+                                ...current,
+                                events: current.events.map((candidate) =>
+                                  candidate.id === event.id
+                                    ? {
+                                        ...candidate,
+                                        directRsvp: rsvp,
+                                        inheritedFromParent: false,
+                                        resolvedRsvp: rsvp,
+                                        rsvpNote: rsvp === "No" ? candidate.rsvpNote : "",
+                                      }
+                                    : candidate,
+                                ),
+                              }
+                            : current,
+                        );
                       }}
                       value={event.directRsvp}
                     >
@@ -143,6 +166,43 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                       <option value="Yes">Yes</option>
                       <option value="No">No</option>
                     </select>
+                    {event.directRsvp === "No" ? (
+                      <>
+                        <label htmlFor={`my-rsvp-note-${event.id}`}>Decline note</label>
+                        <textarea
+                          disabled={busyEventId !== null}
+                          id={`my-rsvp-note-${event.id}`}
+                          maxLength={2000}
+                          onChange={(change) => {
+                            const rsvpNote = change.target.value;
+                            setState((current) =>
+                              current.status === "ready"
+                                ? {
+                                    ...current,
+                                    events: current.events.map((candidate) =>
+                                      candidate.id === event.id
+                                        ? { ...candidate, rsvpNote }
+                                        : candidate,
+                                    ),
+                                  }
+                                : current,
+                            );
+                          }}
+                          rows={3}
+                          value={event.rsvpNote}
+                        />
+                      </>
+                    ) : null}
+                    <button
+                      className="button button--secondary"
+                      disabled={busyEventId !== null}
+                      onClick={() => {
+                        void changeRsvp(event.id, event.directRsvp, event.rsvpNote);
+                      }}
+                      type="button"
+                    >
+                      Save RSVP
+                    </button>
                   </div>
                 </li>
               );

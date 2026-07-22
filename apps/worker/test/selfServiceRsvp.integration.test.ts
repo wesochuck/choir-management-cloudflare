@@ -38,7 +38,7 @@ async function provision(id: string, name: string, slug: string, profileId: stri
         `INSERT INTO organizations
           (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
            created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 10, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'active', ?, 11, ?, ?, ?)`,
       )
       .bind(id, name, slug, id, now, now, now),
     database
@@ -187,7 +187,11 @@ describe("linked-Profile self-service RSVP", () => {
 
     const response = await exports.default.fetch(
       api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
-        body: JSON.stringify({ profileId: BRAVO_PROFILE, rsvp: "No" }),
+        body: JSON.stringify({
+          profileId: BRAVO_PROFILE,
+          rsvp: "No",
+          rsvpNote: "Travel conflict",
+        }),
         headers: { "content-type": "application/json" },
         method: "PUT",
       }),
@@ -202,6 +206,7 @@ describe("linked-Profile self-service RSVP", () => {
       directRsvp: "No",
       inheritedFromParent: false,
       resolvedRsvp: "No",
+      rsvpNote: "Travel conflict",
     });
     const bravo = singerEventsResponseSchema.parse(
       await (
@@ -211,18 +216,44 @@ describe("linked-Profile self-service RSVP", () => {
     expect(bravo.profileId).toBe(BRAVO_PROFILE);
     expect(bravo.events.map((event) => event.title)).toEqual(["Organization Bravo Performance"]);
 
-    const alphaRsvp = await runInDurableObject<OrganizationStore, string | null>(
+    const alphaRsvp = await runInDurableObject<
+      OrganizationStore,
+      { readonly note: string; readonly rsvp: string } | null
+    >(
       stores.get(stores.idFromName("organization-alpha")),
       (_instance, state) =>
         state.storage.sql
-          .exec<{ rsvp: string }>(
-            "SELECT rsvp FROM event_rosters WHERE event_id = ? AND profile_id = ?",
+          .exec<{ note: string; rsvp: string }>(
+            `SELECT rsvp, rsvp_note AS note FROM event_rosters
+             WHERE event_id = ? AND profile_id = ?`,
             REHEARSAL_ID,
             ALPHA_PROFILE,
           )
           .toArray()
-          .at(0)?.rsvp ?? null,
+          .at(0) ?? null,
     );
-    expect(alphaRsvp).toBe("No");
+    expect(alphaRsvp).toEqual({ note: "Travel conflict", rsvp: "No" });
+
+    const attendingResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes", rsvpNote: "must be cleared" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(attendingResponse.status).toBe(200);
+    const clearedNote = await runInDurableObject<OrganizationStore, string>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ note: string }>(
+            `SELECT rsvp_note AS note FROM event_rosters
+             WHERE event_id = ? AND profile_id = ?`,
+            REHEARSAL_ID,
+            ALPHA_PROFILE,
+          )
+          .one().note,
+    );
+    expect(clearedNote).toBe("");
   });
 });

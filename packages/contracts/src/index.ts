@@ -131,6 +131,7 @@ export const organizationEventArchiveResponseSchema = z.object({
 export const organizationRsvpRequestSchema = z.object({
   profileId: z.uuid(),
   rsvp: z.enum(["Yes", "No", "Pending"]),
+  rsvpNote: z.string().trim().max(2_000).default(""),
 });
 
 export const organizationRsvpSchema = organizationRsvpRequestSchema.extend({
@@ -169,6 +170,7 @@ export const organizationAttendanceResponseSchema = z.object({
 
 export const singerRsvpRequestSchema = z.object({
   rsvp: z.enum(["Yes", "No", "Pending"]),
+  rsvpNote: z.string().trim().max(2_000).default(""),
 });
 
 export const singerEventSchema = z.object({
@@ -180,6 +182,7 @@ export const singerEventSchema = z.object({
   inheritedFromParent: z.boolean(),
   location: z.string().max(2_000),
   resolvedRsvp: z.enum(["Yes", "No", "Pending"]),
+  rsvpNote: z.string().max(2_000),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),
   type: z.enum(["Performance", "Rehearsal"]),

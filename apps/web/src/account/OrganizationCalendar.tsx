@@ -243,6 +243,7 @@ export function OrganizationCalendar({
   const [resources, setResources] = useState<ResourceState>({ status: "loading" });
   const [rsvpEventId, setRsvpEventId] = useState("");
   const [rsvpProfileId, setRsvpProfileId] = useState("");
+  const [rsvpNote, setRsvpNote] = useState("");
   const [rsvpStatus, setRsvpStatus] = useState<"No" | "Pending" | "Yes">("Pending");
   const [success, setSuccess] = useState<string | null>(null);
   const [timezoneInput, setTimezoneInput] = useState("UTC");
@@ -444,7 +445,8 @@ export function OrganizationCalendar({
   async function updateRsvp() {
     beginAction();
     try {
-      await setOrganizationEventRsvp(rsvpEventId, rsvpProfileId, rsvpStatus);
+      await setOrganizationEventRsvp(rsvpEventId, rsvpProfileId, rsvpStatus, rsvpNote);
+      if (rsvpStatus !== "No") setRsvpNote("");
       setSuccess("RSVP updated.");
       setBusy(false);
     } catch (actionError: unknown) {
@@ -875,6 +877,20 @@ export function OrganizationCalendar({
                     <option value="No">No</option>
                   </select>
                 </div>
+                {rsvpStatus === "No" ? (
+                  <div className="field">
+                    <label htmlFor="rsvp-note">Decline note</label>
+                    <textarea
+                      id="rsvp-note"
+                      maxLength={2000}
+                      onChange={(change) => {
+                        setRsvpNote(change.target.value);
+                      }}
+                      rows={3}
+                      value={rsvpNote}
+                    />
+                  </div>
+                ) : null}
                 <button className="button button--primary" disabled={busy} type="submit">
                   Update RSVP
                 </button>

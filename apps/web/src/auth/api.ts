@@ -304,9 +304,10 @@ export async function setOrganizationEventRsvp(
   eventId: string,
   profileId: string,
   rsvp: "No" | "Pending" | "Yes",
+  rsvpNote = "",
 ): Promise<OrganizationRsvp> {
   const response = await request(`/api/organization/events/${encodeURIComponent(eventId)}/rsvp`, {
-    body: JSON.stringify({ profileId, rsvp }),
+    body: JSON.stringify({ profileId, rsvp, rsvpNote }),
     method: "PUT",
   });
   return organizationRsvpSchema.parse(await response.json());
@@ -361,9 +362,10 @@ export async function getMySchedule(signal?: AbortSignal): Promise<SingerEventsR
 export async function setMyEventRsvp(
   eventId: string,
   rsvp: "No" | "Pending" | "Yes",
+  rsvpNote = "",
 ): Promise<OrganizationRsvp> {
   const response = await request(`/api/singer/events/${encodeURIComponent(eventId)}/rsvp`, {
-    body: JSON.stringify({ rsvp }),
+    body: JSON.stringify({ rsvp, rsvpNote }),
     method: "PUT",
   });
   return organizationRsvpSchema.parse(await response.json());

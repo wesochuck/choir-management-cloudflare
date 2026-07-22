@@ -168,6 +168,10 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE event_rosters ADD COLUMN folder_returned INTEGER NOT NULL DEFAULT 0 CHECK (folder_returned IN (0, 1))",
     ],
   },
+  {
+    version: 11,
+    statements: ["ALTER TABLE event_rosters ADD COLUMN rsvp_note TEXT NOT NULL DEFAULT ''"],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

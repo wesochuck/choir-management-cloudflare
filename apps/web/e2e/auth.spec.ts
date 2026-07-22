@@ -191,6 +191,7 @@ test.beforeEach(async ({ page }) => {
             inheritedFromParent: true,
             location: "Choir Room",
             resolvedRsvp: "Yes",
+            rsvpNote: "",
             startsAt: "2026-08-19T23:00:00.000Z",
             title: "My Rehearsal",
             type: "Rehearsal",
@@ -218,6 +219,14 @@ test.beforeEach(async ({ page }) => {
         profileId: "11111111-1111-4111-8111-111111111111",
         requestId,
         rsvp,
+        rsvpNote:
+          typeof body === "object" &&
+          body !== null &&
+          "rsvpNote" in body &&
+          typeof body.rsvpNote === "string" &&
+          rsvp === "No"
+            ? body.rsvpNote
+            : "",
         updatedAt: "2026-07-20T20:10:00.000Z",
       }),
       contentType: "application/json",
@@ -1032,6 +1041,8 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(mySchedule.getByRole("heading", { name: "My Rehearsal" })).toBeVisible();
   await expect(mySchedule.getByText(/inherited from the parent performance: Yes/)).toBeVisible();
   await mySchedule.getByLabel("Your RSVP").selectOption("No");
+  await mySchedule.getByLabel("Decline note").fill("Travel conflict");
+  await mySchedule.getByRole("button", { name: "Save RSVP" }).click();
   await expect(mySchedule.getByText("Your RSVP was updated.")).toBeVisible();
   const calendarSection = page.getByRole("region", { name: "Calendar subscription" });
   await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(

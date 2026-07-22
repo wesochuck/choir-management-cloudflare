@@ -45,7 +45,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `a1d43f8e-063c-416b-822e-7184cc944c4c`
+- Current verified Worker version: `573375c3-92b1-45ff-b791-ed306e62a656`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -183,6 +183,12 @@ Verified over public HTTPS on July 20–21, 2026:
   them, folder edits can create a Pending/Pending roster row, and RSVP changes do not erase them.
   Focused workerd proof covers transaction rollback, folder preservation, RSVP preservation, and
   actor audit; the Administrator UI edits and verifies both fields at desktop and mobile widths.
+- Organization schema version 11 adds a bounded RSVP note to event rosters. Linked members and
+  managers may record a decline reason only through their existing authorized RSVP path; the store
+  retains it for `No` and clears it for Yes/Pending even if a stale client submits text. Personal
+  schedules round-trip the note with an explicit Save RSVP action. Focused workerd and
+  desktop/mobile browser proof covers linked-Profile isolation, ignored client Profile injection,
+  persistence, clearing, and UI editing.
 - Event and venue lifecycle operations now preserve references intentionally: event deletion is a
   soft archive that transactionally removes a performance and its child rehearsals from active
   operations while retaining roster history, and venue templates may be hard-deleted only when no
@@ -240,6 +246,11 @@ Verified over public HTTPS on July 20–21, 2026:
   referenced `index-DHcOMwiG.js` and `index-Dz9dhida.css`; D1 had no pending migrations and remained
   at zero Organizations, fleet schema preparations, and dead letters. Worker version
   `a1d43f8e-063c-416b-822e-7184cc944c4c` is the verified staging checkpoint.
+- After the RSVP-note deployment, health and readiness returned HTTP 200 and a self-RSVP write on
+  the global workers.dev base returned hostname-first HTTP 404. The live shell referenced
+  `index-RY9SxIk9.js` and `index-Dz9dhida.css`; D1 had no pending migrations and remained at zero
+  Organizations, fleet schema preparations, and dead letters. Worker version
+  `573375c3-92b1-45ff-b791-ed306e62a656` is the verified staging checkpoint.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -469,8 +480,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue the event/roster wave with remaining export contracts, RSVP notes, and seating state,
-   then bind the next signed product flow. Return to validated custom-domain activation when a
-   managed zone is available. Do not add whole-archive import; ADR 0015 deliberately excludes it
-   from v1.
+3. Continue the event/roster wave with remaining export contracts and seating state, then bind the
+   next signed product flow. Return to validated custom-domain activation when a managed zone is
+   available. Do not add whole-archive import; ADR 0015 deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

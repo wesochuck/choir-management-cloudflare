@@ -1432,7 +1432,7 @@ router.put("/api/singer/events/:eventId/rsvp", async (context) => {
         requestId: context.get("requestId"),
       },
       eventId.data,
-      { profileId, rsvp: body.data.rsvp },
+      { profileId, rsvp: body.data.rsvp, rsvpNote: body.data.rsvpNote },
     );
     return context.json({ ...rsvp, requestId: context.get("requestId") });
   } catch {

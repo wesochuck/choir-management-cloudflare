@@ -549,7 +549,11 @@
         "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/singerRsvp.ts",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/test/selfServiceRsvp.integration.test.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/web/src/account/MySchedule.tsx",
+          ],
       },
       {
         "id": "api.resolve-placeholders",
