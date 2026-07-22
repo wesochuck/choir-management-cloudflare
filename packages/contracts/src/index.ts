@@ -142,6 +142,8 @@ export const organizationAttendanceStatusSchema = z.enum(["Present", "Absent", "
 
 export const organizationAttendanceUpdateSchema = z.object({
   attendance: organizationAttendanceStatusSchema,
+  folderNumber: z.string().trim().max(50).optional(),
+  folderReturned: z.boolean().optional(),
   profileId: z.uuid(),
 });
 
@@ -152,6 +154,8 @@ export const organizationAttendanceBulkRequestSchema = z.object({
 export const organizationAttendanceRowSchema = z.object({
   attendance: organizationAttendanceStatusSchema,
   displayName: z.string().min(1).max(200),
+  folderNumber: z.string().max(50),
+  folderReturned: z.boolean(),
   profileId: z.uuid(),
   rsvp: z.enum(["Yes", "No", "Pending"]),
   updatedAt: z.iso.datetime().nullable(),

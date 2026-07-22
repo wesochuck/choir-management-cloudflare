@@ -110,6 +110,8 @@ interface AttendanceRow {
   readonly [column: string]: SqlStorageValue;
   readonly attendance: "Absent" | "Pending" | "Present";
   readonly displayName: string;
+  readonly folderNumber: string;
+  readonly folderReturned: number;
   readonly profileId: string;
   readonly rsvp: "No" | "Pending" | "Yes";
   readonly updatedAt: string | null;
@@ -251,13 +253,16 @@ export function listEventAttendanceFromStore(
       `SELECT p.id AS profileId, p.display_name AS displayName,
          COALESCE(r.rsvp, 'Pending') AS rsvp,
          COALESCE(r.attendance, 'Pending') AS attendance,
+         COALESCE(r.folder_number, '') AS folderNumber,
+         COALESCE(r.folder_returned, 0) AS folderReturned,
          r.updated_at AS updatedAt
        FROM profiles p
        LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
        ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC LIMIT 500`,
       eventId.data,
     )
-    .toArray();
+    .toArray()
+    .map((row) => ({ ...row, folderReturned: row.folderReturned === 1 }));
   return Response.json({ eventId: eventId.data, rows });
 }
 
@@ -296,6 +301,20 @@ function updateAttendance(
         occurredAt,
         occurredAt,
       );
+      if (update.folderNumber !== undefined || update.folderReturned !== undefined) {
+        storage.sql.exec(
+          `UPDATE event_rosters SET
+             folder_number = COALESCE(?, folder_number),
+             folder_returned = COALESCE(?, folder_returned),
+             updated_at = ?
+           WHERE event_id = ? AND profile_id = ?`,
+          update.folderNumber ?? null,
+          update.folderReturned === undefined ? null : update.folderReturned ? 1 : 0,
+          occurredAt,
+          operation.eventId,
+          update.profileId,
+        );
+      }
     }
     insertAudit(
       storage,
@@ -303,7 +322,13 @@ function updateAttendance(
       "event.attendance.updated",
       "event",
       operation.eventId,
-      { profileCount: operation.attendance.updates.length },
+      {
+        folderUpdateCount: operation.attendance.updates.filter(
+          ({ folderNumber, folderReturned }) =>
+            folderNumber !== undefined || folderReturned !== undefined,
+        ).length,
+        profileCount: operation.attendance.updates.length,
+      },
       occurredAt,
     );
   });

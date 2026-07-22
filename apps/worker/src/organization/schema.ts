@@ -161,6 +161,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE profiles ADD COLUMN is_section_leader INTEGER NOT NULL DEFAULT 0 CHECK (is_section_leader IN (0, 1))",
     ],
   },
+  {
+    version: 10,
+    statements: [
+      "ALTER TABLE event_rosters ADD COLUMN folder_number TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE event_rosters ADD COLUMN folder_returned INTEGER NOT NULL DEFAULT 0 CHECK (folder_returned IN (0, 1))",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

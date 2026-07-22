@@ -585,6 +585,13 @@ h2 {
   display: block;
 }
 
+.attendance-row__fields {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .password-form {
   max-width: 34rem;
 }

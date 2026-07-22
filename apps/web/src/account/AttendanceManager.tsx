@@ -61,6 +61,16 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     setMessage(null);
   }
 
+  function changeFolder(
+    profileId: string,
+    update: { readonly folderNumber?: string; readonly folderReturned?: boolean },
+  ) {
+    setRows((current) =>
+      current.map((row) => (row.profileId === profileId ? { ...row, ...update } : row)),
+    );
+    setMessage(null);
+  }
+
   async function saveAttendance() {
     if (!eventId || rows.length === 0) return;
     setBusy(true);
@@ -69,7 +79,12 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
       setRows(
         await updateOrganizationEventAttendance(
           eventId,
-          rows.map(({ attendance, profileId }) => ({ attendance, profileId })),
+          rows.map(({ attendance, folderNumber, folderReturned, profileId }) => ({
+            attendance,
+            folderNumber,
+            folderReturned,
+            profileId,
+          })),
         ),
       );
       setMessage("Attendance saved.");
@@ -108,23 +123,53 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
       {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
       <div className="attendance-list">
         {rows.map((row) => (
-          <label className="attendance-row" key={row.profileId}>
+          <div className="attendance-row" key={row.profileId}>
             <span>
               {row.displayName} <small>RSVP: {row.rsvp}</small>
             </span>
-            <select
-              aria-label={`${row.displayName} attendance`}
-              disabled={busy}
-              onChange={(event) => {
-                changeAttendance(row.profileId, attendanceValue(event.target.value));
-              }}
-              value={row.attendance}
-            >
-              <option value="Pending">Pending</option>
-              <option value="Present">Present</option>
-              <option value="Absent">Absent</option>
-            </select>
-          </label>
+            <div className="attendance-row__fields">
+              <label>
+                <span className="sr-only">{row.displayName} attendance</span>
+                <select
+                  aria-label={`${row.displayName} attendance`}
+                  disabled={busy}
+                  onChange={(event) => {
+                    changeAttendance(row.profileId, attendanceValue(event.target.value));
+                  }}
+                  value={row.attendance}
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">{row.displayName} folder number</span>
+                <input
+                  aria-label={`${row.displayName} folder number`}
+                  disabled={busy}
+                  maxLength={50}
+                  onChange={(event) => {
+                    changeFolder(row.profileId, { folderNumber: event.target.value });
+                  }}
+                  placeholder="Folder"
+                  value={row.folderNumber}
+                />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  aria-label={`${row.displayName} folder returned`}
+                  checked={row.folderReturned}
+                  disabled={busy}
+                  onChange={(event) => {
+                    changeFolder(row.profileId, { folderReturned: event.target.checked });
+                  }}
+                  type="checkbox"
+                />
+                Returned
+              </label>
+            </div>
+          </div>
         ))}
       </div>
       <div className="form-actions">

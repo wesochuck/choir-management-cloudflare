@@ -39,7 +39,7 @@ async function provision(id: string, slug: string): Promise<void> {
         `INSERT INTO organizations
           (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
            created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 9, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'active', ?, 10, ?, ?, ?)`,
       )
       .bind(id, `Organization ${slug}`, slug, id, now, now, now),
     database
@@ -204,8 +204,18 @@ describe("Organization attendance", () => {
           cookie,
           {
             updates: [
-              { attendance: "Present", profileId: alphaProfile.id },
-              { attendance: "Absent", profileId: explicitNoProfile.id },
+              {
+                attendance: "Present",
+                folderNumber: "A-12",
+                folderReturned: false,
+                profileId: alphaProfile.id,
+              },
+              {
+                attendance: "Absent",
+                folderNumber: "B-04",
+                folderReturned: true,
+                profileId: explicitNoProfile.id,
+              },
             ],
           },
           "PUT",
@@ -216,6 +226,34 @@ describe("Organization attendance", () => {
     expect(updated.rows.find(({ profileId }) => profileId === explicitNoProfile.id)?.rsvp).toBe(
       "No",
     );
+    expect(updated.rows.find(({ profileId }) => profileId === alphaProfile.id)).toMatchObject({
+      folderNumber: "A-12",
+      folderReturned: false,
+    });
+    expect(updated.rows.find(({ profileId }) => profileId === explicitNoProfile.id)).toMatchObject({
+      folderNumber: "B-04",
+      folderReturned: true,
+    });
+
+    const attendanceOnly = organizationAttendanceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/events/${event.id}/attendance`,
+          cookie,
+          { updates: [{ attendance: "Absent", profileId: alphaProfile.id }] },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(
+      attendanceOnly.rows.find(({ profileId }) => profileId === alphaProfile.id),
+    ).toMatchObject({
+      attendance: "Absent",
+      folderNumber: "A-12",
+      folderReturned: false,
+      rsvp: "Yes",
+    });
 
     const auditActor = await runInDurableObject<OrganizationStore, string>(
       stores.get(stores.idFromName("organization-alpha")),

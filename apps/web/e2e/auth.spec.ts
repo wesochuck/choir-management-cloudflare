@@ -125,6 +125,8 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route("**/api/organization/events/*/attendance", async (route) => {
     let attendance = "Pending";
+    let folderNumber = "";
+    let folderReturned = false;
     if (route.request().method() === "PUT") {
       const body: unknown = route.request().postDataJSON();
       if (
@@ -138,6 +140,15 @@ test.beforeEach(async ({ page }) => {
         typeof body.updates[0].attendance === "string"
       ) {
         attendance = body.updates[0].attendance;
+        if ("folderNumber" in body.updates[0] && typeof body.updates[0].folderNumber === "string") {
+          folderNumber = body.updates[0].folderNumber;
+        }
+        if (
+          "folderReturned" in body.updates[0] &&
+          typeof body.updates[0].folderReturned === "boolean"
+        ) {
+          folderReturned = body.updates[0].folderReturned;
+        }
       }
     }
     await route.fulfill({
@@ -148,6 +159,8 @@ test.beforeEach(async ({ page }) => {
           {
             attendance,
             displayName: "Browser Singer",
+            folderNumber,
+            folderReturned,
             profileId: "11111111-1111-4111-8111-111111111111",
             rsvp: attendance === "Present" ? "Yes" : "Pending",
             updatedAt: "2026-07-20T20:10:00.000Z",
@@ -1008,9 +1021,13 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await organizationCalendar.getByRole("button", { name: "Cancel", exact: true }).click();
   const attendanceSection = page.getByRole("region", { name: "Attendance" });
   await attendanceSection.getByLabel("Browser Singer attendance").selectOption("Present");
+  await attendanceSection.getByLabel("Browser Singer folder number").fill("C-07");
+  await attendanceSection.getByLabel("Browser Singer folder returned").check();
   await attendanceSection.getByRole("button", { name: "Save attendance" }).click();
   await expect(attendanceSection.getByRole("status")).toHaveText("Attendance saved.");
   await expect(attendanceSection.getByText("RSVP: Yes")).toBeVisible();
+  await expect(attendanceSection.getByLabel("Browser Singer folder number")).toHaveValue("C-07");
+  await expect(attendanceSection.getByLabel("Browser Singer folder returned")).toBeChecked();
   const mySchedule = page.getByRole("region", { name: "My schedule" });
   await expect(mySchedule.getByRole("heading", { name: "My Rehearsal" })).toBeVisible();
   await expect(mySchedule.getByText(/inherited from the parent performance: Yes/)).toBeVisible();

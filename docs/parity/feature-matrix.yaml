@@ -1223,6 +1223,7 @@
             "apps/worker/test/selfServiceRsvp.integration.test.ts",
             "apps/worker/test/attendance.integration.test.ts",
             "apps/web/src/account/AttendanceManager.tsx",
+            "apps/worker/src/organization/schema.ts",
             "apps/web/src/account/MySchedule.tsx",
           ],
       },
