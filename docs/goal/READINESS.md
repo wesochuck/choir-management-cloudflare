@@ -49,7 +49,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `1486b7d9-2eac-4523-a8d0-da2a0d1cfe69`
+- Current verified Worker version: `4b402c57-2676-40f4-9903-a2aa276c2226`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -85,6 +85,11 @@ Verified over public HTTPS on July 20–22, 2026:
   migrations were pending after the deployment.
 - `/login` returned the deployed invitation-only OTP interface. Anonymous session retrieval returned
   HTTP 200 with `null`, while `/api/account/organizations` returned HTTP 401 without a session.
+- The structured Public Website deployment returned HTTP 200 for the product root and `/history`. An
+  unregistered canonical Organization hostname returned the expected projection 404 without creating
+  an Organization, and the manager settings endpoint remained unavailable from the global product
+  hostname. Focused workerd coverage supplies the two-Organization publication proof until a real
+  staging Organization is intentionally provisioned.
 - `/api/platform/mfa/status` and `/api/platform/mfa/confirm-enrollment` returned HTTP 401 without a
   session after the MFA account deployment. The first status probe briefly reached the prior Worker
   during edge propagation; a cache-busting retry reached the verified current version.
@@ -655,12 +660,12 @@ The account is now on Workers Paid and Cloudflare Email Sending is onboarded for
 application additionally requires an explicit staging-recipient allowlist. External provider effects
 remain fake; only allowlisted authentication, invitation, and recovery email may leave staging.
 
-The structured Public Website baseline is implemented locally. Organization schema version 19 owns
-the private manager draft and public performance flags; managers can configure text, fonts,
-logo/hero assets, contact details, and module-aware navigation flags. Publication snapshots only
-typed public fields, copies referenced images from private Organization keys to immutable versioned
-R2 keys, and activates a KV pointer after the projection is written. Public home, history, and
-performance views read only that published projection on canonical or custom-public hostnames.
+The structured Public Website baseline is implemented and deployed to staging. Organization schema
+version 19 owns the private manager draft and public performance flags; managers can configure text,
+fonts, logo/hero assets, contact details, and module-aware navigation flags. Publication snapshots
+only typed public fields, copies referenced images from private Organization keys to immutable
+versioned R2 keys, and activates a KV pointer after the projection is written. Public home, history,
+and performance views read only that published projection on canonical or custom-public hostnames.
 Workerd proof covers manager/member authorization, draft-versus-live separation, custom-domain and
 cross-Organization isolation, exclusion of private event notes, public media caching and ETags,
 audit history, and repeat publication. Browser visual proof remains intentionally deferred to save
