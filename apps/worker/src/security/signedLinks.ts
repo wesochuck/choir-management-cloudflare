@@ -14,6 +14,7 @@ export const signedLinkPurposeSchema = z.enum([
   "player",
   "rsvp",
   "ticket_scan",
+  "ticket_receipt",
   "unsubscribe",
 ]);
 

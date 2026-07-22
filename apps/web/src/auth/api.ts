@@ -63,6 +63,10 @@ import {
   publishedOrganizationProjectionSchema,
   publicWebsitePublishResponseSchema,
   publicWebsiteSettingsResponseSchema,
+  organizationTicketOrderSchema,
+  organizationTicketOrdersResponseSchema,
+  publicTicketPurchaseResponseSchema,
+  ticketCheckoutResponseSchema,
   type AccountOrganization,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
@@ -120,6 +124,9 @@ import {
   type PublishedOrganizationProjection,
   type PublicWebsiteSettings,
   type PublicWebsiteSettingsRequest,
+  type OrganizationTicketOrder,
+  type PublicTicketPurchase,
+  type TicketCheckoutRequest,
 } from "@choir/contracts";
 
 export class AuthApiError extends Error {
@@ -430,6 +437,45 @@ export async function publishOrganizationPublicWebsite(): Promise<{
 }> {
   const response = await request("/api/organization/website/publish", { method: "POST" });
   return publicWebsitePublishResponseSchema.parse(await response.json());
+}
+
+export async function createPublicTicketCheckout(checkout: TicketCheckoutRequest) {
+  const response = await fetch("/api/public/tickets/checkout", {
+    body: JSON.stringify(checkout),
+    headers: { accept: "application/json", "content-type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) throw await responseError(response);
+  return ticketCheckoutResponseSchema.parse(await response.json());
+}
+
+export async function getPublicTicketPurchase(
+  token: string,
+  signal?: AbortSignal,
+): Promise<PublicTicketPurchase> {
+  const response = await fetch(`/api/public/tickets/order?token=${encodeURIComponent(token)}`, {
+    headers: { accept: "application/json" },
+    signal: signal ?? null,
+  });
+  if (!response.ok) throw await responseError(response);
+  return publicTicketPurchaseResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationTicketOrders(
+  signal?: AbortSignal,
+): Promise<readonly OrganizationTicketOrder[]> {
+  const response = await request("/api/organization/tickets/orders", { signal: signal ?? null });
+  return organizationTicketOrdersResponseSchema.parse(await response.json()).orders;
+}
+
+export async function refundOrganizationTicketOrder(
+  purchaseId: string,
+): Promise<OrganizationTicketOrder> {
+  const response = await request(
+    `/api/organization/tickets/${encodeURIComponent(purchaseId)}/refund`,
+    { method: "POST" },
+  );
+  return organizationTicketOrderSchema.parse(await response.json());
 }
 
 export async function setOrganizationProfilePhoto(

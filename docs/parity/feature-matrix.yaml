@@ -120,18 +120,26 @@
         "path": "/tickets",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:249; src/views/PublicTicketListView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "route.public.ticket-success",
         "path": "/tickets/order/success",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:257; src/views/PublicTicketSuccessView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "route.public.bundle",
@@ -147,9 +155,13 @@
         "path": "/tickets/:eventId",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:281; src/views/PublicTicketPurchaseView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "route.public.donate",
@@ -473,9 +485,13 @@
         "path": "/admin/tickets",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:561; src/views/admin/TicketingView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/TicketingManager.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.ticket-scan",
@@ -755,9 +771,14 @@
         "path": "/api/checkout/create-tickets-session",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1505",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/payments/ticketCheckout.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.checkout-bundle",
@@ -815,9 +836,13 @@
         "path": "/api/admin/refund-ticket",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1517",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.refund-bundle",
@@ -1504,10 +1529,17 @@
         "workflow": "event/bundle sale, capacity, checkout, scan, will-call, and refund",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/services/ticketService.ts; src/views/admin/ticketing; test/pb-hooks/ticketing.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/domain/src/ticketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/web/src/account/TicketingManager.tsx",
+          ],
       },
       {
         "id": "workflow.donations",
@@ -1721,9 +1753,10 @@
         "state": "ticket, bundle, donation, audition, and RSVP public forms work on mobile",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "public route views and ticketing/donation tests",
-        "targetEvidence": [],
+        "targetEvidence":
+          ["apps/web/src/public/PublicTickets.tsx", "apps/web/src/styles/theme.css"],
       },
       {
         "id": "responsive.theme",

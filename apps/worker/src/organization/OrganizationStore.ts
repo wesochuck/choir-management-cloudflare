@@ -48,6 +48,11 @@ import {
   managePublicWebsiteInStore,
   readPublicWebsiteSettingsFromStore,
 } from "./publicWebsiteStore";
+import {
+  listTicketOrdersFromStore,
+  manageTicketingInStore,
+  readTicketPurchaseFromStore,
+} from "./ticketingStore";
 
 const completionSchema = z.object({
   attempt: z.number().int().min(1).max(10),
@@ -1258,6 +1263,7 @@ async function dispatchPostRequest(
   if (communicationResponse) return communicationResponse;
   const websiteResponse = await dispatchWebsitePostRequest(storage, pathname, request);
   if (websiteResponse) return websiteResponse;
+  if (pathname === "/internal/ticketing/manage") return manageTicketingInStore(storage, request);
   return dispatchOperationalPostRequest(storage, pathname, request);
 }
 
@@ -1316,6 +1322,14 @@ function dispatchContentGetRequest(
       return readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId"));
     case "/internal/website/settings":
       return readPublicWebsiteSettingsFromStore(storage, organizationId);
+    case "/internal/ticketing/orders":
+      return listTicketOrdersFromStore(storage, organizationId);
+    case "/internal/ticketing/purchase":
+      return readTicketPurchaseFromStore(
+        storage,
+        organizationId,
+        url.searchParams.get("purchaseId"),
+      );
     default:
       return null;
   }

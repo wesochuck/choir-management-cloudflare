@@ -80,11 +80,15 @@ interface VenueRow {
 
 interface EventRow {
   readonly [column: string]: SqlStorageValue;
+  readonly advancePriceCents: number;
   readonly callTime: string;
   readonly createdAt: string;
   readonly details: string;
+  readonly dayOfPriceCents: number;
+  readonly doorsOpenTime: string;
   readonly durationMinutes: number | null;
   readonly id: string;
+  readonly isTicketingEnabled: number;
   readonly location: string;
   readonly parentPerformanceId: string | null;
   readonly publicDetails: string;
@@ -93,6 +97,7 @@ interface EventRow {
   readonly setListApproved: number;
   readonly setListJson: string;
   readonly startsAt: string;
+  readonly ticketCapacity: number | null;
   readonly title: string;
   readonly type: "Performance" | "Rehearsal";
   readonly updatedAt: string;
@@ -229,6 +234,9 @@ export function listOrganizationEventsFromStore(
   const events = storage.sql
     .exec<EventRow>(
       `SELECT id, title, type, starts_at AS startsAt, duration_minutes AS durationMinutes,
+         advance_price_cents AS advancePriceCents, day_of_price_cents AS dayOfPriceCents,
+         doors_open_time AS doorsOpenTime, is_ticketing_enabled AS isTicketingEnabled,
+         ticket_capacity AS ticketCapacity,
          call_time AS callTime, location, venue_id AS venueId,
          parent_performance_id AS parentPerformanceId, details,
          public_details AS publicDetails, public_graphic_file_id AS publicGraphicFileId,
@@ -239,11 +247,15 @@ export function listOrganizationEventsFromStore(
     )
     .toArray()
     .map((event) => ({
+      advancePriceCents: event.advancePriceCents,
       callTime: event.callTime,
       createdAt: event.createdAt,
       details: event.details,
+      dayOfPriceCents: event.dayOfPriceCents,
+      doorsOpenTime: event.doorsOpenTime,
       durationMinutes: event.durationMinutes,
       id: event.id,
+      isTicketingEnabled: event.isTicketingEnabled === 1,
       location: event.location,
       parentPerformanceId: event.parentPerformanceId,
       publicDetails: event.publicDetails,
@@ -252,6 +264,7 @@ export function listOrganizationEventsFromStore(
       setList: parseSetList(event.setListJson),
       setListApproved: event.setListApproved === 1,
       startsAt: event.startsAt,
+      ticketCapacity: event.ticketCapacity,
       title: event.title,
       type: event.type,
       updatedAt: event.updatedAt,
@@ -555,10 +568,34 @@ export function listMemberEventsFromStore(
   return Response.json({ events });
 }
 
+function ticketConfigurationError(
+  storage: DurableObjectStorage,
+  event: EventOperation["event"],
+): Response | null {
+  if (event.isTicketingEnabled && event.type !== "Performance") {
+    return Response.json({ code: "ticketing_requires_performance" }, { status: 409 });
+  }
+  if (event.ticketCapacity !== null) {
+    const committedQuantity = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly quantity: number }>(
+        `SELECT COALESCE(SUM(quantity), 0) AS quantity FROM ticket_purchases
+         WHERE event_id = ? AND status IN ('pending', 'paid')`,
+        event.id,
+      )
+      .one().quantity;
+    if (committedQuantity > event.ticketCapacity) {
+      return Response.json({ code: "ticket_capacity_below_sales" }, { status: 409 });
+    }
+  }
+  return null;
+}
+
 function eventReferenceError(
   storage: DurableObjectStorage,
   event: EventOperation["event"],
 ): Response | null {
+  const ticketError = ticketConfigurationError(storage, event);
+  if (ticketError) return ticketError;
   if (event.venueId && !recordExists(storage, "venues", event.venueId)) {
     return Response.json({ code: "venue_not_found" }, { status: 404 });
   }
@@ -634,9 +671,10 @@ function writeEvent(
         `INSERT INTO events
           (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
            parent_performance_id, details, public_details, public_graphic_file_id,
-           publish_on_website, set_list_json, set_list_approved,
+           publish_on_website, advance_price_cents, day_of_price_cents, doors_open_time,
+           is_ticketing_enabled, ticket_capacity, set_list_json, set_list_approved,
            is_archived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
         event.id,
         event.title,
         event.type,
@@ -650,6 +688,11 @@ function writeEvent(
         event.publicDetails,
         event.publicGraphicFileId,
         event.publishOnWebsite ? 1 : 0,
+        event.advancePriceCents,
+        event.dayOfPriceCents,
+        event.doorsOpenTime,
+        event.isTicketingEnabled ? 1 : 0,
+        event.ticketCapacity,
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
         occurredAt,
@@ -660,7 +703,9 @@ function writeEvent(
         `UPDATE events SET title = ?, type = ?, starts_at = ?, duration_minutes = ?,
            call_time = ?, location = ?, venue_id = ?, parent_performance_id = ?, details = ?,
            public_details = ?, public_graphic_file_id = ?, publish_on_website = ?,
-           set_list_json = ?, set_list_approved = ?, updated_at = ?
+           advance_price_cents = ?, day_of_price_cents = ?, doors_open_time = ?,
+           is_ticketing_enabled = ?, ticket_capacity = ?, set_list_json = ?,
+           set_list_approved = ?, updated_at = ?
          WHERE id = ?`,
         event.title,
         event.type,
@@ -674,6 +719,11 @@ function writeEvent(
         event.publicDetails,
         event.publicGraphicFileId,
         event.publishOnWebsite ? 1 : 0,
+        event.advancePriceCents,
+        event.dayOfPriceCents,
+        event.doorsOpenTime,
+        event.isTicketingEnabled ? 1 : 0,
+        event.ticketCapacity,
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
         occurredAt,
@@ -687,6 +737,7 @@ function writeEvent(
       "event",
       event.id,
       {
+        isTicketingEnabled: event.isTicketingEnabled,
         publishOnWebsite: event.publishOnWebsite,
         startsAt: event.startsAt,
         title: event.title,

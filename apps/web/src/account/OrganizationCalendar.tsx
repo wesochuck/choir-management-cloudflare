@@ -45,9 +45,13 @@ type ResourceState =
   | ({ readonly status: "ready" } & Resources);
 
 const emptyEvent: OrganizationEventRequest = {
+  advancePriceCents: 0,
   callTime: "",
+  dayOfPriceCents: 0,
   details: "",
+  doorsOpenTime: "",
   durationMinutes: null,
+  isTicketingEnabled: false,
   location: "",
   parentPerformanceId: null,
   publicDetails: "",
@@ -56,6 +60,7 @@ const emptyEvent: OrganizationEventRequest = {
   setList: [],
   setListApproved: false,
   startsAt: new Date(0).toISOString(),
+  ticketCapacity: null,
   title: "",
   type: "Rehearsal",
   venueId: null,
@@ -99,9 +104,13 @@ function profileStatusLabel(value: OrganizationProfile["globalStatus"]): string 
 
 function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
   return {
+    advancePriceCents: event.advancePriceCents,
     callTime: event.callTime,
+    dayOfPriceCents: event.dayOfPriceCents,
     details: event.details,
+    doorsOpenTime: event.doorsOpenTime,
     durationMinutes: event.durationMinutes,
+    isTicketingEnabled: event.isTicketingEnabled,
     location: event.location,
     parentPerformanceId: event.parentPerformanceId,
     publicDetails: event.publicDetails,
@@ -110,6 +119,7 @@ function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
     setList: event.setList,
     setListApproved: event.setListApproved,
     startsAt: event.startsAt,
+    ticketCapacity: event.ticketCapacity,
     title: event.title,
     type: event.type,
     venueId: event.venueId,
@@ -278,6 +288,69 @@ function PublicPerformanceFields({
           value={event.publicDetails}
         />
       </div>
+      <fieldset>
+        <legend>Online ticket sales</legend>
+        <label>
+          <input
+            checked={event.isTicketingEnabled}
+            onChange={(change) => {
+              onChange({ isTicketingEnabled: change.target.checked });
+            }}
+            type="checkbox"
+          />
+          Offer tickets for this performance
+        </label>
+        <div className="settings-grid">
+          <label className="field">
+            Advance price (USD)
+            <input
+              min="0"
+              onChange={(change) => {
+                onChange({ advancePriceCents: Math.round(Number(change.target.value) * 100) });
+              }}
+              step="0.01"
+              type="number"
+              value={(event.advancePriceCents / 100).toFixed(2)}
+            />
+          </label>
+          <label className="field">
+            Show-day price (USD)
+            <input
+              min="0"
+              onChange={(change) => {
+                onChange({ dayOfPriceCents: Math.round(Number(change.target.value) * 100) });
+              }}
+              step="0.01"
+              type="number"
+              value={(event.dayOfPriceCents / 100).toFixed(2)}
+            />
+          </label>
+          <label className="field">
+            Capacity (blank means unlimited)
+            <input
+              min="1"
+              onChange={(change) => {
+                onChange({
+                  ticketCapacity: change.target.value ? Number(change.target.value) : null,
+                });
+              }}
+              step="1"
+              type="number"
+              value={event.ticketCapacity ?? ""}
+            />
+          </label>
+          <label className="field">
+            Doors open
+            <input
+              onChange={(change) => {
+                onChange({ doorsOpenTime: change.target.value });
+              }}
+              type="time"
+              value={event.doorsOpenTime}
+            />
+          </label>
+        </div>
+      </fieldset>
       <div className="field">
         <label htmlFor="event-public-graphic">Public graphic (optional)</label>
         <input
@@ -565,6 +638,7 @@ export function OrganizationCalendar({
       parentPerformanceId: null,
       publicGraphicFileId: null,
       publishOnWebsite: false,
+      isTicketingEnabled: false,
       setList: [],
       setListApproved: false,
       title: `${candidate.title} copy`,

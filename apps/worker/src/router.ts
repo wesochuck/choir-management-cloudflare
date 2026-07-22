@@ -28,6 +28,7 @@ import {
   platformElevationRequestSchema,
   publicDomainRegistrationRequestSchema,
   publicWebsiteSettingsRequestSchema,
+  ticketCheckoutRequestSchema,
   type HealthResponse,
   type CalendarFeedUrlsResponse,
   type OrganizationContextResponse,
@@ -190,6 +191,13 @@ import {
   readOrganizationPublicWebsiteSettings,
   updateOrganizationPublicWebsiteSettings,
 } from "./organization/organizationPublicWebsite";
+import {
+  createPublicTicketCheckout,
+  listOrganizationTicketOrders,
+  readPublicTicketPurchase,
+  refundFakeTicketPurchase,
+  TicketingError,
+} from "./organization/organizationTicketing";
 
 interface WorkerHonoEnvironment {
   Bindings: Env;
@@ -666,6 +674,104 @@ router.get("/api/public/media/:version/:fileId", async (context) => {
   if (context.req.header("if-none-match") === object.httpEtag) return context.body(null, 304);
   context.header("content-type", object.httpMetadata?.contentType ?? "application/octet-stream");
   return context.body(object.body);
+});
+
+router.post("/api/public/tickets/checkout", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  const checkout = ticketCheckoutRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Ticket sales are not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  if (!checkout.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid ticket order details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json(
+      await createPublicTicketCheckout(
+        context.env,
+        resolved.value.organizationId,
+        new URL(context.req.url).origin,
+        checkout.data,
+      ),
+      201,
+    );
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_checkout_unavailable",
+        message:
+          error instanceof TicketingError
+            ? error.message
+            : "Online ticket checkout is not available right now.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && error.status === 409 ? 409 : 503,
+    );
+  }
+});
+
+router.get("/api/public/tickets/order", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  const token = context.req.query("token") ?? "";
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Ticket order not found.",
+        requestId: context.get("requestId"),
+      },
+      404,
+    );
+  }
+  const envelope = await verifySignedLinkScope(context.env.SIGNED_LINK_SECRET, token, {
+    expectedOrganizationId: resolved.value.organizationId,
+    expectedPurpose: "ticket_receipt",
+  });
+  if (!envelope?.resourceId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Ticket order not found.",
+        requestId: context.get("requestId"),
+      },
+      404,
+    );
+  }
+  try {
+    const purchase = await readPublicTicketPurchase(
+      context.env,
+      resolved.value.organizationId,
+      envelope.resourceId,
+    );
+    return context.json({ ...purchase, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Ticket order not found.",
+        requestId: context.get("requestId"),
+      },
+      404,
+    );
+  }
 });
 
 router.post("/api/public/unsubscribe", async (context) => {
@@ -2080,6 +2186,78 @@ router.post("/api/organization/website/publish", async (context) => {
       "The public website could not be published.",
     );
     return context.json(result.problem, result.status);
+  }
+});
+
+router.get("/api/organization/tickets/orders", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const orders = await listOrganizationTicketOrders(context.env, authorization.organizationId);
+    return context.json({ orders, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Ticket orders are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/tickets/:purchaseId/refund", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const purchaseId = z.uuid().safeParse(context.req.param("purchaseId"));
+  if (!purchaseId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid ticket order is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const order = await refundFakeTicketPurchase(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      purchaseId.data,
+    );
+    return context.json({ ...order, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_refund_unavailable",
+        message:
+          error instanceof TicketingError
+            ? error.message
+            : "The ticket order could not be refunded.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && error.status === 404
+        ? 404
+        : error instanceof TicketingError && error.status === 409
+          ? 409
+          : 503,
+    );
   }
 });
 

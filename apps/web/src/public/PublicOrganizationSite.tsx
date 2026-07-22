@@ -97,7 +97,7 @@ function PerformanceCards({
   );
 }
 
-function OrganizationLayout({
+export function OrganizationLayout({
   children,
   projection,
 }: {

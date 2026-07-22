@@ -34,9 +34,13 @@ const emptyResources: Resources = { events: [], music: [], profiles: [] };
 
 function eventRequestFrom(event: OrganizationEvent, setList: SetListItem[], approved: boolean) {
   return {
+    advancePriceCents: event.advancePriceCents,
     callTime: event.callTime,
+    dayOfPriceCents: event.dayOfPriceCents,
     details: event.details,
+    doorsOpenTime: event.doorsOpenTime,
     durationMinutes: event.durationMinutes,
+    isTicketingEnabled: event.isTicketingEnabled,
     location: event.location,
     parentPerformanceId: event.parentPerformanceId,
     publicDetails: event.publicDetails,
@@ -45,6 +49,7 @@ function eventRequestFrom(event: OrganizationEvent, setList: SetListItem[], appr
     setList,
     setListApproved: approved,
     startsAt: event.startsAt,
+    ticketCapacity: event.ticketCapacity,
     title: event.title,
     type: event.type,
     venueId: event.venueId,

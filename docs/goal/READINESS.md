@@ -671,6 +671,17 @@ cross-Organization isolation, exclusion of private event notes, public media cac
 audit history, and repeat publication. Browser visual proof remains intentionally deferred to save
 goal-run tokens; public ticket, donation, and audition modules are still separate parity work.
 
+The ticket-sales foundation is implemented locally on Organization schema version 20. Managers can
+configure ticket pricing, capacity, and doors-open time per published performance; public canonical
+and custom hosts expose catalog, purchase, and signed receipt views. The Organization store enforces
+capacity atomically, binds idempotency to the complete checkout request, keeps buyer email out of
+the public receipt, and audits fulfillment/refund transitions. Manager order history and fake-mode
+refunds are hostname-authorized; receipt tokens are purpose-separated and Organization-bound. Local
+and staging fake mode visibly states that no card was charged, while disabled, sandbox, and all
+production effects fail closed. Stripe Connect account routing, direct-charge checkout/webhooks,
+bundles, scanning, will-call CSV, confirmation delivery, reminders, and real-provider refunds remain
+in the ticketing parity slice and prevent ticketing from being classified as complete.
+
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
 

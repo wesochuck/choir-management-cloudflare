@@ -158,9 +158,15 @@ export const organizationSetListItemSchema = z.object({
 });
 
 export const organizationEventRequestSchema = z.object({
+  advancePriceCents: z.number().int().nonnegative().max(10_000_000).default(0),
   callTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
+  dayOfPriceCents: z.number().int().nonnegative().max(10_000_000).default(0),
   details: z.string().max(100_000).default(""),
+  doorsOpenTime: z
+    .union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)])
+    .default(""),
   durationMinutes: z.number().int().positive().max(1_440).nullable().default(null),
+  isTicketingEnabled: z.boolean().default(false),
   location: z.string().trim().max(2_000).default(""),
   parentPerformanceId: z.uuid().nullable().default(null),
   publicDetails: z.string().max(100_000).default(""),
@@ -169,6 +175,7 @@ export const organizationEventRequestSchema = z.object({
   setList: z.array(organizationSetListItemSchema).max(200).default([]),
   setListApproved: z.boolean().default(false),
   startsAt: z.iso.datetime(),
+  ticketCapacity: z.number().int().positive().max(100_000).nullable().default(null),
   title: z.string().trim().min(1).max(500),
   type: z.enum(["Performance", "Rehearsal"]),
   venueId: z.uuid().nullable().default(null),
@@ -209,13 +216,70 @@ export const publicWebsiteSettingsSchema = publicWebsiteSettingsRequestSchema.ex
 });
 
 export const publicPerformanceSchema = z.object({
+  advancePriceCents: z.number().int().nonnegative(),
+  dayOfPriceCents: z.number().int().nonnegative(),
+  doorsOpenTime: z.string().max(5),
   graphicFileId: z.uuid().nullable(),
   id: z.uuid(),
+  isTicketingEnabled: z.boolean(),
   location: z.string().max(2_000),
   publicDetails: z.string().max(100_000),
   startsAt: z.iso.datetime(),
+  ticketCapacity: z.number().int().positive().nullable(),
   title: z.string().min(1).max(500),
   venueName: z.string().max(500),
+});
+
+export const ticketCheckoutRequestSchema = z.object({
+  buyerEmail: z.email().max(320),
+  buyerName: z.string().trim().min(1).max(200),
+  checkoutRequestId: z.uuid(),
+  eventId: z.uuid(),
+  marketingOptIn: z.boolean().default(false),
+  quantity: z.number().int().min(1).max(10),
+});
+
+export const ticketPurchaseStatusSchema = z.enum(["pending", "paid", "refunded", "expired"]);
+
+export const publicTicketPurchaseSchema = z.object({
+  amountPaidCents: z.number().int().nonnegative(),
+  buyerName: z.string().min(1).max(200),
+  checkoutMode: z.enum(["fake", "stripe"]),
+  currency: z.literal("usd"),
+  eventId: z.uuid(),
+  eventStartsAt: z.iso.datetime(),
+  eventTitle: z.string().min(1).max(500),
+  feeCents: z.number().int().nonnegative(),
+  id: z.uuid(),
+  quantity: z.number().int().positive(),
+  status: ticketPurchaseStatusSchema,
+  timezone: z.string().min(1).max(128),
+  unitPriceCents: z.number().int().nonnegative(),
+});
+
+export const ticketCheckoutResponseSchema = z.object({
+  checkoutMode: z.enum(["fake", "stripe"]),
+  purchase: publicTicketPurchaseSchema,
+  successToken: z.string().min(1).max(4096),
+  url: z.url(),
+});
+
+export const publicTicketPurchaseResponseSchema = publicTicketPurchaseSchema.extend({
+  requestId: requestIdSchema,
+});
+
+export const organizationTicketOrderSchema = publicTicketPurchaseSchema.extend({
+  buyerEmail: z.email().max(320),
+  createdAt: z.iso.datetime(),
+  marketingOptIn: z.boolean(),
+  providerPaymentId: z.string().max(256),
+  providerSessionId: z.string().max(256),
+  updatedAt: z.iso.datetime(),
+});
+
+export const organizationTicketOrdersResponseSchema = z.object({
+  orders: z.array(organizationTicketOrderSchema).max(500),
+  requestId: requestIdSchema,
 });
 
 export const publicWebsiteProjectionPayloadSchema = z.object({
@@ -504,6 +568,9 @@ export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
 export type OrganizationVenueDeleteResponse = z.infer<typeof organizationVenueDeleteResponseSchema>;
 export type OrganizationEventRequest = z.infer<typeof organizationEventRequestSchema>;
 export type OrganizationEvent = z.infer<typeof organizationEventSchema>;
+export type TicketCheckoutRequest = z.infer<typeof ticketCheckoutRequestSchema>;
+export type PublicTicketPurchase = z.infer<typeof publicTicketPurchaseSchema>;
+export type OrganizationTicketOrder = z.infer<typeof organizationTicketOrderSchema>;
 export type PublicWebsiteSettingsRequest = z.infer<typeof publicWebsiteSettingsRequestSchema>;
 export type PublicWebsiteSettings = z.infer<typeof publicWebsiteSettingsSchema>;
 export type PublicWebsiteProjectionPayload = z.infer<typeof publicWebsiteProjectionPayloadSchema>;

@@ -48,11 +48,16 @@ interface SettingsRow {
 
 interface PublicEventRow {
   readonly [column: string]: SqlStorageValue;
+  readonly advancePriceCents: number;
+  readonly dayOfPriceCents: number;
+  readonly doorsOpenTime: string;
   readonly graphicFileId: string | null;
   readonly id: string;
+  readonly isTicketingEnabled: number;
   readonly location: string;
   readonly publicDetails: string;
   readonly startsAt: string;
+  readonly ticketCapacity: number | null;
   readonly title: string;
   readonly venueName: string;
 }
@@ -208,13 +213,17 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
   const performances = storage.sql
     .exec<PublicEventRow>(
       `SELECT e.id, e.title, e.starts_at AS startsAt, e.location,
+        e.advance_price_cents AS advancePriceCents,
+        e.day_of_price_cents AS dayOfPriceCents, e.doors_open_time AS doorsOpenTime,
+        e.is_ticketing_enabled AS isTicketingEnabled, e.ticket_capacity AS ticketCapacity,
         e.public_details AS publicDetails, e.public_graphic_file_id AS graphicFileId,
         COALESCE(v.name, '') AS venueName
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
        WHERE e.is_archived = 0 AND e.type = 'Performance' AND e.publish_on_website = 1
        ORDER BY e.starts_at DESC, e.id DESC LIMIT 100`,
     )
-    .toArray();
+    .toArray()
+    .map((event) => ({ ...event, isTicketingEnabled: event.isTicketingEnabled === 1 }));
   const mediaIds = new Set(
     [
       settings.heroFileId,

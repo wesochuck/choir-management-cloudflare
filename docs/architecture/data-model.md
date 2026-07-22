@@ -80,8 +80,12 @@ leak a campaign email. Version 19 adds the private structured Public Website dra
 version state, and public performance fields. A manager publication snapshots only explicitly public
 fields, copies referenced ready images into immutable versioned R2 keys, writes the typed
 projection, and advances the KV pointer; public requests never read the Organization Durable Object.
-Contract or removal migrations occur only after old and new Worker versions are both safe throughout
-the rollback window.
+Version 20 adds performance ticket-sale configuration and Organization-local purchase records with
+immutable event/timezone snapshots, replay-safe checkout request IDs, capacity indexes, provider
+identifiers, lifecycle state, consent, and refund timestamps. Fake-mode fulfillment remains
+explicitly marked as a simulation; Stripe Connect direct-charge state will reuse this ledger rather
+than move operational order data into D1. Contract or removal migrations occur only after old and
+new Worker versions are both safe throughout the rollback window.
 
 ## R2 and KV
 

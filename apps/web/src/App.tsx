@@ -9,6 +9,7 @@ import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
 import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
+import { PublicTickets } from "./public/PublicTickets";
 
 type ServiceState = "checking" | "offline" | "ready";
 type SessionState =
@@ -140,7 +141,10 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
 
 function isAccountRoute(pathname: string): boolean {
   return (
-    pathname === "/account" || pathname === "/admin/communications" || pathname === "/admin/website"
+    pathname === "/account" ||
+    pathname === "/admin/communications" ||
+    pathname === "/admin/tickets" ||
+    pathname === "/admin/website"
   );
 }
 
@@ -160,6 +164,9 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
 }
 
 function renderPublicOrProductRoute(pathname: string, productShell: ReactNode) {
+  if (pathname === "/tickets" || pathname.startsWith("/tickets/")) {
+    return <PublicTickets pathname={pathname} />;
+  }
   return isPublicOrganizationRoute(pathname) ? (
     <PublicOrganizationSite fallback={productShell} pathname={pathname} />
   ) : (

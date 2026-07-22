@@ -25,6 +25,7 @@ import { RosterConfiguration } from "./RosterConfiguration";
 import { SeatingFinder } from "./SeatingFinder";
 import { SeatingManager } from "./SeatingManager";
 import { SetListManager } from "./SetListManager";
+import { TicketingManager } from "./TicketingManager";
 
 type AccessState =
   | { readonly status: "error" }
@@ -405,6 +406,7 @@ function OrganizationOperations({
       <OrganizationResources enabled={enabled} manager={managerEnabled} />
       <CommunicationCenter enabled={managerEnabled} />
       <PublicWebsiteManager enabled={managerEnabled} />
+      <TicketingManager enabled={managerEnabled} />
       <SetListManager enabled={managerEnabled} />
       <SeatingManager enabled={managerEnabled} />
       <AttendanceManager enabled={managerEnabled} />

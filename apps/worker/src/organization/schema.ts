@@ -350,6 +350,44 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON events(publish_on_website, is_archived, type, starts_at DESC, id DESC)`,
     ],
   },
+  {
+    version: 20,
+    statements: [
+      "ALTER TABLE events ADD COLUMN is_ticketing_enabled INTEGER NOT NULL DEFAULT 0 CHECK (is_ticketing_enabled IN (0, 1))",
+      "ALTER TABLE events ADD COLUMN advance_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (advance_price_cents >= 0)",
+      "ALTER TABLE events ADD COLUMN day_of_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (day_of_price_cents >= 0)",
+      "ALTER TABLE events ADD COLUMN ticket_capacity INTEGER CHECK (ticket_capacity IS NULL OR ticket_capacity > 0)",
+      "ALTER TABLE events ADD COLUMN doors_open_time TEXT NOT NULL DEFAULT ''",
+      `CREATE TABLE ticket_purchases (
+        id TEXT PRIMARY KEY,
+        checkout_request_id TEXT NOT NULL UNIQUE,
+        event_id TEXT NOT NULL,
+        event_title TEXT NOT NULL,
+        event_starts_at TEXT NOT NULL,
+        event_timezone TEXT NOT NULL,
+        buyer_name TEXT NOT NULL,
+        buyer_email TEXT NOT NULL,
+        quantity INTEGER NOT NULL CHECK (quantity BETWEEN 1 AND 10),
+        unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents >= 0),
+        fee_cents INTEGER NOT NULL CHECK (fee_cents >= 0),
+        amount_paid_cents INTEGER NOT NULL CHECK (amount_paid_cents >= 0),
+        currency TEXT NOT NULL DEFAULT 'usd' CHECK (currency = 'usd'),
+        provider_session_id TEXT NOT NULL UNIQUE,
+        provider_payment_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'refunded', 'expired')),
+        marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        fulfilled_at TEXT,
+        expired_at TEXT,
+        refunded_at TEXT
+      ) STRICT`,
+      `CREATE INDEX idx_ticket_purchases_event_status
+       ON ticket_purchases(event_id, status, created_at, id)`,
+      `CREATE INDEX idx_ticket_purchases_history
+       ON ticket_purchases(created_at DESC, id DESC)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
