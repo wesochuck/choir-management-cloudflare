@@ -695,6 +695,17 @@ sandbox, and all production effects fail closed. Stripe Connect account routing,
 checkout/webhooks, provider refund qualification, and real Brevo delivery qualification remain in
 the ticketing parity slice and prevent ticketing from being classified as complete.
 
+The provider-independent baseline was deployed from commit `972956d` as Worker version
+`1f7900c2-ec80-47f4-9fb5-d0e3b127e15f`. Custom-domain health and readiness returned HTTP 200, the
+unauthenticated auth session remained null, and an unregistered canonical Organization host returned
+the expected hostname-first HTTP 404 for a ticket receipt. Remote control D1 retained one user, one
+Platform Administrator, zero Organizations, and zero dead letters. Wrangler's migrations list
+command encountered a repeatable Cloudflare API internal error during this smoke check; a direct
+read of the authoritative `d1_migrations` ledger succeeded and showed all seven repository control
+migrations applied. Because staging intentionally has zero Organizations, Organization schema 23 and
+the new purchase flows are proven in workerd but will migrate lazily on the first Organization
+provision or access.
+
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
 
