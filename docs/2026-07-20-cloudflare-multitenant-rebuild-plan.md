@@ -131,12 +131,17 @@ milestone complete.
 | `apps/worker/src/organization/organizationSeating.ts`          | Authenticated manager/member seating repository adapter                              |
 | `apps/worker/src/organization/organizationMusic.ts`            | Authenticated manager music catalog repository adapter                               |
 | `apps/worker/src/organization/organizationResources.ts`        | Authenticated Organization resource repository adapter                               |
+| `apps/worker/src/organization/communicationStore.ts`           | Organization message, recipient, template, and delivery-ledger persistence           |
+| `apps/worker/src/organization/organizationCommunications.ts`   | Host-authorized Organization communications repository adapter                       |
+| `apps/worker/src/communications/provider.ts`                   | Provider-neutral Email/SMS delivery adapter with deterministic fake behavior         |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
 | `packages/domain/src/index.ts`                                 | Public domain exports                                                                |
 | `packages/domain/src/setList.ts`                               | Pure set-list duration, duplicate, and ordering rules                                |
 | `packages/domain/src/setList.test.ts`                          | Unit proof for set-list duration, duplicate, and ordering rules                      |
+| `packages/domain/src/communications.ts`                        | Pure reach, channel, masking, and delivery-summary rules                             |
+| `packages/domain/src/communications.test.ts`                   | Unit proof for communications reach and safe delivery summaries                      |
 | `packages/domain/src/calendarTime.ts`                          | Shared IANA timezone validation and local-to-UTC calendar conversion                 |
 | `packages/ui/package.json`                                     | Repository-owned Radix-based UI package                                              |
 | `packages/ui/src/index.ts`                                     | Stable component exports                                                             |
@@ -161,6 +166,7 @@ milestone complete.
 | `apps/web/tsconfig.json`                                       | Strict browser/e2e TypeScript project                                                |
 | `apps/web/e2e/foundation.spec.ts`                              | Foundation desktop/mobile browser smoke coverage                                     |
 | `apps/web/e2e/auth.spec.ts`                                    | OTP, account, Organization-choice, and session-management browser coverage           |
+| `apps/web/src/account/CommunicationCenter.tsx`                 | Responsive manager compose, drafts, templates, history, and delivery visibility      |
 | `apps/worker/tsconfig.json`                                    | Strict Worker and Cloudflare-test TypeScript project                                 |
 | `apps/worker/worker-configuration.d.ts`                        | Wrangler-generated binding and module-export declarations                            |
 | `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                   |
@@ -168,6 +174,7 @@ milestone complete.
 | `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                            |
 | `apps/worker/test/resources.integration.test.ts`               | Resource CRUD, order, authorization, private files, audit, and isolation proof       |
 | `apps/worker/test/profilePhotos.integration.test.ts`           | Profile-photo ownership, manager access, replacement, privacy, and reclamation proof |
+| `apps/worker/test/communications.integration.test.ts`          | Message drafts, reach, queueing, retry, audit, and Organization-isolation proof      |
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |

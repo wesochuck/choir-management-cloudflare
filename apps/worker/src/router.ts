@@ -3,6 +3,9 @@ import {
   organizationMusicPieceRequestSchema,
   organizationResourceOrderRequestSchema,
   organizationResourceRequestSchema,
+  communicationAudienceRequestSchema,
+  communicationDraftRequestSchema,
+  communicationSendRequestSchema,
   organizationAttendanceBulkRequestSchema,
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
@@ -117,6 +120,15 @@ import {
   ResourceRepositoryError,
   updateOrganizationResource,
 } from "./organization/organizationResources";
+import {
+  CommunicationRepositoryError,
+  listOrganizationCommunications,
+  previewCommunicationReach,
+  readCommunicationDeliverySummary,
+  retryCommunicationDeliveries,
+  saveCommunicationDraft,
+  sendOrganizationCommunication,
+} from "./organization/organizationCommunications";
 import {
   createOrganizationProfile,
   importOrganizationProfiles,
@@ -2039,6 +2051,242 @@ router.delete("/api/organization/resources/:resourceId", async (context) => {
       error,
       context.get("requestId"),
       "The resource could not be deleted.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+function communicationProblem(error: unknown, requestIdValue: string, message: string) {
+  const status = error instanceof CommunicationRepositoryError ? error.status : 503;
+  return {
+    problem: {
+      code: error instanceof CommunicationRepositoryError ? error.code : "service_unavailable",
+      message,
+      requestId: requestIdValue,
+    } satisfies ProblemDetails,
+    status,
+  };
+}
+
+router.get("/api/organization/communications", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  try {
+    return context.json({
+      messages: await listOrganizationCommunications(context.env, authorization.organizationId),
+      requestId: context.get("requestId"),
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "Communication history is temporarily unavailable.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.post("/api/organization/communications/reach-preview", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const body = z
+    .object({
+      audience: communicationAudienceRequestSchema,
+      channel: z.enum(["Email", "SMS", "Both"]),
+    })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid communication audience filters and a channel are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    return context.json({
+      ...(await previewCommunicationReach(
+        context.env,
+        context.env.CONTROL_DB,
+        authorization.organizationId,
+        body.data,
+      )),
+      requestId: context.get("requestId"),
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "Communication reach could not be calculated.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.post("/api/organization/communications/drafts", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const body = communicationDraftRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid draft details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    const message = await saveCommunicationDraft(
+      context.env,
+      context.env.CONTROL_DB,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...message, requestId: context.get("requestId") }, 201);
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "The communication draft could not be saved.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.post("/api/organization/communications/send", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const body = communicationSendRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid message, audience, and delivery channel are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    const message = await sendOrganizationCommunication(
+      context.env,
+      context.env.CONTROL_DB,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...message, requestId: context.get("requestId") }, 202);
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "The communication could not be queued.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.get("/api/organization/communications/:messageId/delivery-summary", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const messageId = z.uuid().safeParse(context.req.param("messageId"));
+  if (!messageId.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid communication is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    return context.json({
+      ...(await readCommunicationDeliverySummary(
+        context.env,
+        authorization.organizationId,
+        messageId.data,
+      )),
+      requestId: context.get("requestId"),
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "Communication delivery status is temporarily unavailable.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.post("/api/organization/communications/:messageId/retry-failed", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const messageId = z.uuid().safeParse(context.req.param("messageId"));
+  if (!messageId.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid communication is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    const retried = await retryCommunicationDeliveries(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      messageId.data,
+    );
+    return context.json({
+      messageId: messageId.data,
+      requestId: context.get("requestId"),
+      retried,
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "Failed deliveries could not be queued for retry.",
     );
     return context.json(result.problem, result.status);
   }

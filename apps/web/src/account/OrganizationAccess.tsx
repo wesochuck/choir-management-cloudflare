@@ -13,6 +13,7 @@ import {
 import { OrganizationInvitations } from "./OrganizationInvitations";
 import { AttendanceManager } from "./AttendanceManager";
 import { CalendarSubscription } from "./CalendarSubscription";
+import { CommunicationCenter } from "./CommunicationCenter";
 import { OrganizationCalendar } from "./OrganizationCalendar";
 import { MySchedule } from "./MySchedule";
 import { MemberProfileDirectory } from "./MemberProfileDirectory";
@@ -401,6 +402,7 @@ function OrganizationOperations({
       <MusicCatalog enabled={managerEnabled} />
       <LearningTrackPlayer enabled={enabled} />
       <OrganizationResources enabled={enabled} manager={managerEnabled} />
+      <CommunicationCenter enabled={managerEnabled} />
       <SetListManager enabled={managerEnabled} />
       <SeatingManager enabled={managerEnabled} />
       <AttendanceManager enabled={managerEnabled} />

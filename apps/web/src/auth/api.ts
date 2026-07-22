@@ -1,4 +1,9 @@
 import {
+  communicationDeliverySummaryResponseSchema,
+  communicationMessageResponseSchema,
+  communicationMessagesResponseSchema,
+  communicationReachResponseSchema,
+  communicationRetryResponseSchema,
   memberProfileResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
   organizationMusicImportResponseSchema,
@@ -52,6 +57,11 @@ import {
   platformRecoveryCodesResponseSchema,
   problemDetailsSchema,
   type AccountOrganization,
+  type CommunicationDeliverySummary,
+  type CommunicationDraftRequest,
+  type CommunicationMessage,
+  type CommunicationReach,
+  type CommunicationSendRequest,
   type AccountPasswordRequest,
   type AccountSecurityResponse,
   type AuthSession,
@@ -429,6 +439,66 @@ export async function deleteOrganizationResource(resourceId: string): Promise<vo
     method: "DELETE",
   });
   organizationResourceDeleteResponseSchema.parse(await response.json());
+}
+
+export async function previewOrganizationCommunicationReach(
+  communication: Pick<CommunicationSendRequest, "audience" | "channel">,
+  signal?: AbortSignal,
+): Promise<CommunicationReach> {
+  const response = await request("/api/organization/communications/reach-preview", {
+    body: JSON.stringify(communication),
+    method: "POST",
+    signal: signal ?? null,
+  });
+  return communicationReachResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationCommunications(
+  signal?: AbortSignal,
+): Promise<readonly CommunicationMessage[]> {
+  const response = await request("/api/organization/communications", {
+    signal: signal ?? null,
+  });
+  return communicationMessagesResponseSchema.parse(await response.json()).messages;
+}
+
+export async function saveOrganizationCommunicationDraft(
+  communication: CommunicationDraftRequest,
+): Promise<CommunicationMessage> {
+  const response = await request("/api/organization/communications/drafts", {
+    body: JSON.stringify(communication),
+    method: "POST",
+  });
+  return communicationMessageResponseSchema.parse(await response.json());
+}
+
+export async function sendOrganizationCommunication(
+  communication: CommunicationSendRequest,
+): Promise<CommunicationMessage> {
+  const response = await request("/api/organization/communications/send", {
+    body: JSON.stringify(communication),
+    method: "POST",
+  });
+  return communicationMessageResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationCommunicationDeliverySummary(
+  messageId: string,
+  signal?: AbortSignal,
+): Promise<CommunicationDeliverySummary> {
+  const response = await request(
+    `/api/organization/communications/${encodeURIComponent(messageId)}/delivery-summary`,
+    { signal: signal ?? null },
+  );
+  return communicationDeliverySummaryResponseSchema.parse(await response.json());
+}
+
+export async function retryOrganizationCommunicationDeliveries(messageId: string): Promise<number> {
+  const response = await request(
+    `/api/organization/communications/${encodeURIComponent(messageId)}/retry-failed`,
+    { method: "POST" },
+  );
+  return communicationRetryResponseSchema.parse(await response.json()).retried;
 }
 
 export async function deletePrivateOrganizationFile(fileId: string): Promise<void> {

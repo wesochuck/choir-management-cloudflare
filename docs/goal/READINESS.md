@@ -388,15 +388,15 @@ Verified over public HTTPS on July 20–22, 2026:
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes, and the
-  current staging deployment additionally has a qualified real-email path for its single
-  allowlisted Platform Administrator.
+  current staging deployment additionally has a qualified real-email path for its single allowlisted
+  Platform Administrator.
 - `/` returned the deployed Vite application shell.
 - A real sign-in verification-code request for the active Platform Administrator identity
   `cwosborn@gmail.com` returned HTTP 200 through `staging.musicsite.org` on July 22, 2026. The
   deployed Worker used the native Email Sending binding, the application recipient allowlist, and
-  the authenticated `auth@mail.staging.musicsite.org` sender. The sender domain's MX, SPF, DKIM,
-  and rejecting DMARC records all resolved publicly. This qualifies the staging auth-email send
-  path without broadening staging delivery beyond the single allowlisted recipient.
+  the authenticated `auth@mail.staging.musicsite.org` sender. The sender domain's MX, SPF, DKIM, and
+  rejecting DMARC records all resolved publicly. This qualifies the staging auth-email send path
+  without broadening staging delivery beyond the single allowlisted recipient.
 
 ## Completed foundation checks
 

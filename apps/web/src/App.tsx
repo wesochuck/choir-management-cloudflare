@@ -136,6 +136,10 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
   return null;
 }
 
+function isAccountRoute(pathname: string): boolean {
+  return pathname === "/account" || pathname === "/admin/communications";
+}
+
 export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
@@ -222,7 +226,7 @@ export function App() {
       ) : (
         <SignInView onSignedIn={finishSignIn} />
       );
-  } else if (pathname === "/account") {
+  } else if (isAccountRoute(pathname)) {
     content =
       sessionState.status === "checking" ? (
         <AccountLoading />

@@ -55,3 +55,15 @@ export {
   parseSetListDuration,
   type SetListDurationItem,
 } from "./setList";
+export {
+  communicationFailureCategory,
+  communicationReach,
+  maskCommunicationDestination,
+  renderCommunicationTemplate,
+  summarizeCommunicationDeliveries,
+  type CommunicationFailureCategory,
+  type DeliveryChannel,
+  type DeliveryRecord,
+  type DeliveryStatus,
+  type ReachableRecipient,
+} from "./communications";

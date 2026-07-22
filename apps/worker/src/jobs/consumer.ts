@@ -1,6 +1,12 @@
 import { z } from "zod";
+import { renderCommunicationTemplate } from "@choir/domain";
 
 import type { Env } from "../env";
+import { deliverOrganizationCommunication } from "../communications/provider";
+import {
+  readCommunicationDeliveryJob,
+  recordCommunicationDeliveryResults,
+} from "../organization/organizationCommunications";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 
 type JobConsumerEnv = Pick<Env, "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE">;
@@ -60,6 +66,31 @@ async function recordJobFailure(env: JobConsumerEnv, job: DeliveryJob): Promise<
   }
 }
 
+async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
+  const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
+  const results = [];
+  for (const delivery of deliveryJob.deliveries) {
+    const result = await deliverOrganizationCommunication(env.EXTERNAL_EFFECTS_MODE, {
+      channel: delivery.channel,
+      contentMarkdown: renderCommunicationTemplate(
+        deliveryJob.contentMarkdown,
+        delivery.recipientName,
+      ),
+      deliveryId: delivery.id,
+      destination: delivery.destination,
+      messageId: deliveryJob.messageId,
+      recipientName: delivery.recipientName,
+      subject: renderCommunicationTemplate(deliveryJob.subject, delivery.recipientName),
+    });
+    results.push({ deliveryId: delivery.id, ...result });
+  }
+  await recordCommunicationDeliveryResults(env, {
+    jobId: job.jobId,
+    organizationId: job.organizationId,
+    results,
+  });
+}
+
 async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Promise<void> {
   const parsed = deliveryJobSchema.safeParse(message.body);
   if (!parsed.success) {
@@ -97,7 +128,9 @@ async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Pr
     }
     claimed = true;
 
-    if (env.EXTERNAL_EFFECTS_MODE !== "fake" && env.EXTERNAL_EFFECTS_MODE !== "disabled") {
+    if (job.kind === "communication_delivery") {
+      await deliverCommunicationJob(env, job);
+    } else if (env.EXTERNAL_EFFECTS_MODE !== "fake" && env.EXTERNAL_EFFECTS_MODE !== "disabled") {
       throw new Error("No sandbox provider adapter is configured for this job kind");
     }
 

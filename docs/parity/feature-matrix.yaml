@@ -431,9 +431,14 @@
         "path": "/admin/communications",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:537; src/views/admin/CommunicationView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/account/CommunicationCenter.tsx",
+            "apps/web/src/auth/api.ts",
+          ],
       },
       {
         "id": "route.admin.resources",
@@ -946,9 +951,14 @@
         "path": "/api/admin/communications/delivery-summary",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1554",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
       },
       {
         "id": "api.retry-deliveries",
@@ -956,9 +966,14 @@
         "path": "/api/admin/communications/retry-failed",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1556",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
       },
     ],
   "recordHooks":
@@ -968,18 +983,27 @@
         "hook": "messages.afterCreate",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1466",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
       },
       {
         "id": "hook.message-update",
         "hook": "messages.afterUpdate",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1468",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/src/organization/scheduler.ts",
+          ],
       },
       {
         "id": "hook.audition-create",
@@ -1010,7 +1034,13 @@
         "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/emailQueueTask.ts",
         "targetEvidence":
-          ["apps/worker/src/jobs/consumer.ts", "apps/web/src/account/PlatformOperations.tsx"],
+          [
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/src/communications/provider.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+            "apps/web/src/account/PlatformOperations.tsx",
+          ],
       },
       {
         "id": "task.event-reminder",
@@ -1384,11 +1414,21 @@
         "workflow": "Email/SMS/Both compose, reach, drafts, templates, history, and retries",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/views/admin/communications; src/services/communication;
           test/communicationWizard.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "packages/domain/src/communications.ts",
+            "packages/domain/src/communications.test.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/communications.integration.test.ts",
+            "apps/web/src/account/CommunicationCenter.tsx",
+          ],
       },
       {
         "id": "workflow.polls",
@@ -1614,11 +1654,11 @@
         "state": "communication wizard supports the baseline mobile send flow",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "docs/2026-07-13-communications-phase-1-mobile-send-flow.md;
           test/CommunicationTabs.test.tsx",
-        "targetEvidence": [],
+        "targetEvidence": ["apps/web/src/account/CommunicationCenter.tsx"],
       },
       {
         "id": "responsive.seating",

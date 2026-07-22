@@ -68,8 +68,13 @@ genres, section buckets, and mappings to ready private audio files. Movement dep
 level. Event set lists may reference only music pieces and credited Profiles in the same
 Organization; referenced pieces cannot be deleted, and deleting a parent requires either deleting
 its movements first or explicitly preserving them as top-level works. Feature milestones expand this
-schema with typed repositories. Contract or removal migrations occur only after old and new Worker
-versions are both safe throughout the rollback window.
+schema with typed repositories. Version 15 adds ordered Organization file/link resources, and
+version 16 adds a nullable private-file reference for Profile photos. Version 17 adds Organization
+messages, templates, per-recipient Email/SMS delivery state, safe retry metadata, and history. A
+send transaction creates its stable communication-delivery outbox job beside the message and
+recipient snapshot; provider work remains outside the Durable Object transaction. Contract or
+removal migrations occur only after old and new Worker versions are both safe throughout the
+rollback window.
 
 ## R2 and KV
 

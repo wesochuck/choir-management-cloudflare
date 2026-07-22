@@ -29,6 +29,13 @@ import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { listMusicPiecesFromStore, manageMusicInStore } from "./musicStore";
 import { listResourcesFromStore, manageResourceInStore } from "./resourceStore";
 import {
+  listCommunicationMessagesFromStore,
+  manageCommunicationInStore,
+  readCommunicationJobFromStore,
+  readCommunicationSummaryFromStore,
+  resolveCommunicationAudienceFromStore,
+} from "./communicationStore";
+import {
   listSeatingChartsFromStore,
   manageSeatingInStore,
   readSeatingConfigurationFromStore,
@@ -1229,6 +1236,8 @@ async function dispatchPostRequest(
   if (profileResponse) return profileResponse;
   const fileResponse = await dispatchPrivateFilePostRequest(storage, pathname, request);
   if (fileResponse) return fileResponse;
+  const communicationResponse = await dispatchCommunicationPostRequest(storage, pathname, request);
+  if (communicationResponse) return communicationResponse;
   switch (pathname) {
     case "/internal/jobs/claim":
       return claimJob(storage, request);
@@ -1255,6 +1264,20 @@ async function dispatchPostRequest(
     default:
       return null;
   }
+}
+
+async function dispatchCommunicationPostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
+  if (pathname === "/internal/communications/audience") {
+    return resolveCommunicationAudienceFromStore(storage, request);
+  }
+  if (pathname === "/internal/communications/manage") {
+    return manageCommunicationInStore(storage, request);
+  }
+  return null;
 }
 
 async function dispatchPrivateFilePostRequest(
@@ -1359,6 +1382,19 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
   if (profileResponse) return profileResponse;
   if (url.pathname === "/internal/resources") {
     return listResourcesFromStore(storage, organizationId);
+  }
+  if (url.pathname === "/internal/communications") {
+    return listCommunicationMessagesFromStore(storage, organizationId);
+  }
+  if (url.pathname === "/internal/communications/summary") {
+    return readCommunicationSummaryFromStore(
+      storage,
+      organizationId,
+      url.searchParams.get("messageId"),
+    );
+  }
+  if (url.pathname === "/internal/communications/job") {
+    return readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId"));
   }
   const calendarResponse = dispatchCalendarGetRequest(storage, url, organizationId);
   if (calendarResponse) return calendarResponse;

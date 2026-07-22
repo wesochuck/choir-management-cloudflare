@@ -250,6 +250,57 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     version: 16,
     statements: ["ALTER TABLE profiles ADD COLUMN photo_file_id TEXT"],
   },
+  {
+    version: 17,
+    statements: [
+      `CREATE TABLE communication_messages (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL CHECK (channel IN ('Email', 'SMS', 'Both')),
+        status TEXT NOT NULL CHECK (status IN ('Draft', 'Queued', 'Sent', 'Failed')),
+        subject TEXT NOT NULL DEFAULT '',
+        content_markdown TEXT NOT NULL DEFAULT '',
+        audience_json TEXT NOT NULL,
+        reach_json TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        queued_at TEXT,
+        sent_at TEXT
+      ) STRICT`,
+      `CREATE INDEX idx_communication_messages_history
+       ON communication_messages(created_at DESC, id DESC)`,
+      `CREATE TABLE communication_deliveries (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        channel TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
+        destination TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'sent', 'failed', 'suppressed')),
+        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        provider_message_id TEXT,
+        failure_detail TEXT NOT NULL DEFAULT '',
+        last_attempt_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (message_id, profile_id, channel)
+      ) STRICT`,
+      `CREATE INDEX idx_communication_deliveries_message
+       ON communication_deliveries(message_id, status, channel, id)`,
+      `CREATE TABLE communication_templates (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        channel TEXT NOT NULL CHECK (channel IN ('Email', 'SMS', 'Both')),
+        subject TEXT NOT NULL DEFAULT '',
+        content_markdown TEXT NOT NULL DEFAULT '',
+        is_system INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_communication_templates_title
+       ON communication_templates(title COLLATE NOCASE, id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
