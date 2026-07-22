@@ -639,8 +639,11 @@ carry one-year signed unsubscribe links bound to the hostname-derived Organizati
 idempotent public flow writes both the Profile preference and a channel suppression record, and
 queue processing rechecks suppression before provider work. Workerd proof covers cross-Organization
 token rejection and an unsubscribe that suppresses an already-queued email. Specific-Profile UI,
-ticket-buyer/donor audience sources, provider feedback suppression, and the Brevo sandbox adapter
-remain in the communications parity slice.
+ticket-buyer/donor audience sources and provider feedback suppression remain in the communications
+parity slice. The Brevo adapter is implemented and locally proven for email sandbox-drop requests,
+SMS recipient allowlisting, safe response handling, and secret redaction, but staging qualification
+still requires external Brevo credentials and verified sender identities; staging therefore remains
+in deterministic fake mode.
 
 The account is now on Workers Paid and Cloudflare Email Sending is onboarded for the isolated
 `mail.staging.musicsite.org` sender domain. The native Worker binding is sender-restricted and the
@@ -687,8 +690,8 @@ These do not prevent local implementation of Milestones 0–4:
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
 3. Continue Milestone 5 by completing specific-Profile and commerce-derived communications
-   audiences, provider-feedback suppression, and Brevo sandbox qualification, then proceed through
-   public-sales and remaining member workflow parity. Music audio/player, dedicated set-list
+   audiences, provider-feedback suppression, and external Brevo sandbox qualification, then proceed
+   through public-sales and remaining member workflow parity. Music audio/player, dedicated set-list
    management, resources, roster CSV, and seating are now implemented. Validate independently
    attached public domains separately from the product-owned canonical namespace. Do not add
    whole-archive import; ADR 0015 deliberately excludes it from v1.

@@ -133,7 +133,8 @@ milestone complete.
 | `apps/worker/src/organization/organizationResources.ts`        | Authenticated Organization resource repository adapter                               |
 | `apps/worker/src/organization/communicationStore.ts`           | Organization message, recipient, template, and delivery-ledger persistence           |
 | `apps/worker/src/organization/organizationCommunications.ts`   | Host-authorized Organization communications repository adapter                       |
-| `apps/worker/src/communications/provider.ts`                   | Provider-neutral Email/SMS delivery adapter with deterministic fake behavior         |
+| `apps/worker/src/communications/provider.ts`                   | Fake/disabled/Brevo-sandbox Email and SMS delivery adapter                           |
+| `apps/worker/src/communications/provider.test.ts`              | Brevo sandbox request, allowlist, response, and secret-redaction unit proof          |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |

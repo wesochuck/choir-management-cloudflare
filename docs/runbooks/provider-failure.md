@@ -18,6 +18,11 @@
   recipients using the same stable effect identity.
 - Preview/local modes never send. Staging sends only through configured sandbox or recipient
   allowlists.
+- Brevo email qualification must retain `X-Sib-Sandbox: drop`. Transactional SMS has no equivalent
+  no-send mode and must remain restricted to `BREVO_SMS_ALLOWED_RECIPIENTS` until a separate launch
+  gate changes the environment contract.
+- A 401/403 is a credential/configuration incident; 429 and 5xx responses are retryable. Do not log
+  Brevo response bodies because they may contain provider or recipient detail.
 
 ## Stripe
 

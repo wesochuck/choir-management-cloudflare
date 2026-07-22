@@ -24,6 +24,11 @@ export interface Env {
   readonly APP_ENV: string;
   readonly ASSETS: Fetcher;
   readonly BETTER_AUTH_SECRET: string;
+  readonly BREVO_API_KEY?: string;
+  readonly BREVO_EMAIL_FROM?: string;
+  readonly BREVO_EMAIL_FROM_NAME?: string;
+  readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string;
+  readonly BREVO_SMS_SENDER?: string;
   readonly BUILD_VERSION: string;
   readonly CONTROL_DB: D1Database;
   readonly EXTERNAL_EFFECTS_MODE: string;

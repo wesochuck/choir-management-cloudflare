@@ -9,7 +9,16 @@ import {
 } from "../organization/organizationCommunications";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 
-type JobConsumerEnv = Pick<Env, "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE">;
+type JobConsumerEnv = Pick<
+  Env,
+  | "BREVO_API_KEY"
+  | "BREVO_EMAIL_FROM"
+  | "BREVO_EMAIL_FROM_NAME"
+  | "BREVO_SMS_ALLOWED_RECIPIENTS"
+  | "BREVO_SMS_SENDER"
+  | "EXTERNAL_EFFECTS_MODE"
+  | "ORGANIZATION_STORE"
+>;
 type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB">;
 
 const claimResponseSchema = z.object({
@@ -70,7 +79,7 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
   const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
   const results = [];
   for (const delivery of deliveryJob.deliveries) {
-    const result = await deliverOrganizationCommunication(env.EXTERNAL_EFFECTS_MODE, {
+    const result = await deliverOrganizationCommunication(env, {
       channel: delivery.channel,
       contentMarkdown: renderCommunicationTemplate(
         deliveryJob.contentMarkdown,
