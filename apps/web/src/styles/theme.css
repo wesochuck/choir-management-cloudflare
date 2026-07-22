@@ -99,6 +99,59 @@ footer {
   margin-inline: auto;
 }
 
+.member-profile-form {
+  max-width: 42rem;
+}
+
+.profile-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.profile-facts p {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.directory-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.directory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.directory-grid li {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.directory-grid h3,
+.directory-grid p {
+  margin: 0;
+}
+
+.directory-grid p {
+  margin-top: 0.5rem;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+}
+
 .site-header {
   display: flex;
   align-items: center;
@@ -1118,6 +1171,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .directory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .mfa-enrollment {
     grid-template-columns: 1fr;
   }
@@ -1167,6 +1224,12 @@ footer {
   }
 
   .roster-configuration-row {
+    grid-template-columns: 1fr;
+  }
+
+  .directory-filters,
+  .directory-grid,
+  .profile-facts {
     grid-template-columns: 1fr;
   }
 }

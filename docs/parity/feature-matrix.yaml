@@ -206,18 +206,30 @@
         "path": "/profile",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:622; src/views/singer/ProfileView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
       },
       {
         "id": "route.member.directory",
         "path": "/directory",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:630; src/views/singer/DirectoryView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+            "apps/worker/src/organization/profiles.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
       },
       {
         "id": "route.member.seating-finder",
@@ -1216,11 +1228,13 @@
           [
             "apps/worker/src/organization/profiles.ts",
             "apps/worker/test/profiles.integration.test.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
             "packages/domain/src/rosterCsv.ts",
             "packages/domain/src/rosterConfiguration.ts",
             "apps/worker/test/rosterConfiguration.integration.test.ts",
             "apps/web/src/account/OrganizationCalendar.tsx",
             "apps/web/src/account/RosterConfiguration.tsx",
+            "apps/web/src/account/MemberProfileDirectory.tsx",
             "apps/web/e2e/auth.spec.ts",
           ],
       },

@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import {
+  memberProfileUpdateRequestSchema,
   organizationProfileRequestSchema,
   organizationRosterConfigurationRequestSchema,
 } from "@choir/contracts";
@@ -66,6 +67,13 @@ const profileCreateSchema = z.object({
   requestId: z.uuid(),
 });
 const profileUpdateSchema = profileCreateSchema;
+const memberProfileUpdateSchema = z.object({
+  actorUserId: z.string().min(1).max(128),
+  organizationId: z.string().min(1).max(128),
+  profile: memberProfileUpdateRequestSchema,
+  profileId: z.uuid(),
+  requestId: z.uuid(),
+});
 const schemaPreparationRequestSchema = z.object({
   organizationId: z.string().min(1).max(128),
   targetVersion: z.number().int().positive(),
@@ -226,6 +234,67 @@ function listProfiles(storage: DurableObjectStorage, organizationId: string | nu
   return Response.json({ profiles });
 }
 
+function readProfile(storage: DurableObjectStorage, profileId: string) {
+  const row = storage.sql
+    .exec<OrganizationProfileRow>(
+      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
+         global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+         do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
+         receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
+         receive_admin_notifications AS receiveAdminNotifications,
+         receive_financial_alerts AS receiveFinancialAlerts,
+         is_section_leader AS isSectionLeader,
+         created_at AS createdAt, updated_at AS updatedAt
+       FROM profiles WHERE id = ? LIMIT 1`,
+      profileId,
+    )
+    .toArray()
+    .at(0);
+  return row ? profileResult(row) : null;
+}
+
+function readMemberProfile(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  rawProfileId: string | null,
+): Response {
+  const profileId = profileIdSchema.safeParse(rawProfileId);
+  if (!organizationId || organizationIdentity(storage)?.organizationId !== organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  if (!profileId.success) {
+    return Response.json({ code: "invalid_profile_id" }, { status: 400 });
+  }
+  const profile = readProfile(storage, profileId.data);
+  return profile
+    ? Response.json(profile)
+    : Response.json({ code: "profile_not_found" }, { status: 404 });
+}
+
+function listDirectoryProfiles(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!organizationId || organizationIdentity(storage)?.organizationId !== organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const profiles = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly displayName: string;
+      readonly id: string;
+      readonly phone: string;
+      readonly voicePart: string;
+    }>(
+      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart
+       FROM profiles
+       WHERE global_status != 'Inactive' AND show_in_directory = 1
+       ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
+    )
+    .toArray();
+  return Response.json({ profiles });
+}
+
 function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: string): boolean {
   if (voicePart === "") return true;
   try {
@@ -356,6 +425,49 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
     )
     .one().createdAt;
   return Response.json({ ...profile, createdAt, id: parsed.data.profileId, updatedAt: occurredAt });
+}
+
+async function updateMemberProfile(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = memberProfileUpdateSchema.safeParse(await request.json());
+  if (!parsed.success) return Response.json({ code: "invalid_profile" }, { status: 400 });
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  if (!readProfile(storage, parsed.data.profileId)) {
+    return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE profiles
+       SET display_name = ?, phone = ?, show_in_directory = ?, updated_at = ?
+       WHERE id = ?`,
+      parsed.data.profile.displayName,
+      parsed.data.profile.phone,
+      parsed.data.profile.showInDirectory ? 1 : 0,
+      occurredAt,
+      parsed.data.profileId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'profile.self_updated', 'profile', ?, ?, ?, ?)`,
+      `profile-self-updated:${parsed.data.requestId}`,
+      parsed.data.actorUserId,
+      parsed.data.profileId,
+      parsed.data.requestId,
+      JSON.stringify({
+        displayName: parsed.data.profile.displayName,
+        showInDirectory: parsed.data.profile.showInDirectory,
+      }),
+      occurredAt,
+    );
+  });
+  return Response.json(readProfile(storage, parsed.data.profileId));
 }
 
 async function provisionOrganizationStore(
@@ -831,6 +943,8 @@ async function dispatchPostRequest(
   pathname: string,
   request: Request,
 ): Promise<Response | null> {
+  const profileResponse = await dispatchProfilePostRequest(storage, pathname, request);
+  if (profileResponse) return profileResponse;
   switch (pathname) {
     case "/internal/files/abort":
       return abortPrivateFile(storage, request);
@@ -852,10 +966,6 @@ async function dispatchPostRequest(
       return manageOrganizationCalendarInStore(storage, request);
     case "/internal/seating/manage":
       return manageSeatingInStore(storage, request);
-    case "/internal/profiles":
-      return createProfile(storage, request);
-    case "/internal/profiles/update":
-      return updateProfile(storage, request);
     case "/internal/provision":
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
@@ -865,13 +975,49 @@ async function dispatchPostRequest(
   }
 }
 
+async function dispatchProfilePostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
+  switch (pathname) {
+    case "/internal/profiles":
+      return createProfile(storage, request);
+    case "/internal/profiles/member-update":
+      return updateMemberProfile(storage, request);
+    case "/internal/profiles/update":
+      return updateProfile(storage, request);
+    default:
+      return null;
+  }
+}
+
+function dispatchProfileGetRequest(
+  storage: DurableObjectStorage,
+  url: URL,
+  organizationId: string | null,
+): Response | null {
+  switch (url.pathname) {
+    case "/internal/profiles":
+      return listProfiles(storage, organizationId);
+    case "/internal/profiles/directory":
+      return listDirectoryProfiles(storage, organizationId);
+    case "/internal/profiles/member":
+      return readMemberProfile(storage, organizationId, url.searchParams.get("profileId"));
+  }
+  const profileIdentityPrefix = "/internal/profiles/";
+  return url.pathname.startsWith(profileIdentityPrefix)
+    ? getProfileIdentity(storage, url.pathname.slice(profileIdentityPrefix.length))
+    : null;
+}
+
 function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response | null {
   const organizationId = url.searchParams.get("organizationId");
+  const profileResponse = dispatchProfileGetRequest(storage, url, organizationId);
+  if (profileResponse) return profileResponse;
   switch (url.pathname) {
     case "/internal/health":
       return Response.json({ status: "ok" });
-    case "/internal/profiles":
-      return listProfiles(storage, organizationId);
     case "/internal/calendar/venues":
       return listOrganizationVenuesFromStore(storage, organizationId);
     case "/internal/calendar/events":
@@ -910,10 +1056,6 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
         profileId: url.searchParams.get("profileId"),
         readAt: url.searchParams.get("readAt"),
       });
-  }
-  const profileIdentityPrefix = "/internal/profiles/";
-  if (url.pathname.startsWith(profileIdentityPrefix)) {
-    return getProfileIdentity(storage, url.pathname.slice(profileIdentityPrefix.length));
   }
   const privateFilePrefix = "/internal/files/";
   if (url.pathname.startsWith(privateFilePrefix)) {

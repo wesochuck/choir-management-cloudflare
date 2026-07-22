@@ -15,6 +15,7 @@ import { AttendanceManager } from "./AttendanceManager";
 import { CalendarSubscription } from "./CalendarSubscription";
 import { OrganizationCalendar } from "./OrganizationCalendar";
 import { MySchedule } from "./MySchedule";
+import { MemberProfileDirectory } from "./MemberProfileDirectory";
 import { RosterConfiguration } from "./RosterConfiguration";
 import { SeatingFinder } from "./SeatingFinder";
 import { SeatingManager } from "./SeatingManager";
@@ -395,6 +396,7 @@ function OrganizationOperations({
       <RosterConfiguration enabled={managerEnabled} />
       <SeatingManager enabled={managerEnabled} />
       <AttendanceManager enabled={managerEnabled} />
+      <MemberProfileDirectory enabled={enabled} />
       <MySchedule enabled={enabled} />
       <SeatingFinder enabled={enabled} />
       <CalendarSubscription enabled={enabled} />

@@ -26,6 +26,15 @@ const currentUser = {
 test.beforeEach(async ({ page }) => {
   const requestId = "99999999-9999-4999-8999-999999999999";
   let seatingCharts: Record<string, unknown>[] = [];
+  let memberProfile = {
+    displayName: "Browser Singer",
+    email: "browser.singer@example.test",
+    globalStatus: "Active" as const,
+    id: "11111111-1111-4111-8111-111111111111",
+    phone: "555-0100",
+    showInDirectory: true,
+    voicePart: "S2",
+  };
   let seatingConfiguration: Record<string, unknown> = {
     defaultFormationId: "columns-standard",
     formations: [
@@ -75,6 +84,48 @@ test.beforeEach(async ({ page }) => {
         id: "11111111-1111-4111-8111-111111111111",
         requestId,
         updatedAt: "2026-07-20T20:15:00.000Z",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/singer/profile", async (route) => {
+    if (route.request().method() === "PUT") {
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body === "object" && body !== null) {
+        const update = Object.fromEntries(Object.entries(body));
+        memberProfile = {
+          ...memberProfile,
+          displayName:
+            typeof update.displayName === "string" ? update.displayName : memberProfile.displayName,
+          phone: typeof update.phone === "string" ? update.phone : memberProfile.phone,
+          showInDirectory:
+            typeof update.showInDirectory === "boolean"
+              ? update.showInDirectory
+              : memberProfile.showInDirectory,
+        };
+      }
+    }
+    await route.fulfill({
+      body: JSON.stringify({ ...memberProfile, requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/singer/directory", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        profiles: [
+          ...(memberProfile.showInDirectory ? [memberProfile] : []),
+          {
+            displayName: "Directory Alto",
+            email: "directory.alto@example.test",
+            id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            phone: "555-0200",
+            voicePart: "A1",
+          },
+        ],
+        requestId,
       }),
       contentType: "application/json",
       status: 200,
@@ -1188,6 +1239,23 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await rosterConfiguration.getByLabel("Voice part 1 full name").fill("First soprano");
   await rosterConfiguration.getByRole("button", { name: "Save sections and voice parts" }).click();
   await expect(rosterConfiguration.getByRole("status")).toHaveText("Roster configuration saved.");
+  const memberProfile = page.getByRole("region", { name: "My Organization Profile" });
+  await expect(memberProfile.getByText("browser.singer@example.test")).toBeVisible();
+  await memberProfile.getByLabel("Display name").fill("Browser Singer Updated");
+  await memberProfile.getByLabel("Phone").fill("555-0199");
+  await memberProfile.getByLabel("Show me in the Organization directory").uncheck();
+  await memberProfile.getByRole("button", { name: "Save my Profile" }).click();
+  await expect(memberProfile.getByRole("status")).toHaveText(
+    "Your Organization Profile was updated.",
+  );
+  const directory = page.getByRole("region", { name: "Organization directory" });
+  await expect(directory.getByText("Directory Alto")).toBeVisible();
+  await expect(directory.getByText("Browser Singer Updated")).toHaveCount(0);
+  await directory.getByLabel("Voice part").selectOption("A1");
+  await directory.getByLabel("Search directory").fill("directory.alto@example.test");
+  await expect(
+    directory.getByRole("listitem", { name: "Directory Profile: Directory Alto" }),
+  ).toBeVisible();
   const seatingManager = page.getByRole("region", { name: "Performance seating" });
   await seatingManager.getByText("Manage reusable formations").click();
   await seatingManager.getByRole("button", { name: "Add formation" }).click();

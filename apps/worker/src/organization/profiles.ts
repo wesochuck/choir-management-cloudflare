@@ -1,9 +1,14 @@
 import {
+  memberProfileUpdateRequestSchema,
+  organizationDirectoryProfileSchema,
   organizationProfileSchema,
   organizationProfilesResponseSchema,
+  type MemberProfileUpdateRequest,
+  type OrganizationDirectoryProfile,
   type OrganizationProfile,
   type OrganizationProfileRequest,
 } from "@choir/contracts";
+import { z } from "zod";
 
 import type { Env } from "../env";
 
@@ -11,6 +16,10 @@ interface ProfileEmailRow {
   readonly email: string;
   readonly profileId: string;
 }
+
+const directoryStoreResponseSchema = z.object({
+  profiles: z.array(organizationDirectoryProfileSchema.omit({ email: true })).max(500),
+});
 
 export class OrganizationProfileMutationError extends Error {
   readonly code: "voice_part_not_configured";
@@ -72,6 +81,37 @@ export async function listOrganizationProfileEmails(
   return new Map(result.results.map(({ email, profileId }) => [profileId, email]));
 }
 
+export async function readOrganizationMemberProfile(
+  env: Env,
+  organizationId: string,
+  profileId: string,
+): Promise<OrganizationProfile> {
+  const url = new URL("https://organization.internal/internal/profiles/member");
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("profileId", profileId);
+  const response = await organizationStub(env, organizationId).fetch(url);
+  if (!response.ok) throw new Error("The Organization store rejected the member Profile request.");
+  return organizationProfileSchema.parse(await response.json());
+}
+
+export async function listOrganizationDirectoryProfiles(
+  env: Env,
+  database: D1Database,
+  organizationId: string,
+): Promise<readonly OrganizationDirectoryProfile[]> {
+  const url = new URL("https://organization.internal/internal/profiles/directory");
+  url.searchParams.set("organizationId", organizationId);
+  const [response, emails] = await Promise.all([
+    organizationStub(env, organizationId).fetch(url),
+    listOrganizationProfileEmails(database, organizationId),
+  ]);
+  if (!response.ok) throw new Error("The Organization store rejected the directory request.");
+  return directoryStoreResponseSchema.parse(await response.json()).profiles.map((profile) => ({
+    ...profile,
+    email: emails.get(profile.id) ?? "",
+  }));
+}
+
 export async function createOrganizationProfile(
   env: Env,
   input: {
@@ -120,6 +160,35 @@ export async function updateOrganizationProfile(
   const profile = organizationProfileSchema.parse(await response.json());
   if (profile.id !== input.profileId) {
     throw new Error("The Organization store returned a mismatched Profile identity.");
+  }
+  return profile;
+}
+
+export async function updateOrganizationMemberProfile(
+  env: Env,
+  input: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly profile: MemberProfileUpdateRequest;
+    readonly profileId: string;
+    readonly requestId: string;
+  },
+): Promise<OrganizationProfile> {
+  const response = await organizationStub(env, input.organizationId).fetch(
+    "https://organization.internal/internal/profiles/member-update",
+    {
+      body: JSON.stringify({
+        ...input,
+        profile: memberProfileUpdateRequestSchema.parse(input.profile),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) throw new Error("The Organization store rejected the member Profile update.");
+  const profile = organizationProfileSchema.parse(await response.json());
+  if (profile.id !== input.profileId) {
+    throw new Error("The Organization store returned a mismatched member Profile identity.");
   }
   return profile;
 }

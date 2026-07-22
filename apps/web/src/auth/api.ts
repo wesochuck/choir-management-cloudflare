@@ -1,4 +1,6 @@
 import {
+  memberProfileResponseSchema,
+  organizationDirectoryResponseSchema,
   organizationAttendanceResponseSchema,
   accountOrganizationsResponseSchema,
   calendarFeedUrlsResponseSchema,
@@ -45,6 +47,9 @@ import {
   type AuthSession,
   type CalendarFeedUrlsResponse,
   type CurrentAuthSession,
+  type MemberProfile,
+  type MemberProfileUpdateRequest,
+  type OrganizationDirectoryProfile,
   type OrganizationAuthStatusResponse,
   type OrganizationAttendanceRow,
   type OrganizationAttendanceUpdate,
@@ -248,6 +253,28 @@ export async function updateOrganizationProfile(
     method: "PUT",
   });
   return organizationProfileResponseSchema.parse(await response.json());
+}
+
+export async function getMemberProfile(signal?: AbortSignal): Promise<MemberProfile> {
+  const response = await request("/api/singer/profile", { signal: signal ?? null });
+  return memberProfileResponseSchema.parse(await response.json());
+}
+
+export async function updateMemberProfile(
+  profile: MemberProfileUpdateRequest,
+): Promise<MemberProfile> {
+  const response = await request("/api/singer/profile", {
+    body: JSON.stringify(profile),
+    method: "PUT",
+  });
+  return memberProfileResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationDirectory(
+  signal?: AbortSignal,
+): Promise<readonly OrganizationDirectoryProfile[]> {
+  const response = await request("/api/singer/directory", { signal: signal ?? null });
+  return organizationDirectoryResponseSchema.parse(await response.json()).profiles;
 }
 
 export async function listOrganizationVenues(

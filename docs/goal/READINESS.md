@@ -288,9 +288,9 @@ Verified over public HTTPS on July 20–21, 2026:
   verified staging checkpoint for commit `a002f162a11e054602bdafd4683e68e0e008ebc9`.
 - After the seating deployment, health and readiness returned HTTP 200 and both manager-chart and
   exact legacy singer-finder probes on the global workers.dev base returned hostname-first HTTP 404.
-  The live shell referenced `index-mi3xx-R4.js` and `index-C84rKIMG.css`. D1 had no pending migrations
-  and remained at zero Organizations, fleet schema preparations, and dead letters. Worker version
-  `155e6023-b73c-4ca0-80a1-70829674ab79` is the verified staging checkpoint for commit
+  The live shell referenced `index-mi3xx-R4.js` and `index-C84rKIMG.css`. D1 had no pending
+  migrations and remained at zero Organizations, fleet schema preparations, and dead letters. Worker
+  version `155e6023-b73c-4ca0-80a1-70829674ab79` is the verified staging checkpoint for commit
   `c10d5dbfc4135685b8ba63cfa92bb0a5944cae1a`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
@@ -305,7 +305,7 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run lint`: passed.
 - `npm test`: 8 files / 23 tests passed, including staging-bootstrap safety, IANA timezone/DST
   conversion, adversarial signed-link coverage, and seating formation behavior.
-- `npm run test:integration`: 14 files / 46 workerd tests passed.
+- `npm run test:integration`: 15 files / 47 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed, including seating management and the linked-member finder.
@@ -381,7 +381,7 @@ durations, separate timezone-aware call-time events, details, and attending-only
 
 Authenticated canonical-host Organization APIs now create/list Profiles, venues, and events and set
 Profile RSVPs in the owning Durable Object. Owners and Administrators may mutate; Organization
-members may read the calendar directory but cannot use management mutations. Every mutation is
+members may read the calendar read model but cannot use management mutations. Every mutation is
 actor-audited, referenced venues/parent performances/Profiles are verified inside the same tenant
 boundary, and the account UI exposes the working management forms after Organization MFA. Workerd
 proof creates the operational records exclusively through these APIs and then verifies that the same
@@ -400,6 +400,16 @@ it never accepts a caller-selected Profile identity. Rehearsal Pending status vi
 non-Pending parent-performance RSVP until the member makes a direct choice. Workerd proof attempts
 to inject another Organization's Profile ID, verifies the owning Profile is the only row changed,
 and verifies the same identity receives a separate schedule on another canonical Organization host.
+
+Linked-Profile members now also have constrained Profile self-service and an Organization directory.
+Self-service derives the Profile from the authenticated Membership and atomically changes only the
+display name, phone, and directory opt-in inside the owning Organization store; sign-in email
+remains an account identity in D1, and managers retain control of voice part, lifecycle, notes, and
+messaging preferences. The directory filters out Inactive and opted-out Profiles before data leaves
+the store, then adds only the linked Membership email. The full manager roster endpoint now rejects
+ordinary members. Workerd proof covers ignored manager-field injection, opt-out, audit,
+canonical-host and cross-Organization isolation; desktop/mobile browser coverage exercises editing
+and directory search.
 
 Recent-MFA Platform Administrators on the product base hostname can now start and inspect one fleet
 schema-preparation run at a time. Each Workflow instance loads at most 20 stale active

@@ -1,4 +1,5 @@
 import {
+  memberProfileUpdateRequestSchema,
   organizationAttendanceBulkRequestSchema,
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
@@ -92,9 +93,12 @@ import { validateStartupConfig } from "./env";
 import { currentOrganizationSchemaVersion } from "./organization/schema";
 import {
   createOrganizationProfile,
+  listOrganizationDirectoryProfiles,
   listOrganizationProfileEmails,
   listOrganizationProfiles,
   OrganizationProfileMutationError,
+  readOrganizationMemberProfile,
+  updateOrganizationMemberProfile,
   updateOrganizationProfile,
 } from "./organization/profiles";
 import {
@@ -1180,6 +1184,16 @@ router.get("/api/organization/profiles", async (context) => {
       authorization.error.code === "unauthorized" ? 401 : 403,
     );
   }
+  if (authorization.value.role === "member") {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "Only Organization Owners and Administrators may view the full Profile roster.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
   try {
     return context.json({
       profiles: await listOrganizationProfiles(context.env, organizationId),
@@ -1366,6 +1380,158 @@ router.put("/api/organization/profiles/:profileId", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization Profile could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/singer/profile", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for self-service.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const [profile, emails] = await Promise.all([
+      readOrganizationMemberProfile(context.env, authorization.organizationId, profileId),
+      listOrganizationProfileEmails(context.env.CONTROL_DB, authorization.organizationId),
+    ]);
+    const email = emails.get(profileId);
+    if (!email) throw new Error("The linked Profile email is missing.");
+    return context.json({
+      displayName: profile.displayName,
+      email,
+      globalStatus: profile.globalStatus,
+      id: profile.id,
+      phone: profile.phone,
+      requestId: context.get("requestId"),
+      showInDirectory: profile.showInDirectory,
+      voicePart: profile.voicePart,
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Your Organization Profile is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/singer/profile", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = memberProfileUpdateRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid display name, phone, and directory preference are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for self-service.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const [profile, emails] = await Promise.all([
+      updateOrganizationMemberProfile(context.env, {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        profile: body.data,
+        profileId,
+        requestId: context.get("requestId"),
+      }),
+      listOrganizationProfileEmails(context.env.CONTROL_DB, authorization.organizationId),
+    ]);
+    const email = emails.get(profileId);
+    if (!email) throw new Error("The linked Profile email is missing.");
+    return context.json({
+      displayName: profile.displayName,
+      email,
+      globalStatus: profile.globalStatus,
+      id: profile.id,
+      phone: profile.phone,
+      requestId: context.get("requestId"),
+      showInDirectory: profile.showInDirectory,
+      voicePart: profile.voicePart,
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Your Organization Profile could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/singer/directory", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      profiles: await listOrganizationDirectoryProfiles(
+        context.env,
+        context.env.CONTROL_DB,
+        authorization.organizationId,
+      ),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization directory is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

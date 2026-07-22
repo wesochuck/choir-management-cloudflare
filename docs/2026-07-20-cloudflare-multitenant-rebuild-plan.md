@@ -74,6 +74,7 @@ milestone complete.
 | `apps/web/src/account/RosterConfiguration.tsx`                 | Administrator section and voice-part configuration UI                                |
 | `apps/web/src/account/SeatingManager.tsx`                      | Administrator event chart layout and assignment workflow                             |
 | `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                   |
+| `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory       |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -161,6 +162,7 @@ milestone complete.
 | `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                |
 | `apps/worker/test/rosterConfiguration.integration.test.ts`     | Section and voice-part defaults, validation, authorization, and isolation proof      |
 | `apps/worker/test/seating.integration.test.ts`                 | Chart assignment, member finder, authorization, and isolation proof                  |
+| `apps/worker/test/memberProfiles.integration.test.ts`          | Linked-Profile self-service, directory privacy, authorization, and isolation proof   |
 | `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof        |
 | `apps/worker/test/attendance.integration.test.ts`              | Attendance transaction, RSVP promotion, audit, and tenant-isolation proof            |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |

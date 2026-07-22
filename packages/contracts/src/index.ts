@@ -64,6 +64,40 @@ export type OrganizationProfile = z.infer<typeof organizationProfileSchema>;
 export type OrganizationProfileResponse = z.infer<typeof organizationProfileResponseSchema>;
 export type OrganizationProfilesResponse = z.infer<typeof organizationProfilesResponseSchema>;
 
+export const memberProfileUpdateRequestSchema = z.object({
+  displayName: z.string().trim().min(1).max(200),
+  phone: z.string().trim().max(50).default(""),
+  showInDirectory: z.boolean().default(true),
+});
+
+export const memberProfileSchema = memberProfileUpdateRequestSchema.extend({
+  email: z.email(),
+  globalStatus: z.enum(["Active", "Idle", "Inactive"]),
+  id: z.uuid(),
+  voicePart: z.string().max(100),
+});
+
+export const memberProfileResponseSchema = memberProfileSchema.extend({
+  requestId: requestIdSchema,
+});
+
+export const organizationDirectoryProfileSchema = z.object({
+  displayName: z.string().min(1).max(200),
+  email: z.union([z.literal(""), z.email()]),
+  id: z.uuid(),
+  phone: z.string().max(50),
+  voicePart: z.string().max(100),
+});
+
+export const organizationDirectoryResponseSchema = z.object({
+  profiles: z.array(organizationDirectoryProfileSchema).max(500),
+  requestId: requestIdSchema,
+});
+
+export type MemberProfileUpdateRequest = z.infer<typeof memberProfileUpdateRequestSchema>;
+export type MemberProfile = z.infer<typeof memberProfileSchema>;
+export type OrganizationDirectoryProfile = z.infer<typeof organizationDirectoryProfileSchema>;
+
 export const organizationVenueRequestSchema = z.object({
   address: z.string().trim().max(2_000).default(""),
   name: z.string().trim().min(1).max(500),

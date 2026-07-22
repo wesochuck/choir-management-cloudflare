@@ -212,14 +212,11 @@ describe("Organization Profiles", () => {
       ).json(),
     );
     expect(alphaList.profiles).toEqual([organizationProfileSchema.parse(updated)]);
-    const bravoList = organizationProfilesResponseSchema.parse(
-      await (
-        await exports.default.fetch(
-          apiRequest("bravo.localhost", "/api/organization/profiles", cookie),
-        )
-      ).json(),
-    );
-    expect(bravoList.profiles).toEqual([]);
+    expect(
+      await exports.default.fetch(
+        apiRequest("bravo.localhost", "/api/organization/profiles", cookie),
+      ),
+    ).toMatchObject({ status: 403 });
     expect(
       await exports.default.fetch(
         apiRequest("bravo.localhost", "/api/organization/profiles", cookie, {
