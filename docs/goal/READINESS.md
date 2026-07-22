@@ -4,7 +4,7 @@
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
 tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
 OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging.
-Milestone 5 parity work is active through the Organization music-catalog foundation. Production is
+Milestone 5 parity work is active through the Organization communications foundation. Production is
 not launched.
 
 ## Repository topology
@@ -49,7 +49,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `40279818-1bcd-4322-aa99-d887f6d0d565`
+- Current verified Worker version: `d22bb086-7544-414d-8e03-5439b2dc6f7a`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -397,6 +397,12 @@ Verified over public HTTPS on July 20–22, 2026:
   the authenticated `auth@mail.staging.musicsite.org` sender. The sender domain's MX, SPF, DKIM, and
   rejecting DMARC records all resolved publicly. This qualifies the staging auth-email send path
   without broadening staging delivery beyond the single allowlisted recipient.
+- After the Organization communications foundation deployment, cache-busted custom-domain requests
+  converged on `index-Cf2VPhim.js` and `index-oK4l4a6u.css`. Health and readiness returned HTTP 200.
+  The global base host rejected the Organization communications history route with the expected
+  hostname-first HTTP 404. Remote D1 had no pending migrations and remained at zero Organizations
+  and dead letters. Worker version `d22bb086-7544-414d-8e03-5439b2dc6f7a` is the verified staging
+  checkpoint for commit `343b027`.
 
 ## Completed foundation checks
 
@@ -608,6 +614,16 @@ Owners and Administrators may manage any Profile in the same Organization. Direc
 remains membership-authorized, replacements and removals reclaim old R2 objects, referenced files
 cannot be deleted directly, and every transition is audited.
 
+Organization communications now have a hostname-resolved Durable Object foundation for Email, SMS,
+and Both; member-audience filters; channel-aware reach; drafts; history; per-recipient delivery
+state; masked failure summaries; and failed-delivery retries. Sending transactionally creates a
+stable Organization outbox job, and the queue applies literal recipient-name placeholders outside
+the transaction. Managers only may compose or inspect delivery state, recipient email opt-outs are
+honored, and track-only voice parts are excluded. Staging uses the deterministic fake provider, so
+this checkpoint exercises the complete queue path without sending real Organization campaigns.
+Templates, richer audience sources, unsubscribe/suppression workflows, and the Brevo sandbox adapter
+remain in the communications parity slice.
+
 The account is now on Workers Paid and Cloudflare Email Sending is onboarded for the isolated
 `mail.staging.musicsite.org` sender domain. The native Worker binding is sender-restricted and the
 application additionally requires an explicit staging-recipient allowlist. External provider effects
@@ -652,8 +668,10 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 5 with communications, public-sales, and remaining member workflow parity.
-   Music audio/player, dedicated set-list management, resources, roster CSV, and seating are now
-   implemented. Validate independently attached public domains separately from the product-owned
-   canonical namespace. Do not add whole-archive import; ADR 0015 deliberately excludes it from v1.
+3. Continue Milestone 5 by completing communications templates, richer audiences,
+   unsubscribe/suppression, and Brevo sandbox qualification, then proceed through public-sales and
+   remaining member workflow parity. Music audio/player, dedicated set-list management, resources,
+   roster CSV, and seating are now implemented. Validate independently attached public domains
+   separately from the product-owned canonical namespace. Do not add whole-archive import; ADR 0015
+   deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.
