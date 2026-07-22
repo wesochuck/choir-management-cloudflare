@@ -204,6 +204,47 @@ export const organizationCalendarSettingsRequestSchema = z.object({
 export const organizationCalendarSettingsResponseSchema =
   organizationCalendarSettingsRequestSchema.extend({ requestId: requestIdSchema });
 
+export const organizationSectionSchema = z.object({
+  code: z.string().trim().min(1).max(20),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/),
+  name: z.string().trim().min(1).max(100),
+  trackOnly: z.boolean().default(false),
+});
+
+export const organizationVoicePartSchema = z.object({
+  fullName: z.string().trim().min(1).max(100),
+  label: z.string().trim().min(1).max(50),
+  sectionCode: z.string().trim().min(1).max(20),
+});
+
+export const organizationRosterConfigurationRequestSchema = z
+  .object({
+    sections: z.array(organizationSectionSchema).min(1).max(50),
+    voiceParts: z.array(organizationVoicePartSchema).min(1).max(100),
+  })
+  .superRefine((configuration, context) => {
+    const sectionCodes = new Set(configuration.sections.map(({ code }) => code));
+    const voicePartLabels = new Set(configuration.voiceParts.map(({ label }) => label));
+    if (sectionCodes.size !== configuration.sections.length) {
+      context.addIssue({ code: "custom", message: "Section codes must be unique." });
+    }
+    if (voicePartLabels.size !== configuration.voiceParts.length) {
+      context.addIssue({ code: "custom", message: "Voice-part labels must be unique." });
+    }
+    if (configuration.voiceParts.some(({ sectionCode }) => !sectionCodes.has(sectionCode))) {
+      context.addIssue({
+        code: "custom",
+        message: "Every voice part must reference an existing section.",
+      });
+    }
+  });
+
+export const organizationRosterConfigurationResponseSchema =
+  organizationRosterConfigurationRequestSchema.and(z.object({ requestId: requestIdSchema }));
+
 export type OrganizationVenueRequest = z.infer<typeof organizationVenueRequestSchema>;
 export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
 export type OrganizationVenueDeleteResponse = z.infer<typeof organizationVenueDeleteResponseSchema>;
@@ -221,6 +262,9 @@ export type SingerEvent = z.infer<typeof singerEventSchema>;
 export type SingerEventsResponse = z.infer<typeof singerEventsResponseSchema>;
 export type OrganizationCalendarSettings = z.infer<
   typeof organizationCalendarSettingsRequestSchema
+>;
+export type OrganizationRosterConfiguration = z.infer<
+  typeof organizationRosterConfigurationRequestSchema
 >;
 
 export const accountOrganizationSchema = z.object({

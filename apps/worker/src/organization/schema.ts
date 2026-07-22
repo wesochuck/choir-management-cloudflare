@@ -1,3 +1,5 @@
+import { defaultRosterConfiguration } from "@choir/domain";
+
 export interface OrganizationSchemaMigration {
   readonly statements: readonly string[];
   readonly version: number;
@@ -171,6 +173,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
   {
     version: 11,
     statements: ["ALTER TABLE event_rosters ADD COLUMN rsvp_note TEXT NOT NULL DEFAULT ''"],
+  },
+  {
+    version: 12,
+    statements: [
+      `ALTER TABLE organization_metadata ADD COLUMN roster_configuration_json TEXT NOT NULL
+       DEFAULT '${JSON.stringify(defaultRosterConfiguration)}'`,
+    ],
   },
 ] as const;
 

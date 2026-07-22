@@ -4,6 +4,7 @@ import {
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
   organizationCalendarSettingsResponseSchema,
+  organizationRosterConfigurationRequestSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
   organizationVenueDeleteResponseSchema,
@@ -19,6 +20,7 @@ import {
   type OrganizationVenue,
   type OrganizationVenueRequest,
   type OrganizationCalendarSettings,
+  type OrganizationRosterConfiguration,
   type SingerEvent,
 } from "@choir/contracts";
 
@@ -213,6 +215,39 @@ export async function updateOrganizationCalendarSettings(
   return organizationCalendarSettingsResponseSchema
     .omit({ requestId: true })
     .parse(await mutate(env, { action: "update_timezone", ...actor, settings }));
+}
+
+export async function readOrganizationRosterConfiguration(
+  env: Env,
+  organizationId: string,
+): Promise<OrganizationRosterConfiguration> {
+  const url = new URL("https://organization.internal/internal/roster/configuration");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) {
+    throw new Error("The Organization store rejected the roster configuration request.");
+  }
+  return organizationRosterConfigurationRequestSchema.parse(await response.json());
+}
+
+export async function updateOrganizationRosterConfiguration(
+  env: Env,
+  actor: ActorContext,
+  configuration: OrganizationRosterConfiguration,
+): Promise<OrganizationRosterConfiguration | "voice_part_in_use"> {
+  const response = await stub(env, actor.organizationId).fetch(
+    "https://organization.internal/internal/calendar/manage",
+    {
+      body: JSON.stringify({ action: "update_roster_configuration", ...actor, configuration }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (response.status === 409) return "voice_part_in_use";
+  if (!response.ok) {
+    throw new Error("The Organization store rejected the roster configuration mutation.");
+  }
+  return organizationRosterConfigurationRequestSchema.parse(await response.json());
 }
 
 export async function listMemberSchedule(

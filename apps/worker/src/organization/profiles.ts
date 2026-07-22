@@ -12,6 +12,34 @@ interface ProfileEmailRow {
   readonly profileId: string;
 }
 
+export class OrganizationProfileMutationError extends Error {
+  readonly code: "voice_part_not_configured";
+
+  constructor() {
+    super("The selected voice part is not configured for this Organization.");
+    this.name = "OrganizationProfileMutationError";
+    this.code = "voice_part_not_configured";
+  }
+}
+
+async function assertProfileMutationAccepted(response: Response, operation: string): Promise<void> {
+  if (response.status === 400) {
+    const body: unknown = await response
+      .clone()
+      .json()
+      .catch(() => null);
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "code" in body &&
+      body.code === "voice_part_not_configured"
+    ) {
+      throw new OrganizationProfileMutationError();
+    }
+  }
+  if (!response.ok) throw new Error(`The Organization store rejected the Profile ${operation}.`);
+}
+
 function organizationStub(env: Env, organizationId: string): DurableObjectStub {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
@@ -62,7 +90,7 @@ export async function createOrganizationProfile(
       method: "POST",
     },
   );
-  if (!response.ok) throw new Error("The Organization store rejected the Profile create request.");
+  await assertProfileMutationAccepted(response, "create request");
   const profile = organizationProfileSchema.parse(await response.json());
   if (profile.id !== profileId) {
     throw new Error("The Organization store returned a mismatched Profile identity.");
@@ -88,7 +116,7 @@ export async function updateOrganizationProfile(
       method: "POST",
     },
   );
-  if (!response.ok) throw new Error("The Organization store rejected the Profile update request.");
+  await assertProfileMutationAccepted(response, "update request");
   const profile = organizationProfileSchema.parse(await response.json());
   if (profile.id !== input.profileId) {
     throw new Error("The Organization store returned a mismatched Profile identity.");

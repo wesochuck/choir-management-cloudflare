@@ -55,9 +55,12 @@ Version 6 adds per-Profile calendar-feed revocation. Version 7 adds the bounded 
 Organization timezone, venues, performances/rehearsals, parent-performance linkage, event rosters,
 RSVPs, call times, details, and approved set lists. These rows remain wholly inside the owning
 Organization store and are sufficient for tenant-local calendar projection without placing
-operational data in D1. Feature milestones expand this schema with typed repositories. Contract or
-removal migrations occur only after old and new Worker versions are both safe throughout the
-rollback window.
+operational data in D1. Version 8 adds event attendance, version 9 expands Organization Profiles,
+version 10 tracks folder assignment and return, and version 11 stores bounded RSVP decline notes.
+Version 12 stores ordered section and voice-part configuration in the Organization metadata row;
+Profile writes and configuration updates preserve referential integrity for assigned voice parts.
+Feature milestones expand this schema with typed repositories. Contract or removal migrations occur
+only after old and new Worker versions are both safe throughout the rollback window.
 
 ## R2 and KV
 

@@ -178,6 +178,30 @@ test.beforeEach(async ({ page }) => {
       status: 200,
     });
   });
+  await page.route("**/api/organization/roster-configuration", async (route) => {
+    const configuration =
+      route.request().method() === "PUT"
+        ? route.request().postDataJSON()
+        : {
+            sections: [
+              { code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false },
+              { code: "A", color: "#4a7c59", name: "Altos", trackOnly: false },
+            ],
+            voiceParts: [
+              { fullName: "Soprano 1", label: "S1", sectionCode: "S" },
+              { fullName: "Soprano 2", label: "S2", sectionCode: "S" },
+              { fullName: "Alto 1", label: "A1", sectionCode: "A" },
+            ],
+          };
+    await route.fulfill({
+      body: JSON.stringify({
+        ...(typeof configuration === "object" && configuration !== null ? configuration : {}),
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/singer/events", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -1037,6 +1061,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(attendanceSection.getByText("RSVP: Yes")).toBeVisible();
   await expect(attendanceSection.getByLabel("Browser Singer folder number")).toHaveValue("C-07");
   await expect(attendanceSection.getByLabel("Browser Singer folder returned")).toBeChecked();
+  const rosterConfiguration = page.getByRole("region", { name: "Sections and voice parts" });
+  await expect(rosterConfiguration.getByLabel("Voice part 2 label")).toBeDisabled();
+  await rosterConfiguration.getByLabel("Voice part 1 full name").fill("First soprano");
+  await rosterConfiguration.getByRole("button", { name: "Save sections and voice parts" }).click();
+  await expect(rosterConfiguration.getByRole("status")).toHaveText("Roster configuration saved.");
   const mySchedule = page.getByRole("region", { name: "My schedule" });
   await expect(mySchedule.getByRole("heading", { name: "My Rehearsal" })).toBeVisible();
   await expect(mySchedule.getByText(/inherited from the parent performance: Yes/)).toBeVisible();

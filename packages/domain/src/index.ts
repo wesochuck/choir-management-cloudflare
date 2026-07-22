@@ -28,3 +28,4 @@ export {
   zonedLocalDateTimeToUtc,
 } from "./calendarTime";
 export { renderRosterCsv, type RosterCsvProfile } from "./rosterCsv";
+export { defaultRosterConfiguration } from "./rosterConfiguration";

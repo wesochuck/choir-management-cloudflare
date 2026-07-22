@@ -3,9 +3,10 @@ import {
   organizationEventRequestSchema,
   organizationCalendarSettingsRequestSchema,
   organizationRsvpRequestSchema,
+  organizationRosterConfigurationRequestSchema,
   organizationVenueRequestSchema,
 } from "@choir/contracts";
-import { isValidTimeZone } from "@choir/domain";
+import { defaultRosterConfiguration, isValidTimeZone } from "@choir/domain";
 import { z } from "zod";
 
 const actorSchema = z.object({
@@ -48,6 +49,10 @@ const managementRequestSchema = z.discriminatedUnion("action", [
   actorSchema.extend({
     action: z.literal("update_timezone"),
     settings: organizationCalendarSettingsRequestSchema,
+  }),
+  actorSchema.extend({
+    action: z.literal("update_roster_configuration"),
+    configuration: organizationRosterConfigurationRequestSchema,
   }),
 ]);
 
@@ -236,6 +241,65 @@ export function readOrganizationCalendarSettingsFromStore(
     )
     .one().timezone;
   return Response.json({ timezone });
+}
+
+export function readRosterConfigurationFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const raw = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly configuration: string }>(
+      `SELECT roster_configuration_json AS configuration
+       FROM organization_metadata LIMIT 1`,
+    )
+    .one().configuration;
+  try {
+    const configuration: unknown = JSON.parse(raw);
+    const parsed = organizationRosterConfigurationRequestSchema.safeParse(configuration);
+    return Response.json(parsed.success ? parsed.data : defaultRosterConfiguration);
+  } catch {
+    return Response.json(defaultRosterConfiguration);
+  }
+}
+
+function updateRosterConfiguration(
+  storage: DurableObjectStorage,
+  operation: Extract<ManagementRequest, { readonly action: "update_roster_configuration" }>,
+  occurredAt: string,
+): Response {
+  const labels = new Set(operation.configuration.voiceParts.map(({ label }) => label));
+  const assignedVoiceParts = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly voicePart: string }>(
+      `SELECT DISTINCT voice_part AS voicePart FROM profiles
+       WHERE voice_part <> ''`,
+    )
+    .toArray();
+  if (assignedVoiceParts.some(({ voicePart }) => !labels.has(voicePart))) {
+    return Response.json({ code: "voice_part_in_use" }, { status: 409 });
+  }
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET roster_configuration_json = ?, updated_at = ?",
+      JSON.stringify(operation.configuration),
+      occurredAt,
+    );
+    insertAudit(
+      storage,
+      operation,
+      "organization.roster_configuration.updated",
+      "organization",
+      operation.organizationId,
+      {
+        sectionCount: operation.configuration.sections.length,
+        voicePartCount: operation.configuration.voiceParts.length,
+      },
+      occurredAt,
+    );
+  });
+  return Response.json(operation.configuration);
 }
 
 export function listEventAttendanceFromStore(
@@ -551,6 +615,33 @@ function writeVenue(
   return Response.json({ status: "deleted", venueId: operation.venueId });
 }
 
+function updateTimezone(
+  storage: DurableObjectStorage,
+  operation: Extract<ManagementRequest, { readonly action: "update_timezone" }>,
+  occurredAt: string,
+): Response {
+  if (!isValidTimeZone(operation.settings.timezone)) {
+    return Response.json({ code: "invalid_timezone" }, { status: 400 });
+  }
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET timezone = ?, updated_at = ?",
+      operation.settings.timezone,
+      occurredAt,
+    );
+    insertAudit(
+      storage,
+      operation,
+      "organization.timezone.updated",
+      "organization",
+      operation.organizationId,
+      { timezone: operation.settings.timezone },
+      occurredAt,
+    );
+  });
+  return Response.json(operation.settings);
+}
+
 export async function manageOrganizationCalendarInStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -565,28 +656,11 @@ export async function manageOrganizationCalendarInStore(
   if (parsed.data.action === "bulk_attendance") {
     return updateAttendance(storage, parsed.data, occurredAt);
   }
+  if (parsed.data.action === "update_roster_configuration") {
+    return updateRosterConfiguration(storage, parsed.data, occurredAt);
+  }
   if (parsed.data.action === "update_timezone") {
-    const operation = parsed.data;
-    if (!isValidTimeZone(operation.settings.timezone)) {
-      return Response.json({ code: "invalid_timezone" }, { status: 400 });
-    }
-    storage.transactionSync(() => {
-      storage.sql.exec(
-        "UPDATE organization_metadata SET timezone = ?, updated_at = ?",
-        operation.settings.timezone,
-        occurredAt,
-      );
-      insertAudit(
-        storage,
-        operation,
-        "organization.timezone.updated",
-        "organization",
-        operation.organizationId,
-        { timezone: operation.settings.timezone },
-        occurredAt,
-      );
-    });
-    return Response.json(operation.settings);
+    return updateTimezone(storage, parsed.data, occurredAt);
   }
   if (parsed.data.action === "create_venue" || parsed.data.action === "delete_venue") {
     return writeVenue(storage, parsed.data, occurredAt);

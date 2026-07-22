@@ -202,6 +202,12 @@ Verified over public HTTPS on July 20–21, 2026:
   unlinked Profiles export a blank email. Unit and workerd proof cover the byte-level CSV, no-store
   response policy, filename, canonical-host isolation, and member denial. Per ADR 0015, this does
   not introduce a whole-archive import or restore path.
+- Organization schema version 12 adds ordered section and voice-part configuration with the legacy
+  SATB defaults. Members may read the configuration; only Owners and Administrators may update it.
+  Both the UI and the Organization store prevent removal or renaming of a voice-part label assigned
+  to a Profile, while contract validation rejects duplicate labels and missing section references.
+  Focused workerd and desktop/mobile browser proof covers defaults, persistence, audit, validation,
+  role enforcement, and cross-Organization isolation.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.

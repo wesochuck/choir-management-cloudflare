@@ -71,6 +71,7 @@ milestone complete.
 | `apps/web/src/account/OrganizationCalendar.tsx`                | Profile, venue, event, and RSVP Organization management UI                           |
 | `apps/web/src/account/MySchedule.tsx`                          | Linked-Profile member schedule and self-service RSVP UI                              |
 | `apps/web/src/account/AttendanceManager.tsx`                   | Administrator event attendance bulk-update UI                                        |
+| `apps/web/src/account/RosterConfiguration.tsx`                 | Administrator section and voice-part configuration UI                                |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -154,6 +155,7 @@ milestone complete.
 | `apps/worker/test/calendarFeed.integration.test.ts`            | Organization-bound calendar credential and revocation proof                          |
 | `apps/worker/test/calendarManagement.integration.test.ts`      | Venue, event, and RSVP authorization and Organization-isolation proof                |
 | `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                |
+| `apps/worker/test/rosterConfiguration.integration.test.ts`     | Section and voice-part defaults, validation, authorization, and isolation proof      |
 | `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof        |
 | `apps/worker/test/attendance.integration.test.ts`              | Attendance transaction, RSVP promotion, audit, and tenant-isolation proof            |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
@@ -165,6 +167,7 @@ milestone complete.
 | `packages/domain/src/index.test.ts`                            | Foundation domain-result and performer-rule coverage                                 |
 | `packages/domain/src/rosterCsv.ts`                             | Deterministic baseline-compatible roster CSV renderer                                |
 | `packages/domain/src/rosterCsv.test.ts`                        | Roster CSV quoting, status, and section-leader contract proof                        |
+| `packages/domain/src/rosterConfiguration.ts`                   | Standard SATB section and voice-part defaults                                        |
 | `packages/ui/tsconfig.json`                                    | Strict repository-owned UI TypeScript project                                        |
 | `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                      |
 | `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                              |

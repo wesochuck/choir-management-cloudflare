@@ -1,8 +1,8 @@
 import {
-  organizationProfileSchema,
   organizationProfileResponseSchema,
-  organizationProfilesResponseSchema,
+  organizationRosterConfigurationResponseSchema,
 } from "@choir/contracts";
+import { defaultRosterConfiguration } from "@choir/domain";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -13,7 +13,7 @@ import {
 } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
-const USER_EMAIL = "profile.manager@example.test";
+const USER_EMAIL = "roster.manager@example.test";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
   if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -56,7 +56,7 @@ async function provision(
     controlDatabase
       .prepare(
         `INSERT INTO member (id, organizationId, userId, role, createdAt)
-         VALUES (?, ?, 'profile-manager', ?, ?)`,
+         VALUES (?, ?, 'roster-manager', ?, ?)`,
       )
       .bind(`member-${slug}`, organizationId, role, Date.now()),
   ]);
@@ -79,14 +79,13 @@ async function provision(
 }
 
 async function signIn(): Promise<string> {
-  const send = await exports.default.fetch(
+  await exports.default.fetch(
     apiRequest("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
       body: JSON.stringify({ email: USER_EMAIL, type: "sign-in" }),
       headers: { "content-type": "application/json" },
       method: "POST",
     }),
   );
-  expect(send.status).toBe(200);
   const code = readCapturedPlatformEmailsForTest()
     .find((message) => message.kind === "email-one-time-code" && message.recipient === USER_EMAIL)
     ?.text.match(/Use (\d{6}) to sign in/)?.[1];
@@ -110,7 +109,7 @@ beforeEach(async () => {
     .prepare(
       `INSERT INTO user
         (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-       VALUES ('profile-manager', 'Profile Manager', ?, 0, ?, ?, 0)`,
+       VALUES ('roster-manager', 'Roster Manager', ?, 0, ?, ?, 0)`,
     )
     .bind(USER_EMAIL, now, now)
     .run();
@@ -122,126 +121,115 @@ afterEach(async () => {
   await reset();
 });
 
-describe("Organization Profiles", () => {
-  it("creates and lists Profiles only within the canonical authenticated Organization", async () => {
+describe("Organization roster configuration", () => {
+  it("enforces defaults, Profile references, authorization, audit, and isolation", async () => {
     expect(
-      await exports.default.fetch(apiRequest("alpha.localhost", "/api/organization/profiles")),
+      await exports.default.fetch(
+        apiRequest("alpha.localhost", "/api/organization/roster-configuration"),
+      ),
     ).toMatchObject({ status: 401 });
     const cookie = await signIn();
-    const createdResponse = await exports.default.fetch(
-      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
-        body: JSON.stringify({ displayName: "  Alpha Singer  " }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }),
+    const defaults = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          apiRequest("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
     );
-    expect(createdResponse.status).toBe(201);
-    const created = organizationProfileResponseSchema.parse(await createdResponse.json());
-    expect(created.displayName).toBe("Alpha Singer");
+    expect({ sections: defaults.sections, voiceParts: defaults.voiceParts }).toEqual(
+      defaultRosterConfiguration,
+    );
 
+    const custom = {
+      sections: [{ code: "H", color: "#123456", name: "High voices", trackOnly: false }],
+      voiceParts: [{ fullName: "High voice", label: "High", sectionCode: "H" }],
+    };
     const updatedResponse = await exports.default.fetch(
-      apiRequest("alpha.localhost", `/api/organization/profiles/${created.id}`, cookie, {
-        body: JSON.stringify({
-          displayName: 'Alpha "Ace", Singer',
-          doNotEmail: true,
-          globalStatus: "Idle",
-          isSectionLeader: true,
-          notes: "On Break through September",
-          phone: "555-0100",
-          receiveAdminNotifications: false,
-          receiveAttendanceReports: false,
-          receiveFinancialAlerts: true,
-          receiveRsvpDeclineNotices: true,
-          showInDirectory: false,
-          voicePart: "S1",
-        }),
+      apiRequest("alpha.localhost", "/api/organization/roster-configuration", cookie, {
+        body: JSON.stringify(custom),
         headers: { "content-type": "application/json" },
         method: "PUT",
       }),
     );
     expect(updatedResponse.status).toBe(200);
-    const updated = organizationProfileResponseSchema.parse(await updatedResponse.json());
-    expect(updated).toMatchObject({
-      displayName: 'Alpha "Ace", Singer',
-      doNotEmail: true,
-      globalStatus: "Idle",
-      isSectionLeader: true,
-      notes: "On Break through September",
-      phone: "555-0100",
-      showInDirectory: false,
-      voicePart: "S1",
+    expect(
+      organizationRosterConfigurationResponseSchema.parse(await updatedResponse.json()),
+    ).toMatchObject(custom);
+
+    const invalidProfileResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        body: JSON.stringify({ displayName: "Invalid Voice", voicePart: "Missing" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(invalidProfileResponse.status).toBe(400);
+    await expect(invalidProfileResponse.json()).resolves.toMatchObject({
+      code: "voice_part_not_configured",
     });
-    await controlDatabase
-      .prepare(
-        `UPDATE member SET profileId = ?
-         WHERE organizationId = 'organization-alpha' AND userId = 'profile-manager'`,
-      )
-      .bind(created.id)
-      .run();
 
-    const rosterExport = await exports.default.fetch(
-      apiRequest("alpha.localhost", "/api/organization/profiles/export.csv", cookie),
+    const profileResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        body: JSON.stringify({ displayName: "Assigned Singer", voicePart: "High" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
     );
-    expect(rosterExport.status).toBe(200);
-    expect(rosterExport.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-    expect(rosterExport.headers.get("cache-control")).toBe("no-store");
-    expect(rosterExport.headers.get("content-disposition")).toBe(
-      'attachment; filename="choir_roster_export.csv"',
+    expect(organizationProfileResponseSchema.parse(await profileResponse.json()).voicePart).toBe(
+      "High",
     );
-    expect(await rosterExport.text()).toBe(
-      [
-        "Name,Email,Phone,Voice Part,Status",
-        '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
-        "",
-        "Section Leaders",
-        "Name,Email,Phone,Voice Part,Status",
-        '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
-      ].join("\n"),
+    const removalResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/roster-configuration", cookie, {
+        body: JSON.stringify(defaultRosterConfiguration),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
     );
+    expect(removalResponse.status).toBe(409);
+    await expect(removalResponse.json()).resolves.toMatchObject({ code: "voice_part_in_use" });
+
     expect(
       await exports.default.fetch(
-        apiRequest("bravo.localhost", "/api/organization/profiles/export.csv", cookie),
-      ),
-    ).toMatchObject({ status: 403 });
-
-    const alphaList = organizationProfilesResponseSchema.parse(
-      await (
-        await exports.default.fetch(
-          apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
-        )
-      ).json(),
-    );
-    expect(alphaList.profiles).toEqual([organizationProfileSchema.parse(updated)]);
-    const bravoList = organizationProfilesResponseSchema.parse(
-      await (
-        await exports.default.fetch(
-          apiRequest("bravo.localhost", "/api/organization/profiles", cookie),
-        )
-      ).json(),
-    );
-    expect(bravoList.profiles).toEqual([]);
-    expect(
-      await exports.default.fetch(
-        apiRequest("bravo.localhost", "/api/organization/profiles", cookie, {
-          body: JSON.stringify({ displayName: "Forbidden Singer" }),
+        apiRequest("alpha.localhost", "/api/organization/roster-configuration", cookie, {
+          body: JSON.stringify({
+            sections: custom.sections,
+            voiceParts: [{ ...custom.voiceParts[0], sectionCode: "missing" }],
+          }),
           headers: { "content-type": "application/json" },
-          method: "POST",
+          method: "PUT",
+        }),
+      ),
+    ).toMatchObject({ status: 400 });
+    expect(
+      await exports.default.fetch(
+        apiRequest("bravo.localhost", "/api/organization/roster-configuration", cookie, {
+          body: JSON.stringify(custom),
+          headers: { "content-type": "application/json" },
+          method: "PUT",
         }),
       ),
     ).toMatchObject({ status: 403 });
+    const bravo = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          apiRequest("bravo.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    expect({ sections: bravo.sections, voiceParts: bravo.voiceParts }).toEqual(
+      defaultRosterConfiguration,
+    );
 
-    const auditCount = await runInDurableObject<OrganizationStore, number>(
-      organizationStore.get(organizationStore.idFromName("organization-alpha")),
-      (_instance, state) =>
+    const stub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+    const auditCount = await runInDurableObject(
+      stub,
+      (_instance: OrganizationStore, state) =>
         state.storage.sql
-          .exec<{ count: number }>(
-            `SELECT COUNT(*) AS count FROM audit_events
-             WHERE action IN ('profile.created', 'profile.updated') AND target_id = ?
-               AND actor_id = 'profile-manager'`,
-            created.id,
+          .exec<{ readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM audit_events WHERE action = 'organization.roster_configuration.updated'",
           )
           .one().count,
     );
-    expect(auditCount).toBe(2);
+    expect(auditCount).toBe(1);
   });
 });

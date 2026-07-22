@@ -371,9 +371,14 @@
         "path": "/admin/settings",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:508; src/views/admin/SettingsView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/RosterConfiguration.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/rosterConfiguration.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.modules",
@@ -1022,9 +1027,14 @@
         "contract": "roster",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/services/profileService.ts:368; test/profileService.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/domain/src/rosterCsv.ts",
+            "packages/domain/src/rosterCsv.test.ts",
+            "apps/worker/test/profiles.integration.test.ts",
+          ],
       },
       {
         "id": "csv.music-library",
@@ -1187,7 +1197,10 @@
             "apps/worker/src/organization/profiles.ts",
             "apps/worker/test/profiles.integration.test.ts",
             "packages/domain/src/rosterCsv.ts",
+            "packages/domain/src/rosterConfiguration.ts",
+            "apps/worker/test/rosterConfiguration.integration.test.ts",
             "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/RosterConfiguration.tsx",
             "apps/web/e2e/auth.spec.ts",
           ],
       },

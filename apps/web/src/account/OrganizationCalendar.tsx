@@ -4,6 +4,7 @@ import type {
   OrganizationEventRequest,
   OrganizationProfile,
   OrganizationProfileRequest,
+  OrganizationRosterConfiguration,
   OrganizationVenue,
 } from "@choir/contracts";
 import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
@@ -17,6 +18,7 @@ import {
   createOrganizationVenue,
   deleteOrganizationVenue,
   getOrganizationCalendarSettings,
+  getOrganizationRosterConfiguration,
   listOrganizationEvents,
   listOrganizationProfiles,
   listOrganizationVenues,
@@ -29,6 +31,7 @@ import {
 interface Resources {
   readonly events: readonly OrganizationEvent[];
   readonly profiles: readonly OrganizationProfile[];
+  readonly rosterConfiguration: OrganizationRosterConfiguration;
   readonly venues: readonly OrganizationVenue[];
   readonly timezone: string;
 }
@@ -260,10 +263,18 @@ export function OrganizationCalendar({
       listOrganizationVenues(controller.signal),
       listOrganizationEvents(controller.signal),
       getOrganizationCalendarSettings(controller.signal),
+      getOrganizationRosterConfiguration(controller.signal),
     ])
-      .then(([profiles, venues, events, settings]) => {
+      .then(([profiles, venues, events, settings, rosterConfiguration]) => {
         setTimezoneInput(settings.timezone);
-        setResources({ events, profiles, status: "ready", timezone: settings.timezone, venues });
+        setResources({
+          events,
+          profiles,
+          rosterConfiguration,
+          status: "ready",
+          timezone: settings.timezone,
+          venues,
+        });
       })
       .catch((loadError: unknown) => {
         if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
@@ -563,14 +574,20 @@ export function OrganizationCalendar({
                 </div>
                 <div className="field">
                   <label htmlFor="profile-voice-part">Voice part</label>
-                  <input
+                  <select
                     id="profile-voice-part"
-                    maxLength={100}
                     onChange={(change) => {
                       setProfile((current) => ({ ...current, voicePart: change.target.value }));
                     }}
                     value={profile.voicePart}
-                  />
+                  >
+                    <option value="">No voice part</option>
+                    {resources.rosterConfiguration.voiceParts.map(({ fullName, label }) => (
+                      <option key={label} value={label}>
+                        {fullName} ({label})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="field">
                   <label htmlFor="profile-status">Status</label>

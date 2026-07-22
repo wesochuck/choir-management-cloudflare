@@ -15,6 +15,7 @@ import { AttendanceManager } from "./AttendanceManager";
 import { CalendarSubscription } from "./CalendarSubscription";
 import { OrganizationCalendar } from "./OrganizationCalendar";
 import { MySchedule } from "./MySchedule";
+import { RosterConfiguration } from "./RosterConfiguration";
 
 type AccessState =
   | { readonly status: "error" }
@@ -664,6 +665,7 @@ export function OrganizationAccess() {
         />
       </section>
       <OrganizationCalendar context={context} enabled={!needsVerification} />
+      <RosterConfiguration enabled={!needsVerification && context.role !== "member"} />
       <AttendanceManager enabled={!needsVerification && context.role !== "member"} />
       <MySchedule enabled={!needsVerification} />
       <CalendarSubscription enabled={!needsVerification} />

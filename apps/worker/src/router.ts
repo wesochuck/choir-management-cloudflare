@@ -4,6 +4,7 @@ import {
   organizationInvitationRequestSchema,
   organizationEventRequestSchema,
   organizationCalendarSettingsRequestSchema,
+  organizationRosterConfigurationRequestSchema,
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
   organizationProfileRequestSchema,
@@ -47,8 +48,10 @@ import {
   listOrganizationVenues,
   listMemberSchedule,
   readOrganizationCalendarSettings,
+  readOrganizationRosterConfiguration,
   setOrganizationEventRsvp,
   updateOrganizationCalendarSettings,
+  updateOrganizationRosterConfiguration,
   updateOrganizationEvent,
   updateOrganizationEventAttendance,
 } from "./calendar/organizationCalendar";
@@ -84,6 +87,7 @@ import {
   createOrganizationProfile,
   listOrganizationProfileEmails,
   listOrganizationProfiles,
+  OrganizationProfileMutationError,
   updateOrganizationProfile,
 } from "./organization/profiles";
 import { readPublishedOrganization } from "./publication/publishOrganization";
@@ -1285,7 +1289,13 @@ router.post("/api/organization/profiles", async (context) => {
       requestId: context.get("requestId"),
     });
     return context.json({ ...profile, requestId: context.get("requestId") }, 201);
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof OrganizationProfileMutationError) {
+      return context.json(
+        { code: error.code, message: error.message, requestId: context.get("requestId") },
+        400,
+      );
+    }
     return context.json(
       {
         code: "service_unavailable",
@@ -1328,7 +1338,13 @@ router.put("/api/organization/profiles/:profileId", async (context) => {
       requestId: context.get("requestId"),
     });
     return context.json({ ...updated, requestId: context.get("requestId") });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof OrganizationProfileMutationError) {
+      return context.json(
+        { code: error.code, message: error.message, requestId: context.get("requestId") },
+        400,
+      );
+    }
     return context.json(
       {
         code: "service_unavailable",
@@ -1534,6 +1550,85 @@ router.put("/api/organization/calendar-settings", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization timezone could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/roster-configuration", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      ...(await readOrganizationRosterConfiguration(context.env, authorization.organizationId)),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization roster configuration is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/roster-configuration", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationRosterConfigurationRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid, uniquely labeled sections and voice parts are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const configuration = await updateOrganizationRosterConfiguration(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    if (configuration === "voice_part_in_use") {
+      return context.json(
+        {
+          code: "voice_part_in_use",
+          message: "A voice part assigned to an Organization Profile cannot be removed or renamed.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    return context.json({ ...configuration, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization roster configuration could not be updated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

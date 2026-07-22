@@ -529,6 +529,28 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.account-section--roster-configuration {
+  grid-column: 1 / -1;
+}
+
+.roster-configuration-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.roster-configuration-row {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.6fr) minmax(10rem, 2fr) minmax(7rem, 1fr) auto auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.roster-configuration-row label:not(.checkbox-row) {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .account-section--my-schedule {
   grid-column: 1 / -1;
 }
@@ -982,6 +1004,10 @@ footer {
     grid-column: auto;
   }
 
+  .roster-configuration-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .mfa-enrollment {
     grid-template-columns: 1fr;
   }
@@ -1028,6 +1054,10 @@ footer {
   .form-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .roster-configuration-row {
+    grid-template-columns: 1fr;
   }
 }
 

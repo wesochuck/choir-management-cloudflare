@@ -14,6 +14,7 @@ import {
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
   organizationCalendarSettingsResponseSchema,
+  organizationRosterConfigurationResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
   organizationProfileResponseSchema,
@@ -51,6 +52,7 @@ import {
   type OrganizationEvent,
   type OrganizationEventRequest,
   type OrganizationCalendarSettings,
+  type OrganizationRosterConfiguration,
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
   type OrganizationProfile,
@@ -352,6 +354,27 @@ export async function updateOrganizationCalendarSettings(
     method: "PUT",
   });
   return organizationCalendarSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationRosterConfiguration(
+  signal?: AbortSignal,
+): Promise<OrganizationRosterConfiguration> {
+  const response = await request("/api/organization/roster-configuration", {
+    signal: signal ?? null,
+  });
+  const parsed = organizationRosterConfigurationResponseSchema.parse(await response.json());
+  return { sections: parsed.sections, voiceParts: parsed.voiceParts };
+}
+
+export async function updateOrganizationRosterConfiguration(
+  configuration: OrganizationRosterConfiguration,
+): Promise<OrganizationRosterConfiguration> {
+  const response = await request("/api/organization/roster-configuration", {
+    body: JSON.stringify(configuration),
+    method: "PUT",
+  });
+  const parsed = organizationRosterConfigurationResponseSchema.parse(await response.json());
+  return { sections: parsed.sections, voiceParts: parsed.voiceParts };
 }
 
 export async function getMySchedule(signal?: AbortSignal): Promise<SingerEventsResponse> {

@@ -1,6 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
-import { organizationProfileRequestSchema } from "@choir/contracts";
+import {
+  organizationProfileRequestSchema,
+  organizationRosterConfigurationRequestSchema,
+} from "@choir/contracts";
 
 import type { Env } from "../env";
 import { deliveryJobSchema } from "../jobs/contracts";
@@ -18,6 +21,7 @@ import {
   listOrganizationVenuesFromStore,
   manageOrganizationCalendarInStore,
   readOrganizationCalendarSettingsFromStore,
+  readRosterConfigurationFromStore,
 } from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { currentOrganizationSchemaVersion } from "./schema";
@@ -215,6 +219,22 @@ function listProfiles(storage: DurableObjectStorage, organizationId: string | nu
   return Response.json({ profiles });
 }
 
+function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: string): boolean {
+  if (voicePart === "") return true;
+  try {
+    const raw = storage.sql
+      .exec<{ readonly configuration: string }>(
+        "SELECT roster_configuration_json AS configuration FROM organization_metadata LIMIT 1",
+      )
+      .one().configuration;
+    const configuration: unknown = JSON.parse(raw);
+    const parsed = organizationRosterConfigurationRequestSchema.safeParse(configuration);
+    return parsed.success && parsed.data.voiceParts.some(({ label }) => label === voicePart);
+  } catch {
+    return false;
+  }
+}
+
 async function createProfile(storage: DurableObjectStorage, request: Request): Promise<Response> {
   const parsed = profileCreateSchema.safeParse(await request.json());
   if (!parsed.success) {
@@ -225,6 +245,9 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
   }
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
+  if (!isConfiguredVoicePart(storage, profile.voicePart)) {
+    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+  }
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO profiles
@@ -282,6 +305,9 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
   if (exists === 0) return Response.json({ code: "profile_not_found" }, { status: 404 });
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
+  if (!isConfiguredVoicePart(storage, profile.voicePart)) {
+    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+  }
   storage.transactionSync(() => {
     storage.sql.exec(
       `UPDATE profiles SET display_name = ?, phone = ?, voice_part = ?, global_status = ?,
@@ -848,6 +874,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       });
     case "/internal/calendar/settings":
       return readOrganizationCalendarSettingsFromStore(storage, organizationId);
+    case "/internal/roster/configuration":
+      return readRosterConfigurationFromStore(storage, organizationId);
     case "/internal/calendar/member-events":
       return listMemberEventsFromStore(storage, {
         organizationId,
