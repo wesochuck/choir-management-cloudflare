@@ -292,6 +292,12 @@ Verified over public HTTPS on July 20–21, 2026:
   migrations and remained at zero Organizations, fleet schema preparations, and dead letters. Worker
   version `155e6023-b73c-4ca0-80a1-70829674ab79` is the verified staging checkpoint for commit
   `c10d5dbfc4135685b8ba63cfa92bb0a5944cae1a`.
+- After the linked-member Profile/directory deployment, health and readiness returned HTTP 200 and
+  cache-busted self-Profile and directory probes on the global workers.dev base returned
+  hostname-first HTTP 404. The cache-busted live shell referenced `index-B5TXwykd.js` and
+  `index-B2EU6tP_.css`. D1 had no pending migrations and remained at zero Organizations, fleet
+  schema preparations, and dead letters. Worker version `3acbaf38-7dbe-4ead-ab35-36782d5bd666` is
+  the verified staging checkpoint for commit `45c47fd`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -308,7 +314,8 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run test:integration`: 15 files / 47 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
-  password-recovery journeys passed, including seating management and the linked-member finder.
+  password-recovery journeys passed, including seating management, linked-member Profile editing,
+  directory filtering, and the seating finder.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
