@@ -49,7 +49,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `04be7c8f-12e0-418f-9422-6932b4f9d7d9`
+- Current verified Worker version: `1486b7d9-2eac-4523-a8d0-da2a0d1cfe69`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -415,6 +415,11 @@ Verified over public HTTPS on July 20–22, 2026:
   Remote D1 had no pending migrations and retained zero Organizations, dead letters, and fleet
   schema preparations. Worker version `04be7c8f-12e0-418f-9422-6932b4f9d7d9` is the verified staging
   checkpoint for commit `248c89b`.
+- After the inert Brevo-adapter deployment, health, readiness, and the unsubscribe application shell
+  returned HTTP 200. The Worker binding report continued to show `EXTERNAL_EFFECTS_MODE=fake`, so
+  neither the new adapter nor its SMS lane could contact Brevo. Remote D1 had no pending migrations
+  and retained zero Organizations, dead letters, and fleet schema preparations. Worker version
+  `1486b7d9-2eac-4523-a8d0-da2a0d1cfe69` is the verified staging checkpoint for commit `3fe2c23`.
 
 ## Completed foundation checks
 
