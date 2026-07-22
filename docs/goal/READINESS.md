@@ -49,7 +49,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `1f7a9957-76fd-44d6-a7d1-0fb430ac4460`
+- Current verified Worker version: `40279818-1bcd-4322-aa99-d887f6d0d565`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -60,7 +60,8 @@ secrets, or signing secrets in this file.
 - Workflow: `choir-management-provisioning-staging`
 - Fleet schema Workflow: `choir-management-fleet-schema-staging`
 - External effects: `fake`
-- Platform email: `capture`
+- Platform email: native Cloudflare Email Sending in staging sandbox mode; sender
+  `auth@mail.staging.musicsite.org`, with `cwosborn@gmail.com` as the sole allowlisted recipient
 - Signed-link secret: configured independently in the staging Worker secret store
 
 Verified over public HTTPS on July 20–22, 2026:
@@ -105,10 +106,10 @@ Verified over public HTTPS on July 20–22, 2026:
   deployed browser views; the tokenless reset route showed only the safe invalid/expired-link state.
   A synthetic fragment token was removed from the live browser URL while the reset form retained it
   in memory; it was not submitted. Health and readiness remained HTTP 200, anonymous session
-  retrieval remained HTTP 200, and no live reset was requested because staging platform email is
-  capture-only. Remote D1 still contained one bootstrap identity and active Platform Administrator
-  grant, with zero accounts, sessions, Organizations, Memberships, invitations, two-factor rows, or
-  Organization MFA assertions.
+  retrieval remained HTTP 200, and no live reset was requested because staging platform email was
+  still capture-only at that checkpoint. Remote D1 contained one bootstrap identity and active
+  Platform Administrator grant, with zero accounts, sessions, Organizations, Memberships,
+  invitations, two-factor rows, or Organization MFA assertions.
 - After the invitation-lifecycle deployment, health and readiness returned HTTP 200. A browser-
   shaped request to Better Auth's native Organization invitation endpoint returned the application's
   generic HTTP 404, proving browser callers cannot supply an Organization ID around the hostname-
@@ -386,9 +387,16 @@ Verified over public HTTPS on July 20–22, 2026:
   for commit `796f8cf`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
-  desktop and mobile authenticated flows are covered with deterministic browser fakes because
-  staging email remains capture-only.
+  desktop and mobile authenticated flows are covered with deterministic browser fakes, and the
+  current staging deployment additionally has a qualified real-email path for its single
+  allowlisted Platform Administrator.
 - `/` returned the deployed Vite application shell.
+- A real sign-in verification-code request for the active Platform Administrator identity
+  `cwosborn@gmail.com` returned HTTP 200 through `staging.musicsite.org` on July 22, 2026. The
+  deployed Worker used the native Email Sending binding, the application recipient allowlist, and
+  the authenticated `auth@mail.staging.musicsite.org` sender. The sender domain's MX, SPF, DKIM,
+  and rejecting DMARC records all resolved publicly. This qualifies the staging auth-email send
+  path without broadening staging delivery beyond the single allowlisted recipient.
 
 ## Completed foundation checks
 
@@ -617,11 +625,8 @@ These do not prevent local implementation of Milestones 0–4:
   commit.
 - Create a least-privilege Cloudflare API token for GitHub Actions and store it, plus the account
   ID, as GitHub environment secrets. The local Wrangler OAuth credential must not be reused in CI.
-- Enable the paid Cloudflare Email Sending entitlement and a verified platform sender domain before
-  platform-email staging qualification. `wrangler email sending list` currently returns unauthorized
-  code 2036; Email Routing has no configured zones.
-- Record allowlisted staging recipients before platform-email qualification. The initial Platform
-  Administrator identity is already provisioned in D1 but cannot enroll until email delivery works.
+- Keep the staging email recipient allowlist narrow. Add a recipient only as an intentional access
+  decision and update the Worker secret; do not turn staging into an unrestricted mail sender.
 - Supply Stripe Connect test credentials/webhook secret and Brevo test credentials/verified
   sender/SMS number only at their Milestone 5 staging gates.
 
@@ -635,8 +640,9 @@ These do not prevent local implementation of Milestones 0–4:
   uncreated/unlaunched.
 - Staging/production isolation: separate resources and secrets in the same Cloudflare account for
   now; production resources remain uncreated/unlaunched.
-- Platform transactional email: capture locally/staging until Email Sending and a verified domain
-  are enabled.
+- Platform transactional email: capture locally; staging uses native Cloudflare Email Sending in
+  sandbox mode from `auth@mail.staging.musicsite.org`, restricted to an explicit recipient
+  allowlist. Production email remains unconfigured.
 - Independently attached Organization domains remain public-only and require their own Cloudflare
   for SaaS validation lifecycle; they never receive product auth cookies.
 
