@@ -27,6 +27,7 @@ import {
 } from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { listMusicPiecesFromStore, manageMusicInStore } from "./musicStore";
+import { listResourcesFromStore, manageResourceInStore } from "./resourceStore";
 import {
   listSeatingChartsFromStore,
   manageSeatingInStore,
@@ -992,7 +993,7 @@ async function abortPrivateFile(
 }
 
 function privateFileIsReferenced(storage: DurableObjectStorage, fileId: string): boolean {
-  return storage.sql
+  const musicReference = storage.sql
     .exec<{ readonly trackFileIdsJson: string }>(
       "SELECT track_file_ids_json AS trackFileIdsJson FROM music_pieces",
     )
@@ -1009,6 +1010,15 @@ function privateFileIsReferenced(storage: DurableObjectStorage, fileId: string):
         return false;
       }
     });
+  if (musicReference) return true;
+  return (
+    storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+        "SELECT COUNT(*) AS count FROM organization_resources WHERE file_id = ?",
+        fileId,
+      )
+      .one().count > 0
+  );
 }
 
 async function claimPrivateFileReclamation(
@@ -1142,6 +1152,8 @@ async function dispatchPostRequest(
       return manageSeatingInStore(storage, request);
     case "/internal/music/manage":
       return manageMusicInStore(storage, request);
+    case "/internal/resources/manage":
+      return manageResourceInStore(storage, request);
     case "/internal/provision":
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
@@ -1212,13 +1224,12 @@ function dispatchProfileGetRequest(
     : null;
 }
 
-function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response | null {
-  const organizationId = url.searchParams.get("organizationId");
-  const profileResponse = dispatchProfileGetRequest(storage, url, organizationId);
-  if (profileResponse) return profileResponse;
+function dispatchCalendarGetRequest(
+  storage: DurableObjectStorage,
+  url: URL,
+  organizationId: string | null,
+): Response | null {
   switch (url.pathname) {
-    case "/internal/health":
-      return Response.json({ status: "ok" });
     case "/internal/calendar/venues":
       return listOrganizationVenuesFromStore(storage, organizationId);
     case "/internal/calendar/events":
@@ -1235,6 +1246,29 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       });
     case "/internal/calendar/settings":
       return readOrganizationCalendarSettingsFromStore(storage, organizationId);
+    case "/internal/calendar/member-events":
+      return listMemberEventsFromStore(storage, {
+        organizationId,
+        profileId: url.searchParams.get("profileId"),
+        readAt: url.searchParams.get("readAt"),
+      });
+    default:
+      return null;
+  }
+}
+
+function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response | null {
+  const organizationId = url.searchParams.get("organizationId");
+  const profileResponse = dispatchProfileGetRequest(storage, url, organizationId);
+  if (profileResponse) return profileResponse;
+  if (url.pathname === "/internal/resources") {
+    return listResourcesFromStore(storage, organizationId);
+  }
+  const calendarResponse = dispatchCalendarGetRequest(storage, url, organizationId);
+  if (calendarResponse) return calendarResponse;
+  switch (url.pathname) {
+    case "/internal/health":
+      return Response.json({ status: "ok" });
     case "/internal/roster/configuration":
       return readRosterConfigurationFromStore(storage, organizationId);
     case "/internal/seating/configuration":
@@ -1252,12 +1286,6 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
         eventId: url.searchParams.get("eventId"),
         organizationId,
         profileId: url.searchParams.get("profileId"),
-      });
-    case "/internal/calendar/member-events":
-      return listMemberEventsFromStore(storage, {
-        organizationId,
-        profileId: url.searchParams.get("profileId"),
-        readAt: url.searchParams.get("readAt"),
       });
   }
   const privateFilePrefix = "/internal/files/";

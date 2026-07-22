@@ -18,6 +18,7 @@ import { MySchedule } from "./MySchedule";
 import { MemberProfileDirectory } from "./MemberProfileDirectory";
 import { LearningTrackPlayer } from "./LearningTrackPlayer";
 import { MusicCatalog } from "./MusicCatalog";
+import { OrganizationResources } from "./OrganizationResources";
 import { RosterConfiguration } from "./RosterConfiguration";
 import { SeatingFinder } from "./SeatingFinder";
 import { SeatingManager } from "./SeatingManager";
@@ -399,6 +400,7 @@ function OrganizationOperations({
       <RosterConfiguration enabled={managerEnabled} />
       <MusicCatalog enabled={managerEnabled} />
       <LearningTrackPlayer enabled={enabled} />
+      <OrganizationResources enabled={enabled} manager={managerEnabled} />
       <SetListManager enabled={managerEnabled} />
       <SeatingManager enabled={managerEnabled} />
       <AttendanceManager enabled={managerEnabled} />

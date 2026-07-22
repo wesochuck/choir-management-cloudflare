@@ -586,6 +586,14 @@ The authentication handler is available on the exact product base hostname. Orga
 must also be registered as active canonical domains in D1; merely matching the product domain suffix
 is insufficient.
 
+Organization resources now use an ordered table inside the hostname-resolved Organization Durable
+Object. Every entry targets exactly one ready private file or one HTTPS link. All signed
+Organization members can list and open resources, while only Owners and Administrators can create,
+rename, reorder, or delete them. Ordering validates the complete Organization-local ID set
+atomically. Private files remain protected while referenced and are reclaimed from R2 when their
+resource is deleted. Workerd integration coverage proves role enforcement, cross-Organization
+isolation, ordering, audit history, and object reclamation.
+
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
 
@@ -627,8 +635,8 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 5 with music audio/player, dedicated set-list management, communications,
-   public-sales, and remaining member workflow parity. Validate independently attached public
-   domains separately from the product-owned canonical namespace. Do not add whole-archive import;
-   ADR 0015 deliberately excludes it from v1.
+3. Continue Milestone 5 with communications, public-sales, and remaining member workflow parity.
+   Music audio/player, dedicated set-list management, resources, roster CSV, and seating are now
+   implemented. Validate independently attached public domains separately from the product-owned
+   canonical namespace. Do not add whole-archive import; ADR 0015 deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

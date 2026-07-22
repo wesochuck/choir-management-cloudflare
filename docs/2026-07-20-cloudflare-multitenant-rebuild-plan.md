@@ -77,6 +77,7 @@ milestone complete.
 | `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory       |
 | `apps/web/src/account/MusicCatalog.tsx`                        | Manager catalog, CSV, movement, private learning-track, and deletion workflows       |
 | `apps/web/src/account/LearningTrackPlayer.tsx`                 | Member-safe private learning-track playback and offline practice UI                  |
+| `apps/web/src/account/OrganizationResources.tsx`               | Manager resource ordering/editing and member private-file/link access                |
 | `apps/web/src/account/SetListManager.tsx`                      | Manager event set-list ordering, approval, music linking, and performer-credit UI    |
 | `apps/web/src/offline/mediaStore.ts`                           | Host-scoped IndexedDB persistence and blob-URL lifecycle for private audio           |
 | `apps/web/src/offline/mediaStore.test.ts`                      | Unit proof for offline private-audio persistence and removal                         |
@@ -91,6 +92,7 @@ milestone complete.
 | `apps/worker/src/organization/calendarManagementStore.ts`      | Venue, event, and RSVP SQLite repository inside the Organization boundary            |
 | `apps/worker/src/organization/seatingStore.ts`                 | Organization-scoped formation, chart, assignment, and finder repository              |
 | `apps/worker/src/organization/musicStore.ts`                   | Organization-scoped music catalog repository and referential validation              |
+| `apps/worker/src/organization/resourceStore.ts`                | Organization-scoped ordered private-file and link resource repository                |
 | `apps/worker/src/organization/profiles.ts`                     | Authenticated Organization Profile repository adapter                                |
 | `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                       |
 | `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                  |
@@ -128,6 +130,7 @@ milestone complete.
 | `apps/worker/src/calendar/organizationCalendar.ts`             | Authenticated venue, event, and RSVP Organization repository adapter                 |
 | `apps/worker/src/organization/organizationSeating.ts`          | Authenticated manager/member seating repository adapter                              |
 | `apps/worker/src/organization/organizationMusic.ts`            | Authenticated manager music catalog repository adapter                               |
+| `apps/worker/src/organization/organizationResources.ts`        | Authenticated Organization resource repository adapter                               |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -163,6 +166,7 @@ milestone complete.
 | `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                   |
 | `apps/worker/test/auth.integration.test.ts`                    | Workerd invitation-only auth, OTP, session, and canonical-host coverage              |
 | `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                            |
+| `apps/worker/test/resources.integration.test.ts`               | Resource CRUD, order, authorization, private files, audit, and isolation proof       |
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |

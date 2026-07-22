@@ -1417,9 +1417,16 @@
         "workflow": "ordered file/link resources with member access",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/services/resourceService.ts; test/resourceService.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/resourceStore.ts",
+            "apps/worker/src/organization/organizationResources.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/resources.integration.test.ts",
+            "apps/web/src/account/OrganizationResources.tsx",
+          ],
       },
       {
         "id": "workflow.ticketing",
@@ -1519,9 +1526,15 @@
         "behavior": "ordered private resource upload/link and member download",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/services/resourceService.ts; test/resourceService.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/src/organization/resourceStore.ts",
+            "apps/worker/test/resources.integration.test.ts",
+            "apps/web/src/account/OrganizationResources.tsx",
+          ],
       },
       {
         "id": "file.public-media",

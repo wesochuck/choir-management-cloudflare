@@ -229,6 +229,23 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON music_pieces(parent_id, created_at, id)`,
     ],
   },
+  {
+    version: 15,
+    statements: [
+      `CREATE TABLE organization_resources (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        file_id TEXT,
+        url TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK ((file_id IS NULL) <> (url IS NULL))
+      ) STRICT`,
+      `CREATE INDEX idx_organization_resources_order
+       ON organization_resources(sort_order, title COLLATE NOCASE, id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
