@@ -16,6 +16,8 @@ import { CalendarSubscription } from "./CalendarSubscription";
 import { OrganizationCalendar } from "./OrganizationCalendar";
 import { MySchedule } from "./MySchedule";
 import { RosterConfiguration } from "./RosterConfiguration";
+import { SeatingFinder } from "./SeatingFinder";
+import { SeatingManager } from "./SeatingManager";
 
 type AccessState =
   | { readonly status: "error" }
@@ -379,6 +381,27 @@ function VerificationPanel(props: VerificationPanelProps) {
   );
 }
 
+function OrganizationOperations({
+  context,
+  enabled,
+}: {
+  readonly context: OrganizationAuthStatusResponse;
+  readonly enabled: boolean;
+}) {
+  const managerEnabled = enabled && context.role !== "member";
+  return (
+    <>
+      <OrganizationCalendar context={context} enabled={enabled} />
+      <RosterConfiguration enabled={managerEnabled} />
+      <SeatingManager enabled={managerEnabled} />
+      <AttendanceManager enabled={managerEnabled} />
+      <MySchedule enabled={enabled} />
+      <SeatingFinder enabled={enabled} />
+      <CalendarSubscription enabled={enabled} />
+    </>
+  );
+}
+
 export function OrganizationAccess() {
   const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
   const [acknowledgedRecoveryCodes, setAcknowledgedRecoveryCodes] = useState(false);
@@ -664,11 +687,7 @@ export function OrganizationAccess() {
           visible={needsVerification && enrollmentComplete && !enrollmentSecrets}
         />
       </section>
-      <OrganizationCalendar context={context} enabled={!needsVerification} />
-      <RosterConfiguration enabled={!needsVerification && context.role !== "member"} />
-      <AttendanceManager enabled={!needsVerification && context.role !== "member"} />
-      <MySchedule enabled={!needsVerification} />
-      <CalendarSubscription enabled={!needsVerification} />
+      <OrganizationOperations context={context} enabled={!needsVerification} />
       <OrganizationInvitations context={context} />
     </>
   );

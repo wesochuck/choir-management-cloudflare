@@ -641,7 +641,10 @@ function writeVenue(
   }
   const referenceCount = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
-      "SELECT COUNT(*) AS count FROM events WHERE venue_id = ?",
+      `SELECT
+         (SELECT COUNT(*) FROM events WHERE venue_id = ?) +
+         (SELECT COUNT(*) FROM seating_charts WHERE venue_id = ?) AS count`,
+      operation.venueId,
       operation.venueId,
     )
     .one().count;

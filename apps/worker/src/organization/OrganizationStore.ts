@@ -25,6 +25,12 @@ import {
   readRosterConfigurationFromStore,
 } from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
+import {
+  listSeatingChartsFromStore,
+  manageSeatingInStore,
+  readSeatingConfigurationFromStore,
+  readSingerSeatingFromStore,
+} from "./seatingStore";
 import { currentOrganizationSchemaVersion } from "./schema";
 
 const completionSchema = z.object({
@@ -844,6 +850,8 @@ async function dispatchPostRequest(
       return validateCalendarFeed(storage, request);
     case "/internal/calendar/manage":
       return manageOrganizationCalendarInStore(storage, request);
+    case "/internal/seating/manage":
+      return manageSeatingInStore(storage, request);
     case "/internal/profiles":
       return createProfile(storage, request);
     case "/internal/profiles/update":
@@ -882,6 +890,20 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return readOrganizationCalendarSettingsFromStore(storage, organizationId);
     case "/internal/roster/configuration":
       return readRosterConfigurationFromStore(storage, organizationId);
+    case "/internal/seating/configuration":
+      return readSeatingConfigurationFromStore(storage, organizationId);
+    case "/internal/seating/charts":
+      return listSeatingChartsFromStore(storage, {
+        eventId: url.searchParams.get("eventId"),
+        organizationId,
+      });
+    case "/internal/seating/singer":
+      return readSingerSeatingFromStore(storage, {
+        chartId: url.searchParams.get("chartId"),
+        eventId: url.searchParams.get("eventId"),
+        organizationId,
+        profileId: url.searchParams.get("profileId"),
+      });
     case "/internal/calendar/member-events":
       return listMemberEventsFromStore(storage, {
         organizationId,

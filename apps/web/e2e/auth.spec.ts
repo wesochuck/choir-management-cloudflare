@@ -25,6 +25,19 @@ const currentUser = {
 
 test.beforeEach(async ({ page }) => {
   const requestId = "99999999-9999-4999-8999-999999999999";
+  let seatingCharts: Record<string, unknown>[] = [];
+  let seatingConfiguration: Record<string, unknown> = {
+    defaultFormationId: "columns-standard",
+    formations: [
+      {
+        id: "columns-standard",
+        isVoicePartLayout: false,
+        name: "Standard Columns",
+        sectionOrder: ["S", "A"],
+        strategy: "vertical_column",
+      },
+    ],
+  };
   await page.route("**/api/organization/profiles", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -162,7 +175,7 @@ test.beforeEach(async ({ page }) => {
             folderNumber,
             folderReturned,
             profileId: "11111111-1111-4111-8111-111111111111",
-            rsvp: attendance === "Present" ? "Yes" : "Pending",
+            rsvp: "Yes",
             updatedAt: "2026-07-20T20:10:00.000Z",
           },
         ],
@@ -202,10 +215,81 @@ test.beforeEach(async ({ page }) => {
       status: 200,
     });
   });
+  await page.route("**/api/organization/seating-configuration", async (route) => {
+    if (route.request().method() === "PUT") {
+      const body: unknown = route.request().postDataJSON();
+      if (typeof body === "object" && body !== null) {
+        seatingConfiguration = Object.fromEntries(Object.entries(body));
+      }
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        configuration: seatingConfiguration,
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/events/*/seating-charts**", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({
+        body: JSON.stringify({ charts: seatingCharts, requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+    if (method === "DELETE") {
+      seatingCharts = [];
+      await route.fulfill({
+        body: JSON.stringify({
+          chartId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          requestId,
+          status: "deleted",
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+    const body: unknown = route.request().postDataJSON();
+    const chart = {
+      ...(typeof body === "object" && body !== null ? body : {}),
+      createdAt: "2026-07-20T20:00:00.000Z",
+      eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      requestId,
+      updatedAt: "2026-07-20T20:15:00.000Z",
+    };
+    seatingCharts = [chart];
+    await route.fulfill({
+      body: JSON.stringify(chart),
+      contentType: "application/json",
+      status: method === "POST" ? 201 : 200,
+    });
+  });
   await page.route("**/api/singer/events", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
         events: [
+          {
+            callTime: "18:00",
+            details: "Concert black",
+            directRsvp: "Yes",
+            durationMinutes: 150,
+            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            inheritedFromParent: false,
+            location: "Browser Hall",
+            resolvedRsvp: "Yes",
+            rsvpNote: "",
+            startsAt: "2026-08-20T23:00:00.000Z",
+            title: "Browser Concert",
+            type: "Performance",
+            venueAddress: "100 Browser Way",
+            venueName: "Browser Hall",
+          },
           {
             callTime: "18:00",
             details: "Black folders",
@@ -226,6 +310,38 @@ test.beforeEach(async ({ page }) => {
         profileId: "11111111-1111-4111-8111-111111111111",
         requestId,
         timezone: "America/New_York",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/singer/events/*/seating", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        charts: [
+          {
+            assignments: { "0-0": "11111111-1111-4111-8111-111111111111" },
+            createdAt: "2026-07-20T20:00:00.000Z",
+            eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            formationId: "columns-standard",
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            name: "Member Chart",
+            rowCounts: [2],
+            sectionSuggestions: { "0-0": "S", "0-1": "A" },
+            sortOrder: 0,
+            updatedAt: "2026-07-20T20:15:00.000Z",
+            venueId: null,
+          },
+        ],
+        profiles: [
+          {
+            displayName: "Browser Singer",
+            id: "11111111-1111-4111-8111-111111111111",
+            voicePart: "S2",
+          },
+        ],
+        requestId,
+        selfProfileId: "11111111-1111-4111-8111-111111111111",
       }),
       contentType: "application/json",
       status: 200,
@@ -1072,13 +1188,37 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await rosterConfiguration.getByLabel("Voice part 1 full name").fill("First soprano");
   await rosterConfiguration.getByRole("button", { name: "Save sections and voice parts" }).click();
   await expect(rosterConfiguration.getByRole("status")).toHaveText("Roster configuration saved.");
+  const seatingManager = page.getByRole("region", { name: "Performance seating" });
+  await seatingManager.getByText("Manage reusable formations").click();
+  await seatingManager.getByRole("button", { name: "Add formation" }).click();
+  const newFormation = seatingManager.getByRole("group", { name: "New formation" });
+  await newFormation.getByLabel("Strategy").selectOption("horizontal_row");
+  await newFormation.getByLabel("Name").fill("Concert rows");
+  await seatingManager.getByRole("button", { name: "Save formations" }).click();
+  await expect(seatingManager.getByRole("status")).toHaveText("Seating formations saved.");
+  await seatingManager.getByLabel("Seats per row").fill("2");
+  await seatingManager.getByRole("button", { name: "Apply rows" }).click();
+  await seatingManager.getByRole("button", { name: "Auto-suggest sections" }).click();
+  await seatingManager.getByLabel("Row 1 seat 1").selectOption({ label: "Browser Singer · S2" });
+  await seatingManager.getByRole("button", { name: "Save seating chart" }).click();
+  await expect(seatingManager.getByText("Seating chart saved.", { exact: true })).toBeVisible();
+  await seatingManager.getByRole("button", { name: "Delete chart" }).click();
+  await expect(
+    seatingManager.getByRole("group", { name: "Confirm seating chart deletion" }),
+  ).toBeVisible();
+  await seatingManager.getByRole("button", { name: "Cancel" }).click();
   const mySchedule = page.getByRole("region", { name: "My schedule" });
-  await expect(mySchedule.getByRole("heading", { name: "My Rehearsal" })).toBeVisible();
-  await expect(mySchedule.getByText(/inherited from the parent performance: Yes/)).toBeVisible();
-  await mySchedule.getByLabel("Your RSVP").selectOption("No");
-  await mySchedule.getByLabel("Decline note").fill("Travel conflict");
-  await mySchedule.getByRole("button", { name: "Save RSVP" }).click();
+  const rehearsal = mySchedule
+    .getByRole("heading", { name: "My Rehearsal" })
+    .locator("xpath=ancestor::li");
+  await expect(rehearsal).toBeVisible();
+  await expect(rehearsal.getByText(/inherited from the parent performance: Yes/)).toBeVisible();
+  await rehearsal.getByLabel("Your RSVP").selectOption("No");
+  await rehearsal.getByLabel("Decline note").fill("Travel conflict");
+  await rehearsal.getByRole("button", { name: "Save RSVP" }).click();
   await expect(mySchedule.getByText("Your RSVP was updated.")).toBeVisible();
+  const seatingFinder = page.getByRole("region", { name: "Seating finder" });
+  await expect(seatingFinder.getByLabel("Your seat, row 1 seat 1")).toContainText("Browser Singer");
   const calendarSection = page.getByRole("region", { name: "Calendar subscription" });
   await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
     /browser-calendar-token-1/,

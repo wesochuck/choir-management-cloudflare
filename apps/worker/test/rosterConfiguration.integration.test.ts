@@ -43,7 +43,7 @@ async function provision(
         `INSERT INTO organizations
           (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
            created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 12, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'active', ?, 13, ?, ?, ?)`,
       )
       .bind(organizationId, name, slug, organizationId, now, now, now),
     controlDatabase

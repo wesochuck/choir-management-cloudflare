@@ -59,8 +59,12 @@ operational data in D1. Version 8 adds event attendance, version 9 expands Organ
 version 10 tracks folder assignment and return, and version 11 stores bounded RSVP decline notes.
 Version 12 stores ordered section and voice-part configuration in the Organization metadata row;
 Profile writes and configuration updates preserve referential integrity for assigned voice parts.
-Feature milestones expand this schema with typed repositories. Contract or removal migrations occur
-only after old and new Worker versions are both safe throughout the rollback window.
+Version 13 stores reusable seating formations plus ordered, event-scoped seating charts and their
+seat assignments. Chart writes accept only active performance events, existing venues, active voiced
+Profiles with a Yes RSVP, and seats inside the declared layout. Linked members may read only charts
+for events on their own roster; venue deletion also accounts for retained chart references. Feature
+milestones expand this schema with typed repositories. Contract or removal migrations occur only
+after old and new Worker versions are both safe throughout the rollback window.
 
 ## R2 and KV
 

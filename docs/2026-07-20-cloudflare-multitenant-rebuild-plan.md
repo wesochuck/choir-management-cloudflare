@@ -72,6 +72,8 @@ milestone complete.
 | `apps/web/src/account/MySchedule.tsx`                          | Linked-Profile member schedule and self-service RSVP UI                              |
 | `apps/web/src/account/AttendanceManager.tsx`                   | Administrator event attendance bulk-update UI                                        |
 | `apps/web/src/account/RosterConfiguration.tsx`                 | Administrator section and voice-part configuration UI                                |
+| `apps/web/src/account/SeatingManager.tsx`                      | Administrator event chart layout and assignment workflow                             |
+| `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                   |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -81,6 +83,7 @@ milestone complete.
 | `apps/worker/src/env.ts`                                       | Binding and secret types; startup validation                                         |
 | `apps/worker/src/organization/OrganizationStore.ts`            | Per-Organization SQLite Durable Object boundary                                      |
 | `apps/worker/src/organization/calendarManagementStore.ts`      | Venue, event, and RSVP SQLite repository inside the Organization boundary            |
+| `apps/worker/src/organization/seatingStore.ts`                 | Organization-scoped formation, chart, assignment, and finder repository              |
 | `apps/worker/src/organization/profiles.ts`                     | Authenticated Organization Profile repository adapter                                |
 | `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                       |
 | `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                  |
@@ -115,6 +118,7 @@ milestone complete.
 | `apps/worker/src/calendar/calendarFeed.ts`                     | Calendar credential issuance, revocation, and feed rendering                         |
 | `apps/worker/src/calendar/calendarIcs.ts`                      | Pure timezone-aware Organization calendar projection and iCalendar rendering         |
 | `apps/worker/src/calendar/organizationCalendar.ts`             | Authenticated venue, event, and RSVP Organization repository adapter                 |
+| `apps/worker/src/organization/organizationSeating.ts`          | Authenticated manager/member seating repository adapter                              |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -156,6 +160,7 @@ milestone complete.
 | `apps/worker/test/calendarManagement.integration.test.ts`      | Venue, event, and RSVP authorization and Organization-isolation proof                |
 | `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                |
 | `apps/worker/test/rosterConfiguration.integration.test.ts`     | Section and voice-part defaults, validation, authorization, and isolation proof      |
+| `apps/worker/test/seating.integration.test.ts`                 | Chart assignment, member finder, authorization, and isolation proof                  |
 | `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof        |
 | `apps/worker/test/attendance.integration.test.ts`              | Attendance transaction, RSVP promotion, audit, and tenant-isolation proof            |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |
@@ -172,6 +177,7 @@ milestone complete.
 | `packages/domain/src/eventRsvpCsv.test.ts`                     | Event RSVP grouping, sorting, quoting, and filename contract proof                   |
 | `packages/domain/src/seatingAlgorithm.ts`                      | Pure seating formation suggestions and section-mismatch rules                        |
 | `packages/domain/src/seatingAlgorithm.test.ts`                 | Vertical/horizontal formation and mismatch parity proof                              |
+| `packages/domain/src/seatingConfiguration.ts`                  | Default reusable Organization seating formations                                     |
 | `packages/ui/tsconfig.json`                                    | Strict repository-owned UI TypeScript project                                        |
 | `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                      |
 | `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                              |

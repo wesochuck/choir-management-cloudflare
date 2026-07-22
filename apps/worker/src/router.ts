@@ -5,6 +5,8 @@ import {
   organizationEventRequestSchema,
   organizationCalendarSettingsRequestSchema,
   organizationRosterConfigurationRequestSchema,
+  organizationSeatingChartRequestSchema,
+  seatingConfigurationRequestSchema,
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
   organizationProfileRequestSchema,
@@ -95,6 +97,16 @@ import {
   OrganizationProfileMutationError,
   updateOrganizationProfile,
 } from "./organization/profiles";
+import {
+  createOrganizationSeatingChart,
+  deleteOrganizationSeatingChart,
+  listOrganizationSeatingCharts,
+  readOrganizationSeatingConfiguration,
+  readSingerSeating,
+  SeatingRepositoryError,
+  updateOrganizationSeatingChart,
+  updateOrganizationSeatingConfiguration,
+} from "./organization/organizationSeating";
 import { readPublishedOrganization } from "./publication/publishOrganization";
 import {
   MAX_PRIVATE_FILE_BYTES,
@@ -1637,6 +1649,406 @@ router.put("/api/organization/roster-configuration", async (context) => {
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
+    );
+  }
+});
+
+router.get("/api/organization/seating-configuration", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      configuration: await readOrganizationSeatingConfiguration(
+        context.env,
+        authorization.organizationId,
+      ),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Organization seating configuration is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/seating-configuration", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = seatingConfigurationRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid seating formations and a default formation are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const configuration = await updateOrganizationSeatingConfiguration(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ configuration, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 409
+            ? "A formation is invalid or is still used by a seating chart."
+            : "The Organization seating configuration could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.get("/api/organization/events/:eventId/seating-charts", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid performance is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      charts: await listOrganizationSeatingCharts(
+        context.env,
+        authorization.organizationId,
+        eventId.data,
+      ),
+      requestId: context.get("requestId"),
+    });
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 404 ? "The performance was not found." : "Seating charts are unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.post("/api/organization/events/:eventId/seating-charts", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const chart = organizationSeatingChartRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!eventId.success || !chart.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid performance and seating chart are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const created = await createOrganizationSeatingChart(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+      chart.data,
+    );
+    return context.json({ ...created, requestId: context.get("requestId") }, 201);
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 409
+            ? "The chart contains an invalid formation, venue, seat, or performer assignment."
+            : "The seating chart could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.put("/api/organization/events/:eventId/seating-charts/:chartId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const chartId = z.uuid().safeParse(context.req.param("chartId"));
+  const chart = organizationSeatingChartRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!eventId.success || !chartId.success || !chart.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid performance and seating chart are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const updated = await updateOrganizationSeatingChart(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+      chartId.data,
+      chart.data,
+    );
+    return context.json({ ...updated, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 409
+            ? "The chart contains an invalid formation, venue, seat, or performer assignment."
+            : status === 404
+              ? "The seating chart was not found."
+              : "The seating chart could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.delete("/api/organization/events/:eventId/seating-charts/:chartId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const chartId = z.uuid().safeParse(context.req.param("chartId"));
+  if (!eventId.success || !chartId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid performance and seating chart are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    await deleteOrganizationSeatingChart(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+      chartId.data,
+    );
+    return context.json({
+      chartId: chartId.data,
+      requestId: context.get("requestId"),
+      status: "deleted",
+    });
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 404
+            ? "The seating chart was not found."
+            : "The seating chart could not be deleted.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.get("/api/singer/events/:eventId/seating", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid performance is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for seating.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const result = await readSingerSeating(
+      context.env,
+      authorization.organizationId,
+      eventId.data,
+      null,
+      profileId,
+    );
+    return context.json({ ...result, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 403
+            ? "Only Profiles on this performance roster may view its seating."
+            : "Performance seating is unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.get("/api/singer/seating-profiles", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.query("eventId"));
+  const chartId = z.uuid().safeParse(context.req.query("chartId"));
+  if (!eventId.success || !chartId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid performance and seating chart are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "A linked Organization Profile is required for seating.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+  try {
+    const result = await readSingerSeating(
+      context.env,
+      authorization.organizationId,
+      eventId.data,
+      chartId.data,
+      profileId,
+    );
+    return context.json({
+      profiles: result.profiles.map(({ displayName, id, voicePart }) => ({
+        id,
+        name: displayName,
+        voicePart,
+      })),
+      requestId: context.get("requestId"),
+    });
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 403
+            ? "Only rostered Profiles may view seating."
+            : "Seating Profiles are unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
     );
   }
 });

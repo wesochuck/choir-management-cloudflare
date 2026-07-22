@@ -533,6 +533,110 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.account-section--seating {
+  grid-column: 1 / -1;
+}
+
+.seating-layout {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.25fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.seating-sidebar {
+  align-content: start;
+}
+
+.seating-editor,
+.seating-grid {
+  min-width: 0;
+}
+
+.seating-settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.seating-grid {
+  display: grid;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.seating-row {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: max-content;
+}
+
+.seating-row-label {
+  align-content: center;
+  width: 4rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.seating-seat {
+  display: grid;
+  align-content: center;
+  gap: 0.25rem;
+  min-width: 7.5rem;
+  min-height: 4.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.seating-seat select {
+  min-width: 7rem;
+  font-size: 0.78rem;
+}
+
+.seating-seat--self {
+  border: 3px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+}
+
+.seating-finder-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.seating-formations {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.seating-formations summary {
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.seating-formations[open] summary {
+  margin-bottom: 1rem;
+}
+
+.seating-formation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .roster-configuration-list {
   display: grid;
   gap: 0.75rem;
@@ -1006,6 +1110,12 @@ footer {
 
   .roster-configuration-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .seating-layout,
+  .seating-settings-grid,
+  .seating-formation {
+    grid-template-columns: 1fr;
   }
 
   .mfa-enrollment {

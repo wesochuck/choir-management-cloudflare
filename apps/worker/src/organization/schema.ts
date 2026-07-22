@@ -1,4 +1,4 @@
-import { defaultRosterConfiguration } from "@choir/domain";
+import { defaultRosterConfiguration, defaultSeatingConfiguration } from "@choir/domain";
 
 export interface OrganizationSchemaMigration {
   readonly statements: readonly string[];
@@ -179,6 +179,28 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [
       `ALTER TABLE organization_metadata ADD COLUMN roster_configuration_json TEXT NOT NULL
        DEFAULT '${JSON.stringify(defaultRosterConfiguration)}'`,
+    ],
+  },
+  {
+    version: 13,
+    statements: [
+      `ALTER TABLE organization_metadata ADD COLUMN seating_configuration_json TEXT NOT NULL
+       DEFAULT '${JSON.stringify(defaultSeatingConfiguration)}'`,
+      `CREATE TABLE seating_charts (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        venue_id TEXT,
+        name TEXT NOT NULL,
+        formation_id TEXT NOT NULL,
+        row_counts_json TEXT NOT NULL,
+        section_suggestions_json TEXT NOT NULL DEFAULT '{}',
+        assignments_json TEXT NOT NULL DEFAULT '{}',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_seating_charts_event_order
+       ON seating_charts(event_id, sort_order, name, id)`,
     ],
   },
 ] as const;

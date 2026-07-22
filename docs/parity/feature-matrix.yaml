@@ -224,9 +224,14 @@
         "path": "/seating/:eventId",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:612; src/views/singer/SeatingFinderView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/SeatingFinder.tsx",
+            "apps/worker/src/router.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
       },
       {
         "id": "route.admin.roster",
@@ -299,9 +304,14 @@
         "path": "/admin/seating",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:404; src/views/admin/SeatingView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/SeatingManager.tsx",
+            "apps/worker/test/seating.integration.test.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
       },
       {
         "id": "route.admin.attendance",
@@ -882,9 +892,14 @@
         "path": "/api/singer/seating-profiles",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1538",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/seatingStore.ts",
+            "apps/worker/test/seating.integration.test.ts",
+          ],
       },
       {
         "id": "api.singer-playlist",
@@ -1302,6 +1317,11 @@
           [
             "packages/domain/src/seatingAlgorithm.ts",
             "packages/domain/src/seatingAlgorithm.test.ts",
+            "packages/domain/src/seatingConfiguration.ts",
+            "apps/worker/src/organization/seatingStore.ts",
+            "apps/web/src/account/SeatingManager.tsx",
+            "apps/web/src/account/SeatingFinder.tsx",
+            "apps/worker/test/seating.integration.test.ts",
           ],
       },
       {
@@ -1520,9 +1540,9 @@
         "state": "seating editor and mirrored finder remain touch and keyboard usable",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "test/seatingLayoutRegression.test.ts; test/seatingMismatch.test.ts",
-        "targetEvidence": [],
+        "targetEvidence": ["apps/web/src/styles/theme.css", "apps/web/e2e/auth.spec.ts"],
       },
       {
         "id": "responsive.checkout",

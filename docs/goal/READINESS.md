@@ -214,11 +214,17 @@ Verified over public HTTPS on July 20–21, 2026:
   all event export data from the owning Organization store and returns a private no-store download;
   focused domain, workerd, and desktop/mobile browser proof covers byte-level output, manager-only
   authorization, cross-Organization denial, and the event-list download link.
-- The seating parity foundation now includes the pure legacy formation engine and section-mismatch
-  rule. Horizontal formations fill visual rows back-to-front with continuous proportional section
-  spillover; vertical formations compact active seats into centered wedges and assign sections by
-  visual column. Unit proof fixes those coordinate and lenient unknown-voice-part semantics before
-  seating persistence or UI state is introduced.
+- Organization schema version 13 adds reusable seating formations and multiple ordered seating
+  charts per performance. Owners and Administrators can configure row layouts, venues, automatic
+  section suggestions, and eligible Profile assignments; eligibility is enforced again inside the
+  owning Organization store using active status, a configured voice part, and a Yes RSVP. Linked
+  members receive a read-only seating finder only for events on their roster, including
+  compatibility at the exact legacy `/api/singer/seating-profiles` path. Venue deletion accounts for
+  retained chart references. Pure algorithm tests, workerd integration tests, and desktop/mobile
+  browser coverage prove formation behavior, validation, authorization, tenant isolation, editing,
+  and self-seat highlighting. The legacy standalone admin/member URLs and richer drag/reorder
+  interaction remain parity follow-up work, so the overall seating workflow remains classified
+  partial.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.
@@ -509,7 +515,7 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue the event/roster wave with remaining export contracts and seating state, then bind the
-   next signed product flow. Return to validated custom-domain activation when a managed zone is
-   available. Do not add whole-archive import; ADR 0015 deliberately excludes it from v1.
+3. Continue Milestone 5 with the remaining music, communications, public-sales, and member workflow
+   parity after the seating checkpoint. Return to validated custom-domain activation when a managed
+   zone is available. Do not add whole-archive import; ADR 0015 deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

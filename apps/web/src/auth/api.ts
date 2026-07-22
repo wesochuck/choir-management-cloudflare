@@ -15,6 +15,10 @@ import {
   organizationEventsResponseSchema,
   organizationCalendarSettingsResponseSchema,
   organizationRosterConfigurationResponseSchema,
+  organizationSeatingChartSchema,
+  organizationSeatingChartsResponseSchema,
+  seatingConfigurationResponseSchema,
+  singerSeatingResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
   organizationProfileResponseSchema,
@@ -53,6 +57,10 @@ import {
   type OrganizationEventRequest,
   type OrganizationCalendarSettings,
   type OrganizationRosterConfiguration,
+  type OrganizationSeatingChart,
+  type OrganizationSeatingChartRequest,
+  type SeatingConfiguration,
+  type SingerSeatingResponse,
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
   type OrganizationProfile,
@@ -375,6 +383,79 @@ export async function updateOrganizationRosterConfiguration(
   });
   const parsed = organizationRosterConfigurationResponseSchema.parse(await response.json());
   return { sections: parsed.sections, voiceParts: parsed.voiceParts };
+}
+
+export async function getOrganizationSeatingConfiguration(
+  signal?: AbortSignal,
+): Promise<SeatingConfiguration> {
+  const response = await request("/api/organization/seating-configuration", {
+    signal: signal ?? null,
+  });
+  return seatingConfigurationResponseSchema.parse(await response.json()).configuration;
+}
+
+export async function updateOrganizationSeatingConfiguration(
+  configuration: SeatingConfiguration,
+): Promise<SeatingConfiguration> {
+  const response = await request("/api/organization/seating-configuration", {
+    body: JSON.stringify(configuration),
+    method: "PUT",
+  });
+  return seatingConfigurationResponseSchema.parse(await response.json()).configuration;
+}
+
+export async function listOrganizationSeatingCharts(
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<readonly OrganizationSeatingChart[]> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/seating-charts`,
+    { signal: signal ?? null },
+  );
+  return organizationSeatingChartsResponseSchema.parse(await response.json()).charts;
+}
+
+export async function createOrganizationSeatingChart(
+  eventId: string,
+  chart: OrganizationSeatingChartRequest,
+): Promise<OrganizationSeatingChart> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/seating-charts`,
+    { body: JSON.stringify(chart), method: "POST" },
+  );
+  return organizationSeatingChartSchema.parse(await response.json());
+}
+
+export async function updateOrganizationSeatingChart(
+  eventId: string,
+  chartId: string,
+  chart: OrganizationSeatingChartRequest,
+): Promise<OrganizationSeatingChart> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/seating-charts/${encodeURIComponent(chartId)}`,
+    { body: JSON.stringify(chart), method: "PUT" },
+  );
+  return organizationSeatingChartSchema.parse(await response.json());
+}
+
+export async function deleteOrganizationSeatingChart(
+  eventId: string,
+  chartId: string,
+): Promise<void> {
+  await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/seating-charts/${encodeURIComponent(chartId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function getMyEventSeating(
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<SingerSeatingResponse> {
+  const response = await request(`/api/singer/events/${encodeURIComponent(eventId)}/seating`, {
+    signal: signal ?? null,
+  });
+  return singerSeatingResponseSchema.parse(await response.json());
 }
 
 export async function getMySchedule(signal?: AbortSignal): Promise<SingerEventsResponse> {
