@@ -49,7 +49,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `37973dc2-eb55-4113-9d14-1487f7ad491c`
+- Current verified Worker version: `04be7c8f-12e0-418f-9422-6932b4f9d7d9`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -408,6 +408,13 @@ Verified over public HTTPS on July 20–22, 2026:
   and the global base host rejected the template route with the expected hostname-first HTTP 404.
   Worker version `37973dc2-eb55-4113-9d14-1487f7ad491c` is the verified staging checkpoint for
   commit `9ba66f2`.
+- After the signed-unsubscribe and suppression deployment, cache-busted custom-domain requests
+  converged on `index-Be2Lqvbq.js` and `index-oK4l4a6u.css`. Health and readiness returned HTTP 200,
+  `/unsubscribe` returned the current application shell, and an invalid public unsubscribe request
+  on the product base host returned the hostname-first HTTP 404 without resolving an Organization.
+  Remote D1 had no pending migrations and retained zero Organizations, dead letters, and fleet
+  schema preparations. Worker version `04be7c8f-12e0-418f-9422-6932b4f9d7d9` is the verified staging
+  checkpoint for commit `248c89b`.
 
 ## Completed foundation checks
 
@@ -627,8 +634,13 @@ the transaction. Managers only may compose or inspect delivery state, recipient 
 honored, and track-only voice parts are excluded. Staging uses the deterministic fake provider, so
 this checkpoint exercises the complete queue path without sending real Organization campaigns.
 Reusable templates and draft deletion now share the same manager-only Organization boundary and
-audit trail. Richer audience sources, unsubscribe/suppression workflows, and the Brevo sandbox
-adapter remain in the communications parity slice.
+audit trail. The manager UI now exposes event and RSVP audience filtering. Email delivery snapshots
+carry one-year signed unsubscribe links bound to the hostname-derived Organization and Profile; the
+idempotent public flow writes both the Profile preference and a channel suppression record, and
+queue processing rechecks suppression before provider work. Workerd proof covers cross-Organization
+token rejection and an unsubscribe that suppresses an already-queued email. Specific-Profile UI,
+ticket-buyer/donor audience sources, provider feedback suppression, and the Brevo sandbox adapter
+remain in the communications parity slice.
 
 The account is now on Workers Paid and Cloudflare Email Sending is onboarded for the isolated
 `mail.staging.musicsite.org` sender domain. The native Worker binding is sender-restricted and the
@@ -674,9 +686,10 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 5 by completing richer communications audiences, unsubscribe/suppression, and
-   Brevo sandbox qualification, then proceed through public-sales and remaining member workflow
-   parity. Music audio/player, dedicated set-list management, resources, roster CSV, and seating are
-   now implemented. Validate independently attached public domains separately from the product-owned
-   canonical namespace. Do not add whole-archive import; ADR 0015 deliberately excludes it from v1.
+3. Continue Milestone 5 by completing specific-Profile and commerce-derived communications
+   audiences, provider-feedback suppression, and Brevo sandbox qualification, then proceed through
+   public-sales and remaining member workflow parity. Music audio/player, dedicated set-list
+   management, resources, roster CSV, and seating are now implemented. Validate independently
+   attached public domains separately from the product-owned canonical namespace. Do not add
+   whole-archive import; ADR 0015 deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.
