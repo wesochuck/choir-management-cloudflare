@@ -79,6 +79,9 @@ const schemaPreparationRequestSchema = z.object({
   organizationId: z.string().min(1).max(128),
   targetVersion: z.number().int().positive(),
 });
+const privateFileReclaimResponseSchema = z.object({
+  reclaimed: z.literal(true),
+});
 const calendarCredentialRequestSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("read"),
@@ -920,6 +923,112 @@ async function abortPrivateFile(
   return Response.json({ aborted: true });
 }
 
+function privateFileIsReferenced(storage: DurableObjectStorage, fileId: string): boolean {
+  return storage.sql
+    .exec<{ readonly trackFileIdsJson: string }>(
+      "SELECT track_file_ids_json AS trackFileIdsJson FROM music_pieces",
+    )
+    .toArray()
+    .some(({ trackFileIdsJson }) => {
+      try {
+        const value: unknown = JSON.parse(trackFileIdsJson);
+        return (
+          typeof value === "object" &&
+          value !== null &&
+          Object.values(value).some((candidate) => candidate === fileId)
+        );
+      } catch {
+        return false;
+      }
+    });
+}
+
+async function claimPrivateFileReclamation(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = privateFileTransitionSchema.safeParse(await request.json());
+  if (!parsed.success)
+    return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
+  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+  const claimed = storage.transactionSync(() => {
+    if (privateFileIsReferenced(storage, parsed.data.fileId)) return false;
+    return (
+      storage.sql.exec(
+        `UPDATE private_files SET status = 'pending', uploaded_by = ?, request_id = ?
+       WHERE id = ? AND storage_key = ? AND status = 'ready'`,
+        parsed.data.actorUserId,
+        parsed.data.requestId,
+        parsed.data.fileId,
+        expectedKey,
+      ).rowsWritten === 1
+    );
+  });
+  return claimed
+    ? Response.json({ claimed: true, storageKey: expectedKey })
+    : Response.json({ code: "private_file_in_use_or_missing" }, { status: 409 });
+}
+
+async function finishPrivateFileReclamation(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = privateFileTransitionSchema.safeParse(await request.json());
+  if (!parsed.success)
+    return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
+  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+  const reclaimed = storage.transactionSync(() => {
+    const deleted =
+      storage.sql.exec(
+        `DELETE FROM private_files WHERE id = ? AND storage_key = ? AND uploaded_by = ?
+       AND request_id = ? AND status = 'pending'`,
+        parsed.data.fileId,
+        expectedKey,
+        parsed.data.actorUserId,
+        parsed.data.requestId,
+      ).rowsWritten === 1;
+    if (!deleted) return false;
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'organization.file.reclaimed',
+         'private_file', ?, ?, ?, ?)`,
+      `private-file-reclaimed:${parsed.data.requestId}`,
+      parsed.data.actorUserId,
+      parsed.data.fileId,
+      parsed.data.requestId,
+      JSON.stringify({ fileId: parsed.data.fileId, storageKey: expectedKey }),
+      new Date().toISOString(),
+    );
+    return true;
+  });
+  return reclaimed
+    ? Response.json(privateFileReclaimResponseSchema.parse({ reclaimed: true }))
+    : Response.json({ code: "private_file_reclaim_not_claimed" }, { status: 409 });
+}
+
+async function abortPrivateFileReclamation(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = privateFileTransitionSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
+  }
+  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+  storage.sql.exec(
+    `UPDATE private_files SET status = 'ready'
+     WHERE id = ? AND storage_key = ? AND uploaded_by = ? AND request_id = ?
+       AND status = 'pending'`,
+    parsed.data.fileId,
+    expectedKey,
+    parsed.data.actorUserId,
+    parsed.data.requestId,
+  );
+  return Response.json({ aborted: true });
+}
+
 function getPrivateFileMetadata(storage: DurableObjectStorage, encodedFileId: string): Response {
   const fileId = privateFileIdSchema.safeParse(decodeURIComponent(encodedFileId));
   if (!fileId.success) {
@@ -946,13 +1055,9 @@ async function dispatchPostRequest(
 ): Promise<Response | null> {
   const profileResponse = await dispatchProfilePostRequest(storage, pathname, request);
   if (profileResponse) return profileResponse;
+  const fileResponse = await dispatchPrivateFilePostRequest(storage, pathname, request);
+  if (fileResponse) return fileResponse;
   switch (pathname) {
-    case "/internal/files/abort":
-      return abortPrivateFile(storage, request);
-    case "/internal/files/ready":
-      return finalizePrivateFile(storage, request);
-    case "/internal/files/reserve":
-      return reservePrivateFile(storage, request);
     case "/internal/jobs/claim":
       return claimJob(storage, request);
     case "/internal/jobs/complete":
@@ -973,6 +1078,29 @@ async function dispatchPostRequest(
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
       return prepareOrganizationSchema(storage, request);
+    default:
+      return null;
+  }
+}
+
+async function dispatchPrivateFilePostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
+  switch (pathname) {
+    case "/internal/files/abort":
+      return abortPrivateFile(storage, request);
+    case "/internal/files/ready":
+      return finalizePrivateFile(storage, request);
+    case "/internal/files/reserve":
+      return reservePrivateFile(storage, request);
+    case "/internal/files/reclaim":
+      return claimPrivateFileReclamation(storage, request);
+    case "/internal/files/reclaim-abort":
+      return abortPrivateFileReclamation(storage, request);
+    case "/internal/files/reclaimed":
+      return finishPrivateFileReclamation(storage, request);
     default:
       return null;
   }

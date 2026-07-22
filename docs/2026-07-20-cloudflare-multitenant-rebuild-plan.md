@@ -76,7 +76,10 @@ milestone complete.
 | `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                   |
 | `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory       |
 | `apps/web/src/account/MusicCatalog.tsx`                        | Manager catalog, CSV, movement, private learning-track, and deletion workflows       |
+| `apps/web/src/account/LearningTrackPlayer.tsx`                 | Member-safe private learning-track playback and offline practice UI                  |
 | `apps/web/src/account/SetListManager.tsx`                      | Manager event set-list ordering, approval, music linking, and performer-credit UI    |
+| `apps/web/src/offline/mediaStore.ts`                           | Host-scoped IndexedDB persistence and blob-URL lifecycle for private audio           |
+| `apps/web/src/offline/mediaStore.test.ts`                      | Unit proof for offline private-audio persistence and removal                         |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |

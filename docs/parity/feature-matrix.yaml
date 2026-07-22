@@ -1343,11 +1343,19 @@
         "workflow": "authorized player playlists and offline media",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/services/playerService.ts; src/services/offlineMediaStore.ts;
           test/offlineMediaStore.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/LearningTrackPlayer.tsx",
+            "apps/web/src/offline/mediaStore.ts",
+            "apps/web/src/offline/mediaStore.test.ts",
+          ],
       },
       {
         "id": "workflow.seating",
@@ -1488,7 +1496,7 @@
         "behavior": "music reference-track upload, metadata, streaming, and offline access",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "partial",
+        "status": "implemented",
         "baselineEvidence":
           "src/services/musicLibraryService.ts; src/services/offlineMediaStore.ts",
         "targetEvidence":
@@ -1498,6 +1506,9 @@
             "apps/worker/test/files.integration.test.ts",
             "apps/worker/test/music.integration.test.ts",
             "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/src/account/LearningTrackPlayer.tsx",
+            "apps/web/src/offline/mediaStore.ts",
+            "apps/web/src/offline/mediaStore.test.ts",
           ],
       },
       {

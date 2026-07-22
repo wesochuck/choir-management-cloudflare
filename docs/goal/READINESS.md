@@ -243,8 +243,12 @@ Verified over public HTTPS on July 20–22, 2026:
   managers can upload/replace or detach private audio files up to 20 MB, and signed-in Organization
   members can play or download attached tracks through the hostname-authorized R2 boundary. Private
   delivery supports validated single-byte ranges with correct 206 and 416 responses so browser audio
-  can start and seek without downloading an entire track. Recent-performance metadata, in-app
-  offline caching, and orphan-file reclamation remain music parity follow-up work.
+  can start and seek without downloading an entire track. All signed-in members now receive a
+  manager-metadata-free practice-library projection and can save or remove host-scoped private audio
+  in IndexedDB for playback while the loaded app is offline. Replaced, detached, and failed-
+  attachment files use an Organization-store claim before exact R2 deletion; referenced files are
+  protected, completed reclamation removes metadata and writes an actor-attributed audit event, and
+  R2 failure releases the claim. Recent-performance metadata remains music parity follow-up work.
 - Owners and Administrators now have a dedicated set-list manager over the existing atomic event
   update path. It supports ordered library-linked and custom songs/intermissions, duplicate-linked
   piece prevention, editable legacy duration formats and totals, copying missing items between
@@ -356,11 +360,11 @@ Verified over public HTTPS on July 20–22, 2026:
   `1f7a9957-76fd-44d6-a7d1-0fb430ac4460` is the verified staging checkpoint for commit `188fcd3`.
 - After the dedicated set-list deployment, both the custom domain and workers.dev application shell
   converged on `index-6QLFmS8a.js` and `index-BDEf9WYr.css`. Custom-domain API health and readiness
-  and workers.dev API health returned HTTP 200 with valid TLS. An unregistered wildcard
-  Organization hostname's member-schedule endpoint returned the expected hostname-first HTTP 404.
-  D1 had no pending migrations and remained at zero Organizations, fleet schema preparations, and
-  dead letters. Worker version `8743e9e8-3658-4cf7-9edb-b97528d03a87` is the verified staging
-  checkpoint for commit `92525c8`.
+  and workers.dev API health returned HTTP 200 with valid TLS. An unregistered wildcard Organization
+  hostname's member-schedule endpoint returned the expected hostname-first HTTP 404. D1 had no
+  pending migrations and remained at zero Organizations, fleet schema preparations, and dead
+  letters. Worker version `8743e9e8-3658-4cf7-9edb-b97528d03a87` is the verified staging checkpoint
+  for commit `92525c8`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because

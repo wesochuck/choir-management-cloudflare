@@ -34,6 +34,7 @@ import {
   organizationVenueDeleteResponseSchema,
   organizationVenuesResponseSchema,
   singerEventsResponseSchema,
+  singerLearningTrackPiecesResponseSchema,
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
   platformFleetSchemaStatusResponseSchema,
@@ -80,6 +81,7 @@ import {
   type OrganizationRsvp,
   type OrganizationVenue,
   type SingerEventsResponse,
+  type SingerLearningTrackPiece,
   type OrganizationProvisionRequest,
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
@@ -292,6 +294,13 @@ export async function listOrganizationMusic(
   return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;
 }
 
+export async function listSingerLearningTracks(
+  signal?: AbortSignal,
+): Promise<readonly SingerLearningTrackPiece[]> {
+  const response = await request("/api/singer/music", { signal: signal ?? null });
+  return singerLearningTrackPiecesResponseSchema.parse(await response.json()).pieces;
+}
+
 export async function createOrganizationMusicPiece(
   piece: OrganizationMusicPieceRequest,
 ): Promise<OrganizationMusicPiece> {
@@ -344,6 +353,10 @@ export async function uploadPrivateOrganizationFile(file: File): Promise<Private
     method: "PUT",
   });
   return privateFileResponseSchema.parse(await response.json());
+}
+
+export async function deletePrivateOrganizationFile(fileId: string): Promise<void> {
+  await request(`/api/organization/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
 }
 
 export async function listOrganizationVenues(

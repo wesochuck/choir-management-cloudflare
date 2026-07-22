@@ -491,6 +491,21 @@ export const organizationMusicPiecesResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const singerLearningTrackPieceSchema = organizationMusicPieceSchema.pick({
+  arranger: true,
+  composer: true,
+  durationSeconds: true,
+  id: true,
+  parentId: true,
+  title: true,
+  trackFileIds: true,
+});
+
+export const singerLearningTrackPiecesResponseSchema = z.object({
+  pieces: z.array(singerLearningTrackPieceSchema).max(2_000),
+  requestId: requestIdSchema,
+});
+
 export const organizationMusicPieceDeleteResponseSchema = z.object({
   pieceId: z.uuid(),
   requestId: requestIdSchema,
@@ -505,6 +520,7 @@ export const organizationMusicImportResponseSchema = z.object({
 export type OrganizationMusicPieceRequest = z.infer<typeof organizationMusicPieceRequestSchema>;
 export type OrganizationMusicPiece = z.infer<typeof organizationMusicPieceSchema>;
 export type OrganizationMusicImportResponse = z.infer<typeof organizationMusicImportResponseSchema>;
+export type SingerLearningTrackPiece = z.infer<typeof singerLearningTrackPieceSchema>;
 
 export const accountOrganizationSchema = z.object({
   canonicalHostname: z.string().min(1).max(253),

@@ -234,3 +234,38 @@ export async function readPrivateOrganizationFile(
   }
   return { metadata: metadata.data, object, range };
 }
+
+export async function reclaimPrivateOrganizationFile(
+  env: PrivateFileEnv,
+  input: z.infer<typeof privateFileTransitionSchema>,
+): Promise<boolean> {
+  const parsed = privateFileTransitionSchema.parse(input);
+  const expectedKey = privateOrganizationFileKey(parsed.organizationId, parsed.fileId);
+  const stub = env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(parsed.organizationId));
+  const claim = await stub.fetch("https://organization.internal/internal/files/reclaim", {
+    body: JSON.stringify({ ...parsed, storageKey: expectedKey }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  if (claim.status === 409) return false;
+  if (!claim.ok)
+    throw new PrivateFileStorageError("unavailable", "Private file reclamation failed.");
+  try {
+    await env.ORGANIZATION_FILES.delete(expectedKey);
+  } catch (error: unknown) {
+    await stub.fetch("https://organization.internal/internal/files/reclaim-abort", {
+      body: JSON.stringify({ ...parsed, storageKey: expectedKey }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    throw error;
+  }
+  const finished = await stub.fetch("https://organization.internal/internal/files/reclaimed", {
+    body: JSON.stringify({ ...parsed, storageKey: expectedKey }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  if (!finished.ok)
+    throw new PrivateFileStorageError("unavailable", "Private file reclamation failed.");
+  return true;
+}

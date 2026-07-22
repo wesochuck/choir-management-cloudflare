@@ -4,6 +4,7 @@ import {
   organizationMusicPieceResponseSchema,
   organizationMusicPiecesResponseSchema,
   privateFileResponseSchema,
+  singerLearningTrackPiecesResponseSchema,
   type OrganizationMusicPiece,
   type OrganizationMusicPieceRequest,
 } from "@choir/contracts";
@@ -26,6 +27,7 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 
 const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const organizationFiles = requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 
 function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
   const headers = new Headers(init?.headers);
@@ -193,6 +195,11 @@ describe("Organization music catalog", () => {
       ).json(),
     );
     expect(attached.trackFileIds).toEqual({ tutti: fileId });
+    expect(
+      await exports.default.fetch(
+        api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, { method: "DELETE" }),
+      ),
+    ).toMatchObject({ status: 409 });
 
     const playback = await exports.default.fetch(
       api("alpha.localhost", `/api/organization/files/${fileId}`, cookie),
@@ -230,6 +237,29 @@ describe("Organization music catalog", () => {
       ).json(),
     );
     expect(removed.trackFileIds).toEqual({});
+    const reclaimed = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, { method: "DELETE" }),
+    );
+    expect(reclaimed.status).toBe(200);
+    expect(
+      await organizationFiles.head(`organizations/organization-alpha/private/${fileId}`),
+    ).toBeNull();
+    expect(
+      await exports.default.fetch(
+        api("alpha.localhost", `/api/organization/files/${fileId}`, cookie),
+      ),
+    ).toMatchObject({ status: 404 });
+    const reclamationAudit = await runInDurableObject<OrganizationStore, number>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM audit_events WHERE action = 'organization.file.reclaimed' AND target_id = ?",
+            fileId,
+          )
+          .one().count,
+    );
+    expect(reclamationAudit).toBe(1);
   });
 
   it("imports a bounded CSV atomically and exports the baseline-compatible contract", async () => {
@@ -522,6 +552,17 @@ describe("Organization music catalog", () => {
         "PUT",
       ),
     ).toMatchObject({ status: 404 });
+    const practicePiece = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/music/${referenced.id}`,
+          cookie,
+          { ...requestFrom(referenced), trackFileIds: { tutti: audioFileId } },
+          "PUT",
+        )
+      ).json(),
+    );
     await database
       .prepare(
         `UPDATE member SET role = 'member'
@@ -531,6 +572,25 @@ describe("Organization music catalog", () => {
     expect(
       await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie)),
     ).toMatchObject({ status: 403 });
+    const practiceLibrary = singerLearningTrackPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/singer/music", cookie))
+      ).json(),
+    );
+    expect(practiceLibrary.pieces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: practicePiece.id, trackFileIds: { tutti: audioFileId } }),
+      ]),
+    );
+    expect(practiceLibrary.pieces.some((piece) => "notes" in piece || "copies" in piece)).toBe(
+      false,
+    );
+    const bravoPracticeLibrary = singerLearningTrackPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("bravo.localhost", "/api/singer/music", cookie))
+      ).json(),
+    );
+    expect(bravoPracticeLibrary.pieces.some(({ id }) => id === practicePiece.id)).toBe(false);
     expect(
       await exports.default.fetch(api("localhost", "/api/organization/music", cookie)),
     ).toMatchObject({ status: 404 });
@@ -551,6 +611,7 @@ describe("Organization music catalog", () => {
       "music.piece.updated",
       "music.piece.deleted",
       "music.piece.created",
+      "music.piece.updated",
     ]);
   });
 });

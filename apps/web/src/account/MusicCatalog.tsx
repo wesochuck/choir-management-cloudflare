@@ -9,6 +9,7 @@ import {
   AuthApiError,
   createOrganizationMusicPiece,
   deleteOrganizationMusicPiece,
+  deletePrivateOrganizationFile,
   getOrganizationRosterConfiguration,
   importOrganizationMusicCsv,
   listOrganizationMusic,
@@ -198,6 +199,7 @@ function MusicAudioTracks({
   const [error, setError] = useState<string | null>(null);
 
   async function saveMapping(key: string, fileId: string | null): Promise<void> {
+    const previousFileId = piece.trackFileIds[key];
     const mapping = fileId
       ? { ...piece.trackFileIds, [key]: fileId }
       : Object.fromEntries(Object.entries(piece.trackFileIds).filter(([label]) => label !== key));
@@ -205,7 +207,17 @@ function MusicAudioTracks({
       ...requestFrom(piece),
       trackFileIds: mapping,
     });
-    onSaved(saved, fileId ? `${key} learning track attached.` : `${key} learning track removed.`);
+    let message = fileId ? `${key} learning track attached.` : `${key} learning track removed.`;
+    if (previousFileId && previousFileId !== fileId) {
+      try {
+        await deletePrivateOrganizationFile(previousFileId);
+      } catch (caught: unknown) {
+        if (!(caught instanceof AuthApiError && caught.status === 409)) {
+          message += " The old file could not be reclaimed automatically.";
+        }
+      }
+    }
+    onSaved(saved, message);
   }
 
   async function upload(key: string, file: File): Promise<void> {
@@ -221,7 +233,12 @@ function MusicAudioTracks({
     setError(null);
     try {
       const uploaded = await uploadPrivateOrganizationFile(file);
-      await saveMapping(key, uploaded.id);
+      try {
+        await saveMapping(key, uploaded.id);
+      } catch (caught: unknown) {
+        await deletePrivateOrganizationFile(uploaded.id).catch(() => undefined);
+        throw caught;
+      }
     } catch (caught: unknown) {
       setError(
         caught instanceof AuthApiError

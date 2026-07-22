@@ -15,6 +15,7 @@ import {
   organizationRsvpRequestSchema,
   organizationVenueRequestSchema,
   singerRsvpRequestSchema,
+  singerLearningTrackPieceSchema,
   organizationProfileLinkRequestSchema,
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
@@ -131,7 +132,9 @@ import {
   privateFileContentTypeSchema,
   privateFileIdSchema,
   privateFileNameSchema,
+  privateOrganizationFileKey,
   readPrivateOrganizationFile,
+  reclaimPrivateOrganizationFile,
   uploadPrivateOrganizationFile,
 } from "./storage/privateFiles";
 import { authorizeOrganizationMember } from "./tenancy/authorizeOrganization";
@@ -904,6 +907,59 @@ router.get("/api/organization/files/:fileId", async (context) => {
   }
 });
 
+router.delete("/api/organization/files/:fileId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  const fileId = privateFileIdSchema.safeParse(context.req.param("fileId"));
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  if (!fileId.success) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "The private file was not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const reclaimed = await reclaimPrivateOrganizationFile(context.env, {
+      actorUserId: authorization.userId,
+      fileId: fileId.data,
+      organizationId: authorization.organizationId,
+      requestId: context.get("requestId"),
+      storageKey: privateOrganizationFileKey(authorization.organizationId, fileId.data),
+    });
+    return reclaimed
+      ? context.json({
+          fileId: fileId.data,
+          requestId: context.get("requestId"),
+          status: "deleted",
+        })
+      : context.json(
+          {
+            code: "conflict",
+            message: "The private file is still in use or is unavailable.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          409,
+        );
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The private file could not be reclaimed.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
 router.on(["GET", "POST"], "/api/auth/*", async (context) => {
   const config = validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
@@ -1608,6 +1664,32 @@ router.get("/api/organization/music", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization music catalog is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/singer/music", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const pieces = await listOrganizationMusicPieces(context.env, authorization.organizationId);
+    return context.json({
+      pieces: pieces.map((piece) => singerLearningTrackPieceSchema.parse(piece)),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization practice library is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
