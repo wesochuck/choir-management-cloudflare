@@ -106,6 +106,8 @@ interface MemberEventRow {
   readonly location: string;
   readonly parentRsvp: "No" | "Pending" | "Yes" | null;
   readonly rsvpNote: string;
+  readonly setListApproved: number;
+  readonly setListJson: string;
   readonly startsAt: string;
   readonly title: string;
   readonly type: "Performance" | "Rehearsal";
@@ -495,7 +497,8 @@ export function listMemberEventsFromStore(
     .exec<MemberEventRow>(
       `SELECT e.id, e.title, e.type, e.starts_at AS startsAt,
          e.duration_minutes AS durationMinutes, e.call_time AS callTime,
-         e.location, e.details,
+         e.location, e.details, e.set_list_json AS setListJson,
+         e.set_list_approved AS setListApproved,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
          direct.rsvp AS directRsvp, COALESCE(direct.rsvp_note, '') AS rsvpNote,
          parent.rsvp AS parentRsvp
@@ -530,6 +533,10 @@ export function listMemberEventsFromStore(
         location: event.location,
         resolvedRsvp: inherits ? event.parentRsvp : directRsvp,
         rsvpNote: event.rsvpNote,
+        setList:
+          event.setListApproved === 1 && (inherits ? event.parentRsvp : directRsvp) === "Yes"
+            ? parseSetList(event.setListJson)
+            : [],
         startsAt: event.startsAt,
         title: event.title,
         type: event.type,

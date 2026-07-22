@@ -234,6 +234,7 @@ export const singerEventSchema = z.object({
   location: z.string().max(2_000),
   resolvedRsvp: z.enum(["Yes", "No", "Pending"]),
   rsvpNote: z.string().max(2_000),
+  setList: z.array(organizationSetListItemSchema).max(200).default([]),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),
   type: z.enum(["Performance", "Rehearsal"]),

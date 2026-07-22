@@ -1329,8 +1329,13 @@
         "targetEvidence":
           [
             "packages/contracts/src/index.ts",
+            "packages/domain/src/setList.ts",
+            "packages/domain/src/setList.test.ts",
             "apps/worker/src/organization/calendarManagementStore.ts",
             "apps/worker/test/music.integration.test.ts",
+            "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/web/src/account/SetListManager.tsx",
+            "apps/web/src/account/MySchedule.tsx",
           ],
       },
       {

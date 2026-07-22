@@ -41,3 +41,11 @@ export {
 export { calculateSeatingSuggestions, isSeatingSectionMismatch } from "./seatingAlgorithm";
 export type { SeatingFormationStrategy } from "./seatingAlgorithm";
 export { defaultSeatingConfiguration } from "./seatingConfiguration";
+export {
+  calculateSetListDuration,
+  formatSetListDuration,
+  hasSetListPiece,
+  moveSetListItem,
+  parseSetListDuration,
+  type SetListDurationItem,
+} from "./setList";

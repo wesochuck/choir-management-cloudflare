@@ -24,6 +24,13 @@ function eventLocation(event: SingerEvent): string {
   return event.location;
 }
 
+function performerCredit(item: SingerEvent["setList"][number]): string | null {
+  const credits = item.performerCredits?.map(({ displayName }) => displayName) ?? [];
+  if (!item.isFeaturedNumber && !item.soloSmallGroup) return null;
+  if (credits.length === 0) return "Featured performers TBA";
+  return `Featured: ${credits.join(", ")}`;
+}
+
 export function MySchedule({ enabled }: { readonly enabled: boolean }) {
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -131,6 +138,24 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                     {location ? <p>{location}</p> : null}
                     {event.inheritedFromParent ? (
                       <p>Currently inherited from the parent performance: {event.resolvedRsvp}</p>
+                    ) : null}
+                    {event.setList.length > 0 ? (
+                      <div className="schedule-set-list">
+                        <h4>Approved set list</h4>
+                        <ol>
+                          {event.setList.map((item, index) => {
+                            const credit = performerCredit(item);
+                            return (
+                              <li key={item.id ?? `${item.title}-${String(index)}`}>
+                                <strong>{item.title}</strong>
+                                {item.composer ? ` — ${item.composer}` : ""}
+                                {item.duration ? ` (${item.duration})` : ""}
+                                {credit ? <span>{credit}</span> : null}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      </div>
                     ) : null}
                   </div>
                   <div className="field schedule-rsvp">

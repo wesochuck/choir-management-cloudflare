@@ -169,6 +169,32 @@ describe("linked-Profile self-service RSVP", () => {
       { status: 401 },
     );
     const cookie = await signIn();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `UPDATE events SET set_list_json = ?, set_list_approved = 1 WHERE id = ?`,
+          JSON.stringify([
+            { id: "opening", title: "Opening Song", duration: "3:30", type: "song" },
+            {
+              id: "feature",
+              isFeaturedNumber: true,
+              performerCredits: [
+                {
+                  displayName: "Organization Alpha Singer",
+                  kind: "profile",
+                  profileId: ALPHA_PROFILE,
+                },
+              ],
+              title: "Featured Song",
+              type: "song",
+            },
+          ]),
+          PERFORMANCE_ID,
+        );
+        return null;
+      },
+    );
     const alpha = singerEventsResponseSchema.parse(
       await (
         await exports.default.fetch(api("alpha.localhost", "/api/singer/events", cookie))
@@ -184,6 +210,17 @@ describe("linked-Profile self-service RSVP", () => {
       inheritedFromParent: true,
       resolvedRsvp: "Yes",
     });
+    expect(alpha.events[0]?.setList.map(({ title }) => title)).toEqual([
+      "Opening Song",
+      "Featured Song",
+    ]);
+    expect(alpha.events[0]?.setList[1]?.performerCredits).toEqual([
+      expect.objectContaining({
+        displayName: "Organization Alpha Singer",
+        profileId: ALPHA_PROFILE,
+      }),
+    ]);
+    expect(alpha.events[1]?.setList).toEqual([]);
 
     const response = await exports.default.fetch(
       api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
@@ -215,6 +252,7 @@ describe("linked-Profile self-service RSVP", () => {
     );
     expect(bravo.profileId).toBe(BRAVO_PROFILE);
     expect(bravo.events.map((event) => event.title)).toEqual(["Organization Bravo Performance"]);
+    expect(bravo.events[0]?.setList).toEqual([]);
 
     const alphaRsvp = await runInDurableObject<
       OrganizationStore,

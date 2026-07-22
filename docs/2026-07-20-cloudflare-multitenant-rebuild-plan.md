@@ -76,6 +76,7 @@ milestone complete.
 | `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                   |
 | `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory       |
 | `apps/web/src/account/MusicCatalog.tsx`                        | Manager catalog, CSV, movement, private learning-track, and deletion workflows       |
+| `apps/web/src/account/SetListManager.tsx`                      | Manager event set-list ordering, approval, music linking, and performer-credit UI    |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -128,6 +129,8 @@ milestone complete.
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
 | `packages/domain/src/index.ts`                                 | Public domain exports                                                                |
+| `packages/domain/src/setList.ts`                               | Pure set-list duration, duplicate, and ordering rules                                |
+| `packages/domain/src/setList.test.ts`                          | Unit proof for set-list duration, duplicate, and ordering rules                      |
 | `packages/domain/src/calendarTime.ts`                          | Shared IANA timezone validation and local-to-UTC calendar conversion                 |
 | `packages/ui/package.json`                                     | Repository-owned Radix-based UI package                                              |
 | `packages/ui/src/index.ts`                                     | Stable component exports                                                             |

@@ -244,8 +244,17 @@ Verified over public HTTPS on July 20–22, 2026:
   members can play or download attached tracks through the hostname-authorized R2 boundary. Private
   delivery supports validated single-byte ranges with correct 206 and 416 responses so browser audio
   can start and seek without downloading an entire track. Recent-performance metadata, in-app
-  offline caching, orphan-file reclamation, and the dedicated set-list manager remain parity
-  follow-up work, so music and set lists remain partial.
+  offline caching, and orphan-file reclamation remain music parity follow-up work.
+- Owners and Administrators now have a dedicated set-list manager over the existing atomic event
+  update path. It supports ordered library-linked and custom songs/intermissions, duplicate-linked
+  piece prevention, editable legacy duration formats and totals, copying missing items between
+  Performances, approval, featured numbers, Profile and guest performer snapshots, and responsive
+  keyboard-operable ordering controls. Approved set lists are projected into the in-app member
+  schedule only for a resolved Yes RSVP, matching the existing private-calendar visibility rule;
+  unapproved and non-attending views receive an empty list. Pure unit proof covers duration,
+  duplicate, and ordering rules, while focused workerd proof covers ordered projection and performer
+  snapshots. Rich drag reordering and the legacy plain-text/print presentation remain follow-up, so
+  the overall set-list workflow remains partial.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.

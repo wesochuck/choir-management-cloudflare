@@ -20,6 +20,7 @@ import { MusicCatalog } from "./MusicCatalog";
 import { RosterConfiguration } from "./RosterConfiguration";
 import { SeatingFinder } from "./SeatingFinder";
 import { SeatingManager } from "./SeatingManager";
+import { SetListManager } from "./SetListManager";
 
 type AccessState =
   | { readonly status: "error" }
@@ -396,6 +397,7 @@ function OrganizationOperations({
       <OrganizationCalendar context={context} enabled={enabled} />
       <RosterConfiguration enabled={managerEnabled} />
       <MusicCatalog enabled={managerEnabled} />
+      <SetListManager enabled={managerEnabled} />
       <SeatingManager enabled={managerEnabled} />
       <AttendanceManager enabled={managerEnabled} />
       <MemberProfileDirectory enabled={enabled} />
