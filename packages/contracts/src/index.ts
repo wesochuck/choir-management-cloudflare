@@ -163,12 +163,84 @@ export const organizationEventRequestSchema = z.object({
   durationMinutes: z.number().int().positive().max(1_440).nullable().default(null),
   location: z.string().trim().max(2_000).default(""),
   parentPerformanceId: z.uuid().nullable().default(null),
+  publicDetails: z.string().max(100_000).default(""),
+  publicGraphicFileId: z.uuid().nullable().default(null),
+  publishOnWebsite: z.boolean().default(false),
   setList: z.array(organizationSetListItemSchema).max(200).default([]),
   setListApproved: z.boolean().default(false),
   startsAt: z.iso.datetime(),
   title: z.string().trim().min(1).max(500),
   type: z.enum(["Performance", "Rehearsal"]),
   venueId: z.uuid().nullable().default(null),
+});
+
+export const publicWebsiteFontSchema = z.enum([
+  "system",
+  "serif",
+  "modern-serif",
+  "friendly-sans",
+  "formal-sans",
+  "casual-handwritten",
+  "formal-script",
+]);
+
+export const publicWebsiteSettingsRequestSchema = z.object({
+  aboutUsText: z.string().max(100_000).default(""),
+  bodyFont: publicWebsiteFontSchema.default("system"),
+  contactEmail: z.union([z.literal(""), z.email()]).default(""),
+  enabledNavigation: z
+    .array(z.enum(["auditions", "donations", "tickets"]))
+    .max(3)
+    .default([]),
+  headerFont: publicWebsiteFontSchema.default("system"),
+  heroFileId: z.uuid().nullable().default(null),
+  heroHeadline: z.string().trim().min(1).max(300).default("Welcome to Our Choir"),
+  heroSubtitle: z.string().trim().max(1_000).default("Voices united in harmony."),
+  historyText: z.string().max(100_000).default(""),
+  logoFileId: z.uuid().nullable().default(null),
+  showBrandingHeaderFooter: z.boolean().default(false),
+});
+
+export const publicWebsiteSettingsSchema = publicWebsiteSettingsRequestSchema.extend({
+  organizationName: z.string().min(1).max(120),
+  publicationVersion: z.number().int().nonnegative(),
+  publishedAt: z.iso.datetime().nullable(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const publicPerformanceSchema = z.object({
+  graphicFileId: z.uuid().nullable(),
+  id: z.uuid(),
+  location: z.string().max(2_000),
+  publicDetails: z.string().max(100_000),
+  startsAt: z.iso.datetime(),
+  title: z.string().min(1).max(500),
+  venueName: z.string().max(500),
+});
+
+export const publicWebsiteProjectionPayloadSchema = z.object({
+  mediaFileIds: z.array(z.uuid()).max(102),
+  organizationName: z.string().min(1).max(120),
+  performances: z.array(publicPerformanceSchema).max(100),
+  settings: publicWebsiteSettingsRequestSchema,
+  timezone: z.string().min(1).max(128),
+});
+
+export const publishedOrganizationProjectionSchema = z.object({
+  generatedAt: z.iso.datetime(),
+  organizationId: organizationIdSchema,
+  payload: publicWebsiteProjectionPayloadSchema,
+  version: z.number().int().positive().max(2_147_483_647),
+});
+
+export const publicWebsiteSettingsResponseSchema = publicWebsiteSettingsSchema.extend({
+  requestId: requestIdSchema,
+});
+
+export const publicWebsitePublishResponseSchema = z.object({
+  publishedAt: z.iso.datetime(),
+  requestId: requestIdSchema,
+  version: z.number().int().positive(),
 });
 
 export const organizationEventSchema = organizationEventRequestSchema.extend({
@@ -432,6 +504,10 @@ export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
 export type OrganizationVenueDeleteResponse = z.infer<typeof organizationVenueDeleteResponseSchema>;
 export type OrganizationEventRequest = z.infer<typeof organizationEventRequestSchema>;
 export type OrganizationEvent = z.infer<typeof organizationEventSchema>;
+export type PublicWebsiteSettingsRequest = z.infer<typeof publicWebsiteSettingsRequestSchema>;
+export type PublicWebsiteSettings = z.infer<typeof publicWebsiteSettingsSchema>;
+export type PublicWebsiteProjectionPayload = z.infer<typeof publicWebsiteProjectionPayloadSchema>;
+export type PublishedOrganizationProjection = z.infer<typeof publishedOrganizationProjectionSchema>;
 export type OrganizationEventArchiveResponse = z.infer<
   typeof organizationEventArchiveResponseSchema
 >;

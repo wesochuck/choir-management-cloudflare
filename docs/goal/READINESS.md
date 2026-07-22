@@ -4,8 +4,8 @@
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
 tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
 OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging.
-Milestone 5 parity work is active through the Organization communications foundation. Production is
-not launched.
+Milestone 5 parity work is active through the Organization communications foundation and structured
+Public Website baseline. Production is not launched.
 
 ## Repository topology
 
@@ -655,6 +655,17 @@ The account is now on Workers Paid and Cloudflare Email Sending is onboarded for
 application additionally requires an explicit staging-recipient allowlist. External provider effects
 remain fake; only allowlisted authentication, invitation, and recovery email may leave staging.
 
+The structured Public Website baseline is implemented locally. Organization schema version 19 owns
+the private manager draft and public performance flags; managers can configure text, fonts,
+logo/hero assets, contact details, and module-aware navigation flags. Publication snapshots only
+typed public fields, copies referenced images from private Organization keys to immutable versioned
+R2 keys, and activates a KV pointer after the projection is written. Public home, history, and
+performance views read only that published projection on canonical or custom-public hostnames.
+Workerd proof covers manager/member authorization, draft-versus-live separation, custom-domain and
+cross-Organization isolation, exclusion of private event notes, public media caching and ETags,
+audit history, and repeat publication. Browser visual proof remains intentionally deferred to save
+goal-run tokens; public ticket, donation, and audition modules are still separate parity work.
+
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
 
@@ -694,10 +705,11 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 5 by completing specific-Profile and commerce-derived communications
-   audiences, provider-feedback suppression, and external Brevo sandbox qualification, then proceed
-   through public-sales and remaining member workflow parity. Music audio/player, dedicated set-list
-   management, resources, roster CSV, and seating are now implemented. Validate independently
-   attached public domains separately from the product-owned canonical namespace. Do not add
-   whole-archive import; ADR 0015 deliberately excludes it from v1.
+3. Continue Milestone 5 with public ticket/donation/audition modules, specific-Profile and
+   commerce-derived communications audiences, provider-feedback suppression, and external Brevo
+   sandbox qualification, then proceed through remaining member workflow parity. Music audio/player,
+   dedicated set-list management, resources, roster CSV, seating, and the structured Public Website
+   baseline are implemented. Validate independently attached public domains separately from the
+   product-owned canonical namespace. Do not add whole-archive import; ADR 0015 deliberately
+   excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

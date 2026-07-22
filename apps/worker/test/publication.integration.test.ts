@@ -1,3 +1,4 @@
+import type { PublicWebsiteProjectionPayload } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -21,6 +22,28 @@ const publicationEnv = {
   ORGANIZATION_FILES: organizationFiles,
   ROUTING_CACHE: routingCache,
 };
+
+function publicWebsitePayload(heroHeadline: string): PublicWebsiteProjectionPayload {
+  return {
+    mediaFileIds: [],
+    organizationName: "Organization Alpha",
+    performances: [],
+    settings: {
+      aboutUsText: "",
+      bodyFont: "system",
+      contactEmail: "",
+      enabledNavigation: [],
+      headerFont: "system",
+      heroFileId: null,
+      heroHeadline,
+      heroSubtitle: "Voices united in harmony.",
+      historyText: "",
+      logoFileId: null,
+      showBrandingHeaderFooter: false,
+    },
+    timezone: "UTC",
+  };
+}
 
 async function seedOrganizationRoutes(): Promise<void> {
   const now = "2026-07-21T12:00:00.000Z";
@@ -88,13 +111,13 @@ describe("Published Organization projections", () => {
     const versionOneKey = await publishOrganization(publicationEnv, {
       generatedAt: "2026-07-21T12:00:00.000Z",
       organizationId: "organization-alpha",
-      payload: { title: "Alpha version one" },
+      payload: publicWebsitePayload("Alpha version one"),
       version: 1,
     });
     await publishOrganization(publicationEnv, {
       generatedAt: "2026-07-21T12:01:00.000Z",
       organizationId: "organization-alpha",
-      payload: { title: "Alpha version two" },
+      payload: publicWebsitePayload("Alpha version two"),
       version: 2,
     });
 
@@ -106,7 +129,7 @@ describe("Published Organization projections", () => {
     );
     expect(canonicalBody).toMatchObject({
       organizationId: "organization-alpha",
-      payload: { title: "Alpha version two" },
+      payload: { settings: { heroHeadline: "Alpha version two" } },
       version: 2,
     });
     await expect(organizationFiles.head(versionOneKey)).resolves.not.toBeNull();
@@ -126,13 +149,16 @@ describe("Published Organization projections", () => {
     await publishOrganization(publicationEnv, {
       generatedAt: "2026-07-21T12:00:00.000Z",
       organizationId: "organization-alpha",
-      payload: { privateMarker: "alpha-only" },
+      payload: publicWebsitePayload("alpha-only"),
       version: 1,
     });
     const bravoKey = await publishOrganization(publicationEnv, {
       generatedAt: "2026-07-21T12:00:00.000Z",
       organizationId: "organization-bravo",
-      payload: { privateMarker: "bravo-only" },
+      payload: {
+        ...publicWebsitePayload("bravo-only"),
+        organizationName: "Organization Bravo",
+      },
       version: 1,
     });
 
@@ -155,7 +181,7 @@ describe("Published Organization projections", () => {
       JSON.stringify({
         generatedAt: "2026-07-21T12:00:00.000Z",
         organizationId: "organization-bravo",
-        payload: { privateMarker: "bravo-under-alpha-key" },
+        payload: publicWebsitePayload("bravo-under-alpha-key"),
         version: 1,
       }),
     );
@@ -175,6 +201,8 @@ describe("Published Organization projections", () => {
     const bravoResponse = await fetchProjection("bravo.localhost");
     const bravoBody: unknown = await bravoResponse.json();
     expect(bravoResponse.status).toBe(200);
-    expect(bravoBody).toMatchObject({ payload: { privateMarker: "bravo-only" } });
+    expect(bravoBody).toMatchObject({
+      payload: { settings: { heroHeadline: "bravo-only" } },
+    });
   });
 });

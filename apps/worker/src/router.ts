@@ -27,6 +27,7 @@ import {
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
   publicDomainRegistrationRequestSchema,
+  publicWebsiteSettingsRequestSchema,
   type HealthResponse,
   type CalendarFeedUrlsResponse,
   type OrganizationContextResponse,
@@ -158,7 +159,10 @@ import {
   updateOrganizationSeatingChart,
   updateOrganizationSeatingConfiguration,
 } from "./organization/organizationSeating";
-import { readPublishedOrganization } from "./publication/publishOrganization";
+import {
+  readPublishedOrganization,
+  readPublishedOrganizationMedia,
+} from "./publication/publishOrganization";
 import { verifySignedLinkScope } from "./security/signedLinks";
 import {
   MAX_PRIVATE_FILE_BYTES,
@@ -180,6 +184,12 @@ import {
   registerPublicDomain,
 } from "./tenancy/registerPublicDomain";
 import { resolveOrganization } from "./tenancy/resolveOrganization";
+import {
+  PublicWebsiteError,
+  publishOrganizationPublicWebsite,
+  readOrganizationPublicWebsiteSettings,
+  updateOrganizationPublicWebsiteSettings,
+} from "./organization/organizationPublicWebsite";
 
 interface WorkerHonoEnvironment {
   Bindings: Env;
@@ -527,9 +537,16 @@ router.use("*", async (context, next) => {
   const publicProjectionResponse =
     responsePath === "/api/public/projection" &&
     (context.res.status === 200 || context.res.status === 304);
+  const publicMediaResponse =
+    responsePath.startsWith("/api/public/media/") &&
+    (context.res.status === 200 || context.res.status === 304);
   context.header(
     "cache-control",
-    publicProjectionResponse ? "public, max-age=60, stale-while-revalidate=300" : "no-store",
+    publicProjectionResponse
+      ? "public, max-age=60, stale-while-revalidate=300"
+      : publicMediaResponse
+        ? "public, max-age=31536000, immutable"
+        : "no-store",
   );
   context.header(
     "referrer-policy",
@@ -611,6 +628,44 @@ router.get("/api/public/projection", async (context) => {
     return context.body(null, 304);
   }
   return context.json(published.projection);
+});
+
+router.get("/api/public/media/:version/:fileId", async (context) => {
+  validateStartupConfig(context.env);
+  const version = z.coerce.number().int().positive().safeParse(context.req.param("version"));
+  const fileId = z.uuid().safeParse(context.req.param("fileId"));
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!version.success || !fileId.success || !resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "The published Organization image was not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const object = await readPublishedOrganizationMedia(
+    context.env,
+    resolved.value.organizationId,
+    version.data,
+    fileId.data,
+  );
+  if (!object) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "The published Organization image was not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  context.header("etag", object.httpEtag);
+  context.header("vary", "Host");
+  if (context.req.header("if-none-match") === object.httpEtag) return context.body(null, 304);
+  context.header("content-type", object.httpMetadata?.contentType ?? "application/octet-stream");
+  return context.body(object.body);
 });
 
 router.post("/api/public/unsubscribe", async (context) => {
@@ -1929,6 +1984,104 @@ function resourceProblem(error: unknown, requestIdValue: string, message: string
     status,
   };
 }
+
+function publicWebsiteProblem(error: unknown, requestIdValue: string, message: string) {
+  return {
+    problem: {
+      code: error instanceof PublicWebsiteError ? "public_website_error" : "service_unavailable",
+      message: error instanceof PublicWebsiteError ? error.message : message,
+      requestId: requestIdValue,
+    } satisfies ProblemDetails,
+    status: error instanceof PublicWebsiteError ? error.status : 503,
+  };
+}
+
+router.get("/api/organization/website", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  try {
+    const settings = await readOrganizationPublicWebsiteSettings(
+      context.env,
+      authorization.organizationId,
+    );
+    return context.json({ ...settings, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const result = publicWebsiteProblem(
+      error,
+      context.get("requestId"),
+      "The public website settings are temporarily unavailable.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.put("/api/organization/website", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const body = publicWebsiteSettingsRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid public website settings are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    const settings = await updateOrganizationPublicWebsiteSettings(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...settings, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const result = publicWebsiteProblem(
+      error,
+      context.get("requestId"),
+      "The public website settings could not be saved.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.post("/api/organization/website/publish", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  try {
+    const publication = await publishOrganizationPublicWebsite(context.env, {
+      actorUserId: authorization.userId,
+      organizationId: authorization.organizationId,
+      requestId: context.get("requestId"),
+    });
+    return context.json({ ...publication, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const result = publicWebsiteProblem(
+      error,
+      context.get("requestId"),
+      "The public website could not be published.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
 
 router.get("/api/organization/resources", async (context) => {
   const authorization = await authorizeCalendarRoute(context, false);

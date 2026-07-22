@@ -135,6 +135,8 @@ milestone complete.
 | `apps/worker/src/organization/organizationCommunications.ts`   | Host-authorized Organization communications repository adapter                       |
 | `apps/worker/src/communications/provider.ts`                   | Fake/disabled/Brevo-sandbox Email and SMS delivery adapter                           |
 | `apps/worker/src/communications/provider.test.ts`              | Brevo sandbox request, allowlist, response, and secret-redaction unit proof          |
+| `apps/worker/src/organization/publicWebsiteStore.ts`           | Organization website draft, public-event snapshot, version, and audit persistence    |
+| `apps/worker/src/organization/organizationPublicWebsite.ts`    | Authorized website management and R2/KV publication orchestration                    |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -169,6 +171,8 @@ milestone complete.
 | `apps/web/e2e/auth.spec.ts`                                    | OTP, account, Organization-choice, and session-management browser coverage           |
 | `apps/web/src/account/CommunicationCenter.tsx`                 | Responsive manager compose, drafts, templates, history, and delivery visibility      |
 | `apps/web/src/public/PublicUnsubscribeView.tsx`                | Signed public email-suppression confirmation flow                                    |
+| `apps/web/src/public/PublicOrganizationSite.tsx`               | Published Organization home, history, performances, navigation, and media UI         |
+| `apps/web/src/account/PublicWebsiteManager.tsx`                | Manager public-site content, branding-media, preview, and publish workflow           |
 | `apps/worker/tsconfig.json`                                    | Strict Worker and Cloudflare-test TypeScript project                                 |
 | `apps/worker/worker-configuration.d.ts`                        | Wrangler-generated binding and module-export declarations                            |
 | `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                   |
@@ -177,6 +181,7 @@ milestone complete.
 | `apps/worker/test/resources.integration.test.ts`               | Resource CRUD, order, authorization, private files, audit, and isolation proof       |
 | `apps/worker/test/profilePhotos.integration.test.ts`           | Profile-photo ownership, manager access, replacement, privacy, and reclamation proof |
 | `apps/worker/test/communications.integration.test.ts`          | Message drafts, reach, queueing, retry, audit, and Organization-isolation proof      |
+| `apps/worker/test/publicWebsite.integration.test.ts`           | Website authorization, publication, media, caching, and isolation proof              |
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |

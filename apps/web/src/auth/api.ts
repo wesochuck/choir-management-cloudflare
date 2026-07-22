@@ -60,6 +60,9 @@ import {
   privateFileResponseSchema,
   platformRecoveryCodesResponseSchema,
   problemDetailsSchema,
+  publishedOrganizationProjectionSchema,
+  publicWebsitePublishResponseSchema,
+  publicWebsiteSettingsResponseSchema,
   type AccountOrganization,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
@@ -114,6 +117,9 @@ import {
   type PlatformOrganizationsResponse,
   type PlatformMfaEnrollmentResponse,
   type PlatformMfaStatusResponse,
+  type PublishedOrganizationProjection,
+  type PublicWebsiteSettings,
+  type PublicWebsiteSettingsRequest,
 } from "@choir/contracts";
 
 export class AuthApiError extends Error {
@@ -387,6 +393,43 @@ export async function uploadPrivateOrganizationFile(file: File): Promise<Private
     method: "PUT",
   });
   return privateFileResponseSchema.parse(await response.json());
+}
+
+export async function getPublishedOrganizationProjection(
+  signal?: AbortSignal,
+): Promise<PublishedOrganizationProjection | null> {
+  const response = await fetch("/api/public/projection", {
+    headers: { accept: "application/json" },
+    signal: signal ?? null,
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw await responseError(response);
+  return publishedOrganizationProjectionSchema.parse(await response.json());
+}
+
+export async function getOrganizationPublicWebsiteSettings(
+  signal?: AbortSignal,
+): Promise<PublicWebsiteSettings> {
+  const response = await request("/api/organization/website", { signal: signal ?? null });
+  return publicWebsiteSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationPublicWebsiteSettings(
+  settings: PublicWebsiteSettingsRequest,
+): Promise<PublicWebsiteSettings> {
+  const response = await request("/api/organization/website", {
+    body: JSON.stringify(settings),
+    method: "PUT",
+  });
+  return publicWebsiteSettingsResponseSchema.parse(await response.json());
+}
+
+export async function publishOrganizationPublicWebsite(): Promise<{
+  readonly publishedAt: string;
+  readonly version: number;
+}> {
+  const response = await request("/api/organization/website/publish", { method: "POST" });
+  return publicWebsitePublishResponseSchema.parse(await response.json());
 }
 
 export async function setOrganizationProfilePhoto(

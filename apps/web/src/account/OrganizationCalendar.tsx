@@ -16,6 +16,7 @@ import {
   createOrganizationEvent,
   createOrganizationProfile,
   createOrganizationVenue,
+  deletePrivateOrganizationFile,
   deleteOrganizationVenue,
   getOrganizationCalendarSettings,
   getOrganizationRosterConfiguration,
@@ -27,6 +28,7 @@ import {
   updateOrganizationCalendarSettings,
   updateOrganizationEvent,
   updateOrganizationProfile,
+  uploadPrivateOrganizationFile,
 } from "../auth/api";
 
 interface Resources {
@@ -48,6 +50,9 @@ const emptyEvent: OrganizationEventRequest = {
   durationMinutes: null,
   location: "",
   parentPerformanceId: null,
+  publicDetails: "",
+  publicGraphicFileId: null,
+  publishOnWebsite: false,
   setList: [],
   setListApproved: false,
   startsAt: new Date(0).toISOString(),
@@ -99,6 +104,9 @@ function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
     durationMinutes: event.durationMinutes,
     location: event.location,
     parentPerformanceId: event.parentPerformanceId,
+    publicDetails: event.publicDetails,
+    publicGraphicFileId: event.publicGraphicFileId,
+    publishOnWebsite: event.publishOnWebsite,
     setList: event.setList,
     setListApproved: event.setListApproved,
     startsAt: event.startsAt,
@@ -235,6 +243,78 @@ function CalendarNotices(props: {
   );
 }
 
+function PublicPerformanceFields({
+  event,
+  onChange,
+  onFileChange,
+}: {
+  readonly event: OrganizationEventRequest;
+  readonly onChange: (changes: Partial<OrganizationEventRequest>) => void;
+  readonly onFileChange: (file: File | null) => void;
+}) {
+  if (event.type !== "Performance") return null;
+  return (
+    <fieldset>
+      <legend>Public website</legend>
+      <label>
+        <input
+          checked={event.publishOnWebsite}
+          onChange={(change) => {
+            onChange({ publishOnWebsite: change.target.checked });
+          }}
+          type="checkbox"
+        />
+        Publish this performance on the Organization website
+      </label>
+      <div className="field">
+        <label htmlFor="event-public-details">Public details</label>
+        <textarea
+          id="event-public-details"
+          maxLength={100_000}
+          onChange={(change) => {
+            onChange({ publicDetails: change.target.value });
+          }}
+          rows={4}
+          value={event.publicDetails}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="event-public-graphic">Public graphic (optional)</label>
+        <input
+          accept="image/jpeg,image/png,image/webp"
+          id="event-public-graphic"
+          onChange={(change) => {
+            onFileChange(change.target.files?.item(0) ?? null);
+          }}
+          type="file"
+        />
+        {event.publicGraphicFileId ? (
+          <div className="form-actions">
+            <a
+              className="text-button"
+              href={`/api/organization/files/${encodeURIComponent(event.publicGraphicFileId)}`}
+              rel="noreferrer"
+              target="_blank"
+            >
+              View current graphic
+            </a>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                onChange({ publicGraphicFileId: null });
+                onFileChange(null);
+              }}
+              type="button"
+            >
+              Remove current graphic
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </fieldset>
+  );
+}
+
 function RosterCsvControls(props: {
   readonly busy: boolean;
   readonly file: File | null;
@@ -290,6 +370,7 @@ export function OrganizationCalendar({
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<OrganizationEventRequest>(emptyEvent);
   const [eventStart, setEventStart] = useState("");
+  const [eventGraphicFile, setEventGraphicFile] = useState<File | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -423,10 +504,21 @@ export function OrganizationCalendar({
       return;
     }
     beginAction();
+    let uploadedGraphicId: string | null = null;
+    const previousGraphicId = event.publicGraphicFileId;
     try {
+      if (eventGraphicFile) {
+        const uploaded = await uploadPrivateOrganizationFile(eventGraphicFile);
+        uploadedGraphicId = uploaded.id;
+      }
+      const eventToSave = {
+        ...event,
+        publicGraphicFileId: uploadedGraphicId ?? event.publicGraphicFileId,
+        startsAt,
+      };
       const saved = editingEventId
-        ? await updateOrganizationEvent(editingEventId, { ...event, startsAt })
-        : await createOrganizationEvent({ ...event, startsAt });
+        ? await updateOrganizationEvent(editingEventId, eventToSave)
+        : await createOrganizationEvent(eventToSave);
       setResources((current) =>
         current.status === "ready"
           ? {
@@ -440,10 +532,17 @@ export function OrganizationCalendar({
       );
       setEditingEventId(null);
       setEvent(emptyEvent);
+      setEventGraphicFile(null);
       setEventStart("");
+      if (previousGraphicId && previousGraphicId !== saved.publicGraphicFileId) {
+        await deletePrivateOrganizationFile(previousGraphicId).catch(() => undefined);
+      }
       setSuccess(editingEventId ? "Event updated." : "Event created.");
       setBusy(false);
     } catch (actionError: unknown) {
+      if (uploadedGraphicId) {
+        await deletePrivateOrganizationFile(uploadedGraphicId).catch(() => undefined);
+      }
       failAction(actionError, "The event could not be created.");
     }
   }
@@ -451,6 +550,7 @@ export function OrganizationCalendar({
   function beginEdit(candidate: OrganizationEvent) {
     if (resources.status !== "ready") return;
     setEditingEventId(candidate.id);
+    setEventGraphicFile(null);
     setEvent(eventRequestFrom(candidate));
     setEventStart(utcToZonedLocalDateTime(candidate.startsAt, resources.timezone) ?? "");
     setError(null);
@@ -463,6 +563,8 @@ export function OrganizationCalendar({
     setEvent({
       ...eventRequestFrom(candidate),
       parentPerformanceId: null,
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
       setList: [],
       setListApproved: false,
       title: `${candidate.title} copy`,
@@ -881,6 +983,13 @@ export function OrganizationCalendar({
                     value={event.details}
                   />
                 </div>
+                <PublicPerformanceFields
+                  event={event}
+                  onChange={(changes) => {
+                    setEvent((current) => ({ ...current, ...changes }));
+                  }}
+                  onFileChange={setEventGraphicFile}
+                />
                 <button className="button button--primary" disabled={busy} type="submit">
                   {editingEventId ? "Save event" : "Create event"}
                 </button>
@@ -891,6 +1000,7 @@ export function OrganizationCalendar({
                     onClick={() => {
                       setEditingEventId(null);
                       setEvent(emptyEvent);
+                      setEventGraphicFile(null);
                       setEventStart("");
                     }}
                     type="button"

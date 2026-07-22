@@ -44,6 +44,10 @@ import {
   readSingerSeatingFromStore,
 } from "./seatingStore";
 import { currentOrganizationSchemaVersion } from "./schema";
+import {
+  managePublicWebsiteInStore,
+  readPublicWebsiteSettingsFromStore,
+} from "./publicWebsiteStore";
 
 const completionSchema = z.object({
   attempt: z.number().int().min(1).max(10),
@@ -1114,6 +1118,18 @@ function privateFileIsReferenced(storage: DurableObjectStorage, fileId: string):
       }
     });
   if (musicReference) return true;
+  const publicWebsiteReference = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      `SELECT
+        (SELECT COUNT(*) FROM public_website_settings
+         WHERE hero_file_id = ? OR logo_file_id = ?) +
+        (SELECT COUNT(*) FROM events WHERE public_graphic_file_id = ?) AS count`,
+      fileId,
+      fileId,
+      fileId,
+    )
+    .one().count;
+  if (publicWebsiteReference > 0) return true;
   return (
     storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
@@ -1240,6 +1256,16 @@ async function dispatchPostRequest(
   if (fileResponse) return fileResponse;
   const communicationResponse = await dispatchCommunicationPostRequest(storage, pathname, request);
   if (communicationResponse) return communicationResponse;
+  const websiteResponse = await dispatchWebsitePostRequest(storage, pathname, request);
+  if (websiteResponse) return websiteResponse;
+  return dispatchOperationalPostRequest(storage, pathname, request);
+}
+
+async function dispatchOperationalPostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
   switch (pathname) {
     case "/internal/jobs/claim":
       return claimJob(storage, request);
@@ -1266,6 +1292,43 @@ async function dispatchPostRequest(
     default:
       return null;
   }
+}
+
+function dispatchContentGetRequest(
+  storage: DurableObjectStorage,
+  url: URL,
+  organizationId: string | null,
+): Response | null {
+  switch (url.pathname) {
+    case "/internal/resources":
+      return listResourcesFromStore(storage, organizationId);
+    case "/internal/communications":
+      return listCommunicationMessagesFromStore(storage, organizationId);
+    case "/internal/communications/templates":
+      return listCommunicationTemplatesFromStore(storage, organizationId);
+    case "/internal/communications/summary":
+      return readCommunicationSummaryFromStore(
+        storage,
+        organizationId,
+        url.searchParams.get("messageId"),
+      );
+    case "/internal/communications/job":
+      return readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId"));
+    case "/internal/website/settings":
+      return readPublicWebsiteSettingsFromStore(storage, organizationId);
+    default:
+      return null;
+  }
+}
+
+async function dispatchWebsitePostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
+  return pathname === "/internal/website/manage"
+    ? managePublicWebsiteInStore(storage, request)
+    : null;
 }
 
 async function dispatchCommunicationPostRequest(
@@ -1385,25 +1448,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
   const organizationId = url.searchParams.get("organizationId");
   const profileResponse = dispatchProfileGetRequest(storage, url, organizationId);
   if (profileResponse) return profileResponse;
-  if (url.pathname === "/internal/resources") {
-    return listResourcesFromStore(storage, organizationId);
-  }
-  if (url.pathname === "/internal/communications") {
-    return listCommunicationMessagesFromStore(storage, organizationId);
-  }
-  if (url.pathname === "/internal/communications/templates") {
-    return listCommunicationTemplatesFromStore(storage, organizationId);
-  }
-  if (url.pathname === "/internal/communications/summary") {
-    return readCommunicationSummaryFromStore(
-      storage,
-      organizationId,
-      url.searchParams.get("messageId"),
-    );
-  }
-  if (url.pathname === "/internal/communications/job") {
-    return readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId"));
-  }
+  const contentResponse = dispatchContentGetRequest(storage, url, organizationId);
+  if (contentResponse) return contentResponse;
   const calendarResponse = dispatchCalendarGetRequest(storage, url, organizationId);
   if (calendarResponse) return calendarResponse;
   switch (url.pathname) {

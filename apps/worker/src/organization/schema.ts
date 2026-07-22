@@ -320,6 +320,36 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON communication_suppressions(channel, active, profile_id)`,
     ],
   },
+  {
+    version: 19,
+    statements: [
+      `CREATE TABLE public_website_settings (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        hero_headline TEXT NOT NULL DEFAULT 'Welcome to Our Choir',
+        hero_subtitle TEXT NOT NULL DEFAULT 'Voices united in harmony.',
+        about_us_text TEXT NOT NULL DEFAULT '',
+        history_text TEXT NOT NULL DEFAULT '',
+        contact_email TEXT NOT NULL DEFAULT '',
+        show_branding_header_footer INTEGER NOT NULL DEFAULT 0 CHECK (show_branding_header_footer IN (0, 1)),
+        header_font TEXT NOT NULL DEFAULT 'system',
+        body_font TEXT NOT NULL DEFAULT 'system',
+        hero_file_id TEXT,
+        logo_file_id TEXT,
+        enabled_navigation_json TEXT NOT NULL DEFAULT '[]',
+        publication_version INTEGER NOT NULL DEFAULT 0 CHECK (publication_version >= 0),
+        pending_publication_version INTEGER,
+        published_at TEXT,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `INSERT INTO public_website_settings (singleton, updated_at)
+       VALUES (1, '1970-01-01T00:00:00.000Z')`,
+      "ALTER TABLE events ADD COLUMN public_details TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE events ADD COLUMN public_graphic_file_id TEXT",
+      "ALTER TABLE events ADD COLUMN publish_on_website INTEGER NOT NULL DEFAULT 0 CHECK (publish_on_website IN (0, 1))",
+      `CREATE INDEX idx_events_public_website
+       ON events(publish_on_website, is_archived, type, starts_at DESC, id DESC)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

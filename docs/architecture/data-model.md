@@ -76,8 +76,12 @@ recipient snapshot; provider work remains outside the Durable Object transaction
 per-Profile channel suppression state and a nullable signed unsubscribe URL on email-delivery
 snapshots. Unsubscribe updates the Profile preference and suppression ledger idempotently, while
 queue processing rechecks both immediately before provider work so a post-queue unsubscribe cannot
-leak a campaign email. Contract or removal migrations occur only after old and new Worker versions
-are both safe throughout the rollback window.
+leak a campaign email. Version 19 adds the private structured Public Website draft, publication
+version state, and public performance fields. A manager publication snapshots only explicitly public
+fields, copies referenced ready images into immutable versioned R2 keys, writes the typed
+projection, and advances the KV pointer; public requests never read the Organization Durable Object.
+Contract or removal migrations occur only after old and new Worker versions are both safe throughout
+the rollback window.
 
 ## R2 and KV
 

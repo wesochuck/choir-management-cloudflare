@@ -27,25 +27,34 @@
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "src/App.tsx:305; src/views/PublicLandingView.tsx",
-        "targetEvidence": ["apps/web/src/App.tsx"],
+        "targetEvidence":
+          ["apps/web/src/App.tsx", "apps/web/src/public/PublicOrganizationSite.tsx"],
       },
       {
         "id": "route.public.history",
         "path": "/history",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/App.tsx:313; src/views/PublicHistoryView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
       },
       {
         "id": "route.public.performances",
         "path": "/performances",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/App.tsx:321; src/views/PublicPastPerformancesView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
       },
       {
         "id": "route.public.auditions",
@@ -395,9 +404,14 @@
         "path": "/admin/website",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/App.tsx:495; src/views/admin/PublicWebsiteView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/PublicWebsiteManager.tsx",
+            "apps/worker/src/organization/publicWebsiteStore.ts",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.settings",
@@ -1511,10 +1525,16 @@
         "workflow": "structured public website and module-aware navigation",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/views/PublicLandingView.tsx; src/views/admin/PublicWebsiteView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/web/src/account/PublicWebsiteManager.tsx",
+            "apps/worker/src/organization/organizationPublicWebsite.ts",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
       },
       {
         "id": "workflow.organization-export",
@@ -1605,10 +1625,15 @@
         "behavior": "logo, hero, and public media upload with immutable published URLs",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence":
           "src/services/settings/landingMedia.ts; src/views/admin/PublicWebsiteView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/publication/publishOrganization.ts",
+            "apps/worker/src/organization/organizationPublicWebsite.ts",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
       },
       {
         "id": "file.r2-isolation",
@@ -1637,7 +1662,12 @@
         "status": "partial",
         "baselineEvidence":
           "test/views/PublicLandingView.test.tsx; test/views/PublicPastPerformancesView.test.tsx",
-        "targetEvidence": ["apps/web/e2e/foundation.spec.ts"],
+        "targetEvidence":
+          [
+            "apps/web/e2e/foundation.spec.ts",
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/web/src/styles/theme.css",
+          ],
       },
       {
         "id": "responsive.data-table",

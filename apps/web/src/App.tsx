@@ -1,5 +1,5 @@
 import { healthResponseSchema, type CurrentAuthSession } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { AccountView } from "./account/AccountView";
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
@@ -8,6 +8,7 @@ import { getCurrentSession } from "./auth/api";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
+import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
 
 type ServiceState = "checking" | "offline" | "ready";
 type SessionState =
@@ -138,7 +139,13 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
 }
 
 function isAccountRoute(pathname: string): boolean {
-  return pathname === "/account" || pathname === "/admin/communications";
+  return (
+    pathname === "/account" || pathname === "/admin/communications" || pathname === "/admin/website"
+  );
+}
+
+function isPublicOrganizationRoute(pathname: string): boolean {
+  return pathname === "/" || pathname === "/history" || pathname === "/performances";
 }
 
 function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocation) {
@@ -150,6 +157,14 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
     );
   }
   return null;
+}
+
+function renderPublicOrProductRoute(pathname: string, productShell: ReactNode) {
+  return isPublicOrganizationRoute(pathname) ? (
+    <PublicOrganizationSite fallback={productShell} pathname={pathname} />
+  ) : (
+    productShell
+  );
 }
 
 export function App() {
@@ -251,7 +266,7 @@ export function App() {
     content = <HomeView signedIn={sessionState.status === "authenticated"} />;
   }
 
-  return (
+  const productShell = (
     <div className="app-shell">
       <header className="site-header">
         <a className="brand" href="/" aria-label="Choir Management home">
@@ -284,4 +299,5 @@ export function App() {
       </footer>
     </div>
   );
+  return renderPublicOrProductRoute(pathname, productShell);
 }

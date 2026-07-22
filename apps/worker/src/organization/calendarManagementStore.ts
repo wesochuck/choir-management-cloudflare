@@ -87,6 +87,9 @@ interface EventRow {
   readonly id: string;
   readonly location: string;
   readonly parentPerformanceId: string | null;
+  readonly publicDetails: string;
+  readonly publicGraphicFileId: string | null;
+  readonly publishOnWebsite: number;
   readonly setListApproved: number;
   readonly setListJson: string;
   readonly startsAt: string;
@@ -228,6 +231,8 @@ export function listOrganizationEventsFromStore(
       `SELECT id, title, type, starts_at AS startsAt, duration_minutes AS durationMinutes,
          call_time AS callTime, location, venue_id AS venueId,
          parent_performance_id AS parentPerformanceId, details,
+         public_details AS publicDetails, public_graphic_file_id AS publicGraphicFileId,
+         publish_on_website AS publishOnWebsite,
          set_list_json AS setListJson, set_list_approved AS setListApproved,
          created_at AS createdAt, updated_at AS updatedAt
        FROM events WHERE is_archived = 0 ORDER BY starts_at ASC, id ASC LIMIT 500`,
@@ -241,6 +246,9 @@ export function listOrganizationEventsFromStore(
       id: event.id,
       location: event.location,
       parentPerformanceId: event.parentPerformanceId,
+      publicDetails: event.publicDetails,
+      publicGraphicFileId: event.publicGraphicFileId,
+      publishOnWebsite: event.publishOnWebsite === 1,
       setList: parseSetList(event.setListJson),
       setListApproved: event.setListApproved === 1,
       startsAt: event.startsAt,
@@ -566,6 +574,27 @@ function eventReferenceError(
       return Response.json({ code: "parent_performance_not_found" }, { status: 404 });
     }
   }
+  if (event.publicGraphicFileId) {
+    const graphic = storage.sql
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly contentType: string;
+        readonly sizeBytes: number;
+      }>(
+        `SELECT content_type AS contentType, size_bytes AS sizeBytes
+         FROM private_files WHERE id = ? AND status = 'ready' LIMIT 1`,
+        event.publicGraphicFileId,
+      )
+      .toArray()
+      .at(0);
+    if (
+      !graphic ||
+      !["image/jpeg", "image/png", "image/webp"].includes(graphic.contentType) ||
+      graphic.sizeBytes > 5 * 1024 * 1024
+    ) {
+      return Response.json({ code: "invalid_public_event_graphic" }, { status: 409 });
+    }
+  }
 
   const pieceIds = new Set(
     event.setList.flatMap(({ pieceId }) => (pieceId === undefined ? [] : [pieceId])),
@@ -604,9 +633,10 @@ function writeEvent(
       storage.sql.exec(
         `INSERT INTO events
           (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
-           parent_performance_id, details, set_list_json, set_list_approved,
+           parent_performance_id, details, public_details, public_graphic_file_id,
+           publish_on_website, set_list_json, set_list_approved,
            is_archived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
         event.id,
         event.title,
         event.type,
@@ -617,6 +647,9 @@ function writeEvent(
         event.venueId,
         event.parentPerformanceId,
         event.details,
+        event.publicDetails,
+        event.publicGraphicFileId,
+        event.publishOnWebsite ? 1 : 0,
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
         occurredAt,
@@ -626,6 +659,7 @@ function writeEvent(
       storage.sql.exec(
         `UPDATE events SET title = ?, type = ?, starts_at = ?, duration_minutes = ?,
            call_time = ?, location = ?, venue_id = ?, parent_performance_id = ?, details = ?,
+           public_details = ?, public_graphic_file_id = ?, publish_on_website = ?,
            set_list_json = ?, set_list_approved = ?, updated_at = ?
          WHERE id = ?`,
         event.title,
@@ -637,6 +671,9 @@ function writeEvent(
         event.venueId,
         event.parentPerformanceId,
         event.details,
+        event.publicDetails,
+        event.publicGraphicFileId,
+        event.publishOnWebsite ? 1 : 0,
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
         occurredAt,
@@ -649,7 +686,12 @@ function writeEvent(
       operation.action === "create_event" ? "event.created" : "event.updated",
       "event",
       event.id,
-      { startsAt: event.startsAt, title: event.title, type: event.type },
+      {
+        publishOnWebsite: event.publishOnWebsite,
+        startsAt: event.startsAt,
+        title: event.title,
+        type: event.type,
+      },
       occurredAt,
     );
   });
