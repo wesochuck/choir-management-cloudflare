@@ -45,7 +45,7 @@ secrets, or signing secrets in this file.
 
 - URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `573375c3-92b1-45ff-b791-ed306e62a656`
+- Current verified Worker version: `eceee45c-fba3-4eca-96c5-775e98e62823`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -257,6 +257,12 @@ Verified over public HTTPS on July 20–21, 2026:
   `index-RY9SxIk9.js` and `index-Dz9dhida.css`; D1 had no pending migrations and remained at zero
   Organizations, fleet schema preparations, and dead letters. Worker version
   `573375c3-92b1-45ff-b791-ed306e62a656` is the verified staging checkpoint.
+- After the roster-configuration deployment, health and readiness returned HTTP 200 and the roster
+  configuration endpoint on the global workers.dev base returned hostname-first HTTP 404. A
+  cache-busted live shell referenced `index-QAvAXEI2.js` and `index-C7baeXft.css`; D1 had no pending
+  migrations and remained at zero Organizations, fleet schema preparations, and dead letters. Worker
+  version `eceee45c-fba3-4eca-96c5-775e98e62823` is the verified staging checkpoint for commit
+  `ea6d09759de83c569efeb364461f259d01ff9683`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
