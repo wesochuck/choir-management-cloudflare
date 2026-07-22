@@ -167,6 +167,7 @@ milestone complete.
 | `apps/worker/test/auth.integration.test.ts`                    | Workerd invitation-only auth, OTP, session, and canonical-host coverage              |
 | `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                            |
 | `apps/worker/test/resources.integration.test.ts`               | Resource CRUD, order, authorization, private files, audit, and isolation proof       |
+| `apps/worker/test/profilePhotos.integration.test.ts`           | Profile-photo ownership, manager access, replacement, privacy, and reclamation proof |
 | `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                  |
 | `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                  |
 | `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                     |

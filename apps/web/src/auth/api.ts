@@ -373,6 +373,22 @@ export async function uploadPrivateOrganizationFile(file: File): Promise<Private
   return privateFileResponseSchema.parse(await response.json());
 }
 
+export async function setOrganizationProfilePhoto(
+  profileId: string,
+  fileId: string,
+): Promise<void> {
+  await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}/photo/${encodeURIComponent(fileId)}`,
+    { method: "PUT" },
+  );
+}
+
+export async function deleteOrganizationProfilePhoto(profileId: string): Promise<void> {
+  await request(`/api/organization/profiles/${encodeURIComponent(profileId)}/photo`, {
+    method: "DELETE",
+  });
+}
+
 export async function listOrganizationResources(
   signal?: AbortSignal,
 ): Promise<readonly OrganizationResource[]> {

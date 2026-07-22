@@ -90,6 +90,23 @@ const memberProfileUpdateSchema = z.object({
   profileId: z.uuid(),
   requestId: z.uuid(),
 });
+const profilePhotoOperationSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("attach"),
+    actorUserId: z.string().min(1).max(128),
+    fileId: z.uuid(),
+    organizationId: z.string().min(1).max(128),
+    profileId: z.uuid(),
+    requestId: z.uuid(),
+  }),
+  z.object({
+    action: z.literal("remove"),
+    actorUserId: z.string().min(1).max(128),
+    organizationId: z.string().min(1).max(128),
+    profileId: z.uuid(),
+    requestId: z.uuid(),
+  }),
+]);
 const schemaPreparationRequestSchema = z.object({
   organizationId: z.string().min(1).max(128),
   targetVersion: z.number().int().positive(),
@@ -150,6 +167,7 @@ interface OrganizationProfileRow {
   readonly id: string;
   readonly isSectionLeader: number;
   readonly notes: string;
+  readonly photoFileId: string | null;
   readonly phone: string;
   readonly receiveAdminNotifications: number;
   readonly receiveAttendanceReports: number;
@@ -169,6 +187,7 @@ function profileResult(row: OrganizationProfileRow) {
     id: row.id,
     isSectionLeader: row.isSectionLeader === 1,
     notes: row.notes,
+    photoFileId: row.photoFileId,
     phone: row.phone,
     receiveAdminNotifications: row.receiveAdminNotifications === 1,
     receiveAttendanceReports: row.receiveAttendanceReports === 1,
@@ -244,7 +263,7 @@ function listProfiles(storage: DurableObjectStorage, organizationId: string | nu
          receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
          receive_admin_notifications AS receiveAdminNotifications,
          receive_financial_alerts AS receiveFinancialAlerts,
-         is_section_leader AS isSectionLeader,
+         is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
          created_at AS createdAt, updated_at AS updatedAt
        FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
@@ -262,7 +281,7 @@ function readProfile(storage: DurableObjectStorage, profileId: string) {
          receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
          receive_admin_notifications AS receiveAdminNotifications,
          receive_financial_alerts AS receiveFinancialAlerts,
-         is_section_leader AS isSectionLeader,
+         is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
          created_at AS createdAt, updated_at AS updatedAt
        FROM profiles WHERE id = ? LIMIT 1`,
       profileId,
@@ -302,10 +321,12 @@ function listDirectoryProfiles(
       readonly [column: string]: SqlStorageValue;
       readonly displayName: string;
       readonly id: string;
+      readonly photoFileId: string | null;
       readonly phone: string;
       readonly voicePart: string;
     }>(
-      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart
+      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
+         photo_file_id AS photoFileId
        FROM profiles
        WHERE global_status != 'Inactive' AND show_in_directory = 1
        ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
@@ -541,6 +562,72 @@ async function updateMemberProfile(
     );
   });
   return Response.json(readProfile(storage, parsed.data.profileId));
+}
+
+async function manageProfilePhoto(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = profilePhotoOperationSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success)
+    return Response.json({ code: "invalid_profile_photo_operation" }, { status: 400 });
+  const operation = parsed.data;
+  if (organizationIdentity(storage)?.organizationId !== operation.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const profile = readProfile(storage, operation.profileId);
+  if (!profile) return Response.json({ code: "profile_not_found" }, { status: 404 });
+  if (operation.action === "attach") {
+    const file = storage.sql
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly contentType: string;
+        readonly sizeBytes: number;
+      }>(
+        "SELECT content_type AS contentType, size_bytes AS sizeBytes FROM private_files WHERE id = ? AND status = 'ready' LIMIT 1",
+        operation.fileId,
+      )
+      .toArray()
+      .at(0);
+    if (
+      !file ||
+      !["image/jpeg", "image/png", "image/webp"].includes(file.contentType) ||
+      file.sizeBytes > 5 * 1024 * 1024
+    ) {
+      return Response.json({ code: "invalid_profile_photo_file" }, { status: 409 });
+    }
+    if (
+      profile.photoFileId !== operation.fileId &&
+      privateFileIsReferenced(storage, operation.fileId)
+    ) {
+      return Response.json({ code: "profile_photo_file_in_use" }, { status: 409 });
+    }
+  }
+  const nextFileId = operation.action === "attach" ? operation.fileId : null;
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE profiles SET photo_file_id = ?, updated_at = ? WHERE id = ?",
+      nextFileId,
+      occurredAt,
+      operation.profileId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, ?, 'profile', ?, ?, ?, ?)`,
+      `profile-photo:${operation.requestId}`,
+      operation.actorUserId,
+      operation.action === "attach" ? "profile.photo_attached" : "profile.photo_removed",
+      operation.profileId,
+      operation.requestId,
+      JSON.stringify({ nextFileId, previousFileId: profile.photoFileId }),
+      occurredAt,
+    );
+  });
+  return Response.json({
+    previousFileId: profile.photoFileId,
+    profile: readProfile(storage, operation.profileId),
+  });
 }
 
 async function provisionOrganizationStore(
@@ -993,6 +1080,13 @@ async function abortPrivateFile(
 }
 
 function privateFileIsReferenced(storage: DurableObjectStorage, fileId: string): boolean {
+  const profileReference = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      "SELECT COUNT(*) AS count FROM profiles WHERE photo_file_id = ?",
+      fileId,
+    )
+    .one().count;
+  if (profileReference > 0) return true;
   const musicReference = storage.sql
     .exec<{ readonly trackFileIdsJson: string }>(
       "SELECT track_file_ids_json AS trackFileIdsJson FROM music_pieces",
@@ -1196,6 +1290,8 @@ async function dispatchProfilePostRequest(
       return createProfile(storage, request);
     case "/internal/profiles/member-update":
       return updateMemberProfile(storage, request);
+    case "/internal/profiles/photo":
+      return manageProfilePhoto(storage, request);
     case "/internal/profiles/import":
       return importProfiles(storage, request);
     case "/internal/profiles/update":

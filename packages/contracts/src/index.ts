@@ -47,6 +47,7 @@ export const organizationProfileRequestSchema = z.object({
 export const organizationProfileSchema = organizationProfileRequestSchema.extend({
   createdAt: z.iso.datetime(),
   id: z.uuid(),
+  photoFileId: z.uuid().nullable().default(null),
   updatedAt: z.iso.datetime(),
 });
 
@@ -80,6 +81,7 @@ export const memberProfileSchema = memberProfileUpdateRequestSchema.extend({
   email: z.email(),
   globalStatus: z.enum(["Active", "Idle", "Inactive"]),
   id: z.uuid(),
+  photoFileId: z.uuid().nullable().default(null),
   voicePart: z.string().max(100),
 });
 
@@ -91,6 +93,7 @@ export const organizationDirectoryProfileSchema = z.object({
   displayName: z.string().min(1).max(200),
   email: z.union([z.literal(""), z.email()]),
   id: z.uuid(),
+  photoFileId: z.uuid().nullable().default(null),
   phone: z.string().max(50),
   voicePart: z.string().max(100),
 });

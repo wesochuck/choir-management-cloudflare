@@ -1,11 +1,11 @@
 # Environment and Promotion Inventory
 
-| Environment | Bindings and data                               | External effects                  | Deployment  |
-| ----------- | ----------------------------------------------- | --------------------------------- | ----------- |
-| Local       | Wrangler/Miniflare local D1, DO, R2, KV, queues | deterministic fake/capture        | developer   |
-| Preview     | disposable isolated resources                   | disabled or captured              | PR-only     |
-| Staging     | permanent isolated real Cloudflare primitives   | fake until provider sandbox gates | `main`      |
-| Production  | separate, empty, uncreated/unlaunched resources | real only after separate approval | out of goal |
+| Environment | Bindings and data                               | External effects                       | Deployment  |
+| ----------- | ----------------------------------------------- | -------------------------------------- | ----------- |
+| Local       | Wrangler/Miniflare local D1, DO, R2, KV, queues | deterministic fake/capture             | developer   |
+| Preview     | disposable isolated resources                   | disabled or captured                   | PR-only     |
+| Staging     | permanent isolated real Cloudflare primitives   | fake providers; allowlisted auth email | `main`      |
+| Production  | separate, empty, uncreated/unlaunched resources | real only after separate approval      | out of goal |
 
 ## Permanent staging inventory
 

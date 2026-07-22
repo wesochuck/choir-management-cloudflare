@@ -3,9 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   AuthApiError,
+  deleteOrganizationProfilePhoto,
   getMemberProfile,
   listOrganizationDirectory,
   updateMemberProfile,
+  setOrganizationProfilePhoto,
+  uploadPrivateOrganizationFile,
 } from "../auth/api";
 
 type ProfileState =
@@ -15,6 +18,105 @@ type ProfileState =
 type DirectoryState =
   | { readonly status: "error" | "loading" }
   | { readonly profiles: readonly OrganizationDirectoryProfile[]; readonly status: "ready" };
+
+function ProfilePhotoEditor({
+  onChanged,
+  profile,
+}: {
+  readonly onChanged: (fileId: string | null) => void;
+  readonly profile: MemberProfile;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function savePhoto(): Promise<void> {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setMessage("Choose a JPEG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage("Profile photos may not exceed 5 MB.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    let uploadedFileId: string | null = null;
+    try {
+      uploadedFileId = (await uploadPrivateOrganizationFile(file)).id;
+      await setOrganizationProfilePhoto(profile.id, uploadedFileId);
+      setFile(null);
+      setMessage("Your Profile photo was updated.");
+      onChanged(uploadedFileId);
+    } catch (error: unknown) {
+      if (uploadedFileId) {
+        await fetch(`/api/organization/files/${encodeURIComponent(uploadedFileId)}`, {
+          method: "DELETE",
+        }).catch(() => undefined);
+      }
+      setMessage(
+        error instanceof AuthApiError ? error.message : "Your photo could not be updated.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePhoto(): Promise<void> {
+    if (!profile.photoFileId || !window.confirm("Remove your Profile photo?")) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await deleteOrganizationProfilePhoto(profile.id);
+      setMessage("Your Profile photo was removed.");
+      onChanged(null);
+    } catch (error: unknown) {
+      setMessage(
+        error instanceof AuthApiError ? error.message : "Your photo could not be removed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="form-stack profile-photo-controls">
+      <div className="profile-photo">
+        {profile.photoFileId ? (
+          <img
+            alt={`${profile.displayName} Profile`}
+            src={`/api/organization/files/${encodeURIComponent(profile.photoFileId)}`}
+          />
+        ) : (
+          <span aria-hidden="true">{profile.displayName.slice(0, 1).toUpperCase()}</span>
+        )}
+      </div>
+      <label className="field">
+        Profile photo
+        <input
+          accept="image/jpeg,image/png,image/webp"
+          type="file"
+          onChange={(event) => {
+            setFile(event.target.files?.[0] ?? null);
+          }}
+        />
+      </label>
+      <div className="button-row">
+        <button disabled={busy || !file} onClick={() => void savePhoto()} type="button">
+          Upload photo
+        </button>
+        {profile.photoFileId ? (
+          <button disabled={busy} onClick={() => void removePhoto()} type="button">
+            Remove photo
+          </button>
+        ) : null}
+      </div>
+      <p className="field-help">JPEG, PNG, or WebP; up to 5 MB.</p>
+      {message ? <p role="status">{message}</p> : null}
+    </div>
+  );
+}
 
 function MemberProfileEditor({
   enabled,
@@ -110,6 +212,16 @@ function MemberProfileEditor({
               {state.profile.globalStatus === "Idle" ? "On Break" : state.profile.globalStatus}
             </p>
           </div>
+          <ProfilePhotoEditor
+            profile={state.profile}
+            onChanged={(photoFileId) => {
+              setState({
+                profile: { ...state.profile, photoFileId },
+                status: "ready",
+              });
+              onSaved();
+            }}
+          />
           <label className="field">
             Display name
             <input
@@ -264,6 +376,18 @@ function Directory({
             <ul className="directory-grid">
               {profiles.map((profile) => (
                 <li key={profile.id} aria-label={`Directory Profile: ${profile.displayName}`}>
+                  <div className="profile-photo profile-photo--directory">
+                    {profile.photoFileId ? (
+                      <img
+                        alt=""
+                        src={`/api/organization/files/${encodeURIComponent(profile.photoFileId)}`}
+                      />
+                    ) : (
+                      <span aria-hidden="true">
+                        {profile.displayName.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                   <h3>{profile.displayName}</h3>
                   <p>{profile.voicePart || "Voice part not assigned"}</p>
                   <p>

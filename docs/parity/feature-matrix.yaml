@@ -1496,10 +1496,17 @@
         "behavior": "private profile photo upload, replacement, deletion, and authorized rendering",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence":
           "src/services/profileService.ts:updateProfilePhoto; test/profileForm.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/profilePhotos.integration.test.ts",
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+          ],
       },
       {
         "id": "file.music-audio",

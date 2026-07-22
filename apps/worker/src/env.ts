@@ -12,6 +12,7 @@ const startupConfigSchema = z.object({
   BUILD_VERSION: z.string().min(1).max(128),
   EXTERNAL_EFFECTS_MODE: z.enum(["disabled", "fake", "sandbox"]),
   JOBS_DLQ_NAME: z.string().min(1).max(128),
+  PLATFORM_EMAIL_FROM: z.email(),
   PLATFORM_EMAIL_MODE: z.enum(["capture", "disabled", "sandbox"]),
   PRODUCT_BASE_DOMAIN: z.string().min(1).max(253),
 });
@@ -31,6 +32,9 @@ export interface Env {
   readonly JOBS_DLQ_NAME: string;
   readonly ORGANIZATION_FILES: R2Bucket;
   readonly ORGANIZATION_STORE: DurableObjectNamespace<OrganizationStore>;
+  readonly PLATFORM_EMAIL?: SendEmail;
+  readonly PLATFORM_EMAIL_ALLOWED_RECIPIENTS?: string;
+  readonly PLATFORM_EMAIL_FROM: string;
   readonly PLATFORM_EMAIL_MODE: string;
   readonly PRODUCT_BASE_DOMAIN: string;
   readonly PROVISIONING_WORKFLOW: Workflow<ProvisioningParams>;
@@ -48,6 +52,7 @@ export function validateStartupConfig(env: Env): StartupConfig {
     BUILD_VERSION: env.BUILD_VERSION,
     EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE,
     JOBS_DLQ_NAME: env.JOBS_DLQ_NAME,
+    PLATFORM_EMAIL_FROM: env.PLATFORM_EMAIL_FROM,
     PLATFORM_EMAIL_MODE: env.PLATFORM_EMAIL_MODE,
     PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
   });

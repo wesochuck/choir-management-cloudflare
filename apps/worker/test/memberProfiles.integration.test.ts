@@ -229,6 +229,7 @@ describe("linked-member Profile and directory", () => {
         email: "",
         id: publicProfile.id,
         phone: "555-0200",
+        photoFileId: null,
         voicePart: "A1",
       },
     ]);

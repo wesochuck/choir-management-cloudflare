@@ -594,6 +594,17 @@ atomically. Private files remain protected while referenced and are reclaimed fr
 resource is deleted. Workerd integration coverage proves role enforcement, cross-Organization
 isolation, ordering, audit history, and object reclamation.
 
+Private Profile photos now attach only ready JPEG, PNG, or WebP objects of at most 5 MB to a Profile
+inside the hostname-resolved Organization store. Members may change only their linked Profile;
+Owners and Administrators may manage any Profile in the same Organization. Directory rendering
+remains membership-authorized, replacements and removals reclaim old R2 objects, referenced files
+cannot be deleted directly, and every transition is audited.
+
+The account is now on Workers Paid and Cloudflare Email Sending is onboarded for the isolated
+`mail.staging.musicsite.org` sender domain. The native Worker binding is sender-restricted and the
+application additionally requires an explicit staging-recipient allowlist. External provider effects
+remain fake; only allowlisted authentication, invitation, and recovery email may leave staging.
+
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
 

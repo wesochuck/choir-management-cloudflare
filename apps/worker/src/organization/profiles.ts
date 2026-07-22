@@ -225,3 +225,33 @@ export async function updateOrganizationMemberProfile(
   }
   return profile;
 }
+
+const profilePhotoStoreResponseSchema = z.object({
+  previousFileId: z.uuid().nullable(),
+  profile: organizationProfileSchema,
+});
+
+export async function setOrganizationProfilePhoto(
+  env: Env,
+  input: {
+    readonly actorUserId: string;
+    readonly fileId: string | null;
+    readonly organizationId: string;
+    readonly profileId: string;
+    readonly requestId: string;
+  },
+): Promise<{ readonly previousFileId: string | null; readonly profile: OrganizationProfile }> {
+  const response = await organizationStub(env, input.organizationId).fetch(
+    "https://organization.internal/internal/profiles/photo",
+    {
+      body: JSON.stringify({
+        action: input.fileId ? "attach" : "remove",
+        ...input,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) throw new Error("The Organization store rejected the Profile photo update.");
+  return profilePhotoStoreResponseSchema.parse(await response.json());
+}

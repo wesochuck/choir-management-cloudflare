@@ -246,6 +246,10 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON organization_resources(sort_order, title COLLATE NOCASE, id)`,
     ],
   },
+  {
+    version: 16,
+    statements: ["ALTER TABLE profiles ADD COLUMN photo_file_id TEXT"],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

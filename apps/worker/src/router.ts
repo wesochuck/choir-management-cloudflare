@@ -127,6 +127,7 @@ import {
   readOrganizationMemberProfile,
   updateOrganizationMemberProfile,
   updateOrganizationProfile,
+  setOrganizationProfilePhoto,
 } from "./organization/profiles";
 import {
   createOrganizationSeatingChart,
@@ -185,7 +186,12 @@ const platformOrganizationCursorSchema = z.tuple([z.iso.datetime(), z.string().m
 const platformDeadLetterCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(512)]);
 
 type CalendarAuthorization =
-  | { readonly ok: true; readonly organizationId: string; readonly userId: string }
+  | {
+      readonly ok: true;
+      readonly organizationId: string;
+      readonly role: "administrator" | "member" | "owner";
+      readonly userId: string;
+    }
   | {
       readonly code: string;
       readonly message: string;
@@ -253,7 +259,12 @@ async function authorizeCalendarRoute(
       status: 403,
     };
   }
-  return { ok: true, organizationId, userId: authorization.value.userId };
+  return {
+    ok: true,
+    organizationId,
+    role: authorization.value.role,
+    userId: authorization.value.userId,
+  };
 }
 
 interface PlatformOrganizationRow extends PlatformOrganizationSummary {
@@ -1618,6 +1629,7 @@ router.get("/api/singer/profile", async (context) => {
       email,
       globalStatus: profile.globalStatus,
       id: profile.id,
+      photoFileId: profile.photoFileId,
       phone: profile.phone,
       requestId: context.get("requestId"),
       showInDirectory: profile.showInDirectory,
@@ -1689,6 +1701,7 @@ router.put("/api/singer/profile", async (context) => {
       email,
       globalStatus: profile.globalStatus,
       id: profile.id,
+      photoFileId: profile.photoFileId,
       phone: profile.phone,
       requestId: context.get("requestId"),
       showInDirectory: profile.showInDirectory,
@@ -1705,6 +1718,96 @@ router.put("/api/singer/profile", async (context) => {
     );
   }
 });
+
+async function profilePhotoTargetAllowed(
+  context: Context<WorkerHonoEnvironment>,
+  authorization: Extract<CalendarAuthorization, { readonly ok: true }>,
+  profileId: string,
+): Promise<boolean> {
+  if (authorization.role !== "member") return true;
+  return (
+    (await linkedOrganizationProfileId(
+      context.env.CONTROL_DB,
+      authorization.organizationId,
+      authorization.userId,
+    )) === profileId
+  );
+}
+
+async function updateProfilePhotoRoute(
+  context: Context<WorkerHonoEnvironment>,
+  fileId: string | null,
+): Promise<Response> {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = z.uuid().safeParse(context.req.param("profileId"));
+  const parsedFileId = fileId === null ? null : privateFileIdSchema.safeParse(fileId);
+  if (!profileId.success || (parsedFileId !== null && !parsedFileId.success)) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Profile and private image file are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  if (!(await profilePhotoTargetAllowed(context, authorization, profileId.data))) {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "Members may update only their own linked Organization Profile photo.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+  try {
+    const result = await setOrganizationProfilePhoto(context.env, {
+      actorUserId: authorization.userId,
+      fileId: parsedFileId?.data ?? null,
+      organizationId: authorization.organizationId,
+      profileId: profileId.data,
+      requestId: context.get("requestId"),
+    });
+    if (result.previousFileId && result.previousFileId !== result.profile.photoFileId) {
+      await reclaimPrivateOrganizationFile(context.env, {
+        actorUserId: authorization.userId,
+        fileId: result.previousFileId,
+        organizationId: authorization.organizationId,
+        requestId: crypto.randomUUID(),
+        storageKey: privateOrganizationFileKey(authorization.organizationId, result.previousFileId),
+      });
+    }
+    return context.json({
+      photoFileId: result.profile.photoFileId,
+      profileId: result.profile.id,
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Profile photo could not be updated safely.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+}
+
+router.put("/api/organization/profiles/:profileId/photo/:fileId", (context) =>
+  updateProfilePhotoRoute(context, context.req.param("fileId")),
+);
+
+router.delete("/api/organization/profiles/:profileId/photo", (context) =>
+  updateProfilePhotoRoute(context, null),
+);
 
 router.get("/api/singer/directory", async (context) => {
   const authorization = await authorizeCalendarRoute(context, false);

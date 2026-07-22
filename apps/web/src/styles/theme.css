@@ -246,6 +246,36 @@ footer {
   gap: 0.75rem;
 }
 
+.profile-photo {
+  align-items: center;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  display: flex;
+  font-size: 1.5rem;
+  font-weight: 700;
+  height: 5rem;
+  justify-content: center;
+  overflow: hidden;
+  width: 5rem;
+}
+
+.profile-photo img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.profile-photo--directory {
+  height: 3.5rem;
+  width: 3.5rem;
+}
+
+.profile-photo-controls {
+  border-block: 1px solid var(--color-border);
+  padding-block: 1rem;
+}
+
 .profile-facts p {
   margin: 0;
   padding: 0.75rem;
