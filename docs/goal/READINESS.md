@@ -43,9 +43,13 @@ secrets, or signing secrets in this file.
 
 ## Permanent staging
 
-- URL: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
+- Product URL: <https://staging.musicsite.org>
+- Workers.dev diagnostic fallback:
+  <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
+- Canonical Organization namespace: `{slug}.staging.musicsite.org` (Worker route active; wildcard
+  DNS pending the interactive dashboard sign-in recorded below)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `1aaaf6bf-42ae-4778-9e01-ca066e395849`
+- Current verified Worker version: `8d05d2b2-0cce-4140-81ce-9b92f85af5fd`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -307,6 +311,15 @@ Verified over public HTTPS on July 20–21, 2026:
   `index-B2EU6tP_.css`. D1 had no pending migrations and remained at zero Organizations, fleet
   schema preparations, and dead letters. Worker version `3acbaf38-7dbe-4ead-ab35-36782d5bd666` is
   the verified staging checkpoint for commit `45c47fd`.
+- After the Organization music-catalog deployment, `staging.musicsite.org` health and readiness
+  returned HTTP 200, the global-host music endpoint returned hostname-first HTTP 404, and the live
+  shell referenced `index-CbLrNf-W.js` and `index-w0SxyIdp.css`. The workers.dev diagnostic health
+  endpoint also remained HTTP 200. Cloudflare activated the exact custom domain and
+  `*.staging.musicsite.org/*` Worker route, but an unregistered Organization hostname does not yet
+  resolve because wildcard DNS requires an interactive dashboard login. D1 had no pending migrations
+  and remained at zero Organizations, fleet schema preparations, and dead letters. Worker version
+  `8d05d2b2-0cce-4140-81ce-9b92f85af5fd` is the verified staging checkpoint for commit
+  `81acb05449bfe6e05a32edf190bcd3f488a745d6`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -325,7 +338,9 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed, including seating management, linked-member Profile editing,
-  directory filtering, and the seating finder.
+  directory filtering, and the seating finder. The music/domain checkpoint intentionally reused that
+  baseline and did not rerun browser tests at the user's request; its UI was covered by strict
+  static checks and a production build.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
@@ -519,9 +534,10 @@ These do not prevent local implementation of Milestones 0–4:
   commit.
 - Create a least-privilege Cloudflare API token for GitHub Actions and store it, plus the account
   ID, as GitHub environment secrets. The local Wrangler OAuth credential must not be reused in CI.
-- Add the required proxied wildcard DNS record if Cloudflare cannot create it while binding the
-  `{slug}.staging.musicsite.org` Worker route. The `musicsite.org` zone is registered in the active
-  account and authorized for this project.
+- Sign in to the in-app Cloudflare dashboard, then add the staging-only proxied wildcard DNS record
+  required by the active `*.staging.musicsite.org/*` Worker route. Wrangler OAuth can write Worker
+  routes but has read-only zone access, and the browser session is currently at the Cloudflare
+  sign-in screen. Do not share the password or MFA value with the agent.
 - Enable the paid Cloudflare Email Sending entitlement and a verified platform sender domain before
   platform-email staging qualification. `wrangler email sending list` currently returns unauthorized
   code 2036; Email Routing has no configured zones.
