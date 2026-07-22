@@ -203,9 +203,14 @@ Verified over public HTTPS on July 20–22, 2026:
   renderer preserves header order, quotes and escapes every dynamic field, keeps the stored `Idle`
   status, and repeats section leaders in the dedicated block. The Worker joins linked Membership
   email from D1 at export time so authentication data is not duplicated into the Organization store;
-  unlinked Profiles export a blank email. Unit and workerd proof cover the byte-level CSV, no-store
-  response policy, filename, canonical-host isolation, and member denial. Per ADR 0015, this does
-  not introduce a whole-archive import or restore path.
+  unlinked Profiles export a blank email. The same manager surface accepts bounded CSV with quoted
+  commas, escaped quotes, multiline notes, header aliases, legacy On Break normalization, and the
+  exported section-leader block. All Profile rows and actor-attributed audits commit in one Durable
+  Object transaction only after every configured voice part validates. Imported emails are counted
+  as invitation candidates but never create identities or duplicate D1 sign-in email in operational
+  storage; Profiles remain usable without Memberships. Unit and workerd proof cover parsing,
+  rollback, identity separation, byte-level export, no-store policy, filename, canonical-host
+  isolation, and member denial. Per ADR 0015, this does not introduce a whole-archive restore path.
 - Organization schema version 12 adds ordered section and voice-part configuration with the legacy
   SATB defaults. Members may read the configuration; only Owners and Administrators may update it.
   Both the UI and the Organization store prevent removal or renaming of a voice-part label assigned
@@ -366,9 +371,9 @@ Verified over public HTTPS on July 20–22, 2026:
   letters. Worker version `8743e9e8-3658-4cf7-9edb-b97528d03a87` is the verified staging checkpoint
   for commit `92525c8`.
 - After the member practice-library, offline-audio, and file-reclamation deployment, both the custom
-  domain and workers.dev shell converged on `index-zTT_yUdt.js` and `index-BFt0OCGH.css` after normal
-  edge propagation. Custom-domain API health and readiness returned HTTP 200 with valid TLS. An
-  unregistered wildcard Organization hostname's member music endpoint returned the expected
+  domain and workers.dev shell converged on `index-zTT_yUdt.js` and `index-BFt0OCGH.css` after
+  normal edge propagation. Custom-domain API health and readiness returned HTTP 200 with valid TLS.
+  An unregistered wildcard Organization hostname's member music endpoint returned the expected
   hostname-first HTTP 404. D1 had no pending migrations and remained at zero Organizations, fleet
   schema preparations, and dead letters. Worker version `669303fc-fec6-44e9-adba-677dddd4f65b` is
   the verified staging checkpoint for commit `0f681db`.

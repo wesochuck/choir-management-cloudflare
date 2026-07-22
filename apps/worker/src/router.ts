@@ -42,6 +42,8 @@ import {
   eventRsvpExportFilename,
   isValidTimeZone,
   MusicCsvError,
+  parseRosterCsv,
+  RosterCsvError,
   parseMusicCsv,
   renderEventRsvpCsv,
   renderMusicCsv,
@@ -107,6 +109,7 @@ import {
 } from "./organization/organizationMusic";
 import {
   createOrganizationProfile,
+  importOrganizationProfiles,
   listOrganizationDirectoryProfiles,
   listOrganizationProfileEmails,
   listOrganizationProfiles,
@@ -1351,6 +1354,82 @@ router.get("/api/organization/profiles/export.csv", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization roster export could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/profiles/import", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const declaredLength = Number(context.req.header("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > 2_000_000) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Roster CSV files may not exceed 2 MB.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      413,
+    );
+  }
+  try {
+    const csv = await context.req.text();
+    if (new TextEncoder().encode(csv).byteLength > 2_000_000) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Roster CSV files may not exceed 2 MB.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        413,
+      );
+    }
+    const parsed = parseRosterCsv(csv);
+    if (parsed.length === 0) throw new RosterCsvError("The CSV contains no Profiles.");
+    const imported = await importOrganizationProfiles(context.env, {
+      actorUserId: authorization.userId,
+      organizationId: authorization.organizationId,
+      profiles: parsed.map((profile) => organizationProfileRequestSchema.parse(profile)),
+      requestId: context.get("requestId"),
+    });
+    return context.json(
+      {
+        imported,
+        invitationCandidates: parsed.filter(({ email }) => email !== "").length,
+        requestId: context.get("requestId"),
+      },
+      201,
+    );
+  } catch (error: unknown) {
+    if (error instanceof RosterCsvError) {
+      const row = error.row === null ? "" : ` (row ${String(error.row)})`;
+      return context.json(
+        {
+          code: "validation_failed",
+          message: `${error.message}${row}`,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    if (error instanceof OrganizationProfileMutationError) {
+      return context.json(
+        { code: error.code, message: error.message, requestId: context.get("requestId") },
+        400,
+      );
+    }
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The roster CSV could not be imported.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

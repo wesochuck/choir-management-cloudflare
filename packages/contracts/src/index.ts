@@ -59,6 +59,12 @@ export const organizationProfilesResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const organizationProfileImportResponseSchema = z.object({
+  imported: z.number().int().min(0).max(500),
+  invitationCandidates: z.number().int().min(0).max(500),
+  requestId: requestIdSchema,
+});
+
 export type OrganizationProfileRequest = z.infer<typeof organizationProfileRequestSchema>;
 export type OrganizationProfile = z.infer<typeof organizationProfileSchema>;
 export type OrganizationProfileResponse = z.infer<typeof organizationProfileResponseSchema>;

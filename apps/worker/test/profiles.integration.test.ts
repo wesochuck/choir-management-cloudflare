@@ -1,6 +1,7 @@
 import {
   organizationProfileSchema,
   organizationProfileResponseSchema,
+  organizationProfileImportResponseSchema,
   organizationProfilesResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
@@ -123,6 +124,79 @@ afterEach(async () => {
 });
 
 describe("Organization Profiles", () => {
+  it("imports Profiles atomically without creating login identities", async () => {
+    const cookie = await signIn();
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles/import", cookie, {
+        body: [
+          "Name,Email,Phone,Voice Part,Status,Notes,Section Leader",
+          '"Singer, One",one@example.test,555-0101,S1,Active,"First line\nSecond line",yes',
+          "Singer Two,,555-0102,A2,On Break,,no",
+        ].join("\n"),
+        headers: { "content-type": "text/csv" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect(organizationProfileImportResponseSchema.parse(await response.json())).toMatchObject({
+      imported: 2,
+      invitationCandidates: 1,
+    });
+    const profiles = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
+        )
+      ).json(),
+    ).profiles;
+    expect(profiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          displayName: "Singer, One",
+          isSectionLeader: true,
+          notes: "First line\nSecond line",
+          voicePart: "S1",
+        }),
+        expect.objectContaining({
+          displayName: "Singer Two",
+          globalStatus: "Idle",
+          voicePart: "A2",
+        }),
+      ]),
+    );
+    expect(
+      await controlDatabase.prepare("SELECT COUNT(*) AS count FROM user").first<number>("count"),
+    ).toBe(1);
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        organizationStore.get(organizationStore.idFromName("organization-alpha")),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM audit_events WHERE action = 'profile.imported'",
+            )
+            .one().count,
+      ),
+    ).toBe(2);
+
+    const rejected = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles/import", cookie, {
+        body: "Name,Voice Part\nValid Singer,S1\nInvalid Singer,NotConfigured",
+        headers: { "content-type": "text/csv" },
+        method: "POST",
+      }),
+    );
+    expect(rejected.status).toBe(400);
+    const afterRejected = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
+        )
+      ).json(),
+    ).profiles;
+    expect(afterRejected).toHaveLength(2);
+  });
+
   it("creates and lists Profiles only within the canonical authenticated Organization", async () => {
     expect(
       await exports.default.fetch(apiRequest("alpha.localhost", "/api/organization/profiles")),

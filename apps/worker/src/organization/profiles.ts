@@ -138,6 +138,39 @@ export async function createOrganizationProfile(
   return profile;
 }
 
+export async function importOrganizationProfiles(
+  env: Env,
+  input: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly profiles: readonly OrganizationProfileRequest[];
+    readonly requestId: string;
+  },
+): Promise<number> {
+  const response = await organizationStub(env, input.organizationId).fetch(
+    "https://organization.internal/internal/profiles/import",
+    {
+      body: JSON.stringify({
+        ...input,
+        profiles: input.profiles.map((profile) => ({ profile, profileId: crypto.randomUUID() })),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  await assertProfileMutationAccepted(response, "import request");
+  const body: unknown = await response.json();
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("imported" in body) ||
+    typeof body.imported !== "number"
+  ) {
+    throw new Error("The Organization store returned an invalid Profile import result.");
+  }
+  return body.imported;
+}
+
 export async function updateOrganizationProfile(
   env: Env,
   input: {

@@ -19,6 +19,7 @@ import {
   deleteOrganizationVenue,
   getOrganizationCalendarSettings,
   getOrganizationRosterConfiguration,
+  importOrganizationProfilesCsv,
   listOrganizationEvents,
   listOrganizationProfiles,
   listOrganizationVenues,
@@ -234,6 +235,49 @@ function CalendarNotices(props: {
   );
 }
 
+function RosterCsvControls(props: {
+  readonly busy: boolean;
+  readonly file: File | null;
+  readonly onFileChange: (file: File | null) => void;
+  readonly onImport: () => void;
+}) {
+  return (
+    <div className="form-stack">
+      <h3>Roster export</h3>
+      <p>Download the baseline-compatible Organization roster as CSV.</p>
+      <a
+        className="button button--secondary"
+        download="choir_roster_export.csv"
+        href="/api/organization/profiles/export.csv"
+      >
+        Download roster CSV
+      </a>
+      <label className="field">
+        Import roster CSV
+        <input
+          accept=".csv,text/csv"
+          type="file"
+          onChange={(change) => {
+            props.onFileChange(change.target.files?.item(0) ?? null);
+          }}
+        />
+      </label>
+      <button
+        className="button button--secondary"
+        disabled={props.busy || !props.file}
+        type="button"
+        onClick={props.onImport}
+      >
+        {props.busy ? "Importing…" : "Import roster CSV"}
+      </button>
+      <p className="field-help">
+        Profiles are created without login access. CSV email addresses are counted as invitation
+        candidates; send Membership invitations separately when ready.
+      </p>
+    </div>
+  );
+}
+
 export function OrganizationCalendar({
   context,
   enabled,
@@ -254,6 +298,7 @@ export function OrganizationCalendar({
   const [rsvpProfileId, setRsvpProfileId] = useState("");
   const [rsvpNote, setRsvpNote] = useState("");
   const [rsvpStatus, setRsvpStatus] = useState<"No" | "Pending" | "Yes">("Pending");
+  const [rosterImportFile, setRosterImportFile] = useState<File | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [timezoneInput, setTimezoneInput] = useState("UTC");
   const [venueAddress, setVenueAddress] = useState("");
@@ -471,6 +516,23 @@ export function OrganizationCalendar({
     }
   }
 
+  async function importRoster(): Promise<void> {
+    if (!rosterImportFile) return;
+    beginAction();
+    try {
+      const result = await importOrganizationProfilesCsv(await rosterImportFile.text());
+      const profiles = await listOrganizationProfiles();
+      setResources((current) => (current.status === "ready" ? { ...current, profiles } : current));
+      setRosterImportFile(null);
+      setSuccess(
+        `${String(result.imported)} Profile(s) imported. ${String(result.invitationCandidates)} email address(es) are ready for separate Membership invitations.`,
+      );
+      setBusy(false);
+    } catch (actionError: unknown) {
+      failAction(actionError, "The roster CSV could not be imported.");
+    }
+  }
+
   return (
     <section
       className="account-section account-section--organization-calendar"
@@ -504,17 +566,12 @@ export function OrganizationCalendar({
           </div>
           {manager ? (
             <div className="calendar-management-grid">
-              <div className="form-stack">
-                <h3>Roster export</h3>
-                <p>Download the baseline-compatible Organization roster as CSV.</p>
-                <a
-                  className="button button--secondary"
-                  download="choir_roster_export.csv"
-                  href="/api/organization/profiles/export.csv"
-                >
-                  Download roster CSV
-                </a>
-              </div>
+              <RosterCsvControls
+                busy={busy}
+                file={rosterImportFile}
+                onFileChange={setRosterImportFile}
+                onImport={() => void importRoster()}
+              />
               <form
                 className="form-stack"
                 onSubmit={(formEvent) => {

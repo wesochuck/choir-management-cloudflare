@@ -1234,15 +1234,18 @@
         "workflow": "profile CRUD, profile-without-login, import, export, and directory",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "partial",
+        "status": "implemented",
         "baselineEvidence":
           "src/services/profileService.ts; src/services/rosterService.ts; test/rosterService.test.ts",
         "targetEvidence":
           [
             "apps/worker/src/organization/profiles.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/router.ts",
             "apps/worker/test/profiles.integration.test.ts",
             "apps/worker/test/memberProfiles.integration.test.ts",
             "packages/domain/src/rosterCsv.ts",
+            "packages/domain/src/rosterCsv.test.ts",
             "packages/domain/src/rosterConfiguration.ts",
             "apps/worker/test/rosterConfiguration.integration.test.ts",
             "apps/web/src/account/OrganizationCalendar.tsx",

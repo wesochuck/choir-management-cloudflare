@@ -29,6 +29,7 @@ import {
   organizationMfaVerificationResponseSchema,
   organizationProfileResponseSchema,
   organizationProfilesResponseSchema,
+  organizationProfileImportResponseSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
   organizationVenueDeleteResponseSchema,
@@ -252,6 +253,18 @@ export async function createOrganizationProfile(
     method: "POST",
   });
   return organizationProfileResponseSchema.parse(await response.json());
+}
+
+export async function importOrganizationProfilesCsv(
+  csv: string,
+): Promise<{ readonly imported: number; readonly invitationCandidates: number }> {
+  const response = await request("/api/organization/profiles/import", {
+    body: csv,
+    headers: { "content-type": "text/csv; charset=utf-8" },
+    method: "POST",
+  });
+  const parsed = organizationProfileImportResponseSchema.parse(await response.json());
+  return { imported: parsed.imported, invitationCandidates: parsed.invitationCandidates };
 }
 
 export async function updateOrganizationProfile(

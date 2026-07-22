@@ -68,6 +68,20 @@ const profileCreateSchema = z.object({
   requestId: z.uuid(),
 });
 const profileUpdateSchema = profileCreateSchema;
+const profileImportSchema = z.object({
+  actorUserId: z.string().min(1).max(128),
+  organizationId: z.string().min(1).max(128),
+  profiles: z
+    .array(
+      z.object({
+        profile: organizationProfileRequestSchema,
+        profileId: z.uuid(),
+      }),
+    )
+    .min(1)
+    .max(500),
+  requestId: z.uuid(),
+});
 const memberProfileUpdateSchema = z.object({
   actorUserId: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
@@ -371,6 +385,60 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
     id: parsed.data.profileId,
     updatedAt: occurredAt,
   });
+}
+
+async function importProfiles(storage: DurableObjectStorage, request: Request): Promise<Response> {
+  const parsed = profileImportSchema.safeParse(await request.json());
+  if (!parsed.success) return Response.json({ code: "invalid_profile_import" }, { status: 400 });
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  if (
+    parsed.data.profiles.some(({ profile }) => !isConfiguredVoicePart(storage, profile.voicePart))
+  ) {
+    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    for (const { profile, profileId } of parsed.data.profiles) {
+      storage.sql.exec(
+        `INSERT INTO profiles
+          (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
+           do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
+           receive_admin_notifications, receive_financial_alerts, is_section_leader,
+           created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        profileId,
+        profile.displayName,
+        profile.phone,
+        profile.voicePart,
+        profile.globalStatus,
+        profile.notes,
+        profile.showInDirectory ? 1 : 0,
+        profile.doNotEmail ? 1 : 0,
+        profile.receiveAttendanceReports ? 1 : 0,
+        profile.receiveRsvpDeclineNotices ? 1 : 0,
+        profile.receiveAdminNotifications ? 1 : 0,
+        profile.receiveFinancialAlerts ? 1 : 0,
+        profile.isSectionLeader ? 1 : 0,
+        occurredAt,
+        occurredAt,
+      );
+      storage.sql.exec(
+        `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_member', ?, 'profile.imported', 'profile', ?, ?, ?, ?)`,
+        `profile-imported:${parsed.data.requestId}:${profileId}`,
+        parsed.data.actorUserId,
+        profileId,
+        parsed.data.requestId,
+        JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
+        occurredAt,
+      );
+    }
+  });
+  return Response.json({ imported: parsed.data.profiles.length });
 }
 
 async function updateProfile(storage: DurableObjectStorage, request: Request): Promise<Response> {
@@ -1116,6 +1184,8 @@ async function dispatchProfilePostRequest(
       return createProfile(storage, request);
     case "/internal/profiles/member-update":
       return updateMemberProfile(storage, request);
+    case "/internal/profiles/import":
+      return importProfiles(storage, request);
     case "/internal/profiles/update":
       return updateProfile(storage, request);
     default:
