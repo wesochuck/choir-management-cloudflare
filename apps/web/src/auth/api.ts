@@ -1,6 +1,7 @@
 import {
   memberProfileResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
+  organizationMusicImportResponseSchema,
   organizationMusicPieceResponseSchema,
   organizationMusicPiecesResponseSchema,
   organizationDirectoryResponseSchema,
@@ -110,8 +111,8 @@ async function responseError(response: Response): Promise<AuthApiError> {
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set("accept", "application/json");
-  if (init.body !== undefined) {
+  if (!headers.has("accept")) headers.set("accept", "application/json");
+  if (init.body !== undefined && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
   const response = await fetch(path, {
@@ -319,6 +320,15 @@ export async function deleteOrganizationMusicPiece(
     method: "DELETE",
   });
   organizationMusicPieceDeleteResponseSchema.parse(await response.json());
+}
+
+export async function importOrganizationMusicCsv(csv: string): Promise<number> {
+  const response = await request("/api/organization/music/import", {
+    body: csv,
+    headers: { "content-type": "text/csv; charset=utf-8" },
+    method: "POST",
+  });
+  return organizationMusicImportResponseSchema.parse(await response.json()).imported;
 }
 
 export async function listOrganizationVenues(

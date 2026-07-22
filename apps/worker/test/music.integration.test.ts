@@ -1,5 +1,6 @@
 import {
   organizationEventSchema,
+  organizationMusicImportResponseSchema,
   organizationMusicPieceResponseSchema,
   organizationMusicPiecesResponseSchema,
   type OrganizationMusicPiece,
@@ -150,6 +151,72 @@ afterEach(async () => {
 });
 
 describe("Organization music catalog", () => {
+  it("imports a bounded CSV atomically and exports the baseline-compatible contract", async () => {
+    const cookie = await signIn();
+    const csv = [
+      "Title,Composer,Arranger,Copies,Catalog ID,Duration,Voicing,Applies To,Genres,Purchase Date,Notes",
+      '"=Safe title","Handel","Doe, Jane","24","CAT-1","4:05","SATB","S;A","Classical;Sacred","2026-05-01","Owned ""copies"""',
+      '"Second work","","","","","","","All","","",""',
+    ].join("\n");
+    const importedResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/music/import", cookie, {
+        body: csv,
+        headers: { "content-type": "text/csv" },
+        method: "POST",
+      }),
+    );
+    expect(importedResponse.status).toBe(201);
+    expect(
+      organizationMusicImportResponseSchema.parse(await importedResponse.json()).imported,
+    ).toBe(2);
+
+    const exportResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/music/export", cookie),
+    );
+    expect(exportResponse.status).toBe(200);
+    expect(exportResponse.headers.get("cache-control")).toBe("no-store");
+    expect(exportResponse.headers.get("content-disposition")).toBe(
+      'attachment; filename="music_library.csv"',
+    );
+    expect(await exportResponse.text()).toContain(
+      '"\'=Safe title","Handel","Doe, Jane","24","CAT-1","4:05","","S;A","Classical;Sacred","2026-05-01","Owned ""copies"""',
+    );
+
+    const invalid = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/music/import", cookie, {
+        body: "Title,Applies To\nValid,S\nInvalid,Unknown",
+        headers: { "content-type": "text/csv" },
+        method: "POST",
+      }),
+    );
+    expect(invalid.status).toBe(400);
+    const pieces = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    ).pieces;
+    expect(pieces.map(({ title }) => title)).toEqual(["=Safe title", "Second work"]);
+
+    await database
+      .prepare(
+        `UPDATE member SET role = 'member'
+         WHERE userId = 'music-manager' AND organizationId = 'organization-alpha'`,
+      )
+      .run();
+    expect(
+      await exports.default.fetch(api("alpha.localhost", "/api/organization/music/export", cookie)),
+    ).toMatchObject({ status: 403 });
+    expect(
+      await exports.default.fetch(
+        api("localhost", "/api/organization/music/import", cookie, {
+          body: csv,
+          headers: { "content-type": "text/csv" },
+          method: "POST",
+        }),
+      ),
+    ).toMatchObject({ status: 404 });
+  });
+
   it("preserves catalog relationships, private tracks, references, and tenant authorization", async () => {
     const cookie = await signIn();
     const initial = organizationMusicPiecesResponseSchema.parse(

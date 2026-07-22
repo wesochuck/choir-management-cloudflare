@@ -10,6 +10,7 @@ import {
   createOrganizationMusicPiece,
   deleteOrganizationMusicPiece,
   getOrganizationRosterConfiguration,
+  importOrganizationMusicCsv,
   listOrganizationMusic,
   updateOrganizationMusicPiece,
 } from "../auth/api";
@@ -249,6 +250,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [unlinkChildren, setUnlinkChildren] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -369,6 +371,25 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function importCsv(): Promise<void> {
+    if (!importFile) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const imported = await importOrganizationMusicCsv(await importFile.text());
+      setPieces(await listOrganizationMusic());
+      setImportFile(null);
+      setMessage(`${String(imported)} music piece(s) imported.`);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError ? caught.message : "The music CSV could not be imported.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!enabled) return null;
 
   return (
@@ -416,6 +437,36 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               >
                 Add music piece
               </button>
+              <a
+                className="button button--secondary"
+                download
+                href="/api/organization/music/export"
+              >
+                Export CSV
+              </a>
+            </div>
+            <div className="form-stack music-csv-import">
+              <label className="field">
+                Import music CSV
+                <input
+                  accept=".csv,text/csv"
+                  type="file"
+                  onChange={(event) => {
+                    setImportFile(event.target.files?.item(0) ?? null);
+                  }}
+                />
+              </label>
+              <button
+                className="button button--secondary"
+                disabled={busy || !importFile}
+                type="button"
+                onClick={() => void importCsv()}
+              >
+                {busy ? "Importing…" : "Import CSV"}
+              </button>
+              <p className="field-help">
+                Imports up to 500 top-level works atomically. Existing catalog entries are retained.
+              </p>
             </div>
             <CatalogList
               editingId={editingId}

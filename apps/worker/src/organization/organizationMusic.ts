@@ -133,3 +133,29 @@ export async function deleteOrganizationMusicPiece(
     unlinkChildren,
   });
 }
+
+export async function importOrganizationMusicPieces(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  pieces: readonly OrganizationMusicPieceRequest[],
+): Promise<number> {
+  const response = await mutate(env, context.organizationId, {
+    action: "import",
+    ...context,
+    pieces: pieces.map((piece) => ({ piece, pieceId: crypto.randomUUID() })),
+  });
+  const body: unknown = await response.json();
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("imported" in body) ||
+    typeof body.imported !== "number"
+  ) {
+    throw new Error("The Organization store returned an invalid import result.");
+  }
+  return body.imported;
+}

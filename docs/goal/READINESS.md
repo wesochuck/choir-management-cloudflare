@@ -235,9 +235,12 @@ Verified over public HTTPS on July 20–22, 2026:
   typed APIs and the account UI. The Organization store rejects cross-Organization music and
   credited-Profile identifiers in event set lists, prevents deletion of referenced pieces, and
   requires explicit movement preservation when deleting a parent. Focused workerd proof covers CRUD,
-  audit, relationship rules, private-file typing, authorization, and tenant isolation. CSV
-  import/export, recent-performance metadata, audio attachment/player/offline behavior, and the
-  dedicated set-list manager remain parity follow-up work, so music and set lists remain partial.
+  audit, relationship rules, private-file typing, authorization, and tenant isolation. Manager-only
+  CSV export preserves the baseline columns and adds spreadsheet-formula safety. Bounded CSV import
+  validates quoted and multiline content, current section codes, dates, counts, and durations before
+  one atomic Organization-store transaction; it retains existing entries and creates top-level
+  works. Recent-performance metadata, audio attachment/player/offline behavior, and the dedicated
+  set-list manager remain parity follow-up work, so music and set lists remain partial.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.
@@ -334,16 +337,16 @@ Verified over public HTTPS on July 20–22, 2026:
 - `npm run check:parity`: 145 inventory entries validated.
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
-- `npm test`: 9 files / 24 tests passed, including managed product-domain cookie scoping,
+- `npm test`: 10 files / 27 tests passed, including managed product-domain cookie scoping,
   staging-bootstrap safety, IANA timezone/DST conversion, adversarial signed-link coverage, and
   seating formation behavior.
-- `npm run test:integration`: 16 files / 48 workerd tests passed.
+- `npm run test:integration`: 16 files / 49 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed, including seating management, linked-member Profile editing,
-  directory filtering, and the seating finder. The music/domain checkpoint intentionally reused that
-  baseline and did not rerun browser tests at the user's request; its UI was covered by strict
-  static checks and a production build.
+  directory filtering, and the seating finder. The music checkpoints intentionally reused that
+  browser baseline and did not rerun browser tests at the user's request; their UI was covered by
+  strict static checks and a production build.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
@@ -566,8 +569,8 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 5 with music import/export, audio/player, dedicated set-list management,
-   communications, public-sales, and remaining member workflow parity. Validate independently
-   attached public domains separately from the product-owned canonical namespace. Do not add
-   whole-archive import; ADR 0015 deliberately excludes it from v1.
+3. Continue Milestone 5 with music audio/player, dedicated set-list management, communications,
+   public-sales, and remaining member workflow parity. Validate independently attached public
+   domains separately from the product-owned canonical namespace. Do not add whole-archive import;
+   ADR 0015 deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

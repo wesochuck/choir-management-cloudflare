@@ -23,6 +23,12 @@ Break.”
 - Event RSVP rows are grouped in Yes, No, and Pending order and preserve the group labels defined by
   the baseline.
 - Music genres and applicability values are semicolon-delimited inside one field.
+- Music import accepts the baseline header, quoted commas, escaped quotes, and multiline notes. It
+  creates top-level works only, retains existing entries, validates at most 500 rows and 2 MB before
+  one Organization-store transaction, and rejects the whole import when any row is invalid.
+- Music duration is normalized to seconds in storage and exports as `MM:SS` or `H:MM:SS`. The
+  baseline `Voicing` column remains present and blank because configured section applicability is
+  represented by `Applies To` in the rebuilt schema.
 - Donations place non-anonymous rows first and insert an `ANONYMOUS DONORS` separator before
   anonymous rows.
 - Will-call `Type` is either `Concert Ticket` or `Season Pass (<title>)`.

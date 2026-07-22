@@ -40,7 +40,10 @@ import { z } from "zod";
 import {
   eventRsvpExportFilename,
   isValidTimeZone,
+  MusicCsvError,
+  parseMusicCsv,
   renderEventRsvpCsv,
+  renderMusicCsv,
   renderRosterCsv,
 } from "@choir/domain";
 
@@ -96,6 +99,7 @@ import { currentOrganizationSchemaVersion } from "./organization/schema";
 import {
   createOrganizationMusicPiece,
   deleteOrganizationMusicPiece,
+  importOrganizationMusicPieces,
   listOrganizationMusicPieces,
   MusicRepositoryError,
   updateOrganizationMusicPiece,
@@ -1585,6 +1589,133 @@ router.get("/api/organization/music", async (context) => {
       } satisfies ProblemDetails,
       503,
     );
+  }
+});
+
+router.get("/api/organization/music/export", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const pieces = await listOrganizationMusicPieces(context.env, authorization.organizationId);
+    return context.body(renderMusicCsv(pieces), 200, {
+      "cache-control": "private, no-store",
+      "content-disposition": 'attachment; filename="music_library.csv"',
+      "content-type": "text/csv; charset=utf-8",
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The music catalog export is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+function musicImportProblem(
+  error: unknown,
+  requestIdValue: string,
+): { readonly problem: ProblemDetails; readonly status: 400 | 404 | 409 | 500 | 503 } {
+  if (error instanceof MusicRepositoryError) {
+    return {
+      problem: {
+        code: error.code,
+        message: "The music catalog import could not be completed.",
+        requestId: requestIdValue,
+      },
+      status: error.status,
+    };
+  }
+  if (error instanceof MusicCsvError) {
+    const row = error.row === null ? "" : ` (row ${String(error.row)})`;
+    return {
+      problem: {
+        code: "validation_failed",
+        message: `${error.message}${row}`,
+        requestId: requestIdValue,
+      },
+      status: 400,
+    };
+  }
+  if (error instanceof z.ZodError) {
+    return {
+      problem: {
+        code: "validation_failed",
+        message: "The music CSV contains invalid values.",
+        requestId: requestIdValue,
+      },
+      status: 400,
+    };
+  }
+  return {
+    problem: {
+      code: "service_unavailable",
+      message: "The music catalog import could not be completed.",
+      requestId: requestIdValue,
+    },
+    status: 503,
+  };
+}
+
+router.post("/api/organization/music/import", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const declaredLength = Number(context.req.header("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > 2_000_000) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Music CSV files may not exceed 2 MB.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      413,
+    );
+  }
+  const csv = await context.req.text();
+  if (new TextEncoder().encode(csv).byteLength > 2_000_000) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Music CSV files may not exceed 2 MB.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      413,
+    );
+  }
+  try {
+    const parsed = parseMusicCsv(csv).map((piece) =>
+      organizationMusicPieceRequestSchema.parse({
+        ...piece,
+        parentId: null,
+        trackFileIds: {},
+      }),
+    );
+    if (parsed.length === 0) throw new MusicCsvError("The CSV contains no music pieces.");
+    const imported = await importOrganizationMusicPieces(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      parsed,
+    );
+    return context.json({ imported, requestId: context.get("requestId") }, 201);
+  } catch (error: unknown) {
+    const failure = musicImportProblem(error, context.get("requestId"));
+    return context.json(failure.problem, failure.status);
   }
 });
 

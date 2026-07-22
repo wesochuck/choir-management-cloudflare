@@ -29,6 +29,18 @@ const musicOperationSchema = z.discriminatedUnion("action", [
     pieceId: z.uuid(),
     unlinkChildren: z.boolean().default(false),
   }),
+  operationContextSchema.extend({
+    action: z.literal("import"),
+    pieces: z
+      .array(
+        z.object({
+          piece: organizationMusicPieceRequestSchema,
+          pieceId: z.uuid(),
+        }),
+      )
+      .min(1)
+      .max(500),
+  }),
 ]);
 
 interface MusicPieceRow {
@@ -180,7 +192,7 @@ function validatePiece(
 
 function insertAudit(
   storage: DurableObjectStorage,
-  operation: z.infer<typeof musicOperationSchema>,
+  operation: Exclude<z.infer<typeof musicOperationSchema>, { readonly action: "import" }>,
   action: string,
   summary: Record<string, unknown>,
   occurredAt: string,
@@ -278,6 +290,57 @@ function writePiece(
   });
 }
 
+function importPieces(
+  storage: DurableObjectStorage,
+  operation: Extract<z.infer<typeof musicOperationSchema>, { readonly action: "import" }>,
+): Response {
+  for (const imported of operation.pieces) {
+    const validation = validatePiece(storage, imported.pieceId, imported.piece);
+    if (validation) return validation;
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    for (const imported of operation.pieces) {
+      const piece = imported.piece;
+      storage.sql.exec(
+        `INSERT INTO music_pieces
+          (id, title, composer, arranger, purchase_date, copies, catalog_id, duration_seconds,
+           notes, section_buckets_json, genres_json, parent_id, track_file_ids_json,
+           created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        imported.pieceId,
+        piece.title,
+        piece.composer,
+        piece.arranger,
+        piece.purchaseDate,
+        piece.copies,
+        piece.catalogId,
+        piece.durationSeconds,
+        piece.notes,
+        JSON.stringify(piece.sectionBuckets),
+        JSON.stringify(piece.genres),
+        piece.parentId,
+        JSON.stringify(piece.trackFileIds),
+        occurredAt,
+        occurredAt,
+      );
+    }
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'music.catalog.imported', 'music_catalog',
+         'catalog', ?, ?, ?)`,
+      `music:import:${operation.requestId}`,
+      operation.actorUserId,
+      operation.requestId,
+      JSON.stringify({ imported: operation.pieces.length }),
+      occurredAt,
+    );
+  });
+  return Response.json({ imported: operation.pieces.length });
+}
+
 function eventReferencesPiece(storage: DurableObjectStorage, pieceId: string): boolean {
   const rows = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly setListJson: string }>(
@@ -370,7 +433,7 @@ export async function manageMusicInStore(
   if (!identityMatches(storage, operation.data.organizationId)) {
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
-  return operation.data.action === "delete"
-    ? deletePiece(storage, operation.data)
-    : writePiece(storage, operation.data);
+  if (operation.data.action === "delete") return deletePiece(storage, operation.data);
+  if (operation.data.action === "import") return importPieces(storage, operation.data);
+  return writePiece(storage, operation.data);
 }

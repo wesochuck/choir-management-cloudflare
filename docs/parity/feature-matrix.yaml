@@ -1074,9 +1074,16 @@
         "contract": "music-library",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/lib/music/csv.ts:67; test/musicPieceUtils.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/domain/src/musicCsv.ts",
+            "packages/domain/src/musicCsv.test.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/MusicCatalog.tsx",
+          ],
       },
       {
         "id": "csv.event-rsvp",

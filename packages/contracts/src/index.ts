@@ -496,8 +496,14 @@ export const organizationMusicPieceDeleteResponseSchema = z.object({
   status: z.literal("deleted"),
 });
 
+export const organizationMusicImportResponseSchema = z.object({
+  imported: z.number().int().min(0).max(500),
+  requestId: requestIdSchema,
+});
+
 export type OrganizationMusicPieceRequest = z.infer<typeof organizationMusicPieceRequestSchema>;
 export type OrganizationMusicPiece = z.infer<typeof organizationMusicPieceSchema>;
+export type OrganizationMusicImportResponse = z.infer<typeof organizationMusicImportResponseSchema>;
 
 export const accountOrganizationSchema = z.object({
   canonicalHostname: z.string().min(1).max(253),

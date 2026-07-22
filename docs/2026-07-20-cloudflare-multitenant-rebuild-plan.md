@@ -182,6 +182,8 @@ milestone complete.
 | `packages/domain/src/rosterConfiguration.ts`                   | Standard SATB section and voice-part defaults                                        |
 | `packages/domain/src/eventRsvpCsv.ts`                          | Deterministic baseline-compatible event RSVP CSV renderer                            |
 | `packages/domain/src/eventRsvpCsv.test.ts`                     | Event RSVP grouping, sorting, quoting, and filename contract proof                   |
+| `packages/domain/src/musicCsv.ts`                              | Bounded music CSV parser and deterministic baseline-compatible renderer              |
+| `packages/domain/src/musicCsv.test.ts`                         | Music CSV round-trip, quoting, duration, applicability, and formula-safety proof     |
 | `packages/domain/src/seatingAlgorithm.ts`                      | Pure seating formation suggestions and section-mismatch rules                        |
 | `packages/domain/src/seatingAlgorithm.test.ts`                 | Vertical/horizontal formation and mismatch parity proof                              |
 | `packages/domain/src/seatingConfiguration.ts`                  | Default reusable Organization seating formations                                     |
