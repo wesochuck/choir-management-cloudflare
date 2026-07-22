@@ -16,6 +16,7 @@ import {
 import { migrateOrganization } from "./migrations";
 import {
   listOrganizationEventsFromStore,
+  readEventRsvpExportFromStore,
   listEventAttendanceFromStore,
   listMemberEventsFromStore,
   listOrganizationVenuesFromStore,
@@ -869,6 +870,11 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return listOrganizationEventsFromStore(storage, organizationId);
     case "/internal/calendar/attendance":
       return listEventAttendanceFromStore(storage, {
+        eventId: url.searchParams.get("eventId"),
+        organizationId,
+      });
+    case "/internal/calendar/event-rsvp-export":
+      return readEventRsvpExportFromStore(storage, {
         eventId: url.searchParams.get("eventId"),
         organizationId,
       });

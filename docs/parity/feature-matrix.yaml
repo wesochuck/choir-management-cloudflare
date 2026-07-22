@@ -1050,9 +1050,14 @@
         "contract": "event-rsvp-roster",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/lib/eventRoster/exportCsv.ts:96; test/eventRosterExport.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/domain/src/eventRsvpCsv.ts",
+            "packages/domain/src/eventRsvpCsv.test.ts",
+            "apps/worker/test/attendance.integration.test.ts",
+          ],
       },
       {
         "id": "csv.donations",

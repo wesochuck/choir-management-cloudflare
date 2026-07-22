@@ -208,6 +208,12 @@ Verified over public HTTPS on July 20–21, 2026:
   to a Profile, while contract validation rejects duplicate labels and missing section references.
   Focused workerd and desktop/mobile browser proof covers defaults, persistence, audit, validation,
   role enforcement, and cross-Organization isolation.
+- The exact event RSVP CSV contract is available from each manager-visible event. A pure renderer
+  preserves Yes/No/Pending grouping, configured section order, legacy last-name sorting, formula
+  neutralization, section-leader repetition, and the baseline filename sanitizer. The Worker reads
+  all event export data from the owning Organization store and returns a private no-store download;
+  focused domain, workerd, and desktop/mobile browser proof covers byte-level output, manager-only
+  authorization, cross-Organization denial, and the event-list download link.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.

@@ -131,14 +131,17 @@ describe("Organization attendance", () => {
     const alphaProfile = organizationProfileResponseSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/profiles", cookie, {
-          displayName: "Alpha Pending",
+          displayName: "John Doe",
+          isSectionLeader: true,
+          voicePart: "S1",
         })
       ).json(),
     );
     const explicitNoProfile = organizationProfileResponseSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/profiles", cookie, {
-          displayName: "Alpha No",
+          displayName: "Alice Smith",
+          voicePart: "A1",
         })
       ).json(),
     );
@@ -267,6 +270,39 @@ describe("Organization attendance", () => {
     );
     expect(auditActor).toBe("attendance-manager");
 
+    const rsvpExport = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/events/${event.id}/rsvp-export.csv?sort=section`,
+        cookie,
+      ),
+    );
+    expect(rsvpExport.status).toBe(200);
+    expect(rsvpExport.headers.get("cache-control")).toBe("no-store");
+    expect(rsvpExport.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(rsvpExport.headers.get("content-disposition")).toBe(
+      'attachment; filename="attendance_rehearsal_rsvp_export.csv"',
+    );
+    expect(await rsvpExport.text()).toBe(
+      [
+        "Name,Section,Voice Part,Event Title,RSVP Status",
+        '"Attending (Yes)",,,,',
+        '"John Doe","Sopranos","S1","Attendance Rehearsal","Yes"',
+        "",
+        '"Declined (No)",,,,',
+        '"Alice Smith","Altos","A1","Attendance Rehearsal","No"',
+        "",
+        "Section Leaders",
+        "Name,Section,Voice Part,Event Title,RSVP Status",
+        '"John Doe","Sopranos","S1","Attendance Rehearsal","Yes"',
+      ].join("\n"),
+    );
+    expect(
+      await exports.default.fetch(
+        api("bravo.localhost", `/api/organization/events/${event.id}/rsvp-export.csv`, cookie),
+      ),
+    ).toMatchObject({ status: 404 });
+
     await database
       .prepare(
         `UPDATE member SET role = 'member'
@@ -277,5 +313,10 @@ describe("Organization attendance", () => {
       api("alpha.localhost", `/api/organization/events/${event.id}/attendance`, cookie),
     );
     expect(memberResponse.status).toBe(403);
+    expect(
+      await exports.default.fetch(
+        api("alpha.localhost", `/api/organization/events/${event.id}/rsvp-export.csv`, cookie),
+      ),
+    ).toMatchObject({ status: 403 });
   });
 });

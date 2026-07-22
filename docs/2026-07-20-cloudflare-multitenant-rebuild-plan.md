@@ -168,6 +168,8 @@ milestone complete.
 | `packages/domain/src/rosterCsv.ts`                             | Deterministic baseline-compatible roster CSV renderer                                |
 | `packages/domain/src/rosterCsv.test.ts`                        | Roster CSV quoting, status, and section-leader contract proof                        |
 | `packages/domain/src/rosterConfiguration.ts`                   | Standard SATB section and voice-part defaults                                        |
+| `packages/domain/src/eventRsvpCsv.ts`                          | Deterministic baseline-compatible event RSVP CSV renderer                            |
+| `packages/domain/src/eventRsvpCsv.test.ts`                     | Event RSVP grouping, sorting, quoting, and filename contract proof                   |
 | `packages/ui/tsconfig.json`                                    | Strict repository-owned UI TypeScript project                                        |
 | `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                      |
 | `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                              |

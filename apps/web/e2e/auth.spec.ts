@@ -1038,6 +1038,12 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const rosterDownload = organizationCalendar.getByRole("link", { name: "Download roster CSV" });
   await expect(rosterDownload).toHaveAttribute("href", "/api/organization/profiles/export.csv");
   await expect(rosterDownload).toHaveAttribute("download", "choir_roster_export.csv");
+  await expect(
+    organizationCalendar.getByRole("link", { name: "Download RSVP CSV" }),
+  ).toHaveAttribute(
+    "href",
+    "/api/organization/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-export.csv?sort=section",
+  );
   await organizationCalendar.getByRole("button", { name: "Delete venue" }).click();
   const venueDeletion = organizationCalendar.getByRole("group", { name: "Delete Browser Hall" });
   await venueDeletion.getByRole("button", { name: "Keep venue" }).click();

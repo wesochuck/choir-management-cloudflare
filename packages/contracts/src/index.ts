@@ -245,6 +245,21 @@ export const organizationRosterConfigurationRequestSchema = z
 export const organizationRosterConfigurationResponseSchema =
   organizationRosterConfigurationRequestSchema.and(z.object({ requestId: requestIdSchema }));
 
+export const organizationEventRsvpExportDataSchema = z.object({
+  sections: z.array(organizationSectionSchema).min(1).max(50),
+  voiceParts: z.array(organizationVoicePartSchema).min(1).max(100),
+  eventTitle: z.string().max(500),
+  eventType: z.enum(["Performance", "Rehearsal"]),
+  singers: z.array(
+    z.object({
+      displayName: z.string().min(1).max(200),
+      isSectionLeader: z.boolean(),
+      rsvp: z.enum(["Yes", "No", "Pending"]),
+      voicePart: z.string().max(100),
+    }),
+  ),
+});
+
 export type OrganizationVenueRequest = z.infer<typeof organizationVenueRequestSchema>;
 export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
 export type OrganizationVenueDeleteResponse = z.infer<typeof organizationVenueDeleteResponseSchema>;
@@ -266,6 +281,7 @@ export type OrganizationCalendarSettings = z.infer<
 export type OrganizationRosterConfiguration = z.infer<
   typeof organizationRosterConfigurationRequestSchema
 >;
+export type OrganizationEventRsvpExportData = z.infer<typeof organizationEventRsvpExportDataSchema>;
 
 export const accountOrganizationSchema = z.object({
   canonicalHostname: z.string().min(1).max(253),

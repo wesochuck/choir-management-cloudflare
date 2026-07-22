@@ -2,6 +2,7 @@ import {
   organizationAttendanceResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
+  organizationEventRsvpExportDataSchema,
   organizationEventsResponseSchema,
   organizationCalendarSettingsResponseSchema,
   organizationRosterConfigurationRequestSchema,
@@ -15,6 +16,7 @@ import {
   type OrganizationAttendanceUpdate,
   type OrganizationEventRequest,
   type OrganizationEventArchiveResponse,
+  type OrganizationEventRsvpExportData,
   type OrganizationRsvp,
   type OrganizationRsvpRequest,
   type OrganizationVenue,
@@ -60,6 +62,20 @@ export async function listOrganizationEventAttendance(
   if (!response.ok) throw new Error("The Organization store rejected the attendance request.");
   return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(await response.json())
     .rows;
+}
+
+export async function readOrganizationEventRsvpExport(
+  env: Env,
+  organizationId: string,
+  eventId: string,
+): Promise<OrganizationEventRsvpExportData | null> {
+  const url = new URL("https://organization.internal/internal/calendar/event-rsvp-export");
+  url.searchParams.set("eventId", eventId);
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("The Organization store rejected the event RSVP export.");
+  return organizationEventRsvpExportDataSchema.parse(await response.json());
 }
 
 export async function updateOrganizationEventAttendance(

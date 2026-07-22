@@ -138,6 +138,12 @@ function EventActions(props: {
   if (!props.visible) return null;
   return (
     <div className="button-row">
+      <a
+        className="button button--secondary"
+        href={`/api/organization/events/${encodeURIComponent(props.event.id)}/rsvp-export.csv?sort=section`}
+      >
+        Download RSVP CSV
+      </a>
       <button
         className="button button--secondary"
         disabled={props.busy}

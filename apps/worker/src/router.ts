@@ -33,8 +33,12 @@ import {
 import { Hono, type Context } from "hono";
 import { requestId } from "hono/request-id";
 import { z } from "zod";
-import { isValidTimeZone } from "@choir/domain";
-import { renderRosterCsv } from "@choir/domain";
+import {
+  eventRsvpExportFilename,
+  isValidTimeZone,
+  renderEventRsvpCsv,
+  renderRosterCsv,
+} from "@choir/domain";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
@@ -48,6 +52,7 @@ import {
   listOrganizationVenues,
   listMemberSchedule,
   readOrganizationCalendarSettings,
+  readOrganizationEventRsvpExport,
   readOrganizationRosterConfiguration,
   setOrganizationEventRsvp,
   updateOrganizationCalendarSettings,
@@ -1938,6 +1943,60 @@ router.put("/api/organization/events/:eventId/rsvp", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization RSVP could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/events/:eventId/rsvp-export.csv", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const sort = context.req.query("sort") ?? "lastName";
+  if (!eventId.success || (sort !== "lastName" && sort !== "section")) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event and RSVP export sort are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const data = await readOrganizationEventRsvpExport(
+      context.env,
+      authorization.organizationId,
+      eventId.data,
+    );
+    if (!data) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "The Organization event was not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const csv = renderEventRsvpCsv({ ...data, sort });
+    return context.body(csv, 200, {
+      "cache-control": "private, no-store",
+      "content-disposition": `attachment; filename="${eventRsvpExportFilename(data.eventTitle, data.eventType)}"`,
+      "content-type": "text/csv; charset=utf-8",
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The event RSVP export could not be generated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

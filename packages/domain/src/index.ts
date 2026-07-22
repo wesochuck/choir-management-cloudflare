@@ -29,3 +29,5 @@ export {
 } from "./calendarTime";
 export { renderRosterCsv, type RosterCsvProfile } from "./rosterCsv";
 export { defaultRosterConfiguration } from "./rosterConfiguration";
+export { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
+export type { EventRsvpExportSort, EventRsvpStatus } from "./eventRsvpCsv";

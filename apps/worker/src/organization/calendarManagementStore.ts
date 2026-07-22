@@ -5,6 +5,7 @@ import {
   organizationRsvpRequestSchema,
   organizationRosterConfigurationRequestSchema,
   organizationVenueRequestSchema,
+  type OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { defaultRosterConfiguration, isValidTimeZone } from "@choir/domain";
 import { z } from "zod";
@@ -243,13 +244,9 @@ export function readOrganizationCalendarSettingsFromStore(
   return Response.json({ timezone });
 }
 
-export function readRosterConfigurationFromStore(
+function rosterConfigurationFromStore(
   storage: DurableObjectStorage,
-  organizationId: string | null,
-): Response {
-  if (!identityMatches(storage, organizationId)) {
-    return Response.json({ code: "organization_not_found" }, { status: 404 });
-  }
+): OrganizationRosterConfiguration {
   const raw = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly configuration: string }>(
       `SELECT roster_configuration_json AS configuration
@@ -259,10 +256,61 @@ export function readRosterConfigurationFromStore(
   try {
     const configuration: unknown = JSON.parse(raw);
     const parsed = organizationRosterConfigurationRequestSchema.safeParse(configuration);
-    return Response.json(parsed.success ? parsed.data : defaultRosterConfiguration);
+    return parsed.success
+      ? parsed.data
+      : organizationRosterConfigurationRequestSchema.parse(defaultRosterConfiguration);
   } catch {
-    return Response.json(defaultRosterConfiguration);
+    return organizationRosterConfigurationRequestSchema.parse(defaultRosterConfiguration);
   }
+}
+
+export function readRosterConfigurationFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  return Response.json(rosterConfigurationFromStore(storage));
+}
+
+export function readEventRsvpExportFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly eventId: string | null; readonly organizationId: string | null },
+): Response {
+  const eventId = z.uuid().safeParse(input.eventId);
+  if (!identityMatches(storage, input.organizationId) || !eventId.success) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+  const event = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly eventTitle: string;
+      readonly eventType: "Performance" | "Rehearsal";
+    }>(
+      "SELECT title AS eventTitle, type AS eventType FROM events WHERE id = ? LIMIT 1",
+      eventId.data,
+    )
+    .toArray()
+    .at(0);
+  if (!event) return Response.json({ code: "event_not_found" }, { status: 404 });
+  const singers = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly displayName: string;
+      readonly isSectionLeader: number;
+      readonly rsvp: "No" | "Pending" | "Yes";
+      readonly voicePart: string;
+    }>(
+      `SELECT p.display_name AS displayName, p.voice_part AS voicePart,
+         p.is_section_leader AS isSectionLeader, COALESCE(r.rsvp, 'Pending') AS rsvp
+       FROM profiles p
+       LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?`,
+      eventId.data,
+    )
+    .toArray()
+    .map((singer) => ({ ...singer, isSectionLeader: singer.isSectionLeader === 1 }));
+  return Response.json({ ...event, ...rosterConfigurationFromStore(storage), singers });
 }
 
 function updateRosterConfiguration(
