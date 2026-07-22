@@ -3,6 +3,7 @@ import {
   organizationMusicImportResponseSchema,
   organizationMusicPieceResponseSchema,
   organizationMusicPiecesResponseSchema,
+  privateFileResponseSchema,
   type OrganizationMusicPiece,
   type OrganizationMusicPieceRequest,
 } from "@choir/contracts";
@@ -151,6 +152,69 @@ afterEach(async () => {
 });
 
 describe("Organization music catalog", () => {
+  it("uploads, attaches, plays, downloads, and removes a private learning track", async () => {
+    const cookie = await signIn();
+    const piece = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Track Work",
+        })
+      ).json(),
+    );
+    const bytes = new TextEncoder().encode("audio-test-data");
+    const fileId = crypto.randomUUID();
+    const uploadResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        body: bytes,
+        headers: {
+          "content-length": String(bytes.byteLength),
+          "content-type": "audio/mpeg",
+          "x-file-name": encodeURIComponent("tutti-track.mp3"),
+        },
+        method: "PUT",
+      }),
+    );
+    expect(uploadResponse.status).toBe(201);
+    expect(privateFileResponseSchema.parse(await uploadResponse.json())).toMatchObject({
+      contentType: "audio/mpeg",
+      fileName: "tutti-track.mp3",
+      id: fileId,
+    });
+
+    const attached = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/music/${piece.id}`,
+          cookie,
+          { ...requestFrom(piece), trackFileIds: { tutti: fileId } },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(attached.trackFileIds).toEqual({ tutti: fileId });
+
+    const playback = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${fileId}`, cookie),
+    );
+    expect(playback.status).toBe(200);
+    expect(playback.headers.get("content-type")).toBe("audio/mpeg");
+    expect(new TextDecoder().decode(await playback.arrayBuffer())).toBe("audio-test-data");
+
+    const removed = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/music/${piece.id}`,
+          cookie,
+          { ...requestFrom(attached), trackFileIds: {} },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(removed.trackFileIds).toEqual({});
+  });
+
   it("imports a bounded CSV atomically and exports the baseline-compatible contract", async () => {
     const cookie = await signIn();
     const csv = [

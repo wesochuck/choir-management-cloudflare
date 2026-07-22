@@ -12,8 +12,11 @@ import {
   getOrganizationRosterConfiguration,
   importOrganizationMusicCsv,
   listOrganizationMusic,
+  uploadPrivateOrganizationFile,
   updateOrganizationMusicPiece,
 } from "../auth/api";
+
+const maximumAudioBytes = 20 * 1024 * 1024;
 
 const emptyPiece: OrganizationMusicPieceRequest = {
   arranger: "",
@@ -159,6 +162,155 @@ function SectionBuckets({
   );
 }
 
+function trackKeys(
+  piece: OrganizationMusicPiece,
+  configuration: OrganizationRosterConfiguration,
+): string[] {
+  return [
+    ...new Set([
+      "tutti",
+      ...configuration.sections.map(({ code }) => code),
+      ...configuration.voiceParts.map(({ label }) => label),
+      ...Object.keys(piece.trackFileIds),
+    ]),
+  ];
+}
+
+function trackDescription(key: string, configuration: OrganizationRosterConfiguration): string {
+  if (key === "tutti") return "Full mix";
+  return (
+    configuration.sections.find(({ code }) => code === key)?.name ??
+    configuration.voiceParts.find(({ label }) => label === key)?.fullName ??
+    "Custom learning track"
+  );
+}
+
+function MusicAudioTracks({
+  configuration,
+  onSaved,
+  piece,
+}: {
+  readonly configuration: OrganizationRosterConfiguration;
+  readonly onSaved: (piece: OrganizationMusicPiece, message: string) => void;
+  readonly piece: OrganizationMusicPiece;
+}) {
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function saveMapping(key: string, fileId: string | null): Promise<void> {
+    const mapping = fileId
+      ? { ...piece.trackFileIds, [key]: fileId }
+      : Object.fromEntries(Object.entries(piece.trackFileIds).filter(([label]) => label !== key));
+    const saved = await updateOrganizationMusicPiece(piece.id, {
+      ...requestFrom(piece),
+      trackFileIds: mapping,
+    });
+    onSaved(saved, fileId ? `${key} learning track attached.` : `${key} learning track removed.`);
+  }
+
+  async function upload(key: string, file: File): Promise<void> {
+    if (!file.type.startsWith("audio/")) {
+      setError("Learning tracks must be valid audio files.");
+      return;
+    }
+    if (file.size <= 0 || file.size > maximumAudioBytes) {
+      setError("Learning tracks must be larger than 0 bytes and no more than 20 MB.");
+      return;
+    }
+    setActiveKey(key);
+    setError(null);
+    try {
+      const uploaded = await uploadPrivateOrganizationFile(file);
+      await saveMapping(key, uploaded.id);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The learning track could not be uploaded and attached.",
+      );
+    } finally {
+      setActiveKey(null);
+    }
+  }
+
+  async function remove(key: string): Promise<void> {
+    setActiveKey(key);
+    setError(null);
+    try {
+      await saveMapping(key, null);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The learning track could not be removed.",
+      );
+    } finally {
+      setActiveKey(null);
+    }
+  }
+
+  return (
+    <fieldset className="music-audio-tracks">
+      <legend>Private learning tracks</legend>
+      <p className="field-help">
+        Attach a full mix, section, or voice-part track. Organization members can play or download
+        these files after signing in.
+      </p>
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="music-audio-track-list">
+        {trackKeys(piece, configuration).map((key) => {
+          const fileId = piece.trackFileIds[key];
+          const busy = activeKey === key;
+          return (
+            <div className="music-audio-track" key={key}>
+              <span>
+                <strong>{key === "tutti" ? "Tutti" : key}</strong>
+                <small>{trackDescription(key, configuration)}</small>
+              </span>
+              {fileId ? (
+                <div className="music-audio-track__controls">
+                  <audio controls preload="metadata" src={`/api/organization/files/${fileId}`}>
+                    <track kind="captions" />
+                  </audio>
+                  <a download href={`/api/organization/files/${fileId}`}>
+                    Download
+                  </a>
+                  <button
+                    className="button button--danger"
+                    disabled={busy}
+                    type="button"
+                    onClick={() => void remove(key)}
+                  >
+                    {busy ? "Removing…" : "Remove"}
+                  </button>
+                </div>
+              ) : (
+                <label className="button button--secondary">
+                  {busy ? "Uploading…" : "Upload audio"}
+                  <input
+                    accept="audio/*"
+                    disabled={busy}
+                    type="file"
+                    onChange={(event) => {
+                      const file = event.target.files?.item(0);
+                      if (file) void upload(key, file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 function MusicDeleteControls({
   busy,
   childCount,
@@ -280,6 +432,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     [editingId, pieces],
   );
   const childCount = editingId ? pieces.filter(({ parentId }) => parentId === editingId).length : 0;
+  const selectedPiece = pieces.find(({ id }) => id === editingId) ?? null;
 
   function selectPiece(selected: OrganizationMusicPiece): void {
     setEditingId(selected.id);
@@ -607,6 +760,19 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                 setPiece((current) => ({ ...current, sectionBuckets }));
               }}
             />
+            {selectedPiece ? (
+              <MusicAudioTracks
+                configuration={roster}
+                piece={selectedPiece}
+                onSaved={(saved, successMessage) => {
+                  setPieces((current) =>
+                    current.map((candidate) => (candidate.id === saved.id ? saved : candidate)),
+                  );
+                  selectPiece(saved);
+                  setMessage(successMessage);
+                }}
+              />
+            ) : null}
             {editingId ? (
               <p className="field-help">
                 Private tracks linked: {String(Object.keys(piece.trackFileIds).length)} · Movements:{" "}

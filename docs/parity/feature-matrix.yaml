@@ -1483,10 +1483,17 @@
         "behavior": "music reference-track upload, metadata, streaming, and offline access",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/services/musicLibraryService.ts; src/services/offlineMediaStore.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/src/organization/musicStore.ts",
+            "apps/worker/test/files.integration.test.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/MusicCatalog.tsx",
+          ],
       },
       {
         "id": "file.singer-resource",

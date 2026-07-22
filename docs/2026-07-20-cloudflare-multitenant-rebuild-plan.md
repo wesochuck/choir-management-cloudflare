@@ -75,7 +75,7 @@ milestone complete.
 | `apps/web/src/account/SeatingManager.tsx`                      | Administrator event chart layout and assignment workflow                             |
 | `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                   |
 | `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory       |
-| `apps/web/src/account/MusicCatalog.tsx`                        | Manager music catalog, movement relationships, metadata, and deletion confirmation   |
+| `apps/web/src/account/MusicCatalog.tsx`                        | Manager catalog, CSV, movement, private learning-track, and deletion workflows       |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |

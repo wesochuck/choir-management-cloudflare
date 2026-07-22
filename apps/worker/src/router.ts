@@ -863,7 +863,7 @@ router.get("/api/organization/files/:fileId", async (context) => {
     }
     context.header(
       "content-disposition",
-      `attachment; filename*=UTF-8''${encodeURIComponent(file.metadata.fileName)}`,
+      `${file.metadata.contentType.startsWith("audio/") ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.metadata.fileName)}`,
     );
     context.header("content-length", String(file.metadata.sizeBytes));
     context.header("content-type", file.metadata.contentType);

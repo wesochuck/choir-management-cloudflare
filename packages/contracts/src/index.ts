@@ -727,7 +727,7 @@ export const privateFileResponseSchema = z.object({
     .number()
     .int()
     .nonnegative()
-    .max(10 * 1024 * 1024),
+    .max(20 * 1024 * 1024),
   uploadedAt: z.iso.datetime(),
 });
 

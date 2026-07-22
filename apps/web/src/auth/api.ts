@@ -43,6 +43,7 @@ import {
   platformMfaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
   platformOrganizationsResponseSchema,
+  privateFileResponseSchema,
   platformRecoveryCodesResponseSchema,
   problemDetailsSchema,
   type AccountOrganization,
@@ -85,6 +86,7 @@ import {
   type PlatformFleetSchemaStatusResponse,
   type PlatformJobDeadLettersResponse,
   type PlatformOrganizationContextResponse,
+  type PrivateFileResponse,
   type PlatformOrganizationsResponse,
   type PlatformMfaEnrollmentResponse,
   type PlatformMfaStatusResponse,
@@ -329,6 +331,19 @@ export async function importOrganizationMusicCsv(csv: string): Promise<number> {
     method: "POST",
   });
   return organizationMusicImportResponseSchema.parse(await response.json()).imported;
+}
+
+export async function uploadPrivateOrganizationFile(file: File): Promise<PrivateFileResponse> {
+  const fileId = crypto.randomUUID();
+  const response = await request(`/api/organization/files/${fileId}`, {
+    body: file,
+    headers: {
+      "content-type": file.type,
+      "x-file-name": encodeURIComponent(file.name),
+    },
+    method: "PUT",
+  });
+  return privateFileResponseSchema.parse(await response.json());
 }
 
 export async function listOrganizationVenues(

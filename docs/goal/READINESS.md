@@ -239,7 +239,10 @@ Verified over public HTTPS on July 20–22, 2026:
   CSV export preserves the baseline columns and adds spreadsheet-formula safety. Bounded CSV import
   validates quoted and multiline content, current section codes, dates, counts, and durations before
   one atomic Organization-store transaction; it retains existing entries and creates top-level
-  works. Recent-performance metadata, audio attachment/player/offline behavior, and the dedicated
+  works. Saved works and movements expose Tutti, section, and voice-part learning-track slots;
+  managers can upload/replace or detach private audio files up to 20 MB, and signed-in Organization
+  members can play or download attached tracks through the hostname-authorized R2 boundary.
+  Recent-performance metadata, in-app offline caching, orphan-file reclamation, and the dedicated
   set-list manager remain parity follow-up work, so music and set lists remain partial.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
@@ -346,7 +349,7 @@ Verified over public HTTPS on July 20–22, 2026:
 - `npm test`: 10 files / 27 tests passed, including managed product-domain cookie scoping,
   staging-bootstrap safety, IANA timezone/DST conversion, adversarial signed-link coverage, and
   seating formation behavior.
-- `npm run test:integration`: 16 files / 49 workerd tests passed.
+- `npm run test:integration`: 16 files / 50 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed, including seating management, linked-member Profile editing,

@@ -242,6 +242,76 @@ footer {
   font-weight: 750;
 }
 
+.music-audio-tracks {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.music-audio-tracks legend {
+  padding: 0 0.35rem;
+  font-weight: 700;
+}
+
+.music-audio-track-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.music-audio-track {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.35fr) minmax(12rem, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.music-audio-track > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.music-audio-track small {
+  color: var(--color-text-muted);
+}
+
+.music-audio-track label {
+  position: relative;
+}
+
+.music-audio-track label:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.music-audio-track label input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.music-audio-track__controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.music-audio-track__controls audio {
+  min-width: 10rem;
+  max-width: 100%;
+  flex: 1;
+}
+
 .directory-grid p {
   margin-top: 0.5rem;
   overflow-wrap: anywhere;
@@ -1290,6 +1360,15 @@ footer {
 }
 
 @media (max-width: 34rem) {
+  .music-audio-track {
+    grid-template-columns: 1fr;
+  }
+
+  .music-audio-track__controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .site-header {
     align-items: flex-start;
     flex-direction: column;

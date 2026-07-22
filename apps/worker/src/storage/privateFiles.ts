@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 
-export const MAX_PRIVATE_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_PRIVATE_FILE_BYTES = 20 * 1024 * 1024;
 
 function isSafePrivateFileName(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
