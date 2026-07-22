@@ -73,6 +73,7 @@ async function processBatch(
   await processDeliveryBatch(batch, {
     EXTERNAL_EFFECTS_MODE: externalEffectsMode,
     ORGANIZATION_STORE: organizationStore,
+    SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
   });
   const result: unknown = await getQueueResult(batch, executionContext);
   return queueResultSchema.parse(result);

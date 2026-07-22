@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   canTransitionTicketPurchase,
   remainingTicketCapacity,
+  renderTicketWillCallCsv,
+  ticketWillCallFilename,
   ticketProcessingFeeCents,
   ticketUnitPriceCents,
 } from "./ticketing";
@@ -37,5 +39,34 @@ describe("ticketing rules", () => {
     expect(canTransitionTicketPurchase("paid", "refunded")).toBe(true);
     expect(canTransitionTicketPurchase("refunded", "paid")).toBe(false);
     expect(canTransitionTicketPurchase("expired", "paid")).toBe(false);
+  });
+
+  it("renders stable last-name-sorted will-call CSV without spreadsheet formulas", () => {
+    const csv = renderTicketWillCallCsv([
+      {
+        amountPaidCents: 5000,
+        buyerEmail: "=IMPORTXML(example.test)",
+        buyerName: "=Danger Adams",
+        createdAt: "2026-07-22T00:00:00.000Z",
+        id: "order-b",
+        quantity: 2,
+        status: "paid",
+      },
+      {
+        amountPaidCents: 2500,
+        buyerEmail: "zoe@example.test",
+        buyerName: "Zoe Baker",
+        createdAt: "2026-07-21T00:00:00.000Z",
+        id: "order-a",
+        quantity: 1,
+        status: "paid",
+      },
+    ]);
+    expect(csv).toContain('"\'=IMPORTXML(example.test)"');
+    expect(csv).toContain('"\'=Danger Adams"');
+    expect(csv.indexOf("=Danger Adams")).toBeLessThan(csv.indexOf("Zoe Baker"));
+    expect(ticketWillCallFilename("Winter Concert!", "event-id")).toBe(
+      "will-call-winter-concert.csv",
+    );
   });
 });

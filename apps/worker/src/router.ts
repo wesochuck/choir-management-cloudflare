@@ -29,6 +29,8 @@ import {
   publicDomainRegistrationRequestSchema,
   publicWebsiteSettingsRequestSchema,
   ticketCheckoutRequestSchema,
+  ticketBundleRequestSchema,
+  ticketScanRequestSchema,
   type HealthResponse,
   type CalendarFeedUrlsResponse,
   type OrganizationContextResponse,
@@ -193,10 +195,16 @@ import {
 } from "./organization/organizationPublicWebsite";
 import {
   createPublicTicketCheckout,
+  deleteOrganizationTicketBundle,
+  listOrganizationTicketBundles,
   listOrganizationTicketOrders,
+  readOrganizationTicketWillCallCsv,
   readPublicTicketPurchase,
+  resendOrganizationTicketConfirmation,
   refundFakeTicketPurchase,
+  saveOrganizationTicketBundle,
   TicketingError,
+  validateOrganizationTicketScan,
 } from "./organization/organizationTicketing";
 
 interface WorkerHonoEnvironment {
@@ -2212,6 +2220,223 @@ router.get("/api/organization/tickets/orders", async (context) => {
   }
 });
 
+router.get("/api/organization/tickets/bundles", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const bundles = await listOrganizationTicketBundles(context.env, authorization.organizationId);
+    return context.json({ bundles, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Ticket bundles are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+async function saveTicketBundleRoute(context: Context<WorkerHonoEnvironment>, bundleId: string) {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const bundle = ticketBundleRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!bundle.success || !z.uuid().safeParse(bundleId).success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid ticket bundle details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const saved = await saveOrganizationTicketBundle(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      bundleId,
+      bundle.data,
+    );
+    return context.json({ ...saved, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_bundle_unavailable",
+        message:
+          error instanceof TicketingError ? error.message : "The ticket bundle could not be saved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && error.status === 409 ? 409 : 503,
+    );
+  }
+}
+
+router.post("/api/organization/tickets/bundles", (context) =>
+  saveTicketBundleRoute(context, crypto.randomUUID()),
+);
+
+router.put("/api/organization/tickets/bundles/:bundleId", (context) =>
+  saveTicketBundleRoute(context, context.req.param("bundleId")),
+);
+
+router.delete("/api/organization/tickets/bundles/:bundleId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const bundleId = z.uuid().safeParse(context.req.param("bundleId"));
+  if (!bundleId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid ticket bundle is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    await deleteOrganizationTicketBundle(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      bundleId.data,
+    );
+    return context.json({ deleted: true, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_bundle_unavailable",
+        message:
+          error instanceof TicketingError
+            ? error.message
+            : "The ticket bundle could not be deleted.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && error.status === 404
+        ? 404
+        : error instanceof TicketingError && error.status === 409
+          ? 409
+          : 503,
+    );
+  }
+});
+
+router.get("/api/organization/tickets/will-call", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.query("eventId"));
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid ticketed event is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const csv = await readOrganizationTicketWillCallCsv(
+      context.env,
+      authorization.organizationId,
+      eventId.data,
+    );
+    context.header("content-disposition", `attachment; filename="${csv.filename}"`);
+    context.header("content-type", "text/csv; charset=utf-8");
+    return context.body(csv.content);
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_export_unavailable",
+        message:
+          error instanceof TicketingError
+            ? error.message
+            : "The will-call list is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && error.status === 404 ? 404 : 503,
+    );
+  }
+});
+
+router.post("/api/organization/tickets/scan", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const scan = ticketScanRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!scan.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event and ticket credential are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const result = await validateOrganizationTicketScan(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      scan.data.eventId,
+      scan.data.token,
+    );
+    return context.json({ ...result, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_scan_unavailable",
+        message:
+          error instanceof TicketingError
+            ? error.message
+            : "Ticket validation is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && error.status === 404 ? 404 : 503,
+    );
+  }
+});
+
 router.post("/api/organization/tickets/:purchaseId/refund", async (context) => {
   const authorization = await authorizeCalendarRoute(context, true);
   if (!authorization.ok) {
@@ -2250,6 +2475,55 @@ router.post("/api/organization/tickets/:purchaseId/refund", async (context) => {
           error instanceof TicketingError
             ? error.message
             : "The ticket order could not be refunded.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && error.status === 404
+        ? 404
+        : error instanceof TicketingError && error.status === 409
+          ? 409
+          : 503,
+    );
+  }
+});
+
+router.post("/api/organization/tickets/:purchaseId/confirmation", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const purchaseId = z.uuid().safeParse(context.req.param("purchaseId"));
+  if (!purchaseId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid ticket order is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    await resendOrganizationTicketConfirmation(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      purchaseId.data,
+    );
+    return context.json({ queued: true, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_confirmation_unavailable",
+        message:
+          error instanceof TicketingError
+            ? error.message
+            : "The ticket confirmation could not be queued.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       error instanceof TicketingError && error.status === 404

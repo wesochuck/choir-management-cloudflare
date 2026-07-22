@@ -44,3 +44,75 @@ export function canTransitionTicketPurchase(
     (current === "paid" && next === "refunded")
   );
 }
+
+export interface TicketWillCallRow {
+  readonly amountPaidCents: number;
+  readonly buyerEmail: string;
+  readonly buyerName: string;
+  readonly createdAt: string;
+  readonly id: string;
+  readonly quantity: number;
+  readonly status: "expired" | "paid" | "pending" | "refunded";
+  readonly type?: "Bundle" | "Standard";
+}
+
+function csvCell(value: string | number): string {
+  let text = String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function buyerSortKey(name: string): readonly [string, string] {
+  const parts = name.trim().split(/\s+/);
+  return [
+    (parts.at(-1) ?? "").toLocaleLowerCase(),
+    parts.slice(0, -1).join(" ").toLocaleLowerCase(),
+  ];
+}
+
+export function renderTicketWillCallCsv(rows: readonly TicketWillCallRow[]): string {
+  const header = [
+    "ID",
+    "Buyer Name",
+    "Buyer Email",
+    "Quantity",
+    "Paid",
+    "Status",
+    "Created",
+    "Type",
+  ];
+  const sorted = [...rows].sort((left, right) => {
+    const leftKey = buyerSortKey(left.buyerName);
+    const rightKey = buyerSortKey(right.buyerName);
+    return (
+      leftKey[0].localeCompare(rightKey[0]) ||
+      leftKey[1].localeCompare(rightKey[1]) ||
+      left.id.localeCompare(right.id)
+    );
+  });
+  return `${[
+    header,
+    ...sorted.map((row) => [
+      row.id,
+      row.buyerName,
+      row.buyerEmail,
+      row.quantity,
+      (row.amountPaidCents / 100).toFixed(2),
+      row.status,
+      row.createdAt,
+      row.type ?? "Standard",
+    ]),
+  ]
+    .map((cells) => cells.map(csvCell).join(","))
+    .join("\r\n")}\r\n`;
+}
+
+export function ticketWillCallFilename(eventTitle: string, eventId: string): string {
+  const safeTitle = eventTitle
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 80);
+  return `will-call-${safeTitle || eventId}.csv`;
+}

@@ -69,6 +69,15 @@ interface MediaRow {
   readonly sizeBytes: number;
 }
 
+interface PublicTicketBundleRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly capacity: number | null;
+  readonly id: string;
+  readonly priceCents: number;
+  readonly saleEndAt: string;
+  readonly title: string;
+}
+
 function identity(storage: DurableObjectStorage): IdentityRow | undefined {
   return storage.sql
     .exec<IdentityRow>(
@@ -224,6 +233,29 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
     )
     .toArray()
     .map((event) => ({ ...event, isTicketingEnabled: event.isTicketingEnabled === 1 }));
+  const publicEventIds = new Set(performances.map(({ id }) => id));
+  const ticketBundles = storage.sql
+    .exec<PublicTicketBundleRow>(
+      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt
+       FROM ticket_bundles WHERE is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 100`,
+    )
+    .toArray()
+    .map((bundle) => ({
+      ...bundle,
+      eventIds: storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly eventId: string }>(
+          `SELECT event_id AS eventId FROM ticket_bundle_events
+           WHERE bundle_id = ? ORDER BY sort_order, event_id`,
+          bundle.id,
+        )
+        .toArray()
+        .map(({ eventId }) => eventId),
+    }))
+    .filter(
+      (bundle) =>
+        bundle.eventIds.length > 0 &&
+        bundle.eventIds.every((eventId) => publicEventIds.has(eventId)),
+    );
   const mediaIds = new Set(
     [
       settings.heroFileId,
@@ -258,6 +290,7 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
         logoFileId: settings.logoFileId,
         showBrandingHeaderFooter: settings.showBrandingHeaderFooter,
       },
+      ticketBundles,
       timezone: organization.timezone,
     },
     version,

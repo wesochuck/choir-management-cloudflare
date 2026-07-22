@@ -388,6 +388,89 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON ticket_purchases(created_at DESC, id DESC)`,
     ],
   },
+  {
+    version: 21,
+    statements: [
+      `CREATE TABLE ticket_scan_events (
+        id TEXT PRIMARY KEY,
+        purchase_id TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        actor_user_id TEXT NOT NULL,
+        result TEXT NOT NULL CHECK (result IN ('valid', 'not_found', 'not_paid', 'wrong_event')),
+        request_id TEXT NOT NULL UNIQUE,
+        occurred_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_ticket_scan_events_event
+       ON ticket_scan_events(event_id, occurred_at DESC, id DESC)`,
+    ],
+  },
+  {
+    version: 22,
+    statements: [
+      `CREATE TABLE ticket_bundles (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
+        capacity INTEGER CHECK (capacity IS NULL OR capacity > 0),
+        sale_end_at TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE TABLE ticket_bundle_events (
+        bundle_id TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        sort_order INTEGER NOT NULL CHECK (sort_order >= 0),
+        PRIMARY KEY (bundle_id, event_id)
+      ) STRICT`,
+      `CREATE INDEX idx_ticket_bundle_events_event
+       ON ticket_bundle_events(event_id, bundle_id)`,
+      "ALTER TABLE ticket_purchases ADD COLUMN bundle_id TEXT",
+      "ALTER TABLE ticket_purchases ADD COLUMN bundle_title TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE ticket_purchases ADD COLUMN included_events_json TEXT NOT NULL DEFAULT '[]'",
+      `CREATE INDEX idx_ticket_purchases_bundle_status
+       ON ticket_purchases(bundle_id, status, created_at, id)`,
+      `CREATE TABLE ticket_bundle_allocations (
+        purchase_id TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL CHECK (quantity BETWEEN 1 AND 10),
+        PRIMARY KEY (purchase_id, event_id)
+      ) STRICT`,
+      `CREATE INDEX idx_ticket_bundle_allocations_event
+       ON ticket_bundle_allocations(event_id, purchase_id)`,
+    ],
+  },
+  {
+    version: 23,
+    statements: [
+      `CREATE TABLE ticket_notifications (
+        id TEXT PRIMARY KEY,
+        purchase_id TEXT NOT NULL,
+        event_id TEXT,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK (kind IN ('confirmation', 'reminder')),
+        destination TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        content_markdown TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'sent', 'failed', 'suppressed')),
+        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        provider_message_id TEXT,
+        failure_detail TEXT NOT NULL DEFAULT '',
+        scheduled_for TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sent_at TEXT
+      ) STRICT`,
+      `CREATE INDEX idx_ticket_notifications_status
+       ON ticket_notifications(status, scheduled_for, id)`,
+      `CREATE INDEX idx_ticket_notifications_purchase
+       ON ticket_notifications(purchase_id, kind, event_id)`,
+      `UPDATE scheduler_state
+       SET next_due_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+1 hour'),
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE singleton = 1`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

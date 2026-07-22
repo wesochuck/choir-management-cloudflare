@@ -67,6 +67,9 @@ import {
   organizationTicketOrdersResponseSchema,
   publicTicketPurchaseResponseSchema,
   ticketCheckoutResponseSchema,
+  ticketBundleSchema,
+  ticketBundlesResponseSchema,
+  ticketScanResponseSchema,
   type AccountOrganization,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
@@ -125,8 +128,12 @@ import {
   type PublicWebsiteSettings,
   type PublicWebsiteSettingsRequest,
   type OrganizationTicketOrder,
-  type PublicTicketPurchase,
+  type PublicTicketReceipt,
   type TicketCheckoutRequest,
+  type TicketBundle,
+  type TicketBundleRequest,
+  type TicketScanRequest,
+  type TicketScanResult,
 } from "@choir/contracts";
 
 export class AuthApiError extends Error {
@@ -452,13 +459,45 @@ export async function createPublicTicketCheckout(checkout: TicketCheckoutRequest
 export async function getPublicTicketPurchase(
   token: string,
   signal?: AbortSignal,
-): Promise<PublicTicketPurchase> {
+): Promise<PublicTicketReceipt> {
   const response = await fetch(`/api/public/tickets/order?token=${encodeURIComponent(token)}`, {
     headers: { accept: "application/json" },
     signal: signal ?? null,
   });
   if (!response.ok) throw await responseError(response);
   return publicTicketPurchaseResponseSchema.parse(await response.json());
+}
+
+export async function validateTicketScan(scan: TicketScanRequest): Promise<TicketScanResult> {
+  const response = await request("/api/organization/tickets/scan", {
+    body: JSON.stringify(scan),
+    method: "POST",
+  });
+  return ticketScanResponseSchema.parse(await response.json());
+}
+
+export async function listTicketBundles(signal?: AbortSignal): Promise<readonly TicketBundle[]> {
+  const response = await request("/api/organization/tickets/bundles", { signal: signal ?? null });
+  return ticketBundlesResponseSchema.parse(await response.json()).bundles;
+}
+
+export async function saveTicketBundle(
+  bundle: TicketBundleRequest,
+  bundleId?: string,
+): Promise<TicketBundle> {
+  const response = await request(
+    bundleId
+      ? `/api/organization/tickets/bundles/${encodeURIComponent(bundleId)}`
+      : "/api/organization/tickets/bundles",
+    { body: JSON.stringify(bundle), method: bundleId ? "PUT" : "POST" },
+  );
+  return ticketBundleSchema.parse(await response.json());
+}
+
+export async function deleteTicketBundle(bundleId: string): Promise<void> {
+  await request(`/api/organization/tickets/bundles/${encodeURIComponent(bundleId)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function listOrganizationTicketOrders(
@@ -476,6 +515,12 @@ export async function refundOrganizationTicketOrder(
     { method: "POST" },
   );
   return organizationTicketOrderSchema.parse(await response.json());
+}
+
+export async function resendTicketConfirmation(purchaseId: string): Promise<void> {
+  await request(`/api/organization/tickets/${encodeURIComponent(purchaseId)}/confirmation`, {
+    method: "POST",
+  });
 }
 
 export async function setOrganizationProfilePhoto(

@@ -49,9 +49,12 @@ import {
   readPublicWebsiteSettingsFromStore,
 } from "./publicWebsiteStore";
 import {
+  listTicketBundlesFromStore,
   listTicketOrdersFromStore,
   manageTicketingInStore,
+  readTicketNotificationJobFromStore,
   readTicketPurchaseFromStore,
+  readTicketWillCallFromStore,
 } from "./ticketingStore";
 
 const completionSchema = z.object({
@@ -1324,11 +1327,21 @@ function dispatchContentGetRequest(
       return readPublicWebsiteSettingsFromStore(storage, organizationId);
     case "/internal/ticketing/orders":
       return listTicketOrdersFromStore(storage, organizationId);
+    case "/internal/ticketing/bundles":
+      return listTicketBundlesFromStore(storage, organizationId);
     case "/internal/ticketing/purchase":
       return readTicketPurchaseFromStore(
         storage,
         organizationId,
         url.searchParams.get("purchaseId"),
+      );
+    case "/internal/ticketing/will-call":
+      return readTicketWillCallFromStore(storage, organizationId, url.searchParams.get("eventId"));
+    case "/internal/ticketing/notification-job":
+      return readTicketNotificationJobFromStore(
+        storage,
+        organizationId,
+        url.searchParams.get("jobId"),
       );
     default:
       return null;

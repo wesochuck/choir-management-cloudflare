@@ -70,7 +70,10 @@ export {
 export {
   canTransitionTicketPurchase,
   remainingTicketCapacity,
+  renderTicketWillCallCsv,
   ticketProcessingFeeCents,
   ticketUnitPriceCents,
+  ticketWillCallFilename,
   type TicketPriceInput,
+  type TicketWillCallRow,
 } from "./ticketing";

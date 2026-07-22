@@ -146,9 +146,13 @@
         "path": "/tickets/bundle/:bundleId",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:265; src/views/PublicBundlePurchaseView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "route.public.ticket-event",
@@ -498,9 +502,13 @@
         "path": "/admin/tickets/scan",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:574; src/views/admin/TicketScanView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/TicketingManager.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.donations",
@@ -786,9 +794,14 @@
         "path": "/api/checkout/create-bundle-session",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1507",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.checkout-dues",
@@ -850,9 +863,13 @@
         "path": "/api/admin/refund-bundle",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1519",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.refund-donation",
@@ -870,9 +887,14 @@
         "path": "/api/admin/resend-ticket-confirmation",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1522",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.ticket-validate",
@@ -880,9 +902,14 @@
         "path": "/api/tickets/validate",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1524",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.ticket-scan-context",
@@ -890,9 +917,13 @@
         "path": "/api/tickets/scan-context",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1526",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/TicketingManager.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.player-playlist",
@@ -1115,9 +1146,14 @@
         "task": "ticket-buyer-reminders",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/ticketBuyerReminderTask.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "task.cleanup",
@@ -1211,9 +1247,14 @@
         "contract": "will-call",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "src/views/admin/ticketing/TicketingWillCallTab.tsx:175",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/domain/src/ticketing.ts",
+            "packages/domain/src/ticketing.test.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
     ],
   "signedFlows":
@@ -1288,9 +1329,14 @@
         "flow": "ticket-scan",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "planned",
+        "status": "implemented",
         "baselineEvidence": "test/ticketScanValidation.test.ts; test/pb-hooks/ticketing.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
     ],
   "domainWorkflows":

@@ -41,6 +41,7 @@ function publicWebsitePayload(heroHeadline: string): PublicWebsiteProjectionPayl
       logoFileId: null,
       showBrandingHeaderFooter: false,
     },
+    ticketBundles: [],
     timezone: "UTC",
   };
 }

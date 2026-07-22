@@ -676,17 +676,24 @@ cross-Organization isolation, exclusion of private event notes, public media cac
 audit history, and repeat publication. Browser visual proof remains intentionally deferred to save
 goal-run tokens; public ticket, donation, and audition modules are still separate parity work.
 
-The ticket-sales foundation is implemented and deployed to staging on Organization schema
-version 20. Managers can configure ticket pricing, capacity, and doors-open time per published
-performance; public canonical and custom hosts expose catalog, purchase, and signed receipt views.
-The Organization store enforces capacity atomically, binds idempotency to the complete checkout
-request, keeps buyer email out of the public receipt, and audits fulfillment/refund transitions.
-Manager order history and fake-mode refunds are hostname-authorized; receipt tokens are
-purpose-separated and Organization-bound. Local and staging fake mode visibly states that no card
-was charged, while disabled, sandbox, and all production effects fail closed. Stripe Connect account
-routing, direct-charge checkout/webhooks, bundles, scanning, will-call CSV, confirmation delivery,
-reminders, and real-provider refunds remain in the ticketing parity slice and prevent ticketing from
-being classified as complete.
+The provider-independent ticket-sales baseline is implemented locally on Organization schema version
+23; schema version 20 remains the last deployed ticketing checkpoint until the next staging
+deployment. Managers can configure ticket pricing, capacity, doors-open time, and versioned
+multi-performance bundles; public canonical and custom hosts expose catalog, purchase, and signed
+receipt views entirely from the published projection. The Organization store enforces capacity
+atomically, binds idempotency to the complete checkout request, keeps buyer email out of the public
+receipt, and audits fulfillment/refund transitions. Manager order history, confirmation resend,
+fake-mode refunds, exact-event ticket validation, and formula-safe will-call CSV are
+hostname-authorized. Bundle orders atomically reserve capacity at every included performance, and
+their signed credential validates at each of those performances. Confirmation and per-performance
+24-hour reminder email use the durable Organization outbox and the existing fake-safe provider
+adapter. Receipt and scan tokens are purpose-separated, Organization-bound, and valid through the
+final included performance. The full non-browser gate on July 22, 2026 passed with 51 unit tests, 59
+workerd integration tests, formatting, lint, types, build, parity validation, and zero high-severity
+audit findings. Local and staging fake mode visibly states that no card was charged, while disabled,
+sandbox, and all production effects fail closed. Stripe Connect account routing, direct-charge
+checkout/webhooks, provider refund qualification, and real Brevo delivery qualification remain in
+the ticketing parity slice and prevent ticketing from being classified as complete.
 
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
@@ -727,11 +734,12 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 5 with public ticket/donation/audition modules, specific-Profile and
-   commerce-derived communications audiences, provider-feedback suppression, and external Brevo
-   sandbox qualification, then proceed through remaining member workflow parity. Music audio/player,
-   dedicated set-list management, resources, roster CSV, seating, and the structured Public Website
-   baseline are implemented. Validate independently attached public domains separately from the
-   product-owned canonical namespace. Do not add whole-archive import; ADR 0015 deliberately
-   excludes it from v1.
+3. Bind the completed provider-independent ticketing baseline to Stripe Connect test credentials and
+   webhook verification when those credentials are intentionally supplied. Continue Milestone 5 with
+   public donation/audition modules, specific-Profile and commerce-derived communications audiences,
+   provider-feedback suppression, and external Brevo sandbox qualification, then proceed through
+   remaining member workflow parity. Music audio/player, dedicated set-list management, resources,
+   roster CSV, seating, and the structured Public Website baseline are implemented. Validate
+   independently attached public domains separately from the product-owned canonical namespace. Do
+   not add whole-archive import; ADR 0015 deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

@@ -6,9 +6,20 @@ import {
   publicTicketPurchaseResponseSchema,
   publishedOrganizationProjectionSchema,
   ticketCheckoutResponseSchema,
+  ticketBundleSchema,
+  ticketBundlesResponseSchema,
+  ticketScanResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
-import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
+import {
+  applyD1Migrations,
+  createExecutionContext,
+  createMessageBatch,
+  getQueueResult,
+  reset,
+  runDurableObjectAlarm,
+  runInDurableObject,
+} from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import {
@@ -16,6 +27,8 @@ import {
   readCapturedPlatformEmailsForTest,
 } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+import { processDeliveryBatch } from "../src/jobs/consumer";
+import type { DeliveryJob } from "../src/jobs/contracts";
 
 const USER_EMAIL = "tickets.manager@example.test";
 
@@ -58,7 +71,7 @@ async function provision(id: string, slug: string, role: "admin" | "member"): Pr
         `INSERT INTO organizations
           (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
            created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 20, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'active', ?, 23, ?, ?, ?)`,
       )
       .bind(id, `Organization ${slug}`, slug, id, now, now, now),
     database
@@ -107,6 +120,44 @@ async function signIn(): Promise<string> {
   });
   expect(response.status).toBe(200);
   return response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
+}
+
+async function deliverQueuedTicketNotification(organizationId: string): Promise<void> {
+  const stub = stores.get(stores.idFromName(organizationId));
+  const job = await runInDurableObject<OrganizationStore, DeliveryJob>(stub, (_instance, state) => {
+    const row = state.storage.sql
+      .exec<
+        Record<string, SqlStorageValue> & {
+          idempotencyKey: string;
+          jobId: string;
+          kind: DeliveryJob["kind"];
+        }
+      >(
+        `SELECT job_id AS jobId, idempotency_key AS idempotencyKey, kind
+           FROM scheduled_job_outbox WHERE kind = 'ticket_notification' AND job_id NOT IN
+            (SELECT job_id FROM job_ledger WHERE status = 'completed')
+           ORDER BY created_at, job_id LIMIT 1`,
+      )
+      .one();
+    return {
+      attempt: 1,
+      idempotencyKey: row.idempotencyKey,
+      jobId: row.jobId,
+      kind: row.kind,
+      organizationId,
+      version: 1,
+    };
+  });
+  const batch = createMessageBatch("choir-management-jobs-local", [
+    { attempts: 1, body: job, id: `ticket-${job.jobId}`, timestamp: new Date() },
+  ]);
+  await processDeliveryBatch(batch, {
+    EXTERNAL_EFFECTS_MODE: "fake",
+    ORGANIZATION_STORE: stores,
+    SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+  });
+  const result = await getQueueResult(batch, createExecutionContext());
+  expect(result).toMatchObject({ explicitAcks: [`ticket-${job.jobId}`] });
 }
 
 beforeEach(async () => {
@@ -230,6 +281,49 @@ describe("Organization ticketing", () => {
       },
     });
     expect(first.url).toContain("http://tickets.example.test/tickets/order/success?token=");
+    await deliverQueuedTicketNotification("organization-alpha");
+    expect(
+      await runInDurableObject<OrganizationStore, Record<string, SqlStorageValue>>(
+        stores.get(stores.idFromName("organization-alpha")),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<Record<string, SqlStorageValue>>(
+              `SELECT kind, status, provider_message_id AS providerMessageId
+               FROM ticket_notifications WHERE purchase_id = ?`,
+              first.purchase.id,
+            )
+            .one(),
+      ),
+    ).toMatchObject({
+      kind: "confirmation",
+      providerMessageId: expect.stringContaining("fake:"),
+      status: "sent",
+    });
+    expect(
+      (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/tickets/${first.purchase.id}/confirmation`,
+            cookie,
+            { method: "POST" },
+          ),
+        )
+      ).status,
+    ).toBe(200);
+    await deliverQueuedTicketNotification("organization-alpha");
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        stores.get(stores.idFromName("organization-alpha")),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<Record<string, SqlStorageValue> & { count: number }>(
+              "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'confirmation' AND status = 'sent'",
+              first.purchase.id,
+            )
+            .one().count,
+      ),
+    ).toBe(2);
 
     expect(
       (
@@ -278,6 +372,7 @@ describe("Organization ticketing", () => {
       ).json(),
     );
     expect(receipt.id).toBe(first.purchase.id);
+    expect(receipt.scanToken).toBeTruthy();
     expect(JSON.stringify(receipt)).not.toContain("buyer@example.test");
     expect(
       (
@@ -289,6 +384,83 @@ describe("Organization ticketing", () => {
         )
       ).status,
     ).toBe(404);
+
+    const scan = ticketScanResponseSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/tickets/scan",
+          "POST",
+          { eventId: event.id, token: receipt.scanToken },
+          cookie,
+        )
+      ).json(),
+    );
+    expect(scan).toMatchObject({
+      buyerName: "Ticket Buyer",
+      eventId: event.id,
+      purchaseId: first.purchase.id,
+      quantity: 2,
+      valid: true,
+    });
+    expect(
+      ticketScanResponseSchema.parse(
+        await (
+          await jsonWrite(
+            "alpha.localhost",
+            "/api/organization/tickets/scan",
+            "POST",
+            { eventId: crypto.randomUUID(), token: receipt.scanToken },
+            cookie,
+          )
+        ).json(),
+      ),
+    ).toMatchObject({ reason: "wrong_event", valid: false });
+    expect(
+      (
+        await jsonWrite(
+          "bravo.localhost",
+          "/api/organization/tickets/scan",
+          "POST",
+          { eventId: event.id, token: receipt.scanToken },
+          cookie,
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/tickets/scan",
+          "POST",
+          { eventId: event.id, token: `${receipt.scanToken}x` },
+          cookie,
+        )
+      ).status,
+    ).toBe(404);
+
+    const willCall = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/tickets/will-call?eventId=${encodeURIComponent(event.id)}`,
+        cookie,
+      ),
+    );
+    expect(willCall.status).toBe(200);
+    expect(willCall.headers.get("content-type")).toContain("text/csv");
+    expect(willCall.headers.get("content-disposition")).toContain("will-call-winter-tickets.csv");
+    expect(await willCall.text()).toContain('"Ticket Buyer","buyer@example.test","2"');
+    expect(
+      (
+        await exports.default.fetch(
+          api(
+            "bravo.localhost",
+            `/api/organization/tickets/will-call?eventId=${encodeURIComponent(event.id)}`,
+            cookie,
+          ),
+        )
+      ).status,
+    ).toBe(403);
     expect(
       (await jsonWrite("unknown.localhost", "/api/public/tickets/checkout", "POST", checkoutBody))
         .status,
@@ -318,6 +490,19 @@ describe("Organization ticketing", () => {
     expect(organizationTicketOrderSchema.parse(await refundResponse.json()).status).toBe(
       "refunded",
     );
+    expect(
+      ticketScanResponseSchema.parse(
+        await (
+          await jsonWrite(
+            "alpha.localhost",
+            "/api/organization/tickets/scan",
+            "POST",
+            { eventId: event.id, token: receipt.scanToken },
+            cookie,
+          )
+        ).json(),
+      ),
+    ).toMatchObject({ reason: "not_paid", valid: false });
     expect(
       (
         await exports.default.fetch(
@@ -354,8 +539,263 @@ describe("Organization ticketing", () => {
     );
     expect(actions).toEqual([
       "ticket.purchase.fulfilled",
+      "ticket.confirmation.queued",
+      "ticket.scan.validated",
+      "ticket.scan.validated",
       "ticket.purchase.refunded",
+      "ticket.scan.validated",
       "ticket.purchase.fulfilled",
     ]);
+  });
+
+  it("publishes capacity-safe bundle passes that validate at every included performance", async () => {
+    const cookie = await signIn();
+    const eventBody = {
+      advancePriceCents: 2_000,
+      callTime: "18:00",
+      dayOfPriceCents: 2_500,
+      details: "",
+      doorsOpenTime: "18:30",
+      durationMinutes: 90,
+      isTicketingEnabled: true,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "Public concert",
+      publicGraphicFileId: null,
+      publishOnWebsite: true,
+      setList: [],
+      setListApproved: false,
+      ticketCapacity: 2,
+      type: "Performance" as const,
+      venueId: null,
+    };
+    const firstEvent = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt: "2027-10-01T23:00:00.000Z", title: "Autumn Concert" },
+          cookie,
+        )
+      ).json(),
+    );
+    const secondEvent = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt: "2027-12-01T23:00:00.000Z", title: "Winter Concert" },
+          cookie,
+        )
+      ).json(),
+    );
+    const bundle = ticketBundleSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/tickets/bundles",
+          "POST",
+          {
+            capacity: 2,
+            eventIds: [firstEvent.id, secondEvent.id],
+            isActive: true,
+            priceCents: 3_000,
+            saleEndAt: "2027-09-30T23:00:00.000Z",
+            title: "Season Pass",
+          },
+          cookie,
+        )
+      ).json(),
+    );
+    expect(
+      ticketBundlesResponseSchema.parse(
+        await (
+          await exports.default.fetch(
+            api("alpha.localhost", "/api/organization/tickets/bundles", cookie),
+          )
+        ).json(),
+      ).bundles,
+    ).toHaveLength(1);
+    expect(
+      (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/website/publish", cookie, { method: "POST" }),
+        )
+      ).status,
+    ).toBe(200);
+    const projection = publishedOrganizationProjectionSchema.parse(
+      await (
+        await exports.default.fetch(api("tickets.example.test", "/api/public/projection"))
+      ).json(),
+    );
+    expect(projection.payload.ticketBundles).toEqual([
+      expect.objectContaining({ eventIds: [firstEvent.id, secondEvent.id], id: bundle.id }),
+    ]);
+
+    const checkout = ticketCheckoutResponseSchema.parse(
+      await (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          bundleId: bundle.id,
+          buyerEmail: "season@example.test",
+          buyerName: "Season Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          marketingOptIn: false,
+          quantity: 2,
+        })
+      ).json(),
+    );
+    expect(checkout.purchase).toMatchObject({
+      bundleId: bundle.id,
+      bundleTitle: "Season Pass",
+      quantity: 2,
+      unitPriceCents: 3_000,
+    });
+    expect(checkout.purchase.includedEvents.map(({ id }) => id)).toEqual([
+      firstEvent.id,
+      secondEvent.id,
+    ]);
+    expect(
+      (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          buyerEmail: "late@example.test",
+          buyerName: "Late Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: secondEvent.id,
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).status,
+    ).toBe(409);
+
+    const receipt = publicTicketPurchaseResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "tickets.example.test",
+            `/api/public/tickets/order?token=${encodeURIComponent(checkout.successToken)}`,
+          ),
+        )
+      ).json(),
+    );
+    for (const eventId of [firstEvent.id, secondEvent.id]) {
+      expect(
+        ticketScanResponseSchema.parse(
+          await (
+            await jsonWrite(
+              "alpha.localhost",
+              "/api/organization/tickets/scan",
+              "POST",
+              { eventId, token: receipt.scanToken },
+              cookie,
+            )
+          ).json(),
+        ),
+      ).toMatchObject({ eventId, valid: true });
+    }
+    const winterWillCall = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/tickets/will-call?eventId=${encodeURIComponent(secondEvent.id)}`,
+        cookie,
+      ),
+    );
+    expect(await winterWillCall.text()).toContain('"Season Buyer","season@example.test","2"');
+    expect(
+      (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/tickets/bundles/${encodeURIComponent(bundle.id)}`,
+            cookie,
+            { method: "DELETE" },
+          ),
+        )
+      ).status,
+    ).toBe(409);
+  });
+
+  it("queues one confirmation and one 24-hour reminder through the durable ticket outbox", async () => {
+    const cookie = await signIn();
+    const startsAt = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          {
+            advancePriceCents: 1_500,
+            callTime: "",
+            dayOfPriceCents: 1_500,
+            details: "",
+            doorsOpenTime: "",
+            durationMinutes: 60,
+            isTicketingEnabled: true,
+            location: "Hall",
+            parentPerformanceId: null,
+            publicDetails: "",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
+            setList: [],
+            setListApproved: false,
+            startsAt,
+            ticketCapacity: 20,
+            title: "Tomorrow Concert",
+            type: "Performance",
+            venueId: null,
+          },
+          cookie,
+        )
+      ).json(),
+    );
+    expect(
+      (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          buyerEmail: "reminder@example.test",
+          buyerName: "Reminder Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: event.id,
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).status,
+    ).toBe(201);
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const overdueAt = new Date(Date.now() - 1_000).toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+        overdueAt,
+        overdueAt,
+      );
+      return state.storage.setAlarm(Date.now() + 1).then(() => undefined);
+    });
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const notificationKinds = await runInDurableObject<OrganizationStore, string[]>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<Record<string, SqlStorageValue> & { kind: string }>(
+            "SELECT kind FROM ticket_notifications ORDER BY kind",
+          )
+          .toArray()
+          .map(({ kind }) => kind),
+    );
+    expect(notificationKinds).toEqual(["confirmation", "reminder"]);
+    await deliverQueuedTicketNotification("organization-alpha");
+    await deliverQueuedTicketNotification("organization-alpha");
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<Record<string, SqlStorageValue> & { count: number }>(
+              "SELECT COUNT(*) AS count FROM ticket_notifications WHERE status = 'sent'",
+            )
+            .one().count,
+      ),
+    ).toBe(2);
   });
 });

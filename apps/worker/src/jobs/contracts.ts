@@ -7,6 +7,7 @@ export const jobKindSchema = z.enum([
   "organization_export",
   "projection_publish",
   "stale_checkout_cleanup",
+  "ticket_notification",
 ]);
 
 export const deliveryJobSchema = z.object({

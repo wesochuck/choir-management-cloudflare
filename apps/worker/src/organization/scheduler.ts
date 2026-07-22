@@ -1,6 +1,6 @@
 import type { DeliveryJob } from "../jobs/contracts";
 
-const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
 const RETRY_ALARM_DELAY_MS = 60_000;
 
@@ -22,8 +22,8 @@ interface ScheduledJobRow {
   readonly kind: DeliveryJob["kind"];
 }
 
-function nextDailyDue(now: Date): string {
-  return new Date(now.getTime() + DAILY_INTERVAL_MS).toISOString();
+function nextSchedulerDue(now: Date): string {
+  return new Date(now.getTime() + SCHEDULER_INTERVAL_MS).toISOString();
 }
 
 function readOrganizationId(storage: DurableObjectStorage): string | null {
@@ -41,7 +41,7 @@ export async function ensureOrganizationAlarm(
   storage: DurableObjectStorage,
   now = new Date(),
 ): Promise<void> {
-  const nextDueAt = nextDailyDue(now);
+  const nextDueAt = nextSchedulerDue(now);
   storage.sql.exec(
     `INSERT OR IGNORE INTO scheduler_state (singleton, next_due_at, updated_at)
      VALUES (1, ?, ?)`,
@@ -59,7 +59,79 @@ export async function ensureOrganizationAlarm(
   }
 }
 
-function createDueJob(storage: DurableObjectStorage, organizationId: string, now: Date): void {
+interface ReminderCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly buyerEmail: string;
+  readonly buyerName: string;
+  readonly eventId: string;
+  readonly eventStartsAt: string;
+  readonly eventTitle: string;
+  readonly purchaseId: string;
+  readonly quantity: number;
+}
+
+function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): void {
+  const horizon = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const candidates = storage.sql
+    .exec<ReminderCandidateRow>(
+      `SELECT p.id AS purchaseId, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
+        p.quantity, e.id AS eventId, e.title AS eventTitle, e.starts_at AS eventStartsAt
+       FROM ticket_purchases p JOIN events e ON e.id = p.event_id
+       WHERE p.bundle_id IS NULL AND p.status = 'paid' AND e.starts_at > ? AND e.starts_at <= ?
+       UNION ALL
+       SELECT p.id, p.buyer_name, p.buyer_email, p.quantity,
+        e.id, e.title, e.starts_at
+       FROM ticket_bundle_allocations a
+       JOIN ticket_purchases p ON p.id = a.purchase_id
+       JOIN events e ON e.id = a.event_id
+       WHERE p.status = 'paid' AND e.starts_at > ? AND e.starts_at <= ?
+       ORDER BY eventStartsAt, purchaseId, eventId LIMIT 100`,
+      now.toISOString(),
+      horizon,
+      now.toISOString(),
+      horizon,
+    )
+    .toArray();
+  for (const candidate of candidates) {
+    const dedupeKey = `ticket-reminder:${candidate.purchaseId}:${candidate.eventId}`;
+    const exists = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+        "SELECT id FROM ticket_notifications WHERE dedupe_key = ? LIMIT 1",
+        dedupeKey,
+      )
+      .toArray()
+      .at(0);
+    if (exists) continue;
+    const notificationId = crypto.randomUUID();
+    const jobId = crypto.randomUUID();
+    storage.sql.exec(
+      `INSERT INTO ticket_notifications
+        (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+         content_markdown, status, scheduled_for, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'reminder', ?, ?, ?, 'queued', ?, ?, ?)`,
+      notificationId,
+      candidate.purchaseId,
+      candidate.eventId,
+      dedupeKey,
+      candidate.buyerEmail,
+      `Reminder: ${candidate.eventTitle}`,
+      `Hello ${candidate.buyerName},\n\nThis is your reminder for ${candidate.eventTitle}. Your order includes ${String(candidate.quantity)} ticket(s).`,
+      now.toISOString(),
+      now.toISOString(),
+      now.toISOString(),
+    );
+    storage.sql.exec(
+      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'ticket_notification', ?, ?, ?)`,
+      jobId,
+      `ticket-notification:${notificationId}`,
+      now.toISOString(),
+      now.toISOString(),
+    );
+  }
+}
+
+function createDueJobs(storage: DurableObjectStorage, organizationId: string, now: Date): void {
   storage.transactionSync(() => {
     const scheduler = storage.sql
       .exec<SchedulerStateRow>(
@@ -80,9 +152,10 @@ function createDueJob(storage: DurableObjectStorage, organizationId: string, now
       scheduler.nextDueAt,
       now.toISOString(),
     );
+    createTicketReminderJobs(storage, now);
     storage.sql.exec(
       `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,
-      new Date(new Date(scheduler.nextDueAt).getTime() + DAILY_INTERVAL_MS).toISOString(),
+      new Date(new Date(scheduler.nextDueAt).getTime() + SCHEDULER_INTERVAL_MS).toISOString(),
       now.toISOString(),
     );
   });
@@ -131,7 +204,7 @@ export async function runOrganizationAlarm(
     await storage.deleteAlarm();
     return;
   }
-  createDueJob(storage, organizationId, now);
+  createDueJobs(storage, organizationId, now);
   const pendingJobs = readPendingJobs(storage);
   if (pendingJobs.length === 0) {
     await scheduleNextAlarm(storage, now, false);

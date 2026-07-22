@@ -382,6 +382,7 @@ describe("Organization communications", () => {
     await processDeliveryBatch(batch, {
       EXTERNAL_EFFECTS_MODE: "fake",
       ORGANIZATION_STORE: stores,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
     });
     const queueResult = z
       .object({ explicitAcks: z.array(z.string()) })

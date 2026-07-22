@@ -8,6 +8,7 @@ import {
   recordCommunicationDeliveryResults,
 } from "../organization/organizationCommunications";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
+import { issueSignedLink } from "../security/signedLinks";
 
 type JobConsumerEnv = Pick<
   Env,
@@ -18,6 +19,7 @@ type JobConsumerEnv = Pick<
   | "BREVO_SMS_SENDER"
   | "EXTERNAL_EFFECTS_MODE"
   | "ORGANIZATION_STORE"
+  | "SIGNED_LINK_SECRET"
 >;
 type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB">;
 
@@ -28,6 +30,16 @@ const claimResponseSchema = z.object({
 const completionResponseSchema = z.object({ completed: z.boolean() });
 const deliveryAttemptSchema = z.number().int().min(1).max(10);
 const failureResponseSchema = z.object({ failed: z.boolean() });
+const ticketNotificationJobSchema = z.object({
+  buyerName: z.string().min(1).max(200),
+  contentMarkdown: z.string().max(100_000),
+  destination: z.email(),
+  eventStartsAt: z.iso.datetime(),
+  id: z.uuid(),
+  purchaseId: z.uuid(),
+  status: z.enum(["queued", "processing"]),
+  subject: z.string().max(300),
+});
 
 function retryDelaySeconds(attempt: number): number {
   const exponentialDelay = Math.min(300, 2 ** attempt);
@@ -101,6 +113,74 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
   });
 }
 
+async function deliverTicketNotificationJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
+  const objectId = env.ORGANIZATION_STORE.idFromName(job.organizationId);
+  const objectStub = env.ORGANIZATION_STORE.get(objectId);
+  const url = new URL("https://organization.internal/internal/ticketing/notification-job");
+  url.searchParams.set("organizationId", job.organizationId);
+  url.searchParams.set("jobId", job.jobId);
+  const response = await objectStub.fetch(url);
+  const notification = ticketNotificationJobSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (!response.ok || !notification.success) {
+    throw new Error("The ticket notification job is unavailable.");
+  }
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const eventEndsAt =
+    Math.floor(new Date(notification.data.eventStartsAt).getTime() / 1000) + 86_400;
+  const scanToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+    algorithm: "HS256",
+    expiresAt: Math.max(issuedAt + 3_600, eventEndsAt),
+    issuedAt,
+    nonce: crypto.randomUUID(),
+    organizationId: job.organizationId,
+    purpose: "ticket_scan",
+    resourceId: notification.data.purchaseId,
+    version: 1,
+  });
+  const result = await deliverOrganizationCommunication(env, {
+    channel: "email",
+    contentMarkdown: `${notification.data.contentMarkdown}\n\nTicket credential: ${scanToken}`,
+    deliveryId: notification.data.id,
+    destination: notification.data.destination,
+    messageId: notification.data.id,
+    recipientName: notification.data.buyerName,
+    subject: notification.data.subject,
+    unsubscribeUrl: null,
+  });
+  const recordResponse = await objectStub.fetch(
+    "https://organization.internal/internal/ticketing/manage",
+    {
+      body: JSON.stringify({
+        action: "record_ticket_notification_result",
+        failureDetail: result.failureDetail,
+        jobId: job.jobId,
+        organizationId: job.organizationId,
+        providerMessageId: result.providerMessageId,
+        status: result.status,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!recordResponse.ok) throw new Error("The ticket notification result was rejected.");
+}
+
+async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
+  if (job.kind === "communication_delivery") {
+    await deliverCommunicationJob(env, job);
+    return;
+  }
+  if (job.kind === "ticket_notification") {
+    await deliverTicketNotificationJob(env, job);
+    return;
+  }
+  if (env.EXTERNAL_EFFECTS_MODE !== "fake" && env.EXTERNAL_EFFECTS_MODE !== "disabled") {
+    throw new Error("No sandbox provider adapter is configured for this job kind");
+  }
+}
+
 async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Promise<void> {
   const parsed = deliveryJobSchema.safeParse(message.body);
   if (!parsed.success) {
@@ -138,11 +218,7 @@ async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Pr
     }
     claimed = true;
 
-    if (job.kind === "communication_delivery") {
-      await deliverCommunicationJob(env, job);
-    } else if (env.EXTERNAL_EFFECTS_MODE !== "fake" && env.EXTERNAL_EFFECTS_MODE !== "disabled") {
-      throw new Error("No sandbox provider adapter is configured for this job kind");
-    }
+    await dispatchDeliveryJob(env, job);
 
     const completeResponse = await objectStub.fetch(
       "https://organization.internal/internal/jobs/complete",
