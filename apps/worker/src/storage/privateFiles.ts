@@ -65,12 +65,53 @@ type PrivateFileEnv = Pick<Env, "ORGANIZATION_FILES" | "ORGANIZATION_STORE">;
 
 export class PrivateFileStorageError extends Error {
   constructor(
-    readonly kind: "conflict" | "not_found" | "unavailable",
+    readonly kind: "conflict" | "not_found" | "range_not_satisfiable" | "unavailable",
     message: string,
+    readonly sizeBytes: number | null = null,
   ) {
     super(message);
     this.name = "PrivateFileStorageError";
   }
+}
+
+function requestedRange(value: string, sizeBytes: number): { length: number; offset: number } {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(value.trim());
+  if (!match || (!match[1] && !match[2])) {
+    throw new PrivateFileStorageError(
+      "range_not_satisfiable",
+      "The requested byte range is invalid.",
+      sizeBytes,
+    );
+  }
+  if (!match[1]) {
+    const suffix = Number(match[2]);
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) {
+      throw new PrivateFileStorageError(
+        "range_not_satisfiable",
+        "The requested byte range is invalid.",
+        sizeBytes,
+      );
+    }
+    const offset = Math.max(0, sizeBytes - suffix);
+    return { length: sizeBytes - offset, offset };
+  }
+  const offset = Number(match[1]);
+  const requestedEnd = match[2] ? Number(match[2]) : sizeBytes - 1;
+  if (
+    !Number.isSafeInteger(offset) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    offset < 0 ||
+    offset >= sizeBytes ||
+    requestedEnd < offset
+  ) {
+    throw new PrivateFileStorageError(
+      "range_not_satisfiable",
+      "The requested byte range is invalid.",
+      sizeBytes,
+    );
+  }
+  const end = Math.min(requestedEnd, sizeBytes - 1);
+  return { length: end - offset + 1, offset };
 }
 
 export function privateOrganizationFileKey(organizationId: string, fileId: string): string {
@@ -158,9 +199,11 @@ export async function readPrivateOrganizationFile(
   env: PrivateFileEnv,
   organizationId: string,
   fileId: string,
+  rangeHeader: string | null = null,
 ): Promise<{
   readonly metadata: z.infer<typeof privateFileMetadataSchema>;
   readonly object: R2ObjectBody;
+  readonly range: { readonly length: number; readonly offset: number } | null;
 } | null> {
   const expectedKey = privateOrganizationFileKey(organizationId, fileId);
   const objectId = env.ORGANIZATION_STORE.idFromName(organizationId);
@@ -174,7 +217,11 @@ export async function readPrivateOrganizationFile(
   if (!metadataResponse.ok || !metadata.success || metadata.data.storageKey !== expectedKey) {
     throw new PrivateFileStorageError("unavailable", "Private file metadata scope was rejected.");
   }
-  const object = await env.ORGANIZATION_FILES.get(expectedKey);
+  const range = rangeHeader ? requestedRange(rangeHeader, metadata.data.sizeBytes) : null;
+  const object = await env.ORGANIZATION_FILES.get(
+    expectedKey,
+    range ? { range: { length: range.length, offset: range.offset } } : undefined,
+  );
   if (!object) {
     throw new PrivateFileStorageError("unavailable", "Private file storage is unavailable.");
   }
@@ -185,5 +232,5 @@ export async function readPrivateOrganizationFile(
   ) {
     throw new PrivateFileStorageError("unavailable", "Private file storage is unavailable.");
   }
-  return { metadata: metadata.data, object };
+  return { metadata: metadata.data, object, range };
 }

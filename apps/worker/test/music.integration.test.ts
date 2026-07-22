@@ -201,6 +201,23 @@ describe("Organization music catalog", () => {
     expect(playback.headers.get("content-type")).toBe("audio/mpeg");
     expect(new TextDecoder().decode(await playback.arrayBuffer())).toBe("audio-test-data");
 
+    const rangePlayback = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        headers: { range: "bytes=0-4" },
+      }),
+    );
+    expect(rangePlayback.status).toBe(206);
+    expect(rangePlayback.headers.get("accept-ranges")).toBe("bytes");
+    expect(rangePlayback.headers.get("content-range")).toBe("bytes 0-4/15");
+    expect(new TextDecoder().decode(await rangePlayback.arrayBuffer())).toBe("audio");
+    const invalidRange = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        headers: { range: "bytes=99-100" },
+      }),
+    );
+    expect(invalidRange.status).toBe(416);
+    expect(invalidRange.headers.get("content-range")).toBe("bytes */15");
+
     const removed = organizationMusicPieceResponseSchema.parse(
       await (
         await write(

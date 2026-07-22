@@ -241,9 +241,11 @@ Verified over public HTTPS on July 20–22, 2026:
   one atomic Organization-store transaction; it retains existing entries and creates top-level
   works. Saved works and movements expose Tutti, section, and voice-part learning-track slots;
   managers can upload/replace or detach private audio files up to 20 MB, and signed-in Organization
-  members can play or download attached tracks through the hostname-authorized R2 boundary.
-  Recent-performance metadata, in-app offline caching, orphan-file reclamation, and the dedicated
-  set-list manager remain parity follow-up work, so music and set lists remain partial.
+  members can play or download attached tracks through the hostname-authorized R2 boundary. Private
+  delivery supports validated single-byte ranges with correct 206 and 416 responses so browser audio
+  can start and seek without downloading an entire track. Recent-performance metadata, in-app
+  offline caching, orphan-file reclamation, and the dedicated set-list manager remain parity
+  follow-up work, so music and set lists remain partial.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.

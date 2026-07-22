@@ -810,6 +810,27 @@ router.put("/api/organization/files/:fileId", async (context) => {
   }
 });
 
+type PrivateFileReadResult = NonNullable<Awaited<ReturnType<typeof readPrivateOrganizationFile>>>;
+
+function privateFileDownloadResponse(file: PrivateFileReadResult): Response {
+  const disposition = file.metadata.contentType.startsWith("audio/") ? "inline" : "attachment";
+  const headers = new Headers({
+    "accept-ranges": "bytes",
+    "content-disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(file.metadata.fileName)}`,
+    "content-length": String(file.range?.length ?? file.metadata.sizeBytes),
+    "content-type": file.metadata.contentType,
+    etag: file.object.httpEtag,
+  });
+  if (file.range) {
+    const end = file.range.offset + file.range.length - 1;
+    headers.set(
+      "content-range",
+      `bytes ${String(file.range.offset)}-${String(end)}/${String(file.metadata.sizeBytes)}`,
+    );
+  }
+  return new Response(file.object.body, { headers, status: file.range ? 206 : 200 });
+}
+
 router.get("/api/organization/files/:fileId", async (context) => {
   validateStartupConfig(context.env);
   const requestUrl = new URL(context.req.url);
@@ -850,7 +871,12 @@ router.get("/api/organization/files/:fileId", async (context) => {
     );
   }
   try {
-    const file = await readPrivateOrganizationFile(context.env, organizationId, fileId.data);
+    const file = await readPrivateOrganizationFile(
+      context.env,
+      organizationId,
+      fileId.data,
+      context.req.header("range") ?? null,
+    );
     if (!file) {
       return context.json(
         {
@@ -861,15 +887,12 @@ router.get("/api/organization/files/:fileId", async (context) => {
         404,
       );
     }
-    context.header(
-      "content-disposition",
-      `${file.metadata.contentType.startsWith("audio/") ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.metadata.fileName)}`,
-    );
-    context.header("content-length", String(file.metadata.sizeBytes));
-    context.header("content-type", file.metadata.contentType);
-    context.header("etag", file.object.httpEtag);
-    return context.body(file.object.body);
-  } catch {
+    return privateFileDownloadResponse(file);
+  } catch (error: unknown) {
+    if (error instanceof PrivateFileStorageError && error.kind === "range_not_satisfiable") {
+      context.header("content-range", `bytes */${String(error.sizeBytes ?? 0)}`);
+      return context.body(null, 416);
+    }
     return context.json(
       {
         code: "service_unavailable",
