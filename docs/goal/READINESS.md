@@ -365,6 +365,13 @@ Verified over public HTTPS on July 20–22, 2026:
   pending migrations and remained at zero Organizations, fleet schema preparations, and dead
   letters. Worker version `8743e9e8-3658-4cf7-9edb-b97528d03a87` is the verified staging checkpoint
   for commit `92525c8`.
+- After the member practice-library, offline-audio, and file-reclamation deployment, both the custom
+  domain and workers.dev shell converged on `index-zTT_yUdt.js` and `index-BFt0OCGH.css` after normal
+  edge propagation. Custom-domain API health and readiness returned HTTP 200 with valid TLS. An
+  unregistered wildcard Organization hostname's member music endpoint returned the expected
+  hostname-first HTTP 404. D1 had no pending migrations and remained at zero Organizations, fleet
+  schema preparations, and dead letters. Worker version `669303fc-fec6-44e9-adba-677dddd4f65b` is
+  the verified staging checkpoint for commit `0f681db`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
