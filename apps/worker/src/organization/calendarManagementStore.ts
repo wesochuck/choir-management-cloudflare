@@ -143,6 +143,27 @@ function recordExists(
   return storage.sql.exec(`SELECT 1 FROM ${table} WHERE id = ? LIMIT 1`, id).toArray().length === 1;
 }
 
+function existingRecordIds(
+  storage: DurableObjectStorage,
+  table: "music_pieces" | "profiles",
+  ids: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const existing = new Set<string>();
+  const pending = [...ids];
+  for (let offset = 0; offset < pending.length; offset += 100) {
+    const chunk = pending.slice(offset, offset + 100);
+    const placeholders = chunk.map(() => "?").join(", ");
+    const rows = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+        `SELECT id FROM ${table} WHERE id IN (${placeholders})`,
+        ...chunk,
+      )
+      .toArray();
+    for (const { id } of rows) existing.add(id);
+  }
+  return existing;
+}
+
 function insertAudit(
   storage: DurableObjectStorage,
   actor: { readonly actorUserId: string; readonly requestId: string },
@@ -526,17 +547,38 @@ function eventReferenceError(
   if (event.venueId && !recordExists(storage, "venues", event.venueId)) {
     return Response.json({ code: "venue_not_found" }, { status: 404 });
   }
-  if (!event.parentPerformanceId) return null;
-  const parent = storage.sql
-    .exec<{ readonly [column: string]: SqlStorageValue; readonly type: string }>(
-      "SELECT type FROM events WHERE id = ? LIMIT 1",
-      event.parentPerformanceId,
-    )
-    .toArray()
-    .at(0);
-  return parent?.type === "Performance"
-    ? null
-    : Response.json({ code: "parent_performance_not_found" }, { status: 404 });
+  if (event.parentPerformanceId) {
+    const parent = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly type: string }>(
+        "SELECT type FROM events WHERE id = ? LIMIT 1",
+        event.parentPerformanceId,
+      )
+      .toArray()
+      .at(0);
+    if (parent?.type !== "Performance") {
+      return Response.json({ code: "parent_performance_not_found" }, { status: 404 });
+    }
+  }
+
+  const pieceIds = new Set(
+    event.setList.flatMap(({ pieceId }) => (pieceId === undefined ? [] : [pieceId])),
+  );
+  const existingPieceIds = existingRecordIds(storage, "music_pieces", pieceIds);
+  if ([...pieceIds].some((id) => !existingPieceIds.has(id))) {
+    return Response.json({ code: "music_piece_not_found" }, { status: 409 });
+  }
+
+  const profileIds = new Set(
+    event.setList.flatMap(({ performerCredits }) =>
+      (performerCredits ?? []).flatMap((credit) =>
+        credit.kind === "profile" ? [credit.profileId] : [],
+      ),
+    ),
+  );
+  const existingProfileIds = existingRecordIds(storage, "profiles", profileIds);
+  return [...profileIds].some((id) => !existingProfileIds.has(id))
+    ? Response.json({ code: "performer_profile_not_found" }, { status: 409 })
+    : null;
 }
 
 function writeEvent(

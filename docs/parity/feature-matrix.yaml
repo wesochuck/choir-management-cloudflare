@@ -375,9 +375,15 @@
         "path": "/admin/library",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:482; src/views/admin/MusicLibraryView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/account/MusicCatalog.tsx",
+            "apps/worker/src/organization/musicStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/music.integration.test.ts",
+          ],
       },
       {
         "id": "route.admin.website",
@@ -1294,19 +1300,31 @@
         "workflow": "music catalog, multi-work relationships, genres, tracks, and recency",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/services/musicLibraryService.ts; test/musicLibraryServiceAdditions.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/organization/musicStore.ts",
+            "apps/worker/src/organization/organizationMusic.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/MusicCatalog.tsx",
+          ],
       },
       {
         "id": "workflow.setlists",
         "workflow": "ordered set lists, approval, featured numbers, and performer snapshots",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/views/admin/SetListView.tsx; test/performerCredits.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/organization/calendarManagementStore.ts",
+            "apps/worker/test/music.integration.test.ts",
+          ],
       },
       {
         "id": "workflow.player-offline",

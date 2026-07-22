@@ -24,6 +24,16 @@ function normalizeHostname(hostname: string): string {
   return hostname.trim().toLowerCase().replace(/\.$/, "");
 }
 
+export function crossSubdomainCookieOptions(
+  appEnvironment: Env["APP_ENV"],
+  productBaseDomain: string,
+): { readonly domain?: string; readonly enabled: boolean } {
+  const domain = normalizeHostname(productBaseDomain);
+  return appEnvironment !== "local" && !domain.endsWith(".workers.dev")
+    ? { domain: `.${domain}`, enabled: true }
+    : { enabled: false };
+}
+
 export function isCanonicalAuthHost(hostname: string, productBaseDomain: string): boolean {
   const normalizedHostname = normalizeHostname(hostname);
   const normalizedBaseDomain = normalizeHostname(productBaseDomain);
@@ -53,6 +63,7 @@ export function createAuth(context: AuthRequestContext) {
     advanced: {
       backgroundTasks: { handler: waitUntil },
       cookiePrefix: "choir-management",
+      crossSubDomainCookies: crossSubdomainCookieOptions(env.APP_ENV, env.PRODUCT_BASE_DOMAIN),
       database: { generateId: "uuid" },
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
       useSecureCookies: env.APP_ENV !== "local",

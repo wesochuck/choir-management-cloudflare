@@ -16,6 +16,7 @@ import { CalendarSubscription } from "./CalendarSubscription";
 import { OrganizationCalendar } from "./OrganizationCalendar";
 import { MySchedule } from "./MySchedule";
 import { MemberProfileDirectory } from "./MemberProfileDirectory";
+import { MusicCatalog } from "./MusicCatalog";
 import { RosterConfiguration } from "./RosterConfiguration";
 import { SeatingFinder } from "./SeatingFinder";
 import { SeatingManager } from "./SeatingManager";
@@ -394,6 +395,7 @@ function OrganizationOperations({
     <>
       <OrganizationCalendar context={context} enabled={enabled} />
       <RosterConfiguration enabled={managerEnabled} />
+      <MusicCatalog enabled={managerEnabled} />
       <SeatingManager enabled={managerEnabled} />
       <AttendanceManager enabled={managerEnabled} />
       <MemberProfileDirectory enabled={enabled} />

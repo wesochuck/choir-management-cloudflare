@@ -1,0 +1,408 @@
+import {
+  organizationEventSchema,
+  organizationMusicPieceResponseSchema,
+  organizationMusicPiecesResponseSchema,
+  type OrganizationMusicPiece,
+  type OrganizationMusicPieceRequest,
+} from "@choir/contracts";
+import { env, exports } from "cloudflare:workers";
+import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
+import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
+
+import {
+  clearCapturedPlatformEmailsForTest,
+  readCapturedPlatformEmailsForTest,
+} from "../src/auth/platformEmail";
+import type { OrganizationStore } from "../src/organization/OrganizationStore";
+
+const USER_EMAIL = "music.manager@example.test";
+
+function requireBinding<T>(binding: T | undefined, name: string): T {
+  if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
+  return binding;
+}
+
+const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
+const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+
+function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
+  const headers = new Headers(init?.headers);
+  headers.set("origin", `http://${host}`);
+  if (cookie) headers.set("cookie", cookie);
+  return new Request(`http://${host}${path}`, { ...init, headers });
+}
+
+async function write(
+  host: string,
+  path: string,
+  cookie: string,
+  body: unknown,
+  method = "POST",
+): Promise<Response> {
+  return exports.default.fetch(
+    api(host, path, cookie, {
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
+      method,
+    }),
+  );
+}
+
+async function provision(id: string, slug: string): Promise<void> {
+  const now = new Date().toISOString();
+  await database.batch([
+    database
+      .prepare(
+        `INSERT INTO organizations
+          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
+           created_at, updated_at, provisioned_at)
+         VALUES (?, ?, ?, 'active', ?, 14, ?, ?, ?)`,
+      )
+      .bind(id, `Organization ${slug}`, slug, id, now, now, now),
+    database
+      .prepare(
+        `INSERT INTO organization_domains
+          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
+         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
+      )
+      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
+    database
+      .prepare(
+        `INSERT INTO member (id, organizationId, userId, role, createdAt)
+         VALUES (?, ?, 'music-manager', 'admin', ?)`,
+      )
+      .bind(`member-${slug}`, id, Date.now()),
+  ]);
+  const response = await stores
+    .get(stores.idFromName(id))
+    .fetch("https://organization.internal/internal/provision", {
+      body: JSON.stringify({
+        actorUserId: "bootstrap",
+        canonicalHostname: `${slug}.localhost`,
+        canonicalStatus: "active",
+        name: `Organization ${slug}`,
+        organizationId: id,
+        requestId: crypto.randomUUID(),
+        slug,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+  expect(response.status).toBe(200);
+}
+
+async function signIn(): Promise<string> {
+  await exports.default.fetch(
+    api("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
+      body: JSON.stringify({ email: USER_EMAIL, type: "sign-in" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    }),
+  );
+  const otp = readCapturedPlatformEmailsForTest()
+    .find((message) => message.kind === "email-one-time-code" && message.recipient === USER_EMAIL)
+    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
+  const response = await exports.default.fetch(
+    api("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
+      body: JSON.stringify({ email: USER_EMAIL, otp }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    }),
+  );
+  return response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
+}
+
+function requestFrom(piece: OrganizationMusicPiece): OrganizationMusicPieceRequest {
+  return {
+    arranger: piece.arranger,
+    catalogId: piece.catalogId,
+    composer: piece.composer,
+    copies: piece.copies,
+    durationSeconds: piece.durationSeconds,
+    genres: piece.genres,
+    notes: piece.notes,
+    parentId: piece.parentId,
+    purchaseDate: piece.purchaseDate,
+    sectionBuckets: piece.sectionBuckets,
+    title: piece.title,
+    trackFileIds: piece.trackFileIds,
+  };
+}
+
+beforeEach(async () => {
+  await applyD1Migrations(database, [...inject("controlMigrations")]);
+  clearCapturedPlatformEmailsForTest();
+  const now = Date.now();
+  await database
+    .prepare(
+      `INSERT INTO user
+        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+       VALUES ('music-manager', 'Music Manager', ?, 0, ?, ?, 0)`,
+    )
+    .bind(USER_EMAIL, now, now)
+    .run();
+  await provision("organization-alpha", "alpha");
+  await provision("organization-bravo", "bravo");
+});
+
+afterEach(async () => {
+  await reset();
+});
+
+describe("Organization music catalog", () => {
+  it("preserves catalog relationships, private tracks, references, and tenant authorization", async () => {
+    const cookie = await signIn();
+    const initial = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(initial.pieces).toEqual([]);
+
+    const parent = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          arranger: "Elaine Hagenberg",
+          catalogId: "CAT-100",
+          composer: "Traditional",
+          copies: 80,
+          durationSeconds: 245,
+          genres: ["Sacred", "Contemporary"],
+          notes: "Owned octavos",
+          purchaseDate: "2026-07-01",
+          sectionBuckets: ["S", "A"],
+          title: "Catalog Work",
+        })
+      ).json(),
+    );
+    const movement = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          durationSeconds: 95,
+          parentId: parent.id,
+          title: "Movement One",
+        })
+      ).json(),
+    );
+    expect(movement.parentId).toBe(parent.id);
+
+    expect(
+      await write("alpha.localhost", "/api/organization/music", cookie, {
+        parentId: movement.id,
+        title: "Nested Movement",
+      }),
+    ).toMatchObject({ status: 409 });
+    expect(
+      await write(
+        "alpha.localhost",
+        `/api/organization/music/${parent.id}`,
+        cookie,
+        { ...requestFrom(parent), parentId: movement.id },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 409 });
+    expect(
+      await write("alpha.localhost", "/api/organization/music", cookie, {
+        sectionBuckets: ["Unconfigured"],
+        title: "Bad Section",
+      }),
+    ).toMatchObject({ status: 400 });
+    expect(
+      await write(
+        "alpha.localhost",
+        `/api/organization/music/${parent.id}`,
+        cookie,
+        { ...requestFrom(parent), trackFileIds: { tutti: crypto.randomUUID() } },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 409 });
+
+    const audioFileId = crypto.randomUUID();
+    const documentFileId = crypto.randomUUID();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const now = new Date().toISOString();
+        const files: readonly (readonly [string, string])[] = [
+          [audioFileId, "audio/mpeg"],
+          [documentFileId, "application/pdf"],
+        ];
+        for (const [id, contentType] of files) {
+          state.storage.sql.exec(
+            `INSERT INTO private_files
+              (id, storage_key, file_name, content_type, size_bytes, status, uploaded_by,
+               request_id, created_at, ready_at)
+             VALUES (?, ?, ?, ?, 10, 'ready', 'music-manager', ?, ?, ?)`,
+            id,
+            `organizations/organization-alpha/files/${id}`,
+            `${id}.bin`,
+            contentType,
+            crypto.randomUUID(),
+            now,
+            now,
+          );
+        }
+        return null;
+      },
+    );
+    expect(
+      await write(
+        "alpha.localhost",
+        `/api/organization/music/${parent.id}`,
+        cookie,
+        { ...requestFrom(parent), trackFileIds: { tutti: documentFileId } },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 409 });
+    const withTrack = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/music/${parent.id}`,
+          cookie,
+          { ...requestFrom(parent), trackFileIds: { tutti: audioFileId } },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(withTrack.trackFileIds).toEqual({ tutti: audioFileId });
+
+    expect(
+      await exports.default.fetch(
+        api("alpha.localhost", `/api/organization/music/${parent.id}`, cookie, {
+          method: "DELETE",
+        }),
+      ),
+    ).toMatchObject({ status: 409 });
+    expect(
+      await exports.default.fetch(
+        api("alpha.localhost", `/api/organization/music/${parent.id}?unlinkChildren=true`, cookie, {
+          method: "DELETE",
+        }),
+      ),
+    ).toMatchObject({ status: 200 });
+    const afterUnlink = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(afterUnlink.pieces).toEqual([
+      expect.objectContaining({ id: movement.id, parentId: null }),
+    ]);
+
+    const referenced = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Referenced Work",
+        })
+      ).json(),
+    );
+    const bravoPiece = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("bravo.localhost", "/api/organization/music", cookie, {
+          title: "Another Organization's Work",
+        })
+      ).json(),
+    );
+    const crossOrganizationReference = await write(
+      "alpha.localhost",
+      "/api/organization/events",
+      cookie,
+      {
+        setList: [{ pieceId: bravoPiece.id, title: bravoPiece.title }],
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        title: "Invalid Cross-Organization Set List",
+        type: "Performance",
+      },
+    );
+    expect(crossOrganizationReference.status).toBe(409);
+    await expect(crossOrganizationReference.json()).resolves.toMatchObject({
+      code: "music_piece_not_found",
+    });
+    const missingProfileReference = await write(
+      "alpha.localhost",
+      "/api/organization/events",
+      cookie,
+      {
+        setList: [
+          {
+            performerCredits: [
+              {
+                displayName: "Unavailable Singer",
+                kind: "profile",
+                profileId: crypto.randomUUID(),
+              },
+            ],
+            pieceId: referenced.id,
+            title: referenced.title,
+          },
+        ],
+        startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        title: "Invalid Profile Credit",
+        type: "Performance",
+      },
+    );
+    expect(missingProfileReference.status).toBe(409);
+    await expect(missingProfileReference.json()).resolves.toMatchObject({
+      code: "performer_profile_not_found",
+    });
+    const event = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          setList: [{ id: "set-item-1", pieceId: referenced.id, title: referenced.title }],
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          title: "Music Concert",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    expect(event.setList[0]?.pieceId).toBe(referenced.id);
+    expect(
+      await exports.default.fetch(
+        api("alpha.localhost", `/api/organization/music/${referenced.id}`, cookie, {
+          method: "DELETE",
+        }),
+      ),
+    ).toMatchObject({ status: 409 });
+
+    expect(
+      await write(
+        "bravo.localhost",
+        `/api/organization/music/${referenced.id}`,
+        cookie,
+        requestFrom(referenced),
+        "PUT",
+      ),
+    ).toMatchObject({ status: 404 });
+    await database
+      .prepare(
+        `UPDATE member SET role = 'member'
+         WHERE userId = 'music-manager' AND organizationId = 'organization-alpha'`,
+      )
+      .run();
+    expect(
+      await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie)),
+    ).toMatchObject({ status: 403 });
+    expect(
+      await exports.default.fetch(api("localhost", "/api/organization/music", cookie)),
+    ).toMatchObject({ status: 404 });
+
+    const auditActions = await runInDurableObject<OrganizationStore, readonly string[]>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly action: string }>(
+            "SELECT action FROM audit_events WHERE action LIKE 'music.%' ORDER BY occurred_at, action",
+          )
+          .toArray()
+          .map(({ action }) => action),
+    );
+    expect(auditActions).toEqual([
+      "music.piece.created",
+      "music.piece.created",
+      "music.piece.updated",
+      "music.piece.deleted",
+      "music.piece.created",
+    ]);
+  });
+});

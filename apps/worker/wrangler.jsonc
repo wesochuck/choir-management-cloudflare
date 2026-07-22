@@ -101,6 +101,17 @@
   "env": {
     "staging": {
       "name": "choir-management-cloudflare-staging",
+      "workers_dev": true,
+      "routes": [
+        {
+          "pattern": "staging.musicsite.org",
+          "custom_domain": true,
+        },
+        {
+          "pattern": "*.staging.musicsite.org/*",
+          "zone_name": "musicsite.org",
+        },
+      ],
       "d1_databases": [
         {
           "binding": "CONTROL_DB",
@@ -170,7 +181,7 @@
         "EXTERNAL_EFFECTS_MODE": "fake",
         "JOBS_DLQ_NAME": "choir-management-jobs-dlq-staging",
         "PLATFORM_EMAIL_MODE": "capture",
-        "PRODUCT_BASE_DOMAIN": "choir-management-cloudflare-staging.wes-osborn-account.workers.dev",
+        "PRODUCT_BASE_DOMAIN": "staging.musicsite.org",
       },
     },
     "production": {

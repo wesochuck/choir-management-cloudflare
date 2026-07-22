@@ -146,6 +146,102 @@ footer {
   margin: 0;
 }
 
+.music-catalog-layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(24rem, 1.2fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+
+.music-catalog-toolbar {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.music-catalog-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 48rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.music-catalog-list li {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.music-catalog-list li.is-selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.music-catalog-list button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.music-catalog-list button > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.music-catalog-list small {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.music-piece-form {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.music-piece-form h3 {
+  margin: 0;
+}
+
+.music-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.music-field--wide {
+  grid-column: 1 / -1;
+}
+
+.music-section-buckets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.music-section-buckets legend {
+  padding-inline: 0.35rem;
+  font-weight: 750;
+}
+
 .directory-grid p {
   margin-top: 0.5rem;
   overflow-wrap: anywhere;
@@ -1175,6 +1271,10 @@ footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .music-catalog-layout {
+    grid-template-columns: 1fr;
+  }
+
   .mfa-enrollment {
     grid-template-columns: 1fr;
   }
@@ -1229,8 +1329,13 @@ footer {
 
   .directory-filters,
   .directory-grid,
+  .music-fields-grid,
   .profile-facts {
     grid-template-columns: 1fr;
+  }
+
+  .music-field--wide {
+    grid-column: auto;
   }
 }
 

@@ -1,5 +1,8 @@
 import {
   memberProfileResponseSchema,
+  organizationMusicPieceDeleteResponseSchema,
+  organizationMusicPieceResponseSchema,
+  organizationMusicPiecesResponseSchema,
   organizationDirectoryResponseSchema,
   organizationAttendanceResponseSchema,
   accountOrganizationsResponseSchema,
@@ -49,6 +52,8 @@ import {
   type CurrentAuthSession,
   type MemberProfile,
   type MemberProfileUpdateRequest,
+  type OrganizationMusicPiece,
+  type OrganizationMusicPieceRequest,
   type OrganizationDirectoryProfile,
   type OrganizationAuthStatusResponse,
   type OrganizationAttendanceRow,
@@ -275,6 +280,45 @@ export async function listOrganizationDirectory(
 ): Promise<readonly OrganizationDirectoryProfile[]> {
   const response = await request("/api/singer/directory", { signal: signal ?? null });
   return organizationDirectoryResponseSchema.parse(await response.json()).profiles;
+}
+
+export async function listOrganizationMusic(
+  signal?: AbortSignal,
+): Promise<readonly OrganizationMusicPiece[]> {
+  const response = await request("/api/organization/music", { signal: signal ?? null });
+  return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;
+}
+
+export async function createOrganizationMusicPiece(
+  piece: OrganizationMusicPieceRequest,
+): Promise<OrganizationMusicPiece> {
+  const response = await request("/api/organization/music", {
+    body: JSON.stringify(piece),
+    method: "POST",
+  });
+  return organizationMusicPieceResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationMusicPiece(
+  pieceId: string,
+  piece: OrganizationMusicPieceRequest,
+): Promise<OrganizationMusicPiece> {
+  const response = await request(`/api/organization/music/${encodeURIComponent(pieceId)}`, {
+    body: JSON.stringify(piece),
+    method: "PUT",
+  });
+  return organizationMusicPieceResponseSchema.parse(await response.json());
+}
+
+export async function deleteOrganizationMusicPiece(
+  pieceId: string,
+  unlinkChildren: boolean,
+): Promise<void> {
+  const query = unlinkChildren ? "?unlinkChildren=true" : "";
+  const response = await request(`/api/organization/music/${encodeURIComponent(pieceId)}${query}`, {
+    method: "DELETE",
+  });
+  organizationMusicPieceDeleteResponseSchema.parse(await response.json());
 }
 
 export async function listOrganizationVenues(

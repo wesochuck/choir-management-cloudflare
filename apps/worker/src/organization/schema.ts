@@ -203,6 +203,32 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON seating_charts(event_id, sort_order, name, id)`,
     ],
   },
+  {
+    version: 14,
+    statements: [
+      `CREATE TABLE music_pieces (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        composer TEXT NOT NULL DEFAULT '',
+        arranger TEXT NOT NULL DEFAULT '',
+        purchase_date TEXT,
+        copies INTEGER CHECK (copies IS NULL OR copies >= 0),
+        catalog_id TEXT NOT NULL DEFAULT '',
+        duration_seconds INTEGER CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+        notes TEXT NOT NULL DEFAULT '',
+        section_buckets_json TEXT NOT NULL DEFAULT '[]',
+        genres_json TEXT NOT NULL DEFAULT '[]',
+        parent_id TEXT,
+        track_file_ids_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_music_pieces_title
+       ON music_pieces(title COLLATE NOCASE, id)`,
+      `CREATE INDEX idx_music_pieces_parent
+       ON music_pieces(parent_id, created_at, id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

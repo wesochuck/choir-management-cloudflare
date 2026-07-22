@@ -62,9 +62,14 @@ Profile writes and configuration updates preserve referential integrity for assi
 Version 13 stores reusable seating formations plus ordered, event-scoped seating charts and their
 seat assignments. Chart writes accept only active performance events, existing venues, active voiced
 Profiles with a Yes RSVP, and seats inside the declared layout. Linked members may read only charts
-for events on their own roster; venue deletion also accounts for retained chart references. Feature
-milestones expand this schema with typed repositories. Contract or removal migrations occur only
-after old and new Worker versions are both safe throughout the rollback window.
+for events on their own roster; venue deletion also accounts for retained chart references. Version
+14 stores the Organization music catalog, including movement relationships, ownership metadata,
+genres, section buckets, and mappings to ready private audio files. Movement depth is limited to one
+level. Event set lists may reference only music pieces and credited Profiles in the same
+Organization; referenced pieces cannot be deleted, and deleting a parent requires either deleting
+its movements first or explicitly preserving them as top-level works. Feature milestones expand this
+schema with typed repositories. Contract or removal migrations occur only after old and new Worker
+versions are both safe throughout the rollback window.
 
 ## R2 and KV
 

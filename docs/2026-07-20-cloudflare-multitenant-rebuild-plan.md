@@ -75,6 +75,7 @@ milestone complete.
 | `apps/web/src/account/SeatingManager.tsx`                      | Administrator event chart layout and assignment workflow                             |
 | `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                   |
 | `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory       |
+| `apps/web/src/account/MusicCatalog.tsx`                        | Manager music catalog, movement relationships, metadata, and deletion confirmation   |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                  |
 | `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                         |
 | `apps/worker/package.json`                                     | Worker application package                                                           |
@@ -85,6 +86,7 @@ milestone complete.
 | `apps/worker/src/organization/OrganizationStore.ts`            | Per-Organization SQLite Durable Object boundary                                      |
 | `apps/worker/src/organization/calendarManagementStore.ts`      | Venue, event, and RSVP SQLite repository inside the Organization boundary            |
 | `apps/worker/src/organization/seatingStore.ts`                 | Organization-scoped formation, chart, assignment, and finder repository              |
+| `apps/worker/src/organization/musicStore.ts`                   | Organization-scoped music catalog repository and referential validation              |
 | `apps/worker/src/organization/profiles.ts`                     | Authenticated Organization Profile repository adapter                                |
 | `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                       |
 | `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                  |
@@ -92,6 +94,7 @@ milestone complete.
 | `apps/worker/src/control/schema.ts`                            | Control-plane D1 schema definitions                                                  |
 | `apps/worker/src/control/migrations/0001_initial.sql`          | Initial control-plane schema                                                         |
 | `apps/worker/src/auth/config.ts`                               | Better Auth configuration and adapters                                               |
+| `apps/worker/src/auth/config.test.ts`                          | Managed-domain cookie sharing and host-only fallback proof                           |
 | `apps/worker/src/auth/platformEmail.ts`                        | Secret-safe transactional auth-email delivery and deterministic test capture         |
 | `apps/worker/src/auth/platformEmail.test.ts`                   | Platform-email mode, capture, and secret-redaction tests                             |
 | `apps/worker/src/auth/platformAdministrator.ts`                | Mandatory-MFA Platform Administrator enrollment and recent-session assertions        |
@@ -120,6 +123,7 @@ milestone complete.
 | `apps/worker/src/calendar/calendarIcs.ts`                      | Pure timezone-aware Organization calendar projection and iCalendar rendering         |
 | `apps/worker/src/calendar/organizationCalendar.ts`             | Authenticated venue, event, and RSVP Organization repository adapter                 |
 | `apps/worker/src/organization/organizationSeating.ts`          | Authenticated manager/member seating repository adapter                              |
+| `apps/worker/src/organization/organizationMusic.ts`            | Authenticated manager music catalog repository adapter                               |
 | `packages/contracts/package.json`                              | Shared API contract package                                                          |
 | `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                  |
 | `packages/domain/package.json`                                 | Pure domain rules and calculations                                                   |
@@ -163,6 +167,7 @@ milestone complete.
 | `apps/worker/test/rosterConfiguration.integration.test.ts`     | Section and voice-part defaults, validation, authorization, and isolation proof      |
 | `apps/worker/test/seating.integration.test.ts`                 | Chart assignment, member finder, authorization, and isolation proof                  |
 | `apps/worker/test/memberProfiles.integration.test.ts`          | Linked-Profile self-service, directory privacy, authorization, and isolation proof   |
+| `apps/worker/test/music.integration.test.ts`                   | Catalog CRUD, relationships, references, authorization, and isolation proof          |
 | `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof        |
 | `apps/worker/test/attendance.integration.test.ts`              | Attendance transaction, RSVP promotion, audit, and tenant-isolation proof            |
 | `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                 |

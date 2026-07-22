@@ -34,6 +34,21 @@ interface ActorContext {
   readonly requestId: string;
 }
 
+export class CalendarMutationError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+  ) {
+    super(`The Organization store rejected the calendar mutation (${code}).`);
+    this.name = "CalendarMutationError";
+  }
+}
+
+function errorCode(value: unknown): string {
+  if (typeof value !== "object" || value === null || !("code" in value)) return "unknown";
+  return typeof value.code === "string" ? value.code : "unknown";
+}
+
 function stub(env: Env, organizationId: string): DurableObjectStub {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
@@ -106,7 +121,10 @@ async function mutate(
       method: "POST",
     },
   );
-  if (!response.ok) throw new Error("The Organization store rejected the calendar mutation.");
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    throw new CalendarMutationError(errorCode(body), response.status);
+  }
   return response.json();
 }
 

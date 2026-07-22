@@ -3,9 +3,9 @@
 **Prepared:** July 21, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
 is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
 tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
-OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging. The
-Milestone 3 queue retry/idempotency/isolation foundation is now in progress. Production is not
-launched.
+OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging.
+Milestone 5 parity work is active through the Organization music-catalog foundation. Production is
+not launched.
 
 ## Repository topology
 
@@ -225,6 +225,15 @@ Verified over public HTTPS on July 20–21, 2026:
   and self-seat highlighting. The legacy standalone admin/member URLs and richer drag/reorder
   interaction remain parity follow-up work, so the overall seating workflow remains classified
   partial.
+- Organization schema version 14 adds a tenant-local music catalog with one-level movement
+  relationships, composer/arranger/ownership metadata, genres, configured section buckets, and
+  mappings to ready private audio files. Owners and Administrators can manage the catalog through
+  typed APIs and the account UI. The Organization store rejects cross-Organization music and
+  credited-Profile identifiers in event set lists, prevents deletion of referenced pieces, and
+  requires explicit movement preservation when deleting a parent. Focused workerd proof covers CRUD,
+  audit, relationship rules, private-file typing, authorization, and tenant isolation. CSV
+  import/export, recent-performance metadata, audio attachment/player/offline behavior, and the
+  dedicated set-list manager remain parity follow-up work, so music and set lists remain partial.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.
@@ -309,9 +318,10 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run check:parity`: 145 inventory entries validated.
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
-- `npm test`: 8 files / 23 tests passed, including staging-bootstrap safety, IANA timezone/DST
-  conversion, adversarial signed-link coverage, and seating formation behavior.
-- `npm run test:integration`: 15 files / 47 workerd tests passed.
+- `npm test`: 9 files / 24 tests passed, including managed product-domain cookie scoping,
+  staging-bootstrap safety, IANA timezone/DST conversion, adversarial signed-link coverage, and
+  seating formation behavior.
+- `npm run test:integration`: 16 files / 48 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
   password-recovery journeys passed, including seating management, linked-member Profile editing,
@@ -509,8 +519,9 @@ These do not prevent local implementation of Milestones 0–4:
   commit.
 - Create a least-privilege Cloudflare API token for GitHub Actions and store it, plus the account
   ID, as GitHub environment secrets. The local Wrangler OAuth credential must not be reused in CI.
-- Select or add a Cloudflare zone before wildcard Organization subdomains and Cloudflare for SaaS
-  custom-hostname validation. The workers.dev URL is the accepted generic base for foundation work.
+- Add the required proxied wildcard DNS record if Cloudflare cannot create it while binding the
+  `{slug}.staging.musicsite.org` Worker route. The `musicsite.org` zone is registered in the active
+  account and authorized for this project.
 - Enable the paid Cloudflare Email Sending entitlement and a verified platform sender domain before
   platform-email staging qualification. `wrangler email sending list` currently returns unauthorized
   code 2036; Email Routing has no configured zones.
@@ -522,15 +533,17 @@ These do not prevent local implementation of Milestones 0–4:
 ## Environment decisions
 
 - GitHub visibility: private.
-- Generic foundation hostname: the workers.dev URL above.
-- Canonical Organization hostname: deferred until a managed Cloudflare zone is selected; never infer
-  a wildcard under workers.dev.
+- Product-owned domain: `musicsite.org`.
+- Permanent staging hostname: `staging.musicsite.org`, with canonical Organization hosts at
+  `{slug}.staging.musicsite.org`; the existing workers.dev hostname remains a diagnostic fallback.
+- Production reservation: `musicsite.org` and `{slug}.musicsite.org`; production remains
+  uncreated/unlaunched.
 - Staging/production isolation: separate resources and secrets in the same Cloudflare account for
   now; production resources remain uncreated/unlaunched.
 - Platform transactional email: capture locally/staging until Email Sending and a verified domain
   are enabled.
-- Custom domains: staging validation waits for a safe Cloudflare zone and disposable subdomain/apex/
-  `www` hostnames.
+- Independently attached Organization domains remain public-only and require their own Cloudflare
+  for SaaS validation lifecycle; they never receive product auth cookies.
 
 ## Resume point
 
@@ -538,7 +551,8 @@ These do not prevent local implementation of Milestones 0–4:
    repository when the secure interactive login is available.
 2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
    GitHub environment exists.
-3. Continue Milestone 5 with the remaining music, communications, public-sales, and member workflow
-   parity after the seating checkpoint. Return to validated custom-domain activation when a managed
-   zone is available. Do not add whole-archive import; ADR 0015 deliberately excludes it from v1.
+3. Continue Milestone 5 with music import/export, audio/player, dedicated set-list management,
+   communications, public-sales, and remaining member workflow parity. Validate independently
+   attached public domains separately from the product-owned canonical namespace. Do not add
+   whole-archive import; ADR 0015 deliberately excludes it from v1.
 4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.

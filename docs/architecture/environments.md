@@ -10,7 +10,9 @@
 ## Permanent staging inventory
 
 - Account: `Wes Osborn Account` (`94c9ad3f9675d11eca39ca32ed5241e1`)
-- URL: `choir-management-cloudflare-staging.wes-osborn-account.workers.dev`
+- Product URL: `staging.musicsite.org`
+- Canonical Organization namespace: `{slug}.staging.musicsite.org`
+- Workers.dev fallback: `choir-management-cloudflare-staging.wes-osborn-account.workers.dev`
 - D1: `choir-management-control-staging`
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
@@ -18,9 +20,10 @@
 - Queue/DLQ: `choir-management-jobs-staging` / `choir-management-jobs-dlq-staging`
 - Workflow: `choir-management-provisioning-staging`
 
-The workers.dev hostname is an accepted generic foundation URL, not a wildcard Organization-domain
-solution. Canonical Organization subdomains and Cloudflare for SaaS tests require a managed zone and
-safe test hostnames later.
+`musicsite.org` is the product-owned managed zone. Staging uses its isolated `staging` namespace;
+the apex and `{slug}.musicsite.org` remain reserved for an eventual same-commit production
+promotion. Independently attached Organization domains remain public-only and use the separate
+Cloudflare for SaaS lifecycle.
 
 ## Promotion invariants
 

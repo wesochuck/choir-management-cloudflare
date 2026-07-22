@@ -26,6 +26,7 @@ import {
   readRosterConfigurationFromStore,
 } from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
+import { listMusicPiecesFromStore, manageMusicInStore } from "./musicStore";
 import {
   listSeatingChartsFromStore,
   manageSeatingInStore,
@@ -966,6 +967,8 @@ async function dispatchPostRequest(
       return manageOrganizationCalendarInStore(storage, request);
     case "/internal/seating/manage":
       return manageSeatingInStore(storage, request);
+    case "/internal/music/manage":
+      return manageMusicInStore(storage, request);
     case "/internal/provision":
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
@@ -1038,6 +1041,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return readRosterConfigurationFromStore(storage, organizationId);
     case "/internal/seating/configuration":
       return readSeatingConfigurationFromStore(storage, organizationId);
+    case "/internal/music/pieces":
+      return listMusicPiecesFromStore(storage, organizationId);
     case "/internal/seating/charts":
       return listSeatingChartsFromStore(storage, {
         eventId: url.searchParams.get("eventId"),

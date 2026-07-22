@@ -1,5 +1,6 @@
 import {
   memberProfileUpdateRequestSchema,
+  organizationMusicPieceRequestSchema,
   organizationAttendanceBulkRequestSchema,
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
@@ -46,6 +47,7 @@ import {
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
 import {
+  CalendarMutationError,
   createOrganizationEvent,
   createOrganizationVenue,
   deleteOrganizationVenue,
@@ -91,6 +93,13 @@ import {
 import type { Env } from "./env";
 import { validateStartupConfig } from "./env";
 import { currentOrganizationSchemaVersion } from "./organization/schema";
+import {
+  createOrganizationMusicPiece,
+  deleteOrganizationMusicPiece,
+  listOrganizationMusicPieces,
+  MusicRepositoryError,
+  updateOrganizationMusicPiece,
+} from "./organization/organizationMusic";
 import {
   createOrganizationProfile,
   listOrganizationDirectoryProfiles,
@@ -163,6 +172,21 @@ type CalendarAuthorization =
       readonly ok: false;
       readonly status: 401 | 403 | 404;
     };
+
+function calendarMutationMessage(code: string): string {
+  if (code === "music_piece_not_found") {
+    return "Every set-list music piece must exist in this Organization.";
+  }
+  if (code === "performer_profile_not_found") {
+    return "Every credited Profile must exist in this Organization.";
+  }
+  if (code === "venue_not_found") return "The selected venue was not found in this Organization.";
+  if (code === "parent_performance_not_found") {
+    return "The selected parent performance was not found in this Organization.";
+  }
+  if (code === "event_not_found") return "The event was not found in this Organization.";
+  return "The Organization rejected an invalid event reference.";
+}
 
 async function authorizeCalendarRoute(
   context: Context<WorkerHonoEnvironment>,
@@ -1539,6 +1563,171 @@ router.get("/api/singer/directory", async (context) => {
   }
 });
 
+router.get("/api/organization/music", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      pieces: await listOrganizationMusicPieces(context.env, authorization.organizationId),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization music catalog is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/music", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationMusicPieceRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid music-piece details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const piece = await createOrganizationMusicPiece(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...piece, requestId: context.get("requestId") }, 201);
+  } catch (error: unknown) {
+    const status = error instanceof MusicRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+        message: "The music piece could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.put("/api/organization/music/:pieceId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const pieceId = z.uuid().safeParse(context.req.param("pieceId"));
+  const body = organizationMusicPieceRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!pieceId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid music piece and details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const piece = await updateOrganizationMusicPiece(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      pieceId.data,
+      body.data,
+    );
+    return context.json({ ...piece, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const status = error instanceof MusicRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+        message: "The music piece could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.delete("/api/organization/music/:pieceId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const pieceId = z.uuid().safeParse(context.req.param("pieceId"));
+  if (!pieceId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid music piece is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    await deleteOrganizationMusicPiece(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      pieceId.data,
+      context.req.query("unlinkChildren") === "true",
+    );
+    return context.json({
+      pieceId: pieceId.data,
+      requestId: context.get("requestId"),
+      status: "deleted" as const,
+    });
+  } catch (error: unknown) {
+    const status = error instanceof MusicRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+        message: "The music piece could not be deleted.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
 router.get("/api/singer/events", async (context) => {
   const authorization = await authorizeCalendarRoute(context, false);
   if (!authorization.ok) {
@@ -2382,7 +2571,27 @@ router.post("/api/organization/events", async (context) => {
       body.data,
     );
     return context.json({ ...event, requestId: context.get("requestId") }, 201);
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof CalendarMutationError && error.status === 409) {
+      return context.json(
+        {
+          code: error.code,
+          message: calendarMutationMessage(error.code),
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    if (error instanceof CalendarMutationError && error.status === 404) {
+      return context.json(
+        {
+          code: error.code,
+          message: calendarMutationMessage(error.code),
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
     return context.json(
       {
         code: "service_unavailable",
@@ -2428,7 +2637,27 @@ router.put("/api/organization/events/:eventId", async (context) => {
       body.data,
     );
     return context.json({ ...event, requestId: context.get("requestId") });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof CalendarMutationError && error.status === 409) {
+      return context.json(
+        {
+          code: error.code,
+          message: calendarMutationMessage(error.code),
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    if (error instanceof CalendarMutationError && error.status === 404) {
+      return context.json(
+        {
+          code: error.code,
+          message: calendarMutationMessage(error.code),
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
     return context.json(
       {
         code: "service_unavailable",
