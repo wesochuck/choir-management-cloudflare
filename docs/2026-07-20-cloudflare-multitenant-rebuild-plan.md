@@ -167,6 +167,7 @@ milestone complete.
 | `apps/web/e2e/foundation.spec.ts`                              | Foundation desktop/mobile browser smoke coverage                                     |
 | `apps/web/e2e/auth.spec.ts`                                    | OTP, account, Organization-choice, and session-management browser coverage           |
 | `apps/web/src/account/CommunicationCenter.tsx`                 | Responsive manager compose, drafts, templates, history, and delivery visibility      |
+| `apps/web/src/public/PublicUnsubscribeView.tsx`                | Signed public email-suppression confirmation flow                                    |
 | `apps/worker/tsconfig.json`                                    | Strict Worker and Cloudflare-test TypeScript project                                 |
 | `apps/worker/worker-configuration.d.ts`                        | Wrangler-generated binding and module-export declarations                            |
 | `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                   |

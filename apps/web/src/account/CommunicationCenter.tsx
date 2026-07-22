@@ -4,6 +4,7 @@ import type {
   CommunicationDeliverySummary,
   CommunicationMessage,
   CommunicationTemplate,
+  OrganizationEvent,
 } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
@@ -14,6 +15,7 @@ import {
   getOrganizationCommunicationDeliverySummary,
   listOrganizationCommunications,
   listOrganizationCommunicationTemplates,
+  listOrganizationEvents,
   previewOrganizationCommunicationReach,
   retryOrganizationCommunicationDeliveries,
   saveOrganizationCommunicationDraft,
@@ -39,6 +41,10 @@ function displayDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
     new Date(value),
   );
+}
+
+function eventLabel(event: OrganizationEvent): string {
+  return `${event.title} · ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.startsAt))}`;
 }
 
 function channelFromValue(value: string): CommunicationChannel {
@@ -174,6 +180,7 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
   const [subject, setSubject] = useState("");
   const [voiceParts, setVoiceParts] = useState("");
   const [messages, setMessages] = useState<readonly CommunicationMessage[]>([]);
+  const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
   const [reach, setReach] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -183,8 +190,14 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    listOrganizationCommunications(controller.signal)
-      .then(setMessages)
+    Promise.all([
+      listOrganizationCommunications(controller.signal),
+      listOrganizationEvents(controller.signal),
+    ])
+      .then(([loadedMessages, loadedEvents]) => {
+        setMessages(loadedMessages);
+        setEvents(loadedEvents);
+      })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted) setError(failureMessage(failure));
       });
@@ -376,6 +389,51 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
             value={voiceParts}
           />
         </div>
+        <div className="field">
+          <label htmlFor="communication-event">Event audience (optional)</label>
+          <select
+            id="communication-event"
+            onChange={(event) => {
+              const eventId = event.target.value || null;
+              setAudience((current) => ({
+                ...current,
+                eventId,
+                rsvp: eventId ? current.rsvp : "All",
+              }));
+              setReach(null);
+            }}
+            value={audience.eventId ?? ""}
+          >
+            <option value="">All matching Profiles</option>
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {eventLabel(event)}
+              </option>
+            ))}
+          </select>
+        </div>
+        {audience.eventId ? (
+          <div className="field">
+            <label htmlFor="communication-rsvp">RSVP response</label>
+            <select
+              id="communication-rsvp"
+              onChange={(event) => {
+                const value = event.target.value;
+                setAudience((current) => ({
+                  ...current,
+                  rsvp: value === "Yes" || value === "No" || value === "Pending" ? value : "All",
+                }));
+                setReach(null);
+              }}
+              value={audience.rsvp}
+            >
+              <option value="All">Any response</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+              <option value="Pending">Pending</option>
+            </select>
+          </div>
+        ) : null}
         {channel !== "SMS" ? (
           <div className="field">
             <label htmlFor="communication-subject">Subject</label>

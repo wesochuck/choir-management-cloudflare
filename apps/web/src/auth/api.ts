@@ -7,6 +7,7 @@ import {
   communicationDeleteResponseSchema,
   communicationTemplateResponseSchema,
   communicationTemplatesResponseSchema,
+  communicationUnsubscribeResponseSchema,
   memberProfileResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
   organizationMusicImportResponseSchema,
@@ -539,6 +540,14 @@ export async function deleteOrganizationCommunicationTemplate(templateId: string
     { method: "DELETE" },
   );
   communicationDeleteResponseSchema.parse(await response.json());
+}
+
+export async function unsubscribeOrganizationEmail(token: string): Promise<void> {
+  const response = await request("/api/public/unsubscribe", {
+    body: JSON.stringify({ token }),
+    method: "POST",
+  });
+  communicationUnsubscribeResponseSchema.parse(await response.json());
 }
 
 export async function deletePrivateOrganizationFile(fileId: string): Promise<void> {

@@ -88,9 +88,14 @@
         "path": "/unsubscribe",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "src/App.tsx:233; src/views/PublicUnsubscribeView.tsx",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/public/PublicUnsubscribeView.tsx",
+            "apps/web/src/auth/api.ts",
+          ],
       },
       {
         "id": "route.public.player",
@@ -619,9 +624,15 @@
         "path": "/api/unsubscribe",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/unsubscribe.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
       },
       {
         "id": "api.generate-rsvp-tokens",
@@ -1200,9 +1211,15 @@
         "flow": "unsubscribe-link",
         "owner": "packages/domain",
         "milestone": 3,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
       },
       {
         "id": "signed.poll",

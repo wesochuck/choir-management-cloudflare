@@ -8,6 +8,7 @@ const deliverySchema = z.object({
   messageId: z.uuid(),
   recipientName: z.string().min(1).max(200),
   subject: z.string().max(300),
+  unsubscribeUrl: z.url().max(4_096).nullable(),
 });
 
 export interface CommunicationProviderResult {

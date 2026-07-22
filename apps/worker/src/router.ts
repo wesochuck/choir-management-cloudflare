@@ -7,6 +7,7 @@ import {
   communicationDraftRequestSchema,
   communicationSendRequestSchema,
   communicationTemplateRequestSchema,
+  communicationUnsubscribeRequestSchema,
   organizationAttendanceBulkRequestSchema,
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
@@ -133,6 +134,7 @@ import {
   saveCommunicationTemplate,
   saveCommunicationDraft,
   sendOrganizationCommunication,
+  unsubscribeOrganizationProfile,
 } from "./organization/organizationCommunications";
 import {
   createOrganizationProfile,
@@ -157,6 +159,7 @@ import {
   updateOrganizationSeatingConfiguration,
 } from "./organization/organizationSeating";
 import { readPublishedOrganization } from "./publication/publishOrganization";
+import { verifySignedLinkScope } from "./security/signedLinks";
 import {
   MAX_PRIVATE_FILE_BYTES,
   PrivateFileStorageError,
@@ -530,7 +533,9 @@ router.use("*", async (context, next) => {
   );
   context.header(
     "referrer-policy",
-    responsePath === "/api/calendar/feed" ? "no-referrer" : "strict-origin-when-cross-origin",
+    responsePath === "/api/calendar/feed" || responsePath === "/api/public/unsubscribe"
+      ? "no-referrer"
+      : "strict-origin-when-cross-origin",
   );
   context.header("x-content-type-options", "nosniff");
   context.header("x-frame-options", "DENY");
@@ -606,6 +611,64 @@ router.get("/api/public/projection", async (context) => {
     return context.body(null, 304);
   }
   return context.json(published.projection);
+});
+
+router.post("/api/public/unsubscribe", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const body = communicationUnsubscribeRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success)
+    return context.json(
+      {
+        code: "invalid_unsubscribe_link",
+        message: "This unsubscribe link is invalid or expired.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      400,
+    );
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok)
+    return context.json(
+      {
+        code: "not_found",
+        message: "This unsubscribe link is invalid or expired.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  const envelope = await verifySignedLinkScope(context.env.SIGNED_LINK_SECRET, body.data.token, {
+    expectedOrganizationId: resolved.value.organizationId,
+    expectedPurpose: "unsubscribe",
+  });
+  const profileId = z.uuid().safeParse(envelope?.subjectId);
+  if (envelope?.revocation !== "email-v1" || !profileId.success)
+    return context.json(
+      {
+        code: "invalid_unsubscribe_link",
+        message: "This unsubscribe link is invalid or expired.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    await unsubscribeOrganizationProfile(
+      context.env,
+      resolved.value.organizationId,
+      profileId.data,
+      requestIdValue,
+    );
+    return context.json({ requestId: requestIdValue, success: true as const });
+  } catch {
+    return context.json(
+      {
+        code: "not_found",
+        message: "This unsubscribe link is invalid or expired.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
 });
 
 router.get("/api/calendar/feed", async (context) => {
@@ -2350,6 +2413,7 @@ router.post("/api/organization/communications/send", async (context) => {
       {
         actorUserId: authorization.userId,
         organizationId: authorization.organizationId,
+        organizationOrigin: new URL(context.req.url).origin,
         requestId: context.get("requestId"),
       },
       body.data,

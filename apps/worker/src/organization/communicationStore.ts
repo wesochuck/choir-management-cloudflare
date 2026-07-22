@@ -28,6 +28,12 @@ const recipientSchema = z.object({
   name: z.string().min(1).max(200),
   phone: z.string().max(40),
   profileId: z.uuid(),
+  unsubscribeUrl: z.url().max(4_096).nullable(),
+});
+const unsubscribeOperationSchema = z.object({
+  organizationId: z.string().min(1).max(128),
+  profileId: z.uuid(),
+  requestId: z.uuid(),
 });
 const saveOperationSchema = contextSchema.extend({
   action: z.literal("save-draft"),
@@ -99,6 +105,7 @@ interface CandidateRow {
   readonly [column: string]: SqlStorageValue;
   readonly displayName: string;
   readonly doNotEmail: number;
+  readonly emailSuppressed: number;
   readonly globalStatus: "Active" | "Idle" | "Inactive";
   readonly id: string;
   readonly phone: string;
@@ -132,6 +139,7 @@ interface DeliveryRow {
   readonly messageId: string;
   readonly recipientName: string;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
+  readonly unsubscribeUrl: string | null;
   readonly updatedAt: string;
 }
 interface TemplateRow {
@@ -267,6 +275,10 @@ export async function resolveCommunicationAudienceFromStore(
     .exec<CandidateRow>(
       `SELECT p.id, p.display_name AS displayName, p.phone, p.voice_part AS voicePart,
         p.global_status AS globalStatus, p.do_not_email AS doNotEmail,
+        EXISTS (
+          SELECT 1 FROM communication_suppressions s
+          WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+        ) AS emailSuppressed,
         COALESCE(r.rsvp, 'Pending') AS rsvp
        FROM profiles p
        LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
@@ -284,9 +296,10 @@ export async function resolveCommunicationAudienceFromStore(
     .filter(({ voicePart }) => voicePart.length > 0 && !excludedVoiceParts.has(voicePart))
     .filter(({ voicePart }) => !requestedVoiceParts || requestedVoiceParts.has(voicePart))
     .filter(({ rsvp }) => !audience.eventId || audience.rsvp === "All" || audience.rsvp === rsvp)
-    .map(({ displayName, doNotEmail, id, phone, voicePart }) => ({
+    .map(({ displayName, doNotEmail, emailSuppressed, id, phone, voicePart }) => ({
       displayName,
       doNotEmail: doNotEmail === 1,
+      emailSuppressed: emailSuppressed === 1,
       phone,
       profileId: id,
       voicePart,
@@ -353,8 +366,8 @@ async function sendMessage(
       storage.sql.exec(
         `INSERT INTO communication_deliveries
           (id, message_id, profile_id, recipient_name, channel, destination, status,
-           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)`,
+           created_at, updated_at, unsubscribe_url)
+         VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
         delivery.id,
         delivery.messageId,
         delivery.recipient.profileId,
@@ -363,6 +376,7 @@ async function sendMessage(
         delivery.destination,
         delivery.now,
         delivery.now,
+        delivery.channel === "email" ? delivery.recipient.unsubscribeUrl : null,
       );
     }
     storage.sql.exec(
@@ -678,6 +692,58 @@ export function listCommunicationTemplatesFromStore(
   return Response.json({ templates });
 }
 
+export async function unsubscribeCommunicationProfileInStore(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = unsubscribeOperationSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success)
+    return Response.json({ code: "invalid_unsubscribe_request" }, { status: 400 });
+  const operation = parsed.data;
+  if (!identityMatches(storage, operation.organizationId))
+    return Response.json({ code: "unsubscribe_not_found" }, { status: 404 });
+  const profile = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+      "SELECT id FROM profiles WHERE id = ? LIMIT 1",
+      operation.profileId,
+    )
+    .toArray()
+    .at(0);
+  if (!profile) return Response.json({ code: "unsubscribe_not_found" }, { status: 404 });
+  const now = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE profiles SET do_not_email = 1, updated_at = ? WHERE id = ?",
+      now,
+      operation.profileId,
+    );
+    storage.sql.exec(
+      `INSERT INTO communication_suppressions
+        (id, profile_id, channel, reason, active, created_at, updated_at)
+       VALUES (?, ?, 'email', 'user_unsubscribe', 1, ?, ?)
+       ON CONFLICT(profile_id, channel) DO UPDATE SET
+         reason = 'user_unsubscribe', active = 1, updated_at = excluded.updated_at`,
+      crypto.randomUUID(),
+      operation.profileId,
+      now,
+      now,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id,
+        request_id, change_summary, occurred_at)
+       VALUES (?, 'public_link', ?, 'organization.communication.unsubscribed',
+        'profile', ?, ?, ?, ?)`,
+      `communication-unsubscribe:${operation.requestId}`,
+      operation.profileId,
+      operation.profileId,
+      operation.requestId,
+      JSON.stringify({ channel: "email" }),
+      now,
+    );
+  });
+  return Response.json({ success: true });
+}
+
 export function readCommunicationSummaryFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -724,20 +790,39 @@ export function readCommunicationJobFromStore(
   const messageId = job?.idempotencyKey.split(":")[1];
   if (!messageId) return Response.json({ code: "communication_job_not_found" }, { status: 404 });
   const message = readMessage(storage, messageId);
+  storage.sql.exec(
+    `UPDATE communication_deliveries
+     SET status = 'suppressed', failure_detail = '', updated_at = ?
+     WHERE message_id = ? AND channel = 'email' AND status = 'queued'
+       AND EXISTS (
+         SELECT 1 FROM profiles p
+         WHERE p.id = communication_deliveries.profile_id
+           AND (
+             p.do_not_email = 1 OR EXISTS (
+               SELECT 1 FROM communication_suppressions s
+               WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+             )
+           )
+       )`,
+    new Date().toISOString(),
+    messageId,
+  );
   const deliveries = storage.sql
     .exec<DeliveryRow>(
       `SELECT id, message_id AS messageId, recipient_name AS recipientName, channel, destination,
-        status, attempts, failure_detail AS failureDetail, updated_at AS updatedAt
+        status, attempts, failure_detail AS failureDetail, updated_at AS updatedAt,
+        unsubscribe_url AS unsubscribeUrl
        FROM communication_deliveries WHERE message_id = ? AND status = 'queued'
        ORDER BY id LIMIT 1000`,
       messageId,
     )
     .toArray()
-    .map(({ channel, destination, id, recipientName }) => ({
+    .map(({ channel, destination, id, recipientName, unsubscribeUrl }) => ({
       channel,
       destination,
       id,
       recipientName,
+      unsubscribeUrl,
     }));
   return message
     ? Response.json({

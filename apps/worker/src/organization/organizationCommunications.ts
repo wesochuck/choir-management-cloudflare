@@ -18,6 +18,7 @@ import { communicationReach } from "@choir/domain";
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { issueSignedLink } from "../security/signedLinks";
 import { listOrganizationProfileEmails } from "./profiles";
 
 const candidateResponseSchema = z.object({
@@ -25,6 +26,7 @@ const candidateResponseSchema = z.object({
     z.object({
       displayName: z.string().min(1).max(200),
       doNotEmail: z.boolean(),
+      emailSuppressed: z.boolean(),
       phone: z.string().max(40),
       profileId: z.uuid(),
       voicePart: z.string().max(100),
@@ -39,6 +41,7 @@ const deliveryJobResponseSchema = z.object({
       destination: z.string().min(1).max(320),
       id: z.uuid(),
       recipientName: z.string().min(1).max(200),
+      unsubscribeUrl: z.url().max(4_096).nullable(),
     }),
   ),
   messageId: z.uuid(),
@@ -102,6 +105,7 @@ interface Recipient {
   readonly name: string;
   readonly phone: string;
   readonly profileId: string;
+  readonly unsubscribeUrl: string | null;
 }
 
 async function resolveRecipients(
@@ -109,6 +113,7 @@ async function resolveRecipients(
   database: D1Database,
   organizationId: string,
   audience: CommunicationAudienceRequest,
+  unsubscribeOrigin: string | null,
 ): Promise<readonly Recipient[]> {
   const [response, emails] = await Promise.all([
     post(env, organizationId, "/internal/communications/audience", {
@@ -118,12 +123,38 @@ async function resolveRecipients(
     listOrganizationProfileEmails(database, organizationId),
   ]);
   const candidates = candidateResponseSchema.parse(await response.json()).recipients;
-  return candidates.map((candidate) => ({
-    email: candidate.doNotEmail ? "" : (emails.get(candidate.profileId) ?? ""),
-    name: candidate.displayName,
-    phone: candidate.phone,
-    profileId: candidate.profileId,
-  }));
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  return Promise.all(
+    candidates.map(async (candidate) => {
+      const email =
+        candidate.doNotEmail || candidate.emailSuppressed
+          ? ""
+          : (emails.get(candidate.profileId) ?? "");
+      const token =
+        email && unsubscribeOrigin
+          ? await issueSignedLink(env.SIGNED_LINK_SECRET, {
+              algorithm: "HS256",
+              expiresAt: issuedAt + 365 * 24 * 60 * 60,
+              issuedAt,
+              organizationId,
+              purpose: "unsubscribe",
+              revocation: "email-v1",
+              subjectId: candidate.profileId,
+              version: 1,
+            })
+          : null;
+      return {
+        email,
+        name: candidate.displayName,
+        phone: candidate.phone,
+        profileId: candidate.profileId,
+        unsubscribeUrl:
+          token && unsubscribeOrigin
+            ? `${unsubscribeOrigin}/unsubscribe?token=${encodeURIComponent(token)}`
+            : null,
+      };
+    }),
+  );
 }
 
 export async function previewCommunicationReach(
@@ -133,7 +164,7 @@ export async function previewCommunicationReach(
   request: Pick<CommunicationSendRequest, "audience" | "channel">,
 ): Promise<CommunicationReach> {
   return communicationReach(
-    await resolveRecipients(env, database, organizationId, request.audience),
+    await resolveRecipients(env, database, organizationId, request.audience, null),
     request.channel,
   );
 }
@@ -151,7 +182,7 @@ export async function saveCommunicationDraft(
   message: CommunicationDraftRequest,
 ): Promise<CommunicationMessage> {
   const reach = communicationReach(
-    await resolveRecipients(env, database, context.organizationId, message.audience),
+    await resolveRecipients(env, database, context.organizationId, message.audience, null),
     message.channel,
   );
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
@@ -167,7 +198,7 @@ export async function saveCommunicationDraft(
 export async function sendOrganizationCommunication(
   env: Env,
   database: D1Database,
-  context: ActorContext,
+  context: ActorContext & { readonly organizationOrigin: string },
   message: CommunicationSendRequest,
 ): Promise<CommunicationMessage> {
   const recipients = await resolveRecipients(
@@ -175,6 +206,7 @@ export async function sendOrganizationCommunication(
     database,
     context.organizationId,
     message.audience,
+    context.organizationOrigin,
   );
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
     action: "send",
@@ -273,6 +305,19 @@ export async function deleteCommunicationTemplate(
     action: "delete-template",
     ...context,
     templateId,
+  });
+}
+
+export async function unsubscribeOrganizationProfile(
+  env: Env,
+  organizationId: string,
+  profileId: string,
+  requestId: string,
+): Promise<void> {
+  await post(env, organizationId, "/internal/communications/unsubscribe", {
+    organizationId,
+    profileId,
+    requestId,
   });
 }
 

@@ -38,6 +38,12 @@ full token or signature.
 | Ticket scan      | ticket                                      | valid until event/refund/void; scan transition idempotent | refund, void, event policy, or explicit ticket revocation    |
 | Private download | actor/session + file                        | very short-lived and single-purpose                       | authorization and file state are rechecked                   |
 
+The Organization campaign-email unsubscribe flow is implemented with a one-year signed envelope
+bound to the hostname-resolved Organization and Profile. Delivery snapshots retain only the URL
+needed by the provider adapter. The public endpoint applies the email preference and suppression
+idempotently, rejects cross-Organization replay, and never returns token contents in its response or
+audit event. Other signed-link flows in this matrix remain independently tracked parity work.
+
 ## Required adversarial tests
 
 - malformed, oversized, truncated, unknown-version, and expired tokens;

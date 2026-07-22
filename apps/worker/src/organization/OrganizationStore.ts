@@ -35,6 +35,7 @@ import {
   readCommunicationJobFromStore,
   readCommunicationSummaryFromStore,
   resolveCommunicationAudienceFromStore,
+  unsubscribeCommunicationProfileInStore,
 } from "./communicationStore";
 import {
   listSeatingChartsFromStore,
@@ -1277,6 +1278,9 @@ async function dispatchCommunicationPostRequest(
   }
   if (pathname === "/internal/communications/manage") {
     return manageCommunicationInStore(storage, request);
+  }
+  if (pathname === "/internal/communications/unsubscribe") {
+    return unsubscribeCommunicationProfileInStore(storage, request);
   }
   return null;
 }

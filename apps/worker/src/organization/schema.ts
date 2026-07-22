@@ -301,6 +301,25 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON communication_templates(title COLLATE NOCASE, id)`,
     ],
   },
+  {
+    version: 18,
+    statements: [
+      "ALTER TABLE communication_deliveries ADD COLUMN unsubscribe_url TEXT",
+      `CREATE TABLE communication_suppressions (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        channel TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
+        reason TEXT NOT NULL CHECK (reason IN ('user_unsubscribe', 'manager', 'provider')),
+        source_message_id TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (profile_id, channel)
+      ) STRICT`,
+      `CREATE INDEX idx_communication_suppressions_active
+       ON communication_suppressions(channel, active, profile_id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -81,6 +81,7 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
       messageId: deliveryJob.messageId,
       recipientName: delivery.recipientName,
       subject: renderCommunicationTemplate(deliveryJob.subject, delivery.recipientName),
+      unsubscribeUrl: delivery.unsubscribeUrl,
     });
     results.push({ deliveryId: delivery.id, ...result });
   }

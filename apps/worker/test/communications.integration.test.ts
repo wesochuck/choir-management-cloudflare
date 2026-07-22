@@ -6,6 +6,7 @@ import {
   communicationDeleteResponseSchema,
   communicationTemplateResponseSchema,
   communicationTemplatesResponseSchema,
+  communicationUnsubscribeResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -62,7 +63,7 @@ async function provision(id: string, slug: string, role: "admin" | "member") {
         `INSERT INTO organizations
           (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
            created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 17, ?, ?, ?)`,
+         VALUES (?, ?, ?, 'active', ?, 18, ?, ?, ?)`,
       )
       .bind(id, `Organization ${slug}`, slug, id, now, now, now),
     database
@@ -299,6 +300,19 @@ describe("Organization communications", () => {
     expect(sentResponse.status).toBe(202);
     const message = communicationMessageResponseSchema.parse(await sentResponse.json());
     expect(message).toMatchObject({ channel: "Both", status: "Queued" });
+    const unsubscribeUrl = await runInDurableObject<OrganizationStore, string>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<Record<string, SqlStorageValue> & { unsubscribeUrl: string }>(
+            `SELECT unsubscribe_url AS unsubscribeUrl FROM communication_deliveries
+             WHERE message_id = ? AND channel = 'email' LIMIT 1`,
+            message.id,
+          )
+          .one().unsubscribeUrl,
+    );
+    const unsubscribeToken = new URL(unsubscribeUrl).searchParams.get("token");
+    expect(unsubscribeToken).toBeTruthy();
     expect(
       (
         await write("bravo.localhost", "/api/organization/communications/send", cookie, {
@@ -309,6 +323,31 @@ describe("Organization communications", () => {
         })
       ).status,
     ).toBe(403);
+
+    expect(
+      (
+        await write("bravo.localhost", "/api/public/unsubscribe", cookie, {
+          token: unsubscribeToken,
+        })
+      ).status,
+    ).toBe(400);
+    const unsubscribe = communicationUnsubscribeResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/public/unsubscribe", cookie, {
+          token: unsubscribeToken,
+        })
+      ).json(),
+    );
+    expect(unsubscribe.success).toBe(true);
+    const afterUnsubscribe = communicationReachResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/reach-preview", cookie, {
+          audience,
+          channel: "Email",
+        })
+      ).json(),
+    );
+    expect(afterUnsubscribe).toMatchObject({ email: 0, total: 0, unreachable: 2 });
 
     const stub = stores.get(stores.idFromName("organization-alpha"));
     await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
@@ -361,14 +400,15 @@ describe("Organization communications", () => {
       ).json(),
     );
     expect(summary.state).toBe("sent");
-    expect(summary.total).toMatchObject({ sent: 3, total: 3 });
+    expect(summary.total).toMatchObject({ sent: 2, suppressed: 1, total: 3 });
     expect(summary.failures).toEqual([]);
 
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       state.storage.sql.exec(
         `UPDATE communication_deliveries
          SET status = 'failed', failure_detail = 'provider rejected', updated_at = ?
-         WHERE id = (SELECT id FROM communication_deliveries WHERE message_id = ? LIMIT 1)`,
+         WHERE id = (SELECT id FROM communication_deliveries
+                     WHERE message_id = ? AND status = 'sent' LIMIT 1)`,
         new Date().toISOString(),
         message.id,
       );
@@ -404,12 +444,13 @@ describe("Organization communications", () => {
       (_instance, state) =>
         state.storage.sql
           .exec<{ readonly action: string }>(
-            "SELECT action FROM audit_events WHERE target_type = 'communication_message'",
+            "SELECT action FROM audit_events WHERE action LIKE 'organization.communication.%'",
           )
           .toArray()
           .map(({ action }) => action),
     );
     expect(actions).toContain("organization.communication.queued");
     expect(actions).toContain("organization.communication.retry.queued");
+    expect(actions).toContain("organization.communication.unsubscribed");
   });
 });

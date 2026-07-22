@@ -740,6 +740,13 @@ export const communicationDeleteResponseSchema = z.object({
   requestId: requestIdSchema,
   status: z.literal("deleted"),
 });
+export const communicationUnsubscribeRequestSchema = z.object({
+  token: z.string().min(1).max(4_096),
+});
+export const communicationUnsubscribeResponseSchema = z.object({
+  requestId: requestIdSchema,
+  success: z.literal(true),
+});
 
 export type CommunicationAudienceRequest = z.infer<typeof communicationAudienceRequestSchema>;
 export type CommunicationChannel = z.infer<typeof communicationChannelSchema>;

@@ -7,6 +7,7 @@ import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { getCurrentSession } from "./auth/api";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
+import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
 
 type ServiceState = "checking" | "offline" | "ready";
 type SessionState =
@@ -140,6 +141,17 @@ function isAccountRoute(pathname: string): boolean {
   return pathname === "/account" || pathname === "/admin/communications";
 }
 
+function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocation) {
+  const recovery = passwordRecoveryRoute(pathname, resetLocation);
+  if (recovery) return recovery;
+  if (pathname === "/unsubscribe") {
+    return (
+      <PublicUnsubscribeView token={new URLSearchParams(window.location.search).get("token")} />
+    );
+  }
+  return null;
+}
+
 export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
@@ -205,9 +217,9 @@ export function App() {
   }
 
   let content;
-  const recoveryRoute = passwordRecoveryRoute(pathname, resetLocation);
-  if (recoveryRoute) {
-    content = recoveryRoute;
+  const utilityRoute = publicUtilityRoute(pathname, resetLocation);
+  if (utilityRoute) {
+    content = utilityRoute;
   } else if (pathname === "/accept-invitation") {
     content =
       sessionState.status === "checking" ? (

@@ -72,9 +72,12 @@ schema with typed repositories. Version 15 adds ordered Organization file/link r
 version 16 adds a nullable private-file reference for Profile photos. Version 17 adds Organization
 messages, templates, per-recipient Email/SMS delivery state, safe retry metadata, and history. A
 send transaction creates its stable communication-delivery outbox job beside the message and
-recipient snapshot; provider work remains outside the Durable Object transaction. Contract or
-removal migrations occur only after old and new Worker versions are both safe throughout the
-rollback window.
+recipient snapshot; provider work remains outside the Durable Object transaction. Version 18 adds
+per-Profile channel suppression state and a nullable signed unsubscribe URL on email-delivery
+snapshots. Unsubscribe updates the Profile preference and suppression ledger idempotently, while
+queue processing rechecks both immediately before provider work so a post-queue unsubscribe cannot
+leak a campaign email. Contract or removal migrations occur only after old and new Worker versions
+are both safe throughout the rollback window.
 
 ## R2 and KV
 
