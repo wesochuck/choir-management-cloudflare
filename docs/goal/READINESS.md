@@ -286,6 +286,12 @@ Verified over public HTTPS on July 20–21, 2026:
   HTTP 200. D1 had no pending migrations and remained at zero Organizations, fleet schema
   preparations, and dead letters. Worker version `1aaaf6bf-42ae-4778-9e01-ca066e395849` is the
   verified staging checkpoint for commit `a002f162a11e054602bdafd4683e68e0e008ebc9`.
+- After the seating deployment, health and readiness returned HTTP 200 and both manager-chart and
+  exact legacy singer-finder probes on the global workers.dev base returned hostname-first HTTP 404.
+  The live shell referenced `index-mi3xx-R4.js` and `index-C84rKIMG.css`. D1 had no pending migrations
+  and remained at zero Organizations, fleet schema preparations, and dead letters. Worker version
+  `155e6023-b73c-4ca0-80a1-70829674ab79` is the verified staging checkpoint for commit
+  `c10d5dbfc4135685b8ba63cfa92bb0a5944cae1a`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
@@ -297,12 +303,12 @@ Verified over public HTTPS on July 20–21, 2026:
 - `npm run check:parity`: 145 inventory entries validated.
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
-- `npm test`: 6 files / 17 tests passed, including staging-bootstrap safety, IANA timezone/DST
-  conversion, and adversarial signed-link coverage.
-- `npm run test:integration`: 12 files / 44 workerd tests passed.
+- `npm test`: 8 files / 23 tests passed, including staging-bootstrap safety, IANA timezone/DST
+  conversion, adversarial signed-link coverage, and seating formation behavior.
+- `npm run test:integration`: 14 files / 46 workerd tests passed.
 - `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
   provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
-  password-recovery journeys passed.
+  password-recovery journeys passed, including seating management and the linked-member finder.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
