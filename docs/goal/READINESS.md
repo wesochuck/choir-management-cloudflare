@@ -49,7 +49,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `8d05d2b2-0cce-4140-81ce-9b92f85af5fd`
+- Current verified Worker version: `63834fcd-0e18-4833-bfca-663253a5b9ab`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -326,6 +326,12 @@ Verified over public HTTPS on July 20–22, 2026:
   migrations and remained at zero Organizations, fleet schema preparations, and dead letters. Worker
   version `8d05d2b2-0cce-4140-81ce-9b92f85af5fd` is the verified staging checkpoint for commit
   `81acb05449bfe6e05a32edf190bcd3f488a745d6`.
+- After the atomic music CSV deployment, `staging.musicsite.org` health, readiness, and the
+  application shell returned HTTP 200 with valid TLS. The shell referenced `index-CX3jVNnD.js` and
+  `index-w0SxyIdp.css`. An unregistered wildcard Organization hostname's music-export endpoint
+  returned the expected hostname-first HTTP 404 with valid TLS. D1 had no pending migrations and
+  remained at zero Organizations, fleet schema preparations, and dead letters. Worker version
+  `63834fcd-0e18-4833-bfca-663253a5b9ab` is the verified staging checkpoint for commit `3cb2d2b`.
 - Before the initial operator bootstrap, remote D1 contained zero users and zero Organizations after
   the account-shell smoke checks. The live login page was visually inspected at desktop width;
   desktop and mobile authenticated flows are covered with deterministic browser fakes because
