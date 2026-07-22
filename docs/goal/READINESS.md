@@ -49,7 +49,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `4b402c57-2676-40f4-9903-a2aa276c2226`
+- Current verified Worker version: `cafb5f59-78a0-4d65-8e6b-596fec1e7b6c`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -90,6 +90,11 @@ Verified over public HTTPS on July 20–22, 2026:
   an Organization, and the manager settings endpoint remained unavailable from the global product
   hostname. Focused workerd coverage supplies the two-Organization publication proof until a real
   staging Organization is intentionally provisioned.
+- The ticket-sales foundation deployment returned HTTP 200 for the public `/tickets` SPA route.
+  Checkout and signed-receipt APIs on an unregistered canonical Organization hostname returned the
+  expected no-store 404 responses without creating an Organization or purchase; the global
+  invitation-only session endpoint remained healthy and anonymous. No external payment effect was
+  attempted because staging remains in explicit fake mode.
 - `/api/platform/mfa/status` and `/api/platform/mfa/confirm-enrollment` returned HTTP 401 without a
   session after the MFA account deployment. The first status probe briefly reached the prior Worker
   during edge propagation; a cache-busting retry reached the verified current version.
@@ -671,16 +676,17 @@ cross-Organization isolation, exclusion of private event notes, public media cac
 audit history, and repeat publication. Browser visual proof remains intentionally deferred to save
 goal-run tokens; public ticket, donation, and audition modules are still separate parity work.
 
-The ticket-sales foundation is implemented locally on Organization schema version 20. Managers can
-configure ticket pricing, capacity, and doors-open time per published performance; public canonical
-and custom hosts expose catalog, purchase, and signed receipt views. The Organization store enforces
-capacity atomically, binds idempotency to the complete checkout request, keeps buyer email out of
-the public receipt, and audits fulfillment/refund transitions. Manager order history and fake-mode
-refunds are hostname-authorized; receipt tokens are purpose-separated and Organization-bound. Local
-and staging fake mode visibly states that no card was charged, while disabled, sandbox, and all
-production effects fail closed. Stripe Connect account routing, direct-charge checkout/webhooks,
-bundles, scanning, will-call CSV, confirmation delivery, reminders, and real-provider refunds remain
-in the ticketing parity slice and prevent ticketing from being classified as complete.
+The ticket-sales foundation is implemented and deployed to staging on Organization schema
+version 20. Managers can configure ticket pricing, capacity, and doors-open time per published
+performance; public canonical and custom hosts expose catalog, purchase, and signed receipt views.
+The Organization store enforces capacity atomically, binds idempotency to the complete checkout
+request, keeps buyer email out of the public receipt, and audits fulfillment/refund transitions.
+Manager order history and fake-mode refunds are hostname-authorized; receipt tokens are
+purpose-separated and Organization-bound. Local and staging fake mode visibly states that no card
+was charged, while disabled, sandbox, and all production effects fail closed. Stripe Connect account
+routing, direct-charge checkout/webhooks, bundles, scanning, will-call CSV, confirmation delivery,
+reminders, and real-provider refunds remain in the ticketing parity slice and prevent ticketing from
+being classified as complete.
 
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
