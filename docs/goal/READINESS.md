@@ -214,6 +214,11 @@ Verified over public HTTPS on July 20–21, 2026:
   all event export data from the owning Organization store and returns a private no-store download;
   focused domain, workerd, and desktop/mobile browser proof covers byte-level output, manager-only
   authorization, cross-Organization denial, and the event-list download link.
+- The seating parity foundation now includes the pure legacy formation engine and section-mismatch
+  rule. Horizontal formations fill visual rows back-to-front with continuous proportional section
+  spillover; vertical formations compact active seats into centered wedges and assign sections by
+  visual column. Unit proof fixes those coordinate and lenient unknown-voice-part semantics before
+  seating persistence or UI state is introduced.
 - After the calendar read-model deployment, health and readiness returned HTTP 200; malformed feed
   and global-base credential probes returned hostname-first HTTP 404. Remote D1 had no pending
   migrations and still contained zero Organizations, fleet schema preparations, or dead letters.

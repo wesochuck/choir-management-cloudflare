@@ -1295,10 +1295,14 @@
         "workflow": "multiple charts, formations, automatic placement, mismatch, and finder",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "planned",
+        "status": "partial",
         "baselineEvidence":
           "src/services/seatingService.ts; test/seatingFormationsAlgorithm.test.ts",
-        "targetEvidence": [],
+        "targetEvidence":
+          [
+            "packages/domain/src/seatingAlgorithm.ts",
+            "packages/domain/src/seatingAlgorithm.test.ts",
+          ],
       },
       {
         "id": "workflow.communications",

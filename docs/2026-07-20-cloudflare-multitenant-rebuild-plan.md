@@ -170,6 +170,8 @@ milestone complete.
 | `packages/domain/src/rosterConfiguration.ts`                   | Standard SATB section and voice-part defaults                                        |
 | `packages/domain/src/eventRsvpCsv.ts`                          | Deterministic baseline-compatible event RSVP CSV renderer                            |
 | `packages/domain/src/eventRsvpCsv.test.ts`                     | Event RSVP grouping, sorting, quoting, and filename contract proof                   |
+| `packages/domain/src/seatingAlgorithm.ts`                      | Pure seating formation suggestions and section-mismatch rules                        |
+| `packages/domain/src/seatingAlgorithm.test.ts`                 | Vertical/horizontal formation and mismatch parity proof                              |
 | `packages/ui/tsconfig.json`                                    | Strict repository-owned UI TypeScript project                                        |
 | `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                      |
 | `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                              |
