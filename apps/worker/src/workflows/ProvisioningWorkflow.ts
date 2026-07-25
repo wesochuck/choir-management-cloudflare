@@ -74,16 +74,10 @@ export class ProvisioningWorkflow extends WorkflowEntrypoint<Env, ProvisioningPa
           activatedAt,
         ),
         this.env.CONTROL_DB.prepare(
-          `INSERT OR IGNORE INTO organization_memberships
-            (id, organization_id, user_id, role, status, created_at, updated_at)
-           VALUES (?, ?, ?, 'owner', 'active', ?, ?)`,
-        ).bind(
-          crypto.randomUUID(),
-          params.organizationId,
-          params.actorUserId,
-          activatedAt,
-          activatedAt,
-        ),
+          `INSERT OR IGNORE INTO member
+            (id, organizationId, userId, role, createdAt)
+           VALUES (?, ?, ?, 'owner', ?)`,
+        ).bind(crypto.randomUUID(), params.organizationId, params.actorUserId, activatedAt),
       ]);
       return { activated: true };
     });
