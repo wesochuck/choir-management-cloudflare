@@ -896,6 +896,14 @@ h2 {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-surface);
+  overflow: hidden;
+}
+
+.account-section .account-section {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .account-section--platform {
@@ -1151,7 +1159,10 @@ h2 {
   margin-top: 1.5rem;
 }
 
-.mfa-enrollment > *,
+.mfa-enrollment > * {
+  min-width: 0;
+}
+
 .platform-verification {
   padding: 1.25rem;
   border: 1px solid var(--color-border);
@@ -1191,8 +1202,6 @@ h2 {
 
 .platform-operations {
   margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--color-border);
 }
 
 .section-heading--nested h3,
@@ -1304,10 +1313,7 @@ h2 {
 
 .organization-verification {
   max-width: 40rem;
-  padding: 1.25rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-raised);
+  margin-top: 1.5rem;
 }
 
 .organization-invitation-form {
