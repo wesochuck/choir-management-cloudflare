@@ -2,7 +2,7 @@
 
 Standalone, multi-Organization Cloudflare rebuild of the choir management application.
 
-The foundation is live in permanent staging:
+The foundation is live in permanent staging: 
 
 - Application: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
 - Health: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev/api/health>
