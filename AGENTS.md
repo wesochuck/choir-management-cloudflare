@@ -96,7 +96,12 @@ Before finishing any material change, report:
   use, cross-host token replay, R2 key substitution, stale invitations, revoked elevation, queue
   replay, and webhook-account mismatch.
 
-## 6. Cloudflare Data and Background Work
+## 6. Schema and Data Notes
+
+- `organization_memberships` is a legacy unused table — do not query or write to it. Authorization
+  and membership listing use Better Auth's `member` table (camelCase columns: `organizationId`,
+  `userId`, `role`, `createdAt`, `profileId`). Do not remove `organization_memberships` without a
+  rollback-safe migration.
 
 - Use versioned D1 and Organization-store migrations with explicit schema registries.
 - Durable Object transactions must remain short; provider calls never occur inside them.
