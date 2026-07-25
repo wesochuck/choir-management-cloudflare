@@ -54,13 +54,13 @@ export class ProvisioningWorkflow extends WorkflowEntrypoint<Env, ProvisioningPa
       if (result.meta.changes !== 1) {
         throw new Error("Organization registry activation failed");
       }
-      await this.env.CONTROL_DB.prepare(
-        `INSERT OR IGNORE INTO platform_audit_events
-          (id, actor_user_id, organization_id, action, target_type, target_id,
-           request_id, change_summary, occurred_at)
-         VALUES (?, ?, ?, 'organization.provisioning.completed', 'organization', ?, ?, ?, ?)`,
-      )
-        .bind(
+      await this.env.CONTROL_DB.batch([
+        this.env.CONTROL_DB.prepare(
+          `INSERT OR IGNORE INTO platform_audit_events
+            (id, actor_user_id, organization_id, action, target_type, target_id,
+             request_id, change_summary, occurred_at)
+           VALUES (?, ?, ?, 'organization.provisioning.completed', 'organization', ?, ?, ?, ?)`,
+        ).bind(
           `organization-provisioned:${params.requestId}`,
           params.actorUserId,
           params.organizationId,
@@ -72,8 +72,19 @@ export class ProvisioningWorkflow extends WorkflowEntrypoint<Env, ProvisioningPa
             operationalSchemaVersion: currentOrganizationSchemaVersion,
           }),
           activatedAt,
-        )
-        .run();
+        ),
+        this.env.CONTROL_DB.prepare(
+          `INSERT OR IGNORE INTO organization_memberships
+            (id, organization_id, user_id, role, status, created_at, updated_at)
+           VALUES (?, ?, ?, 'owner', 'active', ?, ?)`,
+        ).bind(
+          crypto.randomUUID(),
+          params.organizationId,
+          params.actorUserId,
+          activatedAt,
+          activatedAt,
+        ),
+      ]);
       return { activated: true };
     });
 
