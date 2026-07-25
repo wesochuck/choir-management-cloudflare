@@ -176,6 +176,12 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
     await deliverTicketNotificationJob(env, job);
     return;
   }
+  if (job.kind === "event_reminder" || job.kind === "attendance_report") {
+    // In fake or disabled mode, these scheduled background tasks complete idempotently.
+    if (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled") {
+      return;
+    }
+  }
   if (env.EXTERNAL_EFFECTS_MODE !== "fake" && env.EXTERNAL_EFFECTS_MODE !== "disabled") {
     throw new Error("No sandbox provider adapter is configured for this job kind");
   }

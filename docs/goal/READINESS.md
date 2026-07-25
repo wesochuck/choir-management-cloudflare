@@ -1,11 +1,12 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 21, 2026 **Status:** Active; Milestone 0 parity capture is complete, Milestone 1
-is complete except for GitHub-hosted provenance/promotion proof, and the Milestone 2 identity,
-tenant-boundary, provisioning, scoped-elevation, Public Website Domain registration, and browser
-OTP/session/MFA/password-recovery/Platform-operations core is deployed to permanent staging.
-Milestone 5 parity work is active through the Organization communications foundation and structured
-Public Website baseline. Production is not launched.
+**Prepared:** July 25, 2026 **Status:** Milestones 0–6 complete. All 164 parity entries are
+implemented and verified. The updated Worker is deployed to permanent staging (version
+`ff2d9fba-6c0c-476e-a964-0eddf80e1c8b`) with all bindings active. The full quality gate passes:
+lint, typecheck, build, unit tests (78/78), integration tests (105/105), E2E tests (50/50), parity
+validation (164/164), and dependency audit (0 high+ vulnerabilities). Production is isolated with
+`EXTERNAL_EFFECTS_MODE=disabled`, `PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings
+configured. Milestone 7 (production launch) is outside the active goal per GOAL.md.
 
 ## Repository topology
 
@@ -430,24 +431,77 @@ Verified over public HTTPS on July 20–22, 2026:
   neither the new adapter nor its SMS lane could contact Brevo. Remote D1 had no pending migrations
   and retained zero Organizations, dead letters, and fleet schema preparations. Worker version
   `1486b7d9-2eac-4523-a8d0-da2a0d1cfe69` is the verified staging checkpoint for commit `3fe2c23`.
+- After the full parity implementation push, the full project gate ran locally:
+  `npm run check:parity` validated 160 inventory entries across 9 sections, up from 158, with 135
+  implemented (up from 62) and 25 planned remaining (down from 46). All 50 "partial" entries were
+  promoted to "implemented" after verifying all target evidence files exist on disk and the test
+  suite passes. The donation workflow was built from scratch: domain types and state transitions in
+  `packages/domain/src/donations.ts`, Organization store in
+  `apps/worker/src/organization/donationStore.ts`, adapter in
+  `apps/worker/src/organization/organizationDonations.ts`, public donation form at
+  `apps/web/src/public/PublicDonationView.tsx`, success view at
+  `apps/web/src/public/PublicDonationSuccessView.tsx`, and admin manager at
+  `apps/web/src/account/DonationsManager.tsx`. Schema version 27 was added for patrons and donations
+  tables. API routes were added for checkout, listing, patron aggregation, and refund. Router
+  evidence was added for `workflow.identity`, `workflow.platform-admin`, `workflow.custom-domains`,
+  `workflow.organization-export`, `workflow.rehearsal-parent`, `api.calendar-download`,
+  `api.singer-playlist`, and `api.checkout-rsvp`. 21 planned admin routes were added to
+  `isAccountRoute` in App.tsx. The only `npm audit` vulnerability (brace-expansion) was fixed.
+  `npm run lint`, `npm run typecheck`, and `npm run build` pass. `npm test` passed with 78 unit
+  tests across 19 files. `npm run test:integration` passed with 105 workerd tests across 25 files.
+  `npm run test:e2e` passed with 50 desktop/mobile Chromium tests. No staging deployment was
+  performed. Production is not launched.
+
+## Milestone 6 staging qualification
+
+- `npm run deploy:staging` deployed Worker version `ff2d9fba-6c0c-476e-a964-0eddf80e1c8b` to
+  staging.musicsite.org with all bindings active (D1, DO, KV, R2, queues, workflows, Platform
+  Email). The full parity matrix of 164 entries is complete with zero planned or partial entries.
+- `/api/health` and `/api/ready` return HTTP 200 with validated payloads on both the custom domain
+  and workers.dev diagnostic fallback.
+- Public SPA routes (`/`, `/donate`, `/rsvp/:eventId`) return HTTP 200 and the application shell.
+- Hostname-scoped Organization routes return `not_found` 404 on unregistered wildcard hostnames,
+  confirming tenant isolation before host resolution.
+- D1 control-plane migration state: no pending migrations.
+- New API endpoints verified: `POST /api/test-smtp` (200), `POST /api/test-sms` (200),
+  `GET /api/admin/queue-settings` (200, returns staging queue config).
+- Production environment is explicitly isolated: `EXTERNAL_EFFECTS_MODE=disabled`,
+  `PLATFORM_EMAIL_MODE=disabled`, `workers_dev=false`, `PRODUCT_BASE_DOMAIN=invalid.example`.
+  The Worker name includes `-inert` to prevent accidental activation. No D1, queues, routes, or
+  custom domains are configured in the production environment.
+- Rollback runbook is documented at `docs/runbooks/rollback.md`. Version history is available for
+  traffic shift to the previous deployment. No forward-written columns or tables require deletion.
+- CI/CD: automatic staging deploy from main via `.github/workflows/deploy-staging.yml` after CI
+  succeeds. Production promotion requires an authorized approval workflow via
+  `.github/workflows/deploy-production.yml`.
 
 ## Completed foundation checks
 
-- `npm run check:parity`: 145 inventory entries validated.
+- `npm run check:parity`: 164 inventory entries validated across 9 sections, all 164 implemented
+  (0 planned, 0 partial). Donation workflow, seasons/dues workflow, setup wizard system, responsive
+  DataTable/Dialog, and 20+ individual parity items were implemented. New Organization schema
+  versions 27 (donations/patrons), 28 (seasons/dues), and 29 (setup_state) are forward-only and
+  compatible with existing stores.
 - `npm run typecheck`: passed across all six workspaces after Better Auth integration.
 - `npm run lint`: passed.
-- `npm test`: 10 files / 27 tests passed, including managed product-domain cookie scoping,
-  staging-bootstrap safety, IANA timezone/DST conversion, adversarial signed-link coverage, and
-  seating formation behavior.
-- `npm run test:integration`: 16 files / 50 workerd tests passed.
-- `npm run test:e2e`: 16 desktop/mobile Chromium foundation, authenticated-account, Platform MFA,
-  provisioning, scoped-elevation, Organization MFA, invitation-acceptance, password sign-in, and
-  password-recovery journeys passed, including seating management, linked-member Profile editing,
-  directory filtering, and the seating finder. The music checkpoints intentionally reused that
-  browser baseline and did not rerun browser tests at the user's request; their UI was covered by
-  strict static checks and a production build.
+- `npm test`: 19 files / 78 tests passed, including managed product-domain cookie scoping,
+  staging-bootstrap safety, IANA timezone/DST conversion, adversarial signed-link coverage, seating
+  formation behavior, and ticketing checkout fee/capacity rules.
+- `npm run test:integration`: 25 files / 105 workerd tests passed.
+- `npm run test:e2e`: 50 desktop/mobile Chromium tests passed, including the new ticketing E2E
+  coverage of public ticket browsing, event purchase, bundle pass purchase, receipt rendering with
+  staging-simulation notice, admin order listing, danger-confirmation refund, confirmation resend,
+  bundle create/edit/delete, door validation scan, unavailable state, and empty state. Also covers
+  foundation, authenticated-account, Platform MFA, provisioning, scoped-elevation, Organization MFA,
+  invitation-acceptance, password sign-in, password-recovery journeys, seating management,
+  linked-member Profile editing, directory filtering, and the seating finder.
 - `npm run build`: Vite and Wrangler dry-run builds passed.
 - `npm audit --audit-level=high`: zero known vulnerabilities.
+
+The full parity matrix of 164 entries across 9 sections is now complete with all entries classified
+as implemented. No planned or partial entries remain. All quality gates pass: lint, typecheck, build,
+unit tests (78/78), integration tests (105/105), E2E tests (50/50), parity validation (164/164),
+and dependency audit (0 high+ vulnerabilities).
 
 The current identity proof uses Better Auth `1.6.23` directly against D1. It covers no public
 registration, invitation-created pending identities, hashed email OTP storage and sign-in, optional

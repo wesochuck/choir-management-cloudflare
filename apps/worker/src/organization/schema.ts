@@ -471,6 +471,156 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        WHERE singleton = 1`,
     ],
   },
+  {
+    version: 24,
+    statements: [`ALTER TABLE events ADD COLUMN reminder_sent_at TEXT`],
+  },
+  {
+    version: 25,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS polls (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        multiple_choice INTEGER NOT NULL DEFAULT 0,
+        expires_at TEXT NOT NULL DEFAULT '',
+        archived_at TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE TABLE IF NOT EXISTS poll_options (
+        id TEXT PRIMARY KEY,
+        poll_id TEXT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      ) STRICT`,
+      `CREATE TABLE IF NOT EXISTS poll_responses (
+        poll_id TEXT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+        profile_id TEXT NOT NULL,
+        option_ids TEXT NOT NULL,
+        profile_name TEXT NOT NULL DEFAULT '',
+        responded_at TEXT NOT NULL,
+        PRIMARY KEY (poll_id, profile_id)
+      ) STRICT`,
+      `CREATE INDEX idx_poll_options_poll ON poll_options(poll_id, sort_order, id)`,
+      `CREATE INDEX idx_poll_responses_poll ON poll_responses(poll_id, profile_id)`,
+    ],
+  },
+  {
+    version: 26,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS auditions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL DEFAULT '',
+        voice_part TEXT NOT NULL DEFAULT '',
+        experience TEXT NOT NULL DEFAULT '',
+        availability_notes TEXT NOT NULL DEFAULT '',
+        admin_notes TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'scheduled', 'completed', 'cancelled', 'no_show')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE TABLE IF NOT EXISTS audition_slots (
+        id TEXT PRIMARY KEY,
+        audition_id TEXT NOT NULL REFERENCES auditions(id) ON DELETE CASCADE,
+        starts_at TEXT NOT NULL,
+        ends_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_audition_slots_audition ON audition_slots(audition_id, starts_at)`,
+      `CREATE INDEX idx_auditions_email ON auditions(email)`,
+      `CREATE INDEX idx_auditions_status ON auditions(status)`,
+    ],
+  },
+  {
+    version: 27,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS patrons (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        total_donated_cents INTEGER NOT NULL DEFAULT 0 CHECK (total_donated_cents >= 0),
+        donation_count INTEGER NOT NULL DEFAULT 0 CHECK (donation_count >= 0),
+        first_donated_at TEXT NOT NULL,
+        last_donated_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_patrons_email ON patrons(email)`,
+      `CREATE TABLE IF NOT EXISTS donations (
+        id TEXT PRIMARY KEY,
+        checkout_request_id TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'refunded')),
+        amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+        tribute_type TEXT NOT NULL DEFAULT 'none' CHECK (tribute_type IN ('honor', 'memory', 'anonymous', 'none')),
+        tribute_name TEXT NOT NULL DEFAULT '',
+        tribute_notify_email TEXT NOT NULL DEFAULT '',
+        anonymous INTEGER NOT NULL DEFAULT 0 CHECK (anonymous IN (0, 1)),
+        marketing_consent INTEGER NOT NULL DEFAULT 0 CHECK (marketing_consent IN (0, 1)),
+        buyer_name TEXT NOT NULL,
+        buyer_email TEXT NOT NULL,
+        patron_id TEXT,
+        provider_session_id TEXT NOT NULL UNIQUE,
+        provider_payment_id TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        refunded_at TEXT,
+        FOREIGN KEY (patron_id) REFERENCES patrons(id)
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_donations_created ON donations(created_at DESC, id DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_donations_patron ON donations(patron_id, created_at DESC)`,
+    ],
+  },
+  {
+    version: 28,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS seasons (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        starts_at TEXT NOT NULL,
+        ends_at TEXT NOT NULL,
+        dues_amount_cents INTEGER NOT NULL CHECK (dues_amount_cents >= 0),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_seasons_created ON seasons(created_at DESC, id DESC)`,
+      `CREATE TABLE IF NOT EXISTS dues (
+        id TEXT PRIMARY KEY,
+        season_id TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL CHECK (amount_cents >= 0),
+        provider_session_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'refunded')),
+        paid_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (season_id) REFERENCES seasons(id),
+        UNIQUE (season_id, profile_id)
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_dues_season ON dues(season_id, created_at DESC, id DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_dues_profile ON dues(profile_id, season_id)`,
+    ],
+  },
+  {
+    version: 29,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS setup_state (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        organization_id TEXT NOT NULL UNIQUE,
+        organization_name TEXT NOT NULL DEFAULT '',
+        completed_steps TEXT NOT NULL DEFAULT '[]',
+        current_step TEXT,
+        launched INTEGER NOT NULL DEFAULT 0 CHECK (launched IN (0, 1)),
+        module_config TEXT NOT NULL DEFAULT '{}',
+        theme_config TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

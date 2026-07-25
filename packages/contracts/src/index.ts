@@ -979,6 +979,77 @@ export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
 export type CommunicationTemplateRequest = z.infer<typeof communicationTemplateRequestSchema>;
 export type SingerLearningTrackPiece = z.infer<typeof singerLearningTrackPieceSchema>;
 
+export const donationStatusSchema = z.enum(["pending", "paid", "refunded"]);
+
+export const donationTributeTypeSchema = z.enum(["honor", "memory", "anonymous", "none"]);
+
+export const donationCheckoutRequestSchema = z.object({
+  amountCents: z.number().int().positive().max(10_000_000),
+  anonymous: z.boolean().default(false),
+  buyerEmail: z.email().max(320),
+  buyerName: z.string().trim().min(1).max(200),
+  checkoutRequestId: z.uuid(),
+  marketingConsent: z.boolean().default(false),
+  tributeName: z.string().trim().max(500).default(""),
+  tributeNotifyEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
+  tributeType: donationTributeTypeSchema.default("none"),
+});
+
+export const donationRefundRequestSchema = z.object({
+  donationId: z.uuid(),
+});
+
+export const donationRecordSchema = z.object({
+  amountCents: z.number().int().nonnegative(),
+  anonymous: z.boolean(),
+  buyerEmail: z.email().max(320),
+  buyerName: z.string().min(1).max(200),
+  createdAt: z.iso.datetime(),
+  id: z.uuid(),
+  marketingConsent: z.boolean(),
+  patronId: z.uuid().nullable(),
+  status: donationStatusSchema,
+  tributeName: z.string().max(500),
+  tributeNotifyEmail: z.string().max(320),
+  tributeType: donationTributeTypeSchema,
+  updatedAt: z.iso.datetime(),
+});
+
+export const donationRecordsResponseSchema = z.object({
+  donations: z.array(donationRecordSchema).max(500),
+  requestId: requestIdSchema,
+});
+
+export const donationCheckoutResponseSchema = z.object({
+  checkoutMode: z.enum(["fake", "stripe"]),
+  donation: donationRecordSchema,
+  successToken: z.string().min(1).max(4096),
+  url: z.url(),
+});
+
+export const patronRecordSchema = z.object({
+  donationCount: z.number().int().nonnegative(),
+  email: z.email().max(320),
+  firstDonatedAt: z.iso.datetime(),
+  id: z.uuid(),
+  lastDonatedAt: z.iso.datetime(),
+  name: z.string().min(1).max(200),
+  totalDonatedCents: z.number().int().nonnegative(),
+});
+
+export const patronRecordsResponseSchema = z.object({
+  patrons: z.array(patronRecordSchema).max(500),
+  requestId: requestIdSchema,
+});
+
+export type DonationStatus = z.infer<typeof donationStatusSchema>;
+export type DonationTributeType = z.infer<typeof donationTributeTypeSchema>;
+export type DonationCheckoutRequest = z.infer<typeof donationCheckoutRequestSchema>;
+export type DonationRecord = z.infer<typeof donationRecordSchema>;
+export type DonationRefundRequest = z.infer<typeof donationRefundRequestSchema>;
+export type DonationCheckoutResponse = z.infer<typeof donationCheckoutResponseSchema>;
+export type PatronRecord = z.infer<typeof patronRecordSchema>;
+
 export const accountOrganizationSchema = z.object({
   canonicalHostname: z.string().min(1).max(253),
   canonicalStatus: z.enum(["active", "disabled", "pending"]),
@@ -1375,6 +1446,336 @@ export type PlatformMfaEnrollmentResponse = z.infer<typeof platformMfaEnrollment
 export type PlatformRecoveryCodesResponse = z.infer<typeof platformRecoveryCodesResponseSchema>;
 export type PlatformContextResponse = z.infer<typeof platformContextResponseSchema>;
 
+export const publicRsvpDetailsResponseSchema = z.object({
+  canSubmit: z.boolean(),
+  event: z.object({
+    callTime: z.string(),
+    details: z.string(),
+    durationMinutes: z.number().int().positive().nullable(),
+    id: z.uuid(),
+    location: z.string(),
+    startsAt: z.iso.datetime(),
+    title: z.string(),
+    type: z.enum(["Performance", "Rehearsal"]),
+    venueAddress: z.string(),
+    venueName: z.string(),
+  }),
+  profileId: z.uuid(),
+  profileName: z.string(),
+  rsvp: z.enum(["Yes", "No", "Pending"]),
+  rsvpNote: z.string(),
+});
+
+export type PublicRsvpDetailsResponse = z.infer<typeof publicRsvpDetailsResponseSchema>;
+
+export const publicQuickRsvpRequestSchema = z.object({
+  rsvp: z.enum(["Yes", "No", "Pending"]),
+  rsvpNote: z.string().trim().max(2_000).default(""),
+  token: z.string().min(1).max(4_096),
+});
+
+export type PublicQuickRsvpRequest = z.infer<typeof publicQuickRsvpRequestSchema>;
+
+export const generateRsvpTokensRequestSchema = z.object({
+  eventId: z.uuid(),
+  profileIds: z.array(z.uuid()).min(1).max(500),
+});
+
+export type GenerateRsvpTokensRequest = z.infer<typeof generateRsvpTokensRequestSchema>;
+
+export const generateRsvpTokensResponseSchema = z.object({
+  tokens: z.record(z.uuid(), z.string().min(1).max(4_096)),
+});
+
+export type GenerateRsvpTokensResponse = z.infer<typeof generateRsvpTokensResponseSchema>;
+
+export const organizationPollOptionSchema = z.object({
+  id: z.uuid(),
+  label: z.string().trim().min(1).max(500),
+  sortOrder: z.number().int().nonnegative().default(0),
+});
+
+export type OrganizationPollOption = z.infer<typeof organizationPollOptionSchema>;
+
+export const organizationPollRequestSchema = z.object({
+  archivedAt: z.string().max(100).default(""),
+  description: z.string().trim().max(10_000).default(""),
+  expiresAt: z.string().max(100).default(""),
+  multipleChoice: z.boolean().default(false),
+  options: z.array(organizationPollOptionSchema).min(2).max(100),
+  title: z.string().trim().min(1).max(500),
+});
+
+export type OrganizationPollRequest = z.infer<typeof organizationPollRequestSchema>;
+
+export const organizationPollSchema = organizationPollRequestSchema.extend({
+  createdAt: z.iso.datetime(),
+  createdBy: z.string().min(1),
+  id: z.uuid(),
+  updatedAt: z.iso.datetime(),
+});
+
+export type OrganizationPoll = z.infer<typeof organizationPollSchema>;
+
+export const organizationPollSummarySchema = z.object({
+  archivedAt: z.string(),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.string(),
+  id: z.uuid(),
+  responseCount: z.number().int().nonnegative(),
+  title: z.string(),
+});
+
+export type OrganizationPollSummary = z.infer<typeof organizationPollSummarySchema>;
+
+export const organizationPollResponseSchema = z.object({
+  optionIds: z.array(z.uuid()).min(1).max(100),
+  profileId: z.uuid(),
+  profileName: z.string(),
+});
+
+export type OrganizationPollResponse = z.infer<typeof organizationPollResponseSchema>;
+
+export const publicPollDetailsResponseSchema = z.object({
+  canSubmit: z.boolean(),
+  description: z.string(),
+  expiresAt: z.string(),
+  multipleChoice: z.boolean(),
+  options: z.array(organizationPollOptionSchema),
+  pollId: z.uuid(),
+  profileId: z.string(),
+  profileName: z.string(),
+  responseOptionIds: z.array(z.uuid()),
+  title: z.string(),
+});
+
+export type PublicPollDetailsResponse = z.infer<typeof publicPollDetailsResponseSchema>;
+
+export const publicPollSubmitRequestSchema = z.object({
+  optionIds: z.array(z.uuid()).min(1).max(100),
+  token: z.string().min(1).max(4_096),
+});
+
+export type PublicPollSubmitRequest = z.infer<typeof publicPollSubmitRequestSchema>;
+
+export const generatePollTokensRequestSchema = z.object({
+  pollId: z.uuid(),
+  profileIds: z.array(z.uuid()).min(1).max(500),
+});
+
+export type GeneratePollTokensRequest = z.infer<typeof generatePollTokensRequestSchema>;
+
+export const generatePollTokensResponseSchema = z.object({
+  tokens: z.record(z.uuid(), z.string().min(1).max(4_096)),
+});
+
+export type GeneratePollTokensResponse = z.infer<typeof generatePollTokensResponseSchema>;
+
+export const playerPlaylistItemSchema = z.object({
+  arranger: z.string().optional(),
+  composer: z.string().optional(),
+  durationSeconds: z.number().int().nonnegative().optional(),
+  isFeaturedNumber: z.boolean().optional(),
+  notes: z.string().optional(),
+  pieceId: z.uuid().optional(),
+  title: z.string().min(1).max(300),
+  trackFileIds: z.record(z.string(), z.string()),
+});
+
+export type PlayerPlaylistItem = z.infer<typeof playerPlaylistItemSchema>;
+
+export const publicPlayerDetailsResponseSchema = z.object({
+  eventId: z.uuid(),
+  eventTitle: z.string(),
+  eventStartsAt: z.string(),
+  items: z.array(playerPlaylistItemSchema),
+  profileId: z.string(),
+  profileName: z.string(),
+});
+
+export type PublicPlayerDetailsResponse = z.infer<typeof publicPlayerDetailsResponseSchema>;
+
+export const generatePlayerTokensRequestSchema = z.object({
+  eventId: z.uuid(),
+  profileIds: z.array(z.uuid()).min(1).max(500),
+});
+
+export type GeneratePlayerTokensRequest = z.infer<typeof generatePlayerTokensRequestSchema>;
+
+export const generatePlayerTokensResponseSchema = z.object({
+  tokens: z.record(z.uuid(), z.string().min(1).max(4_096)),
+});
+
+export type GeneratePlayerTokensResponse = z.infer<typeof generatePlayerTokensResponseSchema>;
+
+export const auditionStatusSchema = z.enum([
+  "pending",
+  "scheduled",
+  "completed",
+  "cancelled",
+  "no_show",
+]);
+
+export type AuditionStatus = z.infer<typeof auditionStatusSchema>;
+
+export const auditionInquirySchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.email().max(320),
+  phone: z.string().max(50).optional(),
+  voicePart: z.string().max(100).optional(),
+  experience: z.string().max(5_000).optional(),
+  availabilityNotes: z.string().max(5_000).optional(),
+});
+
+export type AuditionInquiry = z.infer<typeof auditionInquirySchema>;
+
+export const auditionSlotSchema = z.object({
+  id: z.string(),
+  startsAt: z.string(),
+  endsAt: z.string(),
+});
+
+export type AuditionSlot = z.infer<typeof auditionSlotSchema>;
+
+export const auditionDetailsSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  email: z.string(),
+  name: z.string(),
+  phone: z.string().optional(),
+  voicePart: z.string().optional(),
+  experience: z.string().optional(),
+  availabilityNotes: z.string().optional(),
+  status: auditionStatusSchema,
+  slots: z.array(auditionSlotSchema),
+});
+
+export type AuditionDetails = z.infer<typeof auditionDetailsSchema>;
+
+export const publicAuditionDetailsResponseSchema = auditionDetailsSchema;
+
+export type PublicAuditionDetailsResponse = z.infer<typeof publicAuditionDetailsResponseSchema>;
+
+export const publicAuditionSubmitRequestSchema = z.object({
+  availabilityNotes: z.string().max(5_000).optional(),
+  voicePart: z.string().max(100).optional(),
+  token: z.string().min(1).max(4_096),
+});
+
+export type PublicAuditionSubmitRequest = z.infer<typeof publicAuditionSubmitRequestSchema>;
+
+export const publicAuditionInquiryRequestSchema = z.object({
+  ...auditionInquirySchema.shape,
+  turnstileToken: z.string().optional(),
+});
+
+export type PublicAuditionInquiryRequest = z.infer<typeof publicAuditionInquiryRequestSchema>;
+
+export const publicAuditionInquiryResponseSchema = z.object({
+  id: z.string(),
+  message: z.string(),
+});
+
+export type PublicAuditionInquiryResponse = z.infer<typeof publicAuditionInquiryResponseSchema>;
+
+export const generateAuditionTokensRequestSchema = z.object({
+  auditionIds: z.array(z.string()).min(1).max(500),
+});
+
+export type GenerateAuditionTokensRequest = z.infer<typeof generateAuditionTokensRequestSchema>;
+
+export const generateAuditionTokensResponseSchema = z.object({
+  tokens: z.record(z.string(), z.string().min(1).max(4_096)),
+});
+
+export type GenerateAuditionTokensResponse = z.infer<typeof generateAuditionTokensResponseSchema>;
+
+export const organizationAuditionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  phone: z.string().optional(),
+  voicePart: z.string().optional(),
+  experience: z.string().optional(),
+  availabilityNotes: z.string().optional(),
+  adminNotes: z.string().optional(),
+  status: auditionStatusSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  slots: z.array(auditionSlotSchema),
+});
+
+export type OrganizationAudition = z.infer<typeof organizationAuditionSchema>;
+
+export const organizationAuditionListResponseSchema = z.object({
+  auditions: z.array(organizationAuditionSchema),
+});
+
+export type OrganizationAuditionListResponse = z.infer<
+  typeof organizationAuditionListResponseSchema
+>;
+
+export const organizationAuditionUpdateRequestSchema = z.object({
+  adminNotes: z.string().max(10_000).optional(),
+  status: auditionStatusSchema.optional(),
+});
+
+export type OrganizationAuditionUpdateRequest = z.infer<
+  typeof organizationAuditionUpdateRequestSchema
+>;
+
+export const seasonSchema = z.object({
+  createdAt: z.iso.datetime(),
+  duesAmountCents: z.number().int().nonnegative(),
+  endsAt: z.iso.datetime(),
+  id: z.uuid(),
+  name: z.string().min(1).max(200),
+  startsAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const seasonsResponseSchema = z.object({
+  requestId: requestIdSchema,
+  seasons: z.array(seasonSchema).max(500),
+});
+
+export const duesStatusSchema = z.enum(["pending", "paid", "refunded"]);
+
+export const duesRecordSchema = z.object({
+  amountCents: z.number().int().nonnegative(),
+  createdAt: z.iso.datetime(),
+  id: z.uuid(),
+  paidAt: z.iso.datetime().nullable(),
+  profileId: z.uuid(),
+  seasonId: z.uuid(),
+  status: duesStatusSchema,
+  updatedAt: z.iso.datetime(),
+});
+
+export const duesRecordsResponseSchema = z.object({
+  dues: z.array(duesRecordSchema).max(500),
+  requestId: requestIdSchema,
+});
+
+export const duesCheckoutRequestSchema = z.object({
+  profileIds: z.array(z.uuid()).min(1).max(500),
+  seasonId: z.uuid(),
+});
+
+export const duesCheckoutResponseSchema = z.object({
+  checkoutMode: z.enum(["fake", "stripe"]),
+  sessionId: z.string().min(1).max(256),
+  url: z.url(),
+});
+
+export type Season = z.infer<typeof seasonSchema>;
+export type SeasonsResponse = z.infer<typeof seasonsResponseSchema>;
+export type DuesStatus = z.infer<typeof duesStatusSchema>;
+export type DuesRecord = z.infer<typeof duesRecordSchema>;
+export type DuesRecordsResponse = z.infer<typeof duesRecordsResponseSchema>;
+export type DuesCheckoutRequest = z.infer<typeof duesCheckoutRequestSchema>;
+export type DuesCheckoutResponse = z.infer<typeof duesCheckoutResponseSchema>;
+
 export const problemDetailsSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),
@@ -1382,3 +1783,40 @@ export const problemDetailsSchema = z.object({
 });
 
 export type ProblemDetails = z.infer<typeof problemDetailsSchema>;
+
+export const setupStatusSchema = z.object({
+  organizationId: organizationIdSchema,
+  organizationName: z.string().min(1).max(120),
+  completedSteps: z.array(z.string()),
+  currentStep: z.string().nullable(),
+  allModulesConfigured: z.boolean(),
+  launched: z.boolean(),
+});
+
+export type SetupStatus = z.infer<typeof setupStatusSchema>;
+
+export const moduleStateSchema = z.object({
+  id: z.string().min(1),
+  enabled: z.boolean(),
+});
+
+export const moduleStatesResponseSchema = z.object({
+  modules: z.array(moduleStateSchema),
+});
+
+export type ModuleState = z.infer<typeof moduleStateSchema>;
+export type ModuleStatesResponse = z.infer<typeof moduleStatesResponseSchema>;
+
+export const setupProgressRequestSchema = z.object({
+  step: z.string().min(1),
+  data: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type SetupProgressRequest = z.infer<typeof setupProgressRequestSchema>;
+
+export const setupClaimResponseSchema = z.object({
+  claimed: z.boolean(),
+  organizationId: organizationIdSchema,
+});
+
+export type SetupClaimResponse = z.infer<typeof setupClaimResponseSchema>;

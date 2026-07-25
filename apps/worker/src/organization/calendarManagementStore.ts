@@ -318,6 +318,77 @@ export function readRosterConfigurationFromStore(
   return Response.json(rosterConfigurationFromStore(storage));
 }
 
+interface EventProfileRsvpRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly callTime: string;
+  readonly details: string;
+  readonly displayName: string;
+  readonly durationMinutes: number | null;
+  readonly id: string;
+  readonly location: string;
+  readonly rsvp: string;
+  readonly rsvpNote: string;
+  readonly startsAt: string;
+  readonly title: string;
+  readonly type: string;
+  readonly venueAddress: string;
+  readonly venueName: string;
+}
+
+export function readProfileEventRsvpFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly eventId: string | null;
+    readonly organizationId: string | null;
+    readonly profileId: string | null;
+  },
+): Response {
+  const eventId = z.uuid().safeParse(input.eventId);
+  const profileId = z.uuid().safeParse(input.profileId);
+  if (!identityMatches(storage, input.organizationId) || !eventId.success || !profileId.success) {
+    return Response.json({ code: "profile_event_rsvp_not_found" }, { status: 404 });
+  }
+  const row = storage.sql
+    .exec<EventProfileRsvpRow>(
+      `SELECT e.id, e.title, e.type, e.starts_at AS startsAt,
+         e.duration_minutes AS durationMinutes, e.call_time AS callTime,
+         e.location, e.details,
+         COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
+         COALESCE(r.rsvp, 'Pending') AS rsvp,
+         COALESCE(r.rsvp_note, '') AS rsvpNote,
+         p.display_name AS displayName
+       FROM events e
+       LEFT JOIN venues v ON v.id = e.venue_id
+       LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = ?
+       CROSS JOIN profiles p ON p.id = ?
+       WHERE e.id = ? LIMIT 1`,
+      profileId.data,
+      profileId.data,
+      eventId.data,
+    )
+    .toArray()
+    .at(0);
+  if (!row) {
+    return Response.json({ code: "profile_event_rsvp_not_found" }, { status: 404 });
+  }
+  return Response.json({
+    callTime: row.callTime,
+    details: row.details,
+    displayName: row.displayName,
+    durationMinutes: row.durationMinutes,
+    id: row.id,
+    location: row.location,
+    profileId: profileId.data,
+    rsvp: row.rsvp,
+    rsvpNote: row.rsvpNote,
+    startsAt: row.startsAt,
+    title: row.title,
+    type: row.type,
+    venueAddress: row.venueAddress,
+    venueName: row.venueName,
+  });
+}
+
 export function readEventRsvpExportFromStore(
   storage: DurableObjectStorage,
   input: { readonly eventId: string | null; readonly organizationId: string | null },

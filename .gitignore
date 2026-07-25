@@ -23,3 +23,9 @@ test-results/
 
 # Local parity evidence scratch space
 work/
+
+# Build artifacts
+*.tsbuildinfo
+
+# OpenCode goal-plugin state (workflow checkpoints, lifecycle ledger)
+.opencode/goals/

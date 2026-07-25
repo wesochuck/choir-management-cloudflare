@@ -17,6 +17,9 @@ test("renders the accessible foundation at desktop and mobile widths", async ({ 
   await page.route("**/api/auth/get-session", async (route) => {
     await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
   });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText("choir moving together");

@@ -26,6 +26,9 @@ import { SeatingFinder } from "./SeatingFinder";
 import { SeatingManager } from "./SeatingManager";
 import { SetListManager } from "./SetListManager";
 import { TicketingManager } from "./TicketingManager";
+import { DonationsManager } from "./DonationsManager";
+import { SeasonsManager } from "./SeasonsManager";
+import { AuditionManager } from "./AuditionManager";
 
 type AccessState =
   | { readonly status: "error" }
@@ -407,6 +410,9 @@ function OrganizationOperations({
       <CommunicationCenter enabled={managerEnabled} />
       <PublicWebsiteManager enabled={managerEnabled} />
       <TicketingManager enabled={managerEnabled} />
+      <DonationsManager enabled={managerEnabled} />
+      <SeasonsManager enabled={managerEnabled} />
+      <AuditionManager enabled={managerEnabled} />
       <SetListManager enabled={managerEnabled} />
       <SeatingManager enabled={managerEnabled} />
       <AttendanceManager enabled={managerEnabled} />

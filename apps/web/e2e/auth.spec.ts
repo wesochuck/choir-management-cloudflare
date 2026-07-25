@@ -460,6 +460,9 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
       status: 200,
     });
   });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
   await page.route("**/api/auth/email-otp/send-verification-otp", async (route) => {
     await route.fulfill({
       body: JSON.stringify({ success: true }),

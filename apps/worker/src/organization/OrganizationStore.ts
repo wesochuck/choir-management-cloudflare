@@ -4,6 +4,7 @@ import {
   memberProfileUpdateRequestSchema,
   organizationProfileRequestSchema,
   organizationRosterConfigurationRequestSchema,
+  publicAuditionInquiryRequestSchema,
 } from "@choir/contracts";
 
 import type { Env } from "../env";
@@ -23,9 +24,25 @@ import {
   listOrganizationVenuesFromStore,
   manageOrganizationCalendarInStore,
   readOrganizationCalendarSettingsFromStore,
+  readProfileEventRsvpFromStore,
   readRosterConfigurationFromStore,
 } from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
+import { readPlayerDetailsFromStore } from "./playerStore";
+import {
+  createAuditionInStore,
+  readAuditionFromStore,
+  listAuditionsFromStore,
+  updateAuditionInStore,
+  updateAuditionCandidateInStore,
+} from "./auditionStore";
+import {
+  listPollsFromStore,
+  listArchivedPollsFromStore,
+  managePollInStore,
+  readPollFromStore,
+  readProfilePollFromStore,
+} from "./pollStore";
 import { listMusicPiecesFromStore, manageMusicInStore } from "./musicStore";
 import { listResourcesFromStore, manageResourceInStore } from "./resourceStore";
 import {
@@ -56,6 +73,14 @@ import {
   readTicketPurchaseFromStore,
   readTicketWillCallFromStore,
 } from "./ticketingStore";
+import {
+  listDonationsFromStore,
+  listPatronsFromStore,
+  manageDonationsInStore,
+} from "./donationStore";
+import { getSetupStateFromStore, getModuleStateFromStore, manageSetupInStore } from "./setupStore";
+import { readAttendanceReportJobFromStore, readEventReminderJobFromStore } from "./schedulingStore";
+import { listSeasonsFromStore, listDuesFromStore, manageSeasonsInStore } from "./seasonStore";
 
 const completionSchema = z.object({
   attempt: z.number().int().min(1).max(10),
@@ -414,7 +439,7 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
        VALUES (?, 'organization_member', ?, 'profile.created', 'profile', ?, ?, ?, ?)`,
-      `profile-created:${parsed.data.requestId}`,
+      crypto.randomUUID(),
       parsed.data.actorUserId,
       parsed.data.profileId,
       parsed.data.requestId,
@@ -472,7 +497,7 @@ async function importProfiles(storage: DurableObjectStorage, request: Request): 
           (id, actor_type, actor_id, action, target_type, target_id,
            request_id, change_summary, occurred_at)
          VALUES (?, 'organization_member', ?, 'profile.imported', 'profile', ?, ?, ?, ?)`,
-        `profile-imported:${parsed.data.requestId}:${profileId}`,
+        crypto.randomUUID(),
         parsed.data.actorUserId,
         profileId,
         parsed.data.requestId,
@@ -525,7 +550,7 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
        VALUES (?, 'organization_member', ?, 'profile.updated', 'profile', ?, ?, ?, ?)`,
-      `profile-updated:${parsed.data.requestId}`,
+      crypto.randomUUID(),
       parsed.data.actorUserId,
       parsed.data.profileId,
       parsed.data.requestId,
@@ -571,7 +596,7 @@ async function updateMemberProfile(
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
        VALUES (?, 'organization_member', ?, 'profile.self_updated', 'profile', ?, ?, ?, ?)`,
-      `profile-self-updated:${parsed.data.requestId}`,
+      crypto.randomUUID(),
       parsed.data.actorUserId,
       parsed.data.profileId,
       parsed.data.requestId,
@@ -636,7 +661,7 @@ async function manageProfilePhoto(
     storage.sql.exec(
       `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
        VALUES (?, 'organization_member', ?, ?, 'profile', ?, ?, ?, ?)`,
-      `profile-photo:${operation.requestId}`,
+      crypto.randomUUID(),
       operation.actorUserId,
       operation.action === "attach" ? "profile.photo_attached" : "profile.photo_removed",
       operation.profileId,
@@ -696,7 +721,7 @@ async function provisionOrganizationStore(
          request_id, change_summary, occurred_at)
        VALUES (?, 'platform_administrator', ?, 'organization.provisioned',
          'organization', ?, ?, ?, ?)`,
-      `organization-provisioned:${parsed.data.requestId}`,
+      crypto.randomUUID(),
       parsed.data.actorUserId,
       parsed.data.organizationId,
       parsed.data.requestId,
@@ -884,7 +909,7 @@ async function manageCalendarCredential(
          request_id, change_summary, occurred_at)
        VALUES (?, 'organization_member', ?, 'profile.calendar_feed.reset',
          'profile', ?, ?, ?, ?)`,
-      `calendar-feed-reset:${resetRequestId}`,
+      crypto.randomUUID(),
       resetActorUserId,
       parsed.data.profileId,
       resetRequestId,
@@ -1065,7 +1090,7 @@ async function finalizePrivateFile(
            request_id, change_summary, occurred_at)
          VALUES (?, 'organization_member', ?, 'organization.file.uploaded',
            'private_file', ?, ?, ?, ?)`,
-      `private-file-uploaded:${parsed.data.requestId}`,
+      crypto.randomUUID(),
       parsed.data.actorUserId,
       parsed.data.fileId,
       parsed.data.requestId,
@@ -1199,7 +1224,7 @@ async function finishPrivateFileReclamation(
          request_id, change_summary, occurred_at)
        VALUES (?, 'organization_member', ?, 'organization.file.reclaimed',
          'private_file', ?, ?, ?, ?)`,
-      `private-file-reclaimed:${parsed.data.requestId}`,
+      crypto.randomUUID(),
       parsed.data.actorUserId,
       parsed.data.fileId,
       parsed.data.requestId,
@@ -1267,7 +1292,44 @@ async function dispatchPostRequest(
   const websiteResponse = await dispatchWebsitePostRequest(storage, pathname, request);
   if (websiteResponse) return websiteResponse;
   if (pathname === "/internal/ticketing/manage") return manageTicketingInStore(storage, request);
+  if (pathname === "/internal/donations/manage") return manageDonationsInStore(storage, request);
+  if (pathname === "/internal/seasons/manage") return manageSeasonsInStore(storage, request);
+  if (pathname === "/internal/setup/manage") return manageSetupInStore(storage, request);
+  if (pathname === "/internal/polls/manage") return managePollInStore(storage, request);
   return dispatchOperationalPostRequest(storage, pathname, request);
+}
+
+async function auditionCreateHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = publicAuditionInquiryRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return Response.json({ code: "validation_failed" }, { status: 400 });
+  }
+  const id = createAuditionInStore(
+    storage,
+    parsed.data.name,
+    parsed.data.email,
+    parsed.data.phone ?? "",
+    parsed.data.voicePart ?? "",
+    parsed.data.experience ?? "",
+    parsed.data.availabilityNotes ?? "",
+  );
+  return readAuditionFromStore(storage, null, id);
+}
+
+function auditionUpdateHandler(storage: DurableObjectStorage, request: Request): Response {
+  const url = new URL(request.url);
+  const auditionId = url.searchParams.get("auditionId") ?? "";
+  const availabilityNotes = url.searchParams.get("availabilityNotes") ?? undefined;
+  const voicePart = url.searchParams.get("voicePart") ?? undefined;
+  const status = url.searchParams.get("status") ?? undefined;
+  const adminNotes = url.searchParams.get("adminNotes") ?? undefined;
+  if (availabilityNotes !== undefined || voicePart !== undefined) {
+    return updateAuditionCandidateInStore(storage, auditionId, availabilityNotes, voicePart);
+  }
+  return updateAuditionInStore(storage, auditionId, adminNotes, status);
 }
 
 async function dispatchOperationalPostRequest(
@@ -1298,54 +1360,120 @@ async function dispatchOperationalPostRequest(
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
       return prepareOrganizationSchema(storage, request);
+    case "/internal/audition/update":
+      return auditionUpdateHandler(storage, request);
+    case "/internal/audition/create":
+      return auditionCreateHandler(storage, request);
+    case "/internal/auditions/list":
+      return listAuditionsFromStore(storage);
     default:
       return null;
   }
 }
+
+const contentGetHandlers: Record<
+  string,
+  (storage: DurableObjectStorage, url: URL, organizationId: string | null) => Response | null
+> = {
+  "/internal/resources": (storage, _url, organizationId) =>
+    listResourcesFromStore(storage, organizationId),
+  "/internal/communications": (storage, _url, organizationId) =>
+    listCommunicationMessagesFromStore(storage, organizationId),
+  "/internal/communications/templates": (storage, _url, organizationId) =>
+    listCommunicationTemplatesFromStore(storage, organizationId),
+  "/internal/communications/summary": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) =>
+    readCommunicationSummaryFromStore(storage, organizationId, url.searchParams.get("messageId")),
+  "/internal/communications/job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/website/settings": (storage, _url, organizationId) =>
+    readPublicWebsiteSettingsFromStore(storage, organizationId),
+  "/internal/polls": (storage, _url, organizationId) => listPollsFromStore(storage, organizationId),
+  "/internal/polls/archived": (storage, _url, organizationId) =>
+    listArchivedPollsFromStore(storage, organizationId),
+  "/internal/polls/poll": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readPollFromStore(storage, organizationId, url.searchParams.get("pollId")),
+  "/internal/polls/profile-poll": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) =>
+    readProfilePollFromStore(storage, {
+      organizationId,
+      pollId: url.searchParams.get("pollId"),
+      profileId: url.searchParams.get("profileId"),
+    }),
+  "/internal/ticketing/orders": (storage, _url, organizationId) =>
+    listTicketOrdersFromStore(storage, organizationId),
+  "/internal/ticketing/bundles": (storage, _url, organizationId) =>
+    listTicketBundlesFromStore(storage, organizationId),
+  "/internal/ticketing/purchase": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readTicketPurchaseFromStore(storage, organizationId, url.searchParams.get("purchaseId")),
+  "/internal/ticketing/will-call": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readTicketWillCallFromStore(storage, organizationId, url.searchParams.get("eventId")),
+  "/internal/ticketing/notification-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readTicketNotificationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/donations/list": (storage, _url, organizationId) =>
+    listDonationsFromStore(storage, organizationId),
+  "/internal/donations/patrons": (storage, _url, organizationId) =>
+    listPatronsFromStore(storage, organizationId),
+  "/internal/scheduling/event-reminder-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readEventReminderJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/scheduling/attendance-report-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readAttendanceReportJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/player/details": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) =>
+    readPlayerDetailsFromStore(
+      storage,
+      organizationId,
+      url.searchParams.get("eventId"),
+      url.searchParams.get("profileId"),
+    ),
+  "/internal/audition/details": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readAuditionFromStore(storage, organizationId, url.searchParams.get("auditionId") ?? ""),
+  "/internal/seasons/list": (storage, _url, organizationId) =>
+    listSeasonsFromStore(storage, organizationId),
+  "/internal/seasons/dues": (storage, _url, organizationId) =>
+    listDuesFromStore(storage, organizationId),
+};
 
 function dispatchContentGetRequest(
   storage: DurableObjectStorage,
   url: URL,
   organizationId: string | null,
 ): Response | null {
-  switch (url.pathname) {
-    case "/internal/resources":
-      return listResourcesFromStore(storage, organizationId);
-    case "/internal/communications":
-      return listCommunicationMessagesFromStore(storage, organizationId);
-    case "/internal/communications/templates":
-      return listCommunicationTemplatesFromStore(storage, organizationId);
-    case "/internal/communications/summary":
-      return readCommunicationSummaryFromStore(
-        storage,
-        organizationId,
-        url.searchParams.get("messageId"),
-      );
-    case "/internal/communications/job":
-      return readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId"));
-    case "/internal/website/settings":
-      return readPublicWebsiteSettingsFromStore(storage, organizationId);
-    case "/internal/ticketing/orders":
-      return listTicketOrdersFromStore(storage, organizationId);
-    case "/internal/ticketing/bundles":
-      return listTicketBundlesFromStore(storage, organizationId);
-    case "/internal/ticketing/purchase":
-      return readTicketPurchaseFromStore(
-        storage,
-        organizationId,
-        url.searchParams.get("purchaseId"),
-      );
-    case "/internal/ticketing/will-call":
-      return readTicketWillCallFromStore(storage, organizationId, url.searchParams.get("eventId"));
-    case "/internal/ticketing/notification-job":
-      return readTicketNotificationJobFromStore(
-        storage,
-        organizationId,
-        url.searchParams.get("jobId"),
-      );
-    default:
-      return null;
-  }
+  const handler = contentGetHandlers[url.pathname];
+  return handler ? handler(storage, url, organizationId) : null;
 }
 
 async function dispatchWebsitePostRequest(
@@ -1458,6 +1586,12 @@ function dispatchCalendarGetRequest(
         eventId: url.searchParams.get("eventId"),
         organizationId,
       });
+    case "/internal/calendar/event-rsvp":
+      return readProfileEventRsvpFromStore(storage, {
+        eventId: url.searchParams.get("eventId"),
+        organizationId,
+        profileId: url.searchParams.get("profileId"),
+      });
     case "/internal/calendar/settings":
       return readOrganizationCalendarSettingsFromStore(storage, organizationId);
     case "/internal/calendar/member-events":
@@ -1500,6 +1634,12 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
         organizationId,
         profileId: url.searchParams.get("profileId"),
       });
+  }
+  if (url.pathname === "/internal/setup/state") {
+    return getSetupStateFromStore(storage, organizationId);
+  }
+  if (url.pathname === "/internal/setup/modules") {
+    return getModuleStateFromStore(storage, organizationId);
   }
   const privateFilePrefix = "/internal/files/";
   if (url.pathname.startsWith(privateFilePrefix)) {

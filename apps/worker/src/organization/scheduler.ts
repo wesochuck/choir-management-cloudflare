@@ -131,6 +131,108 @@ function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): voi
   }
 }
 
+interface EventReminderCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly eventId: string;
+  readonly eventStartsAt: string;
+  readonly eventTitle: string;
+  readonly eventType: string;
+}
+
+function createEventReminderJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const leadTimeHorizon = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
+  const candidates = storage.sql
+    .exec<EventReminderCandidateRow>(
+      `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
+       FROM events
+       WHERE is_archived = 0
+         AND reminder_sent_at IS NULL
+         AND starts_at > ?
+         AND starts_at <= ?
+       ORDER BY eventStartsAt, eventId LIMIT 50`,
+      now.toISOString(),
+      leadTimeHorizon,
+    )
+    .toArray();
+  for (const candidate of candidates) {
+    const idempotencyKey = `event-reminder:${organizationId}:${candidate.eventId}`;
+    const alreadyQueued = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly jobId: string }>(
+        "SELECT job_id AS jobId FROM scheduled_job_outbox WHERE idempotency_key = ? LIMIT 1",
+        idempotencyKey,
+      )
+      .toArray()
+      .at(0);
+    if (alreadyQueued) continue;
+    storage.sql.exec(
+      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'event_reminder', ?, ?, ?)`,
+      crypto.randomUUID(),
+      idempotencyKey,
+      now.toISOString(),
+      now.toISOString(),
+    );
+    storage.sql.exec(
+      "UPDATE events SET reminder_sent_at = ? WHERE id = ?",
+      now.toISOString(),
+      candidate.eventId,
+    );
+  }
+}
+
+interface PostEventReportCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly eventId: string;
+  readonly eventTitle: string;
+  readonly eventType: string;
+  readonly eventStartsAt: string;
+}
+
+function createPostEventReportJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const windowEnd = new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString();
+  const windowStart = new Date(now.getTime() - 13 * 60 * 60 * 1000).toISOString();
+  const candidates = storage.sql
+    .exec<PostEventReportCandidateRow>(
+      `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
+       FROM events
+       WHERE is_archived = 0
+         AND type = 'Performance'
+         AND starts_at >= ?
+         AND starts_at < ?
+       ORDER BY eventStartsAt, eventId LIMIT 50`,
+      windowStart,
+      windowEnd,
+    )
+    .toArray();
+  for (const candidate of candidates) {
+    const idempotencyKey = `post-event-report:${organizationId}:${candidate.eventId}`;
+    const alreadyQueued = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly jobId: string }>(
+        "SELECT job_id AS jobId FROM scheduled_job_outbox WHERE idempotency_key = ? LIMIT 1",
+        idempotencyKey,
+      )
+      .toArray()
+      .at(0);
+    if (alreadyQueued) continue;
+    storage.sql.exec(
+      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'attendance_report', ?, ?, ?)`,
+      crypto.randomUUID(),
+      idempotencyKey,
+      now.toISOString(),
+      now.toISOString(),
+    );
+  }
+}
+
 function createDueJobs(storage: DurableObjectStorage, organizationId: string, now: Date): void {
   storage.transactionSync(() => {
     const scheduler = storage.sql
@@ -153,6 +255,8 @@ function createDueJobs(storage: DurableObjectStorage, organizationId: string, no
       now.toISOString(),
     );
     createTicketReminderJobs(storage, now);
+    createEventReminderJobs(storage, organizationId, now);
+    createPostEventReportJobs(storage, organizationId, now);
     storage.sql.exec(
       `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,
       new Date(new Date(scheduler.nextDueAt).getTime() + SCHEDULER_INTERVAL_MS).toISOString(),

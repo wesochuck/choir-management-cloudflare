@@ -95,6 +95,7 @@ milestone complete.
 | `apps/worker/src/organization/resourceStore.ts`                | Organization-scoped ordered private-file and link resource repository                  |
 | `apps/worker/src/organization/profiles.ts`                     | Authenticated Organization Profile repository adapter                                  |
 | `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                         |
+| `apps/worker/src/organization/schedulingStore.ts`              | Organization-scoped event-reminder and attendance-report job data reader               |
 | `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                    |
 | `apps/worker/src/organization/scheduler.ts`                    | Per-Organization alarm and stable queue outbox orchestration                           |
 | `apps/worker/src/control/schema.ts`                            | Control-plane D1 schema definitions                                                    |
@@ -225,6 +226,23 @@ milestone complete.
 | `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                        |
 | `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                                |
 | `docs/parity/fixtures/organizations.json`                      | Deterministic two-Organization isolation seed                                          |
+| `apps/worker/src/organization/pollStore.ts`                    | Organization-scoped poll repository inside the Organization boundary                   |
+| `apps/worker/src/organization/playerStore.ts`                  | Organization-scoped player detail repository inside the Organization boundary          |
+| `apps/worker/src/organization/auditionStore.ts`                | Organization-scoped audition and slot repository inside the Organization boundary      |
+| `apps/worker/src/organization/organizationPollLinks.ts`        | Signed poll token issuance, detail resolution, and response submission adapter         |
+| `apps/worker/src/organization/organizationRsvpLinks.ts`        | Signed RSVP token issuance, detail resolution, and quick-RVP submission adapter        |
+| `apps/worker/src/organization/organizationPlayerLinks.ts`      | Signed player token issuance and detail resolution adapter                             |
+| `apps/worker/src/organization/organizationAuditions.ts`        | Signed audition token issuance, detail resolution, and candidate update adapter        |
+| `apps/web/src/account/AuditionManager.tsx`                     | Administrator audition list, status editing, and token generation UI                   |
+| `apps/web/src/public/PublicRsvpView.tsx`                       | Public RSVP detail and quick-response view                                             |
+| `apps/web/src/public/PublicPollView.tsx`                       | Public poll detail and response view                                                   |
+| `apps/web/src/public/PublicPlayerView.tsx`                     | Public player detail and media view                                                    |
+| `apps/web/src/public/PublicAuditionView.tsx`                   | Public audition inquiry form and candidate update view                                 |
+| `apps/worker/test/publicRsvp.integration.test.ts`              | Public RSVP authorization, token replay, and isolation integration proof               |
+| `apps/worker/test/publicPoll.integration.test.ts`              | Public poll authorization, token replay, and isolation integration proof               |
+| `apps/worker/test/publicPlayer.integration.test.ts`            | Public player authorization, token replay, and isolation integration proof             |
+| `apps/worker/test/publicAudition.integration.test.ts`          | Public audition inquiry, detail, update, and isolation integration proof               |
+| `apps/web/e2e/auditions.spec.ts`                               | Public and admin audition E2E browser coverage                                         |
 | `docs/parity/screenshots/README.md`                            | Baseline screenshot provenance and regeneration contract                               |
 
 ## Target Architecture

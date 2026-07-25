@@ -202,4 +202,25 @@ describe("Organization queue delivery", () => {
     expect(columns.results.map((column) => column.name)).not.toContain("body");
     expect(columns.results.map((column) => column.name)).not.toContain("payload");
   });
+
+  it("accepts and completes an event_reminder job in fake mode", async () => {
+    const eventReminderJob: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: "event-reminder:organization-alpha:77777777-7777-4777-8777-777777777777",
+      jobId: "88888888-8888-4888-8888-888888888888",
+      kind: "event_reminder",
+      organizationId: "organization-alpha",
+      version: 1,
+    };
+    const result = await processBatch(eventReminderJob, 1, "event-reminder-test");
+    expect(result.explicitAcks).toEqual(["event-reminder-test"]);
+    await expect(
+      readJobLedger("organization-alpha", eventReminderJob.idempotencyKey),
+    ).resolves.toEqual({
+      attempt: 1,
+      failedAt: null,
+      jobId: eventReminderJob.jobId,
+      status: "completed",
+    });
+  });
 });

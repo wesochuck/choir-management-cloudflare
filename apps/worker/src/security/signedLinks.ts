@@ -9,6 +9,7 @@ const textEncoder = new TextEncoder();
 export const signedLinkPurposeSchema = z.enum([
   "audition",
   "calendar_feed",
+  "donation_receipt",
   "poll",
   "private_download",
   "player",

@@ -70,6 +70,10 @@ import {
   ticketBundleSchema,
   ticketBundlesResponseSchema,
   ticketScanResponseSchema,
+  organizationAuditionSchema,
+  organizationAuditionListResponseSchema,
+  generateAuditionTokensResponseSchema,
+  organizationAuditionUpdateRequestSchema,
   type AccountOrganization,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
@@ -134,6 +138,8 @@ import {
   type TicketBundleRequest,
   type TicketScanRequest,
   type TicketScanResult,
+  type OrganizationAudition,
+  type AuditionStatus,
 } from "@choir/contracts";
 
 export class AuthApiError extends Error {
@@ -1150,4 +1156,33 @@ export async function cancelOrganizationInvitation(
     },
   );
   return organizationInvitationActionResponseSchema.parse(await response.json());
+}
+
+export async function listOrganizationAuditions(
+  signal?: AbortSignal,
+): Promise<readonly OrganizationAudition[]> {
+  const response = await request("/api/organization/auditions", { signal: signal ?? null });
+  return organizationAuditionListResponseSchema.parse(await response.json()).auditions;
+}
+
+export async function updateOrganizationAudition(
+  auditionId: string,
+  update: { readonly adminNotes?: string; readonly status?: AuditionStatus },
+): Promise<OrganizationAudition> {
+  const parsed = organizationAuditionUpdateRequestSchema.parse(update);
+  const response = await request(`/api/organization/auditions/${encodeURIComponent(auditionId)}`, {
+    body: JSON.stringify(parsed),
+    method: "PUT",
+  });
+  return organizationAuditionSchema.parse(await response.json());
+}
+
+export async function generateAuditionTokens(
+  auditionIds: readonly string[],
+): Promise<Record<string, string>> {
+  const response = await request("/api/organization/audition-tokens", {
+    body: JSON.stringify({ auditionIds }),
+    method: "POST",
+  });
+  return generateAuditionTokensResponseSchema.parse(await response.json()).tokens;
 }

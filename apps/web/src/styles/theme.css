@@ -25,6 +25,9 @@
   --color-shadow: rgb(23 63 95 / 14%);
   --radius-card: 1.25rem;
   --radius-control: 0.75rem;
+  --border: var(--color-border);
+  --card: var(--color-surface);
+  --muted-foreground: var(--color-text-muted);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1787,4 +1790,116 @@ footer {
   html {
     scroll-behavior: auto;
   }
+}
+
+/* === DataTable responsive === */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.data-table-cards {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .data-table {
+    display: none;
+  }
+
+  .data-table-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .data-table-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+
+  .data-table-card__field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.375rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-table-card__field:last-child {
+    border-bottom: none;
+  }
+
+  .data-table-card__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .data-table-card__value {
+    font-size: 0.875rem;
+    text-align: right;
+  }
+}
+
+/* === Dialog === */
+.dialog {
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0;
+  max-width: 32rem;
+  width: calc(100% - 2rem);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.dialog__content {
+  padding: 1.5rem;
+}
+
+.dialog__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.dialog__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.dialog__close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.dialog__body {
+  font-size: 0.925rem;
 }

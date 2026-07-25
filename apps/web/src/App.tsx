@@ -8,8 +8,20 @@ import { getCurrentSession } from "./auth/api";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
+import { PublicPollView } from "./public/PublicPollView";
+import { PublicRsvpView } from "./public/PublicRsvpView";
+import { PublicPlayerView } from "./public/PublicPlayerView";
+import { PublicAuditionView } from "./public/PublicAuditionView";
 import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
 import { PublicTickets } from "./public/PublicTickets";
+import { PublicDonationView } from "./public/PublicDonationView";
+import { PublicDonationSuccessView } from "./public/PublicDonationSuccessView";
+import { PublicFreeRsvpView } from "./public/PublicFreeRsvpView";
+import { DashboardView } from "./account/DashboardView";
+import { ModuleSettingsView } from "./account/ModuleSettingsView";
+import { ReportsView } from "./account/ReportsView";
+import { SetupChecklistView } from "./account/SetupChecklistView";
+import { SetupView } from "./setup/SetupView";
 
 type ServiceState = "checking" | "offline" | "ready";
 type SessionState =
@@ -139,13 +151,82 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
   return null;
 }
 
+const accountRouteSet = new Set([
+  "/account",
+  "/setup",
+  "/account/dashboard",
+  "/admin/communications",
+  "/admin/tickets",
+  "/admin/website",
+  "/admin/auditions",
+  "/admin/setlists",
+  "/admin/attendance",
+  "/admin/resources",
+  "/admin/rsvp",
+  "/admin/polls",
+  "/admin/reports",
+  "/admin/settings/modules",
+  "/admin/settings/setup-checklist",
+  "/admin/donations",
+  "/admin/patrons",
+  "/admin/seasons",
+]);
+
 function isAccountRoute(pathname: string): boolean {
-  return (
-    pathname === "/account" ||
-    pathname === "/admin/communications" ||
-    pathname === "/admin/tickets" ||
-    pathname === "/admin/website"
-  );
+  return accountRouteSet.has(pathname);
+}
+
+function selectContent(
+  pathname: string,
+  resetLocation: PasswordResetLocation,
+  sessionState: SessionState,
+  finishSignIn: () => void,
+  finishSignOut: () => void,
+  finishInvitationSignIn: () => void,
+): ReactNode {
+  const utilityRoute = publicUtilityRoute(pathname, resetLocation);
+  if (utilityRoute) return utilityRoute;
+  if (pathname === "/accept-invitation") {
+    if (sessionState.status === "checking") return <AccountLoading />;
+    if (sessionState.status === "authenticated") {
+      return <AcceptInvitationView invitationId={new URLSearchParams(window.location.search).get("id")} />;
+    }
+    return <SignInView onSignedIn={finishInvitationSignIn} />;
+  }
+  if (pathname === "/login") {
+    if (sessionState.status === "authenticated") {
+      return <AlreadySignedIn session={sessionState.session} />;
+    }
+    return <SignInView onSignedIn={finishSignIn} />;
+  }
+  if (isAccountRoute(pathname)) {
+    if (sessionState.status === "checking") return <AccountLoading />;
+    if (sessionState.status === "authenticated") {
+      const accountContent = accountRouteContent(pathname);
+      return accountContent ?? <AccountView currentSession={sessionState.session} onSignedOut={finishSignOut} />;
+    }
+    return <SignInView onSignedIn={finishSignIn} />;
+  }
+  return <HomeView signedIn={sessionState.status === "authenticated"} />;
+}
+
+function accountRouteContent(pathname: string) {
+  if (pathname === "/account/dashboard") {
+    return <DashboardView />;
+  }
+  if (pathname === "/admin/reports") {
+    return <ReportsView />;
+  }
+  if (pathname === "/setup") {
+    return <SetupView />;
+  }
+  if (pathname === "/admin/settings/modules") {
+    return <ModuleSettingsView />;
+  }
+  if (pathname === "/admin/settings/setup-checklist") {
+    return <SetupChecklistView />;
+  }
+  return null;
 }
 
 function isPublicOrganizationRoute(pathname: string): boolean {
@@ -160,10 +241,31 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
       <PublicUnsubscribeView token={new URLSearchParams(window.location.search).get("token")} />
     );
   }
+  if (pathname === "/rsvp") {
+    return <PublicRsvpView />;
+  }
+  if (pathname.startsWith("/rsvp/")) {
+    return <PublicFreeRsvpView />;
+  }
+  if (pathname === "/poll") {
+    return <PublicPollView />;
+  }
+  if (pathname === "/player") {
+    return <PublicPlayerView />;
+  }
+  if (pathname === "/auditions") {
+    return <PublicAuditionView />;
+  }
   return null;
 }
 
 function renderPublicOrProductRoute(pathname: string, productShell: ReactNode) {
+  if (pathname === "/donate") {
+    return <PublicDonationView />;
+  }
+  if (pathname === "/donate/success") {
+    return <PublicDonationSuccessView />;
+  }
   if (pathname === "/tickets" || pathname.startsWith("/tickets/")) {
     return <PublicTickets pathname={pathname} />;
   }
@@ -238,40 +340,14 @@ export function App() {
     window.location.assign(`/accept-invitation${window.location.search}`);
   }
 
-  let content;
-  const utilityRoute = publicUtilityRoute(pathname, resetLocation);
-  if (utilityRoute) {
-    content = utilityRoute;
-  } else if (pathname === "/accept-invitation") {
-    content =
-      sessionState.status === "checking" ? (
-        <AccountLoading />
-      ) : sessionState.status === "authenticated" ? (
-        <AcceptInvitationView
-          invitationId={new URLSearchParams(window.location.search).get("id")}
-        />
-      ) : (
-        <SignInView onSignedIn={finishInvitationSignIn} />
-      );
-  } else if (pathname === "/login") {
-    content =
-      sessionState.status === "authenticated" ? (
-        <AlreadySignedIn session={sessionState.session} />
-      ) : (
-        <SignInView onSignedIn={finishSignIn} />
-      );
-  } else if (isAccountRoute(pathname)) {
-    content =
-      sessionState.status === "checking" ? (
-        <AccountLoading />
-      ) : sessionState.status === "authenticated" ? (
-        <AccountView currentSession={sessionState.session} onSignedOut={finishSignOut} />
-      ) : (
-        <SignInView onSignedIn={finishSignIn} />
-      );
-  } else {
-    content = <HomeView signedIn={sessionState.status === "authenticated"} />;
-  }
+  const content = selectContent(
+    pathname,
+    resetLocation,
+    sessionState,
+    finishSignIn,
+    finishSignOut,
+    finishInvitationSignIn,
+  );
 
   const productShell = (
     <div className="app-shell">

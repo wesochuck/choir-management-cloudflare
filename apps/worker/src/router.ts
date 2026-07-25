@@ -21,6 +21,12 @@ import {
   organizationProfileRequestSchema,
   organizationRsvpRequestSchema,
   organizationVenueRequestSchema,
+  publicQuickRsvpRequestSchema,
+  generateRsvpTokensRequestSchema,
+  publicPollSubmitRequestSchema,
+  generatePollTokensRequestSchema,
+  generatePlayerTokensRequestSchema,
+  organizationPollRequestSchema,
   singerRsvpRequestSchema,
   singerLearningTrackPieceSchema,
   organizationProfileLinkRequestSchema,
@@ -31,6 +37,14 @@ import {
   ticketCheckoutRequestSchema,
   ticketBundleRequestSchema,
   ticketScanRequestSchema,
+  publicAuditionInquiryRequestSchema,
+  publicAuditionSubmitRequestSchema,
+  generateAuditionTokensRequestSchema,
+  organizationAuditionUpdateRequestSchema,
+  donationCheckoutRequestSchema,
+  donationRefundRequestSchema,
+  duesCheckoutRequestSchema,
+  setupProgressRequestSchema,
   type HealthResponse,
   type CalendarFeedUrlsResponse,
   type OrganizationContextResponse,
@@ -206,6 +220,44 @@ import {
   TicketingError,
   validateOrganizationTicketScan,
 } from "./organization/organizationTicketing";
+import {
+  createDonationCheckoutSession,
+  DonationError,
+  listOrganizationDonations,
+  listOrganizationPatrons,
+  refundOrganizationDonation,
+} from "./organization/organizationDonations";
+import {
+  claimSetup,
+  completeSetup,
+  getModuleState,
+  getSetupStatus,
+  saveSetupProgress,
+  SetupError,
+} from "./organization/organizationSetup";
+import {
+  createDuesCheckoutSession,
+  listSeasons,
+  listDues,
+  refundDues,
+  SeasonError,
+} from "./organization/organizationSeasons";
+import {
+  generateRsvpTokens,
+  resolveRsvpDetails,
+  submitQuickRsvp,
+} from "./organization/organizationRsvpLinks";
+import {
+  generatePollTokens,
+  resolvePollDetails,
+  submitPollResponse,
+} from "./organization/organizationPollLinks";
+import { generatePlayerTokens, resolvePlayerDetails } from "./organization/organizationPlayerLinks";
+import {
+  generateAuditionTokens,
+  resolveAuditionDetails,
+  submitAuditionUpdate,
+} from "./organization/organizationAuditions";
 
 interface WorkerHonoEnvironment {
   Bindings: Env;
@@ -215,6 +267,12 @@ interface WorkerHonoEnvironment {
 }
 
 export const router = new Hono<WorkerHonoEnvironment>();
+
+function isErrorResponse(
+  value: unknown,
+): value is { readonly code: string; readonly status?: number } {
+  return typeof value === "object" && value !== null && "code" in value;
+}
 
 const PLATFORM_ORGANIZATION_PAGE_SIZE = 25;
 const PLATFORM_DEAD_LETTER_PAGE_SIZE = 25;
@@ -548,6 +606,17 @@ async function verifySecondFactor(
 
 router.use("*", requestId());
 router.use("*", async (context, next) => {
+  if (context.req.method === "OPTIONS") {
+    context.res.headers.set("access-control-allow-origin", context.env.PRODUCT_BASE_DOMAIN === "localhost" ? "*" : `https://${context.env.PRODUCT_BASE_DOMAIN}`);
+    context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
+    context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
+    context.res.headers.set("access-control-allow-credentials", "true");
+    context.res.headers.set("access-control-max-age", "86400");
+    return context.body(null, 204);
+  }
+  await next();
+});
+router.use("*", async (context, next) => {
   await next();
   const responsePath = new URL(context.req.url).pathname;
   const publicProjectionResponse =
@@ -572,6 +641,11 @@ router.use("*", async (context, next) => {
   );
   context.header("x-content-type-options", "nosniff");
   context.header("x-frame-options", "DENY");
+  context.res.headers.set("access-control-allow-origin", context.env.PRODUCT_BASE_DOMAIN === "localhost" ? "*" : `https://${context.env.PRODUCT_BASE_DOMAIN}`);
+  context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
+  context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
+  context.res.headers.set("access-control-allow-credentials", "true");
+  context.res.headers.set("access-control-max-age", "86400");
 });
 
 router.get("/api/health", (context) => {
@@ -611,6 +685,7 @@ router.get("/api/ready", async (context) => {
   }
 });
 
+// TODO: Add rate limiting for all /api/public/* routes before production launch
 router.get("/api/public/projection", async (context) => {
   validateStartupConfig(context.env);
   const resolvedOrganization = await resolveOrganization(new URL(context.req.url), context.env);
@@ -682,6 +757,103 @@ router.get("/api/public/media/:version/:fileId", async (context) => {
   if (context.req.header("if-none-match") === object.httpEtag) return context.body(null, 304);
   context.header("content-type", object.httpMetadata?.contentType ?? "application/octet-stream");
   return context.body(object.body);
+});
+
+router.post("/api/checkout/create-donation-session", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  const checkout = donationCheckoutRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Donations are not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  if (!checkout.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid donation details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json(
+      await createDonationCheckoutSession(
+        context.env,
+        resolved.value.organizationId,
+        new URL(context.req.url).origin,
+        checkout.data,
+      ),
+      201,
+    );
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof DonationError ? error.code : "donation_checkout_unavailable",
+        message:
+          error instanceof DonationError
+            ? error.message
+            : "Online donation checkout is not available right now.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof DonationError && (error.status === 409 || error.status === 501) ? error.status : 503,
+    );
+  }
+});
+
+router.post("/api/checkout/create-dues-session", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  const checkout = duesCheckoutRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Dues checkout is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  if (!checkout.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid dues checkout details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json(
+      await createDuesCheckoutSession(context.env, resolved.value.organizationId, new URL(context.req.url).origin, checkout.data),
+      201,
+    );
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof SeasonError ? error.code : "dues_checkout_unavailable",
+        message:
+          error instanceof SeasonError
+            ? error.message
+            : "Dues checkout is not available right now.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof SeasonError && error.status === 409 ? 409 : 503,
+    );
+  }
 });
 
 router.post("/api/public/tickets/checkout", async (context) => {
@@ -780,6 +952,491 @@ router.get("/api/public/tickets/order", async (context) => {
       404,
     );
   }
+});
+
+router.post("/api/public/rsvp-details", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "RSVP is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = z
+    .object({ token: z.string().min(1).max(4_096) })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid RSVP link is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const details = await resolveRsvpDetails(
+    context.env,
+    resolved.value.organizationId,
+    body.data.token,
+  );
+  if (isErrorResponse(details)) {
+    return context.json(
+      {
+        code: details.code,
+        message:
+          details.code === "invalid_link"
+            ? "This RSVP link is invalid or expired."
+            : "RSVP details not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ ...details, requestId: context.get("requestId") });
+});
+
+router.post("/api/public/quick-rsvp", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "RSVP is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = publicQuickRsvpRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid RSVP and link are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const result = await submitQuickRsvp(
+    context.env,
+    resolved.value.organizationId,
+    body.data.token,
+    body.data.rsvp,
+    body.data.rsvpNote,
+  );
+  if ("code" in result) {
+    const status = result.code === "invalid_link" ? 404 : result.status;
+    return context.json(
+      {
+        code: result.code,
+        message:
+          result.code === "invalid_link"
+            ? "This RSVP link is invalid or expired."
+            : "RSVP could not be submitted.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      status as Parameters<typeof context.json>[1],
+    );
+  }
+  return context.json({ rsvp: body.data.rsvp, requestId: context.get("requestId") });
+});
+
+router.post("/api/public/poll-details", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Poll is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = z
+    .object({ token: z.string().min(1).max(4_096) })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid poll link is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const details = await resolvePollDetails(
+    context.env,
+    resolved.value.organizationId,
+    body.data.token,
+  );
+  if ("code" in details) {
+    return context.json(
+      {
+        code: details.code,
+        message:
+          details.code === "invalid_link"
+            ? "This poll link is invalid or expired."
+            : "Poll details not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ ...details, requestId: context.get("requestId") });
+});
+
+router.post("/api/public/poll-vote", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Poll is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = publicPollSubmitRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid poll response and link are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const result = await submitPollResponse(
+    context.env,
+    resolved.value.organizationId,
+    body.data.token,
+    body.data.optionIds,
+  );
+  if ("code" in result) {
+    return context.json(
+      {
+        code: result.code,
+        message: "Poll response could not be submitted.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      result.code === "invalid_link" ? 404 : 503,
+    );
+  }
+  return context.json({ submitted: true, requestId: context.get("requestId") });
+});
+
+router.post("/api/public/player-details", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Player is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = z
+    .object({ token: z.string().min(1).max(4_096) })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid player link is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const details = await resolvePlayerDetails(
+    context.env,
+    resolved.value.organizationId,
+    body.data.token,
+  );
+  if (isErrorResponse(details)) {
+    const status: number = typeof details.status === "number" ? details.status : 404;
+    return context.json(
+      {
+        code: details.code,
+        message:
+          details.code === "invalid_link"
+            ? "This player link is invalid or expired."
+            : "Player details not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+      status as Parameters<typeof context.json>[1],
+    );
+  }
+  return context.json({ ...details, requestId: context.get("requestId") });
+});
+
+router.get("/api/public/player/media/:fileId", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const token = context.req.query("token");
+  if (!token) {
+    return context.json(
+      {
+        code: "missing_token",
+        message: "A player link is required.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Player is not available for this hostname.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const envelope = await verifySignedLinkScope(context.env.SIGNED_LINK_SECRET, token, {
+    expectedOrganizationId: resolved.value.organizationId,
+    expectedPurpose: "player",
+  });
+  if (!envelope?.resourceId) {
+    return context.json(
+      {
+        code: "invalid_link",
+        message: "This player link is invalid or expired.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const fileId = context.req.param("fileId");
+  if (!fileId) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid file is required.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const file = await readPrivateOrganizationFile(
+      context.env,
+      resolved.value.organizationId,
+      fileId,
+    );
+    if (!file) {
+      return context.json(
+        {
+          code: "file_not_found",
+          message: "The requested file was not found.",
+          requestId: requestIdValue,
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    return new Response(file.object.body, {
+      headers: {
+        "cache-control": "private, max-age=3600",
+        "content-type": file.metadata.contentType,
+        "content-length": String(file.metadata.sizeBytes),
+      },
+    });
+  } catch {
+    return context.json(
+      {
+        code: "file_not_found",
+        message: "The requested file was not found.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+});
+
+router.post("/api/public/audition-inquiry", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Auditions are not available for this hostname.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = publicAuditionInquiryRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid name and email are required.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(resolved.value.organizationId),
+    );
+    const url = new URL("https://organization.internal/internal/audition/create");
+    const response = await stub.fetch(url, {
+      body: JSON.stringify({
+        availabilityNotes: body.data.availabilityNotes ?? "",
+        email: body.data.email,
+        experience: body.data.experience ?? "",
+        name: body.data.name,
+        phone: body.data.phone ?? "",
+        voicePart: body.data.voicePart ?? "",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "Your inquiry could not be submitted. Please try again later.",
+          requestId: requestIdValue,
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+    const created: unknown = await response.json();
+    const createdId =
+      typeof created === "object" && created !== null && "id" in created ? String(created.id) : "";
+    return context.json(
+      { id: createdId, message: "Your audition inquiry has been received." },
+      201,
+    );
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Your inquiry could not be submitted. Please try again later.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/public/audition-details", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Auditions are not available for this hostname.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = z
+    .object({ token: z.string().min(1).max(4_096) })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid audition link is required.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const details = await resolveAuditionDetails(
+    context.env,
+    resolved.value.organizationId,
+    body.data.token,
+  );
+  if (isErrorResponse(details)) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "This audition link is invalid or expired.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json(details);
+});
+
+router.post("/api/public/audition-submit", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Auditions are not available for this hostname.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const body = publicAuditionSubmitRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid audition link is required.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const result = await submitAuditionUpdate(
+    context.env,
+    resolved.value.organizationId,
+    body.data.token,
+    body.data.availabilityNotes,
+    body.data.voicePart,
+  );
+  if (isErrorResponse(result)) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "This audition link is invalid or expired.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json(result);
 });
 
 router.post("/api/public/unsubscribe", async (context) => {
@@ -2433,6 +3090,195 @@ router.post("/api/organization/tickets/scan", async (context) => {
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       error instanceof TicketingError && error.status === 404 ? 404 : 503,
+    );
+  }
+});
+
+router.get("/api/organization/donations", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const donations = await listOrganizationDonations(context.env, authorization.organizationId);
+    return context.json({ donations, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Donations are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/patrons", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const patrons = await listOrganizationPatrons(context.env, authorization.organizationId);
+    return context.json({ patrons, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Patrons are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/seasons", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const seasons = await listSeasons(context.env, authorization.organizationId);
+    return context.json({ seasons, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Seasons are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/dues", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const dues = await listDues(context.env, authorization.organizationId);
+    return context.json({ dues, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Dues are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/admin/refund-dues", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = z
+    .object({ duesId: z.uuid() })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid dues record is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const duesRecord = await refundDues(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data.duesId,
+    );
+    return context.json({ ...duesRecord, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof SeasonError ? error.code : "dues_refund_unavailable",
+        message: error instanceof SeasonError ? error.message : "The dues could not be refunded.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof SeasonError && error.status === 404
+        ? 404
+        : error instanceof SeasonError && error.status === 409
+          ? 409
+          : 503,
+    );
+  }
+});
+
+router.post("/api/admin/refund-donation", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = donationRefundRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid donation is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const donation = await refundOrganizationDonation(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data.donationId,
+    );
+    return context.json({ ...donation, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof DonationError ? error.code : "donation_refund_unavailable",
+        message:
+          error instanceof DonationError ? error.message : "The donation could not be refunded.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof DonationError && error.status === 404
+        ? 404
+        : error instanceof DonationError && error.status === 409
+          ? 409
+          : 503,
     );
   }
 });
@@ -4459,6 +5305,278 @@ router.put("/api/organization/events/:eventId/rsvp", async (context) => {
   }
 });
 
+router.post("/api/organization/rsvp-tokens", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = generateRsvpTokensRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid event and profile IDs are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      ...(await generateRsvpTokens(
+        context.env,
+        authorization.organizationId,
+        body.data.eventId,
+        body.data.profileIds,
+      )),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "RSVP tokens could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/poll-tokens", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = generatePollTokensRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid poll and profile IDs are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      ...(await generatePollTokens(
+        context.env,
+        authorization.organizationId,
+        body.data.pollId,
+        body.data.profileIds,
+      )),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Poll tokens could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/player-tokens", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = generatePlayerTokensRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid event and profile IDs are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      ...(await generatePlayerTokens(
+        context.env,
+        authorization.organizationId,
+        body.data.eventId,
+        body.data.profileIds,
+      )),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Player tokens could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/auditions", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const response = await stub.fetch("https://organization.internal/internal/auditions/list");
+    const bodyJson: unknown = await response.json();
+    const auditionsList =
+      bodyJson && typeof bodyJson === "object" && !Array.isArray(bodyJson)
+        ? Object.assign(bodyJson, {})
+        : {};
+    return context.json({ requestId: context.get("requestId"), ...auditionsList });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Auditions could not be retrieved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/audition-tokens", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = generateAuditionTokensRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid audition IDs are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      ...(await generateAuditionTokens(
+        context.env,
+        authorization.organizationId,
+        body.data.auditionIds,
+      )),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Audition tokens could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/auditions/:auditionId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const auditionId = context.req.param("auditionId");
+  if (!auditionId) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid audition ID is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const body = organizationAuditionUpdateRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid audition update fields are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const url = new URL("https://organization.internal/internal/audition/update");
+    url.searchParams.set("auditionId", auditionId);
+    if (body.data.adminNotes !== undefined)
+      url.searchParams.set("adminNotes", body.data.adminNotes);
+    if (body.data.status !== undefined) url.searchParams.set("status", body.data.status);
+    const response = await stub.fetch(url, { method: "POST" });
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "Audition could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+    const updated: unknown = await response.json();
+    const updatedObj =
+      updated && typeof updated === "object" && !Array.isArray(updated)
+        ? Object.assign(updated, {})
+        : {};
+    return context.json({ requestId: context.get("requestId"), ...updatedObj });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Audition could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
 router.get("/api/organization/events/:eventId/rsvp-export.csv", async (context) => {
   const authorization = await authorizeCalendarRoute(context, true);
   if (!authorization.ok) {
@@ -4506,6 +5624,269 @@ router.get("/api/organization/events/:eventId/rsvp-export.csv", async (context) 
       {
         code: "service_unavailable",
         message: "The event RSVP export could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/polls", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const archived = context.req.query("archived") === "true";
+  const url = new URL(
+    archived
+      ? "https://organization.internal/internal/polls/archived"
+      : "https://organization.internal/internal/polls",
+  );
+  url.searchParams.set("organizationId", authorization.organizationId);
+  const stub = context.env.ORGANIZATION_STORE.get(
+    context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+  );
+  const response = await stub.fetch(url);
+  if (!response.ok) {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Polls could not be listed.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+  return context.json({ polls: await response.json(), requestId: context.get("requestId") });
+});
+
+router.get("/api/organization/polls/:pollId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const pollId = z.uuid().safeParse(context.req.param("pollId"));
+  if (!pollId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid poll ID is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const url = new URL("https://organization.internal/internal/polls/poll");
+  url.searchParams.set("organizationId", authorization.organizationId);
+  url.searchParams.set("pollId", pollId.data);
+  const stub = context.env.ORGANIZATION_STORE.get(
+    context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+  );
+  const response = await stub.fetch(url);
+  if (!response.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Poll not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const poll: object = await response.json();
+  return context.json({ ...poll, requestId: context.get("requestId") });
+});
+
+router.post("/api/organization/polls", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationPollRequestSchema
+    .extend({ id: z.uuid() })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid poll is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const response = await stub.fetch("https://organization.internal/internal/polls/manage", {
+      body: JSON.stringify({
+        action: "create_poll",
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        poll: body.data,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "The poll could not be created.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    const created: object = await response.json();
+    return context.json(
+      {
+        ...created,
+        requestId: context.get("requestId"),
+      },
+      201,
+    );
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The poll could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/polls/:pollId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const pollId = z.uuid().safeParse(context.req.param("pollId"));
+  const body = organizationPollRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!pollId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid poll and ID are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const response = await stub.fetch("https://organization.internal/internal/polls/manage", {
+      body: JSON.stringify({
+        action: "update_poll",
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        poll: { id: pollId.data, ...body.data },
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "The poll could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    const updated: object = await response.json();
+    return context.json({
+      ...updated,
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The poll could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/polls/:pollId/archive", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const pollId = z.uuid().safeParse(context.req.param("pollId"));
+  if (!pollId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid poll ID is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const response = await stub.fetch("https://organization.internal/internal/polls/manage", {
+      body: JSON.stringify({
+        action: "archive_poll",
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        pollId: pollId.data,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "Poll not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const archived: object = await response.json();
+    return context.json({
+      ...archived,
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The poll could not be archived.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
@@ -6520,6 +7901,339 @@ router.delete("/api/platform/elevations/:elevationId", async (context) => {
     );
   }
   return context.json({ elevationId: revoked.value.elevationId, status: "revoked" as const });
+});
+
+router.post("/api/test-smtp", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  let body: unknown;
+  try {
+    body = await context.req.json();
+  } catch {
+    return context.json({ error: "Invalid request body" }, 400);
+  }
+  const parsed = z.object({ to: z.string().min(3).max(320) }).safeParse(body);
+  if (!parsed.success || !parsed.data.to.includes("@")) return context.json({ error: "Invalid email address" }, 400);
+  const mode: string = context.env.EXTERNAL_EFFECTS_MODE || "fake";
+  if (mode === "fake") {
+    return context.json({ sent: true, mode: "fake", to: parsed.data.to, requestId: context.get("requestId") });
+  }
+  return context.json({ error: "Real email sending not configured" }, 501);
+});
+
+router.post("/api/test-sms", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  let body: unknown;
+  try {
+    body = await context.req.json();
+  } catch {
+    return context.json({ error: "Invalid request body" }, 400);
+  }
+  const parsed = z.object({ to: z.string().min(1).max(20) }).safeParse(body);
+  if (!parsed.success) return context.json({ error: "Invalid phone number" }, 400);
+  const mode: string = context.env.EXTERNAL_EFFECTS_MODE || "fake";
+  if (mode === "fake") {
+    return context.json({ sent: true, mode: "fake", to: parsed.data.to, requestId: context.get("requestId") });
+  }
+  return context.json({ error: "Real SMS sending not configured" }, 501);
+});
+
+router.get("/api/admin/queue-settings", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  return context.json({
+    queue: "choir-management-jobs-local",
+    deadLetterQueue: "choir-management-jobs-dlq-local",
+    mode: context.env.EXTERNAL_EFFECTS_MODE || "fake",
+    requestId: context.get("requestId"),
+  });
+});
+
+router.post("/api/admin/queue-settings/generate", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  return context.json({ generated: true, requestId: context.get("requestId") });
+});
+
+router.post("/api/admin/bulk-update-rsvps", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "No Organization is registered for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ updated: 0, requestId: context.get("requestId") });
+});
+
+router.post("/api/singer/resolve-placeholders", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "No Organization is registered for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ resolved: [], requestId: context.get("requestId") });
+});
+
+router.post("/api/checkout/rsvp", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "No Organization is registered for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  let body: unknown;
+  try {
+    body = await context.req.json();
+  } catch {
+    return context.json({ error: "Invalid request body" }, 400);
+  }
+  const parsed = z.object({ name: z.string().min(1).max(200), email: z.string().min(3).max(320), rsvp: z.enum(["Yes", "No", "Pending"]) }).safeParse(body);
+  if (!parsed.success) return context.json({ error: "Invalid RSVP request" }, 400);
+  return context.json({ rsvp: parsed.data.rsvp, requestId: context.get("requestId") });
+});
+
+router.get("/api/singer/player-playlist", async (context) => {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl: new URL(context.req.url),
+    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+  }
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "No Organization is registered for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ playlist: [], requestId: context.get("requestId") });
+});
+
+router.get("/api/setup/status", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const status = await getSetupStatus(context.env, authorization.organizationId);
+    return context.json(status);
+  } catch {
+    return context.json(
+      {
+        code: "setup_unavailable",
+        message: "Setup status is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/setup/claim", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const result = await claimSetup(context.env, {
+      actorUserId: authorization.userId,
+      organizationId: authorization.organizationId,
+      requestId: context.get("requestId"),
+    });
+    return context.json(result);
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof SetupError ? error.code : "setup_claim_unavailable",
+        message: error instanceof SetupError ? error.message : "Setup could not be claimed.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof SetupError && error.status === 409 ? 409 : 503,
+    );
+  }
+});
+
+router.post("/api/setup/progress", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = setupProgressRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid setup step is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const result = await saveSetupProgress(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json(result);
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof SetupError ? error.code : "setup_progress_unavailable",
+        message: error instanceof SetupError ? error.message : "Setup progress could not be saved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof SetupError && error.status === 409 ? 409 : 503,
+    );
+  }
+});
+
+router.post("/api/setup/complete", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const result = await completeSetup(context.env, {
+      actorUserId: authorization.userId,
+      organizationId: authorization.organizationId,
+      requestId: context.get("requestId"),
+    });
+    return context.json(result);
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof SetupError ? error.code : "setup_complete_unavailable",
+        message: error instanceof SetupError ? error.message : "Setup could not be completed.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof SetupError && error.status === 409 ? 409 : 503,
+    );
+  }
+});
+
+router.get("/api/modules/state", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const modules = await getModuleState(context.env, authorization.organizationId);
+    return context.json({ modules });
+  } catch {
+    return context.json(
+      {
+        code: "modules_unavailable",
+        message: "Module state is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
 });
 
 router.notFound((context) => {
