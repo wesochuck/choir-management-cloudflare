@@ -111,11 +111,9 @@ export async function listOrganizationDonations(
   const url = new URL("https://organization.internal/internal/donations/list");
   url.searchParams.set("organizationId", organizationId);
   const response = await stub(env, organizationId).fetch(url);
-  if (!response.ok)
-    throw new DonationError("donations_unavailable", 503, "Donations unavailable.");
-  return donationRecordsResponseSchema
-    .omit({ requestId: true })
-    .parse(await response.json()).donations;
+  if (!response.ok) throw new DonationError("donations_unavailable", 503, "Donations unavailable.");
+  return donationRecordsResponseSchema.omit({ requestId: true }).parse(await response.json())
+    .donations;
 }
 
 export async function listOrganizationPatrons(
@@ -125,8 +123,7 @@ export async function listOrganizationPatrons(
   const url = new URL("https://organization.internal/internal/donations/patrons");
   url.searchParams.set("organizationId", organizationId);
   const response = await stub(env, organizationId).fetch(url);
-  if (!response.ok)
-    throw new DonationError("patrons_unavailable", 503, "Patrons unavailable.");
+  if (!response.ok) throw new DonationError("patrons_unavailable", 503, "Patrons unavailable.");
   return patronRecordsResponseSchema.omit({ requestId: true }).parse(await response.json()).patrons;
 }
 

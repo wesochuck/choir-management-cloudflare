@@ -94,10 +94,7 @@ function donationResult(row: DonationRow) {
   };
 }
 
-function donationById(
-  storage: DurableObjectStorage,
-  donationId: string,
-): DonationRow | undefined {
+function donationById(storage: DurableObjectStorage, donationId: string): DonationRow | undefined {
   return storage.sql
     .exec<DonationRow>(`${donationSelect} WHERE d.id = ? LIMIT 1`, donationId)
     .toArray()
@@ -306,9 +303,7 @@ export function listDonationsFromStore(
   }
   return Response.json({
     donations: storage.sql
-      .exec<DonationRow>(
-        `${donationSelect} ORDER BY d.created_at DESC, d.id DESC LIMIT 500`,
-      )
+      .exec<DonationRow>(`${donationSelect} ORDER BY d.created_at DESC, d.id DESC LIMIT 500`)
       .toArray()
       .map(donationResult),
   });

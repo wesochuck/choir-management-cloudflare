@@ -1303,7 +1303,9 @@ async function auditionCreateHandler(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
-  const parsed = publicAuditionInquiryRequestSchema.safeParse(await request.json().catch(() => null));
+  const parsed = publicAuditionInquiryRequestSchema.safeParse(
+    await request.json().catch(() => null),
+  );
   if (!parsed.success) {
     return Response.json({ code: "validation_failed" }, { status: 400 });
   }

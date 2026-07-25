@@ -184,7 +184,7 @@ function saveProgressUpdate(
     operation.step,
     JSON.stringify(nextModuleConfig),
     JSON.stringify(nextThemeConfig),
-    operation.data?.name ?? '',
+    operation.data?.name ?? "",
     now,
     operation.organizationId,
   );
@@ -206,7 +206,7 @@ function saveProgressInsert(
        launched, module_config, theme_config, created_at, updated_at)
      VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)`,
     operation.organizationId,
-    operation.data?.name ?? '',
+    operation.data?.name ?? "",
     JSON.stringify(completedSteps),
     operation.step,
     JSON.stringify(nextModuleConfig),

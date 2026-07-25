@@ -1,4 +1,10 @@
-import { donationRecordSchema, donationRecordsResponseSchema, patronRecordsResponseSchema, type DonationRecord, type PatronRecord } from "@choir/contracts";
+import {
+  donationRecordSchema,
+  donationRecordsResponseSchema,
+  patronRecordsResponseSchema,
+  type DonationRecord,
+  type PatronRecord,
+} from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 type DonationState =
@@ -52,7 +58,10 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     if (!enabled) return;
     const controller = new AbortController();
     Promise.all([
-      fetch("/api/organization/donations", { credentials: "same-origin", signal: controller.signal }),
+      fetch("/api/organization/donations", {
+        credentials: "same-origin",
+        signal: controller.signal,
+      }),
       fetch("/api/organization/patrons", { credentials: "same-origin", signal: controller.signal }),
     ])
       .then(async ([donationsRes, patronsRes]) => {
@@ -124,14 +133,18 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       <div className="form-actions">
         <button
           className={`button ${tab === "donations" ? "button--primary" : "button--secondary"}`}
-          onClick={() => { setTab("donations"); }}
+          onClick={() => {
+            setTab("donations");
+          }}
           type="button"
         >
           Donations
         </button>
         <button
           className={`button ${tab === "patrons" ? "button--primary" : "button--secondary"}`}
-          onClick={() => { setTab("patrons"); }}
+          onClick={() => {
+            setTab("patrons");
+          }}
           type="button"
         >
           Patrons
@@ -153,7 +166,11 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
 }
 
 function DonationsTab({
-  busy, donationState, refund, refundId, setRefundId,
+  busy,
+  donationState,
+  refund,
+  refundId,
+  setRefundId,
 }: {
   readonly busy: boolean;
   readonly donationState: DonationState;
@@ -162,7 +179,8 @@ function DonationsTab({
   readonly setRefundId: (id: string | null) => void;
 }) {
   if (donationState.status === "loading") return <p>Loading donations…</p>;
-  if (donationState.status === "error") return <p className="notice notice--error">Donations could not be loaded.</p>;
+  if (donationState.status === "error")
+    return <p className="notice notice--error">Donations could not be loaded.</p>;
   if (donationState.donations.length === 0) return <p>No donations yet.</p>;
   return (
     <div className="table-scroll">
@@ -200,7 +218,9 @@ function DonationsTab({
                       <button
                         className="button button--secondary"
                         disabled={busy}
-                        onClick={() => { setRefundId(null); }}
+                        onClick={() => {
+                          setRefundId(null);
+                        }}
                         type="button"
                       >
                         Cancel
@@ -219,7 +239,9 @@ function DonationsTab({
                   <button
                     className="text-button"
                     disabled={busy}
-                    onClick={() => { setRefundId(donation.id); }}
+                    onClick={() => {
+                      setRefundId(donation.id);
+                    }}
                     type="button"
                   >
                     Refund
@@ -236,7 +258,8 @@ function DonationsTab({
 
 function PatronsTab({ patronState }: { readonly patronState: PatronState }) {
   if (patronState.status === "loading") return <p>Loading patrons…</p>;
-  if (patronState.status === "error") return <p className="notice notice--error">Patrons could not be loaded.</p>;
+  if (patronState.status === "error")
+    return <p className="notice notice--error">Patrons could not be loaded.</p>;
   if (patronState.patrons.length === 0) return <p>No patrons yet.</p>;
   return (
     <div className="table-scroll">

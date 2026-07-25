@@ -189,7 +189,11 @@ function selectContent(
   if (pathname === "/accept-invitation") {
     if (sessionState.status === "checking") return <AccountLoading />;
     if (sessionState.status === "authenticated") {
-      return <AcceptInvitationView invitationId={new URLSearchParams(window.location.search).get("id")} />;
+      return (
+        <AcceptInvitationView
+          invitationId={new URLSearchParams(window.location.search).get("id")}
+        />
+      );
     }
     return <SignInView onSignedIn={finishInvitationSignIn} />;
   }
@@ -203,7 +207,11 @@ function selectContent(
     if (sessionState.status === "checking") return <AccountLoading />;
     if (sessionState.status === "authenticated") {
       const accountContent = accountRouteContent(pathname);
-      return accountContent ?? <AccountView currentSession={sessionState.session} onSignedOut={finishSignOut} />;
+      return (
+        accountContent ?? (
+          <AccountView currentSession={sessionState.session} onSignedOut={finishSignOut} />
+        )
+      );
     }
     return <SignInView onSignedIn={finishSignIn} />;
   }

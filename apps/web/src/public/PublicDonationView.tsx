@@ -9,9 +9,7 @@ function money(cents: number): string {
 }
 
 type LoadState =
-  | { readonly status: "error" }
-  | { readonly status: "loading" }
-  | { readonly status: "ready" };
+  { readonly status: "error" } | { readonly status: "loading" } | { readonly status: "ready" };
 
 export function PublicDonationView() {
   const [state] = useState<LoadState>({ status: "ready" });
@@ -85,17 +83,12 @@ export function PublicDonationView() {
       }
       const body: unknown = await response.json();
       const url =
-        typeof body === "object" &&
-        body !== null &&
-        "url" in body &&
-        typeof body.url === "string"
+        typeof body === "object" && body !== null && "url" in body && typeof body.url === "string"
           ? body.url
           : "/donate/success";
       window.location.assign(url);
     } catch (failure: unknown) {
-      setError(
-        failure instanceof Error ? failure.message : "The donation could not be completed.",
-      );
+      setError(failure instanceof Error ? failure.message : "The donation could not be completed.");
       setBusy(false);
     }
   }

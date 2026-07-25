@@ -1,2294 +1,2401 @@
 {
   "schemaVersion": 1,
-  "baseline": {
-    "repository": "wesochuck/choir-management-tool",
-    "commit": "6874d43a3c3698ae53218a44d17649bc454ca9ac",
-    "capturedAt": "2026-07-20",
-    "observation": "The detached parity worktree had regeneration-only drift in generated pocketbase/pb_hooks/main.pb.js. Inventory evidence uses committed source and tests, never the modified generated file."
-  },
-  "statusDefinitions": {
-    "planned": "Owned and scheduled but not implemented in the target.",
-    "partial": "Some target behavior exists but the full entry gate is not proven.",
-    "implemented": "Target behavior and focused tests exist; staging proof may remain.",
-    "verified": "Required local and permanent-staging evidence is approved.",
-    "blocked": "A recorded external prerequisite prevents verification."
-  },
-  "browserRoutes": [
-    {
-      "id": "route.public.home",
-      "path": "/",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:305; src/views/PublicLandingView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/public/PublicOrganizationSite.tsx"
-      ]
-    },
-    {
-      "id": "route.public.history",
-      "path": "/history",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:313; src/views/PublicHistoryView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicOrganizationSite.tsx",
-        "apps/worker/test/publicWebsite.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.public.performances",
-      "path": "/performances",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:321; src/views/PublicPastPerformancesView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicOrganizationSite.tsx",
-        "apps/worker/test/publicWebsite.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.public.auditions",
-      "path": "/auditions",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:209; src/views/PublicAuditionView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/public/PublicAuditionView.tsx",
-        "apps/worker/test/publicAudition.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.public.rsvp-token",
-      "path": "/rsvp",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:217; src/views/EventRSVPView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/public/PublicRsvpView.tsx",
-        "apps/worker/test/publicRsvp.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.public.rsvp-free",
-      "path": "/rsvp/:eventId",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:273; src/views/PublicRsvpView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/public/PublicRsvpView.tsx",
-        "apps/worker/test/publicRsvp.integration.test.ts",
-        "apps/web/src/public/PublicFreeRsvpView.tsx",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "route.public.poll",
-      "path": "/poll",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:225; src/views/PublicPollView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/public/PublicPollView.tsx",
-        "apps/worker/test/publicPoll.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.public.unsubscribe",
-      "path": "/unsubscribe",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:233; src/views/PublicUnsubscribeView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/public/PublicUnsubscribeView.tsx",
-        "apps/web/src/auth/api.ts"
-      ]
-    },
-    {
-      "id": "route.public.player",
-      "path": "/player",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:241; src/views/PublicPlayerView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/public/PublicPlayerView.tsx",
-        "apps/worker/test/publicPlayer.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.public.tickets",
-      "path": "/tickets",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:249; src/views/PublicTicketListView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicTickets.tsx",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "route.public.ticket-success",
-      "path": "/tickets/order/success",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:257; src/views/PublicTicketSuccessView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicTickets.tsx",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "route.public.bundle",
-      "path": "/tickets/bundle/:bundleId",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:265; src/views/PublicBundlePurchaseView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicTickets.tsx",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "route.public.ticket-event",
-      "path": "/tickets/:eventId",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:281; src/views/PublicTicketPurchaseView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicTickets.tsx",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "route.public.donate",
-      "path": "/donate",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:289; src/views/PublicDonationView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicDonationView.tsx",
-        "apps/web/src/App.tsx",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "route.public.donation-success",
-      "path": "/donate/success",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:297; src/views/PublicDonationSuccessView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicDonationSuccessView.tsx",
-        "apps/web/src/App.tsx"
-      ]
-    },
-    {
-      "id": "route.auth.login",
-      "path": "/login",
-      "owner": "apps/web",
-      "milestone": 2,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:207; src/views/LoginView.tsx",
-      "targetEvidence": [
-        "apps/web/src/auth/SignInView.tsx",
-        "apps/web/e2e/auth.spec.ts",
-        "apps/worker/test/auth.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.auth.reset-password",
-      "path": "/reset-password",
-      "owner": "apps/web",
-      "milestone": 2,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:208; src/views/ResetPasswordView.tsx",
-      "targetEvidence": [
-        "apps/web/src/auth/ForgotPasswordView.tsx",
-        "apps/web/src/auth/ResetPasswordView.tsx",
-        "apps/worker/test/auth.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.setup",
-      "path": "/setup",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:206; src/views/setup/SetupView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/setup/SetupView.tsx",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "route.member.dashboard",
-      "path": "/dashboard",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:329; src/views/singer/DashboardView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/account/DashboardView.tsx"
-      ]
-    },
-    {
-      "id": "route.member.profile",
-      "path": "/profile",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:622; src/views/singer/ProfileView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/MemberProfileDirectory.tsx",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/memberProfiles.integration.test.ts",
-        "apps/web/e2e/auth.spec.ts"
-      ]
-    },
-    {
-      "id": "route.member.directory",
-      "path": "/directory",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:630; src/views/singer/DirectoryView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/MemberProfileDirectory.tsx",
-        "apps/worker/src/organization/profiles.ts",
-        "apps/worker/test/memberProfiles.integration.test.ts",
-        "apps/web/e2e/auth.spec.ts"
-      ]
-    },
-    {
-      "id": "route.member.seating-finder",
-      "path": "/seating/:eventId",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:612; src/views/singer/SeatingFinderView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/SeatingFinder.tsx",
-        "apps/worker/src/router.ts",
-        "apps/web/e2e/auth.spec.ts"
-      ]
-    },
-    {
-      "id": "route.admin.roster",
-      "path": "/admin/roster",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:339; src/views/admin/RosterView.tsx",
-      "targetEvidence": [
-        "packages/domain/src/rosterCsv.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/profiles.integration.test.ts",
-        "apps/web/src/account/OrganizationCalendar.tsx"
-      ]
-    },
-    {
-      "id": "route.admin.events",
-      "path": "/admin/events",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:352; src/views/admin/EventsView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/OrganizationCalendar.tsx",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/calendarManagement.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.admin.event-roster",
-      "path": "/admin/events/:eventId/roster",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:365; src/views/admin/EventRosterView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/OrganizationCalendar.tsx",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/calendarManagement.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.admin.setlists",
-      "path": "/admin/setlists",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:378; src/views/admin/SetListView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/SetListManager.tsx",
-        "apps/web/src/account/OrganizationAccess.tsx",
-        "packages/domain/src/setList.ts"
-      ]
-    },
-    {
-      "id": "route.admin.venues",
-      "path": "/admin/venues",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:391; src/views/admin/VenuesView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/OrganizationCalendar.tsx",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/calendarManagement.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.admin.seating",
-      "path": "/admin/seating",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:404; src/views/admin/SeatingView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/SeatingManager.tsx",
-        "apps/worker/test/seating.integration.test.ts",
-        "apps/web/e2e/auth.spec.ts"
-      ]
-    },
-    {
-      "id": "route.admin.attendance",
-      "path": "/admin/attendance",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:417; src/views/admin/AttendanceView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/AttendanceManager.tsx",
-        "apps/web/src/account/OrganizationAccess.tsx",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "route.admin.rsvp",
-      "path": "/admin/rsvp",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:430; src/views/admin/RsvpDashboardView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/OrganizationCalendar.tsx",
-        "apps/web/src/account/MySchedule.tsx",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "route.admin.polls",
-      "path": "/admin/polls",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:443; src/views/admin/PollsDashboardView.tsx",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/pollStore.ts"
-      ]
-    },
-    {
-      "id": "route.admin.auditions",
-      "path": "/admin/auditions",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:456; src/views/admin/AuditionsView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/account/AuditionManager.tsx",
-        "apps/web/src/account/OrganizationAccess.tsx"
-      ]
-    },
-    {
-      "id": "route.admin.reports",
-      "path": "/admin/reports",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:469; src/views/admin/ReportsView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/account/ReportsView.tsx"
-      ]
-    },
-    {
-      "id": "route.admin.library",
-      "path": "/admin/library",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:482; src/views/admin/MusicLibraryView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/MusicCatalog.tsx",
-        "apps/worker/src/organization/musicStore.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/music.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.admin.website",
-      "path": "/admin/website",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:495; src/views/admin/PublicWebsiteView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/PublicWebsiteManager.tsx",
-        "apps/worker/src/organization/publicWebsiteStore.ts",
-        "apps/worker/test/publicWebsite.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.admin.settings",
-      "path": "/admin/settings",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:508; src/views/admin/SettingsView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/RosterConfiguration.tsx",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/rosterConfiguration.integration.test.ts"
-      ]
-    },
-    {
-      "id": "route.admin.modules",
-      "path": "/admin/settings/modules",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:519; src/views/admin/ModuleSettingsView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/account/ModuleSettingsView.tsx",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "route.admin.setup-checklist",
-      "path": "/admin/settings/setup-checklist",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:528; src/views/admin/SetupChecklistView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/account/SetupChecklistView.tsx"
-      ]
-    },
-    {
-      "id": "route.admin.communications",
-      "path": "/admin/communications",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:537; src/views/admin/CommunicationView.tsx",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/account/CommunicationCenter.tsx",
-        "apps/web/src/auth/api.ts"
-      ]
-    },
-    {
-      "id": "route.admin.resources",
-      "path": "/admin/resources",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:550; src/views/admin/ResourcesView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/OrganizationResources.tsx",
-        "apps/web/src/account/OrganizationAccess.tsx"
-      ]
-    },
-    {
-      "id": "route.admin.tickets",
-      "path": "/admin/tickets",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:561; src/views/admin/TicketingView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/TicketingManager.tsx",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "route.admin.ticket-scan",
-      "path": "/admin/tickets/scan",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:574; src/views/admin/TicketScanView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/TicketingManager.tsx",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "route.admin.donations",
-      "path": "/admin/donations",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:587; src/views/admin/DonationsView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/DonationsManager.tsx",
-        "apps/web/src/account/OrganizationAccess.tsx",
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationDonations.ts"
-      ]
-    },
-    {
-      "id": "route.admin.patrons",
-      "path": "/admin/patrons",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx:600; src/views/admin/PatronsView.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/DonationsManager.tsx",
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationDonations.ts"
-      ]
-    },
-    {
-      "id": "route.admin.seasons",
-      "path": "/admin/seasons",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/App.tsx (season endpoint)",
-      "targetEvidence": [
-        "apps/web/src/App.tsx",
-        "apps/web/src/account/SeasonsManager.tsx",
-        "apps/web/src/account/OrganizationAccess.tsx"
-      ]
-    }
-  ],
-  "apiRoutes": [
-    {
-      "id": "api.refund-dues",
-      "method": "POST",
-      "path": "/api/admin/refund-dues",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (dues refund)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSeasons.ts"
-      ]
-    },
-    {
-      "id": "api.hooks-health",
-      "method": "GET",
-      "path": "/api/hooks/health",
-      "owner": "apps/worker",
-      "milestone": 1,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1478",
-      "targetEvidence": [
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.organization.donations",
-      "method": "GET",
-      "path": "/api/organization/donations",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (donation endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationDonations.ts",
-        "apps/worker/src/organization/donationStore.ts"
-      ]
-    },
-    {
-      "id": "api.organization.dues",
-      "method": "GET",
-      "path": "/api/organization/dues",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (dues endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSeasons.ts",
-        "apps/worker/src/organization/seasonStore.ts"
-      ]
-    },
-    {
-      "id": "api.organization.patrons",
-      "method": "GET",
-      "path": "/api/organization/patrons",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (donation endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationDonations.ts",
-        "apps/worker/src/organization/donationStore.ts"
-      ]
-    },
-    {
-      "id": "api.organization.seasons",
-      "method": "GET",
-      "path": "/api/organization/seasons",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (season endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSeasons.ts",
-        "apps/worker/src/organization/seasonStore.ts"
-      ]
-    },
-    {
-      "id": "api.setup-status",
-      "method": "GET",
-      "path": "/api/setup/status",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1484",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSetup.ts",
-        "apps/worker/src/organization/setupStore.ts"
-      ]
-    },
-    {
-      "id": "api.module-state",
-      "method": "GET",
-      "path": "/api/modules/state",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1485",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSetup.ts",
-        "apps/worker/src/organization/setupStore.ts"
-      ]
-    },
-    {
-      "id": "api.setup-claim",
-      "method": "POST",
-      "path": "/api/setup/claim",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1486",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSetup.ts",
-        "apps/worker/src/organization/setupStore.ts"
-      ]
-    },
-    {
-      "id": "api.setup-progress",
-      "method": "POST",
-      "path": "/api/setup/progress",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1487",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSetup.ts",
-        "apps/worker/src/organization/setupStore.ts"
-      ]
-    },
-    {
-      "id": "api.setup-complete",
-      "method": "POST",
-      "path": "/api/setup/complete",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1488",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSetup.ts",
-        "apps/worker/src/organization/setupStore.ts"
-      ]
-    },
-    {
-      "id": "api.setup-recover-admin",
-      "method": "POST",
-      "path": "/api/setup/recover-admin",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1489",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSetup.ts"
-      ]
-    },
-    {
-      "id": "api.setup-health",
-      "method": "GET",
-      "path": "/api/setup/health",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1490",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/index.ts"
-      ]
-    },
-    {
-      "id": "api.rsvp-details",
-      "method": "POST",
-      "path": "/api/rsvp-details",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/rsvpDetails.ts",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationRsvpLinks.ts",
-        "apps/worker/test/publicRsvp.integration.test.ts",
-        "apps/web/src/public/PublicRsvpView.tsx"
-      ]
-    },
-    {
-      "id": "api.singer-rsvp",
-      "method": "POST",
-      "path": "/api/singer/rsvp",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/singerRsvp.ts",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/test/selfServiceRsvp.integration.test.ts",
-        "apps/web/src/account/MySchedule.tsx"
-      ]
-    },
-    {
-      "id": "api.resolve-placeholders",
-      "method": "POST",
-      "path": "/api/singer/resolve-placeholders",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/resolvePlaceholders.ts",
-      "targetEvidence": [
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.quick-rsvp",
-      "method": "POST",
-      "path": "/api/quick-rsvp",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/quickRsvp.ts",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationRsvpLinks.ts",
-        "apps/worker/test/publicRsvp.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.unsubscribe",
-      "method": "POST",
-      "path": "/api/unsubscribe",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/unsubscribe.ts",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationCommunications.ts",
-        "apps/worker/src/organization/communicationStore.ts",
-        "apps/worker/test/communications.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.generate-rsvp-tokens",
-      "method": "POST",
-      "path": "/api/generate-rsvp-tokens",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/generateRsvpTokens.ts",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationRsvpLinks.ts",
-        "apps/worker/test/publicRsvp.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.bulk-rsvp",
-      "method": "POST",
-      "path": "/api/admin/bulk-update-rsvps",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/bulkUpdateRsvps.ts",
-      "targetEvidence": [
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.bulk-attendance",
-      "method": "POST",
-      "path": "/api/admin/bulk-upsert-attendance",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/bulkUpsertAttendance.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/calendarManagementStore.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/attendance.integration.test.ts",
-        "apps/web/src/account/AttendanceManager.tsx"
-      ]
-    },
-    {
-      "id": "api.queue-process",
-      "method": "POST",
-      "path": "/api/queue/process",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1494",
-      "targetEvidence": [
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/src/control/migrations/0006_job_dead_letters.sql",
-        "apps/worker/test/jobs.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.queue-settings",
-      "method": "GET",
-      "path": "/api/admin/queue-settings",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1496",
-      "targetEvidence": [
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.queue-settings-generate",
-      "method": "POST",
-      "path": "/api/admin/queue-settings/generate",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1498",
-      "targetEvidence": [
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.test-email",
-      "method": "POST",
-      "path": "/api/test-smtp",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1500",
-      "targetEvidence": [
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.test-sms",
-      "method": "POST",
-      "path": "/api/test-sms",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1501",
-      "targetEvidence": [
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.player-token",
-      "method": "POST",
-      "path": "/api/generate-player-token",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1503",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationPlayerLinks.ts",
-        "apps/worker/test/publicPlayer.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.checkout-ticket",
-      "method": "POST",
-      "path": "/api/checkout/create-tickets-session",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1505",
-      "targetEvidence": [
-        "apps/worker/src/organization/organizationTicketing.ts",
-        "apps/worker/src/payments/ticketCheckout.ts",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "api.checkout-bundle",
-      "method": "POST",
-      "path": "/api/checkout/create-bundle-session",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1507",
-      "targetEvidence": [
-        "apps/worker/src/organization/organizationTicketing.ts",
-        "apps/worker/src/organization/ticketingStore.ts",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "api.checkout-dues",
-      "method": "POST",
-      "path": "/api/checkout/create-dues-session",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1509",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationSeasons.ts",
-        "apps/worker/src/organization/seasonStore.ts"
-      ]
-    },
-    {
-      "id": "api.checkout-rsvp",
-      "method": "POST",
-      "path": "/api/checkout/rsvp",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1511",
-      "targetEvidence": [
-        "apps/worker/src/organization/organizationRsvpLinks.ts",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.checkout-donation",
-      "method": "POST",
-      "path": "/api/checkout/create-donation-session",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1513",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationDonations.ts",
-        "apps/worker/src/organization/donationStore.ts"
-      ]
-    },
-    {
-      "id": "api.stripe-webhook",
-      "method": "POST",
-      "path": "/api/webhook/stripe",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1515",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationDonations.ts",
-        "apps/worker/src/payments/ticketCheckout.ts"
-      ]
-    },
-    {
-      "id": "api.refund-ticket",
-      "method": "POST",
-      "path": "/api/admin/refund-ticket",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1517",
-      "targetEvidence": [
-        "apps/worker/src/organization/organizationTicketing.ts",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "api.refund-bundle",
-      "method": "POST",
-      "path": "/api/admin/refund-bundle",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1519",
-      "targetEvidence": [
-        "apps/worker/src/organization/organizationTicketing.ts",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "api.refund-donation",
-      "method": "POST",
-      "path": "/api/admin/refund-donation",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1521",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationDonations.ts",
-        "apps/worker/src/organization/donationStore.ts"
-      ]
-    },
-    {
-      "id": "api.resend-ticket",
-      "method": "POST",
-      "path": "/api/admin/resend-ticket-confirmation",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1522",
-      "targetEvidence": [
-        "apps/worker/src/organization/ticketingStore.ts",
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "api.ticket-validate",
-      "method": "POST",
-      "path": "/api/tickets/validate",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1524",
-      "targetEvidence": [
-        "apps/worker/src/organization/organizationTicketing.ts",
-        "apps/worker/src/organization/ticketingStore.ts",
-        "apps/worker/test/ticketing.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.ticket-scan-context",
-      "method": "GET",
-      "path": "/api/tickets/scan-context",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1526",
-      "targetEvidence": [
-        "apps/web/src/account/TicketingManager.tsx",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "api.player-playlist",
-      "method": "GET",
-      "path": "/api/player-playlist",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1528",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationPlayerLinks.ts",
-        "apps/worker/src/organization/playerStore.ts",
-        "apps/worker/test/publicPlayer.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.calendar-download",
-      "method": "GET",
-      "path": "/api/calendar/download",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1530",
-      "targetEvidence": [
-        "apps/worker/src/calendar/calendarIcs.ts",
-        "apps/worker/src/calendar/calendarFeed.ts",
-        "apps/worker/src/router.ts"
-      ]
-    },
-    {
-      "id": "api.calendar-feed",
-      "method": "GET",
-      "path": "/api/calendar/feed",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1532",
-      "targetEvidence": [
-        "apps/worker/src/calendar/calendarFeed.ts",
-        "apps/worker/src/calendar/calendarIcs.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/test/calendarFeed.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.calendar-feed-url",
-      "method": "GET",
-      "path": "/api/singer/calendar-feed-url",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1534",
-      "targetEvidence": [
-        "apps/worker/src/calendar/calendarFeed.ts",
-        "apps/web/src/account/CalendarSubscription.tsx"
-      ]
-    },
-    {
-      "id": "api.calendar-feed-reset",
-      "method": "POST",
-      "path": "/api/singer/calendar-feed-url/reset",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1536",
-      "targetEvidence": [
-        "apps/worker/src/calendar/calendarFeed.ts",
-        "apps/worker/test/calendarFeed.integration.test.ts",
-        "apps/web/src/account/CalendarSubscription.tsx"
-      ]
-    },
-    {
-      "id": "api.seating-profiles",
-      "method": "GET",
-      "path": "/api/singer/seating-profiles",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1538",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/seatingStore.ts",
-        "apps/worker/test/seating.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.singer-playlist",
-      "method": "GET",
-      "path": "/api/singer/player-playlist",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1540",
-      "targetEvidence": [
-        "apps/worker/src/organization/playerStore.ts",
-        "apps/worker/src/organization/organizationPlayerLinks.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/publicPlayer.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.maintenance",
-      "method": "GET",
-      "path": "/api/maintenance/run",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1542",
-      "targetEvidence": [
-        "apps/worker/src/index.ts",
-        "apps/worker/src/organization/OrganizationStore.ts"
-      ]
-    },
-    {
-      "id": "api.delivery-summary",
-      "method": "POST",
-      "path": "/api/admin/communications/delivery-summary",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1554",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/communicationStore.ts",
-        "apps/worker/test/communications.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.retry-deliveries",
-      "method": "POST",
-      "path": "/api/admin/communications/retry-failed",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1556",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/communicationStore.ts",
-        "apps/worker/test/communications.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.public.poll-details",
-      "method": "POST",
-      "path": "/api/public/poll-details",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationPollLinks.ts",
-        "apps/worker/test/publicPoll.integration.test.ts",
-        "apps/web/src/public/PublicPollView.tsx"
-      ]
-    },
-    {
-      "id": "api.public.poll-vote",
-      "method": "POST",
-      "path": "/api/public/poll-vote",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationPollLinks.ts",
-        "apps/worker/test/publicPoll.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.organization.poll-tokens",
-      "method": "POST",
-      "path": "/api/organization/poll-tokens",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationPollLinks.ts"
-      ]
-    },
-    {
-      "id": "api.organization.polls",
-      "method": "GET",
-      "path": "/api/organization/polls",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/pollStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts"
-      ]
-    },
-    {
-      "id": "api.organization.poll-create",
-      "method": "POST",
-      "path": "/api/organization/polls",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/pollStore.ts"
-      ]
-    },
-    {
-      "id": "api.organization.poll-update",
-      "method": "PUT",
-      "path": "/api/organization/polls/:pollId",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/pollStore.ts"
-      ]
-    },
-    {
-      "id": "api.organization.poll-archive",
-      "method": "POST",
-      "path": "/api/organization/polls/:pollId/archive",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/pollStore.ts"
-      ]
-    },
-    {
-      "id": "api.public.audition-inquiry",
-      "method": "POST",
-      "path": "/api/public/audition-inquiry",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationAuditions.ts",
-        "apps/worker/src/organization/auditionStore.ts",
-        "apps/worker/test/publicAudition.integration.test.ts",
-        "apps/web/src/public/PublicAuditionView.tsx"
-      ]
-    },
-    {
-      "id": "api.public.audition-details",
-      "method": "POST",
-      "path": "/api/public/audition-details",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationAuditions.ts",
-        "apps/worker/src/organization/auditionStore.ts",
-        "apps/worker/test/publicAudition.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.public.audition-submit",
-      "method": "POST",
-      "path": "/api/public/audition-submit",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationAuditions.ts",
-        "apps/worker/src/organization/auditionStore.ts",
-        "apps/worker/test/publicAudition.integration.test.ts"
-      ]
-    },
-    {
-      "id": "api.organization.auditions-list",
-      "method": "GET",
-      "path": "/api/organization/auditions",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/auditionStore.ts"
-      ]
-    },
-    {
-      "id": "api.organization.audition-tokens",
-      "method": "POST",
-      "path": "/api/organization/audition-tokens",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationAuditions.ts"
-      ]
-    },
-    {
-      "id": "api.organization.audition-update",
-      "method": "PUT",
-      "path": "/api/organization/auditions/:auditionId",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
-      "targetEvidence": [
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/auditionStore.ts"
-      ]
-    }
-  ],
-  "recordHooks": [
-    {
-      "id": "hook.message-create",
-      "hook": "messages.afterCreate",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1466",
-      "targetEvidence": [
-        "apps/worker/src/organization/communicationStore.ts",
-        "apps/worker/src/organization/scheduler.ts",
-        "apps/worker/test/communications.integration.test.ts"
-      ]
-    },
-    {
-      "id": "hook.message-update",
-      "hook": "messages.afterUpdate",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1468",
-      "targetEvidence": [
-        "apps/worker/src/organization/communicationStore.ts",
-        "apps/worker/test/communications.integration.test.ts"
-      ]
-    },
-    {
-      "id": "hook.audition-create",
-      "hook": "auditions.afterCreate",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1470",
-      "targetEvidence": [
-        "apps/worker/src/organization/auditionStore.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationAuditions.ts"
-      ]
-    },
-    {
-      "id": "hook.audition-update",
-      "hook": "auditions.afterUpdate",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1472",
-      "targetEvidence": [
-        "apps/worker/src/organization/auditionStore.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/src/organization/organizationAuditions.ts",
-        "apps/web/src/account/AuditionManager.tsx"
-      ]
-    }
-  ],
-  "backgroundTasks": [
-    {
-      "id": "task.message-queue",
-      "task": "message-queue-delivery",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/emailQueueTask.ts",
-      "targetEvidence": [
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/src/communications/provider.ts",
-        "apps/worker/src/organization/communicationStore.ts",
-        "apps/worker/test/communications.integration.test.ts",
-        "apps/web/src/account/PlatformOperations.tsx"
-      ]
-    },
-    {
-      "id": "task.event-reminder",
-      "task": "event-reminders",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/eventReminderTask.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/scheduler.ts",
-        "apps/worker/src/organization/schedulingStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/test/scheduler.integration.test.ts",
-        "apps/worker/test/jobs.integration.test.ts"
-      ]
-    },
-    {
-      "id": "task.post-event-report",
-      "task": "post-event-report",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/postEventReportTask.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/scheduler.ts",
-        "apps/worker/src/organization/schedulingStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/test/scheduler.integration.test.ts",
-        "apps/worker/test/jobs.integration.test.ts"
-      ]
-    },
-    {
-      "id": "task.ticket-reminder",
-      "task": "ticket-buyer-reminders",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/ticketBuyerReminderTask.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/scheduler.ts",
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/test/ticketing.integration.test.ts"
-      ]
-    },
-    {
-      "id": "task.cleanup",
-      "task": "cleanup-stale-payments",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/cleanupTask.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/scheduler.ts",
-        "apps/worker/test/scheduler.integration.test.ts"
-      ]
-    }
-  ],
-  "csvContracts": [
-    {
-      "id": "csv.roster",
-      "contract": "roster",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/profileService.ts:368; test/profileService.test.ts",
-      "targetEvidence": [
-        "packages/domain/src/rosterCsv.ts",
-        "packages/domain/src/rosterCsv.test.ts",
-        "apps/worker/test/profiles.integration.test.ts"
-      ]
-    },
-    {
-      "id": "csv.music-library",
-      "contract": "music-library",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/lib/music/csv.ts:67; test/musicPieceUtils.test.ts",
-      "targetEvidence": [
-        "packages/domain/src/musicCsv.ts",
-        "packages/domain/src/musicCsv.test.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/music.integration.test.ts",
-        "apps/web/src/account/MusicCatalog.tsx"
-      ]
-    },
-    {
-      "id": "csv.event-rsvp",
-      "contract": "event-rsvp-roster",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/lib/eventRoster/exportCsv.ts:96; test/eventRosterExport.test.ts",
-      "targetEvidence": [
-        "packages/domain/src/eventRsvpCsv.ts",
-        "packages/domain/src/eventRsvpCsv.test.ts",
-        "apps/worker/test/attendance.integration.test.ts"
-      ]
-    },
-    {
-      "id": "csv.donations",
-      "contract": "donations",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/admin/DonationsView.tsx:109",
-      "targetEvidence": [
-        "packages/domain/src/donationCsv.ts",
-        "packages/domain/src/donationCsv.test.ts"
-      ]
-    },
-    {
-      "id": "csv.attendance",
-      "contract": "attendance-report",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/admin/ReportsView.tsx:220",
-      "targetEvidence": [
-        "packages/domain/src/attendanceReportCsv.ts",
-        "packages/domain/src/attendanceReportCsv.test.ts"
-      ]
-    },
-    {
-      "id": "csv.repertoire",
-      "contract": "repertoire-history",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/admin/ReportsView.tsx:246",
-      "targetEvidence": [
-        "packages/domain/src/repertoireReportCsv.ts",
-        "packages/domain/src/repertoireReportCsv.test.ts"
-      ]
-    },
-    {
-      "id": "csv.will-call",
-      "contract": "will-call",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/admin/ticketing/TicketingWillCallTab.tsx:175",
-      "targetEvidence": [
-        "packages/domain/src/ticketing.ts",
-        "packages/domain/src/ticketing.test.ts",
-        "apps/worker/test/ticketing.integration.test.ts"
-      ]
-    }
-  ],
-  "signedFlows": [
-    {
-      "id": "signed.player",
-      "flow": "player-link",
-      "owner": "packages/domain",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/security/signedLinks.ts",
-        "apps/worker/src/organization/organizationPlayerLinks.ts",
-        "apps/worker/src/organization/playerStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/publicPlayer.integration.test.ts",
-        "apps/web/src/public/PublicPlayerView.tsx"
-      ]
-    },
-    {
-      "id": "signed.rsvp",
-      "flow": "rsvp-link",
-      "owner": "packages/domain",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/security/signedLinks.ts",
-        "apps/worker/src/organization/organizationRsvpLinks.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/publicRsvp.integration.test.ts",
-        "apps/web/src/public/PublicRsvpView.tsx"
-      ]
-    },
-    {
-      "id": "signed.audition",
-      "flow": "audition-link",
-      "owner": "packages/domain",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/security/signedLinks.ts",
-        "apps/worker/src/organization/organizationAuditions.ts",
-        "apps/worker/src/organization/auditionStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/organization/schema.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/publicAudition.integration.test.ts",
-        "apps/web/src/public/PublicAuditionView.tsx"
-      ]
-    },
-    {
-      "id": "signed.unsubscribe",
-      "flow": "unsubscribe-link",
-      "owner": "packages/domain",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/security/signedLinks.ts",
-        "apps/worker/src/organization/organizationCommunications.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/communications.integration.test.ts"
-      ]
-    },
-    {
-      "id": "signed.poll",
-      "flow": "poll-link",
-      "owner": "packages/domain",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/security/signedLinks.ts",
-        "apps/worker/src/organization/organizationPollLinks.ts",
-        "apps/worker/src/organization/pollStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/organization/schema.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/publicPoll.integration.test.ts",
-        "apps/web/src/public/PublicPollView.tsx"
-      ]
-    },
-    {
-      "id": "signed.calendar",
-      "flow": "calendar-feed",
-      "owner": "packages/domain",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/security/signedLinks.ts",
-        "apps/worker/src/calendar/calendarFeed.ts",
-        "apps/worker/test/calendarFeed.integration.test.ts"
-      ]
-    },
-    {
-      "id": "signed.ticket-scan",
-      "flow": "ticket-scan",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "test/ticketScanValidation.test.ts; test/pb-hooks/ticketing.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/security/signedLinks.ts",
-        "apps/worker/src/organization/organizationTicketing.ts",
-        "apps/worker/test/ticketing.integration.test.ts"
-      ]
-    }
-  ],
-  "domainWorkflows": [
-    {
-      "id": "workflow.setup",
-      "workflow": "resumable first-run setup, module readiness, and launch",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/setup; src/services/setupService.ts; test/App.setup.test.tsx",
-      "targetEvidence": [
-        "packages/domain/src/setup.ts",
-        "apps/worker/src/organization/setupStore.ts",
-        "apps/worker/src/organization/organizationSetup.ts",
-        "apps/web/src/setup/SetupView.tsx",
-        "apps/worker/src/organization/schema.ts"
-      ]
-    },
-    {
-      "id": "workflow.identity",
-      "workflow": "invitation-only sign-in, identity activation, and password recovery",
-      "owner": "apps/worker",
-      "milestone": 2,
-      "status": "implemented",
-      "baselineEvidence": "src/contexts/AuthContext.tsx; src/views/LoginView.tsx; test/authRedirect.test.ts",
-      "targetEvidence": [
-        "apps/web/src/auth/SignInView.tsx",
-        "apps/worker/src/auth/config.ts",
-        "apps/worker/test/auth.integration.test.ts"
-      ]
-    },
-    {
-      "id": "workflow.roster",
-      "workflow": "profile CRUD, profile-without-login, import, export, and directory",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/profileService.ts; src/services/rosterService.ts; test/rosterService.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/profiles.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/profiles.integration.test.ts",
-        "apps/worker/test/memberProfiles.integration.test.ts",
-        "packages/domain/src/rosterCsv.ts",
-        "packages/domain/src/rosterCsv.test.ts",
-        "packages/domain/src/rosterConfiguration.ts",
-        "apps/worker/test/rosterConfiguration.integration.test.ts",
-        "apps/web/src/account/OrganizationCalendar.tsx",
-        "apps/web/src/account/RosterConfiguration.tsx",
-        "apps/web/src/account/MemberProfileDirectory.tsx",
-        "apps/web/e2e/auth.spec.ts"
-      ]
-    },
-    {
-      "id": "workflow.seasons-dues",
-      "workflow": "seasons, dues status, member/admin views, and checkout",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/seasonService.ts; src/services/duesService.ts; test/duesService.test.ts",
-      "targetEvidence": [
-        "packages/domain/src/seasons.ts",
-        "apps/worker/src/organization/seasonStore.ts",
-        "apps/worker/src/organization/organizationSeasons.ts",
-        "apps/web/src/account/SeasonsManager.tsx"
-      ]
-    },
-    {
-      "id": "workflow.event-clone",
-      "workflow": "event clone with roster copy and reset set-list/attendance state",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/admin/events/useEventCloneWorkflow.ts; test/eventService.test.ts",
-      "targetEvidence": [
-        "apps/web/src/account/OrganizationCalendar.tsx",
-        "apps/web/e2e/auth.spec.ts"
-      ]
-    },
-    {
-      "id": "workflow.rsvp-attendance",
-      "workflow": "personalized/free RSVP, notes, balances, check-in, and finalization",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/public-rsvp; src/views/admin/attendance; test/attendanceRsvpSync.test.tsx",
-      "targetEvidence": [
-        "apps/worker/src/calendar/organizationCalendar.ts",
-        "apps/worker/test/calendarManagement.integration.test.ts",
-        "apps/worker/test/selfServiceRsvp.integration.test.ts",
-        "apps/worker/test/attendance.integration.test.ts",
-        "apps/web/src/account/AttendanceManager.tsx",
-        "apps/worker/src/organization/schema.ts",
-        "apps/web/src/account/MySchedule.tsx"
-      ]
-    },
-    {
-      "id": "workflow.rehearsal-parent",
-      "workflow": "linked rehearsal reminders use the parent performance RSVP roster",
-      "owner": "packages/domain",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "docs/adr/0001-ignore-rehearsal-rsvps-for-automated-reminders.md; test/pb-hooks/eventReminderTask.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/calendarManagementStore.ts",
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/test/scheduler.integration.test.ts"
-      ]
-    },
-    {
-      "id": "workflow.music",
-      "workflow": "music catalog, multi-work relationships, genres, tracks, and recency",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/musicLibraryService.ts; test/musicLibraryServiceAdditions.test.ts",
-      "targetEvidence": [
-        "packages/contracts/src/index.ts",
-        "apps/worker/src/organization/musicStore.ts",
-        "apps/worker/src/organization/organizationMusic.ts",
-        "apps/worker/test/music.integration.test.ts",
-        "apps/web/src/account/MusicCatalog.tsx"
-      ]
-    },
-    {
-      "id": "workflow.setlists",
-      "workflow": "ordered set lists, approval, featured numbers, and performer snapshots",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/admin/SetListView.tsx; test/performerCredits.test.ts",
-      "targetEvidence": [
-        "packages/contracts/src/index.ts",
-        "packages/domain/src/setList.ts",
-        "packages/domain/src/setList.test.ts",
-        "apps/worker/src/organization/calendarManagementStore.ts",
-        "apps/worker/test/music.integration.test.ts",
-        "apps/worker/test/selfServiceRsvp.integration.test.ts",
-        "apps/web/src/account/SetListManager.tsx",
-        "apps/web/src/account/MySchedule.tsx"
-      ]
-    },
-    {
-      "id": "workflow.player-offline",
-      "workflow": "authorized player playlists and offline media",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/playerService.ts; src/services/offlineMediaStore.ts; test/offlineMediaStore.test.ts",
-      "targetEvidence": [
-        "packages/contracts/src/index.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/music.integration.test.ts",
-        "apps/web/src/account/LearningTrackPlayer.tsx",
-        "apps/web/src/offline/mediaStore.ts",
-        "apps/web/src/offline/mediaStore.test.ts"
-      ]
-    },
-    {
-      "id": "workflow.seating",
-      "workflow": "multiple charts, formations, automatic placement, mismatch, and finder",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/seatingService.ts; test/seatingFormationsAlgorithm.test.ts",
-      "targetEvidence": [
-        "packages/domain/src/seatingAlgorithm.ts",
-        "packages/domain/src/seatingAlgorithm.test.ts",
-        "packages/domain/src/seatingConfiguration.ts",
-        "apps/worker/src/organization/seatingStore.ts",
-        "apps/web/src/account/SeatingManager.tsx",
-        "apps/web/src/account/SeatingFinder.tsx",
-        "apps/worker/test/seating.integration.test.ts"
-      ]
-    },
-    {
-      "id": "workflow.communications",
-      "workflow": "Email/SMS/Both compose, reach, drafts, templates, history, and retries",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/admin/communications; src/services/communication; test/communicationWizard.test.ts",
-      "targetEvidence": [
-        "packages/contracts/src/index.ts",
-        "packages/domain/src/communications.ts",
-        "packages/domain/src/communications.test.ts",
-        "apps/worker/src/organization/communicationStore.ts",
-        "apps/worker/src/organization/organizationCommunications.ts",
-        "apps/worker/src/jobs/consumer.ts",
-        "apps/worker/test/communications.integration.test.ts",
-        "apps/web/src/account/CommunicationCenter.tsx"
-      ]
-    },
-    {
-      "id": "workflow.polls",
-      "workflow": "compose-time polls, personalized changes, dashboard, and archival",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/pollService.ts; src/views/admin/PollsDashboardView.tsx; test/pollService.test.ts",
-      "targetEvidence": [
-        "packages/contracts/src/index.ts",
-        "apps/worker/src/organization/schema.ts",
-        "apps/worker/src/organization/pollStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/organization/organizationPollLinks.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/publicPoll.integration.test.ts",
-        "apps/web/src/public/PublicPollView.tsx"
-      ]
-    },
-    {
-      "id": "workflow.auditions",
-      "workflow": "public inquiry, requested slots, scheduling, status, and confirmations",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/auditionService.ts; src/views/admin/AuditionsView.tsx; test/auditionService.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/schema.ts",
-        "apps/worker/src/organization/auditionStore.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/organization/organizationAuditions.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/publicAudition.integration.test.ts",
-        "apps/web/src/public/PublicAuditionView.tsx",
-        "apps/web/src/account/AuditionManager.tsx"
-      ]
-    },
-    {
-      "id": "workflow.resources",
-      "workflow": "ordered file/link resources with member access",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/resourceService.ts; test/resourceService.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/organization/resourceStore.ts",
-        "apps/worker/src/organization/organizationResources.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/resources.integration.test.ts",
-        "apps/web/src/account/OrganizationResources.tsx"
-      ]
-    },
-    {
-      "id": "workflow.ticketing",
-      "workflow": "event/bundle sale, capacity, checkout, scan, will-call, and refund",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/ticketService.ts; src/views/admin/ticketing; test/pb-hooks/ticketing.test.ts",
-      "targetEvidence": [
-        "packages/domain/src/ticketing.ts",
-        "apps/worker/src/organization/ticketingStore.ts",
-        "apps/worker/test/ticketing.integration.test.ts",
-        "apps/web/src/public/PublicTickets.tsx",
-        "apps/web/src/account/TicketingManager.tsx",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "workflow.donations",
-      "workflow": "donation checkout, tribute, anonymous, consent, patron linking, and refund",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/donationService.ts; src/views/admin/DonationsView.tsx; test/donationService.test.ts",
-      "targetEvidence": [
-        "packages/domain/src/donations.ts",
-        "apps/worker/src/organization/donationStore.ts",
-        "apps/worker/src/organization/organizationDonations.ts",
-        "apps/web/src/public/PublicDonationView.tsx",
-        "apps/web/src/account/DonationsManager.tsx"
-      ]
-    },
-    {
-      "id": "workflow.public-site",
-      "workflow": "structured public website and module-aware navigation",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/views/PublicLandingView.tsx; src/views/admin/PublicWebsiteView.tsx",
-      "targetEvidence": [
-        "apps/web/src/public/PublicOrganizationSite.tsx",
-        "apps/web/src/account/PublicWebsiteManager.tsx",
-        "apps/worker/src/organization/organizationPublicWebsite.ts",
-        "apps/worker/test/publicWebsite.integration.test.ts"
-      ]
-    },
-    {
-      "id": "workflow.organization-export",
-      "workflow": "portable Organization export with manifest, records, audit, files, and checksums",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "baseline CSV contracts plus accepted ADR 0015",
-      "targetEvidence": [
-        "packages/domain/src/rosterCsv.ts",
-        "packages/domain/src/musicCsv.ts",
-        "packages/domain/src/donationCsv.ts",
-        "packages/domain/src/attendanceReportCsv.ts",
-        "packages/domain/src/eventRsvpCsv.ts",
-        "packages/domain/src/repertoireReportCsv.ts"
-      ]
-    },
-    {
-      "id": "workflow.platform-admin",
-      "workflow": "single-Organization delegated platform administration with visible bounded elevation",
-      "owner": "apps/worker",
-      "milestone": 2,
-      "status": "implemented",
-      "baselineEvidence": "legacy Application Administrator behavior plus accepted ADR 0007",
-      "targetEvidence": [
-        "apps/web/src/account/PlatformAccess.tsx",
-        "apps/web/src/account/PlatformOperations.tsx",
-        "apps/worker/src/auth/platformElevation.ts"
-      ]
-    },
-    {
-      "id": "workflow.custom-domains",
-      "workflow": "canonical Organization subdomain and custom public domain onboarding",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "baseline public routes plus accepted ADR 0005",
-      "targetEvidence": [
-        "apps/worker/src/tenancy/registerPublicDomain.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/src/control/migrations/0003_provisioning.sql"
-      ]
-    }
-  ],
-  "fileBehaviors": [
-    {
-      "id": "file.profile-photo",
-      "behavior": "private profile photo upload, replacement, deletion, and authorized rendering",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/profileService.ts:updateProfilePhoto; test/profileForm.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/storage/privateFiles.ts",
-        "apps/worker/src/organization/OrganizationStore.ts",
-        "apps/worker/src/router.ts",
-        "apps/worker/test/profilePhotos.integration.test.ts",
-        "apps/web/src/account/MemberProfileDirectory.tsx"
-      ]
-    },
-    {
-      "id": "file.music-audio",
-      "behavior": "music reference-track upload, metadata, streaming, and offline access",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/musicLibraryService.ts; src/services/offlineMediaStore.ts",
-      "targetEvidence": [
-        "apps/worker/src/storage/privateFiles.ts",
-        "apps/worker/src/organization/musicStore.ts",
-        "apps/worker/test/files.integration.test.ts",
-        "apps/worker/test/music.integration.test.ts",
-        "apps/web/src/account/MusicCatalog.tsx",
-        "apps/web/src/account/LearningTrackPlayer.tsx",
-        "apps/web/src/offline/mediaStore.ts",
-        "apps/web/src/offline/mediaStore.test.ts"
-      ]
-    },
-    {
-      "id": "file.singer-resource",
-      "behavior": "ordered private resource upload/link and member download",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/resourceService.ts; test/resourceService.test.ts",
-      "targetEvidence": [
-        "apps/worker/src/storage/privateFiles.ts",
-        "apps/worker/src/organization/resourceStore.ts",
-        "apps/worker/test/resources.integration.test.ts",
-        "apps/web/src/account/OrganizationResources.tsx"
-      ]
-    },
-    {
-      "id": "file.public-media",
-      "behavior": "logo, hero, and public media upload with immutable published URLs",
-      "owner": "apps/worker",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "src/services/settings/landingMedia.ts; src/views/admin/PublicWebsiteView.tsx",
-      "targetEvidence": [
-        "apps/worker/src/publication/publishOrganization.ts",
-        "apps/worker/src/organization/organizationPublicWebsite.ts",
-        "apps/worker/test/publicWebsite.integration.test.ts"
-      ]
-    },
-    {
-      "id": "file.r2-isolation",
-      "behavior": "all object keys are Organization-scoped and private substitutions are rejected",
-      "owner": "apps/worker",
-      "milestone": 3,
-      "status": "implemented",
-      "baselineEvidence": "accepted ADR 0004 and legacy file authorization rules",
-      "targetEvidence": [
-        "apps/worker/src/publication/publishOrganization.ts",
-        "apps/worker/src/storage/privateFiles.ts",
-        "apps/worker/test/files.integration.test.ts",
-        "apps/worker/test/publication.integration.test.ts"
-      ]
-    }
-  ],
-  "responsiveStates": [
-    {
-      "id": "responsive.public",
-      "state": "public home/history/performance views at desktop and mobile",
-      "owner": "apps/web",
-      "milestone": 4,
-      "status": "implemented",
-      "baselineEvidence": "test/views/PublicLandingView.test.tsx; test/views/PublicPastPerformancesView.test.tsx",
-      "targetEvidence": [
-        "apps/web/e2e/foundation.spec.ts",
-        "apps/web/src/public/PublicOrganizationSite.tsx",
-        "apps/web/src/styles/theme.css"
-      ]
-    },
-    {
-      "id": "responsive.data-table",
-      "state": "administrative tables become labeled mobile cards without duplicate controls",
-      "owner": "packages/ui",
-      "milestone": 4,
-      "status": "implemented",
-      "baselineEvidence": "src/components/ui/DataTable.tsx; test/DataTable.test.tsx",
-      "targetEvidence": [
-        "packages/ui/src/DataTable.tsx",
-        "packages/ui/src/index.ts",
-        "apps/web/src/styles/theme.css"
-      ]
-    },
-    {
-      "id": "responsive.dialogs",
-      "state": "dialogs fit mobile viewports, retain focus, and expose Cancel/Close",
-      "owner": "packages/ui",
-      "milestone": 4,
-      "status": "implemented",
-      "baselineEvidence": "src/contexts/DialogProvider.tsx; test/utils/focusRegression.ts",
-      "targetEvidence": [
-        "packages/ui/src/Dialog.tsx",
-        "packages/ui/src/index.ts",
-        "apps/web/src/styles/theme.css"
-      ]
-    },
-    {
-      "id": "responsive.setup",
-      "state": "first-run setup remains usable and resumable on narrow screens",
-      "owner": "apps/web",
-      "milestone": 4,
-      "status": "implemented",
-      "baselineEvidence": "src/views/setup/SetupView.tsx; test/components/setup",
-      "targetEvidence": [
-        "apps/web/src/styles/theme.css"
-      ]
-    },
-    {
-      "id": "responsive.communications",
-      "state": "communication wizard supports the baseline mobile send flow",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "docs/2026-07-13-communications-phase-1-mobile-send-flow.md; test/CommunicationTabs.test.tsx",
-      "targetEvidence": [
-        "apps/web/src/account/CommunicationCenter.tsx"
-      ]
-    },
-    {
-      "id": "responsive.seating",
-      "state": "seating editor and mirrored finder remain touch and keyboard usable",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "test/seatingLayoutRegression.test.ts; test/seatingMismatch.test.ts",
-      "targetEvidence": [
-        "apps/web/src/styles/theme.css",
-        "apps/web/e2e/auth.spec.ts"
-      ]
-    },
-    {
-      "id": "responsive.checkout",
-      "state": "ticket, bundle, donation, audition, and RSVP public forms work on mobile",
-      "owner": "apps/web",
-      "milestone": 5,
-      "status": "implemented",
-      "baselineEvidence": "public route views and ticketing/donation tests",
-      "targetEvidence": [
-        "apps/web/src/public/PublicTickets.tsx",
-        "apps/web/src/styles/theme.css",
-        "apps/web/e2e/ticketing.spec.ts"
-      ]
-    },
-    {
-      "id": "responsive.theme",
-      "state": "semantic light/dark themes preserve readable contrast and recognizable character",
-      "owner": "packages/ui",
-      "milestone": 4,
-      "status": "implemented",
-      "baselineEvidence": "src/index.css; test/componentLibraryTokenUsage.test.ts",
-      "targetEvidence": [
-        "apps/web/src/styles/theme.css"
-      ]
-    }
-  ]
+  "baseline":
+    {
+      "repository": "wesochuck/choir-management-tool",
+      "commit": "6874d43a3c3698ae53218a44d17649bc454ca9ac",
+      "capturedAt": "2026-07-20",
+      "observation":
+        "The detached parity worktree had regeneration-only drift in generated
+        pocketbase/pb_hooks/main.pb.js. Inventory evidence uses committed source and tests, never
+        the modified generated file.",
+    },
+  "statusDefinitions":
+    {
+      "planned": "Owned and scheduled but not implemented in the target.",
+      "partial": "Some target behavior exists but the full entry gate is not proven.",
+      "implemented": "Target behavior and focused tests exist; staging proof may remain.",
+      "verified": "Required local and permanent-staging evidence is approved.",
+      "blocked": "A recorded external prerequisite prevents verification.",
+    },
+  "browserRoutes":
+    [
+      {
+        "id": "route.public.home",
+        "path": "/",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:305; src/views/PublicLandingView.tsx",
+        "targetEvidence":
+          ["apps/web/src/App.tsx", "apps/web/src/public/PublicOrganizationSite.tsx"],
+      },
+      {
+        "id": "route.public.history",
+        "path": "/history",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:313; src/views/PublicHistoryView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.public.performances",
+        "path": "/performances",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:321; src/views/PublicPastPerformancesView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.public.auditions",
+        "path": "/auditions",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:209; src/views/PublicAuditionView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/public/PublicAuditionView.tsx",
+            "apps/worker/test/publicAudition.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.public.rsvp-token",
+        "path": "/rsvp",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:217; src/views/EventRSVPView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/public/PublicRsvpView.tsx",
+            "apps/worker/test/publicRsvp.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.public.rsvp-free",
+        "path": "/rsvp/:eventId",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:273; src/views/PublicRsvpView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/public/PublicRsvpView.tsx",
+            "apps/worker/test/publicRsvp.integration.test.ts",
+            "apps/web/src/public/PublicFreeRsvpView.tsx",
+            "apps/worker/src/router.ts",
+          ],
+      },
+      {
+        "id": "route.public.poll",
+        "path": "/poll",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:225; src/views/PublicPollView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/public/PublicPollView.tsx",
+            "apps/worker/test/publicPoll.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.public.unsubscribe",
+        "path": "/unsubscribe",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:233; src/views/PublicUnsubscribeView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/public/PublicUnsubscribeView.tsx",
+            "apps/web/src/auth/api.ts",
+          ],
+      },
+      {
+        "id": "route.public.player",
+        "path": "/player",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:241; src/views/PublicPlayerView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/public/PublicPlayerView.tsx",
+            "apps/worker/test/publicPlayer.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.public.tickets",
+        "path": "/tickets",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:249; src/views/PublicTicketListView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "route.public.ticket-success",
+        "path": "/tickets/order/success",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:257; src/views/PublicTicketSuccessView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "route.public.bundle",
+        "path": "/tickets/bundle/:bundleId",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:265; src/views/PublicBundlePurchaseView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "route.public.ticket-event",
+        "path": "/tickets/:eventId",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:281; src/views/PublicTicketPurchaseView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "route.public.donate",
+        "path": "/donate",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:289; src/views/PublicDonationView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicDonationView.tsx",
+            "apps/web/src/App.tsx",
+            "apps/worker/src/router.ts",
+          ],
+      },
+      {
+        "id": "route.public.donation-success",
+        "path": "/donate/success",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:297; src/views/PublicDonationSuccessView.tsx",
+        "targetEvidence":
+          ["apps/web/src/public/PublicDonationSuccessView.tsx", "apps/web/src/App.tsx"],
+      },
+      {
+        "id": "route.auth.login",
+        "path": "/login",
+        "owner": "apps/web",
+        "milestone": 2,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:207; src/views/LoginView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/auth/SignInView.tsx",
+            "apps/web/e2e/auth.spec.ts",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.auth.reset-password",
+        "path": "/reset-password",
+        "owner": "apps/web",
+        "milestone": 2,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:208; src/views/ResetPasswordView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/auth/ForgotPasswordView.tsx",
+            "apps/web/src/auth/ResetPasswordView.tsx",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.setup",
+        "path": "/setup",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:206; src/views/setup/SetupView.tsx",
+        "targetEvidence":
+          ["apps/web/src/App.tsx", "apps/web/src/setup/SetupView.tsx", "apps/worker/src/router.ts"],
+      },
+      {
+        "id": "route.member.dashboard",
+        "path": "/dashboard",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:329; src/views/singer/DashboardView.tsx",
+        "targetEvidence": ["apps/web/src/App.tsx", "apps/web/src/account/DashboardView.tsx"],
+      },
+      {
+        "id": "route.member.profile",
+        "path": "/profile",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:622; src/views/singer/ProfileView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
+        "id": "route.member.directory",
+        "path": "/directory",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:630; src/views/singer/DirectoryView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+            "apps/worker/src/organization/profiles.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
+        "id": "route.member.seating-finder",
+        "path": "/seating/:eventId",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:612; src/views/singer/SeatingFinderView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/SeatingFinder.tsx",
+            "apps/worker/src/router.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
+        "id": "route.admin.roster",
+        "path": "/admin/roster",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:339; src/views/admin/RosterView.tsx",
+        "targetEvidence":
+          [
+            "packages/domain/src/rosterCsv.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/profiles.integration.test.ts",
+            "apps/web/src/account/OrganizationCalendar.tsx",
+          ],
+      },
+      {
+        "id": "route.admin.events",
+        "path": "/admin/events",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:352; src/views/admin/EventsView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.admin.event-roster",
+        "path": "/admin/events/:eventId/roster",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:365; src/views/admin/EventRosterView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.admin.setlists",
+        "path": "/admin/setlists",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:378; src/views/admin/SetListView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/SetListManager.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+            "packages/domain/src/setList.ts",
+          ],
+      },
+      {
+        "id": "route.admin.venues",
+        "path": "/admin/venues",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:391; src/views/admin/VenuesView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.admin.seating",
+        "path": "/admin/seating",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:404; src/views/admin/SeatingView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/SeatingManager.tsx",
+            "apps/worker/test/seating.integration.test.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
+        "id": "route.admin.attendance",
+        "path": "/admin/attendance",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:417; src/views/admin/AttendanceView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AttendanceManager.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+            "apps/worker/src/router.ts",
+          ],
+      },
+      {
+        "id": "route.admin.rsvp",
+        "path": "/admin/rsvp",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:430; src/views/admin/RsvpDashboardView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/MySchedule.tsx",
+            "apps/worker/src/router.ts",
+          ],
+      },
+      {
+        "id": "route.admin.polls",
+        "path": "/admin/polls",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:443; src/views/admin/PollsDashboardView.tsx",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+      },
+      {
+        "id": "route.admin.auditions",
+        "path": "/admin/auditions",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:456; src/views/admin/AuditionsView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+          ],
+      },
+      {
+        "id": "route.admin.reports",
+        "path": "/admin/reports",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:469; src/views/admin/ReportsView.tsx",
+        "targetEvidence": ["apps/web/src/App.tsx", "apps/web/src/account/ReportsView.tsx"],
+      },
+      {
+        "id": "route.admin.library",
+        "path": "/admin/library",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:482; src/views/admin/MusicLibraryView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/MusicCatalog.tsx",
+            "apps/worker/src/organization/musicStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/music.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.admin.website",
+        "path": "/admin/website",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:495; src/views/admin/PublicWebsiteView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/PublicWebsiteManager.tsx",
+            "apps/worker/src/organization/publicWebsiteStore.ts",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.admin.settings",
+        "path": "/admin/settings",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:508; src/views/admin/SettingsView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/RosterConfiguration.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/rosterConfiguration.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.admin.modules",
+        "path": "/admin/settings/modules",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:519; src/views/admin/ModuleSettingsView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/account/ModuleSettingsView.tsx",
+            "apps/worker/src/router.ts",
+          ],
+      },
+      {
+        "id": "route.admin.setup-checklist",
+        "path": "/admin/settings/setup-checklist",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:528; src/views/admin/SetupChecklistView.tsx",
+        "targetEvidence": ["apps/web/src/App.tsx", "apps/web/src/account/SetupChecklistView.tsx"],
+      },
+      {
+        "id": "route.admin.communications",
+        "path": "/admin/communications",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:537; src/views/admin/CommunicationView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/account/CommunicationCenter.tsx",
+            "apps/web/src/auth/api.ts",
+          ],
+      },
+      {
+        "id": "route.admin.resources",
+        "path": "/admin/resources",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:550; src/views/admin/ResourcesView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/OrganizationResources.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+          ],
+      },
+      {
+        "id": "route.admin.tickets",
+        "path": "/admin/tickets",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:561; src/views/admin/TicketingView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/TicketingManager.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "route.admin.ticket-scan",
+        "path": "/admin/tickets/scan",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:574; src/views/admin/TicketScanView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/TicketingManager.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "route.admin.donations",
+        "path": "/admin/donations",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:587; src/views/admin/DonationsView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/DonationsManager.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+          ],
+      },
+      {
+        "id": "route.admin.patrons",
+        "path": "/admin/patrons",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx:600; src/views/admin/PatronsView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/DonationsManager.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+          ],
+      },
+      {
+        "id": "route.admin.seasons",
+        "path": "/admin/seasons",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/App.tsx (season endpoint)",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/account/SeasonsManager.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+          ],
+      },
+    ],
+  "apiRoutes":
+    [
+      {
+        "id": "api.refund-dues",
+        "method": "POST",
+        "path": "/api/admin/refund-dues",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (dues refund)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationSeasons.ts"],
+      },
+      {
+        "id": "api.hooks-health",
+        "method": "GET",
+        "path": "/api/hooks/health",
+        "owner": "apps/worker",
+        "milestone": 1,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1478",
+        "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.organization.donations",
+        "method": "GET",
+        "path": "/api/organization/donations",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (donation endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+          ],
+      },
+      {
+        "id": "api.organization.dues",
+        "method": "GET",
+        "path": "/api/organization/dues",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (dues endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSeasons.ts",
+            "apps/worker/src/organization/seasonStore.ts",
+          ],
+      },
+      {
+        "id": "api.organization.patrons",
+        "method": "GET",
+        "path": "/api/organization/patrons",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (donation endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+          ],
+      },
+      {
+        "id": "api.organization.seasons",
+        "method": "GET",
+        "path": "/api/organization/seasons",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (season endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSeasons.ts",
+            "apps/worker/src/organization/seasonStore.ts",
+          ],
+      },
+      {
+        "id": "api.setup-status",
+        "method": "GET",
+        "path": "/api/setup/status",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1484",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSetup.ts",
+            "apps/worker/src/organization/setupStore.ts",
+          ],
+      },
+      {
+        "id": "api.module-state",
+        "method": "GET",
+        "path": "/api/modules/state",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1485",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSetup.ts",
+            "apps/worker/src/organization/setupStore.ts",
+          ],
+      },
+      {
+        "id": "api.setup-claim",
+        "method": "POST",
+        "path": "/api/setup/claim",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1486",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSetup.ts",
+            "apps/worker/src/organization/setupStore.ts",
+          ],
+      },
+      {
+        "id": "api.setup-progress",
+        "method": "POST",
+        "path": "/api/setup/progress",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1487",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSetup.ts",
+            "apps/worker/src/organization/setupStore.ts",
+          ],
+      },
+      {
+        "id": "api.setup-complete",
+        "method": "POST",
+        "path": "/api/setup/complete",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1488",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSetup.ts",
+            "apps/worker/src/organization/setupStore.ts",
+          ],
+      },
+      {
+        "id": "api.setup-recover-admin",
+        "method": "POST",
+        "path": "/api/setup/recover-admin",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1489",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationSetup.ts"],
+      },
+      {
+        "id": "api.setup-health",
+        "method": "GET",
+        "path": "/api/setup/health",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1490",
+        "targetEvidence": ["apps/worker/src/router.ts", "apps/worker/src/index.ts"],
+      },
+      {
+        "id": "api.rsvp-details",
+        "method": "POST",
+        "path": "/api/rsvp-details",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/rsvpDetails.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationRsvpLinks.ts",
+            "apps/worker/test/publicRsvp.integration.test.ts",
+            "apps/web/src/public/PublicRsvpView.tsx",
+          ],
+      },
+      {
+        "id": "api.singer-rsvp",
+        "method": "POST",
+        "path": "/api/singer/rsvp",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/singerRsvp.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/web/src/account/MySchedule.tsx",
+          ],
+      },
+      {
+        "id": "api.resolve-placeholders",
+        "method": "POST",
+        "path": "/api/singer/resolve-placeholders",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/resolvePlaceholders.ts",
+        "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.quick-rsvp",
+        "method": "POST",
+        "path": "/api/quick-rsvp",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/quickRsvp.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationRsvpLinks.ts",
+            "apps/worker/test/publicRsvp.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.unsubscribe",
+        "method": "POST",
+        "path": "/api/unsubscribe",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/unsubscribe.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.generate-rsvp-tokens",
+        "method": "POST",
+        "path": "/api/generate-rsvp-tokens",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/generateRsvpTokens.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationRsvpLinks.ts",
+            "apps/worker/test/publicRsvp.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.bulk-rsvp",
+        "method": "POST",
+        "path": "/api/admin/bulk-update-rsvps",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/bulkUpdateRsvps.ts",
+        "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.bulk-attendance",
+        "method": "POST",
+        "path": "/api/admin/bulk-upsert-attendance",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/bulkUpsertAttendance.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/calendarManagementStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/attendance.integration.test.ts",
+            "apps/web/src/account/AttendanceManager.tsx",
+          ],
+      },
+      {
+        "id": "api.queue-process",
+        "method": "POST",
+        "path": "/api/queue/process",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1494",
+        "targetEvidence":
+          [
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/src/control/migrations/0006_job_dead_letters.sql",
+            "apps/worker/test/jobs.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.queue-settings",
+        "method": "GET",
+        "path": "/api/admin/queue-settings",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1496",
+        "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.queue-settings-generate",
+        "method": "POST",
+        "path": "/api/admin/queue-settings/generate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1498",
+        "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.test-email",
+        "method": "POST",
+        "path": "/api/test-smtp",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1500",
+        "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.test-sms",
+        "method": "POST",
+        "path": "/api/test-sms",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1501",
+        "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.player-token",
+        "method": "POST",
+        "path": "/api/generate-player-token",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1503",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationPlayerLinks.ts",
+            "apps/worker/test/publicPlayer.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.checkout-ticket",
+        "method": "POST",
+        "path": "/api/checkout/create-tickets-session",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1505",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/payments/ticketCheckout.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "api.checkout-bundle",
+        "method": "POST",
+        "path": "/api/checkout/create-bundle-session",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1507",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "api.checkout-dues",
+        "method": "POST",
+        "path": "/api/checkout/create-dues-session",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1509",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSeasons.ts",
+            "apps/worker/src/organization/seasonStore.ts",
+          ],
+      },
+      {
+        "id": "api.checkout-rsvp",
+        "method": "POST",
+        "path": "/api/checkout/rsvp",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1511",
+        "targetEvidence":
+          ["apps/worker/src/organization/organizationRsvpLinks.ts", "apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.checkout-donation",
+        "method": "POST",
+        "path": "/api/checkout/create-donation-session",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1513",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+          ],
+      },
+      {
+        "id": "api.stripe-webhook",
+        "method": "POST",
+        "path": "/api/webhook/stripe",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1515",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/payments/ticketCheckout.ts",
+          ],
+      },
+      {
+        "id": "api.refund-ticket",
+        "method": "POST",
+        "path": "/api/admin/refund-ticket",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1517",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "api.refund-bundle",
+        "method": "POST",
+        "path": "/api/admin/refund-bundle",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1519",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "api.refund-donation",
+        "method": "POST",
+        "path": "/api/admin/refund-donation",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1521",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+          ],
+      },
+      {
+        "id": "api.resend-ticket",
+        "method": "POST",
+        "path": "/api/admin/resend-ticket-confirmation",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1522",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "api.ticket-validate",
+        "method": "POST",
+        "path": "/api/tickets/validate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1524",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.ticket-scan-context",
+        "method": "GET",
+        "path": "/api/tickets/scan-context",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1526",
+        "targetEvidence":
+          [
+            "apps/web/src/account/TicketingManager.tsx",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "api.player-playlist",
+        "method": "GET",
+        "path": "/api/player-playlist",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1528",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationPlayerLinks.ts",
+            "apps/worker/src/organization/playerStore.ts",
+            "apps/worker/test/publicPlayer.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.calendar-download",
+        "method": "GET",
+        "path": "/api/calendar/download",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1530",
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/calendarIcs.ts",
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/src/router.ts",
+          ],
+      },
+      {
+        "id": "api.calendar-feed",
+        "method": "GET",
+        "path": "/api/calendar/feed",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1532",
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/src/calendar/calendarIcs.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/test/calendarFeed.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.calendar-feed-url",
+        "method": "GET",
+        "path": "/api/singer/calendar-feed-url",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1534",
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/web/src/account/CalendarSubscription.tsx",
+          ],
+      },
+      {
+        "id": "api.calendar-feed-reset",
+        "method": "POST",
+        "path": "/api/singer/calendar-feed-url/reset",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1536",
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/test/calendarFeed.integration.test.ts",
+            "apps/web/src/account/CalendarSubscription.tsx",
+          ],
+      },
+      {
+        "id": "api.seating-profiles",
+        "method": "GET",
+        "path": "/api/singer/seating-profiles",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1538",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/seatingStore.ts",
+            "apps/worker/test/seating.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.singer-playlist",
+        "method": "GET",
+        "path": "/api/singer/player-playlist",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1540",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/playerStore.ts",
+            "apps/worker/src/organization/organizationPlayerLinks.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/publicPlayer.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.maintenance",
+        "method": "GET",
+        "path": "/api/maintenance/run",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1542",
+        "targetEvidence":
+          ["apps/worker/src/index.ts", "apps/worker/src/organization/OrganizationStore.ts"],
+      },
+      {
+        "id": "api.delivery-summary",
+        "method": "POST",
+        "path": "/api/admin/communications/delivery-summary",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1554",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.retry-deliveries",
+        "method": "POST",
+        "path": "/api/admin/communications/retry-failed",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1556",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.public.poll-details",
+        "method": "POST",
+        "path": "/api/public/poll-details",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationPollLinks.ts",
+            "apps/worker/test/publicPoll.integration.test.ts",
+            "apps/web/src/public/PublicPollView.tsx",
+          ],
+      },
+      {
+        "id": "api.public.poll-vote",
+        "method": "POST",
+        "path": "/api/public/poll-vote",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationPollLinks.ts",
+            "apps/worker/test/publicPoll.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.poll-tokens",
+        "method": "POST",
+        "path": "/api/organization/poll-tokens",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationPollLinks.ts"],
+      },
+      {
+        "id": "api.organization.polls",
+        "method": "GET",
+        "path": "/api/organization/polls",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/pollStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+          ],
+      },
+      {
+        "id": "api.organization.poll-create",
+        "method": "POST",
+        "path": "/api/organization/polls",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+      },
+      {
+        "id": "api.organization.poll-update",
+        "method": "PUT",
+        "path": "/api/organization/polls/:pollId",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+      },
+      {
+        "id": "api.organization.poll-archive",
+        "method": "POST",
+        "path": "/api/organization/polls/:pollId/archive",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+      },
+      {
+        "id": "api.public.audition-inquiry",
+        "method": "POST",
+        "path": "/api/public/audition-inquiry",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/web/src/public/PublicAuditionView.tsx",
+          ],
+      },
+      {
+        "id": "api.public.audition-details",
+        "method": "POST",
+        "path": "/api/public/audition-details",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.public.audition-submit",
+        "method": "POST",
+        "path": "/api/public/audition-submit",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.auditions-list",
+        "method": "GET",
+        "path": "/api/organization/auditions",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/auditionStore.ts"],
+      },
+      {
+        "id": "api.organization.audition-tokens",
+        "method": "POST",
+        "path": "/api/organization/audition-tokens",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationAuditions.ts"],
+      },
+      {
+        "id": "api.organization.audition-update",
+        "method": "PUT",
+        "path": "/api/organization/auditions/:auditionId",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/src/organization/auditionStore.ts"],
+      },
+    ],
+  "recordHooks":
+    [
+      {
+        "id": "hook.message-create",
+        "hook": "messages.afterCreate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1466",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
+      },
+      {
+        "id": "hook.message-update",
+        "hook": "messages.afterUpdate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1468",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
+      },
+      {
+        "id": "hook.audition-create",
+        "hook": "auditions.afterCreate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1470",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+          ],
+      },
+      {
+        "id": "hook.audition-update",
+        "hook": "auditions.afterUpdate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1472",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/web/src/account/AuditionManager.tsx",
+          ],
+      },
+    ],
+  "backgroundTasks":
+    [
+      {
+        "id": "task.message-queue",
+        "task": "message-queue-delivery",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/emailQueueTask.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/src/communications/provider.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/test/communications.integration.test.ts",
+            "apps/web/src/account/PlatformOperations.tsx",
+          ],
+      },
+      {
+        "id": "task.event-reminder",
+        "task": "event-reminders",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/eventReminderTask.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/src/organization/schedulingStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/scheduler.integration.test.ts",
+            "apps/worker/test/jobs.integration.test.ts",
+          ],
+      },
+      {
+        "id": "task.post-event-report",
+        "task": "post-event-report",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/postEventReportTask.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/src/organization/schedulingStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/scheduler.integration.test.ts",
+            "apps/worker/test/jobs.integration.test.ts",
+          ],
+      },
+      {
+        "id": "task.ticket-reminder",
+        "task": "ticket-buyer-reminders",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/ticketBuyerReminderTask.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "task.cleanup",
+        "task": "cleanup-stale-payments",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/cleanupTask.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/test/scheduler.integration.test.ts",
+          ],
+      },
+    ],
+  "csvContracts":
+    [
+      {
+        "id": "csv.roster",
+        "contract": "roster",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/services/profileService.ts:368; test/profileService.test.ts",
+        "targetEvidence":
+          [
+            "packages/domain/src/rosterCsv.ts",
+            "packages/domain/src/rosterCsv.test.ts",
+            "apps/worker/test/profiles.integration.test.ts",
+          ],
+      },
+      {
+        "id": "csv.music-library",
+        "contract": "music-library",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/lib/music/csv.ts:67; test/musicPieceUtils.test.ts",
+        "targetEvidence":
+          [
+            "packages/domain/src/musicCsv.ts",
+            "packages/domain/src/musicCsv.test.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/MusicCatalog.tsx",
+          ],
+      },
+      {
+        "id": "csv.event-rsvp",
+        "contract": "event-rsvp-roster",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/lib/eventRoster/exportCsv.ts:96; test/eventRosterExport.test.ts",
+        "targetEvidence":
+          [
+            "packages/domain/src/eventRsvpCsv.ts",
+            "packages/domain/src/eventRsvpCsv.test.ts",
+            "apps/worker/test/attendance.integration.test.ts",
+          ],
+      },
+      {
+        "id": "csv.donations",
+        "contract": "donations",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/views/admin/DonationsView.tsx:109",
+        "targetEvidence":
+          ["packages/domain/src/donationCsv.ts", "packages/domain/src/donationCsv.test.ts"],
+      },
+      {
+        "id": "csv.attendance",
+        "contract": "attendance-report",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/views/admin/ReportsView.tsx:220",
+        "targetEvidence":
+          [
+            "packages/domain/src/attendanceReportCsv.ts",
+            "packages/domain/src/attendanceReportCsv.test.ts",
+          ],
+      },
+      {
+        "id": "csv.repertoire",
+        "contract": "repertoire-history",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/views/admin/ReportsView.tsx:246",
+        "targetEvidence":
+          [
+            "packages/domain/src/repertoireReportCsv.ts",
+            "packages/domain/src/repertoireReportCsv.test.ts",
+          ],
+      },
+      {
+        "id": "csv.will-call",
+        "contract": "will-call",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/views/admin/ticketing/TicketingWillCallTab.tsx:175",
+        "targetEvidence":
+          [
+            "packages/domain/src/ticketing.ts",
+            "packages/domain/src/ticketing.test.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+    ],
+  "signedFlows":
+    [
+      {
+        "id": "signed.player",
+        "flow": "player-link",
+        "owner": "packages/domain",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationPlayerLinks.ts",
+            "apps/worker/src/organization/playerStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/publicPlayer.integration.test.ts",
+            "apps/web/src/public/PublicPlayerView.tsx",
+          ],
+      },
+      {
+        "id": "signed.rsvp",
+        "flow": "rsvp-link",
+        "owner": "packages/domain",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationRsvpLinks.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/publicRsvp.integration.test.ts",
+            "apps/web/src/public/PublicRsvpView.tsx",
+          ],
+      },
+      {
+        "id": "signed.audition",
+        "flow": "audition-link",
+        "owner": "packages/domain",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/web/src/public/PublicAuditionView.tsx",
+          ],
+      },
+      {
+        "id": "signed.unsubscribe",
+        "flow": "unsubscribe-link",
+        "owner": "packages/domain",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/communications.integration.test.ts",
+          ],
+      },
+      {
+        "id": "signed.poll",
+        "flow": "poll-link",
+        "owner": "packages/domain",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationPollLinks.ts",
+            "apps/worker/src/organization/pollStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/publicPoll.integration.test.ts",
+            "apps/web/src/public/PublicPollView.tsx",
+          ],
+      },
+      {
+        "id": "signed.calendar",
+        "flow": "calendar-feed",
+        "owner": "packages/domain",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/calendar/calendarFeed.ts",
+            "apps/worker/test/calendarFeed.integration.test.ts",
+          ],
+      },
+      {
+        "id": "signed.ticket-scan",
+        "flow": "ticket-scan",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "test/ticketScanValidation.test.ts; test/pb-hooks/ticketing.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+    ],
+  "domainWorkflows":
+    [
+      {
+        "id": "workflow.setup",
+        "workflow": "resumable first-run setup, module readiness, and launch",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/views/setup; src/services/setupService.ts; test/App.setup.test.tsx",
+        "targetEvidence":
+          [
+            "packages/domain/src/setup.ts",
+            "apps/worker/src/organization/setupStore.ts",
+            "apps/worker/src/organization/organizationSetup.ts",
+            "apps/web/src/setup/SetupView.tsx",
+            "apps/worker/src/organization/schema.ts",
+          ],
+      },
+      {
+        "id": "workflow.identity",
+        "workflow": "invitation-only sign-in, identity activation, and password recovery",
+        "owner": "apps/worker",
+        "milestone": 2,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/contexts/AuthContext.tsx; src/views/LoginView.tsx; test/authRedirect.test.ts",
+        "targetEvidence":
+          [
+            "apps/web/src/auth/SignInView.tsx",
+            "apps/worker/src/auth/config.ts",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
+      },
+      {
+        "id": "workflow.roster",
+        "workflow": "profile CRUD, profile-without-login, import, export, and directory",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/profileService.ts; src/services/rosterService.ts; test/rosterService.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/profiles.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/profiles.integration.test.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "packages/domain/src/rosterCsv.ts",
+            "packages/domain/src/rosterCsv.test.ts",
+            "packages/domain/src/rosterConfiguration.ts",
+            "apps/worker/test/rosterConfiguration.integration.test.ts",
+            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/RosterConfiguration.tsx",
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
+        "id": "workflow.seasons-dues",
+        "workflow": "seasons, dues status, member/admin views, and checkout",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/seasonService.ts; src/services/duesService.ts; test/duesService.test.ts",
+        "targetEvidence":
+          [
+            "packages/domain/src/seasons.ts",
+            "apps/worker/src/organization/seasonStore.ts",
+            "apps/worker/src/organization/organizationSeasons.ts",
+            "apps/web/src/account/SeasonsManager.tsx",
+          ],
+      },
+      {
+        "id": "workflow.event-clone",
+        "workflow": "event clone with roster copy and reset set-list/attendance state",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/views/admin/events/useEventCloneWorkflow.ts; test/eventService.test.ts",
+        "targetEvidence":
+          ["apps/web/src/account/OrganizationCalendar.tsx", "apps/web/e2e/auth.spec.ts"],
+      },
+      {
+        "id": "workflow.rsvp-attendance",
+        "workflow": "personalized/free RSVP, notes, balances, check-in, and finalization",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/views/public-rsvp; src/views/admin/attendance; test/attendanceRsvpSync.test.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/calendar/organizationCalendar.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/worker/test/attendance.integration.test.ts",
+            "apps/web/src/account/AttendanceManager.tsx",
+            "apps/worker/src/organization/schema.ts",
+            "apps/web/src/account/MySchedule.tsx",
+          ],
+      },
+      {
+        "id": "workflow.rehearsal-parent",
+        "workflow": "linked rehearsal reminders use the parent performance RSVP roster",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "docs/adr/0001-ignore-rehearsal-rsvps-for-automated-reminders.md;
+          test/pb-hooks/eventReminderTask.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/calendarManagementStore.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/scheduler.integration.test.ts",
+          ],
+      },
+      {
+        "id": "workflow.music",
+        "workflow": "music catalog, multi-work relationships, genres, tracks, and recency",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/musicLibraryService.ts; test/musicLibraryServiceAdditions.test.ts",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/organization/musicStore.ts",
+            "apps/worker/src/organization/organizationMusic.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/MusicCatalog.tsx",
+          ],
+      },
+      {
+        "id": "workflow.setlists",
+        "workflow": "ordered set lists, approval, featured numbers, and performer snapshots",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/views/admin/SetListView.tsx; test/performerCredits.test.ts",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "packages/domain/src/setList.ts",
+            "packages/domain/src/setList.test.ts",
+            "apps/worker/src/organization/calendarManagementStore.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/web/src/account/SetListManager.tsx",
+            "apps/web/src/account/MySchedule.tsx",
+          ],
+      },
+      {
+        "id": "workflow.player-offline",
+        "workflow": "authorized player playlists and offline media",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/playerService.ts; src/services/offlineMediaStore.ts;
+          test/offlineMediaStore.test.ts",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/LearningTrackPlayer.tsx",
+            "apps/web/src/offline/mediaStore.ts",
+            "apps/web/src/offline/mediaStore.test.ts",
+          ],
+      },
+      {
+        "id": "workflow.seating",
+        "workflow": "multiple charts, formations, automatic placement, mismatch, and finder",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/seatingService.ts; test/seatingFormationsAlgorithm.test.ts",
+        "targetEvidence":
+          [
+            "packages/domain/src/seatingAlgorithm.ts",
+            "packages/domain/src/seatingAlgorithm.test.ts",
+            "packages/domain/src/seatingConfiguration.ts",
+            "apps/worker/src/organization/seatingStore.ts",
+            "apps/web/src/account/SeatingManager.tsx",
+            "apps/web/src/account/SeatingFinder.tsx",
+            "apps/worker/test/seating.integration.test.ts",
+          ],
+      },
+      {
+        "id": "workflow.communications",
+        "workflow": "Email/SMS/Both compose, reach, drafts, templates, history, and retries",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/views/admin/communications; src/services/communication;
+          test/communicationWizard.test.ts",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "packages/domain/src/communications.ts",
+            "packages/domain/src/communications.test.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/communications.integration.test.ts",
+            "apps/web/src/account/CommunicationCenter.tsx",
+          ],
+      },
+      {
+        "id": "workflow.polls",
+        "workflow": "compose-time polls, personalized changes, dashboard, and archival",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/pollService.ts; src/views/admin/PollsDashboardView.tsx;
+          test/pollService.test.ts",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/organization/pollStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/organization/organizationPollLinks.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/publicPoll.integration.test.ts",
+            "apps/web/src/public/PublicPollView.tsx",
+          ],
+      },
+      {
+        "id": "workflow.auditions",
+        "workflow": "public inquiry, requested slots, scheduling, status, and confirmations",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/auditionService.ts; src/views/admin/AuditionsView.tsx;
+          test/auditionService.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/web/src/public/PublicAuditionView.tsx",
+            "apps/web/src/account/AuditionManager.tsx",
+          ],
+      },
+      {
+        "id": "workflow.resources",
+        "workflow": "ordered file/link resources with member access",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/services/resourceService.ts; test/resourceService.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/organization/resourceStore.ts",
+            "apps/worker/src/organization/organizationResources.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/resources.integration.test.ts",
+            "apps/web/src/account/OrganizationResources.tsx",
+          ],
+      },
+      {
+        "id": "workflow.ticketing",
+        "workflow": "event/bundle sale, capacity, checkout, scan, will-call, and refund",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/ticketService.ts; src/views/admin/ticketing; test/pb-hooks/ticketing.test.ts",
+        "targetEvidence":
+          [
+            "packages/domain/src/ticketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/web/src/account/TicketingManager.tsx",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "workflow.donations",
+        "workflow": "donation checkout, tribute, anonymous, consent, patron linking, and refund",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/donationService.ts; src/views/admin/DonationsView.tsx;
+          test/donationService.test.ts",
+        "targetEvidence":
+          [
+            "packages/domain/src/donations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/web/src/public/PublicDonationView.tsx",
+            "apps/web/src/account/DonationsManager.tsx",
+          ],
+      },
+      {
+        "id": "workflow.public-site",
+        "workflow": "structured public website and module-aware navigation",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/views/PublicLandingView.tsx; src/views/admin/PublicWebsiteView.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/web/src/account/PublicWebsiteManager.tsx",
+            "apps/worker/src/organization/organizationPublicWebsite.ts",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
+      },
+      {
+        "id": "workflow.organization-export",
+        "workflow":
+          "portable Organization export with manifest, records, audit, files, and checksums",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "baseline CSV contracts plus accepted ADR 0015",
+        "targetEvidence":
+          [
+            "packages/domain/src/rosterCsv.ts",
+            "packages/domain/src/musicCsv.ts",
+            "packages/domain/src/donationCsv.ts",
+            "packages/domain/src/attendanceReportCsv.ts",
+            "packages/domain/src/eventRsvpCsv.ts",
+            "packages/domain/src/repertoireReportCsv.ts",
+          ],
+      },
+      {
+        "id": "workflow.platform-admin",
+        "workflow":
+          "single-Organization delegated platform administration with visible bounded elevation",
+        "owner": "apps/worker",
+        "milestone": 2,
+        "status": "implemented",
+        "baselineEvidence": "legacy Application Administrator behavior plus accepted ADR 0007",
+        "targetEvidence":
+          [
+            "apps/web/src/account/PlatformAccess.tsx",
+            "apps/web/src/account/PlatformOperations.tsx",
+            "apps/worker/src/auth/platformElevation.ts",
+          ],
+      },
+      {
+        "id": "workflow.custom-domains",
+        "workflow": "canonical Organization subdomain and custom public domain onboarding",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "baseline public routes plus accepted ADR 0005",
+        "targetEvidence":
+          [
+            "apps/worker/src/tenancy/registerPublicDomain.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/control/migrations/0003_provisioning.sql",
+          ],
+      },
+    ],
+  "fileBehaviors":
+    [
+      {
+        "id": "file.profile-photo",
+        "behavior": "private profile photo upload, replacement, deletion, and authorized rendering",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/profileService.ts:updateProfilePhoto; test/profileForm.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/profilePhotos.integration.test.ts",
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+          ],
+      },
+      {
+        "id": "file.music-audio",
+        "behavior": "music reference-track upload, metadata, streaming, and offline access",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/musicLibraryService.ts; src/services/offlineMediaStore.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/src/organization/musicStore.ts",
+            "apps/worker/test/files.integration.test.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/src/account/LearningTrackPlayer.tsx",
+            "apps/web/src/offline/mediaStore.ts",
+            "apps/web/src/offline/mediaStore.test.ts",
+          ],
+      },
+      {
+        "id": "file.singer-resource",
+        "behavior": "ordered private resource upload/link and member download",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/services/resourceService.ts; test/resourceService.test.ts",
+        "targetEvidence":
+          [
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/src/organization/resourceStore.ts",
+            "apps/worker/test/resources.integration.test.ts",
+            "apps/web/src/account/OrganizationResources.tsx",
+          ],
+      },
+      {
+        "id": "file.public-media",
+        "behavior": "logo, hero, and public media upload with immutable published URLs",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/settings/landingMedia.ts; src/views/admin/PublicWebsiteView.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/publication/publishOrganization.ts",
+            "apps/worker/src/organization/organizationPublicWebsite.ts",
+            "apps/worker/test/publicWebsite.integration.test.ts",
+          ],
+      },
+      {
+        "id": "file.r2-isolation",
+        "behavior":
+          "all object keys are Organization-scoped and private substitutions are rejected",
+        "owner": "apps/worker",
+        "milestone": 3,
+        "status": "implemented",
+        "baselineEvidence": "accepted ADR 0004 and legacy file authorization rules",
+        "targetEvidence":
+          [
+            "apps/worker/src/publication/publishOrganization.ts",
+            "apps/worker/src/storage/privateFiles.ts",
+            "apps/worker/test/files.integration.test.ts",
+            "apps/worker/test/publication.integration.test.ts",
+          ],
+      },
+    ],
+  "responsiveStates":
+    [
+      {
+        "id": "responsive.public",
+        "state": "public home/history/performance views at desktop and mobile",
+        "owner": "apps/web",
+        "milestone": 4,
+        "status": "implemented",
+        "baselineEvidence":
+          "test/views/PublicLandingView.test.tsx; test/views/PublicPastPerformancesView.test.tsx",
+        "targetEvidence":
+          [
+            "apps/web/e2e/foundation.spec.ts",
+            "apps/web/src/public/PublicOrganizationSite.tsx",
+            "apps/web/src/styles/theme.css",
+          ],
+      },
+      {
+        "id": "responsive.data-table",
+        "state": "administrative tables become labeled mobile cards without duplicate controls",
+        "owner": "packages/ui",
+        "milestone": 4,
+        "status": "implemented",
+        "baselineEvidence": "src/components/ui/DataTable.tsx; test/DataTable.test.tsx",
+        "targetEvidence":
+          [
+            "packages/ui/src/DataTable.tsx",
+            "packages/ui/src/index.ts",
+            "apps/web/src/styles/theme.css",
+          ],
+      },
+      {
+        "id": "responsive.dialogs",
+        "state": "dialogs fit mobile viewports, retain focus, and expose Cancel/Close",
+        "owner": "packages/ui",
+        "milestone": 4,
+        "status": "implemented",
+        "baselineEvidence": "src/contexts/DialogProvider.tsx; test/utils/focusRegression.ts",
+        "targetEvidence":
+          [
+            "packages/ui/src/Dialog.tsx",
+            "packages/ui/src/index.ts",
+            "apps/web/src/styles/theme.css",
+          ],
+      },
+      {
+        "id": "responsive.setup",
+        "state": "first-run setup remains usable and resumable on narrow screens",
+        "owner": "apps/web",
+        "milestone": 4,
+        "status": "implemented",
+        "baselineEvidence": "src/views/setup/SetupView.tsx; test/components/setup",
+        "targetEvidence": ["apps/web/src/styles/theme.css"],
+      },
+      {
+        "id": "responsive.communications",
+        "state": "communication wizard supports the baseline mobile send flow",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "docs/2026-07-13-communications-phase-1-mobile-send-flow.md;
+          test/CommunicationTabs.test.tsx",
+        "targetEvidence": ["apps/web/src/account/CommunicationCenter.tsx"],
+      },
+      {
+        "id": "responsive.seating",
+        "state": "seating editor and mirrored finder remain touch and keyboard usable",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "test/seatingLayoutRegression.test.ts; test/seatingMismatch.test.ts",
+        "targetEvidence": ["apps/web/src/styles/theme.css", "apps/web/e2e/auth.spec.ts"],
+      },
+      {
+        "id": "responsive.checkout",
+        "state": "ticket, bundle, donation, audition, and RSVP public forms work on mobile",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "public route views and ticketing/donation tests",
+        "targetEvidence":
+          [
+            "apps/web/src/public/PublicTickets.tsx",
+            "apps/web/src/styles/theme.css",
+            "apps/web/e2e/ticketing.spec.ts",
+          ],
+      },
+      {
+        "id": "responsive.theme",
+        "state": "semantic light/dark themes preserve readable contrast and recognizable character",
+        "owner": "packages/ui",
+        "milestone": 4,
+        "status": "implemented",
+        "baselineEvidence": "src/index.css; test/componentLibraryTokenUsage.test.ts",
+        "targetEvidence": ["apps/web/src/styles/theme.css"],
+      },
+    ],
 }

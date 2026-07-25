@@ -107,7 +107,7 @@ export async function submitPollResponse(
   const raw: unknown = profileRow.ok ? await readJsonSafe(profileRow) : null;
   const profile =
     raw !== null && typeof raw === "object"
-      ? z.object({ displayName: z.string().optional() }).safeParse(raw).data ?? null
+      ? (z.object({ displayName: z.string().optional() }).safeParse(raw).data ?? null)
       : null;
 
   const objectStub = stub(env, organizationId);

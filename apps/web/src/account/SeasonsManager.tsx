@@ -1,4 +1,10 @@
-import { duesRecordSchema, duesRecordsResponseSchema, seasonsResponseSchema, type DuesRecord, type Season } from "@choir/contracts";
+import {
+  duesRecordSchema,
+  duesRecordsResponseSchema,
+  seasonsResponseSchema,
+  type DuesRecord,
+  type Season,
+} from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 type SeasonState =
@@ -111,14 +117,18 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
       <div className="form-actions">
         <button
           className={`button ${tab === "seasons" ? "button--primary" : "button--secondary"}`}
-          onClick={() => { setTab("seasons"); }}
+          onClick={() => {
+            setTab("seasons");
+          }}
           type="button"
         >
           Seasons
         </button>
         <button
           className={`button ${tab === "dues" ? "button--primary" : "button--secondary"}`}
-          onClick={() => { setTab("dues"); }}
+          onClick={() => {
+            setTab("dues");
+          }}
           type="button"
         >
           Dues Records
@@ -141,7 +151,8 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
 
 function SeasonsTab({ seasonState }: { readonly seasonState: SeasonState }) {
   if (seasonState.status === "loading") return <p>Loading seasons…</p>;
-  if (seasonState.status === "error") return <p className="notice notice--error">Seasons could not be loaded.</p>;
+  if (seasonState.status === "error")
+    return <p className="notice notice--error">Seasons could not be loaded.</p>;
   if (seasonState.seasons.length === 0) return <p>No seasons yet.</p>;
   return (
     <div className="table-scroll">
@@ -170,7 +181,11 @@ function SeasonsTab({ seasonState }: { readonly seasonState: SeasonState }) {
 }
 
 function DuesTab({
-  busy, duesState, refund, refundId, setRefundId,
+  busy,
+  duesState,
+  refund,
+  refundId,
+  setRefundId,
 }: {
   readonly busy: boolean;
   readonly duesState: DuesState;
@@ -179,7 +194,8 @@ function DuesTab({
   readonly setRefundId: (id: string | null) => void;
 }) {
   if (duesState.status === "loading") return <p>Loading dues records…</p>;
-  if (duesState.status === "error") return <p className="notice notice--error">Dues records could not be loaded.</p>;
+  if (duesState.status === "error")
+    return <p className="notice notice--error">Dues records could not be loaded.</p>;
   if (duesState.dues.length === 0) return <p>No dues records yet.</p>;
   return (
     <div className="table-scroll">
@@ -208,7 +224,9 @@ function DuesTab({
                       <button
                         className="button button--secondary"
                         disabled={busy}
-                        onClick={() => { setRefundId(null); }}
+                        onClick={() => {
+                          setRefundId(null);
+                        }}
                         type="button"
                       >
                         Cancel
@@ -227,7 +245,9 @@ function DuesTab({
                   <button
                     className="text-button"
                     disabled={busy}
-                    onClick={() => { setRefundId(record.id); }}
+                    onClick={() => {
+                      setRefundId(record.id);
+                    }}
                     type="button"
                   >
                     Refund

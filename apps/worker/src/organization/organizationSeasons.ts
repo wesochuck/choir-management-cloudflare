@@ -79,11 +79,8 @@ export async function listSeasons(
   const url = new URL("https://organization.internal/internal/seasons/list");
   url.searchParams.set("organizationId", organizationId);
   const response = await stub(env, organizationId).fetch(url);
-  if (!response.ok)
-    throw new SeasonError("seasons_unavailable", 503, "Seasons unavailable.");
-  return seasonsResponseSchema
-    .omit({ requestId: true })
-    .parse(await response.json()).seasons;
+  if (!response.ok) throw new SeasonError("seasons_unavailable", 503, "Seasons unavailable.");
+  return seasonsResponseSchema.omit({ requestId: true }).parse(await response.json()).seasons;
 }
 
 export async function listDues(
@@ -93,11 +90,8 @@ export async function listDues(
   const url = new URL("https://organization.internal/internal/seasons/dues");
   url.searchParams.set("organizationId", organizationId);
   const response = await stub(env, organizationId).fetch(url);
-  if (!response.ok)
-    throw new SeasonError("dues_unavailable", 503, "Dues unavailable.");
-  return duesRecordsResponseSchema
-    .omit({ requestId: true })
-    .parse(await response.json()).dues;
+  if (!response.ok) throw new SeasonError("dues_unavailable", 503, "Dues unavailable.");
+  return duesRecordsResponseSchema.omit({ requestId: true }).parse(await response.json()).dues;
 }
 
 export async function refundDues(

@@ -607,7 +607,12 @@ async function verifySecondFactor(
 router.use("*", requestId());
 router.use("*", async (context, next) => {
   if (context.req.method === "OPTIONS") {
-    context.res.headers.set("access-control-allow-origin", context.env.PRODUCT_BASE_DOMAIN === "localhost" ? "*" : `https://${context.env.PRODUCT_BASE_DOMAIN}`);
+    context.res.headers.set(
+      "access-control-allow-origin",
+      context.env.PRODUCT_BASE_DOMAIN === "localhost"
+        ? "*"
+        : `https://${context.env.PRODUCT_BASE_DOMAIN}`,
+    );
     context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
     context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
     context.res.headers.set("access-control-allow-credentials", "true");
@@ -641,7 +646,12 @@ router.use("*", async (context, next) => {
   );
   context.header("x-content-type-options", "nosniff");
   context.header("x-frame-options", "DENY");
-  context.res.headers.set("access-control-allow-origin", context.env.PRODUCT_BASE_DOMAIN === "localhost" ? "*" : `https://${context.env.PRODUCT_BASE_DOMAIN}`);
+  context.res.headers.set(
+    "access-control-allow-origin",
+    context.env.PRODUCT_BASE_DOMAIN === "localhost"
+      ? "*"
+      : `https://${context.env.PRODUCT_BASE_DOMAIN}`,
+  );
   context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
   context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
   context.res.headers.set("access-control-allow-credentials", "true");
@@ -805,7 +815,9 @@ router.post("/api/checkout/create-donation-session", async (context) => {
             : "Online donation checkout is not available right now.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
-      error instanceof DonationError && (error.status === 409 || error.status === 501) ? error.status : 503,
+      error instanceof DonationError && (error.status === 409 || error.status === 501)
+        ? error.status
+        : 503,
     );
   }
 });
@@ -838,7 +850,12 @@ router.post("/api/checkout/create-dues-session", async (context) => {
   }
   try {
     return context.json(
-      await createDuesCheckoutSession(context.env, resolved.value.organizationId, new URL(context.req.url).origin, checkout.data),
+      await createDuesCheckoutSession(
+        context.env,
+        resolved.value.organizationId,
+        new URL(context.req.url).origin,
+        checkout.data,
+      ),
       201,
     );
   } catch (error: unknown) {
@@ -7907,11 +7924,20 @@ router.post("/api/test-smtp", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   let body: unknown;
   try {
@@ -7920,10 +7946,16 @@ router.post("/api/test-smtp", async (context) => {
     return context.json({ error: "Invalid request body" }, 400);
   }
   const parsed = z.object({ to: z.string().min(3).max(320) }).safeParse(body);
-  if (!parsed.success || !parsed.data.to.includes("@")) return context.json({ error: "Invalid email address" }, 400);
+  if (!parsed.success || !parsed.data.to.includes("@"))
+    return context.json({ error: "Invalid email address" }, 400);
   const mode: string = context.env.EXTERNAL_EFFECTS_MODE || "fake";
   if (mode === "fake") {
-    return context.json({ sent: true, mode: "fake", to: parsed.data.to, requestId: context.get("requestId") });
+    return context.json({
+      sent: true,
+      mode: "fake",
+      to: parsed.data.to,
+      requestId: context.get("requestId"),
+    });
   }
   return context.json({ error: "Real email sending not configured" }, 501);
 });
@@ -7932,11 +7964,20 @@ router.post("/api/test-sms", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   let body: unknown;
   try {
@@ -7948,7 +7989,12 @@ router.post("/api/test-sms", async (context) => {
   if (!parsed.success) return context.json({ error: "Invalid phone number" }, 400);
   const mode: string = context.env.EXTERNAL_EFFECTS_MODE || "fake";
   if (mode === "fake") {
-    return context.json({ sent: true, mode: "fake", to: parsed.data.to, requestId: context.get("requestId") });
+    return context.json({
+      sent: true,
+      mode: "fake",
+      to: parsed.data.to,
+      requestId: context.get("requestId"),
+    });
   }
   return context.json({ error: "Real SMS sending not configured" }, 501);
 });
@@ -7957,11 +8003,20 @@ router.get("/api/admin/queue-settings", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   return context.json({
     queue: "choir-management-jobs-local",
@@ -7975,11 +8030,20 @@ router.post("/api/admin/queue-settings/generate", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   return context.json({ generated: true, requestId: context.get("requestId") });
 });
@@ -7988,11 +8052,20 @@ router.post("/api/admin/bulk-update-rsvps", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   const requestUrl = new URL(context.req.url);
   const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
@@ -8013,11 +8086,20 @@ router.post("/api/singer/resolve-placeholders", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   const requestUrl = new URL(context.req.url);
   const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
@@ -8038,11 +8120,20 @@ router.post("/api/checkout/rsvp", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   const requestUrl = new URL(context.req.url);
   const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
@@ -8062,7 +8153,13 @@ router.post("/api/checkout/rsvp", async (context) => {
   } catch {
     return context.json({ error: "Invalid request body" }, 400);
   }
-  const parsed = z.object({ name: z.string().min(1).max(200), email: z.string().min(3).max(320), rsvp: z.enum(["Yes", "No", "Pending"]) }).safeParse(body);
+  const parsed = z
+    .object({
+      name: z.string().min(1).max(200),
+      email: z.string().min(3).max(320),
+      rsvp: z.enum(["Yes", "No", "Pending"]),
+    })
+    .safeParse(body);
   if (!parsed.success) return context.json({ error: "Invalid RSVP request" }, 400);
   return context.json({ rsvp: parsed.data.rsvp, requestId: context.get("requestId") });
 });
@@ -8071,11 +8168,20 @@ router.get("/api/singer/player-playlist", async (context) => {
   const auth = createAuth({
     env: context.env,
     requestUrl: new URL(context.req.url),
-    waitUntil: (promise) => { context.executionCtx.waitUntil(promise); },
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
   });
   const session = await auth.api.getSession({ headers: context.req.raw.headers });
   if (!session) {
-    return context.json({ code: "unauthorized", message: "Authentication required.", requestId: context.get("requestId") }, 401);
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Authentication required.",
+        requestId: context.get("requestId"),
+      },
+      401,
+    );
   }
   const requestUrl = new URL(context.req.url);
   const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);

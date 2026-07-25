@@ -466,9 +466,9 @@ Verified over public HTTPS on July 20–22, 2026:
 - New API endpoints verified: `POST /api/test-smtp` (200), `POST /api/test-sms` (200),
   `GET /api/admin/queue-settings` (200, returns staging queue config).
 - Production environment is explicitly isolated: `EXTERNAL_EFFECTS_MODE=disabled`,
-  `PLATFORM_EMAIL_MODE=disabled`, `workers_dev=false`, `PRODUCT_BASE_DOMAIN=invalid.example`.
-  The Worker name includes `-inert` to prevent accidental activation. No D1, queues, routes, or
-  custom domains are configured in the production environment.
+  `PLATFORM_EMAIL_MODE=disabled`, `workers_dev=false`, `PRODUCT_BASE_DOMAIN=invalid.example`. The
+  Worker name includes `-inert` to prevent accidental activation. No D1, queues, routes, or custom
+  domains are configured in the production environment.
 - Rollback runbook is documented at `docs/runbooks/rollback.md`. Version history is available for
   traffic shift to the previous deployment. No forward-written columns or tables require deletion.
 - CI/CD: automatic staging deploy from main via `.github/workflows/deploy-staging.yml` after CI
@@ -477,8 +477,8 @@ Verified over public HTTPS on July 20–22, 2026:
 
 ## Completed foundation checks
 
-- `npm run check:parity`: 164 inventory entries validated across 9 sections, all 164 implemented
-  (0 planned, 0 partial). Donation workflow, seasons/dues workflow, setup wizard system, responsive
+- `npm run check:parity`: 164 inventory entries validated across 9 sections, all 164 implemented (0
+  planned, 0 partial). Donation workflow, seasons/dues workflow, setup wizard system, responsive
   DataTable/Dialog, and 20+ individual parity items were implemented. New Organization schema
   versions 27 (donations/patrons), 28 (seasons/dues), and 29 (setup_state) are forward-only and
   compatible with existing stores.
@@ -499,9 +499,9 @@ Verified over public HTTPS on July 20–22, 2026:
 - `npm audit --audit-level=high`: zero known vulnerabilities.
 
 The full parity matrix of 164 entries across 9 sections is now complete with all entries classified
-as implemented. No planned or partial entries remain. All quality gates pass: lint, typecheck, build,
-unit tests (78/78), integration tests (105/105), E2E tests (50/50), parity validation (164/164),
-and dependency audit (0 high+ vulnerabilities).
+as implemented. No planned or partial entries remain. All quality gates pass: lint, typecheck,
+build, unit tests (78/78), integration tests (105/105), E2E tests (50/50), parity validation
+(164/164), and dependency audit (0 high+ vulnerabilities).
 
 The current identity proof uses Better Auth `1.6.23` directly against D1. It covers no public
 registration, invitation-created pending identities, hashed email OTP storage and sign-in, optional

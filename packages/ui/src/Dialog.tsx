@@ -23,9 +23,13 @@ export function Dialog({ children, onClose, open, title }: DialogProps) {
   useEffect(() => {
     const el = dialogRef.current;
     if (!el) return;
-    function handleClose() { onClose(); }
+    function handleClose() {
+      onClose();
+    }
     el.addEventListener("close", handleClose);
-    return () => { el.removeEventListener("close", handleClose); };
+    return () => {
+      el.removeEventListener("close", handleClose);
+    };
   }, [onClose]);
 
   return (

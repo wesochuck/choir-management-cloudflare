@@ -36,10 +36,7 @@ export interface PatronRecord {
   readonly totalDonatedCents: number;
 }
 
-export function canTransitionDonation(
-  current: DonationStatus,
-  next: DonationStatus,
-): boolean {
+export function canTransitionDonation(current: DonationStatus, next: DonationStatus): boolean {
   return (
     current === next ||
     (current === "pending" && next === "paid") ||

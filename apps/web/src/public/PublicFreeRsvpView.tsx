@@ -43,7 +43,9 @@ export function PublicFreeRsvpView() {
           <label htmlFor="rsvp-name">Name</label>
           <input
             id="rsvp-name"
-            onChange={(e) => { setName(e.target.value); }}
+            onChange={(e) => {
+              setName(e.target.value);
+            }}
             type="text"
             value={name}
           />
@@ -52,12 +54,18 @@ export function PublicFreeRsvpView() {
           <label htmlFor="rsvp-email">Email</label>
           <input
             id="rsvp-email"
-            onChange={(e) => { setEmail(e.target.value); }}
+            onChange={(e) => {
+              setEmail(e.target.value);
+            }}
             type="email"
             value={email}
           />
         </div>
-        {error ? <p className="notice notice--error" role="alert">{error}</p> : null}
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
         <div className="hero__actions">
           <button
             className="button button--primary"

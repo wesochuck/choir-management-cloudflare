@@ -264,7 +264,11 @@ function TokenBar({
   );
 }
 
-function StatusNotice({ message }: { readonly message: { readonly id: string; readonly text: string } | null }) {
+function StatusNotice({
+  message,
+}: {
+  readonly message: { readonly id: string; readonly text: string } | null;
+}) {
   if (!message) return null;
   return (
     <p className="notice notice--success" role="status">
