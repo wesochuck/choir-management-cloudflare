@@ -56,7 +56,7 @@ CREATE TABLE platform_elevations (
   expires_at TEXT NOT NULL,
   revoked_at TEXT,
   created_at TEXT NOT NULL,
-  session_id TEXT REFERENCES session(id)
+  session_id TEXT REFERENCES session(id) ON DELETE SET NULL
 ) STRICT;
 
 INSERT INTO platform_elevations SELECT * FROM _elevations_backup;
