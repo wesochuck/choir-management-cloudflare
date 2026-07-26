@@ -36,6 +36,7 @@ import {
   organizationRosterConfigurationResponseSchema,
   organizationSeatingChartSchema,
   organizationSeatingChartsResponseSchema,
+  organizationSeatingChartOrderResponseSchema,
   seatingConfigurationResponseSchema,
   singerSeatingResponseSchema,
   organizationMfaPolicyResponseSchema,
@@ -901,6 +902,17 @@ export async function deleteOrganizationSeatingChart(
     `/api/organization/events/${encodeURIComponent(eventId)}/seating-charts/${encodeURIComponent(chartId)}`,
     { method: "DELETE" },
   );
+}
+
+export async function reorderOrganizationSeatingCharts(
+  eventId: string,
+  chartIds: readonly string[],
+): Promise<readonly OrganizationSeatingChart[]> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/seating-charts/order`,
+    { body: JSON.stringify({ chartIds }), method: "PUT" },
+  );
+  return organizationSeatingChartOrderResponseSchema.parse(await response.json()).charts;
 }
 
 export async function getMyEventSeating(

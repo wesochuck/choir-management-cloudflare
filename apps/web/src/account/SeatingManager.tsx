@@ -1,6 +1,7 @@
 import type {
   OrganizationEvent,
   OrganizationProfile,
+  OrganizationProfileRequest,
   OrganizationRosterConfiguration,
   OrganizationSeatingChart,
   OrganizationSeatingChartRequest,
@@ -8,11 +9,22 @@ import type {
   SeatingConfiguration,
   SeatingFormation,
 } from "@choir/contracts";
-import { calculateSeatingSuggestions } from "@choir/domain";
-import { useEffect, useState } from "react";
+import {
+  addRow,
+  addSeat,
+  calculateSeatingSuggestions,
+  isSeatingSectionMismatch,
+  moveAssignment,
+  removeRow,
+  removeSeat,
+  unassignProfile,
+} from "@choir/domain";
+import { Dialog } from "@choir/ui";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import {
-  createOrganizationSeatingChart,
+  AuthApiError,
+  createOrganizationProfile,
   deleteOrganizationSeatingChart,
   getOrganizationRosterConfiguration,
   getOrganizationSeatingConfiguration,
@@ -21,8 +33,11 @@ import {
   listOrganizationProfiles,
   listOrganizationSeatingCharts,
   listOrganizationVenues,
+  reorderOrganizationSeatingCharts,
+  setOrganizationEventRsvp,
   updateOrganizationSeatingChart,
   updateOrganizationSeatingConfiguration,
+  createOrganizationSeatingChart,
 } from "../auth/api";
 
 interface SeatingResources {
@@ -33,14 +48,33 @@ interface SeatingResources {
   readonly venues: readonly OrganizationVenue[];
 }
 
+type ViewMode = "grid" | "list";
+type SaveState = "idle" | "saving" | "saved" | "error";
+
+const defaultRows = [8, 10, 12];
 const emptyChart: OrganizationSeatingChartRequest = {
   assignments: {},
   formationId: "columns-standard",
   name: "Main Seating Chart",
-  rowCounts: [8, 10, 12],
+  rowCounts: defaultRows,
   sectionSuggestions: {},
   sortOrder: 0,
   venueId: null,
+};
+
+const emptyProfile: OrganizationProfileRequest = {
+  displayName: "",
+  doNotEmail: false,
+  globalStatus: "Active",
+  isSectionLeader: false,
+  notes: "",
+  phone: "",
+  receiveAdminNotifications: true,
+  receiveAttendanceReports: true,
+  receiveFinancialAlerts: false,
+  receiveRsvpDeclineNotices: false,
+  showInDirectory: true,
+  voicePart: "",
 };
 
 function chartRequest(chart: OrganizationSeatingChart): OrganizationSeatingChartRequest {
@@ -55,12 +89,73 @@ function chartRequest(chart: OrganizationSeatingChart): OrganizationSeatingChart
   };
 }
 
-function parseRows(value: string): number[] | null {
-  const rows = value.split(",").map((item) => Number(item.trim()));
-  return rows.length > 0 &&
-    rows.every((count) => Number.isInteger(count) && count > 0 && count <= 200)
-    ? rows
-    : null;
+function useIsNarrowScreen(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 700px)");
+    const update = () => {
+      setNarrow(media.matches);
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => {
+      media.removeEventListener("change", update);
+    };
+  }, []);
+  return narrow;
+}
+
+function formatEventDate(startsAt: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(startsAt));
+  } catch {
+    return startsAt;
+  }
+}
+
+function statusLabel(status: OrganizationProfile["globalStatus"]): string {
+  return status === "Idle" ? "On Break" : status;
+}
+
+interface ConfirmState {
+  readonly confirmLabel: string;
+  readonly message: string;
+  readonly onConfirm: () => void | Promise<void>;
+  readonly title: string;
+}
+
+function ConfirmDialog({
+  state,
+  onClose,
+}: {
+  readonly onClose: () => void;
+  readonly state: ConfirmState | null;
+}) {
+  if (!state) return null;
+  return (
+    <Dialog onClose={onClose} open title={state.title} description="This action cannot be undone.">
+      <div className="form-stack">
+        <p>{state.message}</p>
+        <div className="form-actions">
+          <button className="button button--secondary" onClick={onClose} type="button">
+            Cancel
+          </button>
+          <button
+            className="button button--danger"
+            onClick={() => {
+              void state.onConfirm();
+            }}
+            type="button"
+          >
+            {state.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
 }
 
 function FormationEditor({
@@ -69,18 +164,18 @@ function FormationEditor({
   onSaved,
 }: {
   readonly initial: SeatingConfiguration;
-  readonly onSaved: (configuration: SeatingConfiguration) => void;
+  readonly onSaved: (next: SeatingConfiguration) => void;
   readonly roster: OrganizationRosterConfiguration;
 }) {
   const [configuration, setConfiguration] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  function updateFormation(index: number, next: SeatingFormation): void {
+  function updateFormation(index: number, formation: SeatingFormation): void {
     setConfiguration((current) => ({
       ...current,
-      formations: current.formations.map((formation, itemIndex) =>
-        itemIndex === index ? next : formation,
+      formations: current.formations.map((candidate, candidateIndex) =>
+        candidateIndex === index ? formation : candidate,
       ),
     }));
   }
@@ -92,19 +187,24 @@ function FormationEditor({
       const saved = await updateOrganizationSeatingConfiguration(configuration);
       setConfiguration(saved);
       onSaved(saved);
-      setMessage("Seating formations saved.");
+      setMessage("Reusable formations saved.");
     } catch (caught: unknown) {
-      setMessage(
-        caught instanceof Error ? caught.message : "Seating formations could not be saved.",
-      );
+      setMessage(caught instanceof Error ? caught.message : "Formations could not be saved.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <details className="seating-formations">
-      <summary>Manage reusable formations</summary>
+    <section
+      className="seating-formations seating-formations--focused"
+      aria-labelledby="formation-title"
+    >
+      <div className="section-heading section-heading--compact">
+        <p className="eyebrow">Seating</p>
+        <h2 id="formation-title">Reusable formations</h2>
+        <p>Choose the section order and placement strategy used by new charts.</p>
+      </div>
       <div className="form-stack">
         <label className="field">
           Default formation
@@ -125,7 +225,7 @@ function FormationEditor({
           </select>
         </label>
         {configuration.formations.map((formation, index) => (
-          <fieldset className="seating-formation" key={formation.id} disabled={busy}>
+          <fieldset className="seating-formation" disabled={busy} key={formation.id}>
             <legend>{formation.name}</legend>
             <label className="field">
               Name
@@ -167,91 +267,321 @@ function FormationEditor({
               Arrange individual voice parts
             </label>
             <label className="field">
-              Order (comma separated)
+              Section or voice-part order
               <input
                 value={formation.sectionOrder.join(", ")}
                 onChange={(event) => {
-                  const sectionOrder = event.target.value
-                    .split(",")
-                    .map((value) => value.trim())
-                    .filter(Boolean);
-                  updateFormation(index, { ...formation, sectionOrder });
+                  updateFormation(index, {
+                    ...formation,
+                    sectionOrder: event.target.value
+                      .split(",")
+                      .map((value) => value.trim())
+                      .filter(Boolean),
+                  });
                 }}
               />
             </label>
-            <button
-              className="button button--secondary"
-              disabled={
-                configuration.formations.length === 1 ||
-                configuration.defaultFormationId === formation.id
-              }
-              type="button"
-              onClick={() => {
-                setConfiguration((current) => ({
-                  ...current,
-                  formations: current.formations.filter(({ id }) => id !== formation.id),
-                }));
-              }}
-            >
-              Remove formation
-            </button>
           </fieldset>
         ))}
-        <button
-          className="button button--secondary"
-          type="button"
-          onClick={() => {
-            const ids = new Set(configuration.formations.map(({ id }) => id));
-            let suffix = configuration.formations.length + 1;
-            while (ids.has(`formation-${String(suffix)}`)) suffix += 1;
-            const sectionOrder = roster.sections
-              .filter(({ trackOnly }) => !trackOnly)
-              .map(({ code }) => code);
-            setConfiguration((current) => ({
-              ...current,
-              formations: [
-                ...current.formations,
-                {
-                  id: `formation-${String(suffix)}`,
-                  isVoicePartLayout: false,
-                  name: "New formation",
-                  sectionOrder,
-                  strategy: "vertical_column",
-                },
-              ],
-            }));
-          }}
-        >
-          Add formation
-        </button>
-        <button
-          className="button button--primary"
-          disabled={busy}
-          type="button"
-          onClick={() => {
-            void save();
-          }}
-        >
-          {busy ? "Saving formations…" : "Save formations"}
-        </button>
-        {message ? <p role="status">{message}</p> : null}
+        <div className="form-actions">
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={() => {
+              const id = `formation-${String(configuration.formations.length + 1)}`;
+              setConfiguration((current) => ({
+                ...current,
+                formations: [
+                  ...current.formations,
+                  {
+                    id,
+                    isVoicePartLayout: false,
+                    name: "New formation",
+                    sectionOrder: roster.sections
+                      .filter(({ trackOnly }) => !trackOnly)
+                      .map(({ code }) => code),
+                    strategy: "vertical_column",
+                  },
+                ],
+              }));
+            }}
+            type="button"
+          >
+            Add formation
+          </button>
+          <button
+            className="button button--primary"
+            disabled={busy}
+            onClick={() => void save()}
+            type="button"
+          >
+            {busy ? "Saving…" : "Save formations"}
+          </button>
+        </div>
+        {message ? (
+          <p className="notice notice--success" role="status">
+            {message}
+          </p>
+        ) : null}
       </div>
-    </details>
+    </section>
+  );
+}
+
+interface SeatTileProps {
+  readonly assigned: OrganizationProfile | undefined;
+  readonly label: string;
+  readonly mismatch: boolean;
+  readonly onActivate: () => void;
+  readonly onDrop: (token: string) => void;
+  readonly seatKey: string;
+  readonly suggestion: string | undefined;
+}
+
+function UnassignedProfileChip({
+  onRemove,
+  profile,
+}: {
+  readonly onRemove: (profile: OrganizationProfile) => void;
+  readonly profile: OrganizationProfile;
+}) {
+  return (
+    <div
+      className="seating-profile-chip"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData("text/plain", `profile:${profile.id}`);
+        event.dataTransfer.effectAllowed = "move";
+      }}
+    >
+      <span>{profile.displayName}</span>
+      <button
+        aria-label={`Mark ${profile.displayName} not attending`}
+        onClick={() => {
+          onRemove(profile);
+        }}
+        type="button"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+function SeatTile({
+  assigned,
+  label,
+  mismatch,
+  onActivate,
+  onDrop,
+  seatKey,
+  suggestion,
+}: SeatTileProps) {
+  return (
+    <button
+      aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
+      className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
+      draggable={Boolean(assigned)}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDragStart={(event) => {
+        event.dataTransfer.setData("text/plain", `seat:${seatKey}`);
+        event.dataTransfer.effectAllowed = "move";
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop(event.dataTransfer.getData("text/plain"));
+      }}
+      onClick={onActivate}
+      type="button"
+    >
+      <span className="seating-seat__number">{label}</span>
+      <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>
+      <strong>{assigned?.displayName ?? "Empty"}</strong>
+      {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
+      {mismatch ? <span className="seating-seat__warning">Voice part mismatch</span> : null}
+    </button>
+  );
+}
+
+function UnassignedTray({
+  profiles,
+  onAdd,
+  onLookup,
+  onRemoveRsvp,
+  onDrop,
+  query,
+  setQuery,
+}: {
+  readonly onAdd: () => void;
+  readonly onLookup: () => void;
+  readonly onRemoveRsvp: (profile: OrganizationProfile) => void;
+  readonly onDrop: (token: string) => void;
+  readonly profiles: readonly OrganizationProfile[];
+  readonly query: string;
+  readonly setQuery: (value: string) => void;
+}) {
+  const groups = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase();
+    const filtered = normalized
+      ? profiles.filter(({ displayName, voicePart }) =>
+          `${displayName} ${voicePart}`.toLocaleLowerCase().includes(normalized),
+        )
+      : profiles;
+    const grouped = new Map<string, OrganizationProfile[]>();
+    filtered.forEach((profile) => {
+      const key = profile.voicePart || "Other";
+      const list = grouped.get(key) ?? [];
+      list.push(profile);
+      grouped.set(key, list);
+    });
+    return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right));
+  }, [profiles, query]);
+  return (
+    <section
+      className="seating-tray"
+      aria-labelledby="unassigned-title"
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop(event.dataTransfer.getData("text/plain"));
+      }}
+    >
+      <div className="seating-tray__header">
+        <div>
+          <h2 id="unassigned-title">Unassigned Profiles</h2>
+          <p>Drag a Profile to a seat, or drop a seat here to clear it.</p>
+        </div>
+        <span className="status-pill">{profiles.length}</span>
+      </div>
+      <div className="seating-tray__actions">
+        <input
+          aria-label="Search unassigned Profiles"
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+          placeholder="Search Profiles"
+          type="search"
+          value={query}
+        />
+        <button className="button button--secondary button--small" onClick={onLookup} type="button">
+          Lookup
+        </button>
+        <button className="button button--secondary button--small" onClick={onAdd} type="button">
+          Add Profile
+        </button>
+      </div>
+      <div className="seating-tray__groups">
+        {groups.map(([group, groupProfiles]) => (
+          <div className="seating-tray__group" key={group}>
+            <h3>
+              {group} <span>{groupProfiles.length}</span>
+            </h3>
+            <div className="seating-tray__profiles">
+              {groupProfiles.map((profile) => (
+                <UnassignedProfileChip key={profile.id} onRemove={onRemoveRsvp} profile={profile} />
+              ))}
+            </div>
+          </div>
+        ))}
+        {groups.length === 0 ? (
+          <p className="empty-state">All eligible Profiles are assigned.</p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function ChartList({
+  chart,
+  profilesById,
+  showVoiceParts,
+}: {
+  readonly chart: OrganizationSeatingChartRequest;
+  readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
+  readonly showVoiceParts: boolean;
+}) {
+  return (
+    <div className="seating-list-view" aria-label="Text seating list">
+      {[...chart.rowCounts.keys()].reverse().map((rowIndex) => (
+        <section className="seating-list-row" key={rowIndex}>
+          <h3>Row {rowIndex + 1}</h3>
+          <ol>
+            {Array.from({ length: chart.rowCounts[rowIndex] ?? 0 }, (_, seatIndex) => {
+              const profile = profilesById.get(chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`] ?? "");
+              return (
+                <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
+                  <span>Seat {seatIndex + 1}</span>
+                  <strong>{profile?.displayName ?? "Empty"}</strong>
+                  {showVoiceParts && profile ? <em>{profile.voicePart}</em> : null}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ))}
+    </div>
   );
 }
 
 export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
+  const isNarrow = useIsNarrowScreen();
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRevisionRef = useRef(0);
+  const chartRef = useRef<OrganizationSeatingChartRequest | null>(null);
+  const editingIdRef = useRef<string | null>(null);
+  const eventIdRef = useRef("");
   const [resources, setResources] = useState<SeatingResources | null>(null);
   const [eventId, setEventId] = useState("");
   const [charts, setCharts] = useState<readonly OrganizationSeatingChart[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [chart, setChart] = useState<OrganizationSeatingChartRequest>(emptyChart);
-  const [eligibleProfiles, setEligibleProfiles] = useState<readonly OrganizationProfile[]>([]);
-  const [rowsInput, setRowsInput] = useState("8, 10, 12");
-  const [busy, setBusy] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [attendance, setAttendance] = useState<
+    readonly { readonly profileId: string; readonly rsvp: "No" | "Pending" | "Yes" }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [showVoiceParts, setShowVoiceParts] = useState(true);
+  const [mobileEditing, setMobileEditing] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [fallbackFocus, setFallbackFocus] = useState(false);
+  const [formationTab, setFormationTab] = useState<"chart" | "formations">("chart");
+  const [query, setQuery] = useState("");
+  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [chartDialog, setChartDialog] = useState<"create" | "rename" | null>(null);
+  const [chartName, setChartName] = useState("");
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyPerformanceId, setCopyPerformanceId] = useState("");
+  const [copyCharts, setCopyCharts] = useState<readonly OrganizationSeatingChart[]>([]);
+  const [copyChartId, setCopyChartId] = useState("");
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [profileDialog, setProfileDialog] = useState<"add" | "lookup" | null>(null);
+  const [profileForm, setProfileForm] = useState<OrganizationProfileRequest>(emptyProfile);
+  const [lookupQuery, setLookupQuery] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const updateUrl = useCallback((nextEventId: string, nextChartId: string | null) => {
+    const params = new URLSearchParams(window.location.search);
+    if (nextEventId) params.set("eventId", nextEventId);
+    else params.delete("eventId");
+    if (nextChartId) params.set("chartId", nextChartId);
+    else params.delete("chartId");
+    const queryString = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${queryString ? `?${queryString}` : ""}`,
+    );
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -265,18 +595,31 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     ])
       .then(([events, profiles, venues, roster, seating]) => {
         const performances = events.filter(({ type }) => type === "Performance");
-        setResources({ events: performances, profiles, roster, seating, venues });
-        const firstEvent = performances[0];
-        if (firstEvent) setEventId(firstEvent.id);
-        setChart((current) => ({ ...current, formationId: seating.defaultFormationId }));
+        setResources({ events: performances, profiles, venues, roster, seating });
+        const requested = new URLSearchParams(window.location.search).get("eventId");
+        const selected = performances.some(({ id }) => id === requested)
+          ? requested
+          : (performances[0]?.id ?? "");
+        setEventId(selected ?? "");
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setError("Seating resources could not be loaded.");
+      .catch((caught: unknown) => {
+        if (!(caught instanceof DOMException && caught.name === "AbortError")) {
+          setError(
+            caught instanceof Error ? caught.message : "Seating resources could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        setLoading(false);
       });
     return () => {
       controller.abort();
     };
   }, [enabled]);
+
+  useEffect(() => {
+    eventIdRef.current = eventId;
+  }, [eventId]);
 
   useEffect(() => {
     if (!enabled || !eventId || !resources) return;
@@ -285,378 +628,1369 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
       listOrganizationSeatingCharts(eventId, controller.signal),
       listOrganizationEventAttendance(eventId, controller.signal),
     ])
-      .then(([nextCharts, attendance]) => {
+      .then(([nextCharts, nextAttendance]) => {
         setCharts(nextCharts);
-        const attending = new Set(
-          attendance.filter(({ rsvp }) => rsvp === "Yes").map(({ profileId }) => profileId),
-        );
-        setEligibleProfiles(
-          resources.profiles.filter(
-            (profile) =>
-              attending.has(profile.id) &&
-              profile.globalStatus === "Active" &&
-              profile.voicePart !== "",
-          ),
-        );
-        const first = nextCharts[0];
-        setEditingId(first?.id ?? null);
-        setChart(
-          first
-            ? chartRequest(first)
-            : { ...emptyChart, formationId: resources.seating.defaultFormationId },
-        );
-        setRowsInput((first?.rowCounts ?? emptyChart.rowCounts).join(", "));
+        setAttendance(nextAttendance);
+        const requestedChart = new URLSearchParams(window.location.search).get("chartId");
+        const active = nextCharts.find(({ id }) => id === requestedChart) ?? nextCharts[0];
+        const nextId = active?.id ?? null;
+        const nextChart = active
+          ? chartRequest(active)
+          : { ...emptyChart, formationId: resources.seating.defaultFormationId, venueId: null };
+        setEditingId(nextId);
+        editingIdRef.current = nextId;
+        setChart(nextChart);
+        chartRef.current = nextChart;
+        updateUrl(eventId, nextId);
+        setError(null);
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setError("Performance seating could not be loaded.");
+      .catch((caught: unknown) => {
+        if (!(caught instanceof DOMException && caught.name === "AbortError")) {
+          setError(
+            caught instanceof Error ? caught.message : "Performance seating could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        setLoading(false);
       });
     return () => {
       controller.abort();
     };
-  }, [enabled, eventId, resources]);
+  }, [enabled, eventId, resources, updateUrl]);
 
-  if (!enabled) return null;
+  const eligibleProfiles = useMemo(() => {
+    if (!resources) return [];
+    const attending = new Set(
+      attendance.filter(({ rsvp }) => rsvp === "Yes").map(({ profileId }) => profileId),
+    );
+    return resources.profiles.filter(
+      (profile) =>
+        profile.globalStatus === "Active" &&
+        Boolean(profile.voicePart.trim()) &&
+        attending.has(profile.id),
+    );
+  }, [attendance, resources]);
+  const profilesById = useMemo(
+    () => new Map((resources?.profiles ?? []).map((profile) => [profile.id, profile])),
+    [resources?.profiles],
+  );
+  const assignedIds = useMemo(() => new Set(Object.values(chart.assignments)), [chart.assignments]);
+  const unassignedProfiles = useMemo(
+    () => eligibleProfiles.filter(({ id }) => !assignedIds.has(id)),
+    [assignedIds, eligibleProfiles],
+  );
+  const currentFormation = useMemo(() => {
+    const found = resources?.seating.formations.find(({ id }) => id === chart.formationId);
+    return found ?? resources?.seating.formations[0] ?? null;
+  }, [chart.formationId, resources?.seating.formations]);
 
-  function selectChart(next: OrganizationSeatingChart): void {
-    setEditingId(next.id);
-    setChart(chartRequest(next));
-    setRowsInput(next.rowCounts.join(", "));
-    setDeleteConfirm(false);
+  const saveChart = useCallback(
+    async (payload: OrganizationSeatingChartRequest, revision: number): Promise<void> => {
+      if (!eventIdRef.current || !editingIdRef.current) return;
+      setSaveState("saving");
+      try {
+        const saved = await updateOrganizationSeatingChart(
+          eventIdRef.current,
+          editingIdRef.current,
+          payload,
+        );
+        if (revision === saveRevisionRef.current) {
+          setChart(chartRequest(saved));
+          chartRef.current = chartRequest(saved);
+          setCharts((current) =>
+            current.map((candidate) => (candidate.id === saved.id ? saved : candidate)),
+          );
+          setSaveState("saved");
+        }
+      } catch (caught: unknown) {
+        if (revision === saveRevisionRef.current) setSaveState("error");
+        setError(
+          caught instanceof Error ? caught.message : "The seating chart could not be saved.",
+        );
+      }
+    },
+    [],
+  );
+
+  const scheduleSave = useCallback(
+    (next: OrganizationSeatingChartRequest): void => {
+      chartRef.current = next;
+      setChart(next);
+      if (!editingIdRef.current) {
+        setSaveState("idle");
+        return;
+      }
+      saveRevisionRef.current += 1;
+      const revision = saveRevisionRef.current;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = null;
+        void saveChart(next, revision);
+      }, 750);
+    },
+    [saveChart],
+  );
+
+  const flushSave = useCallback(async (): Promise<boolean> => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (!editingIdRef.current || !chartRef.current || saveState === "saved" || saveState === "idle")
+      return true;
+    const revision = saveRevisionRef.current;
+    await saveChart(chartRef.current, revision);
+    return saveState !== "error";
+  }, [saveChart, saveState]);
+
+  function applyChart(next: OrganizationSeatingChartRequest): void {
     setError(null);
-    setSuccess(null);
+    scheduleSave(next);
   }
 
-  function beginNewChart(): void {
-    if (!resources) return;
-    const next = {
-      ...emptyChart,
-      formationId: resources.seating.defaultFormationId,
-      sortOrder: charts.length,
-    };
-    setEditingId(null);
-    setChart(next);
-    setRowsInput(next.rowCounts.join(", "));
-    setDeleteConfirm(false);
-  }
-
-  function applyRows(): void {
-    const rows = parseRows(rowsInput);
-    if (!rows) {
-      setError("Rows must be comma-separated whole numbers from 1 through 200.");
+  async function changeEvent(nextEventId: string): Promise<void> {
+    if (nextEventId === eventId) return;
+    setLoading(true);
+    const flushed = await flushSave();
+    if (!flushed) {
+      setConfirmState({
+        title: "Unsaved seating changes",
+        message:
+          "The current chart could not be saved. Stay here and retry before changing Performance.",
+        confirmLabel: "Retry",
+        onConfirm: () => void flushSave(),
+      });
       return;
     }
-    setChart((current) => ({
-      ...current,
-      assignments: {},
-      rowCounts: rows,
-      sectionSuggestions: {},
-    }));
-    setError(null);
+    setEventId(nextEventId);
+    updateUrl(nextEventId, null);
+  }
+
+  async function createChart(): Promise<void> {
+    if (!eventId || !resources) return;
+    setSaveState("saving");
+    try {
+      const created = await createOrganizationSeatingChart(eventId, {
+        ...chart,
+        name: chart.name.trim() || "Main Seating Chart",
+        formationId: chart.formationId || resources.seating.defaultFormationId,
+      });
+      setCharts((current) =>
+        [...current, created].toSorted((left, right) => left.sortOrder - right.sortOrder),
+      );
+      setEditingId(created.id);
+      editingIdRef.current = created.id;
+      const next = chartRequest(created);
+      setChart(next);
+      chartRef.current = next;
+      setChartDialog(null);
+      updateUrl(eventId, created.id);
+      setSaveState("saved");
+    } catch (caught: unknown) {
+      setSaveState("error");
+      setError(
+        caught instanceof Error ? caught.message : "The seating chart could not be created.",
+      );
+    }
+  }
+
+  function renameChart(): void {
+    if (!editingId || !chartName.trim()) return;
+    const next = { ...chart, name: chartName.trim() };
+    applyChart(next);
+    setChartDialog(null);
+  }
+
+  async function deleteChart(): Promise<void> {
+    if (!editingId || !eventId || charts.length <= 1) return;
+    try {
+      await flushSave();
+      await deleteOrganizationSeatingChart(eventId, editingId);
+      const remaining = charts.filter(({ id }) => id !== editingId);
+      setCharts(remaining);
+      const next = remaining[0];
+      const nextId = next?.id ?? null;
+      setEditingId(nextId);
+      editingIdRef.current = nextId;
+      const nextChart = next ? chartRequest(next) : { ...emptyChart };
+      setChart(nextChart);
+      chartRef.current = nextChart;
+      updateUrl(eventId, nextId);
+      setSaveState("saved");
+    } catch (caught: unknown) {
+      setSaveState("error");
+      setError(
+        caught instanceof Error ? caught.message : "The seating chart could not be deleted.",
+      );
+    }
+  }
+
+  async function reorderCharts(direction: -1 | 1): Promise<void> {
+    if (!editingId || !eventId) return;
+    const index = charts.findIndex(({ id }) => id === editingId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= charts.length) return;
+    const ordered = [...charts];
+    const [moved] = ordered.splice(index, 1);
+    if (!moved) return;
+    ordered.splice(target, 0, moved);
+    try {
+      const saved = await reorderOrganizationSeatingCharts(
+        eventId,
+        ordered.map(({ id }) => id),
+      );
+      setCharts(saved);
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : "Charts could not be reordered.");
+    }
+  }
+
+  function selectChart(nextId: string): void {
+    const nextChart = charts.find(({ id }) => id === nextId);
+    if (!nextChart) return;
+    void (async () => {
+      if (!(await flushSave())) return;
+      const next = chartRequest(nextChart);
+      setEditingId(nextId);
+      editingIdRef.current = nextId;
+      setChart(next);
+      chartRef.current = next;
+      setSaveState("saved");
+      updateUrl(eventId, nextId);
+    })();
+  }
+
+  function handleDropToken(token: string, targetSeatKey?: string): void {
+    if (!token) return;
+    if (!targetSeatKey) {
+      if (!token.startsWith("seat:")) return;
+      const seatKey = token.slice("seat:".length);
+      applyChart({
+        ...chart,
+        assignments: Object.fromEntries(
+          Object.entries(chart.assignments).filter(([key]) => key !== seatKey),
+        ),
+      });
+      return;
+    }
+    if (token.startsWith("seat:")) {
+      const sourceSeatKey = token.slice("seat:".length);
+      applyChart({
+        ...chart,
+        assignments: moveAssignment(chart.assignments, sourceSeatKey, targetSeatKey),
+      });
+    } else if (token.startsWith("profile:")) {
+      const profileId = token.slice("profile:".length);
+      applyChart({
+        ...chart,
+        assignments: moveAssignment(chart.assignments, "", targetSeatKey, profileId),
+      });
+    }
+  }
+
+  function updateLayout(nextLayout: ReturnType<typeof addRow>): void {
+    applyChart({
+      ...chart,
+      assignments: nextLayout.assignments,
+      rowCounts: nextLayout.rowCounts,
+      sectionSuggestions: nextLayout.sectionSuggestions,
+    });
+  }
+
+  function requestRemoveSeat(rowIndex: number, seatIndex: number): void {
+    const key = `${String(rowIndex)}-${String(seatIndex)}`;
+    const occupant = profilesById.get(chart.assignments[key] ?? "");
+    setConfirmState({
+      title: "Delete seat?",
+      message: occupant
+        ? `Deleting this seat will return ${occupant.displayName} to Unassigned Profiles.`
+        : "Delete this seat from the row?",
+      confirmLabel: "Delete seat",
+      onConfirm: () => {
+        updateLayout(removeSeat({ ...chart }, rowIndex, seatIndex));
+        setConfirmState(null);
+      },
+    });
+  }
+
+  function requestRemoveRow(rowIndex: number): void {
+    const occupied = Object.keys(chart.assignments).filter((key) =>
+      key.startsWith(`${String(rowIndex)}-`),
+    ).length;
+    setConfirmState({
+      title: "Delete row?",
+      message:
+        occupied > 0
+          ? `This row has ${String(occupied)} assigned Profile(s). Deleting it will return them to the tray.`
+          : "Delete this row?",
+      confirmLabel: "Delete row",
+      onConfirm: () => {
+        updateLayout(removeRow({ ...chart }, rowIndex));
+        setConfirmState(null);
+      },
+    });
   }
 
   function autoSuggest(): void {
-    if (!resources) return;
-    const formation = resources.seating.formations.find(({ id }) => id === chart.formationId);
-    if (!formation) return;
+    if (!resources || !currentFormation) return;
     const sectionForVoicePart = new Map(
       resources.roster.voiceParts.map(({ label, sectionCode }) => [label, sectionCode]),
     );
     const counts: Record<string, number> = {};
-    for (const profile of eligibleProfiles) {
-      const key = formation.isVoicePartLayout
+    eligibleProfiles.forEach((profile) => {
+      const key = currentFormation.isVoicePartLayout
         ? profile.voicePart
         : (sectionForVoicePart.get(profile.voicePart) ?? "");
       if (key) counts[key] = (counts[key] ?? 0) + 1;
-    }
-    setChart((current) => ({
-      ...current,
+    });
+    applyChart({
+      ...chart,
       sectionSuggestions: calculateSeatingSuggestions(
-        current.rowCounts,
+        chart.rowCounts,
         counts,
-        formation.sectionOrder,
-        formation.strategy,
+        currentFormation.sectionOrder,
+        currentFormation.strategy,
       ),
-    }));
+    });
   }
 
-  async function save(): Promise<void> {
-    if (!eventId) return;
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
+  function changeFormation(formationId: string): void {
+    if (formationId === chart.formationId) return;
+    const nextFormation = resources?.seating.formations.find(({ id }) => id === formationId);
+    if (!nextFormation) return;
+    if (Object.keys(chart.assignments).length > 0) {
+      setConfirmState({
+        title: "Change formation?",
+        message:
+          "Changing the formation clears current assignments so the new section order can be applied.",
+        confirmLabel: "Change formation",
+        onConfirm: () => {
+          applyChart({ ...chart, formationId, assignments: {}, sectionSuggestions: {} });
+          setConfirmState(null);
+        },
+      });
+      return;
+    }
+    applyChart({ ...chart, formationId, sectionSuggestions: {} });
+  }
+
+  async function loadCopyCharts(nextPerformanceId: string): Promise<void> {
+    setCopyPerformanceId(nextPerformanceId);
+    setCopyChartId("");
+    setCopyBusy(true);
     try {
-      const saved = editingId
-        ? await updateOrganizationSeatingChart(eventId, editingId, chart)
-        : await createOrganizationSeatingChart(eventId, chart);
-      setCharts((current) =>
-        editingId
-          ? current.map((candidate) => (candidate.id === saved.id ? saved : candidate))
-          : [...current, saved],
-      );
-      setEditingId(saved.id);
-      setChart(chartRequest(saved));
-      setSuccess("Seating chart saved.");
+      const loaded = await listOrganizationSeatingCharts(nextPerformanceId);
+      setCopyCharts(loaded.filter(({ venueId }) => venueId === chart.venueId));
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : "The seating chart could not be saved.");
+      setError(caught instanceof Error ? caught.message : "Source charts could not be loaded.");
     } finally {
-      setBusy(false);
+      setCopyBusy(false);
     }
   }
 
-  async function remove(): Promise<void> {
-    if (!editingId || !eventId) return;
-    setBusy(true);
+  function copySelectedChart(): void {
+    const source = copyCharts.find(({ id }) => id === copyChartId);
+    if (!source) return;
+    const eligibleIds = new Set(eligibleProfiles.map(({ id }) => id));
+    const assignments = Object.fromEntries(
+      Object.entries(source.assignments).filter(([, profileId]) => eligibleIds.has(profileId)),
+    );
+    const skipped = Object.keys(source.assignments).length - Object.keys(assignments).length;
+    setConfirmState({
+      title: "Copy seating chart?",
+      message: `Copy layout and assignments from “${source.name}”?${skipped > 0 ? ` ${String(skipped)} ineligible assignment(s) will remain unassigned.` : ""}`,
+      confirmLabel: "Copy chart",
+      onConfirm: () => {
+        applyChart({
+          ...chart,
+          assignments,
+          formationId: source.formationId,
+          rowCounts: source.rowCounts,
+          sectionSuggestions: source.sectionSuggestions,
+        });
+        setCopyOpen(false);
+        setConfirmState(null);
+      },
+    });
+  }
+
+  async function saveProfile(): Promise<void> {
+    if (!profileForm.displayName.trim() || !profileForm.voicePart.trim()) return;
+    setProfileBusy(true);
+    setProfileMessage(null);
     try {
-      await deleteOrganizationSeatingChart(eventId, editingId);
-      const remaining = charts.filter(({ id }) => id !== editingId);
-      setCharts(remaining);
-      const first = remaining[0];
-      setEditingId(first?.id ?? null);
-      setChart(first ? chartRequest(first) : emptyChart);
-      setRowsInput((first?.rowCounts ?? emptyChart.rowCounts).join(", "));
-      setDeleteConfirm(false);
-      setSuccess("Seating chart deleted.");
+      const created = await createOrganizationProfile(profileForm);
+      await setOrganizationEventRsvp(eventId, created.id, "Yes");
+      setResources((current) =>
+        current ? { ...current, profiles: [...current.profiles, created] } : current,
+      );
+      setAttendance((current) => [...current, { profileId: created.id, rsvp: "Yes" }]);
+      setProfileForm(emptyProfile);
+      setProfileDialog(null);
+      setProfileMessage("Profile added and marked attending.");
     } catch (caught: unknown) {
-      setError(
-        caught instanceof Error ? caught.message : "The seating chart could not be deleted.",
+      setProfileMessage(
+        caught instanceof AuthApiError ? caught.message : "The Profile could not be added.",
       );
     } finally {
-      setBusy(false);
+      setProfileBusy(false);
     }
   }
 
-  const assignedIds = new Set(Object.values(chart.assignments));
+  function markNotAttending(profile: OrganizationProfile): void {
+    const assignedSeat = Object.entries(chart.assignments).find(
+      ([, profileId]) => profileId === profile.id,
+    )?.[0];
+    setConfirmState({
+      title: "Mark Profile not attending?",
+      message: assignedSeat
+        ? `${profile.displayName} will be unassigned and marked not attending.`
+        : `Mark ${profile.displayName} not attending for this Performance?`,
+      confirmLabel: "Mark not attending",
+      onConfirm: async () => {
+        await setOrganizationEventRsvp(eventId, profile.id, "No");
+        const assignments = unassignProfile(chart.assignments, profile.id);
+        applyChart({ ...chart, assignments });
+        setAttendance((current) =>
+          current.map((row) => (row.profileId === profile.id ? { ...row, rsvp: "No" } : row)),
+        );
+        setConfirmState(null);
+      },
+    });
+  }
+
+  async function enterFocus(): Promise<void> {
+    if (!workspaceRef.current) return;
+    try {
+      await workspaceRef.current.requestFullscreen();
+      setFocusMode(true);
+    } catch {
+      setFallbackFocus(true);
+      setFocusMode(true);
+    }
+  }
+
+  async function exitFocus(): Promise<void> {
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+    setFocusMode(false);
+    setFallbackFocus(false);
+  }
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setFocusMode(Boolean(document.fullscreenElement));
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && fallbackFocus) void exitFocus();
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fallbackFocus]);
+
+  useEffect(() => {
+    if (!fallbackFocus) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [fallbackFocus]);
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    },
+    [],
+  );
+
+  if (!enabled)
+    return <p className="notice notice--warning">Verify Organization MFA to manage seating.</p>;
+  if (loading && !resources) return <p role="status">Loading seating resources…</p>;
+  if (error && !resources)
+    return (
+      <p className="notice notice--error" role="alert">
+        {error}
+      </p>
+    );
+  if (!resources) return null;
+  if (resources.events.length === 0) {
+    return (
+      <div className="empty-state">
+        <h2>Create a Performance first</h2>
+        <p>Seating charts belong to active Performance events.</p>
+      </div>
+    );
+  }
+
+  const activeEvent = resources.events.find(({ id }) => id === eventId);
+  const isEditing = !isNarrow || mobileEditing;
+  const profileForSeat = (seatKey: string) => profilesById.get(chart.assignments[seatKey] ?? "");
+  const rows = chart.rowCounts.map((_count, index) => index).reverse();
+  const totalSeats = chart.rowCounts.reduce((sum, count) => sum + count, 0);
+  const assignedCount = Object.keys(chart.assignments).length;
 
   return (
-    <section
-      className="account-section account-section--seating"
-      aria-labelledby="seating-manager-title"
+    <div
+      className={`seating-workspace${focusMode ? " seating-workspace--focus" : ""}${fallbackFocus ? " seating-workspace--fallback-focus" : ""}`}
+      ref={workspaceRef}
     >
-      <p className="eyebrow">Seating</p>
-      <h2 id="seating-manager-title">Performance seating</h2>
-      <p className="section-description">
-        Build multiple charts and assign only active, voiced Profiles attending the performance.
-      </p>
-      {error ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="notice notice--success" role="status">
-          {success}
-        </p>
-      ) : null}
-      {!resources ? (
-        <p role="status">Loading performance seating…</p>
-      ) : resources.events.length === 0 ? (
-        <p className="empty-state">Create a performance before building seating charts.</p>
+      <div className="seating-page-heading no-print">
+        <div>
+          <p className="eyebrow">Seating</p>
+          <h1>Performance seating</h1>
+          <p>
+            {activeEvent?.title ?? "Performance"} ·{" "}
+            {activeEvent ? formatEventDate(activeEvent.startsAt) : ""} · {assignedCount}/
+            {totalSeats} seats assigned
+          </p>
+        </div>
+        <div className="seating-page-heading__actions">
+          {isNarrow && !mobileEditing ? (
+            <button
+              className="button button--primary"
+              onClick={() => {
+                setMobileEditing(true);
+              }}
+              type="button"
+            >
+              Edit anyway
+            </button>
+          ) : null}
+          <button
+            className="button button--secondary"
+            onClick={() => void (focusMode ? exitFocus() : enterFocus())}
+            type="button"
+          >
+            {focusMode ? "Exit focus" : "Focus"}
+          </button>
+        </div>
+      </div>
+
+      <div className="seating-tabs no-print" role="tablist" aria-label="Seating tools">
+        <button
+          aria-selected={formationTab === "chart"}
+          className={formationTab === "chart" ? "is-active" : ""}
+          onClick={() => {
+            setFormationTab("chart");
+          }}
+          role="tab"
+          type="button"
+        >
+          Chart
+        </button>
+        <button
+          aria-selected={formationTab === "formations"}
+          className={formationTab === "formations" ? "is-active" : ""}
+          onClick={() => {
+            setFormationTab("formations");
+          }}
+          role="tab"
+          type="button"
+        >
+          Formations
+        </button>
+      </div>
+
+      {formationTab === "formations" ? (
+        <FormationEditor
+          key={JSON.stringify(resources.seating)}
+          initial={resources.seating}
+          onSaved={(seating) => {
+            setResources((current) => (current ? { ...current, seating } : current));
+          }}
+          roster={resources.roster}
+        />
       ) : (
-        <div className="seating-layout">
-          <div className="form-stack seating-sidebar">
-            <label className="field">
+        <>
+          <div className="seating-toolbar no-print">
+            <label className="field field--compact">
               Performance
               <select
-                aria-label="Seating performance"
+                aria-label="Seating Performance"
+                onChange={(event) => void changeEvent(event.target.value)}
                 value={eventId}
-                onChange={(event) => {
-                  setEventId(event.target.value);
-                  setError(null);
-                }}
               >
-                {resources.events.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
+                {resources.events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
                   </option>
                 ))}
               </select>
             </label>
-            <button className="button button--secondary" type="button" onClick={beginNewChart}>
-              New chart
-            </button>
-            {charts.map((item) => (
-              <button
-                className={
-                  item.id === editingId ? "button button--primary" : "button button--secondary"
-                }
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  selectChart(item);
+            <label className="field field--compact">
+              Venue
+              <select
+                aria-label="Seating Venue"
+                onChange={(event) => {
+                  applyChart({ ...chart, venueId: event.target.value || null });
                 }}
+                value={chart.venueId ?? ""}
               >
-                {item.name}
+                <option value="">No venue</option>
+                {resources.venues.map((venue) => (
+                  <option key={venue.id} value={venue.id}>
+                    {venue.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field field--compact">
+              Formation
+              <select
+                aria-label="Seating formation"
+                onChange={(event) => {
+                  changeFormation(event.target.value);
+                }}
+                value={chart.formationId}
+              >
+                {resources.seating.formations.map((formation) => (
+                  <option key={formation.id} value={formation.id}>
+                    {formation.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field field--compact">
+              Chart
+              <select
+                aria-label="Select seating chart"
+                onChange={(event) => {
+                  selectChart(event.target.value);
+                }}
+                value={editingId ?? ""}
+              >
+                {charts.map((candidate, index) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {index + 1}. {candidate.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="seating-toolbar__actions">
+              <button
+                className="button button--secondary button--small"
+                onClick={() => {
+                  setChartName("");
+                  setChartDialog("create");
+                }}
+                type="button"
+              >
+                New
               </button>
-            ))}
-          </div>
-          <form
-            className="form-stack seating-editor"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
-            }}
-          >
-            <div className="calendar-management-grid seating-settings-grid">
-              <label className="field">
-                Chart name
-                <input
-                  maxLength={200}
-                  required
-                  value={chart.name}
-                  onChange={(event) => {
-                    setChart((current) => ({ ...current, name: event.target.value }));
-                  }}
-                />
-              </label>
-              <label className="field">
-                Formation
-                <select
-                  value={chart.formationId}
-                  onChange={(event) => {
-                    setChart((current) => ({
-                      ...current,
-                      formationId: event.target.value,
-                      sectionSuggestions: {},
-                    }));
-                  }}
-                >
-                  {resources.seating.formations.map((formation) => (
-                    <option key={formation.id} value={formation.id}>
-                      {formation.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                Venue
-                <select
-                  value={chart.venueId ?? ""}
-                  onChange={(event) => {
-                    setChart((current) => ({ ...current, venueId: event.target.value || null }));
-                  }}
-                >
-                  <option value="">No venue</option>
-                  {resources.venues.map((venue) => (
-                    <option key={venue.id} value={venue.id}>
-                      {venue.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                Seats per row
-                <input
-                  aria-label="Seats per row"
-                  value={rowsInput}
-                  onChange={(event) => {
-                    setRowsInput(event.target.value);
-                  }}
-                />
-              </label>
-              <button className="button button--secondary" type="button" onClick={applyRows}>
-                Apply rows
+              <button
+                className="button button--secondary button--small"
+                disabled={!editingId}
+                onClick={() => {
+                  setChartName(chart.name);
+                  setChartDialog("rename");
+                }}
+                type="button"
+              >
+                Rename
               </button>
-              <button className="button button--secondary" type="button" onClick={autoSuggest}>
-                Auto-suggest sections
+              <button
+                aria-label="Move chart earlier"
+                className="button button--secondary button--small"
+                disabled={!editingId || charts.findIndex(({ id }) => id === editingId) <= 0}
+                onClick={() => void reorderCharts(-1)}
+                type="button"
+              >
+                ↑
+              </button>
+              <button
+                aria-label="Move chart later"
+                className="button button--secondary button--small"
+                disabled={
+                  !editingId || charts.findIndex(({ id }) => id === editingId) === charts.length - 1
+                }
+                onClick={() => void reorderCharts(1)}
+                type="button"
+              >
+                ↓
+              </button>
+              <button
+                className="button button--danger button--small"
+                disabled={!editingId || charts.length <= 1}
+                onClick={() => {
+                  setConfirmState({
+                    title: "Delete seating chart?",
+                    message: `Delete “${chart.name}”?`,
+                    confirmLabel: "Delete chart",
+                    onConfirm: () => {
+                      void deleteChart();
+                      setConfirmState(null);
+                    },
+                  });
+                }}
+                type="button"
+              >
+                Delete
               </button>
             </div>
-            <div className="seating-grid" aria-label="Seating chart assignments">
-              {chart.rowCounts.map((count, row) => (
-                <div className="seating-row" key={String(row)}>
-                  <span className="seating-row-label">Row {String(row + 1)}</span>
-                  {Array.from({ length: count }, (_, seat) => {
-                    const key = `${String(row)}-${String(seat)}`;
-                    const assigned = chart.assignments[key] ?? "";
+          </div>
+
+          <div className="seating-toolbar seating-toolbar--secondary no-print">
+            <div className="seating-toolbar__actions">
+              <button
+                className="button button--secondary button--small"
+                onClick={() => {
+                  setConfirmState({
+                    title: "Clear assignments?",
+                    message: "Return every assigned Profile to the unassigned tray?",
+                    confirmLabel: "Clear assignments",
+                    onConfirm: () => {
+                      applyChart({ ...chart, assignments: {} });
+                      setConfirmState(null);
+                    },
+                  });
+                }}
+                type="button"
+              >
+                Clear
+              </button>
+              <button
+                className="button button--danger button--small"
+                onClick={() => {
+                  setConfirmState({
+                    title: "Reset seating chart?",
+                    message: "Reset assignments, rows, and formation to the Organization defaults?",
+                    confirmLabel: "Reset chart",
+                    onConfirm: () => {
+                      applyChart({
+                        ...chart,
+                        assignments: {},
+                        formationId: resources.seating.defaultFormationId,
+                        rowCounts: defaultRows,
+                        sectionSuggestions: {},
+                      });
+                      setConfirmState(null);
+                    },
+                  });
+                }}
+                type="button"
+              >
+                Reset
+              </button>
+              <button
+                className="button button--secondary button--small"
+                onClick={autoSuggest}
+                type="button"
+              >
+                Auto-suggest sections
+              </button>
+              <button
+                className="button button--secondary button--small"
+                onClick={() => {
+                  setCopyOpen(true);
+                  setCopyPerformanceId("");
+                  setCopyCharts([]);
+                }}
+                type="button"
+              >
+                Copy
+              </button>
+              <button
+                className="button button--secondary button--small"
+                onClick={() => {
+                  window.print();
+                }}
+                type="button"
+              >
+                Print
+              </button>
+            </div>
+            <div className="seating-toolbar__actions">
+              <button
+                aria-pressed={viewMode === "grid"}
+                className={`button button--small ${viewMode === "grid" ? "button--primary" : "button--secondary"}`}
+                onClick={() => {
+                  setViewMode("grid");
+                }}
+                type="button"
+              >
+                Grid
+              </button>
+              <button
+                aria-pressed={viewMode === "list"}
+                className={`button button--small ${viewMode === "list" ? "button--primary" : "button--secondary"}`}
+                onClick={() => {
+                  setViewMode("list");
+                }}
+                type="button"
+              >
+                List
+              </button>
+              {viewMode === "list" ? (
+                <label className="checkbox-row checkbox-row--compact">
+                  <input
+                    checked={showVoiceParts}
+                    onChange={(event) => {
+                      setShowVoiceParts(event.target.checked);
+                    }}
+                    type="checkbox"
+                  />{" "}
+                  Voice parts
+                </label>
+              ) : null}
+              <span
+                className={`seating-save-status seating-save-status--${saveState}`}
+                role="status"
+              >
+                {saveState === "saving"
+                  ? "Saving…"
+                  : saveState === "error"
+                    ? "Couldn’t save — Retry"
+                    : saveState === "saved"
+                      ? "Saved"
+                      : "Ready"}
+              </span>
+              {saveState === "error" ? (
+                <button
+                  className="button button--secondary button--small"
+                  onClick={() => void flushSave()}
+                  type="button"
+                >
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {error ? (
+            <p className="notice notice--error no-print" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {loading ? (
+            <p className="notice notice--info no-print" role="status">
+              Loading chart…
+            </p>
+          ) : null}
+          {charts.length === 0 ? (
+            <div className="empty-state no-print">
+              <h2>Start a seating chart</h2>
+              <p>Give this Performance a chart name to begin.</p>
+              <button
+                className="button button--primary"
+                onClick={() => {
+                  setChartName("Main Seating Chart");
+                  setChartDialog("create");
+                }}
+                type="button"
+              >
+                Create chart
+              </button>
+            </div>
+          ) : null}
+          {charts.length > 0 && viewMode === "list" ? (
+            <ChartList chart={chart} profilesById={profilesById} showVoiceParts={showVoiceParts} />
+          ) : null}
+          {charts.length > 0 && viewMode === "grid" ? (
+            <>
+              <div
+                className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
+                aria-label="Seating chart assignments"
+              >
+                <div className="seating-stage-marker">Director / stage</div>
+                <div className="seating-grid seating-grid--canvas">
+                  {rows.map((rowIndex) => {
+                    const count = chart.rowCounts[rowIndex] ?? 0;
+                    const occupied = Array.from(
+                      { length: count },
+                      (_, seatIndex) => chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`],
+                    ).filter(Boolean).length;
                     return (
-                      <label className="seating-seat" key={key}>
-                        <span>{chart.sectionSuggestions[key] ?? `Seat ${String(seat + 1)}`}</span>
-                        <select
-                          aria-label={`Row ${String(row + 1)} seat ${String(seat + 1)}`}
-                          value={assigned}
-                          onChange={(event) => {
-                            const profileId = event.target.value;
-                            setChart((current) => {
-                              const assignments = profileId
-                                ? { ...current.assignments, [key]: profileId }
-                                : Object.fromEntries(
-                                    Object.entries(current.assignments).filter(
-                                      ([seatKey]) => seatKey !== key,
-                                    ),
-                                  );
-                              return { ...current, assignments };
-                            });
-                          }}
-                        >
-                          <option value="">Empty</option>
-                          {eligibleProfiles
-                            .filter(({ id }) => id === assigned || !assignedIds.has(id))
-                            .map((profile) => (
-                              <option key={profile.id} value={profile.id}>
-                                {profile.displayName} · {profile.voicePart}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
+                      <div
+                        className="seating-row seating-row--canvas"
+                        key={rowIndex}
+                        style={{ "--seating-seat-count": String(count) } as CSSProperties}
+                      >
+                        <div className="seating-row-label seating-row-label--canvas">
+                          <strong>Row {rowIndex + 1}</strong>
+                          <span>
+                            {occupied}/{count}
+                          </span>
+                        </div>
+                        {isEditing ? (
+                          <button
+                            aria-label={`Delete row ${String(rowIndex + 1)}`}
+                            className="seating-row-action-btn seating-row-action-btn--delete no-print"
+                            disabled={chart.rowCounts.length <= 1}
+                            onClick={() => {
+                              requestRemoveRow(rowIndex);
+                            }}
+                            type="button"
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                        {Array.from({ length: count }, (_, seatIndex) => {
+                          const seatKey = `${String(rowIndex)}-${String(seatIndex)}`;
+                          const profile = profileForSeat(seatKey);
+                          const suggestion = chart.sectionSuggestions[seatKey];
+                          const mismatch = currentFormation?.isVoicePartLayout
+                            ? Boolean(
+                                profile &&
+                                suggestion &&
+                                profile.voicePart.toUpperCase() !== suggestion.toUpperCase(),
+                              )
+                            : isSeatingSectionMismatch(
+                                profile?.voicePart,
+                                suggestion,
+                                resources.roster.voiceParts,
+                              );
+                          return isEditing ? (
+                            <SeatTile
+                              assigned={profile}
+                              key={seatKey}
+                              label={`Seat ${String(seatIndex + 1)}`}
+                              mismatch={mismatch}
+                              onActivate={() => {
+                                setSelectedSeat(seatKey);
+                              }}
+                              onDrop={(token) => {
+                                handleDropToken(token, seatKey);
+                              }}
+                              seatKey={seatKey}
+                              suggestion={suggestion}
+                            />
+                          ) : (
+                            <div
+                              className={`seating-seat seating-seat--canvas seating-seat--readonly${mismatch ? " seating-seat--mismatch" : ""}`}
+                              key={seatKey}
+                            >
+                              <span className="seating-seat__number">Seat {seatIndex + 1}</span>
+                              <span className="seating-seat__suggestion">
+                                {suggestion ?? "Open"}
+                              </span>
+                              <strong>{profile?.displayName ?? "Empty"}</strong>
+                              {profile ? (
+                                <span className="seating-seat__voice">{profile.voicePart}</span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                        {isEditing ? (
+                          <button
+                            aria-label={`Add seat to row ${String(rowIndex + 1)}`}
+                            className="seating-row-action-btn seating-row-action-btn--add no-print"
+                            onClick={() => {
+                              updateLayout(addSeat({ ...chart }, rowIndex));
+                            }}
+                            type="button"
+                          >
+                            +
+                          </button>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>
+                {isEditing ? (
+                  <button
+                    className="button button--secondary button--small no-print"
+                    onClick={() => {
+                      updateLayout(addRow({ ...chart }, "back"));
+                    }}
+                    type="button"
+                  >
+                    + Add row to back
+                  </button>
+                ) : null}
+              </div>
+              {isEditing ? (
+                <UnassignedTray
+                  onAdd={() => {
+                    setProfileForm(emptyProfile);
+                    setProfileDialog("add");
+                  }}
+                  onLookup={() => {
+                    setLookupQuery("");
+                    setProfileDialog("lookup");
+                  }}
+                  onRemoveRsvp={(profile) => { markNotAttending(profile); }}
+                  onDrop={(token) => {
+                    handleDropToken(token);
+                  }}
+                  profiles={unassignedProfiles}
+                  query={query}
+                  setQuery={setQuery}
+                />
+              ) : (
+                <button
+                  className="button button--secondary no-print"
+                  onClick={() => {
+                    setMobileEditing(true);
+                  }}
+                  type="button"
+                >
+                  Edit chart
+                </button>
+              )}
+              {isEditing ? (
+                <button
+                  className="button button--secondary button--small no-print"
+                  onClick={() => {
+                    updateLayout(addRow({ ...chart }, "front"));
+                  }}
+                  type="button"
+                >
+                  + Add row to front
+                </button>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      )}
+
+      <ConfirmDialog
+        onClose={() => {
+          setConfirmState(null);
+        }}
+        state={confirmState}
+      />
+
+      <Dialog
+        description="Use a short name that identifies this seating arrangement."
+        onClose={() => {
+          setChartDialog(null);
+        }}
+        open={chartDialog !== null}
+        title={chartDialog === "rename" ? "Rename seating chart" : "New seating chart"}
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (chartDialog === "rename") renameChart();
+            else void createChart();
+          }}
+        >
+          <label className="field">
+            Chart name
+            <input
+              autoFocus
+              maxLength={200}
+              onChange={(event) => {
+                setChartName(event.target.value);
+              }}
+              required
+              value={chartName}
+            />
+          </label>
+          <div className="form-actions">
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setChartDialog(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className="button button--primary" type="submit">
+              {chartDialog === "rename" ? "Save name" : "Create chart"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        description="Copy layout and eligible assignments from another Performance using the same Venue."
+        onClose={() => {
+          setCopyOpen(false);
+        }}
+        open={copyOpen}
+        title="Copy seating chart"
+      >
+        <div className="form-stack">
+          <label className="field">
+            Source Performance
+            <select
+              onChange={(event) => void loadCopyCharts(event.target.value)}
+              value={copyPerformanceId}
+            >
+              <option value="">Choose a Performance</option>
+              {resources.events
+                .filter(({ id }) => id !== eventId)
+                .map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="field">
+            Source chart
+            <select
+              disabled={copyBusy || !copyPerformanceId}
+              onChange={(event) => {
+                setCopyChartId(event.target.value);
+              }}
+              value={copyChartId}
+            >
+              <option value="">Choose a chart</option>
+              {copyCharts.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {copyBusy ? <p role="status">Loading source charts…</p> : null}
+          {!copyBusy && copyPerformanceId && copyCharts.length === 0 ? (
+            <p className="empty-state">No charts use this Venue.</p>
+          ) : null}
+          <div className="form-actions">
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setCopyOpen(false);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="button button--primary"
+              disabled={!copyChartId}
+              onClick={copySelectedChart}
+              type="button"
+            >
+              Copy chart
+            </button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        description="Add an eligible Profile to this Performance."
+        onClose={() => {
+          setProfileDialog(null);
+        }}
+        open={profileDialog === "add"}
+        title="Add Profile"
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveProfile();
+          }}
+        >
+          {profileMessage ? (
+            <p className="notice notice--error" role="alert">
+              {profileMessage}
+            </p>
+          ) : null}
+          <label className="field">
+            Display name
+            <input
+              autoFocus
+              maxLength={200}
+              onChange={(event) => {
+                setProfileForm((current) => ({ ...current, displayName: event.target.value }));
+              }}
+              required
+              value={profileForm.displayName}
+            />
+          </label>
+          <label className="field">
+            Voice part
+            <select
+              onChange={(event) => {
+                setProfileForm((current) => ({ ...current, voicePart: event.target.value }));
+              }}
+              required
+              value={profileForm.voicePart}
+            >
+              <option value="">Choose voice part</option>
+              {resources.roster.voiceParts.map(({ fullName, label }) => (
+                <option key={label} value={label}>
+                  {fullName} ({label})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            Status
+            <select
+              onChange={(event) => {
+                setProfileForm((current) => ({
+                  ...current,
+                  globalStatus:
+                    event.target.value === "Idle" || event.target.value === "Inactive"
+                      ? event.target.value
+                      : "Active",
+                }));
+              }}
+              value={profileForm.globalStatus}
+            >
+              <option value="Active">Active</option>
+              <option value="Idle">On Break</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </label>
+          <div className="form-actions">
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setProfileDialog(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className="button button--primary" disabled={profileBusy} type="submit">
+              {profileBusy ? "Adding…" : "Add and mark attending"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        description="Choose an existing Organization Profile to mark attending for this Performance."
+        onClose={() => {
+          setProfileDialog(null);
+        }}
+        open={profileDialog === "lookup"}
+        title="Profile lookup"
+      >
+        <div className="form-stack">
+          <label className="field">
+            Search Profiles
+            <input
+              autoFocus
+              onChange={(event) => {
+                setLookupQuery(event.target.value);
+              }}
+              placeholder="Name or voice part"
+              type="search"
+              value={lookupQuery}
+            />
+          </label>
+          <div className="seating-lookup-list">
+            {resources.profiles
+              .filter((profile) => {
+                const normalized = lookupQuery.trim().toLocaleLowerCase();
+                return (
+                  !normalized ||
+                  `${profile.displayName} ${profile.voicePart}`
+                    .toLocaleLowerCase()
+                    .includes(normalized)
+                );
+              })
+              .map((profile) => (
+                <button
+                  className="seating-lookup-row"
+                  key={profile.id}
+                  onClick={() => {
+                    void setOrganizationEventRsvp(eventId, profile.id, "Yes").then(() => {
+                      setAttendance((current) => [
+                        ...current.filter(({ profileId }) => profileId !== profile.id),
+                        { profileId: profile.id, rsvp: "Yes" },
+                      ]);
+                      setProfileDialog(null);
+                    });
+                  }}
+                  type="button"
+                >
+                  <strong>{profile.displayName}</strong>
+                  <span>{profile.voicePart || "No voice part"}</span>
+                  <em>{statusLabel(profile.globalStatus)}</em>
+                </button>
+              ))}
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        description="Assign an eligible Profile, unassign the current Profile, or remove this seat."
+        onClose={() => {
+          setSelectedSeat(null);
+        }}
+        open={selectedSeat !== null}
+        title={selectedSeat ? `Seat ${String(Number(selectedSeat.split("-")[1]) + 1)}` : "Seat"}
+      >
+        {selectedSeat ? (
+          <div className="form-stack">
+            <p>
+              {chart.assignments[selectedSeat]
+                ? `Assigned to ${profilesById.get(chart.assignments[selectedSeat])?.displayName ?? "Profile"}.`
+                : "This seat is empty."}
+            </p>
+            <div className="seating-assignment-picker">
+              {eligibleProfiles.map((profile) => (
+                <button
+                  className="seating-lookup-row"
+                  key={profile.id}
+                  onClick={() => {
+                    applyChart({
+                      ...chart,
+                      assignments: moveAssignment(chart.assignments, "", selectedSeat, profile.id),
+                    });
+                    setSelectedSeat(null);
+                  }}
+                  type="button"
+                >
+                  <strong>{profile.displayName}</strong>
+                  <span>{profile.voicePart}</span>
+                </button>
               ))}
             </div>
             <div className="form-actions">
-              <button className="button button--primary" disabled={busy} type="submit">
-                {busy ? "Saving…" : "Save seating chart"}
+              <button
+                className="button button--secondary"
+                onClick={() => {
+                  setSelectedSeat(null);
+                }}
+                type="button"
+              >
+                Cancel
               </button>
-              {editingId ? (
-                deleteConfirm ? (
-                  <div
-                    className="danger-confirmation"
-                    role="group"
-                    aria-label="Confirm seating chart deletion"
-                  >
-                    <button
-                      className="button button--danger"
-                      disabled={busy}
-                      type="button"
-                      onClick={() => {
-                        void remove();
-                      }}
-                    >
-                      Confirm delete
-                    </button>
-                    <button
-                      className="button button--secondary"
-                      disabled={busy}
-                      type="button"
-                      onClick={() => {
-                        setDeleteConfirm(false);
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
+              {chart.assignments[selectedSeat] ? (
+                <button
+                  className="button button--secondary"
+                  onClick={() => {
+                    applyChart({
+                      ...chart,
+                      assignments: Object.fromEntries(
+                        Object.entries(chart.assignments).filter(([key]) => key !== selectedSeat),
+                      ),
+                    });
+                    setSelectedSeat(null);
+                  }}
+                  type="button"
+                >
+                  Unassign
+                </button>
+              ) : null}
+              {(() => {
+                const [rowText, seatText] = selectedSeat.split("-");
+                const rowIndex = Number(rowText);
+                const seatIndex = Number(seatText);
+                return (chart.rowCounts[rowIndex] ?? 0) > 1 ? (
                   <button
                     className="button button--danger"
-                    type="button"
                     onClick={() => {
-                      setDeleteConfirm(true);
+                      setSelectedSeat(null);
+                      requestRemoveSeat(rowIndex, seatIndex);
                     }}
+                    type="button"
                   >
-                    Delete chart
+                    Delete seat
                   </button>
-                )
-              ) : null}
+                ) : null;
+              })()}
             </div>
-          </form>
-          <FormationEditor
-            initial={resources.seating}
-            onSaved={(seating) => {
-              setResources((current) => (current ? { ...current, seating } : current));
-            }}
-            roster={resources.roster}
-          />
-        </div>
-      )}
-    </section>
+          </div>
+        ) : null}
+      </Dialog>
+    </div>
   );
 }

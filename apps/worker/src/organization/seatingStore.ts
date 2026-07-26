@@ -33,6 +33,11 @@ const seatingMutationSchema = z.discriminatedUnion("action", [
     eventId: z.uuid(),
   }),
   actorSchema.extend({
+    action: z.literal("reorder_charts"),
+    chartIds: z.array(z.uuid()).min(1).max(100),
+    eventId: z.uuid(),
+  }),
+  actorSchema.extend({
     action: z.literal("update_configuration"),
     configuration: seatingConfigurationRequestSchema,
   }),
@@ -406,6 +411,60 @@ function deleteChart(
   return Response.json({ chartId: operation.chartId, status: "deleted" });
 }
 
+function reorderCharts(
+  storage: DurableObjectStorage,
+  operation: Extract<SeatingMutation, { readonly action: "reorder_charts" }>,
+  occurredAt: string,
+): Response {
+  if (!eventAcceptsSeating(storage, operation.eventId)) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+  if (new Set(operation.chartIds).size !== operation.chartIds.length) {
+    return Response.json({ code: "invalid_chart_order" }, { status: 400 });
+  }
+  const existing = storage.sql
+    .exec<{ readonly id: string }>(
+      "SELECT id FROM seating_charts WHERE event_id = ? ORDER BY sort_order ASC, name COLLATE NOCASE ASC, id ASC",
+      operation.eventId,
+    )
+    .toArray()
+    .map(({ id }) => id);
+  if (
+    existing.length !== operation.chartIds.length ||
+    existing.some((id) => !operation.chartIds.includes(id))
+  ) {
+    return Response.json({ code: "invalid_chart_order" }, { status: 409 });
+  }
+  storage.transactionSync(() => {
+    operation.chartIds.forEach((chartId, index) => {
+      storage.sql.exec(
+        "UPDATE seating_charts SET sort_order = ?, updated_at = ? WHERE id = ? AND event_id = ?",
+        index,
+        occurredAt,
+        chartId,
+        operation.eventId,
+      );
+    });
+    insertAudit(
+      storage,
+      operation,
+      "seating.charts.reordered",
+      "performance",
+      operation.eventId,
+      { chartIds: operation.chartIds },
+      occurredAt,
+    );
+  });
+  const charts = storage.sql
+    .exec<SeatingChartRow>(
+      `${chartSelect} WHERE event_id = ? ORDER BY sort_order ASC, name COLLATE NOCASE ASC, id ASC`,
+      operation.eventId,
+    )
+    .toArray()
+    .map(chartFromRow);
+  return Response.json({ charts });
+}
+
 function updateConfiguration(
   storage: DurableObjectStorage,
   operation: Extract<SeatingMutation, { readonly action: "update_configuration" }>,
@@ -456,6 +515,9 @@ export async function manageSeatingInStore(
   }
   if (parsed.data.action === "delete_chart") {
     return deleteChart(storage, parsed.data, occurredAt);
+  }
+  if (parsed.data.action === "reorder_charts") {
+    return reorderCharts(storage, parsed.data, occurredAt);
   }
   return updateConfiguration(storage, parsed.data, occurredAt);
 }

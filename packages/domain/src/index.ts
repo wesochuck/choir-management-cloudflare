@@ -48,6 +48,16 @@ export { calculateSeatingSuggestions, isSeatingSectionMismatch } from "./seating
 export type { SeatingFormationStrategy } from "./seatingAlgorithm";
 export { defaultSeatingConfiguration } from "./seatingConfiguration";
 export {
+  addRow,
+  addSeat,
+  moveAssignment,
+  removeRow,
+  removeSeat,
+  unassignProfile,
+  type SeatingKeyMap,
+  type SeatingLayoutState,
+} from "./seatingLayout";
+export {
   calculateSetListDuration,
   formatSetListDuration,
   hasSetListPiece,

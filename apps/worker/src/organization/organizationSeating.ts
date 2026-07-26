@@ -149,6 +149,21 @@ export async function deleteOrganizationSeatingChart(
   await mutate(env, actor, { action: "delete_chart", chartId, eventId });
 }
 
+export async function reorderOrganizationSeatingCharts(
+  env: Env,
+  actor: ActorContext,
+  eventId: string,
+  chartIds: readonly string[],
+): Promise<readonly OrganizationSeatingChart[]> {
+  const response = await mutate(env, actor, {
+    action: "reorder_charts",
+    chartIds,
+    eventId,
+  });
+  return z.object({ charts: z.array(organizationSeatingChartSchema) }).parse(await response.json())
+    .charts;
+}
+
 export async function readSingerSeating(
   env: Env,
   organizationId: string,

@@ -15,6 +15,7 @@ import {
   organizationCalendarSettingsRequestSchema,
   organizationRosterConfigurationRequestSchema,
   organizationSeatingChartRequestSchema,
+  organizationSeatingChartOrderRequestSchema,
   seatingConfigurationRequestSchema,
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
@@ -171,6 +172,7 @@ import {
   createOrganizationSeatingChart,
   deleteOrganizationSeatingChart,
   listOrganizationSeatingCharts,
+  reorderOrganizationSeatingCharts,
   readOrganizationSeatingConfiguration,
   readSingerSeating,
   SeatingRepositoryError,
@@ -4735,6 +4737,58 @@ router.post("/api/organization/events/:eventId/seating-charts", async (context) 
           status === 409
             ? "The chart contains an invalid formation, venue, seat, or performer assignment."
             : "The seating chart could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.put("/api/organization/events/:eventId/seating-charts/order", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const body = organizationSeatingChartOrderRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!eventId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid performance and chart order are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const charts = await reorderOrganizationSeatingCharts(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+      body.data.chartIds,
+    );
+    return context.json({ charts, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const status = error instanceof SeatingRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
+        message:
+          status === 404
+            ? "The performance was not found."
+            : status === 409
+              ? "The chart order is stale. Refresh and try again."
+              : "The seating charts could not be reordered.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       status,

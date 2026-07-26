@@ -1619,6 +1619,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
   const calendarResponse = dispatchCalendarGetRequest(storage, url, organizationId);
   if (calendarResponse) return calendarResponse;
   switch (url.pathname) {
+    case "/internal/auditions/list":
+      return listAuditionsFromStore(storage);
     case "/internal/health":
       return Response.json({ status: "ok" });
     case "/internal/roster/configuration":

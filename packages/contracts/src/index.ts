@@ -636,6 +636,15 @@ export const organizationSeatingChartsResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const organizationSeatingChartOrderRequestSchema = z.object({
+  chartIds: z.array(z.uuid()).min(1).max(100),
+});
+
+export const organizationSeatingChartOrderResponseSchema = z.object({
+  charts: z.array(organizationSeatingChartSchema).max(100),
+  requestId: requestIdSchema,
+});
+
 export const singerSeatingProfileSchema = z.object({
   displayName: z.string().min(1).max(200),
   id: z.uuid(),
@@ -691,6 +700,9 @@ export type SeatingFormation = z.infer<typeof seatingFormationSchema>;
 export type SeatingConfiguration = z.infer<typeof seatingConfigurationRequestSchema>;
 export type OrganizationSeatingChartRequest = z.infer<typeof organizationSeatingChartRequestSchema>;
 export type OrganizationSeatingChart = z.infer<typeof organizationSeatingChartSchema>;
+export type OrganizationSeatingChartOrderRequest = z.infer<
+  typeof organizationSeatingChartOrderRequestSchema
+>;
 export type SingerSeatingProfile = z.infer<typeof singerSeatingProfileSchema>;
 export type SingerSeatingResponse = z.infer<typeof singerSeatingResponseSchema>;
 
