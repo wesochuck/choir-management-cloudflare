@@ -25,8 +25,17 @@ The local qualification now passes formatting, lint, strict typecheck, 84 unit t
 integration tests, 56 Playwright tests, build, parity validation (190 entries), and the
 high-severity dependency audit (0 vulnerabilities). Integration output still includes the known
 expected FleetSchema registry-identity warning, and Playwright logs expected proxy warnings for
-unmocked background setup requests; all 56 tests pass. No staging deployment was performed in this
-pass.
+unmocked background setup requests; all 56 tests pass.
+
+The exact qualified commit `ead797ab9772f35a49a851059be8669bd9efb84b` was deployed to permanent
+staging on July 26, 2026 as Worker version `d12b4d02-35b5-4ba9-89ce-d914e1fa6a86`. Public probes
+passed: `/api/health` returned HTTP 200 with request ID `483ae024-e946-4b2b-9c43-fb79aa95305a`,
+`/api/ready` returned HTTP 200 with request ID `c13eb67c-1a2a-42b6-8753-a99740c484fc`, and the
+remote D1 migration check reported no migrations to apply. The affected canonical Organization setup
+probe returned the expected unauthenticated HTTP 401 with request ID
+`c8f53ca4-69c1-42b5-b379-5dc6b761d974`; no operational data was exposed. Authenticated Organization
+and Platform Administrator browser checks remain pending until a signed- in staging session is
+available. Production remains unlaunched.
 
 ## Repository topology
 

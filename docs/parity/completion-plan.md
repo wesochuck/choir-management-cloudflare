@@ -91,11 +91,17 @@ route while the settings page uses the asynchronous contract.
   focus/mobile modes.
 - Keep source paths alongside executable test references for traceability.
 - Run `format:check`, lint, strict typecheck, unit, integration, E2E, build, parity validation, and
-  high-severity audit. Deploy the exact qualified commit to permanent staging and capture the
-  staging request IDs/version IDs in `docs/goal/READINESS.md`.
+  high-severity audit. The exact qualified commit `ead797ab9772f35a49a851059be8669bd9efb84b` is
+  deployed to permanent staging as Worker version `d12b4d02-35b5-4ba9-89ce-d914e1fa6a86`. Public
+  health/readiness probes and the remote D1 migration check passed; their request IDs are recorded
+  in `docs/goal/READINESS.md`.
+- Complete the remaining authenticated Organization and Platform Administrator browser checks from a
+  signed-in staging session, then promote the affected matrix entries from `implemented` to
+  `verified` with the captured request/version evidence.
 
-**Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes. Permanent
-staging qualification remains the only release step; production remains unlaunched.
+**Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes (met). Public
+staging qualification is met; authenticated browser qualification remains the only release step.
+Production remains unlaunched.
 
 ## Rollback and risk notes
 
