@@ -283,6 +283,27 @@ test.beforeEach(async ({ page }) => {
     });
   });
   await page.route("**/api/organization/events/*/seating-charts**", async (route) => {
+    if (route.request().url().endsWith("/order")) {
+      const body: unknown = route.request().postDataJSON();
+      const chartIds =
+        typeof body === "object" &&
+        body !== null &&
+        "chartIds" in body &&
+        Array.isArray(body.chartIds)
+          ? body.chartIds.filter((value): value is string => typeof value === "string")
+          : [];
+      const byId = new Map(seatingCharts.map((chart) => [String(chart.id), chart]));
+      seatingCharts = chartIds.flatMap((chartId, index) => {
+        const chart = byId.get(chartId);
+        return chart ? [{ ...chart, sortOrder: index }] : [];
+      });
+      await route.fulfill({
+        body: JSON.stringify({ charts: seatingCharts, requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
     const method = route.request().method();
     if (method === "GET") {
       await route.fulfill({
@@ -612,6 +633,124 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await page.getByRole("banner").getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
+});
+
+test("renders the focused seating canvas with structural controls", async ({ page }) => {
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ session: currentSession, user: currentUser }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/organizations", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        organizations: [
+          {
+            canonicalHostname: "alpha.example.test",
+            canonicalStatus: "active",
+            lifecycleState: "active",
+            name: "Organization Alpha",
+            organizationId: "organization-alpha",
+            profileId: null,
+            role: "administrator",
+            slug: "alpha",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        activePlatformAdministrator: false,
+        enrollmentComplete: false,
+        requestId: "22222222-2222-4222-8222-222222222222",
+        twoFactorEnabled: false,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/modules/state", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        modules: [
+          { enabled: true, id: "events" },
+          { enabled: true, id: "people" },
+          { enabled: true, id: "programs" },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/setup/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        allModulesConfigured: true,
+        completedSteps: [],
+        currentStep: null,
+        launched: true,
+        organizationId: "organization-alpha",
+        organizationName: "Organization Alpha",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        mfaRequired: false,
+        mfaVerifiedUntil: null,
+        organizationId: "organization-alpha",
+        requestId: "99999999-9999-4999-8999-999999999999",
+        role: "administrator",
+        twoFactorEnabled: false,
+        twoFactorVerified: false,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/admin/seating");
+  await expect(page.getByRole("heading", { name: "Performance seating" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Start a seating chart" })).toBeVisible();
+  await page.getByRole("button", { name: "Create chart" }).click();
+  await page.getByLabel("Chart name").fill("Full Canvas Chart");
+  await page.getByRole("button", { name: "Create chart", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1000) <= 700) {
+    await page.getByRole("button", { name: "Edit anyway" }).click();
+  }
+  const firstSeat = page.getByRole("button", { name: "Seat 1, empty" }).first();
+  await expect(firstSeat).toBeVisible();
+  if ((page.viewportSize()?.width ?? 1000) > 700) {
+    await page.locator(".seating-profile-chip").first().dragTo(firstSeat);
+    await expect(
+      page.getByRole("button", { name: /Seat 1, assigned to Browser Singer/ }).first(),
+    ).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: "+ Add row to back" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "+ Add row to front" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Unassigned Profiles" })).toBeVisible();
 });
 
 test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page }) => {

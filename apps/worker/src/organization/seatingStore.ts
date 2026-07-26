@@ -419,7 +419,8 @@ function reorderCharts(
   if (!eventAcceptsSeating(storage, operation.eventId)) {
     return Response.json({ code: "event_not_found" }, { status: 404 });
   }
-  if (new Set(operation.chartIds).size !== operation.chartIds.length) {
+  const requestedIds = new Set(operation.chartIds);
+  if (requestedIds.size !== operation.chartIds.length) {
     return Response.json({ code: "invalid_chart_order" }, { status: 400 });
   }
   const existing = storage.sql
@@ -431,7 +432,7 @@ function reorderCharts(
     .map(({ id }) => id);
   if (
     existing.length !== operation.chartIds.length ||
-    existing.some((id) => !operation.chartIds.includes(id))
+    existing.some((id) => !requestedIds.has(id))
   ) {
     return Response.json({ code: "invalid_chart_order" }, { status: 409 });
   }

@@ -589,6 +589,10 @@
         "targetEvidence":
           [
             "apps/web/src/account/SeatingManager.tsx",
+            "packages/domain/src/seatingLayout.ts",
+            "packages/domain/src/seatingLayout.test.ts",
+            "apps/worker/src/organization/organizationSeating.ts",
+            "apps/worker/src/organization/seatingStore.ts",
             "apps/worker/test/seating.integration.test.ts",
             "apps/web/e2e/auth.spec.ts",
           ],
@@ -2586,12 +2590,23 @@
       },
       {
         "id": "responsive.seating",
-        "state": "seating editor and mirrored finder remain touch and keyboard usable",
+        "state":
+          "seating editor and mirrored finder remain touch, keyboard, drag/drop, focus-mode, print,
+          and mobile read-only-first usable",
         "owner": "apps/web",
         "milestone": 5,
         "status": "implemented",
-        "baselineEvidence": "test/seatingLayoutRegression.test.ts; test/seatingMismatch.test.ts",
-        "targetEvidence": ["apps/web/src/styles/theme.css", "apps/web/e2e/auth.spec.ts"],
+        "baselineEvidence":
+          "test/seatingLayoutRegression.test.ts; test/seatingMismatch.test.ts;
+          src/components/admin/SeatingGrid.tsx; src/components/admin/SeatingBottomDock.tsx",
+        "targetEvidence":
+          [
+            "apps/web/src/account/SeatingManager.tsx",
+            "apps/web/src/styles/theme.css",
+            "packages/domain/src/seatingLayout.test.ts",
+            "apps/worker/test/seating.integration.test.ts",
+            "apps/web/e2e/auth.spec.ts",
+          ],
       },
       {
         "id": "responsive.checkout",
