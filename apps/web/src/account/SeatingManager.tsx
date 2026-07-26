@@ -839,7 +839,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     try {
       const created = await createOrganizationSeatingChart(eventId, {
         ...chart,
-        name: chart.name.trim() || "Main Seating Chart",
+        name: chartName.trim() || "Main Seating Chart",
         formationId: chart.formationId || resources.seating.defaultFormationId,
       });
       setCharts((current) =>

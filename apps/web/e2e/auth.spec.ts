@@ -737,6 +737,7 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   await page.getByRole("button", { name: "Create chart" }).click();
   await page.getByLabel("Chart name").fill("Full Canvas Chart");
   await page.getByRole("button", { name: "Create chart", exact: true }).click();
+  await expect(page.getByLabel("Select seating chart")).toContainText("Full Canvas Chart");
   if ((page.viewportSize()?.width ?? 1000) <= 700) {
     await page.getByRole("button", { name: "Edit anyway" }).click();
   }
