@@ -262,7 +262,7 @@ export function OrganizationInvitations({
         <h2 id="organization-invitations-title">Invite a member</h2>
       </div>
       <p className="section-description">
-        Invitations expire after 48 hours. The recipient must sign in with the invited email before
+        Invitations expire after 8 days. The recipient must sign in with the invited email before
         accepting; administrators can invite Organization Members or Administrators, while only an
         Owner can invite another Owner.
       </p>
