@@ -2,9 +2,11 @@ import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import {
   memberProfileUpdateRequestSchema,
+  organizationAuditionCreateRequestSchema,
+  organizationAuditionSettingsSchema,
+  organizationAuditionUpdateRequestSchema,
   organizationProfileRequestSchema,
   organizationRosterConfigurationRequestSchema,
-  publicAuditionInquiryRequestSchema,
 } from "@choir/contracts";
 
 import type { Env } from "../env";
@@ -32,11 +34,23 @@ import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { readPlayerDetailsFromStore } from "./playerStore";
 import {
   createAuditionInStore,
+  deleteAuditionInStore,
   readAuditionFromStore,
+  readAuditionSettingsFromStore,
   listAuditionsFromStore,
+  readAuditionNotificationJobFromStore,
   updateAuditionInStore,
-  updateAuditionCandidateInStore,
+  updateAuditionSettingsInStore,
+  auditionSlotsAreConfigured,
+  recordAuditionNotificationResult,
 } from "./auditionStore";
+import {
+  completeOrganizationExportInStore,
+  createOrganizationExportInStore,
+  failOrganizationExportInStore,
+  readOrganizationExportJobFromStore,
+  readOrganizationExportSnapshot,
+} from "./exportStore";
 import {
   listPollsFromStore,
   listArchivedPollsFromStore,
@@ -1304,35 +1318,214 @@ async function auditionCreateHandler(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
-  const parsed = publicAuditionInquiryRequestSchema.safeParse(
-    await request.json().catch(() => null),
-  );
+  const raw: unknown = await request.json().catch(() => null);
+  const parsed = organizationAuditionCreateRequestSchema.safeParse(raw);
   if (!parsed.success) {
     return Response.json({ code: "validation_failed" }, { status: 400 });
   }
+  if (
+    parsed.data.performanceId &&
+    storage.sql
+      .exec(
+        "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 LIMIT 1",
+        parsed.data.performanceId,
+      )
+      .toArray().length === 0
+  ) {
+    return Response.json({ code: "performance_not_found" }, { status: 400 });
+  }
+  if (!auditionSlotsAreConfigured(storage, parsed.data.requestedSlots)) {
+    return Response.json({ code: "invalid_audition_slot" }, { status: 400 });
+  }
+  const context = z.object({ actorUserId: z.string().min(1), requestId: z.uuid() }).safeParse(raw);
   const id = createAuditionInStore(
     storage,
-    parsed.data.name,
-    parsed.data.email,
-    parsed.data.phone ?? "",
-    parsed.data.voicePart ?? "",
-    parsed.data.experience ?? "",
-    parsed.data.availabilityNotes ?? "",
+    {
+      availabilityNotes: parsed.data.availabilityNotes ?? "",
+      email: parsed.data.email,
+      experience: parsed.data.experience ?? "",
+      name: parsed.data.name,
+      performanceId: parsed.data.performanceId ?? null,
+      phone: parsed.data.phone ?? "",
+      requestedSlots: parsed.data.requestedSlots,
+      scheduledTimeSlot: parsed.data.scheduledTimeSlot ?? null,
+      status: parsed.data.status,
+      voicePart: parsed.data.voicePart ?? "",
+    },
+    context.success ? context.data : undefined,
   );
   return readAuditionFromStore(storage, null, id);
 }
 
-function auditionUpdateHandler(storage: DurableObjectStorage, request: Request): Response {
-  const url = new URL(request.url);
-  const auditionId = url.searchParams.get("auditionId") ?? "";
+interface AuditionUpdatePayload {
+  readonly actor?: { readonly actorUserId: string; readonly requestId: string };
+  readonly input: {
+    readonly adminNotes?: string;
+    readonly availabilityNotes?: string;
+    readonly email?: string;
+    readonly experience?: string;
+    readonly name?: string;
+    readonly performanceId?: string | null;
+    readonly phone?: string;
+    readonly requestedSlots?: readonly string[];
+    readonly scheduledTimeSlot?: string | null;
+    readonly status?: string;
+    readonly voicePart?: string;
+  };
+}
+
+function auditionInputFromParsed(
+  data: z.infer<typeof organizationAuditionUpdateRequestSchema>,
+): AuditionUpdatePayload["input"] {
+  const input: {
+    adminNotes?: string;
+    availabilityNotes?: string;
+    email?: string;
+    experience?: string;
+    name?: string;
+    performanceId?: string | null;
+    phone?: string;
+    requestedSlots?: readonly string[];
+    scheduledTimeSlot?: string | null;
+    status?: string;
+    voicePart?: string;
+  } = {};
+  if (data.adminNotes !== undefined) input.adminNotes = data.adminNotes;
+  if (data.availabilityNotes !== undefined) input.availabilityNotes = data.availabilityNotes;
+  if (data.email !== undefined) input.email = data.email;
+  if (data.experience !== undefined) input.experience = data.experience;
+  if (data.name !== undefined) input.name = data.name;
+  if (data.performanceId !== undefined) input.performanceId = data.performanceId;
+  if (data.phone !== undefined) input.phone = data.phone;
+  if (data.requestedSlots !== undefined) input.requestedSlots = data.requestedSlots;
+  if (data.scheduledTimeSlot !== undefined) input.scheduledTimeSlot = data.scheduledTimeSlot;
+  if (data.status !== undefined) input.status = data.status;
+  if (data.voicePart !== undefined) input.voicePart = data.voicePart;
+  return input;
+}
+
+function parseAuditionUpdatePayload(raw: unknown, url: URL): AuditionUpdatePayload {
+  const parsedBody = organizationAuditionUpdateRequestSchema.safeParse(raw);
+  const actor = z.object({ actorUserId: z.string().min(1), requestId: z.uuid() }).safeParse(raw);
+  if (parsedBody.success) {
+    return {
+      ...(actor.success ? { actor: actor.data } : {}),
+      input: auditionInputFromParsed(parsedBody.data),
+    };
+  }
   const availabilityNotes = url.searchParams.get("availabilityNotes") ?? undefined;
   const voicePart = url.searchParams.get("voicePart") ?? undefined;
-  const status = url.searchParams.get("status") ?? undefined;
-  const adminNotes = url.searchParams.get("adminNotes") ?? undefined;
   if (availabilityNotes !== undefined || voicePart !== undefined) {
-    return updateAuditionCandidateInStore(storage, auditionId, availabilityNotes, voicePart);
+    return {
+      input: {
+        ...(availabilityNotes === undefined ? {} : { availabilityNotes }),
+        ...(voicePart === undefined ? {} : { voicePart }),
+      },
+    };
   }
-  return updateAuditionInStore(storage, auditionId, adminNotes, status);
+  const adminNotes = url.searchParams.get("adminNotes") ?? undefined;
+  const status = url.searchParams.get("status") ?? undefined;
+  return {
+    input: {
+      ...(adminNotes === undefined ? {} : { adminNotes }),
+      ...(status === undefined ? {} : { status }),
+    },
+  };
+}
+
+async function auditionUpdateHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const auditionId = url.searchParams.get("auditionId") ?? "";
+  const payload = parseAuditionUpdatePayload(await request.json().catch(() => null), url);
+  return updateAuditionInStore(storage, auditionId, payload.input, payload.actor);
+}
+
+async function auditionSettingsUpdateHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const raw: unknown = await request.json().catch(() => null);
+  const parsed = organizationAuditionSettingsSchema.safeParse(raw);
+  const context = z
+    .object({
+      actorUserId: z.string().min(1),
+      organizationId: z.string().min(1),
+      requestId: z.uuid(),
+    })
+    .safeParse(raw);
+  if (!parsed.success || !context.success)
+    return Response.json({ code: "validation_failed" }, { status: 400 });
+  return updateAuditionSettingsInStore(storage, context.data.organizationId, parsed.data, {
+    actorUserId: context.data.actorUserId,
+    requestId: context.data.requestId,
+  });
+}
+
+async function auditionDeleteHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const body = z
+    .object({
+      actorUserId: z.string().min(1),
+      auditionId: z.string().min(1),
+      requestId: z.uuid(),
+    })
+    .safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ code: "validation_failed" }, { status: 400 });
+  return deleteAuditionInStore(storage, body.data.auditionId, {
+    actorUserId: body.data.actorUserId,
+    requestId: body.data.requestId,
+  });
+}
+
+async function auditionNotificationResultHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const body = z
+    .object({
+      failureDetail: z.string().max(2_000).default(""),
+      jobId: z.uuid(),
+      organizationId: z.string().min(1),
+      providerMessageId: z.string().max(512).nullable(),
+      status: z.enum(["failed", "sent", "suppressed"]),
+    })
+    .safeParse(await request.json().catch(() => null));
+  if (!body.success) return Response.json({ code: "validation_failed" }, { status: 400 });
+  return recordAuditionNotificationResult(storage, body.data.organizationId, body.data);
+}
+
+async function dispatchAuditionPostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
+  switch (pathname) {
+    case "/internal/audition/update":
+      return auditionUpdateHandler(storage, request);
+    case "/internal/audition/create":
+      return auditionCreateHandler(storage, request);
+    case "/internal/audition/delete":
+      return auditionDeleteHandler(storage, request);
+    case "/internal/audition/settings":
+      return auditionSettingsUpdateHandler(storage, request);
+    case "/internal/audition/notification-result":
+      return auditionNotificationResultHandler(storage, request);
+    case "/internal/export/create":
+      return createOrganizationExportInStore(storage, await request.json().catch(() => null));
+    case "/internal/export/complete":
+      return completeOrganizationExportInStore(storage, await request.json().catch(() => null));
+    case "/internal/export/fail":
+      return failOrganizationExportInStore(storage, await request.json().catch(() => null));
+    case "/internal/auditions/list":
+      return listAuditionsFromStore(storage);
+    default:
+      return null;
+  }
 }
 
 async function dispatchOperationalPostRequest(
@@ -1340,6 +1533,8 @@ async function dispatchOperationalPostRequest(
   pathname: string,
   request: Request,
 ): Promise<Response | null> {
+  const auditionResponse = await dispatchAuditionPostRequest(storage, pathname, request);
+  if (auditionResponse) return auditionResponse;
   switch (pathname) {
     case "/internal/jobs/claim":
       return claimJob(storage, request);
@@ -1363,12 +1558,6 @@ async function dispatchOperationalPostRequest(
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
       return prepareOrganizationSchema(storage, request);
-    case "/internal/audition/update":
-      return auditionUpdateHandler(storage, request);
-    case "/internal/audition/create":
-      return auditionCreateHandler(storage, request);
-    case "/internal/auditions/list":
-      return listAuditionsFromStore(storage);
     default:
       return null;
   }
@@ -1395,6 +1584,10 @@ const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/export/snapshot": (storage, _url, organizationId) =>
+    readExportSnapshot(storage, organizationId),
+  "/internal/export/job": (storage, url, organizationId) =>
+    readOrganizationExportJobFromStore(storage, organizationId, url.searchParams.get("exportId")),
   "/internal/website/settings": (storage, _url, organizationId) =>
     readPublicWebsiteSettingsFromStore(storage, organizationId),
   "/internal/polls": (storage, _url, organizationId) => listPollsFromStore(storage, organizationId),
@@ -1434,6 +1627,11 @@ const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readTicketNotificationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/audition/notification-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readAuditionNotificationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
   "/internal/donations/list": (storage, _url, organizationId) =>
     listDonationsFromStore(storage, organizationId),
   "/internal/donations/patrons": (storage, _url, organizationId) =>
@@ -1621,6 +1819,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
   switch (url.pathname) {
     case "/internal/auditions/list":
       return listAuditionsFromStore(storage);
+    case "/internal/audition/settings":
+      return readAuditionSettingsFromStore(storage, organizationId);
     case "/internal/health":
       return Response.json({ status: "ok" });
     case "/internal/roster/configuration":
@@ -1653,6 +1853,20 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
     return getPrivateFileMetadata(storage, url.pathname.slice(privateFilePrefix.length));
   }
   return null;
+}
+
+function readExportSnapshot(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  try {
+    return Response.json(readOrganizationExportSnapshot(storage, organizationId));
+  } catch {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
 }
 
 export class OrganizationStore extends DurableObject<Env> {

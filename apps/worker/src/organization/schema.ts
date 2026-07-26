@@ -621,6 +621,71 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
   },
+  {
+    version: 30,
+    statements: [
+      `ALTER TABLE organization_metadata ADD COLUMN audition_settings_json TEXT NOT NULL
+       DEFAULT '{"enabled":true,"defaultPerformanceId":null,"confirmationMessage":"Thank you for your interest. We will be in touch soon.","adminNotifyEnabled":false,"adminNotifyUsers":[],"slots":[]}'`,
+      "ALTER TABLE auditions ADD COLUMN performance_id TEXT",
+      "ALTER TABLE auditions ADD COLUMN scheduled_time_slot TEXT",
+      "ALTER TABLE auditions ADD COLUMN requested_slots_json TEXT NOT NULL DEFAULT '[]'",
+      "CREATE INDEX IF NOT EXISTS idx_auditions_performance ON auditions(performance_id, status, created_at)",
+    ],
+  },
+  {
+    version: 31,
+    statements: [
+      `CREATE TABLE audition_notifications (
+        id TEXT PRIMARY KEY,
+        audition_id TEXT NOT NULL REFERENCES auditions(id) ON DELETE CASCADE,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK (kind IN ('inquiry_confirmation', 'scheduled_confirmation', 'admin_alert')),
+        destination TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        content_markdown TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'sent', 'failed', 'suppressed')),
+        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        provider_message_id TEXT,
+        failure_detail TEXT NOT NULL DEFAULT '',
+        scheduled_for TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sent_at TEXT
+      ) STRICT`,
+      `CREATE INDEX idx_audition_notifications_status
+       ON audition_notifications(status, scheduled_for, id)`,
+      `CREATE INDEX idx_audition_notifications_audition
+       ON audition_notifications(audition_id, kind, destination)`,
+    ],
+  },
+  {
+    version: 32,
+    statements: [
+      `CREATE TABLE organization_exports (
+        id TEXT PRIMARY KEY,
+        format TEXT NOT NULL CHECK (format = 'json'),
+        status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'completed', 'failed')),
+        actor_user_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        archive_key TEXT,
+        byte_count INTEGER,
+        checksum_sha256 TEXT,
+        error_code TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      ) STRICT`,
+      `CREATE INDEX idx_organization_exports_status
+       ON organization_exports(status, created_at DESC, id DESC)`,
+    ],
+  },
+  {
+    version: 33,
+    statements: [
+      "ALTER TABLE organization_exports ADD COLUMN actor_type TEXT NOT NULL DEFAULT 'organization_member'",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

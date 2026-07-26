@@ -10,9 +10,22 @@ import {
   setupStatusSchema,
   organizationVenueSchema,
   organizationVenuesResponseSchema,
+  organizationExportManifestSchema,
+  organizationExportStartResponseSchema,
+  organizationExportStatusResponseSchema,
+  organizationAuditionListResponseSchema,
+  organizationAuditionResponseSchema,
+  organizationAuditionSettingsResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
-import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
+import {
+  applyD1Migrations,
+  createExecutionContext,
+  createMessageBatch,
+  getQueueResult,
+  reset,
+  runInDurableObject,
+} from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import {
@@ -20,6 +33,7 @@ import {
   readCapturedPlatformEmailsForTest,
 } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+import { processDeliveryBatch } from "../src/jobs/consumer";
 
 const USER_EMAIL = "calendar.manager@example.test";
 
@@ -30,6 +44,7 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 
 const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const organizationFiles = requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 
 function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
   const headers = new Headers(init?.headers);
@@ -133,6 +148,226 @@ afterEach(async () => {
 });
 
 describe("Organization calendar management", () => {
+  it("queues, completes, downloads, and replays an asynchronous Organization export", async () => {
+    const cookie = await signIn();
+    await database
+      .prepare("UPDATE member SET role = 'owner' WHERE organizationId = ? AND userId = ?")
+      .bind("organization-alpha", "calendar-manager")
+      .run();
+
+    const started = await post("alpha.localhost", "/api/organization/export", cookie, {
+      format: "json",
+    });
+    expect(started.status).toBe(202);
+    const startedBody = await started.json();
+    const exportId = organizationExportStartResponseSchema.parse(startedBody).exportId;
+
+    const queued = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/export/${exportId}`, cookie),
+    );
+    expect(organizationExportStatusResponseSchema.parse(await queued.json()).status).toBe("queued");
+
+    const message = {
+      attempts: 1,
+      body: {
+        attempt: 1,
+        idempotencyKey: `organization-export:${exportId}`,
+        jobId: exportId,
+        kind: "organization_export",
+        organizationId: "organization-alpha",
+        version: 1,
+      },
+      id: `export-${exportId}`,
+      timestamp: new Date("2026-07-21T12:00:00.000Z"),
+    } as const;
+    const batch = createMessageBatch("choir-management-jobs-local", [message]);
+    const executionContext = createExecutionContext();
+    await processDeliveryBatch(batch, {
+      EXTERNAL_EFFECTS_MODE: "fake",
+      ORGANIZATION_FILES: organizationFiles,
+      ORGANIZATION_STORE: stores,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+    });
+    await getQueueResult(batch, executionContext);
+
+    const completed = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/export/${exportId}`, cookie),
+    );
+    const completedBody = organizationExportStatusResponseSchema.parse(await completed.json());
+    expect(completedBody).toMatchObject({ status: "completed", exportId });
+    const auditActorTypes = await runInDurableObject<OrganizationStore, string[]>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly actorType: string }>(
+            `SELECT actor_type AS actorType FROM audit_events
+             WHERE target_id = ? AND action IN ('organization.export.requested', 'organization.export.completed')
+             ORDER BY action`,
+            exportId,
+          )
+          .toArray()
+          .map(({ actorType }) => actorType),
+    );
+    expect(auditActorTypes).toEqual(["organization_member", "organization_member"]);
+    const downloaded = await exports.default.fetch(
+      api("alpha.localhost", completedBody.downloadUrl ?? "/missing", cookie),
+    );
+    expect(downloaded.status).toBe(200);
+    expect(downloaded.headers.get("x-export-checksum-sha256")).toBe(completedBody.checksumSha256);
+
+    const replay = createMessageBatch("choir-management-jobs-local", [
+      { ...message, id: `export-replay-${exportId}` },
+    ]);
+    await processDeliveryBatch(replay, {
+      EXTERNAL_EFFECTS_MODE: "fake",
+      ORGANIZATION_FILES: organizationFiles,
+      ORGANIZATION_STORE: stores,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+    });
+    await getQueueResult(replay, executionContext);
+    expect(
+      organizationExportStatusResponseSchema.parse(
+        await (
+          await exports.default.fetch(
+            api("alpha.localhost", `/api/organization/export/${exportId}`, cookie),
+          )
+        ).json(),
+      ).status,
+    ).toBe("completed");
+  });
+
+  it("covers the authorized audition settings and lifecycle routes with tenant isolation", async () => {
+    const cookie = await signIn();
+    await database
+      .prepare("UPDATE member SET role = 'owner' WHERE organizationId = ? AND userId = ?")
+      .bind("organization-alpha", "calendar-manager")
+      .run();
+
+    const settingsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie),
+    );
+    const settings = organizationAuditionSettingsResponseSchema.parse(
+      await settingsResponse.json(),
+    );
+    expect(settings.enabled).toBe(true);
+    const settingsUpdate = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify({ ...settings, confirmationMessage: "We received your inquiry." }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(
+      organizationAuditionSettingsResponseSchema.parse(await settingsUpdate.json())
+        .confirmationMessage,
+    ).toBe("We received your inquiry.");
+
+    const created = await post("alpha.localhost", "/api/organization/auditions", cookie, {
+      availabilityNotes: "Weekends",
+      email: "admin-created@example.com",
+      experience: "Community choir",
+      name: "Admin Created Singer",
+      requestedSlots: [],
+      status: "pending",
+      voicePart: "Alto",
+    });
+    expect(created.status).toBe(201);
+    const audition = organizationAuditionResponseSchema.parse(await created.json());
+    const listed = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/auditions", cookie),
+    );
+    expect(organizationAuditionListResponseSchema.parse(await listed.json()).auditions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: audition.id })]),
+    );
+
+    const updated = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/auditions/${audition.id}`, cookie, {
+        body: JSON.stringify({
+          adminNotes: "Review complete",
+          scheduledTimeSlot: "2026-08-01T15:00:00.000Z",
+          status: "scheduled",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(organizationAuditionResponseSchema.parse(await updated.json()).status).toBe("scheduled");
+    const tokenResponse = await post(
+      "alpha.localhost",
+      "/api/organization/audition-tokens",
+      cookie,
+      {
+        auditionIds: [audition.id],
+      },
+    );
+    expect(await tokenResponse.json()).toMatchObject({ tokens: expect.any(Object) });
+    const deleted = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/auditions/${audition.id}`, cookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(deleted.status).toBe(200);
+    const crossTenant = await exports.default.fetch(
+      api("bravo.localhost", `/api/organization/auditions/${audition.id}`, cookie, {
+        body: JSON.stringify({ status: "completed" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(crossTenant.status).toBe(404);
+  });
+
+  it("exports a bounded, checksummed Organization snapshot only for the Owner", async () => {
+    const cookie = await signIn();
+    const denied = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/export.json", cookie),
+    );
+    expect(denied.status).toBe(403);
+    await database
+      .prepare("UPDATE member SET role = 'owner' WHERE organizationId = ? AND userId = ?")
+      .bind("organization-alpha", "calendar-manager")
+      .run();
+    const exported = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/export.json", cookie),
+    );
+    expect(exported.status).toBe(200);
+    expect(exported.headers.get("content-disposition")).toContain("organization-export-");
+    const body: unknown = await exported.json();
+    expect(body).toMatchObject({
+      payload: {
+        exportVersion: 1,
+        organizationId: "organization-alpha",
+      },
+    });
+    if (typeof body !== "object" || body === null || !("manifest" in body)) {
+      throw new Error("The export manifest was missing.");
+    }
+    organizationExportManifestSchema.parse(body.manifest);
+    const crossTenant = await exports.default.fetch(
+      api("bravo.localhost", "/api/organization/export.json", cookie),
+    );
+    expect(crossTenant.status).toBe(403);
+  });
+
+  it("preserves a Durable Object setup identity failure instead of masking it as 503", async () => {
+    const cookie = await signIn();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE organization_metadata SET organization_id = ?",
+          "organization-other",
+        );
+        return null;
+      },
+    );
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/setup/status", cookie),
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ code: "organization_not_found" });
+  });
+
   it("creates isolated venue/event/RSVP data that populates the signed calendar feed", async () => {
     const cookie = await signIn();
     const setupStatus = await exports.default.fetch(

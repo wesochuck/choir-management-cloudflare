@@ -86,6 +86,8 @@ milestone complete.
 | `apps/web/src/account/LearningTrackPlayer.tsx`                 | Member-safe private learning-track playback and offline practice UI                                                            |
 | `apps/web/src/account/OrganizationResources.tsx`               | Manager resource ordering/editing and member private-file/link access                                                          |
 | `apps/web/src/account/SetListManager.tsx`                      | Manager event set-list ordering, approval, music linking, and performer-credit UI                                              |
+| `apps/web/src/account/AuditionManager.tsx`                     | Administrator audition inquiry, slot settings, scheduling, conversion, notification, and token UI                              |
+| `apps/web/e2e/setlists.spec.ts`                                | Desktop/mobile set-list ordering, copy, print, save, and theme browser evidence                                                |
 | `apps/web/src/offline/mediaStore.ts`                           | Host-scoped IndexedDB persistence and blob-URL lifecycle for private audio                                                     |
 | `apps/web/src/offline/mediaStore.test.ts`                      | Unit proof for offline private-audio persistence and removal                                                                   |
 | `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                                                            |
@@ -105,6 +107,10 @@ milestone complete.
 | `apps/worker/src/organization/schedulingStore.ts`              | Organization-scoped event-reminder and attendance-report job data reader                                                       |
 | `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                                                            |
 | `apps/worker/src/organization/scheduler.ts`                    | Per-Organization alarm and stable queue outbox orchestration                                                                   |
+| `apps/worker/src/organization/auditionStore.ts`                | Organization-scoped audition settings, inquiries, transitions, slots, audit, and notification outbox                           |
+| `apps/worker/src/organization/organizationAuditions.ts`        | Signed audition-link resolution and atomic token generation                                                                    |
+| `apps/worker/src/organization/exportStore.ts`                  | Bounded Organization export snapshot repository with tenant identity checks                                                    |
+| `apps/worker/src/organization/organizationExport.ts`           | Pure bounded archive serialization, manifest, byte-count, and checksum construction                                            |
 | `apps/worker/src/control/schema.ts`                            | Control-plane D1 schema definitions                                                                                            |
 | `apps/worker/src/control/migrations/0001_initial.sql`          | Initial control-plane schema                                                                                                   |
 | `apps/worker/src/auth/config.ts`                               | Better Auth configuration and adapters                                                                                         |
@@ -170,6 +176,7 @@ milestone complete.
 | `packages/testkit/package.json`                                | Factories, fixtures, and environment harnesses                                                                                 |
 | `packages/testkit/src/index.ts`                                | Shared test utilities                                                                                                          |
 | `docs/parity/feature-matrix.yaml`                              | Route, workflow, background-task, export, and visual parity ledger                                                             |
+| `docs/parity/completion-plan.md`                               | Code/test-backed parity audit, confirmed gaps, evidence debt, phased completion plan, and exit criteria                        |
 | `docs/parity/csv-contracts/README.md`                          | Versioned CSV behavior and fixture index                                                                                       |
 | `docs/parity/signed-link-behavior.md`                          | Purpose, authorization, expiry, and revocation contracts                                                                       |
 | `docs/architecture/runtime.md`                                 | Runtime boundaries and request flows                                                                                           |

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const jobKindSchema = z.enum([
   "attendance_report",
+  "audition_notification",
   "communication_delivery",
   "event_reminder",
   "organization_export",

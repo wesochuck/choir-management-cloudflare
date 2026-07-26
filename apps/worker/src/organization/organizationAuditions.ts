@@ -11,6 +11,14 @@ export async function generateAuditionTokens(
 ): Promise<{ tokens: Record<string, string> }> {
   const now = Math.floor(Date.now() / 1000);
   const tokens: Record<string, string> = {};
+  const objectStub = stub(env, organizationId);
+  for (const auditionId of auditionIds) {
+    const detailsUrl = new URL("https://organization.internal/internal/audition/details");
+    detailsUrl.searchParams.set("organizationId", organizationId);
+    detailsUrl.searchParams.set("auditionId", auditionId);
+    const details = await objectStub.fetch(detailsUrl);
+    if (!details.ok) return { tokens: {} };
+  }
   for (const auditionId of auditionIds) {
     tokens[auditionId] = await issueSignedLink(env.SIGNED_LINK_SECRET, {
       algorithm: "HS256",

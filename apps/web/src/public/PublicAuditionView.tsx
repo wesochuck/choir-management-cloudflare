@@ -15,16 +15,26 @@ interface AuditionDetails {
   readonly voicePart?: string;
   readonly experience?: string;
   readonly availabilityNotes?: string;
+  readonly requestedSlots?: readonly string[];
+  readonly scheduledTimeSlot?: string | null;
   readonly status: string;
   readonly slots: AuditionSlot[];
 }
 
+interface PublicAuditionSettings {
+  readonly confirmationMessage: string;
+  readonly defaultPerformanceId: string | null;
+  readonly enabled: boolean;
+  readonly slots: readonly AuditionSlot[];
+}
+
 type PageStatus =
   | { type: "loading" }
-  | { type: "ready_form" }
-  | { type: "submitting_inquiry" }
+  | { type: "ready_form"; settings: PublicAuditionSettings }
+  | { type: "closed"; message: string }
+  | { type: "submitting_inquiry"; settings: PublicAuditionSettings }
   | { type: "inquiry_submitted"; id: string }
-  | { type: "inquiry_error" }
+  | { type: "inquiry_error"; settings: PublicAuditionSettings }
   | { type: "not_found" }
   | { type: "ready_details"; details: AuditionDetails }
   | { type: "updating"; details: AuditionDetails }
@@ -42,6 +52,15 @@ function isAuditionDetails(value: unknown): value is AuditionDetails {
   );
 }
 
+function isAuditionSlotValue(
+  value: unknown,
+): value is Omit<AuditionSlot, "id"> & { readonly id?: unknown } {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("startsAt" in value) || typeof value.startsAt !== "string") return false;
+  if (!("endsAt" in value) || typeof value.endsAt !== "string") return false;
+  return true;
+}
+
 function fetchAuditionDetails(token: string): Promise<AuditionDetails> {
   return fetch("/api/public/audition-details", {
     body: JSON.stringify({ token }),
@@ -56,6 +75,38 @@ function fetchAuditionDetails(token: string): Promise<AuditionDetails> {
   });
 }
 
+function fetchAuditionSettings(): Promise<PublicAuditionSettings> {
+  return fetch("/api/public/audition-settings").then((response) => {
+    if (!response.ok) throw new Error("settings_failed");
+    return response.json().then((data: unknown) => {
+      if (typeof data !== "object" || data === null) throw new Error("invalid_settings");
+      if (!("enabled" in data) || typeof data.enabled !== "boolean")
+        throw new Error("invalid_settings");
+      if (
+        !("defaultPerformanceId" in data) ||
+        (data.defaultPerformanceId !== null && typeof data.defaultPerformanceId !== "string")
+      ) {
+        throw new Error("invalid_settings");
+      }
+      const slots = "slots" in data && Array.isArray(data.slots) ? data.slots : [];
+      const parsedSlots = slots.filter(isAuditionSlotValue);
+      const normalizedSlots = parsedSlots.map((slot) => ({
+        ...slot,
+        id: "id" in slot && typeof slot.id === "string" ? slot.id : slot.startsAt,
+      }));
+      return {
+        confirmationMessage:
+          "confirmationMessage" in data && typeof data.confirmationMessage === "string"
+            ? data.confirmationMessage
+            : "Thank you for your interest. We will be in touch soon.",
+        defaultPerformanceId: data.defaultPerformanceId,
+        enabled: data.enabled,
+        slots: normalizedSlots,
+      };
+    });
+  });
+}
+
 function submitInquiry(
   name: string,
   email: string,
@@ -63,9 +114,18 @@ function submitInquiry(
   voicePart: string,
   experience: string,
   availabilityNotes: string,
+  requestedSlots: readonly string[],
 ): Promise<string> {
   return fetch("/api/public/audition-inquiry", {
-    body: JSON.stringify({ availabilityNotes, email, experience, name, phone, voicePart }),
+    body: JSON.stringify({
+      availabilityNotes,
+      email,
+      experience,
+      name,
+      phone,
+      requestedSlots,
+      voicePart,
+    }),
     headers: { "content-type": "application/json" },
     method: "POST",
   }).then((response) => {
@@ -97,14 +157,17 @@ function submitAuditionUpdate(
 function AuditionForm({
   onSubmit,
   busy,
+  settings,
 }: {
   readonly busy: boolean;
+  readonly settings: PublicAuditionSettings;
   readonly onSubmit: (data: {
     availabilityNotes: string;
     email: string;
     experience: string;
     name: string;
     phone: string;
+    requestedSlots: readonly string[];
     voicePart: string;
   }) => void;
 }) {
@@ -113,6 +176,7 @@ function AuditionForm({
   const [phone, setPhone] = useState("");
   const [voicePart, setVoicePart] = useState("");
   const [experience, setExperience] = useState("");
+  const [requestedSlots, setRequestedSlots] = useState<readonly string[]>([]);
 
   return (
     <div className="mt-4 space-y-4">
@@ -191,11 +255,49 @@ function AuditionForm({
           value={experience}
         />
       </div>
+      {settings.slots.length > 0 && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Preferred audition times</legend>
+          <p className="text-sm text-muted-foreground">Select any times that work for you.</p>
+          <div className="space-y-2">
+            {settings.slots.map((slot) => {
+              const selected = requestedSlots.includes(slot.startsAt);
+              return (
+                <label className="flex items-center gap-2 text-sm" key={slot.id}>
+                  <input
+                    checked={selected}
+                    onChange={() => {
+                      setRequestedSlots((current) =>
+                        selected
+                          ? current.filter((value) => value !== slot.startsAt)
+                          : [...current, slot.startsAt],
+                      );
+                    }}
+                    type="checkbox"
+                  />
+                  {new Date(slot.startsAt).toLocaleString([], {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
       <button
         className={`button w-full ${busy || !name || !email ? "button--disabled" : ""}`}
         disabled={busy || !name || !email}
         onClick={() => {
-          onSubmit({ availabilityNotes: "", email, experience, name, phone, voicePart });
+          onSubmit({
+            availabilityNotes: "",
+            email,
+            experience,
+            name,
+            phone,
+            requestedSlots,
+            voicePart,
+          });
         }}
         type="button"
       >
@@ -254,6 +356,17 @@ function AuditionDetailView({
         <p className="text-sm text-muted-foreground">
           Submitted: {new Date(details.createdAt).toLocaleDateString()}
         </p>
+        {details.scheduledTimeSlot && (
+          <p className="text-sm text-muted-foreground">
+            Scheduled audition: {new Date(details.scheduledTimeSlot).toLocaleString()}
+          </p>
+        )}
+        {details.requestedSlots && details.requestedSlots.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Preferred times:{" "}
+            {details.requestedSlots.map((slot) => new Date(slot).toLocaleString()).join(", ")}
+          </p>
+        )}
       </div>
 
       <div>
@@ -298,14 +411,38 @@ function AuditionDetailView({
 }
 
 export function PublicAuditionView() {
-  const token = new URLSearchParams(window.location.search).get("token");
+  const [token] = useState(() => new URLSearchParams(window.location.search).get("token"));
   const [pageStatus, setPageStatus] = useState<PageStatus>({
-    type: token ? "loading" : "ready_form",
+    type: "loading",
   });
 
   useEffect(() => {
     window.history.replaceState(null, "", "/auditions");
-    if (!token) return;
+    if (!token) {
+      fetchAuditionSettings()
+        .then((settings) => {
+          if (!settings.enabled || !settings.defaultPerformanceId || settings.slots.length === 0) {
+            setPageStatus({
+              type: "closed",
+              message: "Audition requests are not currently open. Please check back later.",
+            });
+            return;
+          }
+          setPageStatus({ settings, type: "ready_form" });
+        })
+        .catch(() => {
+          setPageStatus({
+            settings: {
+              confirmationMessage: "Thank you for your interest. We will be in touch soon.",
+              defaultPerformanceId: "legacy-fallback",
+              enabled: true,
+              slots: [],
+            },
+            type: "ready_form",
+          });
+        });
+      return;
+    }
     fetchAuditionDetails(token)
       .then((details) => {
         setPageStatus({ type: "ready_details", details });
@@ -321,9 +458,19 @@ export function PublicAuditionView() {
     experience: string;
     name: string;
     phone: string;
+    requestedSlots: readonly string[];
     voicePart: string;
   }) {
-    setPageStatus({ type: "submitting_inquiry" });
+    const settings =
+      pageStatus.type === "ready_form" || pageStatus.type === "submitting_inquiry"
+        ? pageStatus.settings
+        : {
+            confirmationMessage: "",
+            defaultPerformanceId: null,
+            enabled: true,
+            slots: [],
+          };
+    setPageStatus({ settings, type: "submitting_inquiry" });
     submitInquiry(
       data.name,
       data.email,
@@ -331,12 +478,13 @@ export function PublicAuditionView() {
       data.voicePart,
       data.experience,
       data.availabilityNotes,
+      data.requestedSlots,
     )
       .then((id) => {
         setPageStatus({ type: "inquiry_submitted", id });
       })
       .catch(() => {
-        setPageStatus({ type: "inquiry_error" });
+        setPageStatus({ settings, type: "inquiry_error" });
       });
   }
 
@@ -366,6 +514,21 @@ export function PublicAuditionView() {
     );
   }
 
+  if (pageStatus.type === "closed") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="audition-title">
+          <p className="eyebrow">Audition</p>
+          <h1 id="audition-title">Auditions are currently closed</h1>
+          <p className="notice">{pageStatus.message}</p>
+          <a className="button button--secondary" href="/">
+            Return to the Organization site
+          </a>
+        </section>
+      </main>
+    );
+  }
+
   if (pageStatus.type === "inquiry_submitted") {
     return (
       <main className="auth-layout">
@@ -385,6 +548,7 @@ export function PublicAuditionView() {
   }
 
   if (pageStatus.type === "inquiry_error") {
+    const retrySettings = pageStatus.settings;
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="audition-title">
@@ -396,7 +560,7 @@ export function PublicAuditionView() {
           <button
             className="button button--secondary"
             onClick={() => {
-              setPageStatus({ type: "ready_form" });
+              setPageStatus({ settings: retrySettings, type: "ready_form" });
             }}
             type="button"
           >
@@ -423,15 +587,26 @@ export function PublicAuditionView() {
     );
   }
 
+  const formSettings =
+    pageStatus.type === "ready_form" || pageStatus.type === "submitting_inquiry"
+      ? pageStatus.settings
+      : {
+          confirmationMessage: "",
+          defaultPerformanceId: null,
+          enabled: true,
+          slots: [],
+        };
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="audition-title">
         <p className="eyebrow">Audition</p>
         <h1 id="audition-title">Audition Inquiry</h1>
         <p>Interested in joining? Fill out the form below and we will be in touch.</p>
+        <p className="notice">{formSettings.confirmationMessage}</p>
         <hr className="my-4" />
         <AuditionForm
           busy={pageStatus.type === "submitting_inquiry"}
+          settings={formSettings}
           onSubmit={handleInquirySubmit}
         />
       </section>

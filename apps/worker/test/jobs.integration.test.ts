@@ -41,6 +41,7 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 
 const organizationStore = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 const controlDatabase = requireBinding(env.CONTROL_DB, "CONTROL_DB");
+const organizationFiles = requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 
 const queueResultSchema = z.object({
   explicitAcks: z.array(z.string()),
@@ -72,6 +73,7 @@ async function processBatch(
   const executionContext = createExecutionContext();
   await processDeliveryBatch(batch, {
     EXTERNAL_EFFECTS_MODE: externalEffectsMode,
+    ORGANIZATION_FILES: organizationFiles,
     ORGANIZATION_STORE: organizationStore,
     SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
   });

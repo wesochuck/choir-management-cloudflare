@@ -39,6 +39,7 @@ function binding<T>(value: T | undefined, name: string): T {
 
 const database = binding(env.CONTROL_DB, "CONTROL_DB");
 const stores = binding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const organizationFiles = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 
 function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
   const headers = new Headers(init?.headers);
@@ -153,6 +154,7 @@ async function deliverQueuedTicketNotification(organizationId: string): Promise<
   ]);
   await processDeliveryBatch(batch, {
     EXTERNAL_EFFECTS_MODE: "fake",
+    ORGANIZATION_FILES: organizationFiles,
     ORGANIZATION_STORE: stores,
     SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
   });

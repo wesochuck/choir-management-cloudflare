@@ -121,6 +121,11 @@ function CatalogList({
                 {[piece.composer, piece.arranger, piece.catalogId].filter(Boolean).join(" · ") ||
                   "No catalog metadata"}
               </small>
+              <small>
+                {piece.performanceCount > 0
+                  ? `${String(piece.performanceCount)} performance${piece.performanceCount === 1 ? "" : "s"} · last ${piece.lastPerformedAt ? new Date(piece.lastPerformedAt).toLocaleDateString() : "—"}`
+                  : "Not performed yet"}
+              </small>
             </span>
             <span className="status-pill">{durationText(piece.durationSeconds) || "—"}</span>
           </button>

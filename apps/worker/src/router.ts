@@ -41,7 +41,14 @@ import {
   publicAuditionInquiryRequestSchema,
   publicAuditionSubmitRequestSchema,
   generateAuditionTokensRequestSchema,
+  organizationAuditionCreateRequestSchema,
+  organizationAuditionListResponseSchema,
+  organizationAuditionSchema,
+  organizationAuditionSettingsSchema,
   organizationAuditionUpdateRequestSchema,
+  organizationExportRequestSchema,
+  organizationExportStartResponseSchema,
+  organizationExportStatusResponseSchema,
   donationCheckoutRequestSchema,
   donationRefundRequestSchema,
   duesCheckoutRequestSchema,
@@ -63,6 +70,7 @@ import {
 } from "@choir/contracts";
 import { Hono, type Context } from "hono";
 import { requestId } from "hono/request-id";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 import {
   eventRsvpExportFilename,
@@ -256,11 +264,39 @@ import {
   submitPollResponse,
 } from "./organization/organizationPollLinks";
 import { generatePlayerTokens, resolvePlayerDetails } from "./organization/organizationPlayerLinks";
+import { organizationExportKey } from "./organization/exportStore";
 import {
   generateAuditionTokens,
   resolveAuditionDetails,
   submitAuditionUpdate,
 } from "./organization/organizationAuditions";
+
+function setupFailureStatus(status: number): ContentfulStatusCode {
+  switch (status) {
+    case 400:
+      return 400;
+    case 401:
+      return 401;
+    case 403:
+      return 403;
+    case 404:
+      return 404;
+    case 409:
+      return 409;
+    case 422:
+      return 422;
+    case 429:
+      return 429;
+    case 500:
+      return 500;
+    case 502:
+      return 502;
+    case 504:
+      return 504;
+    default:
+      return 503;
+  }
+}
 
 interface WorkerHonoEnvironment {
   Bindings: Env;
@@ -372,6 +408,221 @@ async function authorizeCalendarRoute(
     role: authorization.value.role,
     userId: authorization.value.userId,
   };
+}
+
+type ExportAuthorization =
+  | {
+      readonly actorType: "owner" | "platform_administrator";
+      readonly organizationId: string;
+      readonly ok: true;
+      readonly userId: string;
+    }
+  | {
+      readonly code: string;
+      readonly message: string;
+      readonly ok: false;
+      readonly status: 401 | 403 | 404;
+    };
+
+async function authorizeExportRoute(
+  context: Context<WorkerHonoEnvironment>,
+): Promise<ExportAuthorization> {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return {
+      code: "not_found",
+      message: "Organization exports require a registered canonical hostname.",
+      ok: false,
+      status: 404,
+    };
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const member = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (member.ok && member.value.role === "owner") {
+    return {
+      actorType: "owner",
+      ok: true,
+      organizationId,
+      userId: member.value.userId,
+    };
+  }
+  const platform = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!session) {
+    return {
+      code: "unauthorized",
+      message: "Sign in is required.",
+      ok: false,
+      status: 401,
+    };
+  }
+  if (!platform.ok) {
+    if (member.ok) {
+      return {
+        code: "forbidden",
+        message: "Only an Organization Owner or elevated Platform Administrator may export data.",
+        ok: false,
+        status: 403,
+      };
+    }
+    return {
+      code: platform.error.code,
+      message: platform.error.message,
+      ok: false,
+      status: platform.error.code === "unauthorized" ? 401 : 403,
+    };
+  }
+  const elevation = await getPlatformOrganizationContext(
+    context.env.CONTROL_DB,
+    organizationId,
+    session.session.id,
+    platform.value.userId,
+  );
+  if (!elevation.canEdit) {
+    return {
+      code: "platform_elevation_required",
+      message:
+        "Enable a current Platform Administrator elevation before exporting this Organization.",
+      ok: false,
+      status: 403,
+    };
+  }
+  return {
+    actorType: "platform_administrator",
+    ok: true,
+    organizationId,
+    userId: platform.value.userId,
+  };
+}
+
+async function sha256Hex(value: Uint8Array): Promise<string> {
+  const input = new Uint8Array(value.byteLength);
+  input.set(value);
+  const digest = await crypto.subtle.digest("SHA-256", input.buffer);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+const organizationExportSnapshotSchema = z.object({
+  files: z.array(
+    z.object({
+      checksums: z.record(z.string(), z.string()),
+      contentType: z.string(),
+      fileName: z.string(),
+      id: z.string(),
+      sizeBytes: z.number().int().nonnegative(),
+      storageKey: z.string(),
+      uploadedAt: z.string().nullable(),
+    }),
+  ),
+  metadata: z.record(z.string(), z.unknown()),
+  records: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
+});
+const organizationExportJobResponseSchema = z.object({
+  actorType: z.enum(["organization_member", "platform_administrator"]),
+  actorUserId: z.string().min(1).max(128),
+  archiveKey: z.string().nullable(),
+  byteCount: z.number().int().nonnegative().nullable(),
+  checksumSha256: z.string().nullable(),
+  errorCode: z.string().nullable(),
+  exportId: z.uuid(),
+  format: z.literal("json"),
+  requestId: z.uuid(),
+  status: z.enum(["queued", "processing", "completed", "failed"]),
+});
+
+async function downloadOrganizationExportFile(
+  env: Env,
+  organizationId: string,
+  exportId: string,
+  requestId: string,
+): Promise<Response> {
+  try {
+    const jobUrl = new URL("https://organization.internal/internal/export/job");
+    jobUrl.searchParams.set("organizationId", organizationId);
+    jobUrl.searchParams.set("exportId", exportId);
+    const jobResponse = await env.ORGANIZATION_STORE.get(
+      env.ORGANIZATION_STORE.idFromName(organizationId),
+    ).fetch(jobUrl);
+    const job = organizationExportJobResponseSchema.safeParse(
+      await jobResponse.json().catch(() => null),
+    );
+    if (
+      !jobResponse.ok ||
+      !job.success ||
+      job.data.status !== "completed" ||
+      !job.data.archiveKey
+    ) {
+      return Response.json(
+        {
+          code: "export_not_ready",
+          message: "The export is not ready to download.",
+          requestId,
+        } satisfies ProblemDetails,
+        { status: job.success && job.data.status === "queued" ? 409 : 404 },
+      );
+    }
+    const expectedKey = organizationExportKey(organizationId, exportId);
+    if (job.data.archiveKey !== expectedKey) {
+      return Response.json(
+        {
+          code: "export_scope_conflict",
+          message: "The export storage scope was rejected.",
+          requestId,
+        } satisfies ProblemDetails,
+        { status: 409 },
+      );
+    }
+    const object = await env.ORGANIZATION_FILES.get(expectedKey);
+    if (
+      !object ||
+      object.customMetadata?.organizationId !== organizationId ||
+      object.customMetadata.exportId !== exportId
+    ) {
+      return Response.json(
+        {
+          code: "export_not_found",
+          message: "The export file was not found.",
+          requestId,
+        } satisfies ProblemDetails,
+        { status: 404 },
+      );
+    }
+    return new Response(object.body, {
+      headers: {
+        "cache-control": "private, no-store",
+        "content-disposition": `attachment; filename="organization-export-${exportId}.json"`,
+        "content-length": String(object.size),
+        "content-type": "application/json; charset=utf-8",
+        "x-export-checksum-sha256": job.data.checksumSha256 ?? "",
+      },
+    });
+  } catch {
+    return Response.json(
+      {
+        code: "service_unavailable",
+        message: "The export download is unavailable.",
+        requestId,
+      } satisfies ProblemDetails,
+      { status: 503 },
+    );
+  }
 }
 
 interface PlatformOrganizationRow extends PlatformOrganizationSummary {
@@ -1297,6 +1548,139 @@ router.get("/api/public/player/media/:fileId", async (context) => {
   }
 });
 
+function publicAuditionInquiryProblem(
+  settings: z.infer<typeof organizationAuditionSettingsSchema>,
+  requestedSlots: readonly string[],
+  requestIdValue: string,
+): { readonly problem: ProblemDetails; readonly status: 400 | 409 } | null {
+  if (!settings.enabled) {
+    return {
+      problem: {
+        code: "auditions_closed",
+        message: "Audition requests are not currently being accepted.",
+        requestId: requestIdValue,
+      },
+      status: 409,
+    };
+  }
+  const allowedSlots = new Set(settings.slots.map(({ startsAt }) => startsAt));
+  if (requestedSlots.some((slot) => !allowedSlots.has(slot))) {
+    return {
+      problem: {
+        code: "invalid_audition_slot",
+        message: "Choose only from the available audition time slots.",
+        requestId: requestIdValue,
+      },
+      status: 400,
+    };
+  }
+  return null;
+}
+
+function createdAuditionId(value: unknown): string {
+  if (typeof value === "object" && value !== null && "id" in value) return String(value.id);
+  return "";
+}
+
+async function submitPublicAuditionInquiry(
+  env: Env,
+  organizationId: string,
+  body: z.infer<typeof publicAuditionInquiryRequestSchema>,
+  requestIdValue: string,
+): Promise<Response> {
+  try {
+    const stub = env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+    const settingsUrl = new URL("https://organization.internal/internal/audition/settings");
+    settingsUrl.searchParams.set("organizationId", organizationId);
+    const settingsResponse = await stub.fetch(settingsUrl);
+    const settings = organizationAuditionSettingsSchema.safeParse(await settingsResponse.json());
+    if (!settingsResponse.ok || !settings.success) throw new Error("settings_unavailable");
+    const settingsProblem = publicAuditionInquiryProblem(
+      settings.data,
+      body.requestedSlots,
+      requestIdValue,
+    );
+    if (settingsProblem)
+      return Response.json(settingsProblem.problem, { status: settingsProblem.status });
+    const response = await stub.fetch("https://organization.internal/internal/audition/create", {
+      body: JSON.stringify({
+        availabilityNotes: body.availabilityNotes ?? "",
+        email: body.email,
+        experience: body.experience ?? "",
+        name: body.name,
+        performanceId: settings.data.defaultPerformanceId,
+        phone: body.phone ?? "",
+        requestedSlots: body.requestedSlots,
+        voicePart: body.voicePart ?? "",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return Response.json(
+        {
+          code: response.status === 400 ? "validation_failed" : "audition_create_failed",
+          message:
+            response.status === 400
+              ? "Choose only configured audition times."
+              : "Your inquiry could not be submitted. Please try again later.",
+          requestId: requestIdValue,
+        } satisfies ProblemDetails,
+        { status: response.status === 400 ? 400 : 503 },
+      );
+    }
+    const created: unknown = await response.json();
+    const createdId = createdAuditionId(created);
+    return Response.json(
+      { id: createdId, message: "Your audition inquiry has been received." },
+      { status: 201 },
+    );
+  } catch {
+    return Response.json(
+      {
+        code: "service_unavailable",
+        message: "Your inquiry could not be submitted. Please try again later.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      { status: 503 },
+    );
+  }
+}
+
+router.get("/api/public/audition-settings", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Auditions are not available for this hostname.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const url = new URL("https://organization.internal/internal/audition/settings");
+    url.searchParams.set("organizationId", resolved.value.organizationId);
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(resolved.value.organizationId),
+    ).fetch(url);
+    const settings = organizationAuditionSettingsSchema.safeParse(await response.json());
+    if (!response.ok || !settings.success) throw new Error("invalid_settings");
+    return context.json({ ...settings.data, requestId: requestIdValue });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Audition settings are temporarily unavailable.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
 router.post("/api/public/audition-inquiry", async (context) => {
   const requestIdValue = context.get("requestId");
   const resolved = await resolveOrganization(new URL(context.req.url), context.env);
@@ -1323,50 +1707,12 @@ router.post("/api/public/audition-inquiry", async (context) => {
       400,
     );
   }
-  try {
-    const stub = context.env.ORGANIZATION_STORE.get(
-      context.env.ORGANIZATION_STORE.idFromName(resolved.value.organizationId),
-    );
-    const url = new URL("https://organization.internal/internal/audition/create");
-    const response = await stub.fetch(url, {
-      body: JSON.stringify({
-        availabilityNotes: body.data.availabilityNotes ?? "",
-        email: body.data.email,
-        experience: body.data.experience ?? "",
-        name: body.data.name,
-        phone: body.data.phone ?? "",
-        voicePart: body.data.voicePart ?? "",
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    if (!response.ok) {
-      return context.json(
-        {
-          code: "service_unavailable",
-          message: "Your inquiry could not be submitted. Please try again later.",
-          requestId: requestIdValue,
-        } satisfies ProblemDetails,
-        503,
-      );
-    }
-    const created: unknown = await response.json();
-    const createdId =
-      typeof created === "object" && created !== null && "id" in created ? String(created.id) : "";
-    return context.json(
-      { id: createdId, message: "Your audition inquiry has been received." },
-      201,
-    );
-  } catch {
-    return context.json(
-      {
-        code: "service_unavailable",
-        message: "Your inquiry could not be submitted. Please try again later.",
-        requestId: requestIdValue,
-      } satisfies ProblemDetails,
-      503,
-    );
-  }
+  return submitPublicAuditionInquiry(
+    context.env,
+    resolved.value.organizationId,
+    body.data,
+    requestIdValue,
+  );
 });
 
 router.post("/api/public/audition-details", async (context) => {
@@ -2301,6 +2647,278 @@ router.get("/api/organization/profiles/export.csv", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization roster export could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/export", async (context) => {
+  const authorization = await authorizeExportRoute(context);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationExportRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A supported Organization export format is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const createResponse = await stub.fetch(
+      "https://organization.internal/internal/export/create",
+      {
+        body: JSON.stringify({
+          ...body.data,
+          actorType:
+            authorization.actorType === "platform_administrator"
+              ? "platform_administrator"
+              : "organization_member",
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    const createdBody = z
+      .object({ exportId: z.uuid(), status: z.literal("queued") })
+      .safeParse(await createResponse.json().catch(() => null));
+    if (!createResponse.ok || !createdBody.success) throw new Error("export_create_failed");
+    const created = organizationExportStartResponseSchema.parse({
+      ...createdBody.data,
+      requestId: context.get("requestId"),
+    });
+    await context.env.JOBS_QUEUE.send({
+      attempt: 1,
+      idempotencyKey: `organization-export:${created.exportId}`,
+      jobId: created.exportId,
+      kind: "organization_export",
+      organizationId: authorization.organizationId,
+      version: 1,
+    });
+    return context.json(created, 202);
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization export could not be started.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/export/:exportId", async (context) => {
+  const authorization = await authorizeExportRoute(context);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const exportId = z.uuid().safeParse(context.req.param("exportId"));
+  if (!exportId.success) {
+    return context.json(
+      {
+        code: "export_not_found",
+        message: "The export was not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const url = new URL("https://organization.internal/internal/export/job");
+    url.searchParams.set("organizationId", authorization.organizationId);
+    url.searchParams.set("exportId", exportId.data);
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch(url);
+    const job = organizationExportJobResponseSchema.safeParse(
+      await response.json().catch(() => null),
+    );
+    if (!response.ok || !job.success) {
+      return context.json(
+        {
+          code: "export_not_found",
+          message: "The export was not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        response.status === 409 ? 409 : 404,
+      );
+    }
+    const status = organizationExportStatusResponseSchema.parse({
+      byteCount: job.data.byteCount,
+      checksumSha256: job.data.checksumSha256,
+      downloadUrl:
+        job.data.status === "completed"
+          ? `/api/organization/export/${encodeURIComponent(exportId.data)}/download`
+          : null,
+      errorCode: job.data.errorCode,
+      exportId: job.data.exportId,
+      requestId: context.get("requestId"),
+      status: job.data.status,
+    });
+    return context.json(status);
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The export status is unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/export/:exportId/download", async (context) => {
+  const authorization = await authorizeExportRoute(context);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const exportId = z.uuid().safeParse(context.req.param("exportId"));
+  if (!exportId.success) {
+    return context.json(
+      {
+        code: "export_not_found",
+        message: "The export was not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return downloadOrganizationExportFile(
+    context.env,
+    authorization.organizationId,
+    exportId.data,
+    context.get("requestId"),
+  );
+});
+
+router.get("/api/organization/export.json", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  if (authorization.role !== "owner") {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "Only the Organization Owner may download a complete Organization export.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+  const format = organizationExportRequestSchema.safeParse({
+    format: context.req.query("format") ?? "json",
+  });
+  if (!format.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "The Organization export format is not supported.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const snapshotUrl = new URL("https://organization.internal/internal/export/snapshot");
+    snapshotUrl.searchParams.set("organizationId", authorization.organizationId);
+    const snapshotResponse = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch(snapshotUrl);
+    const parsedSnapshot = organizationExportSnapshotSchema.safeParse(
+      await snapshotResponse.json().catch(() => null),
+    );
+    if (!snapshotResponse.ok || !parsedSnapshot.success) {
+      return context.json(
+        {
+          code: "export_snapshot_unavailable",
+          message: "The Organization export snapshot could not be read.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        snapshotResponse.status === 409 ? 409 : 503,
+      );
+    }
+    const prefix = `organizations/${authorization.organizationId}/private/`;
+    const fileObjects = await context.env.ORGANIZATION_FILES.list({ limit: 500, prefix });
+    if (fileObjects.truncated) {
+      return context.json(
+        {
+          code: "export_too_large",
+          message: "The Organization has too many private files for one bounded export.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        413,
+      );
+    }
+    const fileChecksums = new Map(
+      fileObjects.objects.map((object) => [object.key, object.checksums.toJSON()]),
+    );
+    const files = parsedSnapshot.data.files.map((file) => ({
+      ...file,
+      checksums: fileChecksums.get(file.storageKey) ?? file.checksums,
+    }));
+    const exportedAt = new Date().toISOString();
+    const payload = {
+      exportVersion: 1 as const,
+      exportedAt,
+      files,
+      metadata: parsedSnapshot.data.metadata,
+      organizationId: authorization.organizationId,
+      records: parsedSnapshot.data.records,
+    };
+    const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+    const manifest = {
+      byteCount: payloadBytes.byteLength,
+      checksumSha256: await sha256Hex(payloadBytes),
+      exportedAt,
+      exportVersion: 1 as const,
+      fileCount: files.length,
+      organizationId: authorization.organizationId,
+      recordCounts: Object.fromEntries(
+        Object.entries(payload.records).map(([table, rows]) => [table, rows.length]),
+      ),
+    };
+    const archive = JSON.stringify({ manifest, payload });
+    const date = exportedAt.slice(0, 10);
+    return context.body(archive, 200, {
+      "cache-control": "private, no-store",
+      "content-disposition": `attachment; filename="organization-export-${date}.json"`,
+      "content-type": "application/json; charset=utf-8",
+      "x-export-checksum-sha256": manifest.checksumSha256,
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization export could not be generated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
@@ -5531,6 +6149,158 @@ router.post("/api/organization/player-tokens", async (context) => {
   }
 });
 
+router.get("/api/organization/audition-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const url = new URL("https://organization.internal/internal/audition/settings");
+    url.searchParams.set("organizationId", authorization.organizationId);
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch(url);
+    const settings = organizationAuditionSettingsSchema.safeParse(await response.json());
+    if (!response.ok || !settings.success) throw new Error("invalid_settings");
+    return context.json({ ...settings.data, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Audition settings could not be retrieved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/audition-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationAuditionSettingsSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid audition settings are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const response = await stub.fetch("https://organization.internal/internal/audition/settings", {
+      body: JSON.stringify({
+        ...body.data,
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return context.json(
+        {
+          code: response.status === 400 ? "validation_failed" : "audition_settings_update_failed",
+          message:
+            response.status === 400
+              ? "Valid audition settings are required."
+              : "Audition settings could not be saved.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        response.status === 400 || response.status === 409 ? response.status : 503,
+      );
+    }
+    const settings = organizationAuditionSettingsSchema.safeParse(await response.json());
+    if (!settings.success) throw new Error("invalid_settings");
+    return context.json({ ...settings.data, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Audition settings could not be saved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/auditions", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationAuditionCreateRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid audition details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch("https://organization.internal/internal/audition/create", {
+      body: JSON.stringify({
+        ...body.data,
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const responseBody: unknown = await response.json();
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "audition_create_failed",
+          message: "The audition could not be created.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        response.status === 400 || response.status === 409 ? response.status : 503,
+      );
+    }
+    const audition = organizationAuditionSchema.safeParse(responseBody);
+    if (!audition.success) throw new Error("invalid_audition");
+    return context.json({ ...audition.data, requestId: context.get("requestId") }, 201);
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The audition could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
 router.get("/api/organization/auditions", async (context) => {
   const authorization = await authorizeCalendarRoute(context, true);
   if (!authorization.ok) {
@@ -5544,12 +6314,20 @@ router.get("/api/organization/auditions", async (context) => {
       context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
     );
     const response = await stub.fetch("https://organization.internal/internal/auditions/list");
-    const bodyJson: unknown = await response.json();
-    const auditionsList =
-      bodyJson && typeof bodyJson === "object" && !Array.isArray(bodyJson)
-        ? Object.assign(bodyJson, {})
-        : {};
-    return context.json({ requestId: context.get("requestId"), ...auditionsList });
+    const bodyJson: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      return context.json(
+        {
+          code: response.status === 404 ? "organization_not_found" : "auditions_list_failed",
+          message: "Auditions could not be retrieved.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        response.status === 404 ? 404 : response.status === 409 ? 409 : 503,
+      );
+    }
+    const auditionsList = organizationAuditionListResponseSchema.safeParse(bodyJson);
+    if (!auditionsList.success) throw new Error("invalid_audition_list");
+    return context.json({ requestId: context.get("requestId"), ...auditionsList.data });
   } catch {
     return context.json(
       {
@@ -5584,12 +6362,23 @@ router.post("/api/organization/audition-tokens", async (context) => {
     );
   }
   try {
+    const generated = await generateAuditionTokens(
+      context.env,
+      authorization.organizationId,
+      body.data.auditionIds,
+    );
+    if (Object.keys(generated.tokens).length !== body.data.auditionIds.length) {
+      return context.json(
+        {
+          code: "audition_not_found",
+          message: "One or more audition requests were not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
     return context.json({
-      ...(await generateAuditionTokens(
-        context.env,
-        authorization.organizationId,
-        body.data.auditionIds,
-      )),
+      ...generated,
       requestId: context.get("requestId"),
     });
   } catch {
@@ -5642,31 +6431,179 @@ router.put("/api/organization/auditions/:auditionId", async (context) => {
     );
     const url = new URL("https://organization.internal/internal/audition/update");
     url.searchParams.set("auditionId", auditionId);
-    if (body.data.adminNotes !== undefined)
-      url.searchParams.set("adminNotes", body.data.adminNotes);
-    if (body.data.status !== undefined) url.searchParams.set("status", body.data.status);
-    const response = await stub.fetch(url, { method: "POST" });
+    const response = await stub.fetch(url, {
+      body: JSON.stringify({
+        ...body.data,
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
     if (!response.ok) {
       return context.json(
         {
-          code: "service_unavailable",
-          message: "Audition could not be updated.",
+          code:
+            response.status === 404
+              ? "audition_not_found"
+              : response.status === 400
+                ? "validation_failed"
+                : "audition_update_failed",
+          message:
+            response.status === 404
+              ? "The audition was not found."
+              : response.status === 400
+                ? "The audition update is not valid."
+                : "Audition could not be updated.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        503,
+        response.status === 404 || response.status === 400 ? response.status : 503,
       );
     }
-    const updated: unknown = await response.json();
-    const updatedObj =
-      updated && typeof updated === "object" && !Array.isArray(updated)
-        ? Object.assign(updated, {})
-        : {};
-    return context.json({ requestId: context.get("requestId"), ...updatedObj });
+    const updated = organizationAuditionSchema.safeParse(await response.json());
+    if (!updated.success) throw new Error("invalid_audition");
+    return context.json({ requestId: context.get("requestId"), ...updated.data });
   } catch {
     return context.json(
       {
         code: "service_unavailable",
         message: "Audition could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.delete("/api/organization/auditions/:auditionId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const auditionId = context.req.param("auditionId");
+  try {
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch("https://organization.internal/internal/audition/delete", {
+      body: JSON.stringify({
+        actorUserId: authorization.userId,
+        auditionId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const result: unknown = await response.json();
+    if (!response.ok) {
+      return context.json(
+        {
+          code: response.status === 404 ? "audition_not_found" : "audition_delete_failed",
+          message:
+            response.status === 404
+              ? "The audition was not found."
+              : "The audition could not be deleted.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        response.status === 404 ? 404 : 503,
+      );
+    }
+    const resultRecord =
+      typeof result === "object" && result !== null && !Array.isArray(result) ? result : {};
+    return context.json({ ...resultRecord, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The audition could not be deleted.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/auditions/:auditionId/convert", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const auditionId = context.req.param("auditionId");
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const detailUrl = new URL("https://organization.internal/internal/audition/details");
+    detailUrl.searchParams.set("auditionId", auditionId);
+    const detailResponse = await stub.fetch(detailUrl);
+    const audition = organizationAuditionSchema.safeParse(await detailResponse.json());
+    if (!detailResponse.ok || !audition.success) {
+      return context.json(
+        {
+          code: "audition_not_found",
+          message: "The audition was not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    if (audition.data.status === "completed") {
+      return context.json(
+        {
+          code: "audition_already_converted",
+          message: "This audition has already been converted to an Organization Profile.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    const profile = await createOrganizationProfile(context.env, {
+      actorUserId: authorization.userId,
+      organizationId: authorization.organizationId,
+      profile: organizationProfileRequestSchema.parse({
+        displayName: audition.data.name,
+        phone: audition.data.phone ?? "",
+        voicePart: audition.data.voicePart ?? "",
+      }),
+      requestId: context.get("requestId"),
+    });
+    const updateResponse = await stub.fetch(
+      `https://organization.internal/internal/audition/update?auditionId=${encodeURIComponent(auditionId)}`,
+      {
+        body: JSON.stringify({
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+          status: "completed",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    if (!updateResponse.ok) throw new Error("audition_update_failed");
+    return context.json({ auditionId, profile, requestId: context.get("requestId") }, 201);
+  } catch (error: unknown) {
+    if (error instanceof OrganizationProfileMutationError) {
+      return context.json(
+        {
+          code: error.code,
+          message: error.message,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The audition could not be converted to an Organization Profile.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
@@ -8289,14 +9226,26 @@ router.get("/api/setup/status", async (context) => {
   try {
     const status = await getSetupStatus(context.env, authorization.organizationId);
     return context.json(status);
-  } catch {
+  } catch (error: unknown) {
+    const setupError = error instanceof SetupError ? error : null;
+    const responseStatus = setupFailureStatus(setupError?.status ?? 503);
+    if (!setupError) {
+      console.error(
+        JSON.stringify({
+          event: "setup_status_failed",
+          errorType: error instanceof Error ? error.name : "unknown",
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        }),
+      );
+    }
     return context.json(
       {
-        code: "setup_unavailable",
+        code: setupError?.code ?? "setup_unavailable",
         message: "Setup status is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
-      503,
+      responseStatus,
     );
   }
 });

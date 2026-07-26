@@ -535,6 +535,15 @@ describe("Organization music catalog", () => {
       ).json(),
     );
     expect(event.setList[0]?.pieceId).toBe(referenced.id);
+    const history = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(history.pieces.find(({ id }) => id === referenced.id)).toMatchObject({
+      lastPerformedAt: event.startsAt,
+      performanceCount: 1,
+    });
     expect(
       await exports.default.fetch(
         api("alpha.localhost", `/api/organization/music/${referenced.id}`, cookie, {

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+import { generateAuditionTokens } from "../src/organization/organizationAuditions";
 
 const ALPHA_ORG = "organization-alpha";
 const BRAVO_ORG = "organization-bravo";
@@ -104,6 +105,70 @@ afterEach(async () => {
 });
 
 describe("public audition signed flow", () => {
+  it("rejects inquiries when auditions are disabled or a slot is not configured", async () => {
+    const settings = {
+      adminNotifyEnabled: false,
+      adminNotifyUsers: [],
+      confirmationMessage: "Closed",
+      defaultPerformanceId: null,
+      enabled: false,
+      slots: [],
+    };
+    const disabledSettings = JSON.stringify(settings);
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE organization_metadata SET audition_settings_json = ?",
+          disabledSettings,
+        );
+        return null;
+      },
+    );
+    const disabled = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-inquiry", {
+        body: JSON.stringify({ email: "closed@example.com", name: "Closed Singer" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(disabled.status).toBe(409);
+
+    const openSettings = JSON.stringify({ ...settings, enabled: true });
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE organization_metadata SET audition_settings_json = ?",
+          openSettings,
+        );
+        return null;
+      },
+    );
+    const invalidSlot = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-inquiry", {
+        body: JSON.stringify({
+          email: "invalid-slot@example.com",
+          name: "Invalid Slot",
+          requestedSlots: ["2026-08-01T14:00:00.000Z"],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(invalidSlot.status).toBe(400);
+  });
+
+  it("does not issue partial tokens when an audition ID is missing", async () => {
+    const existingId = await createAuditionInOrg(ALPHA_ORG, "Token Singer", "token@example.com");
+    const generated = await generateAuditionTokens(
+      { ORGANIZATION_STORE: stores, SIGNED_LINK_SECRET: signedLinkSecret },
+      ALPHA_ORG,
+      [existingId, "missing-audition"],
+    );
+    expect(generated.tokens).toEqual({});
+  });
+
   it("submits an inquiry and returns an ID", async () => {
     const response = await exports.default.fetch(
       api("alpha.localhost", "/api/public/audition-inquiry", {
@@ -121,6 +186,40 @@ describe("public audition signed flow", () => {
     expect(response.status).toBe(201);
     const body: unknown = await response.json();
     expect(body).toMatchObject({ id: expect.any(String) });
+  });
+
+  it("queues a confirmation notification inside the same Organization", async () => {
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-inquiry", {
+        body: JSON.stringify({
+          email: "queued@example.com",
+          name: "Queued Singer",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(201);
+    const counts = await runInDurableObject<
+      OrganizationStore,
+      { notifications: number; jobs: number }
+    >(stores.get(stores.idFromName(ALPHA_ORG)), (_instance, state) => ({
+      jobs:
+        state.storage.sql
+          .exec<{ readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM scheduled_job_outbox WHERE kind = 'audition_notification'",
+          )
+          .toArray()
+          .at(0)?.count ?? 0,
+      notifications:
+        state.storage.sql
+          .exec<{ readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM audition_notifications WHERE destination = 'queued@example.com'",
+          )
+          .toArray()
+          .at(0)?.count ?? 0,
+    }));
+    expect(counts).toEqual({ jobs: 1, notifications: 1 });
   });
 
   it("rejects inquiry without a name", async () => {

@@ -1627,6 +1627,34 @@ button.seating-seat--canvas:active {
     color: #111;
     background: #fff;
   }
+
+  .set-list-layout {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: #fff;
+    color: #111;
+  }
+
+  .set-list-layout > .form-stack,
+  .set-list-add-grid,
+  .set-list-summary,
+  .set-list-save-row,
+  .set-list-item-fields,
+  .set-list-credits,
+  .set-list-item-heading .button-row {
+    display: none !important;
+  }
+
+  .set-list-items {
+    padding-left: 1.5rem;
+  }
+
+  .set-list-item {
+    break-inside: avoid;
+    border: 0;
+    padding: 0.3rem 0;
+  }
 }
 
 .roster-configuration-list {
@@ -2861,6 +2889,98 @@ footer {
   display: block;
   color: var(--color-text-muted);
   font-size: 0.8rem;
+}
+
+.audition-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.audition-table__header,
+.audition-table__row {
+  display: grid;
+  grid-template-columns:
+    2.3rem minmax(13rem, 1.5fr) minmax(9rem, 1fr) minmax(7rem, 0.7fr) minmax(9rem, 0.9fr)
+    minmax(13rem, 1.4fr);
+  align-items: center;
+  min-width: 56rem;
+}
+
+.audition-table__header {
+  padding: 0.65rem 0.7rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.audition-table__row {
+  padding: 0.75rem 0.7rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.audition-table__row > [role="cell"] {
+  min-width: 0;
+}
+
+.audition-table__row > [role="cell"]:first-child {
+  display: flex;
+  align-items: center;
+}
+
+.audition-table__row .table-actions {
+  justify-content: flex-start;
+}
+
+@media (max-width: 640px) {
+  .audition-table {
+    display: grid;
+    gap: 0.75rem;
+    overflow: visible;
+  }
+
+  .audition-table__header {
+    display: none;
+  }
+
+  .audition-table__row {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    min-width: 0;
+    gap: 0.55rem 0.7rem;
+    padding: 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .audition-table__row > [role="cell"]:nth-child(n + 3) {
+    grid-column: 2;
+  }
+
+  .audition-table__row > [role="cell"]:nth-child(3)::before,
+  .audition-table__row > [role="cell"]:nth-child(4)::before,
+  .audition-table__row > [role="cell"]:nth-child(5)::before {
+    display: block;
+    margin-bottom: 0.15rem;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .audition-table__row > [role="cell"]:nth-child(3)::before {
+    content: "Preferred times";
+  }
+  .audition-table__row > [role="cell"]:nth-child(4)::before {
+    content: "Status";
+  }
+  .audition-table__row > [role="cell"]:nth-child(5)::before {
+    content: "Submitted";
+  }
+  .audition-table__row > [role="cell"]:nth-child(6) {
+    grid-column: 1 / -1;
+  }
 }
 
 .split-layout {

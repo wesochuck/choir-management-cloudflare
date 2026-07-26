@@ -162,6 +162,70 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
   });
 });
 
+test("shows configured public audition availability and scheduled details", async ({ page }) => {
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId,
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
+  });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
+  await page.route("**/api/public/audition-settings", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        confirmationMessage: "Choose a time",
+        defaultPerformanceId: "performance-001",
+        enabled: true,
+        slots: [
+          {
+            endsAt: "2026-08-01T15:30:00.000Z",
+            id: "slot-001",
+            startsAt: "2026-08-01T15:00:00.000Z",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.goto("/auditions");
+  await expect(page.getByRole("heading", { name: "Audition Inquiry" })).toBeVisible();
+  await expect(page.getByText("Choose a time")).toBeVisible();
+  await expect(page.getByRole("checkbox")).toHaveCount(1);
+
+  await page.route("**/api/public/audition-details", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        createdAt: "2026-07-22T10:00:00.000Z",
+        email: "scheduled@example.test",
+        id: "audition-scheduled",
+        name: "Scheduled Singer",
+        requestedSlots: ["2026-08-01T15:00:00.000Z"],
+        scheduledTimeSlot: "2026-08-01T15:00:00.000Z",
+        slots: [],
+        status: "scheduled",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.goto("/auditions?token=scheduled-token");
+  await expect(page.getByRole("heading", { name: "Your Audition" })).toBeVisible();
+  await expect(page.getByText(/Scheduled audition:/)).toBeVisible();
+});
+
 test("shows not-found state for an invalid audition token", async ({ page }) => {
   await page.route("**/api/health", async (route) => {
     await route.fulfill({

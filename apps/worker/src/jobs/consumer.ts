@@ -7,8 +7,10 @@ import {
   readCommunicationDeliveryJob,
   recordCommunicationDeliveryResults,
 } from "../organization/organizationCommunications";
+import { buildOrganizationExportArchive } from "../organization/organizationExport";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 import { issueSignedLink } from "../security/signedLinks";
+import { organizationExportKey } from "../organization/exportStore";
 
 type JobConsumerEnv = Pick<
   Env,
@@ -18,6 +20,7 @@ type JobConsumerEnv = Pick<
   | "BREVO_SMS_ALLOWED_RECIPIENTS"
   | "BREVO_SMS_SENDER"
   | "EXTERNAL_EFFECTS_MODE"
+  | "ORGANIZATION_FILES"
   | "ORGANIZATION_STORE"
   | "SIGNED_LINK_SECRET"
 >;
@@ -40,7 +43,41 @@ const ticketNotificationJobSchema = z.object({
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
 });
-
+const auditionNotificationJobSchema = z.object({
+  contentMarkdown: z.string().max(100_000),
+  destination: z.email(),
+  id: z.uuid(),
+  recipientName: z.string().min(1).max(200),
+  status: z.enum(["queued", "processing"]),
+  subject: z.string().max(300),
+});
+const organizationExportJobSchema = z.object({
+  actorType: z.enum(["organization_member", "platform_administrator"]),
+  actorUserId: z.string().min(1).max(128),
+  archiveKey: z.string().nullable(),
+  byteCount: z.number().int().nonnegative().nullable(),
+  checksumSha256: z.string().nullable(),
+  errorCode: z.string().nullable(),
+  exportId: z.uuid(),
+  format: z.literal("json"),
+  requestId: z.uuid(),
+  status: z.enum(["queued", "processing", "completed", "failed"]),
+});
+const organizationExportSnapshotSchema = z.object({
+  files: z.array(
+    z.object({
+      checksums: z.record(z.string(), z.string()),
+      contentType: z.string(),
+      fileName: z.string(),
+      id: z.string(),
+      sizeBytes: z.number().int().nonnegative(),
+      storageKey: z.string(),
+      uploadedAt: z.string().nullable(),
+    }),
+  ),
+  metadata: z.record(z.string(), z.unknown()),
+  records: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
+});
 function retryDelaySeconds(attempt: number): number {
   const exponentialDelay = Math.min(300, 2 ** attempt);
   const deterministicJitter = (attempt * 17) % 11;
@@ -167,6 +204,140 @@ async function deliverTicketNotificationJob(env: JobConsumerEnv, job: DeliveryJo
   if (!recordResponse.ok) throw new Error("The ticket notification result was rejected.");
 }
 
+async function deliverAuditionNotificationJob(
+  env: JobConsumerEnv,
+  job: DeliveryJob,
+): Promise<void> {
+  const objectStub = env.ORGANIZATION_STORE.get(
+    env.ORGANIZATION_STORE.idFromName(job.organizationId),
+  );
+  const url = new URL("https://organization.internal/internal/audition/notification-job");
+  url.searchParams.set("organizationId", job.organizationId);
+  url.searchParams.set("jobId", job.jobId);
+  const response = await objectStub.fetch(url);
+  const notification = auditionNotificationJobSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (!response.ok || !notification.success) {
+    throw new Error("The audition notification job is unavailable.");
+  }
+  const result = await deliverOrganizationCommunication(env, {
+    channel: "email",
+    contentMarkdown: notification.data.contentMarkdown,
+    deliveryId: notification.data.id,
+    destination: notification.data.destination,
+    messageId: notification.data.id,
+    recipientName: notification.data.recipientName,
+    subject: notification.data.subject,
+    unsubscribeUrl: null,
+  });
+  const recordResponse = await objectStub.fetch(
+    "https://organization.internal/internal/audition/notification-result",
+    {
+      body: JSON.stringify({
+        failureDetail: result.failureDetail,
+        jobId: job.jobId,
+        organizationId: job.organizationId,
+        providerMessageId: result.providerMessageId,
+        status: result.status,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!recordResponse.ok) throw new Error("The audition notification result was rejected.");
+}
+
+async function deliverOrganizationExportJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
+  const objectStub = env.ORGANIZATION_STORE.get(
+    env.ORGANIZATION_STORE.idFromName(job.organizationId),
+  );
+  const jobUrl = new URL("https://organization.internal/internal/export/job");
+  jobUrl.searchParams.set("organizationId", job.organizationId);
+  jobUrl.searchParams.set("exportId", job.jobId);
+  const jobResponse = await objectStub.fetch(jobUrl);
+  const exportJob = organizationExportJobSchema.safeParse(
+    await jobResponse.json().catch(() => null),
+  );
+  if (!jobResponse.ok || !exportJob.success) {
+    throw new Error("The Organization export job is unavailable.");
+  }
+  if (exportJob.data.status === "completed") return;
+
+  try {
+    const snapshotUrl = new URL("https://organization.internal/internal/export/snapshot");
+    snapshotUrl.searchParams.set("organizationId", job.organizationId);
+    const snapshotResponse = await objectStub.fetch(snapshotUrl);
+    const snapshot = organizationExportSnapshotSchema.safeParse(
+      await snapshotResponse.json().catch(() => null),
+    );
+    if (!snapshotResponse.ok || !snapshot.success) {
+      throw new Error("The Organization export snapshot is unavailable.");
+    }
+    const prefix = `organizations/${job.organizationId}/private/`;
+    const fileObjects = await env.ORGANIZATION_FILES.list({ limit: 500, prefix });
+    if (fileObjects.truncated) throw new Error("export_too_large");
+    const fileChecksums = new Map(
+      fileObjects.objects.map((object) => [
+        object.key,
+        Object.fromEntries(Object.entries(object.checksums.toJSON())),
+      ]),
+    );
+    const files = snapshot.data.files.map((file) => ({
+      ...file,
+      checksums: fileChecksums.get(file.storageKey) ?? file.checksums,
+    }));
+    const archive = await buildOrganizationExportArchive({
+      files,
+      organizationId: job.organizationId,
+      snapshot: snapshot.data,
+    });
+    const archiveKey = organizationExportKey(job.organizationId, job.jobId);
+    await env.ORGANIZATION_FILES.put(archiveKey, archive.archive, {
+      customMetadata: {
+        exportId: job.jobId,
+        organizationId: job.organizationId,
+      },
+      httpMetadata: { contentType: "application/json" },
+    });
+    const completeResponse = await objectStub.fetch(
+      "https://organization.internal/internal/export/complete",
+      {
+        body: JSON.stringify({
+          actorType: exportJob.data.actorType,
+          actorUserId: exportJob.data.actorUserId,
+          archiveKey,
+          byteCount: archive.byteCount,
+          checksumSha256: archive.checksumSha256,
+          exportId: job.jobId,
+          organizationId: job.organizationId,
+          requestId: exportJob.data.requestId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    if (!completeResponse.ok) throw new Error("The Organization export completion was rejected.");
+  } catch (error: unknown) {
+    await objectStub.fetch("https://organization.internal/internal/export/fail", {
+      body: JSON.stringify({
+        actorType: exportJob.data.actorType,
+        actorUserId: exportJob.data.actorUserId,
+        errorCode:
+          error instanceof Error && error.message === "export_too_large"
+            ? "export_too_large"
+            : "export_generation_failed",
+        exportId: job.jobId,
+        organizationId: job.organizationId,
+        requestId: exportJob.data.requestId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    throw error;
+  }
+}
+
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   if (job.kind === "communication_delivery") {
     await deliverCommunicationJob(env, job);
@@ -174,6 +345,14 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
   }
   if (job.kind === "ticket_notification") {
     await deliverTicketNotificationJob(env, job);
+    return;
+  }
+  if (job.kind === "audition_notification") {
+    await deliverAuditionNotificationJob(env, job);
+    return;
+  }
+  if (job.kind === "organization_export") {
+    await deliverOrganizationExportJob(env, job);
     return;
   }
   if (job.kind === "event_reminder" || job.kind === "attendance_report") {

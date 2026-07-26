@@ -67,6 +67,12 @@ interface OrganizationIdentityRow {
   readonly organizationId: string;
 }
 
+interface PerformanceHistoryRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly setListJson: string;
+  readonly startsAt: string;
+}
+
 const musicColumns = `id, title, composer, arranger, purchase_date AS purchaseDate, copies,
   catalog_id AS catalogId, duration_seconds AS durationSeconds, notes,
   section_buckets_json AS sectionBucketsJson, genres_json AS genresJson,
@@ -97,6 +103,49 @@ function parseStoredPiece(row: MusicPieceRow): OrganizationMusicPiece {
     genres,
     sectionBuckets,
     trackFileIds,
+  });
+}
+
+function addPerformanceHistory(
+  storage: DurableObjectStorage,
+  pieces: readonly OrganizationMusicPiece[],
+): OrganizationMusicPiece[] {
+  const history = new Map<string, { count: number; lastPerformedAt: string | null }>();
+  const events = storage.sql
+    .exec<PerformanceHistoryRow>(
+      `SELECT starts_at AS startsAt, set_list_json AS setListJson
+       FROM events WHERE type = 'Performance' AND is_archived = 0
+       ORDER BY starts_at ASC LIMIT 500`,
+    )
+    .toArray();
+  for (const event of events) {
+    let setList: unknown;
+    try {
+      setList = JSON.parse(event.setListJson) as unknown;
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(setList)) continue;
+    for (const item of setList) {
+      if (!isUnknownRecord(item)) continue;
+      const pieceId = item.pieceId;
+      if (typeof pieceId !== "string") continue;
+      const current = history.get(pieceId) ?? { count: 0, lastPerformedAt: null };
+      current.count += 1;
+      if (current.lastPerformedAt === null || event.startsAt > current.lastPerformedAt) {
+        current.lastPerformedAt = event.startsAt;
+      }
+      history.set(pieceId, current);
+    }
+  }
+  return pieces.map((piece) => {
+    const own = history.get(piece.id);
+    const parent = piece.parentId ? history.get(piece.parentId) : undefined;
+    return organizationMusicPieceSchema.parse({
+      ...piece,
+      lastPerformedAt: own?.lastPerformedAt ?? parent?.lastPerformedAt ?? null,
+      performanceCount: own?.count ?? parent?.count ?? 0,
+    });
   });
 }
 
@@ -416,7 +465,7 @@ export function listMusicPiecesFromStore(
       )
       .toArray()
       .map(parseStoredPiece);
-    return Response.json({ pieces });
+    return Response.json({ pieces: addPerformanceHistory(storage, pieces) });
   } catch {
     return Response.json({ code: "music_catalog_corrupt" }, { status: 500 });
   }

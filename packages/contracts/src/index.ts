@@ -738,6 +738,8 @@ export const organizationMusicPieceRequestSchema = z.object({
 export const organizationMusicPieceSchema = organizationMusicPieceRequestSchema.extend({
   createdAt: z.iso.datetime(),
   id: z.uuid(),
+  lastPerformedAt: z.iso.datetime().nullable().default(null),
+  performanceCount: z.number().int().nonnegative().default(0),
   updatedAt: z.iso.datetime(),
 });
 
@@ -1308,6 +1310,58 @@ export const privateFileResponseSchema = z.object({
 
 export type PrivateFileResponse = z.infer<typeof privateFileResponseSchema>;
 
+export const organizationExportRequestSchema = z.object({
+  format: z.literal("json").default("json"),
+});
+
+export const organizationExportStatusSchema = z.enum([
+  "queued",
+  "processing",
+  "completed",
+  "failed",
+]);
+
+export const organizationExportStartResponseSchema = z.object({
+  exportId: z.uuid(),
+  requestId: requestIdSchema,
+  status: z.literal("queued"),
+});
+
+export const organizationExportStatusResponseSchema = z.object({
+  byteCount: z.number().int().nonnegative().nullable(),
+  checksumSha256: z.string().max(128).nullable(),
+  downloadUrl: z.string().nullable(),
+  errorCode: z.string().max(128).nullable(),
+  exportId: z.uuid(),
+  requestId: requestIdSchema,
+  status: organizationExportStatusSchema,
+});
+
+export const organizationExportManifestSchema = z.object({
+  byteCount: z.number().int().nonnegative(),
+  checksumSha256: z.string().min(1).max(128),
+  exportedAt: z.iso.datetime(),
+  exportVersion: z.literal(1),
+  fileCount: z.number().int().nonnegative(),
+  organizationId: organizationIdSchema,
+  recordCounts: z.record(z.string().min(1).max(128), z.number().int().nonnegative()),
+});
+
+export const organizationExportResponseSchema = z.object({
+  downloadName: z.string().min(1).max(255),
+  manifest: organizationExportManifestSchema,
+  requestId: requestIdSchema,
+});
+
+export type OrganizationExportRequest = z.infer<typeof organizationExportRequestSchema>;
+export type OrganizationExportStatus = z.infer<typeof organizationExportStatusSchema>;
+export type OrganizationExportStartResponse = z.infer<typeof organizationExportStartResponseSchema>;
+export type OrganizationExportStatusResponse = z.infer<
+  typeof organizationExportStatusResponseSchema
+>;
+export type OrganizationExportManifest = z.infer<typeof organizationExportManifestSchema>;
+export type OrganizationExportResponse = z.infer<typeof organizationExportResponseSchema>;
+
 export const calendarFeedUrlsResponseSchema = z.object({
   expiresAt: z.iso.datetime(),
   httpsUrl: z.url(),
@@ -1663,6 +1717,7 @@ export const auditionInquirySchema = z.object({
   voicePart: z.string().max(100).optional(),
   experience: z.string().max(5_000).optional(),
   availabilityNotes: z.string().max(5_000).optional(),
+  requestedSlots: z.array(z.iso.datetime()).max(20).default([]),
 });
 
 export type AuditionInquiry = z.infer<typeof auditionInquirySchema>;
@@ -1684,6 +1739,9 @@ export const auditionDetailsSchema = z.object({
   voicePart: z.string().optional(),
   experience: z.string().optional(),
   availabilityNotes: z.string().optional(),
+  performanceId: z.uuid().nullable().optional(),
+  requestedSlots: z.array(z.iso.datetime()).max(20).default([]),
+  scheduledTimeSlot: z.iso.datetime().nullable().optional(),
   status: auditionStatusSchema,
   slots: z.array(auditionSlotSchema),
 });
@@ -1717,7 +1775,11 @@ export const publicAuditionInquiryResponseSchema = z.object({
 export type PublicAuditionInquiryResponse = z.infer<typeof publicAuditionInquiryResponseSchema>;
 
 export const generateAuditionTokensRequestSchema = z.object({
-  auditionIds: z.array(z.string()).min(1).max(500),
+  auditionIds: z
+    .array(z.string().min(1).max(128))
+    .min(1)
+    .max(500)
+    .refine((ids) => new Set(ids).size === ids.length, "Audition IDs must be unique."),
 });
 
 export type GenerateAuditionTokensRequest = z.infer<typeof generateAuditionTokensRequestSchema>;
@@ -1737,6 +1799,9 @@ export const organizationAuditionSchema = z.object({
   experience: z.string().optional(),
   availabilityNotes: z.string().optional(),
   adminNotes: z.string().optional(),
+  performanceId: z.uuid().nullable().optional(),
+  requestedSlots: z.array(z.iso.datetime()).max(20).default([]),
+  scheduledTimeSlot: z.iso.datetime().nullable().optional(),
   status: auditionStatusSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -1744,6 +1809,10 @@ export const organizationAuditionSchema = z.object({
 });
 
 export type OrganizationAudition = z.infer<typeof organizationAuditionSchema>;
+
+export const organizationAuditionResponseSchema = organizationAuditionSchema.extend({
+  requestId: requestIdSchema,
+});
 
 export const organizationAuditionListResponseSchema = z.object({
   auditions: z.array(organizationAuditionSchema),
@@ -1753,9 +1822,83 @@ export type OrganizationAuditionListResponse = z.infer<
   typeof organizationAuditionListResponseSchema
 >;
 
+export const auditionSlotInputSchema = z.object({
+  endsAt: z.iso.datetime(),
+  id: z.string().min(1).max(128).optional(),
+  startsAt: z.iso.datetime(),
+});
+
+export const organizationAuditionSettingsSchema = z
+  .object({
+    adminNotifyEnabled: z.boolean(),
+    adminNotifyUsers: z.array(z.string().min(1).max(128)).max(100),
+    confirmationMessage: z.string().max(5_000),
+    defaultPerformanceId: z.uuid().nullable(),
+    enabled: z.boolean(),
+    slots: z.array(auditionSlotInputSchema).max(200),
+  })
+  .superRefine((settings, context) => {
+    const starts = new Set<string>();
+    const ids = new Set<string>();
+    settings.slots.forEach((slot, index) => {
+      if (new Date(slot.startsAt).getTime() >= new Date(slot.endsAt).getTime()) {
+        context.addIssue({
+          code: "custom",
+          message: "An audition slot must end after it starts.",
+          path: ["slots", index, "endsAt"],
+        });
+      }
+      if (starts.has(slot.startsAt)) {
+        context.addIssue({
+          code: "custom",
+          message: "Audition slots must have unique start times.",
+          path: ["slots", index, "startsAt"],
+        });
+      }
+      starts.add(slot.startsAt);
+      if (slot.id !== undefined) {
+        if (ids.has(slot.id)) {
+          context.addIssue({
+            code: "custom",
+            message: "Audition slot IDs must be unique.",
+            path: ["slots", index, "id"],
+          });
+        }
+        ids.add(slot.id);
+      }
+    });
+  });
+
+export const organizationAuditionSettingsResponseSchema = organizationAuditionSettingsSchema.extend(
+  {
+    requestId: requestIdSchema,
+  },
+);
+
+export type OrganizationAuditionSettings = z.infer<typeof organizationAuditionSettingsSchema>;
+
+export const organizationAuditionCreateRequestSchema = auditionInquirySchema.extend({
+  performanceId: z.uuid().nullable().optional(),
+  scheduledTimeSlot: z.iso.datetime().nullable().optional(),
+  status: auditionStatusSchema.default("pending"),
+});
+
+export type OrganizationAuditionCreateRequest = z.infer<
+  typeof organizationAuditionCreateRequestSchema
+>;
+
 export const organizationAuditionUpdateRequestSchema = z.object({
   adminNotes: z.string().max(10_000).optional(),
+  availabilityNotes: z.string().max(5_000).optional(),
+  email: z.email().max(320).optional(),
+  experience: z.string().max(5_000).optional(),
+  name: z.string().min(1).max(200).optional(),
+  performanceId: z.uuid().nullable().optional(),
+  phone: z.string().max(50).optional(),
+  requestedSlots: z.array(z.iso.datetime()).max(20).optional(),
+  scheduledTimeSlot: z.iso.datetime().nullable().optional(),
   status: auditionStatusSchema.optional(),
+  voicePart: z.string().max(100).optional(),
 });
 
 export type OrganizationAuditionUpdateRequest = z.infer<

@@ -75,7 +75,12 @@ import {
   organizationAuditionSchema,
   organizationAuditionListResponseSchema,
   generateAuditionTokensResponseSchema,
+  organizationAuditionSettingsResponseSchema,
+  organizationAuditionCreateRequestSchema,
+  organizationAuditionResponseSchema,
   organizationAuditionUpdateRequestSchema,
+  organizationExportStartResponseSchema,
+  organizationExportStatusResponseSchema,
   type AccountOrganization,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
@@ -102,6 +107,8 @@ import {
   type OrganizationInvitationDetails,
   type OrganizationInvitationActionResponse,
   type OrganizationInvitationRequest,
+  type OrganizationAuditionCreateRequest,
+  type OrganizationAuditionSettings,
   type OrganizationInvitationResponse,
   type OrganizationInvitationsResponse,
   type OrganizationEvent,
@@ -143,6 +150,8 @@ import {
   type TicketScanResult,
   type OrganizationAudition,
   type AuditionStatus,
+  type OrganizationExportStartResponse,
+  type OrganizationExportStatusResponse,
 } from "@choir/contracts";
 
 export class AuthApiError extends Error {
@@ -1188,9 +1197,54 @@ export async function listOrganizationAuditions(
   return organizationAuditionListResponseSchema.parse(await response.json()).auditions;
 }
 
+export async function getOrganizationAuditionSettings(
+  signal?: AbortSignal,
+): Promise<OrganizationAuditionSettings> {
+  const response = await request("/api/organization/audition-settings", {
+    signal: signal ?? null,
+  });
+  return organizationAuditionSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationAuditionSettings(
+  settings: OrganizationAuditionSettings,
+): Promise<OrganizationAuditionSettings> {
+  const parsed = organizationAuditionSettingsResponseSchema
+    .omit({ requestId: true })
+    .parse(settings);
+  const response = await request("/api/organization/audition-settings", {
+    body: JSON.stringify(parsed),
+    method: "PUT",
+  });
+  return organizationAuditionSettingsResponseSchema.parse(await response.json());
+}
+
+export async function createOrganizationAudition(
+  audition: OrganizationAuditionCreateRequest,
+): Promise<OrganizationAudition> {
+  const parsed = organizationAuditionCreateRequestSchema.parse(audition);
+  const response = await request("/api/organization/auditions", {
+    body: JSON.stringify(parsed),
+    method: "POST",
+  });
+  return organizationAuditionResponseSchema.parse(await response.json());
+}
+
 export async function updateOrganizationAudition(
   auditionId: string,
-  update: { readonly adminNotes?: string; readonly status?: AuditionStatus },
+  update: {
+    readonly adminNotes?: string;
+    readonly availabilityNotes?: string;
+    readonly email?: string;
+    readonly experience?: string;
+    readonly name?: string;
+    readonly performanceId?: string | null;
+    readonly phone?: string;
+    readonly requestedSlots?: readonly string[];
+    readonly scheduledTimeSlot?: string | null;
+    readonly status?: AuditionStatus;
+    readonly voicePart?: string;
+  },
 ): Promise<OrganizationAudition> {
   const parsed = organizationAuditionUpdateRequestSchema.parse(update);
   const response = await request(`/api/organization/auditions/${encodeURIComponent(auditionId)}`, {
@@ -1198,6 +1252,34 @@ export async function updateOrganizationAudition(
     method: "PUT",
   });
   return organizationAuditionSchema.parse(await response.json());
+}
+
+export async function deleteOrganizationAudition(auditionId: string): Promise<void> {
+  await request(`/api/organization/auditions/${encodeURIComponent(auditionId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function convertOrganizationAudition(
+  auditionId: string,
+): Promise<{ readonly profileId: string }> {
+  const response = await request(
+    `/api/organization/auditions/${encodeURIComponent(auditionId)}/convert`,
+    { method: "POST" },
+  );
+  const body: unknown = await response.json();
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("profile" in body) ||
+    typeof body.profile !== "object" ||
+    body.profile === null ||
+    !("id" in body.profile) ||
+    typeof body.profile.id !== "string"
+  ) {
+    throw new Error("The audition conversion response was invalid.");
+  }
+  return { profileId: body.profile.id };
 }
 
 export async function generateAuditionTokens(
@@ -1208,4 +1290,22 @@ export async function generateAuditionTokens(
     method: "POST",
   });
   return generateAuditionTokensResponseSchema.parse(await response.json()).tokens;
+}
+
+export async function startOrganizationExport(): Promise<OrganizationExportStartResponse> {
+  const response = await request("/api/organization/export", {
+    body: JSON.stringify({ format: "json" }),
+    method: "POST",
+  });
+  return organizationExportStartResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationExportStatus(
+  exportId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationExportStatusResponse> {
+  const response = await request(`/api/organization/export/${encodeURIComponent(exportId)}`, {
+    signal: signal ?? null,
+  });
+  return organizationExportStatusResponseSchema.parse(await response.json());
 }

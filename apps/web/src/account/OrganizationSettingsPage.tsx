@@ -3,9 +3,121 @@ import { useEffect, useState } from "react";
 import {
   AuthApiError,
   getOrganizationCalendarSettings,
+  getOrganizationExportStatus,
+  startOrganizationExport,
   updateOrganizationCalendarSettings,
 } from "../auth/api";
+import type { OrganizationExportStatusResponse } from "@choir/contracts";
 import { RosterConfiguration } from "./RosterConfiguration";
+
+function OrganizationExportPanel() {
+  const [exportId, setExportId] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<OrganizationExportStatusResponse | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!exportId) return;
+    const controller = new AbortController();
+    let timer: number | undefined;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const status = await getOrganizationExportStatus(exportId, controller.signal);
+        if (cancelled) return;
+        setExportStatus(status);
+        if (status.status === "queued" || status.status === "processing") {
+          timer = window.setTimeout(() => void poll(), 1500);
+        }
+      } catch (pollError: unknown) {
+        if (!cancelled && !(pollError instanceof DOMException && pollError.name === "AbortError")) {
+          setExportError(
+            pollError instanceof AuthApiError
+              ? pollError.message
+              : "The Organization export status could not be loaded.",
+          );
+        }
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [exportId]);
+
+  async function startExport() {
+    setExportBusy(true);
+    setExportError(null);
+    setExportStatus(null);
+    try {
+      const started = await startOrganizationExport();
+      setExportId(started.exportId);
+      setExportStatus({
+        byteCount: null,
+        checksumSha256: null,
+        downloadUrl: null,
+        errorCode: null,
+        exportId: started.exportId,
+        requestId: started.requestId,
+        status: started.status,
+      });
+    } catch (startError: unknown) {
+      setExportError(
+        startError instanceof AuthApiError
+          ? startError.message
+          : "The Organization export could not be started.",
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  return (
+    <section className="surface-card" aria-labelledby="organization-export-title">
+      <div className="section-heading section-heading--compact">
+        <p className="eyebrow">Data portability</p>
+        <h2 id="organization-export-title">Export Organization data</h2>
+        <p className="section-description">
+          Owners and elevated Platform Administrators can request a bounded JSON snapshot of
+          Organization records, audit events, and private-file inventory for backup or migration.
+        </p>
+      </div>
+      {exportError ? (
+        <p className="notice notice--error" role="alert">
+          {exportError}
+        </p>
+      ) : null}
+      {exportStatus ? (
+        <p className="notice notice--success" role="status">
+          {exportStatus.status === "completed"
+            ? "Export ready to download."
+            : exportStatus.status === "failed"
+              ? `Export failed${exportStatus.errorCode ? ` (${exportStatus.errorCode})` : ""}.`
+              : exportStatus.status === "processing"
+                ? "Export is being prepared…"
+                : "Export queued…"}
+        </p>
+      ) : null}
+      <div className="button-row">
+        <button
+          className="button button--secondary"
+          disabled={exportBusy}
+          onClick={() => void startExport()}
+          type="button"
+        >
+          {exportBusy ? "Starting…" : "Start Organization export"}
+        </button>
+        {exportStatus?.downloadUrl ? (
+          <a className="button button--primary" download href={exportStatus.downloadUrl}>
+            Download export
+          </a>
+        ) : null}
+      </div>
+    </section>
+  );
+}
 
 export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -113,6 +225,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
         ) : null}
       </section>
       <RosterConfiguration enabled={enabled} />
+      <OrganizationExportPanel />
     </div>
   );
 }

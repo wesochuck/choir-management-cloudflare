@@ -1,13 +1,32 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 25, 2026 **Status:** Milestones 0–6 complete. All 180 parity entries are
-implemented and verified. The reorganized authenticated shell, signed-in visual usability pass, and
-setup-status compatibility fix are deployed to permanent staging (version
-`a4447491-ed2c-4601-8d26-0b1a2497a260`) with all bindings active. The full quality gate passes:
-formatting, lint, typecheck, build, unit tests (78/78), integration tests (105/105), E2E tests
-(50/50), parity validation (180/180), and dependency audit (0 high+ vulnerabilities). Production is
-isolated with `EXTERNAL_EFFECTS_MODE=disabled`, `PLATFORM_EMAIL_MODE=disabled`, and no routes or
-bindings configured. Milestone 7 (production launch) is outside the active goal per GOAL.md.
+**Prepared:** July 26, 2026 **Status:** The July 26 parity recheck now records 190 implemented, 0
+partial, and 0 planned entries across nine sections. No entry is currently marked `verified` because
+the current commit has not been requalified on permanent staging; the closed-gap evidence and
+release criteria are recorded in [`docs/parity/completion-plan.md`](../parity/completion-plan.md).
+The previous staging deployment and quality-gate results below remain historical evidence for the
+earlier checkpoint. Production is isolated with `EXTERNAL_EFFECTS_MODE=disabled`,
+`PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
+outside the active goal per GOAL.md.
+
+## July 26 parity recheck
+
+The structural parity checker validates all 190 inventory entries and all target-evidence paths, but
+it does not prove behavior. The source, contract, Durable Object, and test review closed the prior
+audition, set-list, export, music-recency, and theme gaps. Remaining release work is the complete
+local gate and a permanent-staging qualification of this exact commit.
+
+The setup-status handler now preserves the Organization Durable Object's known failure code/status
+and emits only a redacted request-scoped error type for unexpected failures. The earlier staging 503
+still needs a deployment of this change and one authenticated probe on the affected hostname; the
+local calendar integration path remains green.
+
+The local qualification now passes formatting, lint, strict typecheck, 84 unit tests, 112
+integration tests, 56 Playwright tests, build, parity validation (190 entries), and the
+high-severity dependency audit (0 vulnerabilities). Integration output still includes the known
+expected FleetSchema registry-identity warning, and Playwright logs expected proxy warnings for
+unmocked background setup requests; all 56 tests pass. No staging deployment was performed in this
+pass.
 
 ## Repository topology
 

@@ -68,6 +68,7 @@
             "apps/web/src/App.tsx",
             "apps/web/src/public/PublicAuditionView.tsx",
             "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/web/e2e/auditions.spec.ts",
           ],
       },
       {
@@ -649,9 +650,10 @@
         "baselineEvidence": "src/App.tsx:456; src/views/admin/AuditionsView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/App.tsx",
+            "apps/web/src/account/AuthenticatedShell.tsx",
             "apps/web/src/account/AuditionManager.tsx",
-            "apps/web/src/account/OrganizationAccess.tsx",
+            "apps/web/e2e/auditions.spec.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -943,6 +945,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1627,6 +1630,93 @@
           ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
       },
       {
+        "id": "api.organization.export-start",
+        "method": "POST",
+        "path": "/api/organization/export",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "accepted ADR 0015 portable Organization export contract",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/exportStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/web/src/auth/api.ts",
+            "apps/web/src/account/OrganizationSettingsPage.tsx",
+          ],
+      },
+      {
+        "id": "api.organization.export-status",
+        "method": "GET",
+        "path": "/api/organization/export/:exportId",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "accepted ADR 0015 portable Organization export contract",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/exportStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/web/src/auth/api.ts",
+            "apps/web/src/account/OrganizationSettingsPage.tsx",
+          ],
+      },
+      {
+        "id": "api.organization.export-download",
+        "method": "GET",
+        "path": "/api/organization/export/:exportId/download",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "accepted ADR 0015 portable Organization export contract",
+        "targetEvidence":
+          [
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.export",
+        "method": "GET",
+        "path": "/api/organization/export.json",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "accepted ADR 0015 portable Organization export contract",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/exportStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/web/src/account/OrganizationSettingsPage.tsx",
+          ],
+      },
+      {
+        "id": "api.public.audition-settings",
+        "method": "GET",
+        "path": "/api/public/audition-settings",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/settings/auditionSettings.ts; src/views/public/AuditionInquiryView.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/web/src/public/PublicAuditionView.tsx",
+            "apps/web/e2e/auditions.spec.ts",
+          ],
+      },
+      {
         "id": "api.public.audition-inquiry",
         "method": "POST",
         "path": "/api/public/audition-inquiry",
@@ -1638,8 +1728,10 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationAuditions.ts",
-            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/public/PublicAuditionView.tsx",
           ],
       },
@@ -1676,6 +1768,53 @@
           ],
       },
       {
+        "id": "api.organization.audition-settings-read",
+        "method": "GET",
+        "path": "/api/organization/audition-settings",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/settings/auditionSettings.ts; src/views/admin/AuditionsView.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/web/src/account/AuditionManager.tsx",
+          ],
+      },
+      {
+        "id": "api.organization.audition-settings-update",
+        "method": "PUT",
+        "path": "/api/organization/audition-settings",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/services/settings/auditionSettings.ts; src/views/admin/AuditionsView.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/web/src/account/AuditionManager.tsx",
+          ],
+      },
+      {
+        "id": "api.organization.audition-create",
+        "method": "POST",
+        "path": "/api/organization/auditions",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/services/auditionService.ts; src/views/admin/AuditionsView.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/web/src/account/AuditionManager.tsx",
+          ],
+      },
+      {
         "id": "api.organization.auditions-list",
         "method": "GET",
         "path": "/api/organization/auditions",
@@ -1684,7 +1823,42 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/auditionStore.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.audition-delete",
+        "method": "DELETE",
+        "path": "/api/organization/auditions/:auditionId",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/services/auditionService.ts; src/views/admin/AuditionsView.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/web/src/account/AuditionManager.tsx",
+          ],
+      },
+      {
+        "id": "api.organization.audition-convert",
+        "method": "POST",
+        "path": "/api/organization/auditions/:auditionId/convert",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "src/services/auditionService.ts; src/views/admin/AuditionsView.tsx",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/web/src/account/AuditionManager.tsx",
+          ],
       },
       {
         "id": "api.organization.audition-tokens",
@@ -1695,7 +1869,12 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationAuditions.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "api.organization.audition-update",
@@ -1706,7 +1885,12 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/auditionStore.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/auditionStore.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
     ],
   "recordHooks":
@@ -1750,6 +1934,9 @@
             "apps/worker/src/organization/auditionStore.ts",
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationAuditions.ts",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
           ],
       },
       {
@@ -1765,6 +1952,9 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationAuditions.ts",
             "apps/web/src/account/AuditionManager.tsx",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/test/publicAudition.integration.test.ts",
           ],
       },
     ],
@@ -1878,6 +2068,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/test/music.integration.test.ts",
             "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/e2e/setlists.spec.ts",
           ],
       },
       {
@@ -2218,6 +2409,7 @@
             "apps/worker/test/selfServiceRsvp.integration.test.ts",
             "apps/web/src/account/SetListManager.tsx",
             "apps/web/src/account/MySchedule.tsx",
+            "apps/web/e2e/setlists.spec.ts",
           ],
       },
       {
@@ -2319,6 +2511,8 @@
             "apps/worker/test/publicAudition.integration.test.ts",
             "apps/web/src/public/PublicAuditionView.tsx",
             "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/e2e/auditions.spec.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -2399,12 +2593,13 @@
         "baselineEvidence": "baseline CSV contracts plus accepted ADR 0015",
         "targetEvidence":
           [
-            "packages/domain/src/rosterCsv.ts",
-            "packages/domain/src/musicCsv.ts",
-            "packages/domain/src/donationCsv.ts",
-            "packages/domain/src/attendanceReportCsv.ts",
-            "packages/domain/src/eventRsvpCsv.ts",
-            "packages/domain/src/repertoireReportCsv.ts",
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/organization/exportStore.ts",
+            "apps/worker/src/organization/organizationExport.ts",
+            "apps/worker/src/jobs/consumer.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/web/src/account/OrganizationSettingsPage.tsx",
           ],
       },
       {
@@ -2629,7 +2824,7 @@
         "milestone": 4,
         "status": "implemented",
         "baselineEvidence": "src/index.css; test/componentLibraryTokenUsage.test.ts",
-        "targetEvidence": ["apps/web/src/styles/theme.css"],
+        "targetEvidence": ["apps/web/src/styles/theme.css", "apps/web/e2e/setlists.spec.ts"],
       },
     ],
 }

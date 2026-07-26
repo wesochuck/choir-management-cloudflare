@@ -49,7 +49,10 @@ export async function getSetupStatus(
   const url = new URL("https://organization.internal/internal/setup/state");
   url.searchParams.set("organizationId", organizationId);
   const response = await stub(env, organizationId).fetch(url);
-  if (!response.ok) throw new SetupError("setup_unavailable", 503, "Setup status unavailable.");
+  if (!response.ok) {
+    const code = await errorCode(response);
+    throw new SetupError(code, response.status, "Setup status unavailable.");
+  }
   return setupStatusSchema.parse(await response.json());
 }
 

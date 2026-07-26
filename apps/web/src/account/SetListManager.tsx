@@ -68,6 +68,19 @@ function normalizeItems(items: readonly SetListItem[]): SetListItem[] {
   return items.map((item) => ({ ...item, id: item.id ?? crypto.randomUUID() }));
 }
 
+function moveItemToIndex(
+  items: readonly SetListItem[],
+  fromIndex: number,
+  toIndex: number,
+): SetListItem[] {
+  let next = [...items];
+  const direction: 1 | -1 = fromIndex < toIndex ? 1 : -1;
+  for (let index = fromIndex; index !== toIndex; index += direction) {
+    next = [...moveSetListItem(next, index, direction)];
+  }
+  return next;
+}
+
 function displayEvent(event: OrganizationEvent): string {
   return `${event.title} — ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.startsAt))}`;
 }
@@ -192,6 +205,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -325,6 +339,31 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function copyListText(): Promise<void> {
+    if (!selectedEvent) return;
+    const text = items
+      .map((item, index) => {
+        const duration = item.duration ? ` (${item.duration})` : "";
+        const composer = item.composer ? ` — ${item.composer}` : "";
+        return `${String(index + 1)}. ${item.title}${composer}${duration}`;
+      })
+      .join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("Set list copied as text.");
+    } catch {
+      setError("The set list could not be copied. Check clipboard permissions.");
+    }
+  }
+
+  function moveDraggedItem(toIndex: number): void {
+    if (dragIndex === null || dragIndex === toIndex) return;
+    const moved = items[dragIndex];
+    setItems((current) => moveItemToIndex(current, dragIndex, toIndex));
+    setDragIndex(null);
+    if (moved) setMessage(`Moved ${moved.title} to position ${String(toIndex + 1)}.`);
+  }
+
   if (!enabled) return null;
 
   return (
@@ -336,6 +375,26 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
           Build an ordered program from the music catalog or custom items, then approve it when it
           is ready for members.
         </p>
+        {selectedEvent ? (
+          <div className="button-row" aria-label="Set-list tools">
+            <button
+              className="button button--secondary"
+              onClick={() => void copyListText()}
+              type="button"
+            >
+              Copy text
+            </button>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                window.print();
+              }}
+              type="button"
+            >
+              Print list
+            </button>
+          </div>
+        ) : null}
       </div>
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -505,129 +564,163 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
           {items.length === 0 ? (
             <p className="empty-state">This Performance does not have set-list items yet.</p>
           ) : (
-            <ol className="set-list-items">
-              {items.map((item, index) => (
-                <li className="set-list-item" key={item.id}>
-                  <div className="set-list-item-heading">
-                    <strong>
-                      {String(index + 1)}. {item.title}
-                    </strong>
-                    <div className="button-row">
-                      <button
-                        aria-label={`Move ${item.title} up`}
-                        className="text-button"
-                        disabled={index === 0}
-                        type="button"
-                        onClick={() => {
-                          setItems((current) => [...moveSetListItem(current, index, -1)]);
-                        }}
-                      >
-                        Move up
-                      </button>
-                      <button
-                        aria-label={`Move ${item.title} down`}
-                        className="text-button"
-                        disabled={index === items.length - 1}
-                        type="button"
-                        onClick={() => {
-                          setItems((current) => [...moveSetListItem(current, index, 1)]);
-                        }}
-                      >
-                        Move down
-                      </button>
-                      <button
-                        className="text-button text-button--danger"
-                        type="button"
-                        onClick={() => {
-                          setItems((current) =>
-                            current.filter((_, itemIndex) => itemIndex !== index),
-                          );
-                        }}
-                      >
-                        Remove
-                      </button>
+            <>
+              <p className="field-help" aria-live="polite">
+                Drag an item to reorder it, or use Move up and Move down for keyboard control.
+              </p>
+              <ol className="set-list-items" aria-label="Ordered set-list items">
+                {items.map((item, index) => (
+                  <li
+                    className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}`}
+                    draggable
+                    key={item.id}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                    }}
+                    onDragStart={() => {
+                      setDragIndex(index);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      moveDraggedItem(index);
+                    }}
+                    onPointerCancel={(event) => {
+                      if (event.pointerType === "touch") setDragIndex(null);
+                    }}
+                    onPointerDown={(event) => {
+                      if (event.pointerType === "touch") setDragIndex(index);
+                    }}
+                    onPointerUp={(event) => {
+                      if (event.pointerType === "touch") moveDraggedItem(index);
+                    }}
+                  >
+                    <div className="set-list-item-heading">
+                      <strong>
+                        {String(index + 1)}. {item.title}
+                      </strong>
+                      <div className="button-row">
+                        <button
+                          aria-label={`Move ${item.title} up`}
+                          className="text-button"
+                          disabled={index === 0}
+                          type="button"
+                          onClick={() => {
+                            setItems((current) => [...moveSetListItem(current, index, -1)]);
+                          }}
+                        >
+                          Move up
+                        </button>
+                        <button
+                          aria-label={`Move ${item.title} down`}
+                          className="text-button"
+                          disabled={index === items.length - 1}
+                          type="button"
+                          onClick={() => {
+                            setItems((current) => [...moveSetListItem(current, index, 1)]);
+                          }}
+                        >
+                          Move down
+                        </button>
+                        <button
+                          className="text-button text-button--danger"
+                          type="button"
+                          onClick={() => {
+                            setItems((current) =>
+                              current.filter((_, itemIndex) => itemIndex !== index),
+                            );
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="set-list-item-fields">
-                    <label className="field">
-                      Title
-                      <input
-                        maxLength={300}
-                        required
-                        value={item.title}
-                        onChange={(event) => {
-                          updateItem(index, { ...item, title: event.target.value });
-                        }}
-                      />
-                    </label>
-                    {itemType(item) === "song" ? (
+                    <div className="set-list-item-fields">
                       <label className="field">
-                        Composer
+                        Title
                         <input
                           maxLength={300}
-                          value={item.composer ?? ""}
+                          required
+                          value={item.title}
+                          onChange={(event) => {
+                            updateItem(index, { ...item, title: event.target.value });
+                          }}
+                        />
+                      </label>
+                      {itemType(item) === "song" ? (
+                        <label className="field">
+                          Composer
+                          <input
+                            maxLength={300}
+                            value={item.composer ?? ""}
+                            onChange={(event) => {
+                              updateItem(index, {
+                                ...item,
+                                composer: event.target.value || undefined,
+                              });
+                            }}
+                          />
+                        </label>
+                      ) : null}
+                      <label className="field">
+                        Duration
+                        <input
+                          aria-invalid={
+                            Boolean(item.duration) && parseSetListDuration(item.duration) === null
+                          }
+                          maxLength={20}
+                          value={item.duration ?? ""}
                           onChange={(event) => {
                             updateItem(index, {
                               ...item,
-                              composer: event.target.value || undefined,
+                              duration: event.target.value || undefined,
                             });
                           }}
                         />
                       </label>
+                      <label className="field set-list-notes-field">
+                        Notes
+                        <textarea
+                          maxLength={10_000}
+                          rows={2}
+                          value={item.notes ?? ""}
+                          onChange={(event) => {
+                            updateItem(index, { ...item, notes: event.target.value || undefined });
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {itemType(item) === "song" ? (
+                      <label className="checkbox-field">
+                        <input
+                          checked={item.isFeaturedNumber ?? item.soloSmallGroup ?? false}
+                          type="checkbox"
+                          onChange={(event) => {
+                            const isFeaturedNumber = event.target.checked;
+                            const updated = { ...item, isFeaturedNumber };
+                            delete updated.soloSmallGroup;
+                            if (!isFeaturedNumber) updated.performerCredits = [];
+                            updateItem(index, updated);
+                          }}
+                        />
+                        Featured number
+                      </label>
                     ) : null}
-                    <label className="field">
-                      Duration
-                      <input
-                        aria-invalid={
-                          Boolean(item.duration) && parseSetListDuration(item.duration) === null
-                        }
-                        maxLength={20}
-                        value={item.duration ?? ""}
-                        onChange={(event) => {
-                          updateItem(index, { ...item, duration: event.target.value || undefined });
-                        }}
-                      />
-                    </label>
-                    <label className="field set-list-notes-field">
-                      Notes
-                      <textarea
-                        maxLength={10_000}
-                        rows={2}
-                        value={item.notes ?? ""}
-                        onChange={(event) => {
-                          updateItem(index, { ...item, notes: event.target.value || undefined });
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {itemType(item) === "song" ? (
-                    <label className="checkbox-field">
-                      <input
-                        checked={item.isFeaturedNumber ?? item.soloSmallGroup ?? false}
-                        type="checkbox"
-                        onChange={(event) => {
-                          const isFeaturedNumber = event.target.checked;
-                          const updated = { ...item, isFeaturedNumber };
-                          delete updated.soloSmallGroup;
-                          if (!isFeaturedNumber) updated.performerCredits = [];
+                    {itemType(item) === "song" && item.isFeaturedNumber ? (
+                      <SetListCreditEditor
+                        item={item}
+                        profiles={resources.profiles}
+                        onChange={(updated) => {
                           updateItem(index, updated);
                         }}
                       />
-                      Featured number
-                    </label>
-                  ) : null}
-                  {itemType(item) === "song" && item.isFeaturedNumber ? (
-                    <SetListCreditEditor
-                      item={item}
-                      profiles={resources.profiles}
-                      onChange={(updated) => {
-                        updateItem(index, updated);
-                      }}
-                    />
-                  ) : null}
-                </li>
-              ))}
-            </ol>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            </>
           )}
 
           <div className="set-list-save-row">
