@@ -47,6 +47,26 @@ import { TicketingManager } from "./TicketingManager";
 import { VenuesPage } from "./VenuesPage";
 
 type Workspace = "account" | "member" | "organization" | "platform";
+type ThemePreference = "dark" | "light";
+
+const themeStoragePrefix = "choir-theme:";
+
+function themeStorageKey(): string {
+  return `${themeStoragePrefix}${window.location.hostname}`;
+}
+
+function readThemePreference(): ThemePreference {
+  try {
+    return window.localStorage.getItem(themeStorageKey()) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function applyTheme(preference: ThemePreference): void {
+  document.documentElement.dataset.theme = preference;
+}
+
 interface RouteState {
   readonly pathname: string;
   readonly search: string;
@@ -880,8 +900,21 @@ export function AuthenticatedShell({
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace>(() =>
     workspaceForPath(readRoute().pathname),
   );
+  const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
   const [access, setAccess] = useState<AccessState>({ status: "loading" });
   const [platformAvailable, setPlatformAvailable] = useState(false);
+
+  useEffect(() => {
+    applyTheme(themePreference);
+    try {
+      window.localStorage.setItem(themeStorageKey(), themePreference);
+    } catch {
+      // Private browsing and restricted storage should not prevent the theme from applying.
+    }
+    return () => {
+      document.documentElement.removeAttribute("data-theme");
+    };
+  }, [themePreference]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -974,7 +1007,7 @@ export function AuthenticatedShell({
   const organizationName = organizationDisplayName(access, currentSession);
 
   return (
-    <div className="signed-in-shell">
+    <div className="signed-in-shell" data-theme={themePreference}>
       <a className="skip-link" href="#signed-in-main">
         Skip to main content
       </a>
@@ -1011,6 +1044,20 @@ export function AuthenticatedShell({
                   {workspaceLabel(item)}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="theme-switcher">
+            <span className="sr-only">Color theme</span>
+            <select
+              aria-label="Color theme"
+              value={themePreference}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (next === "light" || next === "dark") setThemePreference(next);
+              }}
+            >
+              <option value="dark">Dark theme</option>
+              <option value="light">Light theme</option>
             </select>
           </label>
           <button

@@ -3075,6 +3075,7 @@ footer {
   }
 
   .workspace-switcher select,
+  .theme-switcher select,
   .signed-in-header__actions .button {
     width: 100%;
   }
@@ -3258,10 +3259,6 @@ footer {
 
 /* Radix portals render outside the shell; keep signed-in dialogs on the same control system. */
 .dialog--responsive {
-  --color-surface: #132c37;
-  --color-text: #eff6f8;
-  --color-text-muted: #a7bac2;
-  --color-border: #2b4b58;
   width: min(40rem, calc(100% - 2rem));
   max-height: min(88vh, 48rem);
   border: 1px solid var(--color-border);
@@ -3279,7 +3276,7 @@ footer {
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--control-radius);
-  background: #102630;
+  background: var(--color-surface-raised);
   color: var(--color-text);
   font-size: 0.875rem;
   line-height: 1.25;
@@ -3541,7 +3538,7 @@ footer {
 .signed-in-header {
   min-height: 3.75rem;
   padding: 0.55rem clamp(1rem, 3vw, 2.25rem);
-  background: rgb(13 31 40 / 94%);
+  background: color-mix(in srgb, var(--color-background) 94%, transparent);
 }
 
 .signed-in-header__brand > a {
@@ -3554,7 +3551,7 @@ footer {
   width: 2rem;
   height: 2rem;
   background: var(--color-accent);
-  color: #1b2c32;
+  color: var(--color-background);
   font-size: 0.68rem;
 }
 
@@ -3586,13 +3583,24 @@ footer {
   padding-block: 0.45rem;
 }
 
+.theme-switcher select {
+  min-height: 2.3rem;
+  padding: 0.45rem 1.8rem 0.45rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.45rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .signed-in-body {
   grid-template-columns: minmax(13.5rem, 15.5rem) minmax(0, 1fr);
 }
 
 .signed-in-sidebar {
   padding: 1.25rem 0.7rem;
-  background: #102630;
+  background: color-mix(in srgb, var(--color-surface) 78%, var(--color-background));
 }
 
 .sidebar-context {
@@ -3602,7 +3610,7 @@ footer {
 }
 
 .sidebar-context .eyebrow {
-  color: #8eaab3;
+  color: var(--color-text-muted);
   font-size: 0.61rem;
   letter-spacing: 0.09em;
 }
@@ -3622,7 +3630,7 @@ footer {
 
 .workspace-nav__label {
   margin: 0 0 0.25rem 0.6rem;
-  color: #78939d;
+  color: var(--color-text-muted);
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -3637,7 +3645,7 @@ footer {
   gap: 0.55rem;
   padding: 0.45rem 0.6rem;
   border-radius: 0.45rem;
-  color: #a9bbc1;
+  color: var(--color-text-muted);
   font-size: 0.82rem;
   font-weight: 560;
   letter-spacing: 0;
@@ -3645,14 +3653,14 @@ footer {
 }
 
 .workspace-nav__items a:hover {
-  background: rgb(74 117 130 / 18%);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   color: var(--color-text);
 }
 
 .workspace-nav__items a[aria-current="page"] {
-  background: #294853;
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
   box-shadow: inset 3px 0 var(--color-accent);
-  color: #ffffff;
+  color: var(--color-text);
   font-weight: 650;
 }
 
@@ -3664,7 +3672,7 @@ footer {
 .workspace-nav__dot {
   width: 0.3rem;
   height: 0.3rem;
-  background: #54727d;
+  background: var(--color-text-muted);
 }
 
 .workspace-nav__items a[aria-current="page"] .workspace-nav__dot {
@@ -3846,7 +3854,7 @@ footer {
   min-height: 2.45rem;
   padding: 0.55rem 0.7rem;
   border-radius: 0.45rem;
-  background: #102630;
+  background: var(--color-surface-raised);
   font-size: 0.86rem;
 }
 
@@ -3890,6 +3898,25 @@ footer {
   border-radius: 0.8rem;
   padding: 1.15rem;
   background: var(--color-surface);
+}
+
+/* The app keeps its dark identity by default, with a complete light palette for brighter workdays. */
+.signed-in-shell[data-theme="light"] {
+  --color-background: #f6f1e8;
+  --color-surface: #fffaf1;
+  --color-surface-raised: #ffffff;
+  --color-text: #183247;
+  --color-text-muted: #5e6d76;
+  --color-primary: #173f5f;
+  --color-primary-strong: #0c2b44;
+  --color-accent: #c65f3f;
+  --color-border: #d8d0c3;
+  --color-danger: #a53b36;
+  --color-danger-surface: #fff0ed;
+  --color-info-surface: #eef6f8;
+  --color-success: #297a63;
+  --color-shadow: rgb(23 63 95 / 14%);
+  color-scheme: light;
 }
 
 .dialog__header {
