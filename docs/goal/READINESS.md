@@ -1,25 +1,25 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 26, 2026 **Status:** The July 26 parity recheck now records 190 implemented, 0
-partial, and 0 planned entries across nine sections. No entry is currently marked `verified` because
-the current commit has not been requalified on permanent staging; the closed-gap evidence and
-release criteria are recorded in [`docs/parity/completion-plan.md`](../parity/completion-plan.md).
-The previous staging deployment and quality-gate results below remain historical evidence for the
-earlier checkpoint. Production is isolated with `EXTERNAL_EFFECTS_MODE=disabled`,
-`PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
-outside the active goal per GOAL.md.
+**Prepared:** July 26, 2026 **Status:** The July 26 parity recheck now records 48 verified, 142
+implemented, 0 partial, and 0 planned entries across nine sections. No implementation gap is open;
+the 142 `implemented` entries have local and integration evidence but still need their broader
+permanent-staging qualification. The evidence debt and completion batches are recorded in
+[`docs/parity/completion-plan.md`](../parity/completion-plan.md). The previous staging deployment
+and quality-gate results below remain historical evidence for the earlier checkpoint. Production is
+isolated with `EXTERNAL_EFFECTS_MODE=disabled`, `PLATFORM_EMAIL_MODE=disabled`, and no routes or
+bindings configured. Production launch remains outside the active goal per GOAL.md.
 
 ## July 26 parity recheck
 
 The structural parity checker validates all 190 inventory entries and all target-evidence paths, but
 it does not prove behavior. The source, contract, Durable Object, and test review closed the prior
-audition, set-list, export, music-recency, and theme gaps. Remaining release work is the complete
-local gate and a permanent-staging qualification of this exact commit.
+audition, set-list, export, music-recency, and theme gaps. The complete local gate and focused
+permanent-staging qualification of this exact commit are complete; remaining release work is the
+bounded staging evidence plan for the 142 entries still marked `implemented`.
 
 The setup-status handler now preserves the Organization Durable Object's known failure code/status
-and emits only a redacted request-scoped error type for unexpected failures. The earlier staging 503
-still needs a deployment of this change and one authenticated probe on the affected hostname; the
-local calendar integration path remains green.
+and emits only a redacted request-scoped error type for unexpected failures. The corrected staging
+deployment and authenticated LCC probe now pass; the local calendar integration path remains green.
 
 The local qualification now passes formatting, lint, strict typecheck, 84 unit tests, 112
 integration tests, 56 Playwright tests, build, parity validation (190 entries), and the
@@ -27,15 +27,29 @@ high-severity dependency audit (0 vulnerabilities). Integration output still inc
 expected FleetSchema registry-identity warning, and Playwright logs expected proxy warnings for
 unmocked background setup requests; all 56 tests pass.
 
-The exact qualified commit `ead797ab9772f35a49a851059be8669bd9efb84b` was deployed to permanent
-staging on July 26, 2026 as Worker version `d12b4d02-35b5-4ba9-89ce-d914e1fa6a86`. Public probes
-passed: `/api/health` returned HTTP 200 with request ID `483ae024-e946-4b2b-9c43-fb79aa95305a`,
-`/api/ready` returned HTTP 200 with request ID `c13eb67c-1a2a-42b6-8753-a99740c484fc`, and the
-remote D1 migration check reported no migrations to apply. The affected canonical Organization setup
-probe returned the expected unauthenticated HTTP 401 with request ID
-`c8f53ca4-69c1-42b5-b379-5dc6b761d974`; no operational data was exposed. Authenticated Organization
-and Platform Administrator browser checks remain pending until a signed- in staging session is
-available. Production remains unlaunched.
+The corrected qualified commit `971e4f5` was deployed to permanent staging on July 26, 2026 as
+Worker version `b5515d2e-11ab-4e99-87e6-d1ede621dec7`. Public probes passed: `/api/health` returned
+HTTP 200 with request ID `599bfd04-dc5b-4ad3-96c5-aaff3d52b42a`, `/api/ready` returned HTTP 200 with
+request ID `dc905b00-056d-4c32-8913-9c8d3854bbd2`, and the remote D1 migration check reported no
+migrations to apply. The affected canonical Organization setup probe returned the expected
+unauthenticated HTTP 401 with request ID `c8f53ca4-69c1-42b5-b379-5dc6b761d974`; no operational data
+was exposed.
+
+Authenticated staging checks then verified the member dashboard, Account Organizations/security/
+sessions, Platform overview and MFA gate, the LCC Organization overview, roster, events/event roster
+links, auditions, music library, set lists, seating, invitations, security, modules, and
+Organization settings/export surfaces. The export reached “ready to download”; LCC and LMC canonical
+hosts resolved to their distinct Organization names and summaries. Mobile seating read-only-first
+behavior, Escape-closing drawer focus return to its trigger, `aria-current`, and light-theme
+switching also passed on the deployed version. The staging browser is left on the LCC Organization
+workspace. Production remains unlaunched.
+
+The remaining qualification plan is intentionally staged rather than treated as a feature gap: run
+public and signed-link browser flows first, then API contract families, queue/file/CSV workflows,
+and responsive visual states. Each batch must capture both its successful path and its relevant
+authorization, validation, retry, or tenant-isolation path before promoting matrix entries to
+`verified`. Staging remains in fake external-effects mode and all fixtures must remain
+Organization-scoped.
 
 ## Repository topology
 
@@ -79,7 +93,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `a4447491-ed2c-4601-8d26-0b1a2497a260`
+- Current verified Worker version: `b5515d2e-11ab-4e99-87e6-d1ede621dec7`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`

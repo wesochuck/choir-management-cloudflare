@@ -266,7 +266,7 @@
         "path": "/account",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in account entry surface",
         "targetEvidence":
           ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
@@ -276,7 +276,7 @@
         "path": "/account/organizations",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Organization chooser surface",
         "targetEvidence":
           ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
@@ -286,7 +286,7 @@
         "path": "/account/security",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in account security surface",
         "targetEvidence":
           [
@@ -299,7 +299,7 @@
         "path": "/account/sessions",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in active sessions surface",
         "targetEvidence":
           ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
@@ -309,7 +309,7 @@
         "path": "/admin",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Organization administration entry surface",
         "targetEvidence":
           [
@@ -324,7 +324,7 @@
         "path": "/admin/settings/invitations",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Organization membership invitation surface",
         "targetEvidence":
           [
@@ -338,7 +338,7 @@
         "path": "/admin/settings/security",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Organization security surface",
         "targetEvidence":
           [
@@ -351,7 +351,7 @@
         "path": "/schedule",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in member schedule surface",
         "targetEvidence":
           ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/MySchedule.tsx"],
@@ -361,7 +361,7 @@
         "path": "/practice",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in member practice surface",
         "targetEvidence":
           [
@@ -374,7 +374,7 @@
         "path": "/member/resources",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in member resources surface",
         "targetEvidence":
           [
@@ -387,7 +387,7 @@
         "path": "/calendar",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in member calendar subscription surface",
         "targetEvidence":
           [
@@ -400,7 +400,7 @@
         "path": "/platform",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Platform Administrator entry surface",
         "targetEvidence":
           [
@@ -413,7 +413,7 @@
         "path": "/platform/security",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Platform Administrator security surface",
         "targetEvidence":
           [
@@ -426,7 +426,7 @@
         "path": "/platform/organizations",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Platform Administrator Organization operations surface",
         "targetEvidence":
           [
@@ -439,7 +439,7 @@
         "path": "/platform/access",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Signed-in Platform Administrator scoped access surface",
         "targetEvidence":
           [
@@ -452,7 +452,7 @@
         "path": "/dashboard",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:329; src/views/singer/DashboardView.tsx",
         "targetEvidence":
           [
@@ -466,7 +466,7 @@
         "path": "/profile",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:622; src/views/singer/ProfileView.tsx",
         "targetEvidence":
           [
@@ -481,7 +481,7 @@
         "path": "/directory",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:630; src/views/singer/DirectoryView.tsx",
         "targetEvidence":
           [
@@ -496,7 +496,7 @@
         "path": "/seating/:eventId",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:612; src/views/singer/SeatingFinderView.tsx",
         "targetEvidence":
           [
@@ -510,7 +510,7 @@
         "path": "/admin/roster",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:339; src/views/admin/RosterView.tsx",
         "targetEvidence":
           [
@@ -526,7 +526,7 @@
         "path": "/admin/events",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:352; src/views/admin/EventsView.tsx",
         "targetEvidence":
           [
@@ -541,7 +541,7 @@
         "path": "/admin/events/:eventId/roster",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:365; src/views/admin/EventRosterView.tsx",
         "targetEvidence":
           [
@@ -556,7 +556,7 @@
         "path": "/admin/setlists",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:378; src/views/admin/SetListView.tsx",
         "targetEvidence":
           [
@@ -570,7 +570,7 @@
         "path": "/admin/venues",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:391; src/views/admin/VenuesView.tsx",
         "targetEvidence":
           [
@@ -585,7 +585,7 @@
         "path": "/admin/seating",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:404; src/views/admin/SeatingView.tsx",
         "targetEvidence":
           [
@@ -603,7 +603,7 @@
         "path": "/admin/attendance",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:417; src/views/admin/AttendanceView.tsx",
         "targetEvidence":
           [
@@ -617,7 +617,7 @@
         "path": "/admin/rsvp",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:430; src/views/admin/RsvpDashboardView.tsx",
         "targetEvidence":
           [
@@ -631,7 +631,7 @@
         "path": "/admin/polls",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:443; src/views/admin/PollsDashboardView.tsx",
         "targetEvidence":
           [
@@ -646,7 +646,7 @@
         "path": "/admin/auditions",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:456; src/views/admin/AuditionsView.tsx",
         "targetEvidence":
           [
@@ -661,7 +661,7 @@
         "path": "/admin/reports",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:469; src/views/admin/ReportsView.tsx",
         "targetEvidence": ["apps/web/src/App.tsx", "apps/web/src/account/ReportsView.tsx"],
       },
@@ -670,7 +670,7 @@
         "path": "/admin/library",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:482; src/views/admin/MusicLibraryView.tsx",
         "targetEvidence":
           [
@@ -685,7 +685,7 @@
         "path": "/admin/website",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:495; src/views/admin/PublicWebsiteView.tsx",
         "targetEvidence":
           [
@@ -699,7 +699,7 @@
         "path": "/admin/settings",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:508; src/views/admin/SettingsView.tsx",
         "targetEvidence":
           [
@@ -715,7 +715,7 @@
         "path": "/admin/settings/modules",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:519; src/views/admin/ModuleSettingsView.tsx",
         "targetEvidence":
           [
@@ -729,7 +729,7 @@
         "path": "/admin/settings/setup-checklist",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:528; src/views/admin/SetupChecklistView.tsx",
         "targetEvidence": ["apps/web/src/App.tsx", "apps/web/src/account/SetupChecklistView.tsx"],
       },
@@ -738,7 +738,7 @@
         "path": "/admin/communications",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:537; src/views/admin/CommunicationView.tsx",
         "targetEvidence":
           [
@@ -752,7 +752,7 @@
         "path": "/admin/resources",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:550; src/views/admin/ResourcesView.tsx",
         "targetEvidence":
           [
@@ -765,7 +765,7 @@
         "path": "/admin/tickets",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:561; src/views/admin/TicketingView.tsx",
         "targetEvidence":
           [
@@ -779,7 +779,7 @@
         "path": "/admin/tickets/scan",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:574; src/views/admin/TicketScanView.tsx",
         "targetEvidence":
           [
@@ -793,7 +793,7 @@
         "path": "/admin/donations",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:587; src/views/admin/DonationsView.tsx",
         "targetEvidence":
           [
@@ -808,7 +808,7 @@
         "path": "/admin/patrons",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:600; src/views/admin/PatronsView.tsx",
         "targetEvidence":
           [
@@ -822,7 +822,7 @@
         "path": "/admin/seasons",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx (season endpoint)",
         "targetEvidence":
           [
@@ -840,7 +840,7 @@
         "path": "/api/organization/dashboard-summary",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "New additive summary contract; no legacy endpoint",
         "targetEvidence":
           [
@@ -1635,7 +1635,7 @@
         "path": "/api/organization/export",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "accepted ADR 0015 portable Organization export contract",
         "targetEvidence":
           [
@@ -1653,7 +1653,7 @@
         "path": "/api/organization/export/:exportId",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "accepted ADR 0015 portable Organization export contract",
         "targetEvidence":
           [
@@ -2754,7 +2754,7 @@
         "state": "dialogs fit mobile viewports, retain focus, and expose Cancel/Close",
         "owner": "packages/ui",
         "milestone": 4,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/contexts/DialogProvider.tsx; test/utils/focusRegression.ts",
         "targetEvidence":
           [
@@ -2793,7 +2793,7 @@
           and mobile read-only-first usable",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "test/seatingLayoutRegression.test.ts; test/seatingMismatch.test.ts;
           src/components/admin/SeatingGrid.tsx; src/components/admin/SeatingBottomDock.tsx",
@@ -2825,7 +2825,7 @@
         "state": "semantic light/dark themes preserve readable contrast and recognizable character",
         "owner": "packages/ui",
         "milestone": 4,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/index.css; test/componentLibraryTokenUsage.test.ts",
         "targetEvidence": ["apps/web/src/styles/theme.css", "apps/web/e2e/setlists.spec.ts"],
       },
