@@ -62,6 +62,10 @@ npm run build
 npm audit --audit-level=high
 ```
 
+Playwright E2E tests are intentionally local-only so Chromium installation and browser execution do
+not delay the GitHub CI-to-staging deployment path. Run `npm run test:e2e` locally when browser
+coverage is needed; the remaining checks above are the deploy-blocking GitHub gates.
+
 `npm run test:integration` starts workerd on loopback and may require an execution environment that
 allows local ports. Regenerate Worker binding declarations after changing `wrangler.jsonc`:
 

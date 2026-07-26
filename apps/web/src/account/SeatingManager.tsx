@@ -10,6 +10,19 @@ import type {
   SeatingFormation,
 } from "@choir/contracts";
 import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
   addRow,
   addSeat,
   calculateSeatingSuggestions,
@@ -338,6 +351,7 @@ interface SeatTileProps {
   readonly suggestion: string | undefined;
 }
 
+/* eslint-disable react-hooks/refs -- @dnd-kit exposes callback refs and event bindings for JSX wiring. */
 function UnassignedProfileChip({
   onRemove,
   profile,
@@ -345,10 +359,15 @@ function UnassignedProfileChip({
   readonly onRemove: (profile: OrganizationProfile) => void;
   readonly profile: OrganizationProfile;
 }) {
+  const draggable = useDraggable({ id: `profile:${profile.id}` });
   return (
     <div
       className="seating-profile-chip"
       draggable
+      ref={draggable.setNodeRef}
+      style={{ opacity: draggable.isDragging ? 0.45 : undefined }}
+      {...draggable.attributes}
+      {...draggable.listeners}
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", `profile:${profile.id}`);
         event.dataTransfer.effectAllowed = "move";
@@ -377,11 +396,20 @@ function SeatTile({
   seatKey,
   suggestion,
 }: SeatTileProps) {
+  const draggable = useDraggable({ id: `seat:${seatKey}`, disabled: !assigned });
+  const droppable = useDroppable({ id: `seat:${seatKey}` });
   return (
     <button
       aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
       className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
       draggable={Boolean(assigned)}
+      ref={(node) => {
+        draggable.setNodeRef(node);
+        droppable.setNodeRef(node);
+      }}
+      style={{ opacity: draggable.isDragging ? 0.45 : undefined }}
+      {...draggable.attributes}
+      {...draggable.listeners}
       onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
@@ -423,6 +451,7 @@ function UnassignedTray({
   readonly query: string;
   readonly setQuery: (value: string) => void;
 }) {
+  const droppable = useDroppable({ id: "tray" });
   const groups = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     const filtered = normalized
@@ -443,6 +472,7 @@ function UnassignedTray({
     <section
       className="seating-tray"
       aria-labelledby="unassigned-title"
+      ref={droppable.setNodeRef}
       onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
@@ -496,6 +526,7 @@ function UnassignedTray({
     </section>
   );
 }
+/* eslint-enable react-hooks/refs */
 
 function ChartList({
   chart,
@@ -513,7 +544,9 @@ function ChartList({
           <h3>Row {rowIndex + 1}</h3>
           <ol>
             {Array.from({ length: chart.rowCounts[rowIndex] ?? 0 }, (_, seatIndex) => {
-              const profile = profilesById.get(chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`] ?? "");
+              const profile = profilesById.get(
+                chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`] ?? "",
+              );
               return (
                 <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
                   <span>Seat {seatIndex + 1}</span>
@@ -529,11 +562,15 @@ function ChartList({
   );
 }
 
+// eslint-disable-next-line complexity -- this coordinator owns independent chart, focus, autosave, and dialog workflows; visual primitives are extracted below.
 export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const isNarrow = useIsNarrowScreen();
   const workspaceRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveQueueRef = useRef<Promise<boolean>>(Promise.resolve(true));
+  const queuedRevisionRef = useRef(0);
   const saveRevisionRef = useRef(0);
+  const unsavedChangesRef = useRef(false);
   const chartRef = useRef<OrganizationSeatingChartRequest | null>(null);
   const editingIdRef = useRef<string | null>(null);
   const eventIdRef = useRef("");
@@ -556,6 +593,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const [formationTab, setFormationTab] = useState<"chart" | "formations">("chart");
   const [query, setQuery] = useState("");
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const [dragMessage, setDragMessage] = useState("");
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [chartDialog, setChartDialog] = useState<"create" | "rename" | null>(null);
   const [chartName, setChartName] = useState("");
@@ -684,10 +722,15 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     const found = resources?.seating.formations.find(({ id }) => id === chart.formationId);
     return found ?? resources?.seating.formations[0] ?? null;
   }, [chart.formationId, resources?.seating.formations]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
 
   const saveChart = useCallback(
-    async (payload: OrganizationSeatingChartRequest, revision: number): Promise<void> => {
-      if (!eventIdRef.current || !editingIdRef.current) return;
+    async (payload: OrganizationSeatingChartRequest, revision: number): Promise<boolean> => {
+      if (!eventIdRef.current || !editingIdRef.current) return true;
       setSaveState("saving");
       try {
         const saved = await updateOrganizationSeatingChart(
@@ -701,16 +744,34 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
           setCharts((current) =>
             current.map((candidate) => (candidate.id === saved.id ? saved : candidate)),
           );
+          unsavedChangesRef.current = false;
           setSaveState("saved");
         }
+        return true;
       } catch (caught: unknown) {
-        if (revision === saveRevisionRef.current) setSaveState("error");
+        if (revision === saveRevisionRef.current) {
+          queuedRevisionRef.current = revision - 1;
+          unsavedChangesRef.current = true;
+          setSaveState("error");
+        }
         setError(
           caught instanceof Error ? caught.message : "The seating chart could not be saved.",
         );
+        return false;
       }
     },
     [],
+  );
+
+  const enqueueSave = useCallback(
+    (payload: OrganizationSeatingChartRequest, revision: number): Promise<boolean> => {
+      if (revision <= queuedRevisionRef.current) return saveQueueRef.current;
+      queuedRevisionRef.current = revision;
+      const next = saveQueueRef.current.then(() => saveChart(payload, revision));
+      saveQueueRef.current = next.catch(() => false);
+      return next;
+    },
+    [saveChart],
   );
 
   const scheduleSave = useCallback(
@@ -721,15 +782,17 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
         setSaveState("idle");
         return;
       }
+      unsavedChangesRef.current = true;
+      setSaveState("saving");
       saveRevisionRef.current += 1;
       const revision = saveRevisionRef.current;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = null;
-        void saveChart(next, revision);
+        void enqueueSave(next, revision);
       }, 750);
     },
-    [saveChart],
+    [enqueueSave],
   );
 
   const flushSave = useCallback(async (): Promise<boolean> => {
@@ -737,12 +800,10 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    if (!editingIdRef.current || !chartRef.current || saveState === "saved" || saveState === "idle")
-      return true;
+    if (!editingIdRef.current || !chartRef.current || saveState === "idle") return true;
     const revision = saveRevisionRef.current;
-    await saveChart(chartRef.current, revision);
-    return saveState !== "error";
-  }, [saveChart, saveState]);
+    return enqueueSave(chartRef.current, revision);
+  }, [enqueueSave, saveState]);
 
   function applyChart(next: OrganizationSeatingChartRequest): void {
     setError(null);
@@ -754,12 +815,15 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     setLoading(true);
     const flushed = await flushSave();
     if (!flushed) {
+      setLoading(false);
       setConfirmState({
         title: "Unsaved seating changes",
         message:
           "The current chart could not be saved. Stay here and retry before changing Performance.",
         confirmLabel: "Retry",
-        onConfirm: () => void flushSave(),
+        onConfirm: async () => {
+          if (await flushSave()) setConfirmState(null);
+        },
       });
       return;
     }
@@ -805,7 +869,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   async function deleteChart(): Promise<void> {
     if (!editingId || !eventId || charts.length <= 1) return;
     try {
-      await flushSave();
+      if (!(await flushSave())) return;
       await deleteOrganizationSeatingChart(eventId, editingId);
       const remaining = charts.filter(({ id }) => id !== editingId);
       setCharts(remaining);
@@ -887,6 +951,31 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
         assignments: moveAssignment(chart.assignments, "", targetSeatKey, profileId),
       });
     }
+  }
+
+  function handleDragStart(event: DragStartEvent): void {
+    const token = String(event.active.id);
+    setDragMessage(
+      token.startsWith("profile:")
+        ? "Dragging Profile. Choose an empty or occupied seat to assign or replace."
+        : "Dragging assigned seat. Choose another seat to move or swap, or the tray to unassign.",
+    );
+  }
+
+  function handleDragEnd(event: DragEndEvent): void {
+    const token = String(event.active.id);
+    const target = event.over ? String(event.over.id) : null;
+    if (target === "tray") {
+      handleDropToken(token);
+      setDragMessage("Profile unassigned and returned to the tray.");
+      return;
+    }
+    if (target?.startsWith("seat:")) {
+      handleDropToken(token, target.slice("seat:".length));
+      setDragMessage("Seating assignment updated.");
+      return;
+    }
+    setDragMessage("Drag canceled.");
   }
 
   function updateLayout(nextLayout: ReturnType<typeof addRow>): void {
@@ -1101,6 +1190,19 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     };
   }, [fallbackFocus]);
 
+  useEffect(() => {
+    if (saveState !== "error" || !unsavedChangesRef.current) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari still requires returnValue for the native prompt.
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [saveState]);
+
   useEffect(
     () => () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -1139,6 +1241,9 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
       className={`seating-workspace${focusMode ? " seating-workspace--focus" : ""}${fallbackFocus ? " seating-workspace--fallback-focus" : ""}`}
       ref={workspaceRef}
     >
+      <p aria-live="polite" className="sr-only">
+        {dragMessage}
+      </p>
       <div className="seating-page-heading no-print">
         <div>
           <p className="eyebrow">Seating</p>
@@ -1492,146 +1597,159 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
           ) : null}
           {charts.length > 0 && viewMode === "grid" ? (
             <>
-              <div
-                className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
-                aria-label="Seating chart assignments"
+              <DndContext
+                collisionDetection={closestCenter}
+                onDragCancel={() => {
+                  setDragMessage("Drag canceled.");
+                }}
+                onDragEnd={handleDragEnd}
+                onDragStart={handleDragStart}
+                sensors={sensors}
               >
-                <div className="seating-stage-marker">Director / stage</div>
-                <div className="seating-grid seating-grid--canvas">
-                  {rows.map((rowIndex) => {
-                    const count = chart.rowCounts[rowIndex] ?? 0;
-                    const occupied = Array.from(
-                      { length: count },
-                      (_, seatIndex) => chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`],
-                    ).filter(Boolean).length;
-                    return (
-                      <div
-                        className="seating-row seating-row--canvas"
-                        key={rowIndex}
-                        style={{ "--seating-seat-count": String(count) } as CSSProperties}
-                      >
-                        <div className="seating-row-label seating-row-label--canvas">
-                          <strong>Row {rowIndex + 1}</strong>
-                          <span>
-                            {occupied}/{count}
-                          </span>
-                        </div>
-                        {isEditing ? (
-                          <button
-                            aria-label={`Delete row ${String(rowIndex + 1)}`}
-                            className="seating-row-action-btn seating-row-action-btn--delete no-print"
-                            disabled={chart.rowCounts.length <= 1}
-                            onClick={() => {
-                              requestRemoveRow(rowIndex);
-                            }}
-                            type="button"
-                          >
-                            ×
-                          </button>
-                        ) : null}
-                        {Array.from({ length: count }, (_, seatIndex) => {
-                          const seatKey = `${String(rowIndex)}-${String(seatIndex)}`;
-                          const profile = profileForSeat(seatKey);
-                          const suggestion = chart.sectionSuggestions[seatKey];
-                          const mismatch = currentFormation?.isVoicePartLayout
-                            ? Boolean(
-                                profile &&
-                                suggestion &&
-                                profile.voicePart.toUpperCase() !== suggestion.toUpperCase(),
-                              )
-                            : isSeatingSectionMismatch(
-                                profile?.voicePart,
-                                suggestion,
-                                resources.roster.voiceParts,
-                              );
-                          return isEditing ? (
-                            <SeatTile
-                              assigned={profile}
-                              key={seatKey}
-                              label={`Seat ${String(seatIndex + 1)}`}
-                              mismatch={mismatch}
-                              onActivate={() => {
-                                setSelectedSeat(seatKey);
+                <div
+                  className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
+                  aria-label="Seating chart assignments"
+                >
+                  <div className="seating-stage-marker">Director / stage</div>
+                  <div className="seating-grid seating-grid--canvas">
+                    {rows.map((rowIndex) => {
+                      const count = chart.rowCounts[rowIndex] ?? 0;
+                      const occupied = Array.from(
+                        { length: count },
+                        (_, seatIndex) =>
+                          chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`],
+                      ).filter(Boolean).length;
+                      return (
+                        <div
+                          className="seating-row seating-row--canvas"
+                          key={rowIndex}
+                          style={{ "--seating-seat-count": String(count) } as CSSProperties}
+                        >
+                          <div className="seating-row-label seating-row-label--canvas">
+                            <strong>Row {rowIndex + 1}</strong>
+                            <span>
+                              {occupied}/{count}
+                            </span>
+                          </div>
+                          {isEditing ? (
+                            <button
+                              aria-label={`Delete row ${String(rowIndex + 1)}`}
+                              className="seating-row-action-btn seating-row-action-btn--delete no-print"
+                              disabled={chart.rowCounts.length <= 1}
+                              onClick={() => {
+                                requestRemoveRow(rowIndex);
                               }}
-                              onDrop={(token) => {
-                                handleDropToken(token, seatKey);
-                              }}
-                              seatKey={seatKey}
-                              suggestion={suggestion}
-                            />
-                          ) : (
-                            <div
-                              className={`seating-seat seating-seat--canvas seating-seat--readonly${mismatch ? " seating-seat--mismatch" : ""}`}
-                              key={seatKey}
+                              type="button"
                             >
-                              <span className="seating-seat__number">Seat {seatIndex + 1}</span>
-                              <span className="seating-seat__suggestion">
-                                {suggestion ?? "Open"}
-                              </span>
-                              <strong>{profile?.displayName ?? "Empty"}</strong>
-                              {profile ? (
-                                <span className="seating-seat__voice">{profile.voicePart}</span>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                        {isEditing ? (
-                          <button
-                            aria-label={`Add seat to row ${String(rowIndex + 1)}`}
-                            className="seating-row-action-btn seating-row-action-btn--add no-print"
-                            onClick={() => {
-                              updateLayout(addSeat({ ...chart }, rowIndex));
-                            }}
-                            type="button"
-                          >
-                            +
-                          </button>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                              ×
+                            </button>
+                          ) : null}
+                          {Array.from({ length: count }, (_, seatIndex) => {
+                            const seatKey = `${String(rowIndex)}-${String(seatIndex)}`;
+                            const profile = profileForSeat(seatKey);
+                            const suggestion = chart.sectionSuggestions[seatKey];
+                            const mismatch = currentFormation?.isVoicePartLayout
+                              ? Boolean(
+                                  profile &&
+                                  suggestion &&
+                                  profile.voicePart.toUpperCase() !== suggestion.toUpperCase(),
+                                )
+                              : isSeatingSectionMismatch(
+                                  profile?.voicePart,
+                                  suggestion,
+                                  resources.roster.voiceParts,
+                                );
+                            return isEditing ? (
+                              <SeatTile
+                                assigned={profile}
+                                key={seatKey}
+                                label={`Seat ${String(seatIndex + 1)}`}
+                                mismatch={mismatch}
+                                onActivate={() => {
+                                  setSelectedSeat(seatKey);
+                                }}
+                                onDrop={(token) => {
+                                  handleDropToken(token, seatKey);
+                                }}
+                                seatKey={seatKey}
+                                suggestion={suggestion}
+                              />
+                            ) : (
+                              <div
+                                className={`seating-seat seating-seat--canvas seating-seat--readonly${mismatch ? " seating-seat--mismatch" : ""}`}
+                                key={seatKey}
+                              >
+                                <span className="seating-seat__number">Seat {seatIndex + 1}</span>
+                                <span className="seating-seat__suggestion">
+                                  {suggestion ?? "Open"}
+                                </span>
+                                <strong>{profile?.displayName ?? "Empty"}</strong>
+                                {profile ? (
+                                  <span className="seating-seat__voice">{profile.voicePart}</span>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                          {isEditing ? (
+                            <button
+                              aria-label={`Add seat to row ${String(rowIndex + 1)}`}
+                              className="seating-row-action-btn seating-row-action-btn--add no-print"
+                              onClick={() => {
+                                updateLayout(addSeat({ ...chart }, rowIndex));
+                              }}
+                              type="button"
+                            >
+                              +
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {isEditing ? (
+                    <button
+                      className="button button--secondary button--small no-print"
+                      onClick={() => {
+                        updateLayout(addRow({ ...chart }, "back"));
+                      }}
+                      type="button"
+                    >
+                      + Add row to back
+                    </button>
+                  ) : null}
                 </div>
                 {isEditing ? (
+                  <UnassignedTray
+                    onAdd={() => {
+                      setProfileForm(emptyProfile);
+                      setProfileDialog("add");
+                    }}
+                    onLookup={() => {
+                      setLookupQuery("");
+                      setProfileDialog("lookup");
+                    }}
+                    onRemoveRsvp={(profile) => {
+                      markNotAttending(profile);
+                    }}
+                    onDrop={(token) => {
+                      handleDropToken(token);
+                    }}
+                    profiles={unassignedProfiles}
+                    query={query}
+                    setQuery={setQuery}
+                  />
+                ) : (
                   <button
-                    className="button button--secondary button--small no-print"
+                    className="button button--secondary no-print"
                     onClick={() => {
-                      updateLayout(addRow({ ...chart }, "back"));
+                      setMobileEditing(true);
                     }}
                     type="button"
                   >
-                    + Add row to back
+                    Edit chart
                   </button>
-                ) : null}
-              </div>
-              {isEditing ? (
-                <UnassignedTray
-                  onAdd={() => {
-                    setProfileForm(emptyProfile);
-                    setProfileDialog("add");
-                  }}
-                  onLookup={() => {
-                    setLookupQuery("");
-                    setProfileDialog("lookup");
-                  }}
-                  onRemoveRsvp={(profile) => { markNotAttending(profile); }}
-                  onDrop={(token) => {
-                    handleDropToken(token);
-                  }}
-                  profiles={unassignedProfiles}
-                  query={query}
-                  setQuery={setQuery}
-                />
-              ) : (
-                <button
-                  className="button button--secondary no-print"
-                  onClick={() => {
-                    setMobileEditing(true);
-                  }}
-                  type="button"
-                >
-                  Edit chart
-                </button>
-              )}
+                )}
+              </DndContext>
               {isEditing ? (
                 <button
                   className="button button--secondary button--small no-print"

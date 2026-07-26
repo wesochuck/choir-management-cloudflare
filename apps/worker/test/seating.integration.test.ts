@@ -3,6 +3,7 @@ import {
   organizationProfileResponseSchema,
   organizationSeatingChartSchema,
   organizationSeatingChartsResponseSchema,
+  organizationSeatingChartOrderResponseSchema,
   organizationVenueSchema,
   seatingConfigurationResponseSchema,
   singerSeatingResponseSchema,
@@ -271,6 +272,28 @@ describe("Organization seating", () => {
         )
       ).json(),
     );
+    const reorderedResponse = await write(
+      "alpha.localhost",
+      `/api/organization/events/${performance.id}/seating-charts/order`,
+      cookie,
+      { chartIds: [disposableChart.id, created.id] },
+      "PUT",
+    );
+    expect(reorderedResponse.status).toBe(200);
+    expect(
+      organizationSeatingChartOrderResponseSchema
+        .parse(await reorderedResponse.json())
+        .charts.map(({ id }) => id),
+    ).toEqual([disposableChart.id, created.id]);
+    expect(
+      await write(
+        "alpha.localhost",
+        `/api/organization/events/${performance.id}/seating-charts/order`,
+        cookie,
+        { chartIds: [created.id] },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 409 });
     expect(
       await exports.default.fetch(
         api(
@@ -426,6 +449,7 @@ describe("Organization seating", () => {
       "seating.chart.created",
       "seating.chart.deleted",
       "seating.chart.updated",
+      "seating.charts.reordered",
       "seating.configuration.updated",
     ]);
   });
