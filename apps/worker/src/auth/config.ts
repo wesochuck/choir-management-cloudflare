@@ -114,7 +114,7 @@ export function createAuth(context: AuthRequestContext) {
         allowUserToCreateOrganization: false,
         cancelPendingInvitationsOnReInvite: true,
         disableOrganizationDeletion: true,
-        invitationExpiresIn: 48 * 60 * 60,
+        invitationExpiresIn: 8 * 24 * 60 * 60,
         requireEmailVerificationOnInvitation: true,
         schema: {
           organization: {

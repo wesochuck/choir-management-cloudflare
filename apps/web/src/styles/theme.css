@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   font-family:
     Inter,
     ui-sans-serif,
@@ -30,8 +30,27 @@
   --muted-foreground: var(--color-text-muted);
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #102634;
+  --color-surface: #173241;
+  --color-surface-raised: #1c3b4d;
+  --color-text: #fffaf1;
+  --color-text-muted: #c0cbd0;
+  --color-primary: #f2c38d;
+  --color-primary-strong: #ffddb5;
+  --color-accent: #f08a67;
+  --color-border: #355264;
+  --color-danger: #ffaaa2;
+  --color-danger-surface: #452b2d;
+  --color-info-surface: #1b3c49;
+  --color-success: #75d1b4;
+  --color-shadow: rgb(0 0 0 / 30%);
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
+    color-scheme: dark;
     --color-background: #102634;
     --color-surface: #173241;
     --color-surface-raised: #1c3b4d;
