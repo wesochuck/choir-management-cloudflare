@@ -2759,8 +2759,11 @@
         "targetEvidence":
           [
             "packages/ui/src/Dialog.tsx",
+            "packages/ui/src/Sheet.tsx",
             "packages/ui/src/index.ts",
+            "apps/web/src/account/AuthenticatedShell.tsx",
             "apps/web/src/styles/theme.css",
+            "apps/web/e2e/auth.spec.ts",
           ],
       },
       {

@@ -740,6 +740,13 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   await expect(page.getByLabel("Select seating chart")).toContainText("Full Canvas Chart");
   if ((page.viewportSize()?.width ?? 1000) <= 700) {
     await page.getByRole("button", { name: "Edit anyway" }).click();
+    const openNavigation = page.getByRole("button", { name: "Open workspace navigation" });
+    await openNavigation.click();
+    const navigationDialog = page.getByRole("dialog", { name: "Workspace navigation" });
+    await expect(navigationDialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(navigationDialog).toHaveCount(0);
+    await expect(openNavigation).toBeFocused();
   }
   const firstSeat = page.getByRole("button", { name: "Seat 1, empty" }).first();
   await expect(firstSeat).toBeVisible();

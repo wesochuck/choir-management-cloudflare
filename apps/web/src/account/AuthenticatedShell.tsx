@@ -7,7 +7,7 @@ import {
   type OrganizationDashboardSummaryResponse,
 } from "@choir/contracts";
 import { Sheet } from "@choir/ui";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   AuthApiError,
@@ -897,6 +897,7 @@ export function AuthenticatedShell({
 }) {
   const [route, navigate] = useRoute();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavTriggerRef = useRef<HTMLElement | null>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace>(() =>
     workspaceForPath(readRoute().pathname),
   );
@@ -1018,6 +1019,9 @@ export function AuthenticatedShell({
             onClick={() => {
               setMobileNavOpen(true);
             }}
+            ref={(element) => {
+              mobileNavTriggerRef.current = element;
+            }}
             type="button"
             aria-label="Open workspace navigation"
           >
@@ -1111,6 +1115,7 @@ export function AuthenticatedShell({
           setMobileNavOpen(false);
         }}
         open={mobileNavOpen}
+        restoreFocusRef={mobileNavTriggerRef}
         title="Workspace navigation"
       >
         <div className="sheet__header">

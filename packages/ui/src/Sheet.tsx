@@ -5,10 +5,11 @@ interface SheetProps {
   readonly children: ReactNode;
   readonly onClose: () => void;
   readonly open: boolean;
+  readonly restoreFocusRef?: { readonly current: HTMLElement | null };
   readonly title: string;
 }
 
-export function Sheet({ children, onClose, open, title }: SheetProps) {
+export function Sheet({ children, onClose, open, restoreFocusRef, title }: SheetProps) {
   return (
     <DialogPrimitive.Root
       onOpenChange={(nextOpen) => {
@@ -18,7 +19,14 @@ export function Sheet({ children, onClose, open, title }: SheetProps) {
     >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="dialog__overlay" />
-        <DialogPrimitive.Content className="sheet">
+        <DialogPrimitive.Content
+          className="sheet"
+          onCloseAutoFocus={(event) => {
+            if (!restoreFocusRef?.current) return;
+            event.preventDefault();
+            restoreFocusRef.current.focus();
+          }}
+        >
           <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
           <DialogPrimitive.Close asChild>
             <button className="sheet__close" type="button" aria-label="Close navigation">
