@@ -30,6 +30,7 @@ import {
   moveAssignment,
   removeRow,
   removeSeat,
+  swapAssignments,
   unassignProfile,
 } from "@choir/domain";
 import { Dialog } from "@choir/ui";
@@ -571,6 +572,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const queuedRevisionRef = useRef(0);
   const saveRevisionRef = useRef(0);
   const unsavedChangesRef = useRef(false);
+  const nativeDropHandledRef = useRef(false);
   const chartRef = useRef<OrganizationSeatingChartRequest | null>(null);
   const editingIdRef = useRef<string | null>(null);
   const eventIdRef = useRef("");
@@ -940,9 +942,12 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     }
     if (token.startsWith("seat:")) {
       const sourceSeatKey = token.slice("seat:".length);
+      const targetOccupied = Boolean(chart.assignments[targetSeatKey]);
       applyChart({
         ...chart,
-        assignments: moveAssignment(chart.assignments, sourceSeatKey, targetSeatKey),
+        assignments: targetOccupied
+          ? swapAssignments(chart.assignments, sourceSeatKey, targetSeatKey)
+          : moveAssignment(chart.assignments, sourceSeatKey, targetSeatKey),
       });
     } else if (token.startsWith("profile:")) {
       const profileId = token.slice("profile:".length);
@@ -954,6 +959,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   }
 
   function handleDragStart(event: DragStartEvent): void {
+    nativeDropHandledRef.current = false;
     const token = String(event.active.id);
     setDragMessage(
       token.startsWith("profile:")
@@ -963,6 +969,10 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   }
 
   function handleDragEnd(event: DragEndEvent): void {
+    if (nativeDropHandledRef.current) {
+      nativeDropHandledRef.current = false;
+      return;
+    }
     const token = String(event.active.id);
     const target = event.over ? String(event.over.id) : null;
     if (target === "tray") {
@@ -976,6 +986,16 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
       return;
     }
     setDragMessage("Drag canceled.");
+  }
+
+  function handleNativeDrop(token: string, targetSeatKey?: string): void {
+    nativeDropHandledRef.current = true;
+    handleDropToken(token, targetSeatKey);
+    setDragMessage(
+      targetSeatKey
+        ? "Seating assignment updated."
+        : "Profile unassigned and returned to the tray.",
+    );
   }
 
   function updateLayout(nextLayout: ReturnType<typeof addRow>): void {
@@ -1669,7 +1689,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                                   setSelectedSeat(seatKey);
                                 }}
                                 onDrop={(token) => {
-                                  handleDropToken(token, seatKey);
+                                  handleNativeDrop(token, seatKey);
                                 }}
                                 seatKey={seatKey}
                                 suggestion={suggestion}
@@ -1732,7 +1752,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                       markNotAttending(profile);
                     }}
                     onDrop={(token) => {
-                      handleDropToken(token);
+                      handleNativeDrop(token);
                     }}
                     profiles={unassignedProfiles}
                     query={query}

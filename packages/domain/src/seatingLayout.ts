@@ -111,6 +111,9 @@ export function moveAssignment(
   if (!sourceProfileId) return { ...assignments };
 
   const targetProfileId = assignments[targetSeatKey];
+  if (profileId === undefined && targetProfileId) {
+    return swapAssignments(assignments, sourceSeatKey, targetSeatKey);
+  }
   const next = Object.fromEntries(
     Object.entries(assignments).filter(([key, value]) => {
       if (key === sourceSeatKey && sourceSeatKey !== targetSeatKey) return false;
@@ -122,6 +125,30 @@ export function moveAssignment(
     if (targetProfileId && profileId === undefined) next[sourceSeatKey] = targetProfileId;
   }
   next[targetSeatKey] = sourceProfileId;
+  return next;
+}
+
+export function swapAssignments(
+  assignments: SeatingKeyMap,
+  firstSeatKey: string,
+  secondSeatKey: string,
+): Record<string, string> {
+  if (firstSeatKey === secondSeatKey) return { ...assignments };
+  const firstProfileId = assignments[firstSeatKey];
+  const secondProfileId = assignments[secondSeatKey];
+  if (!firstProfileId || !secondProfileId) return { ...assignments };
+
+  const next = Object.fromEntries(
+    Object.entries(assignments).filter(
+      ([key, profileId]) =>
+        key !== firstSeatKey &&
+        key !== secondSeatKey &&
+        profileId !== firstProfileId &&
+        profileId !== secondProfileId,
+    ),
+  );
+  next[firstSeatKey] = secondProfileId;
+  next[secondSeatKey] = firstProfileId;
   return next;
 }
 

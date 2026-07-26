@@ -53,6 +53,7 @@ export {
   moveAssignment,
   removeRow,
   removeSeat,
+  swapAssignments,
   unassignProfile,
   type SeatingKeyMap,
   type SeatingLayoutState,

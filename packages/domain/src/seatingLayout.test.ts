@@ -6,6 +6,7 @@ import {
   moveAssignment,
   removeRow,
   removeSeat,
+  swapAssignments,
   unassignProfile,
 } from "./seatingLayout";
 
@@ -58,6 +59,14 @@ describe("seating layout transformations", () => {
     });
     expect(unassignProfile(state.assignments, "profile-b")).toEqual({
       "0-0": "profile-a",
+      "1-1": "profile-c",
+    });
+  });
+
+  it("swaps two occupied seats without leaving duplicate Profiles", () => {
+    expect(swapAssignments({ ...state.assignments, "1-0": "profile-a" }, "0-0", "0-2")).toEqual({
+      "0-0": "profile-b",
+      "0-2": "profile-a",
       "1-1": "profile-c",
     });
   });
