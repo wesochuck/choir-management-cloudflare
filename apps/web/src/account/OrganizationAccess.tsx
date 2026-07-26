@@ -11,24 +11,6 @@ import {
   verifyOrganizationMfa,
 } from "../auth/api";
 import { OrganizationInvitations } from "./OrganizationInvitations";
-import { AttendanceManager } from "./AttendanceManager";
-import { CalendarSubscription } from "./CalendarSubscription";
-import { CommunicationCenter } from "./CommunicationCenter";
-import { OrganizationCalendar } from "./OrganizationCalendar";
-import { MySchedule } from "./MySchedule";
-import { MemberProfileDirectory } from "./MemberProfileDirectory";
-import { LearningTrackPlayer } from "./LearningTrackPlayer";
-import { MusicCatalog } from "./MusicCatalog";
-import { PublicWebsiteManager } from "./PublicWebsiteManager";
-import { OrganizationResources } from "./OrganizationResources";
-import { RosterConfiguration } from "./RosterConfiguration";
-import { SeatingFinder } from "./SeatingFinder";
-import { SeatingManager } from "./SeatingManager";
-import { SetListManager } from "./SetListManager";
-import { TicketingManager } from "./TicketingManager";
-import { DonationsManager } from "./DonationsManager";
-import { SeasonsManager } from "./SeasonsManager";
-import { AuditionManager } from "./AuditionManager";
 
 type AccessState =
   | { readonly status: "error" }
@@ -392,39 +374,11 @@ function VerificationPanel(props: VerificationPanelProps) {
   );
 }
 
-function OrganizationOperations({
-  context,
-  enabled,
+export function OrganizationAccess({
+  section = "security",
 }: {
-  readonly context: OrganizationAuthStatusResponse;
-  readonly enabled: boolean;
+  readonly section?: "invitations" | "security";
 }) {
-  const managerEnabled = enabled && context.role !== "member";
-  return (
-    <>
-      <OrganizationCalendar context={context} enabled={enabled} />
-      <RosterConfiguration enabled={managerEnabled} />
-      <MusicCatalog enabled={managerEnabled} />
-      <LearningTrackPlayer enabled={enabled} />
-      <OrganizationResources enabled={enabled} manager={managerEnabled} />
-      <CommunicationCenter enabled={managerEnabled} />
-      <PublicWebsiteManager enabled={managerEnabled} />
-      <TicketingManager enabled={managerEnabled} />
-      <DonationsManager enabled={managerEnabled} />
-      <SeasonsManager enabled={managerEnabled} />
-      <AuditionManager enabled={managerEnabled} />
-      <SetListManager enabled={managerEnabled} />
-      <SeatingManager enabled={managerEnabled} />
-      <AttendanceManager enabled={managerEnabled} />
-      <MemberProfileDirectory enabled={enabled} />
-      <MySchedule enabled={enabled} />
-      <SeatingFinder enabled={enabled} />
-      <CalendarSubscription enabled={enabled} />
-    </>
-  );
-}
-
-export function OrganizationAccess() {
   const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
   const [acknowledgedRecoveryCodes, setAcknowledgedRecoveryCodes] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -620,97 +574,97 @@ export function OrganizationAccess() {
   const enrollmentComplete = context.twoFactorEnabled && context.twoFactorVerified;
   const needsVerification = context.mfaRequired && !context.mfaVerifiedUntil;
 
+  if (section === "invitations") {
+    return <OrganizationInvitations context={context} />;
+  }
+
   return (
-    <>
-      <section
-        className="account-section account-section--organization-security"
-        aria-labelledby="organization-security-title"
-      >
-        <div className="section-heading section-heading--compact">
-          <p className="eyebrow">{roleLabel(context.role)}</p>
-          <h2 id="organization-security-title">Organization security</h2>
-        </div>
-        <p className="section-description">
-          This Organization was selected by the validated hostname. Its MFA assertion is bound to
-          this Organization, your identity, and this browser session.
-        </p>
-        <OrganizationFeedback actionError={actionError} successMessage={successMessage} />
+    <section
+      className="account-section account-section--organization-security"
+      aria-labelledby="organization-security-title"
+    >
+      <div className="section-heading section-heading--compact">
+        <p className="eyebrow">{roleLabel(context.role)}</p>
+        <h2 id="organization-security-title">Organization security</h2>
+      </div>
+      <p className="section-description">
+        This Organization was selected by the validated hostname. Its MFA assertion is bound to this
+        Organization, your identity, and this browser session.
+      </p>
+      <OrganizationFeedback actionError={actionError} successMessage={successMessage} />
 
-        <div className="organization-security-status">
-          <span className="status-pill">
-            {context.mfaRequired ? "MFA required" : "MFA not required"}
-          </span>
-          {context.mfaVerifiedUntil ? (
-            <p className="notice notice--success" role="status">
-              Verified until {displayDate(context.mfaVerifiedUntil)}.
-            </p>
-          ) : null}
-        </div>
+      <div className="organization-security-status">
+        <span className="status-pill">
+          {context.mfaRequired ? "MFA required" : "MFA not required"}
+        </span>
+        {context.mfaVerifiedUntil ? (
+          <p className="notice notice--success" role="status">
+            Verified until {displayDate(context.mfaVerifiedUntil)}.
+          </p>
+        ) : null}
+      </div>
 
-        <OrganizationPolicy
-          busy={busy}
-          confirmDisable={confirmDisable}
-          context={context}
-          onCancelDisable={() => {
-            setConfirmDisable(false);
-          }}
-          onChangePolicy={(required) => {
-            void changePolicy(required);
-          }}
-          onConfirmDisable={() => {
-            setConfirmDisable(true);
-          }}
-        />
+      <OrganizationPolicy
+        busy={busy}
+        confirmDisable={confirmDisable}
+        context={context}
+        onCancelDisable={() => {
+          setConfirmDisable(false);
+        }}
+        onChangePolicy={(required) => {
+          void changePolicy(required);
+        }}
+        onConfirmDisable={() => {
+          setConfirmDisable(true);
+        }}
+      />
 
-        <EnrollmentStart
-          busy={busy}
-          enrollmentPassword={enrollmentPassword}
-          onPasswordChange={setEnrollmentPassword}
-          onStart={() => {
-            void startEnrollment();
-          }}
-          replacingCodes={enrollmentComplete}
-          visible={
-            (replacementRequested || (context.mfaRequired && !enrollmentComplete)) &&
-            !enrollmentSecrets
-          }
-        />
+      <EnrollmentStart
+        busy={busy}
+        enrollmentPassword={enrollmentPassword}
+        onPasswordChange={setEnrollmentPassword}
+        onStart={() => {
+          void startEnrollment();
+        }}
+        replacingCodes={enrollmentComplete}
+        visible={
+          (replacementRequested || (context.mfaRequired && !enrollmentComplete)) &&
+          !enrollmentSecrets
+        }
+      />
 
-        <EnrollmentDetails
-          acknowledged={acknowledgedRecoveryCodes}
-          busy={busy}
-          code={enrollmentCode}
-          onAcknowledge={setAcknowledgedRecoveryCodes}
-          onCodeChange={setEnrollmentCode}
-          onContinue={finishEnrollment}
-          onVerify={() => {
-            void verifyEnrollment();
-          }}
-          secrets={enrollmentSecrets}
-        />
+      <EnrollmentDetails
+        acknowledged={acknowledgedRecoveryCodes}
+        busy={busy}
+        code={enrollmentCode}
+        onAcknowledge={setAcknowledgedRecoveryCodes}
+        onCodeChange={setEnrollmentCode}
+        onContinue={finishEnrollment}
+        onVerify={() => {
+          void verifyEnrollment();
+        }}
+        secrets={enrollmentSecrets}
+      />
 
-        <VerificationPanel
-          busy={busy}
-          code={verificationCode}
-          method={verificationMethod}
-          onCodeChange={setVerificationCode}
-          onMethodChange={(method) => {
-            setVerificationMethod(method);
-            setVerificationCode("");
-          }}
-          onReplaceCodes={() => {
-            setActionError(null);
-            setSuccessMessage(null);
-            setReplacementRequested(true);
-          }}
-          onVerify={() => {
-            void verifyAccess();
-          }}
-          visible={needsVerification && enrollmentComplete && !enrollmentSecrets}
-        />
-      </section>
-      <OrganizationOperations context={context} enabled={!needsVerification} />
-      <OrganizationInvitations context={context} />
-    </>
+      <VerificationPanel
+        busy={busy}
+        code={verificationCode}
+        method={verificationMethod}
+        onCodeChange={setVerificationCode}
+        onMethodChange={(method) => {
+          setVerificationMethod(method);
+          setVerificationCode("");
+        }}
+        onReplaceCodes={() => {
+          setActionError(null);
+          setSuccessMessage(null);
+          setReplacementRequested(true);
+        }}
+        onVerify={() => {
+          void verifyAccess();
+        }}
+        visible={needsVerification && enrollmentComplete && !enrollmentSecrets}
+      />
+    </section>
   );
 }

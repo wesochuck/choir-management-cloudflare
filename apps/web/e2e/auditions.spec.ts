@@ -337,6 +337,7 @@ test("admin manages auditions: list, edit, and generate tokens", async ({ page }
   await expect(page.getByText("Singer Two:")).toBeVisible();
   await expect(page.getByText("signed-token-for-audition-002")).toBeVisible();
   expect(tokenRequestIds).toEqual(["audition-001", "audition-002"]);
+  await page.getByText("Generated Tokens").click();
 
   await page.getByRole("button", { name: "Edit" }).first().click({ force: true });
   await expect(page.getByText("Edit Audition")).toBeVisible();

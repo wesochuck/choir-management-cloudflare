@@ -104,6 +104,14 @@ interface EventRow {
   readonly venueId: string | null;
 }
 
+interface DashboardEventRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly id: string;
+  readonly startsAt: string;
+  readonly title: string;
+  readonly type: "Performance" | "Rehearsal";
+}
+
 interface MemberEventRow {
   readonly [column: string]: SqlStorageValue;
   readonly callTime: string;
@@ -271,6 +279,43 @@ export function listOrganizationEventsFromStore(
       venueId: event.venueId,
     }));
   return Response.json({ events });
+}
+
+export function readOrganizationDashboardSummaryFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  now = new Date().toISOString(),
+): Response {
+  if (!identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const activeProfileCount = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      "SELECT COUNT(*) AS count FROM profiles WHERE global_status = 'Active'",
+    )
+    .one().count;
+  const upcomingEventCount = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      "SELECT COUNT(*) AS count FROM events WHERE is_archived = 0 AND starts_at >= ?",
+      now,
+    )
+    .one().count;
+  const nextEvents = storage.sql
+    .exec<DashboardEventRow>(
+      `SELECT id, title, type, starts_at AS startsAt
+       FROM events
+       WHERE is_archived = 0 AND starts_at >= ?
+       ORDER BY starts_at ASC, id ASC LIMIT 5`,
+      now,
+    )
+    .toArray()
+    .map((event) => ({
+      id: event.id,
+      startsAt: event.startsAt,
+      title: event.title,
+      type: event.type,
+    }));
+  return Response.json({ activeProfileCount, nextEvents, upcomingEventCount });
 }
 
 export function readOrganizationCalendarSettingsFromStore(

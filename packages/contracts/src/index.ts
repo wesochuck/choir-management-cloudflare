@@ -390,6 +390,20 @@ export const organizationEventsResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const organizationDashboardEventSchema = z.object({
+  id: z.uuid(),
+  startsAt: z.iso.datetime(),
+  title: z.string().min(1).max(500),
+  type: z.enum(["Performance", "Rehearsal"]),
+});
+
+export const organizationDashboardSummaryResponseSchema = z.object({
+  activeProfileCount: z.number().int().nonnegative(),
+  nextEvents: z.array(organizationDashboardEventSchema).max(5),
+  requestId: requestIdSchema,
+  upcomingEventCount: z.number().int().nonnegative(),
+});
+
 export const organizationEventArchiveResponseSchema = z.object({
   eventId: z.uuid(),
   requestId: requestIdSchema,
@@ -640,6 +654,10 @@ export type OrganizationVenue = z.infer<typeof organizationVenueSchema>;
 export type OrganizationVenueDeleteResponse = z.infer<typeof organizationVenueDeleteResponseSchema>;
 export type OrganizationEventRequest = z.infer<typeof organizationEventRequestSchema>;
 export type OrganizationEvent = z.infer<typeof organizationEventSchema>;
+export type OrganizationDashboardEvent = z.infer<typeof organizationDashboardEventSchema>;
+export type OrganizationDashboardSummaryResponse = z.infer<
+  typeof organizationDashboardSummaryResponseSchema
+>;
 export type TicketCheckoutRequest = z.infer<typeof ticketCheckoutRequestSchema>;
 export type PublicTicketPurchase = z.infer<typeof publicTicketPurchaseSchema>;
 export type PublicTicketReceipt = z.infer<typeof publicTicketPurchaseResponseSchema>;
@@ -1526,7 +1544,15 @@ export const organizationPollSummarySchema = z.object({
   title: z.string(),
 });
 
+export const organizationPollSummariesResponseSchema = z.object({
+  polls: z.array(organizationPollSummarySchema).max(500),
+  requestId: requestIdSchema,
+});
+
 export type OrganizationPollSummary = z.infer<typeof organizationPollSummarySchema>;
+export type OrganizationPollSummariesResponse = z.infer<
+  typeof organizationPollSummariesResponseSchema
+>;
 
 export const organizationPollResponseSchema = z.object({
   optionIds: z.array(z.uuid()).min(1).max(100),

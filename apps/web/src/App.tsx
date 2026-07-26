@@ -1,7 +1,7 @@
 import { healthResponseSchema, type CurrentAuthSession } from "@choir/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { AccountView } from "./account/AccountView";
+import { AuthenticatedShell } from "./account/AuthenticatedShell";
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { getCurrentSession } from "./auth/api";
@@ -17,10 +17,6 @@ import { PublicTickets } from "./public/PublicTickets";
 import { PublicDonationView } from "./public/PublicDonationView";
 import { PublicDonationSuccessView } from "./public/PublicDonationSuccessView";
 import { PublicFreeRsvpView } from "./public/PublicFreeRsvpView";
-import { DashboardView } from "./account/DashboardView";
-import { ModuleSettingsView } from "./account/ModuleSettingsView";
-import { ReportsView } from "./account/ReportsView";
-import { SetupChecklistView } from "./account/SetupChecklistView";
 import { SetupView } from "./setup/SetupView";
 
 type ServiceState = "checking" | "offline" | "ready";
@@ -115,8 +111,8 @@ function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAut
         <p className="eyebrow">Account recognized</p>
         <h1 id="already-signed-in-title">You are already signed in.</h1>
         <p className="auth-card__intro">Continue as {session.user.email}.</p>
-        <a className="button button--primary" href="/account">
-          Open your account
+        <a className="button button--primary" href="/dashboard">
+          Open your workspace
         </a>
       </section>
     </main>
@@ -151,29 +147,24 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
   return null;
 }
 
-const accountRouteSet = new Set([
-  "/account",
-  "/setup",
-  "/account/dashboard",
-  "/admin/communications",
-  "/admin/tickets",
-  "/admin/website",
-  "/admin/auditions",
-  "/admin/setlists",
-  "/admin/attendance",
-  "/admin/resources",
-  "/admin/rsvp",
-  "/admin/polls",
-  "/admin/reports",
-  "/admin/settings/modules",
-  "/admin/settings/setup-checklist",
-  "/admin/donations",
-  "/admin/patrons",
-  "/admin/seasons",
-]);
-
-function isAccountRoute(pathname: string): boolean {
-  return accountRouteSet.has(pathname);
+function isAuthenticatedRoute(pathname: string): boolean {
+  return (
+    pathname === "/setup" ||
+    pathname === "/dashboard" ||
+    pathname === "/schedule" ||
+    pathname === "/profile" ||
+    pathname === "/directory" ||
+    pathname === "/practice" ||
+    pathname === "/member/resources" ||
+    pathname === "/calendar" ||
+    pathname.startsWith("/seating/") ||
+    pathname === "/account" ||
+    pathname.startsWith("/account/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/platform" ||
+    pathname.startsWith("/platform/")
+  );
 }
 
 function selectContent(
@@ -203,14 +194,13 @@ function selectContent(
     }
     return <SignInView onSignedIn={finishSignIn} />;
   }
-  if (isAccountRoute(pathname)) {
+  if (isAuthenticatedRoute(pathname)) {
     if (sessionState.status === "checking") return <AccountLoading />;
     if (sessionState.status === "authenticated") {
-      const accountContent = accountRouteContent(pathname);
+      if (pathname === "/setup") return <SetupView />;
+      if (pathname === "/account/dashboard") return <LegacyRedirect href="/dashboard" />;
       return (
-        accountContent ?? (
-          <AccountView currentSession={sessionState.session} onSignedOut={finishSignOut} />
-        )
+        <AuthenticatedShell currentSession={sessionState.session} onSignedOut={finishSignOut} />
       );
     }
     return <SignInView onSignedIn={finishSignIn} />;
@@ -218,23 +208,11 @@ function selectContent(
   return <HomeView signedIn={sessionState.status === "authenticated"} />;
 }
 
-function accountRouteContent(pathname: string) {
-  if (pathname === "/account/dashboard") {
-    return <DashboardView />;
-  }
-  if (pathname === "/admin/reports") {
-    return <ReportsView />;
-  }
-  if (pathname === "/setup") {
-    return <SetupView />;
-  }
-  if (pathname === "/admin/settings/modules") {
-    return <ModuleSettingsView />;
-  }
-  if (pathname === "/admin/settings/setup-checklist") {
-    return <SetupChecklistView />;
-  }
-  return null;
+function LegacyRedirect({ href }: { readonly href: string }) {
+  useEffect(() => {
+    window.location.replace(href);
+  }, [href]);
+  return <AccountLoading />;
 }
 
 function isPublicOrganizationRoute(pathname: string): boolean {
@@ -336,7 +314,7 @@ export function App() {
   }, [pathname]);
 
   function finishSignIn() {
-    window.location.assign("/account");
+    window.location.assign("/dashboard");
   }
 
   function finishSignOut() {
@@ -356,6 +334,10 @@ export function App() {
     finishSignOut,
     finishInvitationSignIn,
   );
+
+  if (isAuthenticatedRoute(pathname) && sessionState.status === "authenticated") {
+    return content;
+  }
 
   const productShell = (
     <div className="app-shell">

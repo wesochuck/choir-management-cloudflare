@@ -18,6 +18,7 @@ import {
 import { migrateOrganization } from "./migrations";
 import {
   listOrganizationEventsFromStore,
+  readOrganizationDashboardSummaryFromStore,
   readEventRsvpExportFromStore,
   listEventAttendanceFromStore,
   listMemberEventsFromStore,
@@ -1578,6 +1579,8 @@ function dispatchCalendarGetRequest(
       return listOrganizationVenuesFromStore(storage, organizationId);
     case "/internal/calendar/events":
       return listOrganizationEventsFromStore(storage, organizationId);
+    case "/internal/calendar/dashboard-summary":
+      return readOrganizationDashboardSummaryFromStore(storage, organizationId);
     case "/internal/calendar/attendance":
       return listEventAttendanceFromStore(storage, {
         eventId: url.searchParams.get("eventId"),

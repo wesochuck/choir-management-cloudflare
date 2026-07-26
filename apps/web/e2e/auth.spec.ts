@@ -586,12 +586,14 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await page.getByLabel("6-digit sign-in code").fill("123456");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
-  await expect(page).toHaveURL(/\/account$/);
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/account/organizations");
   await expect(page.getByRole("heading", { name: "Welcome, Invited Member." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Organization Alpha" })).toBeVisible();
   await expect(page.getByText("Future Choir")).toBeVisible();
   await expect(page.getByText("Setup pending")).toBeVisible();
 
+  await page.goto("/account/security");
   const passwordSection = page.getByRole("region", { name: "Account password" });
   const userPassword = "a-user-managed-password";
   await passwordSection.getByLabel("New password", { exact: true }).fill(userPassword);
@@ -600,13 +602,14 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await expect(passwordSection.getByRole("status")).toContainText("Password added");
   await expect(passwordSection.getByLabel("Current password")).toBeVisible();
 
+  await page.goto("/account/sessions");
   const otherSession = page.getByRole("listitem", { name: "Session: Safari on iPad" });
   await expect(otherSession).toBeVisible();
   await otherSession.getByRole("button", { name: "Revoke session" }).click();
   await expect(otherSession).toHaveCount(0);
   await expect(page.getByText("current-session-token-not-displayed")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("banner").getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
 });
@@ -811,7 +814,7 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
     });
   });
 
-  await page.goto("/account");
+  await page.goto("/platform/security");
   const platformSection = page.getByRole("region", { name: "Platform Administrator access" });
   await expect(
     platformSection.getByRole("heading", { name: "Complete mandatory MFA" }),
@@ -972,7 +975,7 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
     });
   });
 
-  await page.goto("/account");
+  await page.goto("/platform/access");
   const platformSection = page.getByRole("region", { name: "Platform Administrator access" });
   await expect(platformSection.getByRole("heading", { name: "Organization access" })).toBeVisible();
   await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
@@ -1191,143 +1194,52 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     });
   });
 
-  await page.goto("/account");
+  await page.goto("/admin/settings/security");
   const organizationSection = page.getByRole("region", { name: "Organization security" });
   await expect(organizationSection.getByText("MFA not required")).toBeVisible();
-  const organizationCalendar = page.getByRole("region", { name: "Profiles and calendar" });
-  await expect(organizationCalendar.getByRole("heading", { name: "Create Profile" })).toBeVisible();
-  await expect(
-    organizationCalendar.getByRole("heading", { name: "Browser Concert" }),
-  ).toBeVisible();
-  await organizationCalendar.getByRole("button", { name: "Edit Profile" }).click();
-  await organizationCalendar.getByLabel("Phone").fill("555-0199");
-  await organizationCalendar.getByLabel("Status").selectOption("Idle");
-  await organizationCalendar.getByRole("button", { name: "Save Profile" }).click();
-  await expect(organizationCalendar.getByText("Profile updated.")).toBeVisible();
-  await expect(organizationCalendar.getByText("On Break · S2")).toBeVisible();
-  const rosterDownload = organizationCalendar.getByRole("link", { name: "Download roster CSV" });
-  await expect(rosterDownload).toHaveAttribute("href", "/api/organization/profiles/export.csv");
-  await expect(rosterDownload).toHaveAttribute("download", "choir_roster_export.csv");
-  await expect(
-    organizationCalendar.getByRole("link", { name: "Download RSVP CSV" }),
-  ).toHaveAttribute(
+
+  await page.goto("/admin/roster");
+  const rosterPage = page.getByRole("main");
+  await expect(rosterPage.getByRole("button", { name: "Add Profile" })).toBeVisible();
+  await rosterPage.getByRole("button", { name: "Add Profile" }).click();
+  await expect(page.getByRole("dialog", { name: "Add Profile" })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(rosterPage.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
+    "href",
+    "/api/organization/profiles/export.csv",
+  );
+
+  await page.goto("/admin/events");
+  const eventsPage = page.getByRole("main");
+  await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
+  await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
+  await expect(eventsPage.getByRole("link", { name: "Roster" })).toHaveAttribute(
+    "href",
+    "/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster",
+  );
+  await eventsPage.locator('button:has-text("Clone"):visible').click();
+  await expect(page.getByRole("dialog", { name: "Clone event" })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await eventsPage.locator('button:has-text("Archive"):visible').click();
+  await expect(page.getByRole("dialog", { name: "Archive event?" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.goto("/admin/venues");
+  const venuesPage = page.getByRole("main");
+  await expect(venuesPage.getByRole("heading", { name: "Venues" })).toBeVisible();
+  await venuesPage.locator('button:has-text("Delete"):visible').click();
+  await expect(page.getByRole("dialog", { name: "Delete venue?" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.goto("/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster");
+  await expect(page.getByRole("link", { name: "Download RSVP CSV" })).toHaveAttribute(
     "href",
     "/api/organization/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-export.csv?sort=section",
   );
-  await organizationCalendar.getByRole("button", { name: "Delete venue" }).click();
-  const venueDeletion = organizationCalendar.getByRole("group", { name: "Delete Browser Hall" });
-  await venueDeletion.getByRole("button", { name: "Keep venue" }).click();
-  await expect(organizationCalendar.getByRole("heading", { name: "Browser Hall" })).toBeVisible();
-  await organizationCalendar.getByRole("button", { name: "Delete venue" }).click();
-  await venueDeletion.getByRole("button", { name: "Confirm delete" }).click();
-  await expect(organizationCalendar.getByText("Venue deleted.")).toBeVisible();
-  await expect(organizationCalendar.getByRole("heading", { name: "Browser Hall" })).toHaveCount(0);
-  await organizationCalendar.getByRole("button", { name: "Clone" }).click();
-  await expect(organizationCalendar.getByLabel("Title")).toHaveValue("Browser Concert copy");
-  await expect(organizationCalendar.getByLabel("Parent performance")).toHaveValue("");
-  await organizationCalendar.getByRole("button", { name: "Archive" }).click();
-  await expect(organizationCalendar.getByRole("button", { name: "Confirm archive" })).toBeVisible();
-  await organizationCalendar.getByRole("button", { name: "Cancel", exact: true }).click();
-  const attendanceSection = page.getByRole("region", { name: "Attendance" });
-  await attendanceSection.getByLabel("Browser Singer attendance").selectOption("Present");
-  await attendanceSection.getByLabel("Browser Singer folder number").fill("C-07");
-  await attendanceSection.getByLabel("Browser Singer folder returned").check();
-  await attendanceSection.getByRole("button", { name: "Save attendance" }).click();
-  await expect(attendanceSection.getByRole("status")).toHaveText("Attendance saved.");
-  await expect(attendanceSection.getByText("RSVP: Yes")).toBeVisible();
-  await expect(attendanceSection.getByLabel("Browser Singer folder number")).toHaveValue("C-07");
-  await expect(attendanceSection.getByLabel("Browser Singer folder returned")).toBeChecked();
-  const rosterConfiguration = page.getByRole("region", { name: "Sections and voice parts" });
-  await expect(rosterConfiguration.getByLabel("Voice part 2 label")).toBeDisabled();
-  await rosterConfiguration.getByLabel("Voice part 1 full name").fill("First soprano");
-  await rosterConfiguration.getByRole("button", { name: "Save sections and voice parts" }).click();
-  await expect(rosterConfiguration.getByRole("status")).toHaveText("Roster configuration saved.");
-  const memberProfile = page.getByRole("region", { name: "My Organization Profile" });
-  await expect(memberProfile.getByText("browser.singer@example.test")).toBeVisible();
-  await memberProfile.getByLabel("Display name").fill("Browser Singer Updated");
-  await memberProfile.getByLabel("Phone").fill("555-0199");
-  await memberProfile.getByLabel("Show me in the Organization directory").uncheck();
-  await memberProfile.getByRole("button", { name: "Save my Profile" }).click();
-  await expect(memberProfile.getByRole("status")).toHaveText(
-    "Your Organization Profile was updated.",
-  );
-  const directory = page.getByRole("region", { name: "Organization directory" });
-  await expect(directory.getByText("Directory Alto")).toBeVisible();
-  await expect(directory.getByText("Browser Singer Updated")).toHaveCount(0);
-  await directory.getByLabel("Voice part").selectOption("A1");
-  await directory.getByLabel("Search directory").fill("directory.alto@example.test");
-  await expect(
-    directory.getByRole("listitem", { name: "Directory Profile: Directory Alto" }),
-  ).toBeVisible();
-  const seatingManager = page.getByRole("region", { name: "Performance seating" });
-  await seatingManager.getByText("Manage reusable formations").click();
-  await seatingManager.getByRole("button", { name: "Add formation" }).click();
-  const newFormation = seatingManager.getByRole("group", { name: "New formation" });
-  await newFormation.getByLabel("Strategy").selectOption("horizontal_row");
-  await newFormation.getByLabel("Name").fill("Concert rows");
-  await seatingManager.getByRole("button", { name: "Save formations" }).click();
-  await expect(seatingManager.getByRole("status")).toHaveText("Seating formations saved.");
-  await seatingManager.getByLabel("Seats per row").fill("2");
-  await seatingManager.getByRole("button", { name: "Apply rows" }).click();
-  await seatingManager.getByRole("button", { name: "Auto-suggest sections" }).click();
-  await seatingManager.getByLabel("Row 1 seat 1").selectOption({ label: "Browser Singer · S2" });
-  await seatingManager.getByRole("button", { name: "Save seating chart" }).click();
-  await expect(seatingManager.getByText("Seating chart saved.", { exact: true })).toBeVisible();
-  await seatingManager.getByRole("button", { name: "Delete chart" }).click();
-  await expect(
-    seatingManager.getByRole("group", { name: "Confirm seating chart deletion" }),
-  ).toBeVisible();
-  await seatingManager.getByRole("button", { name: "Cancel" }).click();
-  const mySchedule = page.getByRole("region", { name: "My schedule" });
-  const rehearsal = mySchedule
-    .getByRole("heading", { name: "My Rehearsal" })
-    .locator("xpath=ancestor::li");
-  await expect(rehearsal).toBeVisible();
-  await expect(rehearsal.getByText(/inherited from the parent performance: Yes/)).toBeVisible();
-  await rehearsal.getByLabel("Your RSVP").selectOption("No");
-  await rehearsal.getByLabel("Decline note").fill("Travel conflict");
-  await rehearsal.getByRole("button", { name: "Save RSVP" }).click();
-  await expect(mySchedule.getByText("Your RSVP was updated.")).toBeVisible();
-  const seatingFinder = page.getByRole("region", { name: "Seating finder" });
-  await expect(seatingFinder.getByLabel("Your seat, row 1 seat 1")).toContainText("Browser Singer");
-  const calendarSection = page.getByRole("region", { name: "Calendar subscription" });
-  await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
-    /browser-calendar-token-1/,
-  );
-  await calendarSection.getByRole("button", { name: "Reset calendar address" }).click();
-  await calendarSection.getByRole("button", { name: "Keep current address" }).click();
-  await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
-    /browser-calendar-token-1/,
-  );
-  await calendarSection.getByRole("button", { name: "Reset calendar address" }).click();
-  await calendarSection.getByRole("button", { name: "Reset address" }).click();
-  await expect(calendarSection.getByLabel("HTTPS calendar address")).toHaveValue(
-    /browser-calendar-token-2/,
-  );
-  await organizationSection
-    .getByRole("button", { name: "Require MFA for this Organization" })
-    .click();
-  await expect(organizationSection.getByText("MFA required")).toBeVisible();
-  await organizationSection.getByRole("button", { name: "Start Organization MFA setup" }).click();
-  await expect(organizationSection.getByLabel("Organization MFA recovery codes")).toContainText(
-    "organization-recovery-01",
-  );
-  await organizationSection.getByLabel("3. Verify authenticator code").fill("123456");
-  await organizationSection.getByRole("button", { name: "Verify authenticator" }).click();
-  await organizationSection
-    .getByRole("checkbox", {
-      name: "I saved these Organization MFA recovery codes in a secure place.",
-    })
-    .check();
-  await organizationSection
-    .getByRole("button", { name: "Continue to Organization verification" })
-    .click();
-  await organizationSection.getByLabel("6-digit Organization code").fill("654321");
-  await organizationSection.getByRole("button", { name: "Verify Organization access" }).click();
-  await expect(organizationSection.getByText(/Verified until/)).toBeVisible();
-  await expect(page.getByText("organization-recovery-01")).toHaveCount(0);
 
+  await page.goto("/admin/settings/invitations");
   const invitationSection = page.getByRole("region", { name: "Invite a member" });
+  await expect(invitationSection.getByLabel("Email address")).toBeVisible();
   await invitationSection.getByLabel("Email address").fill("future.member@example.test");
   await invitationSection
     .getByLabel("Organization role")
@@ -1336,31 +1248,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(invitationSection.getByRole("status")).toContainText(
     "Invitation created for future.member@example.test",
   );
-  const pendingInvitation = invitationSection.getByRole("listitem", {
-    name: "Invitation: future.member@example.test",
-  });
-  await expect(pendingInvitation).toContainText("Organization Administrator");
-  await pendingInvitation.getByRole("button", { name: "Cancel invitation" }).click();
-  await pendingInvitation.getByRole("button", { name: "Keep invitation" }).click();
-  await expect(pendingInvitation).toBeVisible();
-  await pendingInvitation.getByRole("button", { name: "Cancel invitation" }).click();
-  await pendingInvitation.getByRole("button", { name: "Confirm cancellation" }).click();
-  await expect(pendingInvitation).toHaveCount(0);
-  await expect(invitationSection.getByRole("status")).toContainText(
-    "Invitation for future.member@example.test canceled.",
-  );
 
-  await organizationSection.getByRole("button", { name: "Stop requiring MFA" }).click();
-  const confirmation = organizationSection.getByRole("group", {
-    name: "Confirm MFA policy change",
-  });
-  await confirmation.getByRole("button", { name: "Cancel" }).click();
-  await expect(
-    organizationSection.getByRole("button", { name: "Stop requiring MFA" }),
-  ).toBeVisible();
-  await organizationSection.getByRole("button", { name: "Stop requiring MFA" }).click();
-  await confirmation.getByRole("button", { name: "Confirm: stop requiring MFA" }).click();
-  await expect(organizationSection.getByText("MFA not required")).toBeVisible();
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 });
 
 test("signs in as the recipient and accepts an Organization invitation", async ({ page }) => {

@@ -31,6 +31,7 @@ import {
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
+  organizationDashboardSummaryResponseSchema,
   organizationCalendarSettingsResponseSchema,
   organizationRosterConfigurationResponseSchema,
   organizationSeatingChartSchema,
@@ -103,6 +104,7 @@ import {
   type OrganizationInvitationResponse,
   type OrganizationInvitationsResponse,
   type OrganizationEvent,
+  type OrganizationDashboardSummaryResponse,
   type OrganizationEventRequest,
   type OrganizationCalendarSettings,
   type OrganizationRosterConfiguration,
@@ -724,6 +726,15 @@ export async function listOrganizationEvents(
 ): Promise<readonly OrganizationEvent[]> {
   const response = await request("/api/organization/events", { signal: signal ?? null });
   return organizationEventsResponseSchema.parse(await response.json()).events;
+}
+
+export async function getOrganizationDashboardSummary(
+  signal?: AbortSignal,
+): Promise<OrganizationDashboardSummaryResponse> {
+  const response = await request("/api/organization/dashboard-summary", {
+    signal: signal ?? null,
+  });
+  return organizationDashboardSummaryResponseSchema.parse(await response.json());
 }
 
 export async function createOrganizationEvent(

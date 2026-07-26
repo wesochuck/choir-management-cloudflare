@@ -84,6 +84,7 @@ import {
   deleteOrganizationVenue,
   archiveOrganizationEvent,
   listOrganizationEvents,
+  readOrganizationDashboardSummary,
   listOrganizationEventAttendance,
   listOrganizationVenues,
   listMemberSchedule,
@@ -5097,6 +5098,31 @@ router.get("/api/organization/events", async (context) => {
       {
         code: "service_unavailable",
         message: "Organization events are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/dashboard-summary", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      ...(await readOrganizationDashboardSummary(context.env, authorization.organizationId)),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization dashboard summary is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

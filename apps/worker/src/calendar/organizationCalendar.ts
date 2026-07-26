@@ -5,6 +5,7 @@ import {
   organizationEventRsvpExportDataSchema,
   organizationEventsResponseSchema,
   organizationCalendarSettingsResponseSchema,
+  organizationDashboardSummaryResponseSchema,
   organizationRosterConfigurationRequestSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
@@ -22,6 +23,7 @@ import {
   type OrganizationVenue,
   type OrganizationVenueRequest,
   type OrganizationCalendarSettings,
+  type OrganizationDashboardSummaryResponse,
   type OrganizationRosterConfiguration,
   type SingerEvent,
 } from "@choir/contracts";
@@ -179,6 +181,21 @@ export async function listOrganizationEvents(
   return organizationEventsResponseSchema
     .omit({ requestId: true })
     .parse(await listResource(env, organizationId, "events")).events;
+}
+
+export async function readOrganizationDashboardSummary(
+  env: Env,
+  organizationId: string,
+): Promise<Omit<OrganizationDashboardSummaryResponse, "requestId">> {
+  const url = new URL("https://organization.internal/internal/calendar/dashboard-summary");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) {
+    throw new Error("The Organization store rejected the dashboard summary request.");
+  }
+  return organizationDashboardSummaryResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
 }
 
 export async function createOrganizationEvent(

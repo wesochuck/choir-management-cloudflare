@@ -14,6 +14,7 @@ interface SetupStateRow {
 interface IdentityRow {
   readonly [column: string]: SqlStorageValue;
   readonly organizationId: string;
+  readonly organizationName: string;
   readonly lifecycleState: string;
 }
 
@@ -51,7 +52,8 @@ const manageOperationSchema = z.discriminatedUnion("action", [
 function identity(storage: DurableObjectStorage): IdentityRow | undefined {
   return storage.sql
     .exec<IdentityRow>(
-      `SELECT organization_id AS organizationId, lifecycle_state AS lifecycleState
+      `SELECT organization_id AS organizationId, name AS organizationName,
+        lifecycle_state AS lifecycleState
        FROM organization_metadata LIMIT 1`,
     )
     .toArray()
@@ -109,19 +111,20 @@ export function getSetupStateFromStore(
   if (!row) {
     return Response.json({
       organizationId,
-      organizationName: "",
+      organizationName: org.organizationName,
       completedSteps: [],
       currentStep: null,
       allModulesConfigured: false,
       launched: false,
     });
   }
+  const organizationName = row.organizationName.trim() || org.organizationName;
   const completedSteps = parseCompletedSteps(row.completedSteps);
   const moduleConfig = parseModuleConfig(row.moduleConfig);
   const allModulesConfigured = Object.keys(moduleConfig).length > 0;
   return Response.json({
     organizationId: row.organizationId,
-    organizationName: row.organizationName,
+    organizationName,
     completedSteps,
     currentStep: row.currentStep,
     allModulesConfigured,

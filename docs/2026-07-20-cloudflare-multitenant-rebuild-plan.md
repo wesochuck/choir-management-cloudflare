@@ -38,212 +38,223 @@ The initial repository scaffold owns these exact files. Each feature milestone m
 new files to this map before implementation and must verify every listed file before declaring the
 milestone complete.
 
-| Path                                                           | Responsibility                                                                         |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `AGENTS.md`                                                    | Cloudflare-specific engineering rules plus carried-forward domain and frontend rules   |
-| `CONTEXT.md`                                                   | Copied and maintained ubiquitous language                                              |
-| `README.md`                                                    | Local setup, environments, repository relationship, and common commands                |
-| `package.json`                                                 | npm workspace scripts and shared quality gates                                         |
-| `package-lock.json`                                            | Single reproducible dependency graph promoted unchanged                                |
-| `tsconfig.base.json`                                           | Strict shared TypeScript configuration                                                 |
-| `eslint.config.js`                                             | Type, React, Workers, and complexity safety rules                                      |
-| `prettier.config.mjs`                                          | Repository formatting policy                                                           |
-| `.dev.vars.example`                                            | Non-secret local configuration contract                                                |
-| `.github/workflows/ci.yml`                                     | Static checks, unit/integration tests, parity validation, and build                    |
-| `.github/workflows/deploy-staging.yml`                         | Automatic `main` deployment to permanent staging                                       |
-| `.github/workflows/deploy-production.yml`                      | Approved same-commit promotion and smoke/rollback checks                               |
-| `apps/web/package.json`                                        | React application package                                                              |
-| `apps/web/index.html`                                          | Vite application entry document                                                        |
-| `apps/web/vite.config.ts`                                      | Frontend build and test configuration                                                  |
-| `apps/web/src/main.tsx`                                        | Browser bootstrap                                                                      |
-| `apps/web/src/App.tsx`                                         | Route composition and top-level providers                                              |
-| `apps/web/src/auth/api.ts`                                     | Same-origin typed browser client for identity, sessions, and Organization choices      |
-| `apps/web/src/auth/SignInView.tsx`                             | Invitation-only email one-time-code sign-in flow                                       |
-| `apps/web/src/auth/ForgotPasswordView.tsx`                     | Non-enumerating password-recovery request flow for invited identities                  |
-| `apps/web/src/auth/ResetPasswordView.tsx`                      | Single-use password-reset completion flow                                              |
-| `apps/web/src/account/AccountView.tsx`                         | Signed-in identity, Organization chooser, and session-revocation surface               |
-| `apps/web/src/account/PlatformAccess.tsx`                      | Platform Administrator MFA enrollment and verification UI                              |
-| `apps/web/src/account/PlatformOperations.tsx`                  | Platform Administrator Organization provisioning and scoped-elevation UI               |
-| `apps/web/src/account/AccountSecurity.tsx`                     | User-managed password creation and change UI                                           |
-| `apps/web/src/account/OrganizationAccess.tsx`                  | Hostname-scoped Organization MFA enrollment, verification, and Owner policy UI         |
-| `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation on the hostname-derived Organization           |
-| `apps/web/src/account/CalendarSubscription.tsx`                | Member calendar subscription and explicit credential reset                             |
-| `apps/web/src/account/OrganizationCalendar.tsx`                | Profile, venue, event, and RSVP Organization management UI                             |
-| `apps/web/src/account/MySchedule.tsx`                          | Linked-Profile member schedule and self-service RSVP UI                                |
-| `apps/web/src/account/AttendanceManager.tsx`                   | Administrator event attendance bulk-update UI                                          |
-| `apps/web/src/account/RosterConfiguration.tsx`                 | Administrator section and voice-part configuration UI                                  |
-| `apps/web/src/account/SeatingManager.tsx`                      | Administrator event chart layout and assignment workflow                               |
-| `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                     |
-| `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory         |
-| `apps/web/src/account/MusicCatalog.tsx`                        | Manager catalog, CSV, movement, private learning-track, and deletion workflows         |
-| `apps/web/src/account/LearningTrackPlayer.tsx`                 | Member-safe private learning-track playback and offline practice UI                    |
-| `apps/web/src/account/OrganizationResources.tsx`               | Manager resource ordering/editing and member private-file/link access                  |
-| `apps/web/src/account/SetListManager.tsx`                      | Manager event set-list ordering, approval, music linking, and performer-credit UI      |
-| `apps/web/src/offline/mediaStore.ts`                           | Host-scoped IndexedDB persistence and blob-URL lifecycle for private audio             |
-| `apps/web/src/offline/mediaStore.test.ts`                      | Unit proof for offline private-audio persistence and removal                           |
-| `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                    |
-| `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                           |
-| `apps/worker/package.json`                                     | Worker application package                                                             |
-| `apps/worker/wrangler.jsonc`                                   | Local bindings and named staging/production environments                               |
-| `apps/worker/src/index.ts`                                     | Worker fetch, queue, scheduled, and workflow entry points                              |
-| `apps/worker/src/router.ts`                                    | Typed HTTP route composition                                                           |
-| `apps/worker/src/env.ts`                                       | Binding and secret types; startup validation                                           |
-| `apps/worker/src/organization/OrganizationStore.ts`            | Per-Organization SQLite Durable Object boundary                                        |
-| `apps/worker/src/organization/calendarManagementStore.ts`      | Venue, event, and RSVP SQLite repository inside the Organization boundary              |
-| `apps/worker/src/organization/seatingStore.ts`                 | Organization-scoped formation, chart, assignment, and finder repository                |
-| `apps/worker/src/organization/musicStore.ts`                   | Organization-scoped music catalog repository and referential validation                |
-| `apps/worker/src/organization/resourceStore.ts`                | Organization-scoped ordered private-file and link resource repository                  |
-| `apps/worker/src/organization/profiles.ts`                     | Authenticated Organization Profile repository adapter                                  |
-| `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                         |
-| `apps/worker/src/organization/schedulingStore.ts`              | Organization-scoped event-reminder and attendance-report job data reader               |
-| `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                    |
-| `apps/worker/src/organization/scheduler.ts`                    | Per-Organization alarm and stable queue outbox orchestration                           |
-| `apps/worker/src/control/schema.ts`                            | Control-plane D1 schema definitions                                                    |
-| `apps/worker/src/control/migrations/0001_initial.sql`          | Initial control-plane schema                                                           |
-| `apps/worker/src/auth/config.ts`                               | Better Auth configuration and adapters                                                 |
-| `apps/worker/src/auth/config.test.ts`                          | Managed-domain cookie sharing and host-only fallback proof                             |
-| `apps/worker/src/auth/platformEmail.ts`                        | Secret-safe transactional auth-email delivery and deterministic test capture           |
-| `apps/worker/src/auth/platformEmail.test.ts`                   | Platform-email mode, capture, and secret-redaction tests                               |
-| `apps/worker/src/auth/platformAdministrator.ts`                | Mandatory-MFA Platform Administrator enrollment and recent-session assertions          |
-| `apps/worker/src/auth/platformElevation.ts`                    | Time-bounded, session-bound Platform Administrator Organization edit elevation         |
-| `apps/worker/src/auth/organizationMfa.ts`                      | Optional Organization policy and Organization/session-bound MFA assertions             |
-| `apps/worker/src/auth/accountOrganizations.ts`                 | Membership-scoped account Organization summaries for the authenticated shell           |
-| `apps/worker/src/control/migrations/0002_better_auth.sql`      | Forward-only native-D1 Better Auth and plugin schema                                   |
-| `apps/worker/src/control/migrations/0003_provisioning.sql`     | Provisioning state, membership-to-Profile linkage, and elevation lookup indexes        |
-| `apps/worker/src/control/migrations/0004_organization_mfa.sql` | Optional Organization MFA policy and scoped assertion storage                          |
-| `apps/worker/src/control/migrations/0005_profile_link.sql`     | Unique Membership-to-Organization-Profile linkage contract                             |
-| `apps/worker/src/control/migrations/0006_job_dead_letters.sql` | Payload-free queue dead-letter operational metadata                                    |
-| `apps/worker/src/control/migrations/0007_fleet_schema.sql`     | Bounded fleet schema-preparation run registry                                          |
-| `apps/worker/src/control/provisionOrganization.ts`             | Atomic Organization registry, canonical-host, Workflow, and audit orchestration        |
-| `apps/worker/src/control/prepareFleetSchema.ts`                | Audited bounded fleet schema Workflow dispatch                                         |
-| `apps/worker/src/tenancy/resolveOrganization.ts`               | Hostname-to-Organization resolution                                                    |
-| `apps/worker/src/tenancy/authorizeOrganization.ts`             | Membership and Platform Administrator authorization                                    |
-| `apps/worker/src/tenancy/linkOrganizationProfile.ts`           | Organization-store-confirmed Membership-to-Profile identity linkage                    |
-| `apps/worker/src/tenancy/linkedOrganizationProfile.ts`         | Control-plane lookup of the caller's linked Organization Profile                       |
-| `apps/worker/src/tenancy/registerPublicDomain.ts`              | Pending Public Website Domain registration, disablement, and routing-cache safety      |
-| `apps/worker/src/jobs/consumer.ts`                             | Queue dispatch, retries, and dead-letter behavior                                      |
-| `apps/worker/src/jobs/contracts.ts`                            | Versioned, Organization-scoped job payloads                                            |
-| `apps/worker/src/publication/publishOrganization.ts`           | Public projection generation and cache versioning                                      |
-| `apps/worker/src/storage/privateFiles.ts`                      | Host-authorized private R2 upload/download orchestration                               |
-| `apps/worker/src/security/signedLinks.ts`                      | Versioned purpose-separated Organization-bound token signing                           |
-| `apps/worker/src/calendar/calendarFeed.ts`                     | Calendar credential issuance, revocation, and feed rendering                           |
-| `apps/worker/src/calendar/calendarIcs.ts`                      | Pure timezone-aware Organization calendar projection and iCalendar rendering           |
-| `apps/worker/src/calendar/organizationCalendar.ts`             | Authenticated venue, event, and RSVP Organization repository adapter                   |
-| `apps/worker/src/organization/organizationSeating.ts`          | Authenticated manager/member seating repository adapter                                |
-| `apps/worker/src/organization/organizationMusic.ts`            | Authenticated manager music catalog repository adapter                                 |
-| `apps/worker/src/organization/organizationResources.ts`        | Authenticated Organization resource repository adapter                                 |
-| `apps/worker/src/organization/communicationStore.ts`           | Organization message, recipient, template, and delivery-ledger persistence             |
-| `apps/worker/src/organization/organizationCommunications.ts`   | Host-authorized Organization communications repository adapter                         |
-| `apps/worker/src/communications/provider.ts`                   | Fake/disabled/Brevo-sandbox Email and SMS delivery adapter                             |
-| `apps/worker/src/communications/provider.test.ts`              | Brevo sandbox request, allowlist, response, and secret-redaction unit proof            |
-| `apps/worker/src/organization/publicWebsiteStore.ts`           | Organization website draft, public-event snapshot, version, and audit persistence      |
-| `apps/worker/src/organization/organizationPublicWebsite.ts`    | Authorized website management and R2/KV publication orchestration                      |
-| `apps/worker/src/organization/ticketingStore.ts`               | Tenant-local ticket settings, inventory reservations, orders, and audit persistence    |
-| `apps/worker/src/organization/organizationTicketing.ts`        | Public/manager ticket repository and checkout orchestration                            |
-| `apps/worker/src/payments/ticketCheckout.ts`                   | Fail-closed disabled/fake boundary ahead of Stripe Connect direct-charge qualification |
-| `apps/worker/src/payments/ticketCheckout.test.ts`              | Checkout effect-mode and production-refusal unit proof                                 |
-| `apps/worker/test/ticketing.integration.test.ts`               | Public/admin ticketing authorization, capacity, replay, and tenant-isolation proof     |
-| `packages/contracts/package.json`                              | Shared API contract package                                                            |
-| `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                    |
-| `packages/domain/package.json`                                 | Pure domain rules and calculations                                                     |
-| `packages/domain/src/index.ts`                                 | Public domain exports                                                                  |
-| `packages/domain/src/setList.ts`                               | Pure set-list duration, duplicate, and ordering rules                                  |
-| `packages/domain/src/setList.test.ts`                          | Unit proof for set-list duration, duplicate, and ordering rules                        |
-| `packages/domain/src/communications.ts`                        | Pure reach, channel, masking, and delivery-summary rules                               |
-| `packages/domain/src/communications.test.ts`                   | Unit proof for communications reach and safe delivery summaries                        |
-| `packages/domain/src/calendarTime.ts`                          | Shared IANA timezone validation and local-to-UTC calendar conversion                   |
-| `packages/domain/src/ticketing.ts`                             | Ticket pricing, fee display, inventory, and checkout transition rules                  |
-| `packages/domain/src/ticketing.test.ts`                        | Ticket price/capacity/state-transition unit proof                                      |
-| `packages/ui/package.json`                                     | Repository-owned Radix-based UI package                                                |
-| `packages/ui/src/index.ts`                                     | Stable component exports                                                               |
-| `packages/testkit/package.json`                                | Factories, fixtures, and environment harnesses                                         |
-| `packages/testkit/src/index.ts`                                | Shared test utilities                                                                  |
-| `docs/parity/feature-matrix.yaml`                              | Route, workflow, background-task, export, and visual parity ledger                     |
-| `docs/parity/csv-contracts/README.md`                          | Versioned CSV behavior and fixture index                                               |
-| `docs/parity/signed-link-behavior.md`                          | Purpose, authorization, expiry, and revocation contracts                               |
-| `docs/architecture/runtime.md`                                 | Runtime boundaries and request flows                                                   |
-| `docs/architecture/data-model.md`                              | Control-plane and Organization schemas                                                 |
-| `docs/architecture/environments.md`                            | Local, preview, staging, and production resources                                      |
-| `docs/runbooks/rollback.md`                                    | Worker rollback and forward-compatible data response                                   |
-| `docs/runbooks/provider-failure.md`                            | Email, SMS, Stripe, queue, and webhook incident handling                               |
-| `tsconfig.json`                                                | Root project-service typing for repository configuration files                         |
-| `vitest.config.ts`                                             | Node unit-test discovery and defaults                                                  |
-| `vitest.integration.config.ts`                                 | Cloudflare workerd integration-test configuration                                      |
-| `playwright.config.ts`                                         | Desktop/mobile browser-test projects and preview server                                |
-| `scripts/check-parity-matrix.mjs`                              | Standalone executable parity-ledger validation                                         |
-| `scripts/capture-baseline-screenshots.mjs`                     | Development-only deterministic Parity Bridge screenshot capture                        |
-| `scripts/bootstrap-staging-platform-admin.mjs`                 | Production-refusing, Wrangler-authenticated first Platform Administrator grant         |
-| `scripts/bootstrap-staging-platform-admin.test.mjs`            | Bootstrap validation, escaping, audit, and environment-refusal unit coverage           |
-| `apps/web/tsconfig.json`                                       | Strict browser/e2e TypeScript project                                                  |
-| `apps/web/e2e/foundation.spec.ts`                              | Foundation desktop/mobile browser smoke coverage                                       |
-| `apps/web/e2e/auth.spec.ts`                                    | OTP, account, Organization-choice, and session-management browser coverage             |
-| `apps/web/src/account/CommunicationCenter.tsx`                 | Responsive manager compose, drafts, templates, history, and delivery visibility        |
-| `apps/web/src/public/PublicUnsubscribeView.tsx`                | Signed public email-suppression confirmation flow                                      |
-| `apps/web/src/public/PublicOrganizationSite.tsx`               | Published Organization home, history, performances, navigation, and media UI           |
-| `apps/web/src/account/PublicWebsiteManager.tsx`                | Manager public-site content, branding-media, preview, and publish workflow             |
-| `apps/web/src/account/TicketingManager.tsx`                    | Manager event ticket settings, capacity, orders, and refund workflow                   |
-| `apps/web/src/public/PublicTickets.tsx`                        | Published ticket catalog, purchase, and success views                                  |
-| `apps/worker/tsconfig.json`                                    | Strict Worker and Cloudflare-test TypeScript project                                   |
-| `apps/worker/worker-configuration.d.ts`                        | Wrangler-generated binding and module-export declarations                              |
-| `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                     |
-| `apps/worker/test/auth.integration.test.ts`                    | Workerd invitation-only auth, OTP, session, and canonical-host coverage                |
-| `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                              |
-| `apps/worker/test/resources.integration.test.ts`               | Resource CRUD, order, authorization, private files, audit, and isolation proof         |
-| `apps/worker/test/profilePhotos.integration.test.ts`           | Profile-photo ownership, manager access, replacement, privacy, and reclamation proof   |
-| `apps/worker/test/communications.integration.test.ts`          | Message drafts, reach, queueing, retry, audit, and Organization-isolation proof        |
-| `apps/worker/test/publicWebsite.integration.test.ts`           | Website authorization, publication, media, caching, and isolation proof                |
-| `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                    |
-| `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                    |
-| `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                       |
-| `apps/worker/test/fleetSchema.integration.test.ts`             | Bounded chained fleet schema Workflow and identity proof                               |
-| `apps/worker/test/calendarFeed.integration.test.ts`            | Organization-bound calendar credential and revocation proof                            |
-| `apps/worker/test/calendarManagement.integration.test.ts`      | Venue, event, and RSVP authorization and Organization-isolation proof                  |
-| `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                  |
-| `apps/worker/test/rosterConfiguration.integration.test.ts`     | Section and voice-part defaults, validation, authorization, and isolation proof        |
-| `apps/worker/test/seating.integration.test.ts`                 | Chart assignment, member finder, authorization, and isolation proof                    |
-| `apps/worker/test/memberProfiles.integration.test.ts`          | Linked-Profile self-service, directory privacy, authorization, and isolation proof     |
-| `apps/worker/test/music.integration.test.ts`                   | Catalog CRUD, relationships, references, authorization, and isolation proof            |
-| `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof          |
-| `apps/worker/test/attendance.integration.test.ts`              | Attendance transaction, RSVP promotion, audit, and tenant-isolation proof              |
-| `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                   |
-| `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                  |
-| `apps/worker/src/workflows/FleetSchemaWorkflow.ts`             | Chained bounded Organization-store schema preparation                                  |
-| `types/vitest.d.ts`                                            | Typed migration fixtures injected into Worker integration tests                        |
-| `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                              |
-| `packages/domain/tsconfig.json`                                | Strict pure-domain TypeScript project                                                  |
-| `packages/domain/src/index.test.ts`                            | Foundation domain-result and performer-rule coverage                                   |
-| `packages/domain/src/rosterCsv.ts`                             | Deterministic baseline-compatible roster CSV renderer                                  |
-| `packages/domain/src/rosterCsv.test.ts`                        | Roster CSV quoting, status, and section-leader contract proof                          |
-| `packages/domain/src/rosterConfiguration.ts`                   | Standard SATB section and voice-part defaults                                          |
-| `packages/domain/src/eventRsvpCsv.ts`                          | Deterministic baseline-compatible event RSVP CSV renderer                              |
-| `packages/domain/src/eventRsvpCsv.test.ts`                     | Event RSVP grouping, sorting, quoting, and filename contract proof                     |
-| `packages/domain/src/musicCsv.ts`                              | Bounded music CSV parser and deterministic baseline-compatible renderer                |
-| `packages/domain/src/musicCsv.test.ts`                         | Music CSV round-trip, quoting, duration, applicability, and formula-safety proof       |
-| `packages/domain/src/seatingAlgorithm.ts`                      | Pure seating formation suggestions and section-mismatch rules                          |
-| `packages/domain/src/seatingAlgorithm.test.ts`                 | Vertical/horizontal formation and mismatch parity proof                                |
-| `packages/domain/src/seatingConfiguration.ts`                  | Default reusable Organization seating formations                                       |
-| `packages/ui/tsconfig.json`                                    | Strict repository-owned UI TypeScript project                                          |
-| `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                        |
-| `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                                |
-| `docs/parity/fixtures/organizations.json`                      | Deterministic two-Organization isolation seed                                          |
-| `apps/worker/src/organization/pollStore.ts`                    | Organization-scoped poll repository inside the Organization boundary                   |
-| `apps/worker/src/organization/playerStore.ts`                  | Organization-scoped player detail repository inside the Organization boundary          |
-| `apps/worker/src/organization/auditionStore.ts`                | Organization-scoped audition and slot repository inside the Organization boundary      |
-| `apps/worker/src/organization/organizationPollLinks.ts`        | Signed poll token issuance, detail resolution, and response submission adapter         |
-| `apps/worker/src/organization/organizationRsvpLinks.ts`        | Signed RSVP token issuance, detail resolution, and quick-RVP submission adapter        |
-| `apps/worker/src/organization/organizationPlayerLinks.ts`      | Signed player token issuance and detail resolution adapter                             |
-| `apps/worker/src/organization/organizationAuditions.ts`        | Signed audition token issuance, detail resolution, and candidate update adapter        |
-| `apps/web/src/account/AuditionManager.tsx`                     | Administrator audition list, status editing, and token generation UI                   |
-| `apps/web/src/public/PublicRsvpView.tsx`                       | Public RSVP detail and quick-response view                                             |
-| `apps/web/src/public/PublicPollView.tsx`                       | Public poll detail and response view                                                   |
-| `apps/web/src/public/PublicPlayerView.tsx`                     | Public player detail and media view                                                    |
-| `apps/web/src/public/PublicAuditionView.tsx`                   | Public audition inquiry form and candidate update view                                 |
-| `apps/worker/test/publicRsvp.integration.test.ts`              | Public RSVP authorization, token replay, and isolation integration proof               |
-| `apps/worker/test/publicPoll.integration.test.ts`              | Public poll authorization, token replay, and isolation integration proof               |
-| `apps/worker/test/publicPlayer.integration.test.ts`            | Public player authorization, token replay, and isolation integration proof             |
-| `apps/worker/test/publicAudition.integration.test.ts`          | Public audition inquiry, detail, update, and isolation integration proof               |
-| `apps/web/e2e/auditions.spec.ts`                               | Public and admin audition E2E browser coverage                                         |
-| `docs/parity/screenshots/README.md`                            | Baseline screenshot provenance and regeneration contract                               |
+| Path                                                           | Responsibility                                                                                       |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                                    | Cloudflare-specific engineering rules plus carried-forward domain and frontend rules                 |
+| `CONTEXT.md`                                                   | Copied and maintained ubiquitous language                                                            |
+| `README.md`                                                    | Local setup, environments, repository relationship, and common commands                              |
+| `package.json`                                                 | npm workspace scripts and shared quality gates                                                       |
+| `package-lock.json`                                            | Single reproducible dependency graph promoted unchanged                                              |
+| `tsconfig.base.json`                                           | Strict shared TypeScript configuration                                                               |
+| `eslint.config.js`                                             | Type, React, Workers, and complexity safety rules                                                    |
+| `prettier.config.mjs`                                          | Repository formatting policy                                                                         |
+| `.dev.vars.example`                                            | Non-secret local configuration contract                                                              |
+| `.github/workflows/ci.yml`                                     | Static checks, unit/integration tests, parity validation, and build                                  |
+| `.github/workflows/deploy-staging.yml`                         | Automatic `main` deployment to permanent staging                                                     |
+| `.github/workflows/deploy-production.yml`                      | Approved same-commit promotion and smoke/rollback checks                                             |
+| `apps/web/package.json`                                        | React application package                                                                            |
+| `apps/web/index.html`                                          | Vite application entry document                                                                      |
+| `apps/web/vite.config.ts`                                      | Frontend build and test configuration                                                                |
+| `apps/web/src/main.tsx`                                        | Browser bootstrap                                                                                    |
+| `apps/web/src/App.tsx`                                         | Route composition and top-level providers                                                            |
+| `apps/web/src/auth/api.ts`                                     | Same-origin typed browser client for identity, sessions, and Organization choices                    |
+| `apps/web/src/auth/SignInView.tsx`                             | Invitation-only email one-time-code sign-in flow                                                     |
+| `apps/web/src/auth/ForgotPasswordView.tsx`                     | Non-enumerating password-recovery request flow for invited identities                                |
+| `apps/web/src/auth/ResetPasswordView.tsx`                      | Single-use password-reset completion flow                                                            |
+| `apps/web/src/account/AccountView.tsx`                         | Signed-in identity, Organization chooser, and session-revocation surface                             |
+| `apps/web/src/account/AuthenticatedShell.tsx`                  | Authenticated workspace shell, grouped navigation, route guards, and responsive drawer               |
+| `apps/web/src/account/PlatformAccess.tsx`                      | Platform Administrator MFA enrollment and verification UI                                            |
+| `apps/web/src/account/PlatformOperations.tsx`                  | Platform Administrator Organization provisioning and scoped-elevation UI                             |
+| `apps/web/src/account/AccountSecurity.tsx`                     | User-managed password creation and change UI                                                         |
+| `apps/web/src/account/OrganizationAccess.tsx`                  | Hostname-scoped Organization MFA enrollment, verification, and Owner policy UI                       |
+| `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation on the hostname-derived Organization                         |
+| `apps/web/src/account/CalendarSubscription.tsx`                | Member calendar subscription and explicit credential reset                                           |
+| `apps/web/src/account/OrganizationCalendar.tsx`                | Profile, venue, event, and RSVP Organization management UI                                           |
+| `apps/web/src/account/RosterPage.tsx`                          | Focused responsive Organization Profile roster, CSV actions, and Profile dialogs                     |
+| `apps/web/src/account/EventsPage.tsx`                          | Focused Organization event list, filters, editor, clone, and archive flows                           |
+| `apps/web/src/account/VenuesPage.tsx`                          | Focused Organization venue list, editor, and destructive confirmation                                |
+| `apps/web/src/account/RsvpManagerPage.tsx`                     | Event-specific RSVP responses, notes, export, and bulk management surface                            |
+| `apps/web/src/account/OrganizationSettingsPage.tsx`            | Organization timezone and roster configuration settings screen                                       |
+| `apps/web/src/account/PollsPage.tsx`                           | Focused Organization poll list and create dialog                                                     |
+| `apps/web/src/account/MySchedule.tsx`                          | Linked-Profile member schedule and self-service RSVP UI                                              |
+| `apps/web/src/account/AttendanceManager.tsx`                   | Administrator event attendance bulk-update UI                                                        |
+| `apps/web/src/account/RosterConfiguration.tsx`                 | Administrator section and voice-part configuration UI                                                |
+| `apps/web/src/account/SeatingManager.tsx`                      | Administrator event chart layout and assignment workflow                                             |
+| `apps/web/src/account/SeatingFinder.tsx`                       | Linked-member event seating finder                                                                   |
+| `apps/web/src/account/MemberProfileDirectory.tsx`              | Linked-member self-service Profile and privacy-filtered Organization directory                       |
+| `apps/web/src/account/MusicCatalog.tsx`                        | Manager catalog, CSV, movement, private learning-track, and deletion workflows                       |
+| `apps/web/src/account/LearningTrackPlayer.tsx`                 | Member-safe private learning-track playback and offline practice UI                                  |
+| `apps/web/src/account/OrganizationResources.tsx`               | Manager resource ordering/editing and member private-file/link access                                |
+| `apps/web/src/account/SetListManager.tsx`                      | Manager event set-list ordering, approval, music linking, and performer-credit UI                    |
+| `apps/web/src/offline/mediaStore.ts`                           | Host-scoped IndexedDB persistence and blob-URL lifecycle for private audio                           |
+| `apps/web/src/offline/mediaStore.test.ts`                      | Unit proof for offline private-audio persistence and removal                                         |
+| `apps/web/src/auth/AcceptInvitationView.tsx`                   | Signed-recipient Organization invitation review and acceptance flow                                  |
+| `apps/web/src/styles/theme.css`                                | Semantic design tokens and light/dark themes                                                         |
+| `apps/worker/package.json`                                     | Worker application package                                                                           |
+| `apps/worker/wrangler.jsonc`                                   | Local bindings and named staging/production environments                                             |
+| `apps/worker/src/index.ts`                                     | Worker fetch, queue, scheduled, and workflow entry points                                            |
+| `apps/worker/src/router.ts`                                    | Typed HTTP route composition                                                                         |
+| `apps/worker/src/env.ts`                                       | Binding and secret types; startup validation                                                         |
+| `apps/worker/src/organization/OrganizationStore.ts`            | Per-Organization SQLite Durable Object boundary                                                      |
+| `apps/worker/src/organization/calendarManagementStore.ts`      | Venue, event, RSVP, and bounded dashboard-summary SQLite repository inside the Organization boundary |
+| `apps/worker/src/organization/seatingStore.ts`                 | Organization-scoped formation, chart, assignment, and finder repository                              |
+| `apps/worker/src/organization/musicStore.ts`                   | Organization-scoped music catalog repository and referential validation                              |
+| `apps/worker/src/organization/resourceStore.ts`                | Organization-scoped ordered private-file and link resource repository                                |
+| `apps/worker/src/organization/profiles.ts`                     | Authenticated Organization Profile repository adapter                                                |
+| `apps/worker/src/organization/schema.ts`                       | Operational schema and schema-version registry                                                       |
+| `apps/worker/src/organization/schedulingStore.ts`              | Organization-scoped event-reminder and attendance-report job data reader                             |
+| `apps/worker/src/organization/migrations.ts`                   | Ordered, forward-compatible Organization migrations                                                  |
+| `apps/worker/src/organization/scheduler.ts`                    | Per-Organization alarm and stable queue outbox orchestration                                         |
+| `apps/worker/src/control/schema.ts`                            | Control-plane D1 schema definitions                                                                  |
+| `apps/worker/src/control/migrations/0001_initial.sql`          | Initial control-plane schema                                                                         |
+| `apps/worker/src/auth/config.ts`                               | Better Auth configuration and adapters                                                               |
+| `apps/worker/src/auth/config.test.ts`                          | Managed-domain cookie sharing and host-only fallback proof                                           |
+| `apps/worker/src/auth/platformEmail.ts`                        | Secret-safe transactional auth-email delivery and deterministic test capture                         |
+| `apps/worker/src/auth/platformEmail.test.ts`                   | Platform-email mode, capture, and secret-redaction tests                                             |
+| `apps/worker/src/auth/platformAdministrator.ts`                | Mandatory-MFA Platform Administrator enrollment and recent-session assertions                        |
+| `apps/worker/src/auth/platformElevation.ts`                    | Time-bounded, session-bound Platform Administrator Organization edit elevation                       |
+| `apps/worker/src/auth/organizationMfa.ts`                      | Optional Organization policy and Organization/session-bound MFA assertions                           |
+| `apps/worker/src/auth/accountOrganizations.ts`                 | Membership-scoped account Organization summaries for the authenticated shell                         |
+| `apps/worker/src/control/migrations/0002_better_auth.sql`      | Forward-only native-D1 Better Auth and plugin schema                                                 |
+| `apps/worker/src/control/migrations/0003_provisioning.sql`     | Provisioning state, membership-to-Profile linkage, and elevation lookup indexes                      |
+| `apps/worker/src/control/migrations/0004_organization_mfa.sql` | Optional Organization MFA policy and scoped assertion storage                                        |
+| `apps/worker/src/control/migrations/0005_profile_link.sql`     | Unique Membership-to-Organization-Profile linkage contract                                           |
+| `apps/worker/src/control/migrations/0006_job_dead_letters.sql` | Payload-free queue dead-letter operational metadata                                                  |
+| `apps/worker/src/control/migrations/0007_fleet_schema.sql`     | Bounded fleet schema-preparation run registry                                                        |
+| `apps/worker/src/control/provisionOrganization.ts`             | Atomic Organization registry, canonical-host, Workflow, and audit orchestration                      |
+| `apps/worker/src/control/prepareFleetSchema.ts`                | Audited bounded fleet schema Workflow dispatch                                                       |
+| `apps/worker/src/tenancy/resolveOrganization.ts`               | Hostname-to-Organization resolution                                                                  |
+| `apps/worker/src/tenancy/authorizeOrganization.ts`             | Membership and Platform Administrator authorization                                                  |
+| `apps/worker/src/tenancy/linkOrganizationProfile.ts`           | Organization-store-confirmed Membership-to-Profile identity linkage                                  |
+| `apps/worker/src/tenancy/linkedOrganizationProfile.ts`         | Control-plane lookup of the caller's linked Organization Profile                                     |
+| `apps/worker/src/tenancy/registerPublicDomain.ts`              | Pending Public Website Domain registration, disablement, and routing-cache safety                    |
+| `apps/worker/src/jobs/consumer.ts`                             | Queue dispatch, retries, and dead-letter behavior                                                    |
+| `apps/worker/src/jobs/contracts.ts`                            | Versioned, Organization-scoped job payloads                                                          |
+| `apps/worker/src/publication/publishOrganization.ts`           | Public projection generation and cache versioning                                                    |
+| `apps/worker/src/storage/privateFiles.ts`                      | Host-authorized private R2 upload/download orchestration                                             |
+| `apps/worker/src/security/signedLinks.ts`                      | Versioned purpose-separated Organization-bound token signing                                         |
+| `apps/worker/src/calendar/calendarFeed.ts`                     | Calendar credential issuance, revocation, and feed rendering                                         |
+| `apps/worker/src/calendar/calendarIcs.ts`                      | Pure timezone-aware Organization calendar projection and iCalendar rendering                         |
+| `apps/worker/src/calendar/organizationCalendar.ts`             | Authenticated venue, event, RSVP, and dashboard-summary Organization repository adapter              |
+| `apps/worker/src/organization/organizationSeating.ts`          | Authenticated manager/member seating repository adapter                                              |
+| `apps/worker/src/organization/organizationMusic.ts`            | Authenticated manager music catalog repository adapter                                               |
+| `apps/worker/src/organization/organizationResources.ts`        | Authenticated Organization resource repository adapter                                               |
+| `apps/worker/src/organization/communicationStore.ts`           | Organization message, recipient, template, and delivery-ledger persistence                           |
+| `apps/worker/src/organization/organizationCommunications.ts`   | Host-authorized Organization communications repository adapter                                       |
+| `apps/worker/src/communications/provider.ts`                   | Fake/disabled/Brevo-sandbox Email and SMS delivery adapter                                           |
+| `apps/worker/src/communications/provider.test.ts`              | Brevo sandbox request, allowlist, response, and secret-redaction unit proof                          |
+| `apps/worker/src/organization/publicWebsiteStore.ts`           | Organization website draft, public-event snapshot, version, and audit persistence                    |
+| `apps/worker/src/organization/organizationPublicWebsite.ts`    | Authorized website management and R2/KV publication orchestration                                    |
+| `apps/worker/src/organization/ticketingStore.ts`               | Tenant-local ticket settings, inventory reservations, orders, and audit persistence                  |
+| `apps/worker/src/organization/organizationTicketing.ts`        | Public/manager ticket repository and checkout orchestration                                          |
+| `apps/worker/src/payments/ticketCheckout.ts`                   | Fail-closed disabled/fake boundary ahead of Stripe Connect direct-charge qualification               |
+| `apps/worker/src/payments/ticketCheckout.test.ts`              | Checkout effect-mode and production-refusal unit proof                                               |
+| `apps/worker/test/ticketing.integration.test.ts`               | Public/admin ticketing authorization, capacity, replay, and tenant-isolation proof                   |
+| `packages/contracts/package.json`                              | Shared API contract package                                                                          |
+| `packages/contracts/src/index.ts`                              | Public exports for schemas and DTOs                                                                  |
+| `packages/domain/package.json`                                 | Pure domain rules and calculations                                                                   |
+| `packages/domain/src/index.ts`                                 | Public domain exports                                                                                |
+| `packages/domain/src/setList.ts`                               | Pure set-list duration, duplicate, and ordering rules                                                |
+| `packages/domain/src/setList.test.ts`                          | Unit proof for set-list duration, duplicate, and ordering rules                                      |
+| `packages/domain/src/communications.ts`                        | Pure reach, channel, masking, and delivery-summary rules                                             |
+| `packages/domain/src/communications.test.ts`                   | Unit proof for communications reach and safe delivery summaries                                      |
+| `packages/domain/src/calendarTime.ts`                          | Shared IANA timezone validation and local-to-UTC calendar conversion                                 |
+| `packages/domain/src/ticketing.ts`                             | Ticket pricing, fee display, inventory, and checkout transition rules                                |
+| `packages/domain/src/ticketing.test.ts`                        | Ticket price/capacity/state-transition unit proof                                                    |
+| `packages/ui/package.json`                                     | Repository-owned Radix-based UI package                                                              |
+| `packages/ui/src/index.ts`                                     | Stable component exports                                                                             |
+| `packages/ui/src/Dialog.tsx`                                   | Radix-backed accessible dialog with focus return and Escape handling                                 |
+| `packages/ui/src/Sheet.tsx`                                    | Radix-backed responsive mobile navigation drawer                                                     |
+| `packages/ui/src/DropdownMenu.tsx`                             | Radix-backed keyboard-accessible menu primitive                                                      |
+| `packages/ui/src/Collapsible.tsx`                              | Radix-backed grouped navigation disclosure primitive                                                 |
+| `packages/testkit/package.json`                                | Factories, fixtures, and environment harnesses                                                       |
+| `packages/testkit/src/index.ts`                                | Shared test utilities                                                                                |
+| `docs/parity/feature-matrix.yaml`                              | Route, workflow, background-task, export, and visual parity ledger                                   |
+| `docs/parity/csv-contracts/README.md`                          | Versioned CSV behavior and fixture index                                                             |
+| `docs/parity/signed-link-behavior.md`                          | Purpose, authorization, expiry, and revocation contracts                                             |
+| `docs/architecture/runtime.md`                                 | Runtime boundaries and request flows                                                                 |
+| `docs/architecture/data-model.md`                              | Control-plane and Organization schemas                                                               |
+| `docs/architecture/environments.md`                            | Local, preview, staging, and production resources                                                    |
+| `docs/runbooks/rollback.md`                                    | Worker rollback and forward-compatible data response                                                 |
+| `docs/runbooks/provider-failure.md`                            | Email, SMS, Stripe, queue, and webhook incident handling                                             |
+| `tsconfig.json`                                                | Root project-service typing for repository configuration files                                       |
+| `vitest.config.ts`                                             | Node unit-test discovery and defaults                                                                |
+| `vitest.integration.config.ts`                                 | Cloudflare workerd integration-test configuration                                                    |
+| `playwright.config.ts`                                         | Desktop/mobile browser-test projects and preview server                                              |
+| `scripts/check-parity-matrix.mjs`                              | Standalone executable parity-ledger validation                                                       |
+| `scripts/capture-baseline-screenshots.mjs`                     | Development-only deterministic Parity Bridge screenshot capture                                      |
+| `scripts/bootstrap-staging-platform-admin.mjs`                 | Production-refusing, Wrangler-authenticated first Platform Administrator grant                       |
+| `scripts/bootstrap-staging-platform-admin.test.mjs`            | Bootstrap validation, escaping, audit, and environment-refusal unit coverage                         |
+| `apps/web/tsconfig.json`                                       | Strict browser/e2e TypeScript project                                                                |
+| `apps/web/e2e/foundation.spec.ts`                              | Foundation desktop/mobile browser smoke coverage                                                     |
+| `apps/web/e2e/auth.spec.ts`                                    | OTP, account, Organization-choice, and session-management browser coverage                           |
+| `apps/web/src/account/CommunicationCenter.tsx`                 | Responsive manager compose, drafts, templates, history, and delivery visibility                      |
+| `apps/web/src/public/PublicUnsubscribeView.tsx`                | Signed public email-suppression confirmation flow                                                    |
+| `apps/web/src/public/PublicOrganizationSite.tsx`               | Published Organization home, history, performances, navigation, and media UI                         |
+| `apps/web/src/account/PublicWebsiteManager.tsx`                | Manager public-site content, branding-media, preview, and publish workflow                           |
+| `apps/web/src/account/TicketingManager.tsx`                    | Manager event ticket settings, capacity, orders, and refund workflow                                 |
+| `apps/web/src/public/PublicTickets.tsx`                        | Published ticket catalog, purchase, and success views                                                |
+| `apps/worker/tsconfig.json`                                    | Strict Worker and Cloudflare-test TypeScript project                                                 |
+| `apps/worker/worker-configuration.d.ts`                        | Wrangler-generated binding and module-export declarations                                            |
+| `apps/worker/test/health.integration.test.ts`                  | Workerd health, headers, and API fallback coverage                                                   |
+| `apps/worker/test/auth.integration.test.ts`                    | Workerd invitation-only auth, OTP, session, and canonical-host coverage                              |
+| `apps/worker/test/jobs.integration.test.ts`                    | Queue replay and Organization-isolation integration proof                                            |
+| `apps/worker/test/resources.integration.test.ts`               | Resource CRUD, order, authorization, private files, audit, and isolation proof                       |
+| `apps/worker/test/profilePhotos.integration.test.ts`           | Profile-photo ownership, manager access, replacement, privacy, and reclamation proof                 |
+| `apps/worker/test/communications.integration.test.ts`          | Message drafts, reach, queueing, retry, audit, and Organization-isolation proof                      |
+| `apps/worker/test/publicWebsite.integration.test.ts`           | Website authorization, publication, media, caching, and isolation proof                              |
+| `apps/worker/test/publication.integration.test.ts`             | Published-projection pointer and R2 isolation proof                                                  |
+| `apps/worker/test/files.integration.test.ts`                   | Private R2 authorization and key-substitution proof                                                  |
+| `apps/worker/test/scheduler.integration.test.ts`               | Alarm recovery, stable-job, and bounded-outbox integration proof                                     |
+| `apps/worker/test/fleetSchema.integration.test.ts`             | Bounded chained fleet schema Workflow and identity proof                                             |
+| `apps/worker/test/calendarFeed.integration.test.ts`            | Organization-bound calendar credential and revocation proof                                          |
+| `apps/worker/test/calendarManagement.integration.test.ts`      | Venue, event, and RSVP authorization and Organization-isolation proof                                |
+| `apps/worker/test/profiles.integration.test.ts`                | Organization Profile authorization, audit, and tenant-isolation proof                                |
+| `apps/worker/test/rosterConfiguration.integration.test.ts`     | Section and voice-part defaults, validation, authorization, and isolation proof                      |
+| `apps/worker/test/seating.integration.test.ts`                 | Chart assignment, member finder, authorization, and isolation proof                                  |
+| `apps/worker/test/memberProfiles.integration.test.ts`          | Linked-Profile self-service, directory privacy, authorization, and isolation proof                   |
+| `apps/worker/test/music.integration.test.ts`                   | Catalog CRUD, relationships, references, authorization, and isolation proof                          |
+| `apps/worker/test/selfServiceRsvp.integration.test.ts`         | Linked-Profile RSVP authorization, inheritance, and cross-tenant denial proof                        |
+| `apps/worker/test/attendance.integration.test.ts`              | Attendance transaction, RSVP promotion, audit, and tenant-isolation proof                            |
+| `apps/worker/src/security/signedLinks.test.ts`                 | Signed-link validation, tampering, expiry, and revocation unit proof                                 |
+| `apps/worker/src/workflows/ProvisioningWorkflow.ts`            | Resumable Organization-store provisioning entry point                                                |
+| `apps/worker/src/workflows/FleetSchemaWorkflow.ts`             | Chained bounded Organization-store schema preparation                                                |
+| `types/vitest.d.ts`                                            | Typed migration fixtures injected into Worker integration tests                                      |
+| `packages/contracts/tsconfig.json`                             | Strict shared-contract TypeScript project                                                            |
+| `packages/domain/tsconfig.json`                                | Strict pure-domain TypeScript project                                                                |
+| `packages/domain/src/index.test.ts`                            | Foundation domain-result and performer-rule coverage                                                 |
+| `packages/domain/src/rosterCsv.ts`                             | Deterministic baseline-compatible roster CSV renderer                                                |
+| `packages/domain/src/rosterCsv.test.ts`                        | Roster CSV quoting, status, and section-leader contract proof                                        |
+| `packages/domain/src/rosterConfiguration.ts`                   | Standard SATB section and voice-part defaults                                                        |
+| `packages/domain/src/eventRsvpCsv.ts`                          | Deterministic baseline-compatible event RSVP CSV renderer                                            |
+| `packages/domain/src/eventRsvpCsv.test.ts`                     | Event RSVP grouping, sorting, quoting, and filename contract proof                                   |
+| `packages/domain/src/musicCsv.ts`                              | Bounded music CSV parser and deterministic baseline-compatible renderer                              |
+| `packages/domain/src/musicCsv.test.ts`                         | Music CSV round-trip, quoting, duration, applicability, and formula-safety proof                     |
+| `packages/domain/src/seatingAlgorithm.ts`                      | Pure seating formation suggestions and section-mismatch rules                                        |
+| `packages/domain/src/seatingAlgorithm.test.ts`                 | Vertical/horizontal formation and mismatch parity proof                                              |
+| `packages/domain/src/seatingConfiguration.ts`                  | Default reusable Organization seating formations                                                     |
+| `packages/ui/tsconfig.json`                                    | Strict repository-owned UI TypeScript project                                                        |
+| `packages/testkit/tsconfig.json`                               | Strict deterministic fixture TypeScript project                                                      |
+| `docs/parity/historical-plan-classification.md`                | Code/test-backed status of every legacy historical plan                                              |
+| `docs/parity/fixtures/organizations.json`                      | Deterministic two-Organization isolation seed                                                        |
+| `apps/worker/src/organization/pollStore.ts`                    | Organization-scoped poll repository inside the Organization boundary                                 |
+| `apps/worker/src/organization/playerStore.ts`                  | Organization-scoped player detail repository inside the Organization boundary                        |
+| `apps/worker/src/organization/auditionStore.ts`                | Organization-scoped audition and slot repository inside the Organization boundary                    |
+| `apps/worker/src/organization/organizationPollLinks.ts`        | Signed poll token issuance, detail resolution, and response submission adapter                       |
+| `apps/worker/src/organization/organizationRsvpLinks.ts`        | Signed RSVP token issuance, detail resolution, and quick-RVP submission adapter                      |
+| `apps/worker/src/organization/organizationPlayerLinks.ts`      | Signed player token issuance and detail resolution adapter                                           |
+| `apps/worker/src/organization/organizationAuditions.ts`        | Signed audition token issuance, detail resolution, and candidate update adapter                      |
+| `apps/web/src/account/AuditionManager.tsx`                     | Administrator audition list, status editing, and token generation UI                                 |
+| `apps/web/src/public/PublicRsvpView.tsx`                       | Public RSVP detail and quick-response view                                                           |
+| `apps/web/src/public/PublicPollView.tsx`                       | Public poll detail and response view                                                                 |
+| `apps/web/src/public/PublicPlayerView.tsx`                     | Public player detail and media view                                                                  |
+| `apps/web/src/public/PublicAuditionView.tsx`                   | Public audition inquiry form and candidate update view                                               |
+| `apps/worker/test/publicRsvp.integration.test.ts`              | Public RSVP authorization, token replay, and isolation integration proof                             |
+| `apps/worker/test/publicPoll.integration.test.ts`              | Public poll authorization, token replay, and isolation integration proof                             |
+| `apps/worker/test/publicPlayer.integration.test.ts`            | Public player authorization, token replay, and isolation integration proof                           |
+| `apps/worker/test/publicAudition.integration.test.ts`          | Public audition inquiry, detail, update, and isolation integration proof                             |
+| `apps/web/e2e/auditions.spec.ts`                               | Public and admin audition E2E browser coverage                                                       |
+| `docs/parity/screenshots/README.md`                            | Baseline screenshot provenance and regeneration contract                                             |
 
 ## Target Architecture
 

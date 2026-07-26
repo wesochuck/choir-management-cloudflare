@@ -1,11 +1,13 @@
 import {
   calendarFeedUrlsResponseSchema,
   organizationCalendarSettingsResponseSchema,
+  organizationDashboardSummaryResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
   organizationProfileResponseSchema,
   organizationRsvpSchema,
+  setupStatusSchema,
   organizationVenueSchema,
   organizationVenuesResponseSchema,
 } from "@choir/contracts";
@@ -133,6 +135,16 @@ afterEach(async () => {
 describe("Organization calendar management", () => {
   it("creates isolated venue/event/RSVP data that populates the signed calendar feed", async () => {
     const cookie = await signIn();
+    const setupStatus = await exports.default.fetch(
+      api("alpha.localhost", "/api/setup/status", cookie),
+    );
+    expect(setupStatus.status).toBe(200);
+    expect(setupStatusSchema.parse(await setupStatus.json())).toMatchObject({
+      organizationId: "organization-alpha",
+      organizationName: "Organization Alpha",
+      completedSteps: [],
+      launched: false,
+    });
     const invalidTimezone = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/calendar-settings", cookie, {
         body: JSON.stringify({ timezone: "Not/A_Zone" }),
@@ -290,6 +302,19 @@ describe("Organization calendar management", () => {
         await exports.default.fetch(api("alpha.localhost", "/api/organization/events", cookie))
       ).json(),
     );
+    const summary = organizationDashboardSummaryResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/dashboard-summary", cookie),
+        )
+      ).json(),
+    );
+    expect(summary.activeProfileCount).toBe(1);
+    expect(summary.upcomingEventCount).toBe(2);
+    expect(summary.nextEvents.map((event) => event.title)).toEqual([
+      "API Concert Updated",
+      "API Rehearsal",
+    ]);
     expect(venues.venues.map((item) => item.name)).toEqual(["Main Sanctuary"]);
     expect(events.events.map((item) => item.title)).toEqual([
       "API Concert Updated",

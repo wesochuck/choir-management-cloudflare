@@ -261,13 +261,204 @@
           ["apps/web/src/App.tsx", "apps/web/src/setup/SetupView.tsx", "apps/worker/src/router.ts"],
       },
       {
+        "id": "route.account.overview",
+        "path": "/account",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in account entry surface",
+        "targetEvidence":
+          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
+      },
+      {
+        "id": "route.account.organizations",
+        "path": "/account/organizations",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Organization chooser surface",
+        "targetEvidence":
+          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
+      },
+      {
+        "id": "route.account.security",
+        "path": "/account/security",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in account security surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/AccountSecurity.tsx",
+          ],
+      },
+      {
+        "id": "route.account.sessions",
+        "path": "/account/sessions",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in active sessions surface",
+        "targetEvidence":
+          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
+      },
+      {
+        "id": "route.admin.overview",
+        "path": "/admin",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Organization administration entry surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/auth/api.ts",
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/router.ts",
+          ],
+      },
+      {
+        "id": "route.admin.invitations",
+        "path": "/admin/settings/invitations",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Organization membership invitation surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+            "apps/web/src/account/OrganizationInvitations.tsx",
+          ],
+      },
+      {
+        "id": "route.admin.security",
+        "path": "/admin/settings/security",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Organization security surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/OrganizationAccess.tsx",
+          ],
+      },
+      {
+        "id": "route.member.schedule",
+        "path": "/schedule",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in member schedule surface",
+        "targetEvidence":
+          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/MySchedule.tsx"],
+      },
+      {
+        "id": "route.member.practice",
+        "path": "/practice",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in member practice surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/LearningTrackPlayer.tsx",
+          ],
+      },
+      {
+        "id": "route.member.resources",
+        "path": "/member/resources",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in member resources surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/OrganizationResources.tsx",
+          ],
+      },
+      {
+        "id": "route.member.calendar",
+        "path": "/calendar",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in member calendar subscription surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/CalendarSubscription.tsx",
+          ],
+      },
+      {
+        "id": "route.platform.overview",
+        "path": "/platform",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Platform Administrator entry surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/PlatformAccess.tsx",
+          ],
+      },
+      {
+        "id": "route.platform.security",
+        "path": "/platform/security",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Platform Administrator security surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/PlatformAccess.tsx",
+          ],
+      },
+      {
+        "id": "route.platform.organizations",
+        "path": "/platform/organizations",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Platform Administrator Organization operations surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/PlatformOperations.tsx",
+          ],
+      },
+      {
+        "id": "route.platform.access",
+        "path": "/platform/access",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Signed-in Platform Administrator scoped access surface",
+        "targetEvidence":
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/PlatformOperations.tsx",
+          ],
+      },
+      {
         "id": "route.member.dashboard",
         "path": "/dashboard",
         "owner": "apps/web",
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "src/App.tsx:329; src/views/singer/DashboardView.tsx",
-        "targetEvidence": ["apps/web/src/App.tsx", "apps/web/src/account/DashboardView.tsx"],
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/DashboardView.tsx",
+          ],
       },
       {
         "id": "route.member.profile",
@@ -325,7 +516,8 @@
             "packages/domain/src/rosterCsv.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/profiles.integration.test.ts",
-            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/RosterPage.tsx",
           ],
       },
       {
@@ -337,7 +529,8 @@
         "baselineEvidence": "src/App.tsx:352; src/views/admin/EventsView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/EventsPage.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
           ],
@@ -351,7 +544,8 @@
         "baselineEvidence": "src/App.tsx:365; src/views/admin/EventRosterView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/RsvpManagerPage.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
           ],
@@ -379,7 +573,8 @@
         "baselineEvidence": "src/App.tsx:391; src/views/admin/VenuesView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/VenuesPage.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
           ],
@@ -421,8 +616,8 @@
         "baselineEvidence": "src/App.tsx:430; src/views/admin/RsvpDashboardView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/OrganizationCalendar.tsx",
-            "apps/web/src/account/MySchedule.tsx",
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/RsvpManagerPage.tsx",
             "apps/worker/src/router.ts",
           ],
       },
@@ -434,7 +629,12 @@
         "status": "implemented",
         "baselineEvidence": "src/App.tsx:443; src/views/admin/PollsDashboardView.tsx",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+          [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/PollsPage.tsx",
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/pollStore.ts",
+          ],
       },
       {
         "id": "route.admin.auditions",
@@ -497,6 +697,8 @@
         "baselineEvidence": "src/App.tsx:508; src/views/admin/SettingsView.tsx",
         "targetEvidence":
           [
+            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/OrganizationSettingsPage.tsx",
             "apps/web/src/account/RosterConfiguration.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/rosterConfiguration.integration.test.ts",
@@ -626,6 +828,23 @@
     ],
   "apiRoutes":
     [
+      {
+        "id": "api.organization.dashboard-summary",
+        "method": "GET",
+        "path": "/api/organization/dashboard-summary",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "New additive summary contract; no legacy endpoint",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/calendar/organizationCalendar.ts",
+            "apps/worker/src/organization/calendarManagementStore.ts",
+            "packages/contracts/src/index.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
       {
         "id": "api.refund-dues",
         "method": "POST",

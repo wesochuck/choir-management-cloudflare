@@ -8,6 +8,7 @@ import {
   listOrganizationAuditions,
   updateOrganizationAudition,
 } from "../auth/api";
+import { Dialog } from "@choir/ui";
 
 interface Props {
   readonly enabled: boolean;
@@ -53,8 +54,13 @@ function EditAuditionForm({
   const [notes, setNotes] = useState(currentNotes);
 
   return (
-    <article className="compact-card mt-4">
-      <h3>Edit Audition</h3>
+    <form
+      className="form-stack"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(auditionId, status, notes);
+      }}
+    >
       {message && (
         <p
           className={`notice ${message.includes("updated") ? "notice--success" : "notice--error"}`}
@@ -63,59 +69,51 @@ function EditAuditionForm({
           {message}
         </p>
       )}
-      <form
-        className="form-stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSave(auditionId, status, notes);
-        }}
-      >
-        <div>
-          <label className="block text-sm font-medium" htmlFor="edit-status">
-            Status
-          </label>
-          <select
-            className="mt-1 w-full rounded border p-2"
-            id="edit-status"
-            onChange={(e) => {
-              const parsed = auditionStatusSchema.safeParse(e.target.value);
-              if (!parsed.success) return;
-              setStatus(parsed.data);
-            }}
-            value={status}
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="edit-notes">
-            Admin Notes
-          </label>
-          <textarea
-            className="mt-1 w-full rounded border p-2 text-sm"
-            id="edit-notes"
-            maxLength={10_000}
-            onChange={(e) => {
-              setNotes(e.target.value);
-            }}
-            rows={4}
-            value={notes}
-          />
-        </div>
-        <div className="flex gap-2">
-          <button className="button" type="submit">
-            Save
-          </button>
-          <button className="button button--secondary" onClick={onCancel} type="button">
-            Cancel
-          </button>
-        </div>
-      </form>
-    </article>
+      <div>
+        <label className="block text-sm font-medium" htmlFor="edit-status">
+          Status
+        </label>
+        <select
+          className="mt-1 w-full rounded border p-2"
+          id="edit-status"
+          onChange={(e) => {
+            const parsed = auditionStatusSchema.safeParse(e.target.value);
+            if (!parsed.success) return;
+            setStatus(parsed.data);
+          }}
+          value={status}
+        >
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium" htmlFor="edit-notes">
+          Admin Notes
+        </label>
+        <textarea
+          className="mt-1 w-full rounded border p-2 text-sm"
+          id="edit-notes"
+          maxLength={10_000}
+          onChange={(e) => {
+            setNotes(e.target.value);
+          }}
+          rows={4}
+          value={notes}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button className="button" type="submit">
+          Save
+        </button>
+        <button className="button button--secondary" onClick={onCancel} type="button">
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -303,6 +301,7 @@ export function AuditionManager({ enabled }: Props) {
 
   function beginUpdate(audition: OrganizationAudition) {
     setUpdatingId(audition.id);
+    setGeneratingIds([]);
     setMessage(null);
   }
 
@@ -419,16 +418,23 @@ export function AuditionManager({ enabled }: Props) {
 
           <TokenList auditions={state.auditions} tokens={tokens} />
 
-          {editingAudition && (
-            <EditAuditionForm
-              auditionId={editingAudition.id}
-              currentStatus={editingAudition.status}
-              currentNotes={editingAudition.adminNotes ?? ""}
-              message={message?.id === editingAudition.id ? message.text : null}
-              onCancel={cancelUpdate}
-              onSave={handleSave}
-            />
-          )}
+          <Dialog
+            description="Update the audition status and internal notes."
+            onClose={cancelUpdate}
+            open={editingAudition !== null}
+            title="Edit Audition"
+          >
+            {editingAudition ? (
+              <EditAuditionForm
+                auditionId={editingAudition.id}
+                currentStatus={editingAudition.status}
+                currentNotes={editingAudition.adminNotes ?? ""}
+                message={message?.id === editingAudition.id ? message.text : null}
+                onCancel={cancelUpdate}
+                onSave={handleSave}
+              />
+            ) : null}
+          </Dialog>
         </>
       )}
     </section>

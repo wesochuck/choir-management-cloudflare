@@ -416,17 +416,25 @@ function Directory({
   );
 }
 
-export function MemberProfileDirectory({ enabled }: { readonly enabled: boolean }) {
+export function MemberProfileDirectory({
+  enabled,
+  view = "both",
+}: {
+  readonly enabled: boolean;
+  readonly view?: "both" | "directory" | "profile";
+}) {
   const [revision, setRevision] = useState(0);
   return (
     <>
-      <MemberProfileEditor
-        enabled={enabled}
-        onSaved={() => {
-          setRevision((current) => current + 1);
-        }}
-      />
-      <Directory enabled={enabled} revision={revision} />
+      {view !== "directory" ? (
+        <MemberProfileEditor
+          enabled={enabled}
+          onSaved={() => {
+            setRevision((current) => current + 1);
+          }}
+        />
+      ) : null}
+      {view !== "profile" ? <Directory enabled={enabled} revision={revision} /> : null}
     </>
   );
 }

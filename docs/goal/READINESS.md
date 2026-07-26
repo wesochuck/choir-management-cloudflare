@@ -1,12 +1,13 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 25, 2026 **Status:** Milestones 0–6 complete. All 164 parity entries are
-implemented and verified. The updated Worker is deployed to permanent staging (version
-`ff2d9fba-6c0c-476e-a964-0eddf80e1c8b`) with all bindings active. The full quality gate passes:
-lint, typecheck, build, unit tests (78/78), integration tests (105/105), E2E tests (50/50), parity
-validation (164/164), and dependency audit (0 high+ vulnerabilities). Production is isolated with
-`EXTERNAL_EFFECTS_MODE=disabled`, `PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings
-configured. Milestone 7 (production launch) is outside the active goal per GOAL.md.
+**Prepared:** July 25, 2026 **Status:** Milestones 0–6 complete. All 180 parity entries are
+implemented and verified. The reorganized authenticated shell, signed-in visual usability pass, and
+setup-status compatibility fix are deployed to permanent staging (version
+`a4447491-ed2c-4601-8d26-0b1a2497a260`) with all bindings active. The full quality gate passes:
+formatting, lint, typecheck, build, unit tests (78/78), integration tests (105/105), E2E tests
+(50/50), parity validation (180/180), and dependency audit (0 high+ vulnerabilities). Production is
+isolated with `EXTERNAL_EFFECTS_MODE=disabled`, `PLATFORM_EMAIL_MODE=disabled`, and no routes or
+bindings configured. Milestone 7 (production launch) is outside the active goal per GOAL.md.
 
 ## Repository topology
 
@@ -50,7 +51,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `cafb5f59-78a0-4d65-8e6b-596fec1e7b6c`
+- Current verified Worker version: `a4447491-ed2c-4601-8d26-0b1a2497a260`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -65,8 +66,15 @@ secrets, or signing secrets in this file.
   `auth@mail.staging.musicsite.org`, with `cwosborn@gmail.com` as the sole allowlisted recipient
 - Signed-link secret: configured independently in the staging Worker secret store
 
-Verified over public HTTPS on July 20–22, 2026:
+Verified over public HTTPS on July 20–25, 2026:
 
+- After the setup-status compatibility deployment, a provisioned Organization without a setup
+  checklist row now receives its authoritative Organization name from Durable Object metadata;
+  focused calendar integration coverage verifies `/api/setup/status` returns HTTP 200 instead of the
+  prior 503 parse failure. Anonymous staging access remains correctly denied with HTTP 401.
+- After the authenticated-shell deployment, `/api/health` and `/api/ready` returned HTTP 200,
+  `/login` returned HTTP 200, and the additive dashboard-summary endpoint returned the expected
+  hostname-first HTTP 404 on the global product hostname without a registered Organization.
 - `/api/health` returned HTTP 200 and a validated staging health payload.
 - `/api/ready` returned HTTP 200 after querying the migrated D1 binding.
 - `/api/auth/get-session` returned HTTP 200 with no session, proving the request-scoped Better Auth
