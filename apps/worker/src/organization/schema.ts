@@ -722,6 +722,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [],
     version: 35,
   },
+  {
+    version: 36,
+    statements: [
+      `ALTER TABLE organization_metadata ADD COLUMN donation_settings_json TEXT NOT NULL
+       DEFAULT '{"buttonText":"Support our Music","description":"Your contribution helps us keep the music playing and supports our mission in the community.","levels":[{"id":"level-1","label":"Friend","amountCents":2500,"benefit":"Mention in program"},{"id":"level-2","label":"Supporter","amountCents":5000,"benefit":"Mention in program"},{"id":"level-3","label":"Patron","amountCents":10000,"benefit":"Priority seating"},{"id":"level-4","label":"Benefactor","amountCents":25000,"benefit":"Invitation to VIP reception"}]}'`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

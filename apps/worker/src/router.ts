@@ -50,6 +50,7 @@ import {
   organizationExportStartResponseSchema,
   organizationExportStatusResponseSchema,
   donationCheckoutRequestSchema,
+  donationSettingsSchema,
   donationRefundRequestSchema,
   duesCheckoutRequestSchema,
   seasonCreateRequestSchema,
@@ -1134,6 +1135,40 @@ router.post("/api/checkout/create-donation-session", async (context) => {
       error instanceof DonationError && (error.status === 409 || error.status === 501)
         ? error.status
         : 503,
+    );
+  }
+});
+
+router.get("/api/public/donation-settings", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolved.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Donations are not available for this hostname.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const url = new URL("https://organization.internal/internal/donations/settings");
+    url.searchParams.set("organizationId", resolved.value.organizationId);
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(resolved.value.organizationId),
+    ).fetch(url);
+    const settings = donationSettingsSchema.safeParse(await response.json());
+    if (!response.ok || !settings.success) throw new Error("invalid_settings");
+    return context.json({ ...settings.data, requestId: requestIdValue });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Donation settings are temporarily unavailable.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      503,
     );
   }
 });
@@ -3810,6 +3845,97 @@ router.get("/api/organization/donations", async (context) => {
       {
         code: "service_unavailable",
         message: "Donations are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/donation-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const url = new URL("https://organization.internal/internal/donations/settings");
+    url.searchParams.set("organizationId", authorization.organizationId);
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch(url);
+    const settings = donationSettingsSchema.safeParse(await response.json());
+    if (!response.ok || !settings.success) throw new Error("invalid_settings");
+    return context.json({ ...settings.data, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Donation settings could not be retrieved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/donation-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = donationSettingsSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid donation settings are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch("https://organization.internal/internal/donations/settings", {
+      body: JSON.stringify({
+        ...body.data,
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return context.json(
+        {
+          code: response.status === 400 ? "validation_failed" : "donation_settings_update_failed",
+          message:
+            response.status === 400
+              ? "Valid donation settings are required."
+              : "Donation settings could not be saved.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        response.status === 400 || response.status === 409 ? response.status : 503,
+      );
+    }
+    const settings = donationSettingsSchema.safeParse(await response.json());
+    if (!settings.success) throw new Error("invalid_settings");
+    return context.json({ ...settings.data, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Donation settings could not be saved.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

@@ -80,6 +80,7 @@ import {
   organizationAuditionCreateRequestSchema,
   organizationAuditionResponseSchema,
   organizationAuditionUpdateRequestSchema,
+  donationSettingsResponseSchema,
   organizationExportStartResponseSchema,
   organizationExportStatusResponseSchema,
   duesRecordSchema,
@@ -162,6 +163,7 @@ import {
   type AuditionStatus,
   type OrganizationExportStartResponse,
   type OrganizationExportStatusResponse,
+  type DonationSettings,
 } from "@choir/contracts";
 
 export class AuthApiError extends Error {
@@ -905,6 +907,30 @@ export async function updateOrganizationCalendarSettings(
     method: "PUT",
   });
   return organizationCalendarSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getPublicDonationSettings(signal?: AbortSignal): Promise<DonationSettings> {
+  const response = await request("/api/public/donation-settings", { signal: signal ?? null });
+  return donationSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationDonationSettings(
+  signal?: AbortSignal,
+): Promise<DonationSettings> {
+  const response = await request("/api/organization/donation-settings", {
+    signal: signal ?? null,
+  });
+  return donationSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationDonationSettings(
+  settings: DonationSettings,
+): Promise<DonationSettings> {
+  const response = await request("/api/organization/donation-settings", {
+    body: JSON.stringify(settings),
+    method: "PUT",
+  });
+  return donationSettingsResponseSchema.parse(await response.json());
 }
 
 export async function getOrganizationRosterConfiguration(

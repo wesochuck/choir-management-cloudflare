@@ -5,6 +5,7 @@ import {
   organizationAuditionCreateRequestSchema,
   organizationAuditionSettingsSchema,
   organizationAuditionUpdateRequestSchema,
+  donationSettingsSchema,
   organizationProfileRequestSchema,
   organizationRosterConfigurationRequestSchema,
 } from "@choir/contracts";
@@ -94,6 +95,10 @@ import {
   listPatronsFromStore,
   manageDonationsInStore,
 } from "./donationStore";
+import {
+  readDonationSettingsFromStore,
+  updateDonationSettingsInStore,
+} from "./donationSettingsStore";
 import { getSetupStateFromStore, getModuleStateFromStore, manageSetupInStore } from "./setupStore";
 import { readAttendanceReportJobFromStore, readEventReminderJobFromStore } from "./schedulingStore";
 import { listSeasonsFromStore, listDuesFromStore, manageSeasonsInStore } from "./seasonStore";
@@ -914,6 +919,28 @@ function organizationIdentity(storage: DurableObjectStorage): OrganizationMetada
     .at(0);
 }
 
+async function donationSettingsUpdateHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const raw: unknown = await request.json().catch(() => null);
+  const parsed = donationSettingsSchema.safeParse(raw);
+  const context = z
+    .object({
+      actorUserId: z.string().min(1),
+      organizationId: z.string().min(1),
+      requestId: z.uuid(),
+    })
+    .safeParse(raw);
+  if (!parsed.success || !context.success) {
+    return Response.json({ code: "validation_failed" }, { status: 400 });
+  }
+  return updateDonationSettingsInStore(storage, context.data.organizationId, parsed.data, {
+    actorUserId: context.data.actorUserId,
+    requestId: context.data.requestId,
+  });
+}
+
 async function manageCalendarCredential(
   storage: DurableObjectStorage,
   request: Request,
@@ -1345,6 +1372,9 @@ async function dispatchPostRequest(
   const websiteResponse = await dispatchWebsitePostRequest(storage, pathname, request);
   if (websiteResponse) return websiteResponse;
   if (pathname === "/internal/ticketing/manage") return manageTicketingInStore(storage, request);
+  if (pathname === "/internal/donations/settings") {
+    return donationSettingsUpdateHandler(storage, request);
+  }
   if (pathname === "/internal/donations/manage") return manageDonationsInStore(storage, request);
   if (pathname === "/internal/seasons/manage") return manageSeasonsInStore(storage, request);
   if (pathname === "/internal/setup/manage") return manageSetupInStore(storage, request);
@@ -1882,6 +1912,8 @@ function dispatchCalendarGetRequest(
   }
 }
 
+// The store's internal read routes intentionally share one dispatch point.
+// eslint-disable-next-line complexity
 function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response | null {
   const organizationId = url.searchParams.get("organizationId");
   const profileResponse = dispatchProfileGetRequest(storage, url, organizationId);
@@ -1895,6 +1927,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return listAuditionsFromStore(storage);
     case "/internal/audition/settings":
       return readAuditionSettingsFromStore(storage, organizationId);
+    case "/internal/donations/settings":
+      return readDonationSettingsFromStore(storage, organizationId);
     case "/internal/health":
       return Response.json({ status: "ok" });
     case "/internal/roster/configuration":

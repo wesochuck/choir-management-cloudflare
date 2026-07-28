@@ -608,6 +608,80 @@ footer {
   overflow-y: auto;
 }
 
+.donation-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 1.2fr);
+  gap: 1rem;
+}
+
+.donation-settings-grid .surface-card {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.donation-settings-grid h3,
+.donation-settings-grid h4 {
+  margin: 0;
+}
+
+.donation-level-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.donation-level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.donation-level-option {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.donation-level-option > span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.donation-level-option small {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.donation-level-option.is-selected {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+}
+
+.donation-level-list .compact-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.donation-level-list .compact-card p {
+  margin: 0.25rem 0;
+  font-weight: 750;
+}
+
+.donation-level-list .compact-card small {
+  color: var(--color-text-muted);
+}
+
 .music-piece-form {
   padding: 0;
 }
@@ -3388,6 +3462,10 @@ footer {
 
   .ticket-scanner__toolbar,
   .ticket-scanner__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .donation-settings-grid {
     grid-template-columns: 1fr;
   }
 

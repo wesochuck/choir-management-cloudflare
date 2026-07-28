@@ -283,6 +283,7 @@ function readMetadata(
         lifecycle_state AS lifecycleState, created_at AS createdAt, updated_at AS updatedAt,
         timezone, roster_configuration_json AS rosterConfigurationJson,
         seating_configuration_json AS seatingConfigurationJson,
+        donation_settings_json AS donationSettingsJson,
         audition_settings_json AS auditionSettingsJson
        FROM organization_metadata WHERE organization_id = ? LIMIT 1`,
       organizationId,

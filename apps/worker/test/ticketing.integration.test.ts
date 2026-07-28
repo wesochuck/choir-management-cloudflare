@@ -9,6 +9,7 @@ import {
   ticketBundleSchema,
   ticketBundlesResponseSchema,
   ticketScanResponseSchema,
+  donationSettingsResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -191,6 +192,50 @@ beforeEach(async () => {
 afterEach(async () => reset());
 
 describe("Organization ticketing", () => {
+  it("persists donation levels and serves them on the public Organization host", async () => {
+    const cookie = await signIn();
+    const initial = donationSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/donation-settings", cookie),
+        )
+      ).json(),
+    );
+    expect(initial.levels).toHaveLength(4);
+
+    const updated = {
+      buttonText: "Support the next concert",
+      description: "Help us bring live choral music to more neighbors.",
+      levels: [
+        {
+          amountCents: 7_500,
+          benefit: "Name in the concert program",
+          id: "community-friend",
+          label: "Community friend",
+        },
+      ],
+    };
+    const saved = donationSettingsResponseSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/donation-settings",
+          "PUT",
+          updated,
+          cookie,
+        )
+      ).json(),
+    );
+    expect(saved).toMatchObject(updated);
+
+    const publicSettings = donationSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("tickets.example.test", "/api/public/donation-settings"))
+      ).json(),
+    );
+    expect(publicSettings).toMatchObject(updated);
+  });
+
   it("creates replay-safe isolated fake orders with capacity and signed receipt protection", async () => {
     const cookie = await signIn();
     const setupHealth = await exports.default.fetch(

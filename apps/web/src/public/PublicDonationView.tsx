@@ -1,6 +1,24 @@
-import { useState, type SyntheticEvent } from "react";
+import type { DonationSettings } from "@choir/contracts";
+import { useEffect, useState, type SyntheticEvent } from "react";
 
-const PRESETS = [2500, 5000, 10000, 25000, 50000];
+import { getPublicDonationSettings } from "../auth/api";
+
+const DEFAULT_SETTINGS: DonationSettings = {
+  buttonText: "Support our Music",
+  description:
+    "Your contribution helps us keep the music playing and supports our mission in the community.",
+  levels: [
+    { amountCents: 2_500, benefit: "Mention in program", id: "level-1", label: "Friend" },
+    { amountCents: 5_000, benefit: "Mention in program", id: "level-2", label: "Supporter" },
+    { amountCents: 10_000, benefit: "Priority seating", id: "level-3", label: "Patron" },
+    {
+      amountCents: 25_000,
+      benefit: "Invitation to VIP reception",
+      id: "level-4",
+      label: "Benefactor",
+    },
+  ],
+};
 
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
@@ -8,15 +26,14 @@ function money(cents: number): string {
   );
 }
 
-type LoadState =
-  { readonly status: "error" } | { readonly status: "loading" } | { readonly status: "ready" };
-
 export function PublicDonationView() {
-  const [state] = useState<LoadState>({ status: "ready" });
+  const [settings, setSettings] = useState<DonationSettings>(DEFAULT_SETTINGS);
+  const [settingsLoading, setSettingsLoading] = useState(true);
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [confirmEmail, setConfirmEmail] = useState("");
-  const [amountCents, setAmountCents] = useState(2500);
+  const [selectedLevelId, setSelectedLevelId] = useState("level-1");
+  const [amountCents, setAmountCents] = useState(DEFAULT_SETTINGS.levels[0]?.amountCents ?? 2_500);
   const [customAmount, setCustomAmount] = useState("");
   const [useCustom, setUseCustom] = useState(false);
   const [tributeType, setTributeType] = useState<"honor" | "memory" | "anonymous" | "none">("none");
@@ -28,7 +45,32 @@ export function PublicDonationView() {
   const [error, setError] = useState<string | null>(null);
   const [checkoutRequestId] = useState(() => crypto.randomUUID());
 
-  function selectPreset(cents: number) {
+  useEffect(() => {
+    const controller = new AbortController();
+    getPublicDonationSettings(controller.signal)
+      .then((loaded) => {
+        setSettings(loaded);
+        const first = loaded.levels[0];
+        if (first) {
+          setSelectedLevelId(first.id);
+          setAmountCents(first.amountCents);
+        } else {
+          setSelectedLevelId("custom");
+        }
+      })
+      .catch(() => {
+        // Defaults keep the public form available while settings are unavailable.
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSettingsLoading(false);
+      });
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  function selectLevel(levelId: string, cents: number): void {
+    setSelectedLevelId(levelId);
     setUseCustom(false);
     setAmountCents(cents);
   }
@@ -93,12 +135,11 @@ export function PublicDonationView() {
     }
   }
 
-  if (state.status === "loading" || state.status === "error") return null;
-
   return (
     <section className="public-section public-section--narrow">
-      <h1>Make a Donation</h1>
-      <p>Your contribution supports our mission to share music with our community.</p>
+      <h1>{settings.buttonText}</h1>
+      <p>{settings.description}</p>
+      {settingsLoading ? <p className="notice notice--info">Loading donation options…</p> : null}
       <form className="panel form-stack" onSubmit={(formEvent) => void submit(formEvent)}>
         {error ? (
           <p className="notice notice--error" role="alert">
@@ -106,36 +147,53 @@ export function PublicDonationView() {
           </p>
         ) : null}
         <fieldset className="field">
-          <legend>Select an amount</legend>
-          <div className="form-grid form-grid--five">
-            {PRESETS.map((cents) => (
+          <legend>Select a donation level</legend>
+          <div className="donation-level-grid">
+            {settings.levels.map((level) => (
               <button
-                className={`button ${!useCustom && amountCents === cents ? "button--primary" : "button--secondary"}`}
+                className={`donation-level-option ${!useCustom && selectedLevelId === level.id ? "is-selected" : ""}`}
                 disabled={busy}
-                key={cents}
+                key={level.id}
                 onClick={() => {
-                  selectPreset(cents);
+                  selectLevel(level.id, level.amountCents);
                 }}
                 type="button"
               >
-                {money(cents)}
+                <span>
+                  <strong>{level.label}</strong>
+                  {level.benefit ? <small>{level.benefit}</small> : null}
+                </span>
+                <strong>{money(level.amountCents)}</strong>
               </button>
             ))}
-          </div>
-          <label className="field">
-            Custom amount
-            <input
-              maxLength={10}
-              min="0"
-              placeholder="0.00"
-              step="0.01"
-              type="text"
-              value={customAmount}
-              onChange={(e) => {
-                handleCustomChange(e.target.value);
+            <button
+              className={`donation-level-option ${useCustom ? "is-selected" : ""}`}
+              disabled={busy}
+              onClick={() => {
+                setUseCustom(true);
+                setSelectedLevelId("custom");
               }}
-            />
-          </label>
+              type="button"
+            >
+              <strong>Custom amount</strong>
+            </button>
+          </div>
+          {useCustom ? (
+            <label className="field">
+              Custom amount
+              <input
+                maxLength={10}
+                min="0"
+                placeholder="0.00"
+                step="0.01"
+                type="text"
+                value={customAmount}
+                onChange={(e) => {
+                  handleCustomChange(e.target.value);
+                }}
+              />
+            </label>
+          ) : null}
         </fieldset>
         <fieldset className="field">
           <legend>Tribute</legend>
