@@ -17,6 +17,7 @@ import {
   uploadPrivateOrganizationFile,
   updateOrganizationMusicPiece,
 } from "../auth/api";
+import { CsvImportDialog } from "./CsvImportDialog";
 
 const maximumAudioBytes = 20 * 1024 * 1024;
 
@@ -487,6 +488,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
   const [roster, setRoster] = useState<OrganizationRosterConfiguration | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [piece, setPiece] = useState<OrganizationMusicPieceRequest>(emptyPiece);
   const [durationInput, setDurationInput] = useState("");
@@ -551,6 +553,12 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setDeleteConfirm(false);
     setUnlinkChildren(false);
     setError(null);
+  }
+
+  function closeImportDialog(): void {
+    if (busy) return;
+    setImportDialogOpen(false);
+    setImportFile(null);
   }
 
   function selectPiece(selected: OrganizationMusicPiece): void {
@@ -656,6 +664,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
       const imported = await importOrganizationMusicCsv(await importFile.text());
       setPieces(await listOrganizationMusic());
       setImportFile(null);
+      setImportDialogOpen(false);
       setMessage(`${String(imported)} music piece(s) imported.`);
     } catch (caught: unknown) {
       setError(
@@ -713,6 +722,17 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               >
                 Add music piece
               </button>
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setMessage(null);
+                  setImportDialogOpen(true);
+                }}
+              >
+                Import CSV
+              </button>
               <a
                 className="button button--secondary"
                 download
@@ -720,29 +740,6 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               >
                 Export CSV
               </a>
-            </div>
-            <div className="form-stack music-csv-import">
-              <label className="field">
-                Import music CSV
-                <input
-                  accept=".csv,text/csv"
-                  type="file"
-                  onChange={(event) => {
-                    setImportFile(event.target.files?.item(0) ?? null);
-                  }}
-                />
-              </label>
-              <button
-                className="button button--secondary"
-                disabled={busy || !importFile}
-                type="button"
-                onClick={() => void importCsv()}
-              >
-                {busy ? "Importing…" : "Import CSV"}
-              </button>
-              <p className="field-help">
-                Imports up to 500 top-level works atomically. Existing catalog entries are retained.
-              </p>
             </div>
             <MusicCatalogTable onEdit={selectPiece} pieces={pieces} search={search} />
           </div>
@@ -924,6 +921,19 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               />
             </form>
           </Dialog>
+          <CsvImportDialog
+            busy={busy}
+            description="Import up to 500 top-level works atomically. Existing catalog entries are retained."
+            error={error}
+            file={importFile}
+            onClose={closeImportDialog}
+            onFileChange={setImportFile}
+            onImport={() => {
+              void importCsv();
+            }}
+            open={importDialogOpen}
+            title="Import music CSV"
+          />
         </div>
       )}
     </section>

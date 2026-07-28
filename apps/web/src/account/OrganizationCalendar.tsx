@@ -30,6 +30,7 @@ import {
   updateOrganizationProfile,
   uploadPrivateOrganizationFile,
 } from "../auth/api";
+import { CsvImportDialog } from "./CsvImportDialog";
 
 interface Resources {
   readonly events: readonly OrganizationEvent[];
@@ -388,45 +389,23 @@ function PublicPerformanceFields({
   );
 }
 
-function RosterCsvControls(props: {
-  readonly busy: boolean;
-  readonly file: File | null;
-  readonly onFileChange: (file: File | null) => void;
-  readonly onImport: () => void;
-}) {
+function RosterCsvControls({ onOpenImport }: { readonly onOpenImport: () => void }) {
   return (
     <div className="form-stack">
       <h3>Roster export</h3>
       <p>Download the baseline-compatible Organization roster as CSV.</p>
-      <a
-        className="button button--secondary"
-        download="choir_roster_export.csv"
-        href="/api/organization/profiles/export.csv"
-      >
-        Download roster CSV
-      </a>
-      <label className="field">
-        Import roster CSV
-        <input
-          accept=".csv,text/csv"
-          type="file"
-          onChange={(change) => {
-            props.onFileChange(change.target.files?.item(0) ?? null);
-          }}
-        />
-      </label>
-      <button
-        className="button button--secondary"
-        disabled={props.busy || !props.file}
-        type="button"
-        onClick={props.onImport}
-      >
-        {props.busy ? "Importing…" : "Import roster CSV"}
-      </button>
-      <p className="field-help">
-        Profiles are created without login access. CSV email addresses are counted as invitation
-        candidates; send Membership invitations separately when ready.
-      </p>
+      <div className="form-actions">
+        <a
+          className="button button--secondary"
+          download="choir_roster_export.csv"
+          href="/api/organization/profiles/export.csv"
+        >
+          Download roster CSV
+        </a>
+        <button className="button button--secondary" onClick={onOpenImport} type="button">
+          Import roster CSV
+        </button>
+      </div>
     </div>
   );
 }
@@ -452,6 +431,7 @@ export function OrganizationCalendar({
   const [rsvpProfileId, setRsvpProfileId] = useState("");
   const [rsvpNote, setRsvpNote] = useState("");
   const [rsvpStatus, setRsvpStatus] = useState<"No" | "Pending" | "Yes">("Pending");
+  const [rosterImportDialogOpen, setRosterImportDialogOpen] = useState(false);
   const [rosterImportFile, setRosterImportFile] = useState<File | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [timezoneInput, setTimezoneInput] = useState("UTC");
@@ -700,6 +680,7 @@ export function OrganizationCalendar({
       const profiles = await listOrganizationProfiles();
       setResources((current) => (current.status === "ready" ? { ...current, profiles } : current));
       setRosterImportFile(null);
+      setRosterImportDialogOpen(false);
       setSuccess(
         `${String(result.imported)} Profile(s) imported. ${String(result.invitationCandidates)} email address(es) are ready for separate Membership invitations.`,
       );
@@ -743,10 +724,11 @@ export function OrganizationCalendar({
           {manager ? (
             <div className="calendar-management-grid">
               <RosterCsvControls
-                busy={busy}
-                file={rosterImportFile}
-                onFileChange={setRosterImportFile}
-                onImport={() => void importRoster()}
+                onOpenImport={() => {
+                  setError(null);
+                  setSuccess(null);
+                  setRosterImportDialogOpen(true);
+                }}
               />
               <form
                 className="form-stack"
@@ -1275,6 +1257,24 @@ export function OrganizationCalendar({
           </div>
         </>
       ) : null}
+      <CsvImportDialog
+        busy={busy}
+        description="Add Profiles from the established roster CSV format."
+        error={error}
+        file={rosterImportFile}
+        helpText="Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
+        onClose={() => {
+          if (busy) return;
+          setRosterImportDialogOpen(false);
+          setRosterImportFile(null);
+        }}
+        onFileChange={setRosterImportFile}
+        onImport={() => {
+          void importRoster();
+        }}
+        open={rosterImportDialogOpen}
+        title="Import roster CSV"
+      />
     </section>
   );
 }

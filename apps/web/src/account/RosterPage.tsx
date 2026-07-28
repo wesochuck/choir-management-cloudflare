@@ -14,6 +14,7 @@ import {
   listOrganizationProfiles,
   updateOrganizationProfile,
 } from "../auth/api";
+import { CsvImportDialog } from "./CsvImportDialog";
 
 const emptyProfile: OrganizationProfileRequest = {
   displayName: "",
@@ -65,6 +66,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [query, setQuery] = useState("");
@@ -110,6 +112,12 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setEditingId(null);
     setProfile(emptyProfile);
     setError(null);
+  }
+
+  function closeImportDialog() {
+    if (busy) return;
+    setImportDialogOpen(false);
+    setImportFile(null);
   }
 
   function openCreate() {
@@ -174,6 +182,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       const profiles = await listOrganizationProfiles();
       setRoster((current) => (current.status === "ready" ? { ...current, profiles } : current));
       setImportFile(null);
+      setImportDialogOpen(false);
       setSuccess(
         `${String(result.imported)} Profile(s) imported. ${String(result.invitationCandidates)} email address(es) are ready for Membership invitations.`,
       );
@@ -214,13 +223,24 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
           >
             Export CSV
           </a>
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              setError(null);
+              setSuccess(null);
+              setImportDialogOpen(true);
+            }}
+            type="button"
+          >
+            Import CSV
+          </button>
           <button className="button button--primary" onClick={openCreate} type="button">
             Add Profile
           </button>
         </div>
       </div>
 
-      {error && !dialogOpen ? (
+      {error && !dialogOpen && !importDialogOpen ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
@@ -238,30 +258,6 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       ) : null}
       {roster.status === "ready" ? (
         <>
-          <div className="surface-card roster-import">
-            <div>
-              <h2>Roster import</h2>
-              <p>Add Profiles from the established roster CSV format.</p>
-            </div>
-            <div className="form-actions">
-              <input
-                accept=".csv,text/csv"
-                aria-label="Import roster CSV"
-                onChange={(event) => {
-                  setImportFile(event.target.files?.[0] ?? null);
-                }}
-                type="file"
-              />
-              <button
-                className="button button--secondary"
-                disabled={busy || !importFile}
-                onClick={() => void importRoster()}
-                type="button"
-              >
-                Import CSV
-              </button>
-            </div>
-          </div>
           <div className="table-heading">
             <h2>Profiles</h2>
             <span>{filteredProfiles.length} shown</span>
@@ -445,6 +441,20 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
           </div>
         </form>
       </Dialog>
+      <CsvImportDialog
+        busy={busy}
+        description="Add Profiles from the established roster CSV format."
+        error={error}
+        file={importFile}
+        helpText="Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
+        onClose={closeImportDialog}
+        onFileChange={setImportFile}
+        onImport={() => {
+          void importRoster();
+        }}
+        open={importDialogOpen}
+        title="Import roster CSV"
+      />
     </>
   );
 }
