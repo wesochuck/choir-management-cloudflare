@@ -145,8 +145,8 @@ the API integration suite.
 blocked/superseded with an approved contract note.
 
 Route-contract repair evidence: 87 unit tests, 118 integration tests, the Stripe Durable Object
-completion/replay/refund/expiry test, and staging Worker version
-`39d00939-901b-4b46-b278-5ac888cefb7a`. Anonymous staging health/readiness probes pass; setup status
+completion/replay/refund/expiry test, and clean commit `deecd8d` deployed as staging Worker version
+`42fc841d-77c7-4c09-a952-b9672768882d`. Anonymous staging health/readiness probes pass; setup status
 correctly returns 401 without a session, while Stripe remains fail-closed with a typed 503 until a
 secure staging webhook secret and signed provider fixture are supplied.
 

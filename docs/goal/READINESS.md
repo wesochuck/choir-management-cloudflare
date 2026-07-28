@@ -111,6 +111,15 @@ and `/admin/setlists` plus `/admin/seating` returned the application shell. The 
 returned the typed 503 fail-closed response because the staging secret is still absent. The remote
 D1 migration ledger reported no pending migrations; these checks did not write control-plane rows.
 
+The route-repair source and evidence were committed and pushed as `deecd8d`. That exact clean commit
+was redeployed on July 28, 2026 as Worker version `42fc841d-77c7-4c09-a952-b9672768882d`.
+Cache-busted product, LCC, and LMC health/readiness probes returned HTTP 200; the product login
+shell returned HTTP 200; anonymous session retrieval returned `null`; LCC setup status remained
+correctly protected with HTTP 401; and Stripe remained fail-closed with the typed HTTP 503
+configuration response. The remote D1 ledger reported no pending migrations. A read-only control
+query confirmed two active Organizations plus one verified, active Platform Administrator identity
+for `cwosborn@gmail.com`.
+
 The local large-data qualification now seeds 5,000 active Profiles and 500 upcoming events in one
 Organization Durable Object and exercises `/api/organization/dashboard-summary`. It returns exact
 counts and five next events in under one second, confirming bounded `COUNT`/`LIMIT` behavior without
@@ -161,7 +170,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `39d00939-901b-4b46-b278-5ac888cefb7a`
+- Current verified Worker version: `42fc841d-77c7-4c09-a952-b9672768882d` (commit `deecd8d`)
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
