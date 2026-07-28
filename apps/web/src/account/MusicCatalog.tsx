@@ -678,10 +678,8 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   if (!enabled) return null;
 
   return (
-    <section className="account-section" aria-labelledby="music-catalog-title">
+    <section className="account-section" aria-label="Music catalog">
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Repertoire</p>
-        <h2 id="music-catalog-title">Music catalog</h2>
         <p className="section-description">
           Manage owned works and movements. Audio tracks remain private Organization files and will
           appear here when linked through the track workflow.

@@ -229,9 +229,7 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
   if (!enabled) return null;
   return (
     <>
-      <section className="panel" aria-labelledby="seasons-manager-heading">
-        <p className="eyebrow">Manager tools</p>
-        <h2 id="seasons-manager-heading">Seasons &amp; Dues</h2>
+      <section className="panel" aria-label="Season and dues management">
         {error && !seasonDialogOpen && !confirmSeason ? (
           <p className="notice notice--error" role="alert">
             {error}

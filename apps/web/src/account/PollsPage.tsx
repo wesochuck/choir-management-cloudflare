@@ -114,12 +114,8 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     );
   }
   return (
-    <section className="manager-page" aria-labelledby="polls-page-title">
-      <div className="page-toolbar">
-        <div>
-          <p className="eyebrow">Communications</p>
-          <h2 id="polls-page-title">Polls</h2>
-        </div>
+    <section className="manager-page" aria-label="Poll management">
+      <div className="page-toolbar page-toolbar--end">
         <button
           className="button button--primary"
           onClick={() => {

@@ -88,9 +88,7 @@ function ManagerStatusPanel({
       ? "Loading auditions…"
       : "Auditions could not be loaded. Try refreshing the page.";
   return (
-    <section className="panel" aria-labelledby="auditions-title">
-      <p className="eyebrow">Auditions</p>
-      <h2 id="auditions-title">Audition Management</h2>
+    <section className="panel" aria-label="Audition management status">
       <p
         className={!enabled || status === "loading" ? undefined : "notice notice--error"}
         role={!enabled || status === "loading" ? undefined : "alert"}
@@ -1119,16 +1117,11 @@ export function AuditionManager({ enabled }: Props) {
   }
 
   return (
-    <section className="panel" aria-labelledby="auditions-title">
-      <div className="section-heading section-heading--compact">
-        <div>
-          <p className="eyebrow">Auditions</p>
-          <h2 id="auditions-title">Audition Management</h2>
-          <p>
-            Review inquiries, schedule time slots, and convert candidates into Organization
-            Profiles.
-          </p>
-        </div>
+    <section className="panel" aria-label="Audition management">
+      <div className="page-toolbar">
+        <p className="section-description">
+          Review inquiries, schedule time slots, and convert candidates into Organization Profiles.
+        </p>
         <div className="table-actions">
           <button
             className="button"

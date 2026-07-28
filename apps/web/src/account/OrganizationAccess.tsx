@@ -30,17 +30,6 @@ function displayDate(value: string): string {
   );
 }
 
-function roleLabel(role: OrganizationAuthStatusResponse["role"]): string {
-  switch (role) {
-    case "administrator":
-      return "Organization Administrator";
-    case "member":
-      return "Organization Member";
-    case "owner":
-      return "Organization Owner";
-  }
-}
-
 async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
   try {
     return { context: await getOrganizationAuthStatus(signal), status: "ready" };
@@ -559,10 +548,9 @@ export function OrganizationAccess({
   if (accessState.status === "error") {
     return (
       <section
+        aria-label="Organization security"
         className="account-section account-section--organization-security"
-        aria-labelledby="organization-security-title"
       >
-        <h2 id="organization-security-title">Organization security</h2>
         <p className="notice notice--error" role="alert">
           Organization security status could not be loaded. Refresh and try again.
         </p>
@@ -580,13 +568,9 @@ export function OrganizationAccess({
 
   return (
     <section
+      aria-label="Organization security"
       className="account-section account-section--organization-security"
-      aria-labelledby="organization-security-title"
     >
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">{roleLabel(context.role)}</p>
-        <h2 id="organization-security-title">Organization security</h2>
-      </div>
       <p className="section-description">
         This Organization was selected by the validated hostname. Its MFA assertion is bound to this
         Organization, your identity, and this browser session.

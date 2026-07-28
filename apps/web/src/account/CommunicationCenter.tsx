@@ -358,10 +358,10 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
 
   if (!enabled) return null;
   return (
-    <section className="panel" aria-labelledby="communications-heading">
-      <p className="eyebrow">Manager tools</p>
-      <h2 id="communications-heading">Communications</h2>
-      <p>Compose Markdown email, SMS, or both. Use {"{singerName}"} for each recipient’s name.</p>
+    <section className="panel" aria-label="Communication center">
+      <p className="section-description">
+        Compose Markdown email, SMS, or both. Use {"{singerName}"} for each recipient’s name.
+      </p>
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}

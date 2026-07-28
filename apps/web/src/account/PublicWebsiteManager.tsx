@@ -181,10 +181,8 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     );
   }
   return (
-    <section className="panel" aria-labelledby="public-website-heading">
-      <p className="eyebrow">Manager tools</p>
-      <h2 id="public-website-heading">Public Website</h2>
-      <p>
+    <section className="panel" aria-label="Public website settings">
+      <p className="section-description">
         Edit a private draft, then publish an immutable edge-cached version for Organization
         visitors.
       </p>

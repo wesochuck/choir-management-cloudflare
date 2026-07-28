@@ -201,10 +201,10 @@ export function TicketingManager({
   if (!enabled) return null;
   if (scanOnly) {
     return (
-      <section className="panel" aria-labelledby="ticket-scanner-page-heading">
-        <p className="eyebrow">Manager tools</p>
-        <h2 id="ticket-scanner-page-heading">Ticket scanner</h2>
-        <p>Scan a ticket QR code at the door or validate a ticket credential manually.</p>
+      <section className="panel" aria-label="Ticket scanner">
+        <p className="section-description">
+          Scan a ticket QR code at the door or validate a ticket credential manually.
+        </p>
         <TicketScanner events={ticketEvents} />
       </section>
     );

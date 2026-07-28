@@ -163,10 +163,8 @@ export function OrganizationResources({
 
   if (!enabled) return null;
   return (
-    <section className="panel" aria-labelledby="organization-resources-heading">
-      <p className="eyebrow">Member library</p>
-      <h2 id="organization-resources-heading">Organization resources</h2>
-      <p>Shared files and trusted links for this Organization.</p>
+    <section className="panel" aria-label="Organization resources">
+      <p className="section-description">Shared files and trusted links for this Organization.</p>
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}

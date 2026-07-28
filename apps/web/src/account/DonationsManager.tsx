@@ -218,9 +218,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
 
   if (!enabled) return null;
   return (
-    <section className="panel" aria-labelledby="donations-manager-heading">
-      <p className="eyebrow">Manager tools</p>
-      <h2 id="donations-manager-heading">Donations</h2>
+    <section className="panel" aria-label="Donations and patrons management">
       {message ? (
         <p className="notice notice--info" role="status">
           {message}

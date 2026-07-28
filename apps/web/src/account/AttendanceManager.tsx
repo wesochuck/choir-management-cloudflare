@@ -97,11 +97,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
 
   if (!enabled) return null;
   return (
-    <section className="account-section" aria-labelledby="attendance-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Administrator tools</p>
-        <h2 id="attendance-title">Attendance</h2>
-      </div>
+    <section className="account-section" aria-label="Attendance management">
       <p className="section-description">
         Mark each Profile Present, Absent, or Pending. Present promotes a Pending RSVP to Yes.
       </p>

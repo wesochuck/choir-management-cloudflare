@@ -64,9 +64,7 @@ export function SetupChecklistView() {
   const completedCount = allSteps.filter((step) => setup.completedSteps.includes(step)).length;
 
   return (
-    <section className="panel" aria-labelledby="setup-checklist-heading">
-      <p className="eyebrow">Manager tools</p>
-      <h2 id="setup-checklist-heading">Setup Progress</h2>
+    <section className="panel" aria-label="Setup progress">
       <p>
         {completedCount} of {allSteps.length} steps completed.
       </p>

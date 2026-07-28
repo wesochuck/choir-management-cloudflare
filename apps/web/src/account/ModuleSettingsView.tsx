@@ -73,9 +73,7 @@ export function ModuleSettingsView() {
     );
 
   return (
-    <section className="panel" aria-labelledby="module-settings-heading">
-      <p className="eyebrow">Manager tools</p>
-      <h2 id="module-settings-heading">Module Settings</h2>
+    <section className="panel" aria-label="Module settings">
       {message ? (
         <p className="notice notice--info" role="status">
           {message}
