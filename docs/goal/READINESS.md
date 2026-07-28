@@ -1,6 +1,6 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 28, 2026 **Status:** The July 26 parity recheck now records 66 verified, 124
+**Prepared:** July 28, 2026 **Status:** The July 28 staging recheck now records 68 verified, 122
 implemented, 0 partial, and 0 planned entries across nine sections. Setup recovery and Stripe
 webhooks now have typed, tenant-scoped implementations and focused local tests; staging signed-
 provider and privileged replay evidence remains outstanding. The route-repair plan and automated
@@ -18,7 +18,7 @@ audition, set-list, export, music-recency, and theme gaps. A deployed public rou
 all 60 browser routes and exposed 24 legacy API paths that had only renamed equivalents. Twenty-one
 compatibility handlers are now restored and covered by local integration checks; the remaining four
 anonymous probes are expected invalid-link/not-found states. Setup recovery and Stripe webhook
-processing are now implemented and covered by focused local tests. The remaining 124 `implemented`
+processing are now implemented and covered by focused local tests. The remaining 122 `implemented`
 entries still need their broader permanent-staging qualification. The new
 `npm run check:parity:implementation` gate reproduces this source-route comparison without
 contacting staging or mutating data.
@@ -164,6 +164,10 @@ automation or credentials: the default product/LCC/LMC run passed 183 browser-sh
 probes, and 75 registered-host GET API probes. Supplying
 `STAGING_UNREGISTERED_URL=https://qualification-check.staging.musicsite.org` also passed the
 unregistered wildcard-host boundary (244 shell probes and 12 core probes total).
+
+The public audition-settings contract returned HTTP 200 on both canonical Organization hosts, with
+the tenant-local default response shape and no cross-host data exposed; this promotes that public
+API entry alongside the already verified hook-health endpoint.
 
 The local non-browser gate was rerun from this exact commit: formatting, lint, strict typecheck, 87
 unit tests, 118 workerd integration tests, and all workspace builds passed. Integration output still

@@ -868,9 +868,9 @@
         "path": "/api/hooks/health",
         "owner": "apps/worker",
         "milestone": 1,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1478",
-        "targetEvidence": ["apps/worker/src/router.ts"],
+        "targetEvidence": ["apps/worker/src/router.ts", "docs/goal/READINESS.md"],
       },
       {
         "id": "api.organization.donations",
@@ -1720,7 +1720,7 @@
         "path": "/api/public/audition-settings",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/services/settings/auditionSettings.ts; src/views/public/AuditionInquiryView.tsx",
         "targetEvidence":
@@ -1730,6 +1730,7 @@
             "apps/worker/test/calendarManagement.integration.test.ts",
             "apps/web/src/public/PublicAuditionView.tsx",
             "apps/web/e2e/auditions.spec.ts",
+            "docs/goal/READINESS.md",
           ],
       },
       {

@@ -10,7 +10,7 @@ and target-evidence paths. It does not prove that an entry's behavior matches th
 pass compared the current implementation with the legacy source, current contracts, the Organization
 Durable Object handlers, and the focused browser/integration tests.
 
-The matrix now records **66 verified, 124 implemented, 0 partial, and 0 planned** entries across
+The matrix now records **68 verified, 122 implemented, 0 partial, and 0 planned** entries across
 nine sections (190 entries total after adding the asynchronous export routes). `verified` means the
 entry has both the required local evidence and permanent-staging evidence; `implemented` means the
 behavior and focused local/integration evidence exist, while staging proof is still outstanding;
@@ -29,12 +29,12 @@ compatibility gaps; both now have typed target handlers and focused local eviden
 
 ### Open work across the remaining entries
 
-The remaining 124 non-verified entries are staging evidence debt for the 124 implemented entries:
+The remaining 122 non-verified entries are staging evidence debt for the 122 implemented entries:
 
 | Section               | Entries still `implemented` | Completion evidence still required                                                                                                                                 |
 | --------------------- | --------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Public browser routes |                           0 | All 60 browser routes now have a deployed route/empty-state sweep; retain these checks in release automation.                                                      |
-| API routes            |                          70 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
+| API routes            |                          68 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
 | Record hooks          |                           4 | Workerd/integration replay and audit evidence on the deployed schema; no live external effect.                                                                     |
 | Background tasks      |                           5 | Queue/alarm replay, retry, idempotency, and dead-letter visibility evidence with staging-safe fixtures.                                                            |
 | CSV contracts         |                           7 | Import/export round trips and malformed/oversized input checks against Organization-scoped fixtures.                                                               |
@@ -70,7 +70,7 @@ seed placeholder provider keys into staging.
   completion-after-expiry coverage is green; staging still needs the signed provider fixture and
   rollback drill.
 
-The remaining 124 `implemented` entries are evidence debt: each has target code and focused tests,
+The remaining 122 `implemented` entries are evidence debt: each has target code and focused tests,
 but still needs the staging success plus authorization, validation, retry, or tenant-isolation proof
 listed in the table. Keep these entries as `implemented` until that evidence is captured.
 
@@ -197,7 +197,7 @@ configured. No router-level 404 or unhandled 5xx occurred. This closes the publi
 does not promote authenticated API, queue/file/CSV, signed-flow, or responsive entries by itself.
 
 **Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes. Phase E
-remains open until the 124 implemented entries are staging-verified or explicitly blocked by a
+remains open until the 122 implemented entries are staging-verified or explicitly blocked by a
 documented external prerequisite; production remains unlaunched.
 
 ### Phase F — Whole-product release gate (not started)
