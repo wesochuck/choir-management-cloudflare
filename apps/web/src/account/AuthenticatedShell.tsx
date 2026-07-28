@@ -530,17 +530,6 @@ function OverviewPage({
           ))}
         </div>
       </section>
-      <section
-        className="overview-section overview-section--quiet"
-        aria-labelledby="workspace-note-title"
-      >
-        <p className="eyebrow">Workspace note</p>
-        <h2 id="workspace-note-title">Focused pages keep work easy to find</h2>
-        <p>
-          Choose a section from the navigation to work with one kind of information at a time. Your
-          Organization boundary and permissions remain enforced for every page and action.
-        </p>
-      </section>
       {context?.mfaRequired && !context.mfaVerifiedUntil ? (
         <p className="notice notice--warning">
           Organization MFA is required before operational data can be opened. Visit Organization

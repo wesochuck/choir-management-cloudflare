@@ -1,9 +1,4 @@
-import type {
-  DuesRecord,
-  Season,
-  SeasonCreateRequest,
-  SeasonUpdateRequest,
-} from "@choir/contracts";
+import type { DuesRecord, Season, SeasonCreateRequest } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
 
@@ -52,7 +47,7 @@ function dateOnly(value: string): string {
   return value.slice(0, 10);
 }
 
-function seasonPayload(form: SeasonForm): SeasonCreateRequest | SeasonUpdateRequest {
+function seasonPayload(form: SeasonForm): SeasonCreateRequest {
   const amount = Number(form.duesAmount);
   return {
     duesAmountCents: Math.round(amount * 100),
@@ -77,6 +72,7 @@ function apiError(error: unknown, fallback: string): string {
   return error instanceof AuthApiError ? error.message : fallback;
 }
 
+// eslint-disable-next-line complexity -- this coordinator owns the two related season and dues workflows.
 export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
   const [seasonState, setSeasonState] = useState<SeasonState>({ status: "loading" });
   const [duesState, setDuesState] = useState<DuesState>({ status: "loading" });
