@@ -1,9 +1,4 @@
-import type {
-  OrganizationEvent,
-  OrganizationTicketOrder,
-  TicketBundle,
-  TicketScanResult,
-} from "@choir/contracts";
+import type { OrganizationEvent, OrganizationTicketOrder, TicketBundle } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
@@ -15,8 +10,8 @@ import {
   refundOrganizationTicketOrder,
   resendTicketConfirmation,
   saveTicketBundle,
-  validateTicketScan,
 } from "../auth/api";
+import { TicketScanner } from "./TicketScanner";
 
 type OrderState =
   | { readonly status: "error" }
@@ -31,15 +26,18 @@ function money(cents: number): string {
 
 // This component coordinates three intentionally co-located manager tools and their shared state.
 // eslint-disable-next-line complexity
-export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
+export function TicketingManager({
+  enabled,
+  scanOnly = false,
+}: {
+  readonly enabled: boolean;
+  readonly scanOnly?: boolean;
+}) {
   const [state, setState] = useState<OrderState>({ status: "loading" });
   const [refundId, setRefundId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [ticketEvents, setTicketEvents] = useState<readonly OrganizationEvent[]>([]);
-  const [eventId, setEventId] = useState("");
-  const [scanToken, setScanToken] = useState("");
-  const [scanResult, setScanResult] = useState<TicketScanResult | null>(null);
   const [bundles, setBundles] = useState<readonly TicketBundle[]>([]);
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
@@ -53,27 +51,36 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    Promise.all([
-      listOrganizationTicketOrders(controller.signal),
+    const ordersRequest = scanOnly
+      ? Promise.resolve<readonly OrganizationTicketOrder[]>([])
+      : listOrganizationTicketOrders(controller.signal);
+    const bundlesRequest = scanOnly
+      ? Promise.resolve<readonly TicketBundle[]>([])
+      : listTicketBundles(controller.signal);
+    void Promise.allSettled([
+      ordersRequest,
       listOrganizationEvents(controller.signal),
-      listTicketBundles(controller.signal),
-    ])
-      .then(([orders, events, loadedBundles]) => {
-        setState({ orders, status: "ready" });
-        const ticketed = events.filter(
-          (event) => event.type === "Performance" && event.isTicketingEnabled,
+      bundlesRequest,
+    ]).then(([ordersResult, eventsResult, bundlesResult]) => {
+      if (controller.signal.aborted) return;
+      if (ordersResult.status === "fulfilled") {
+        setState({ orders: ordersResult.value, status: "ready" });
+      } else {
+        setState({ status: "error" });
+      }
+      if (eventsResult.status === "fulfilled") {
+        setTicketEvents(
+          eventsResult.value.filter(
+            (event) => event.type === "Performance" && event.isTicketingEnabled,
+          ),
         );
-        setTicketEvents(ticketed);
-        setEventId((current) => (current.length > 0 ? current : (ticketed[0]?.id ?? "")));
-        setBundles(loadedBundles);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setState({ status: "error" });
-      });
+      }
+      if (bundlesResult.status === "fulfilled") setBundles(bundlesResult.value);
+    });
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, scanOnly]);
 
   function clearBundleForm() {
     setEditingBundleId(null);
@@ -156,20 +163,6 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
-  async function scan(formEvent: SyntheticEvent<HTMLFormElement>) {
-    formEvent.preventDefault();
-    setBusy(true);
-    setMessage(null);
-    setScanResult(null);
-    try {
-      setScanResult(await validateTicketScan({ eventId, token: scanToken.trim() }));
-    } catch {
-      setMessage("The ticket credential could not be validated.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function refund(purchaseId: string) {
     setBusy(true);
     setMessage(null);
@@ -206,11 +199,26 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
   }
 
   if (!enabled) return null;
+  if (scanOnly) {
+    return (
+      <section className="panel" aria-labelledby="ticket-scanner-page-heading">
+        <p className="eyebrow">Manager tools</p>
+        <h2 id="ticket-scanner-page-heading">Ticket scanner</h2>
+        <p>Scan a ticket QR code at the door or validate a ticket credential manually.</p>
+        <TicketScanner events={ticketEvents} />
+      </section>
+    );
+  }
   return (
     <section className="panel" aria-labelledby="ticketing-manager-heading">
       <p className="eyebrow">Manager tools</p>
       <h2 id="ticketing-manager-heading">Ticket Orders</h2>
       <p>Ticket prices and capacity are configured on each performance.</p>
+      <div className="table-actions">
+        <a className="button button--secondary" href="/admin/tickets/scan">
+          Scan tickets
+        </a>
+      </div>
       {message ? (
         <p className="notice notice--info" role="status">
           {message}
@@ -366,64 +374,7 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
           ))}
         </div>
       </div>
-      <div className="split-panel">
-        <form className="form-stack" onSubmit={(formEvent) => void scan(formEvent)}>
-          <h3>Door validation</h3>
-          <label className="field">
-            Performance
-            <select
-              required
-              value={eventId}
-              onChange={(event) => {
-                setEventId(event.target.value);
-                setScanResult(null);
-              }}
-            >
-              <option value="">Select a performance</option>
-              {ticketEvents.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            Ticket credential
-            <textarea
-              required
-              rows={4}
-              value={scanToken}
-              onChange={(event) => {
-                setScanToken(event.target.value);
-                setScanResult(null);
-              }}
-            />
-          </label>
-          <div className="form-actions">
-            <button className="button button--primary" disabled={busy || !eventId} type="submit">
-              {busy ? "Validating…" : "Validate ticket"}
-            </button>
-            {eventId ? (
-              <a
-                className="button button--secondary"
-                href={`/api/organization/tickets/will-call?eventId=${encodeURIComponent(eventId)}`}
-              >
-                Download will-call CSV
-              </a>
-            ) : null}
-          </div>
-          {scanResult ? (
-            <p
-              className={`notice ${scanResult.valid ? "notice--success" : "notice--error"}`}
-              role="status"
-            >
-              {scanResult.valid
-                ? `Valid: ${scanResult.buyerName}, ${String(scanResult.quantity)} ticket${scanResult.quantity === 1 ? "" : "s"}.`
-                : `Not valid: ${scanResult.reason.replaceAll("_", " ")}.`}
-            </p>
-          ) : null}
-        </form>
-      </div>
+      <TicketScanner events={ticketEvents} />
       {state.status === "loading" ? <p>Loading ticket orders…</p> : null}
       {state.status === "error" ? (
         <p className="notice notice--error">Ticket orders could not be loaded.</p>
