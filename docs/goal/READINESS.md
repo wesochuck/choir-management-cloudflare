@@ -144,9 +144,9 @@ part of the open Milestone 6 staging gate.
 
 ## July 28 current staging qualification
 
-The authoritative `main` commit `4833e18` passed the GitHub CI workflow and its automatic staging
+The authoritative `main` commit `9eb4075` passed the GitHub CI workflow and its automatic staging
 deployment completed successfully. The current 100%-traffic Worker version is
-`c57fb241-d693-4b30-aa56-ed89ada0098b`; the permanent staging URL remains
+`ef560011-c078-4acb-92c1-c2f0eee49029`; the permanent staging URL remains
 `https://staging.musicsite.org` with canonical `lcc` and `lmc` Organization hosts. Fresh HTTPS
 probes returned HTTP 200 for `/`, `/api/health`, and `/api/ready`, and the remote control D1 ledger
 reported no migrations to apply.
@@ -163,6 +163,13 @@ The local non-browser gate was rerun from this exact commit: formatting, lint, s
 unit tests, 118 workerd integration tests, and all workspace builds passed. Integration output still
 contains the expected FleetSchema negative-test identity warning; it does not affect the zero exit
 status. Browser automation remains intentionally deferred to conserve tokens.
+
+The staging rollback drill then moved 100% of traffic from `ef560011-c078-4acb-92c1-c2f0eee49029` to
+the prior qualified `c57fb241-d693-4b30-aa56-ed89ada0098b`. The product shell, login shell, health,
+and readiness all returned HTTP 200 during the rollback. Traffic was restored to
+`ef560011-c078-4acb-92c1-c2f0eee49029`; health/readiness remained 200 and the remote D1 migration
+ledger remained clean. Rollback changed Worker traffic only and did not alter D1, Durable Object,
+R2, KV, queues, or Workflow state.
 
 ## Repository topology
 
@@ -207,7 +214,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `c57fb241-d693-4b30-aa56-ed89ada0098b` (commit `4833e18`)
+- Current verified Worker version: `ef560011-c078-4acb-92c1-c2f0eee49029` (commit `9eb4075`)
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
