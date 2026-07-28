@@ -63,6 +63,7 @@ import { listMusicPiecesFromStore, manageMusicInStore } from "./musicStore";
 import { listResourcesFromStore, manageResourceInStore } from "./resourceStore";
 import {
   listCommunicationMessagesFromStore,
+  listCommunicationScheduledMessagesFromStore,
   listCommunicationTemplatesFromStore,
   manageCommunicationInStore,
   readCommunicationJobFromStore,
@@ -1657,6 +1658,8 @@ const contentGetHandlers: Record<
     listResourcesFromStore(storage, organizationId),
   "/internal/communications": (storage, _url, organizationId) =>
     listCommunicationMessagesFromStore(storage, organizationId),
+  "/internal/communications/scheduled": (storage, _url, organizationId) =>
+    listCommunicationScheduledMessagesFromStore(storage, organizationId),
   "/internal/communications/templates": (storage, _url, organizationId) =>
     listCommunicationTemplatesFromStore(storage, organizationId),
   "/internal/communications/summary": (

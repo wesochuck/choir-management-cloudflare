@@ -157,6 +157,7 @@ import {
 import {
   CommunicationRepositoryError,
   listOrganizationCommunications,
+  listOrganizationScheduledMessages,
   listCommunicationTemplates,
   previewCommunicationReach,
   readCommunicationDeliverySummary,
@@ -4595,6 +4596,28 @@ router.get("/api/organization/communications", async (context) => {
       error,
       context.get("requestId"),
       "Communication history is temporarily unavailable.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.get("/api/organization/communications/scheduled", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  try {
+    return context.json({
+      messages: await listOrganizationScheduledMessages(context.env, authorization.organizationId),
+      requestId: context.get("requestId"),
+    });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "Scheduled communications are temporarily unavailable.",
     );
     return context.json(result.problem, result.status);
   }

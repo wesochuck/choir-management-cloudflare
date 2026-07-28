@@ -865,6 +865,11 @@ export const communicationAudienceRequestSchema = z.object({
     .default(["Active"]),
   profileIds: z.array(z.uuid()).max(500).default([]),
   rsvp: z.enum(["All", "Yes", "No", "Pending"]).default("All"),
+  targetAudiences: z
+    .array(z.enum(["Members", "Ticket Buyers", "Donors"]))
+    .min(1)
+    .max(3)
+    .default(["Members"]),
   voiceParts: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
 });
 
@@ -962,6 +967,22 @@ export const communicationDeliverySummarySchema = z.object({
   total: communicationChannelCountsSchema,
 });
 
+export const communicationScheduledMessageSchema = z.object({
+  eventId: z.uuid().nullable(),
+  eventTitle: z.string().max(500),
+  id: z.uuid(),
+  kind: z.enum(["attendance_report", "event_reminder", "ticket_confirmation", "ticket_reminder"]),
+  recipientCount: z.number().int().nonnegative(),
+  scheduledAt: z.iso.datetime(),
+  status: z.enum(["Failed", "Queued", "Scheduled", "Sent"]),
+  subject: z.string().max(500),
+});
+
+export const communicationScheduledMessagesResponseSchema = z.object({
+  messages: z.array(communicationScheduledMessageSchema).max(200),
+  requestId: requestIdSchema,
+});
+
 export const communicationMessageResponseSchema = communicationMessageSchema.and(
   z.object({ requestId: requestIdSchema }),
 );
@@ -1006,6 +1027,7 @@ export type CommunicationDeliverySummary = z.infer<typeof communicationDeliveryS
 export type CommunicationDraftRequest = z.infer<typeof communicationDraftRequestSchema>;
 export type CommunicationMessage = z.infer<typeof communicationMessageSchema>;
 export type CommunicationReach = z.infer<typeof communicationReachSchema>;
+export type CommunicationScheduledMessage = z.infer<typeof communicationScheduledMessageSchema>;
 export type CommunicationSendRequest = z.infer<typeof communicationSendRequestSchema>;
 export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
 export type CommunicationTemplateRequest = z.infer<typeof communicationTemplateRequestSchema>;

@@ -1426,6 +1426,12 @@ h2 {
   font-size: 0.8rem;
 }
 
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.5rem 1rem;
+}
+
 .seating-save-status {
   min-width: 5.25rem;
   color: var(--color-text-muted);

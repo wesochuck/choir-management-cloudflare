@@ -3,6 +3,7 @@ import type {
   CommunicationChannel,
   CommunicationDeliverySummary,
   CommunicationMessage,
+  CommunicationScheduledMessage,
   CommunicationTemplate,
   OrganizationEvent,
 } from "@choir/contracts";
@@ -14,6 +15,7 @@ import {
   deleteOrganizationCommunicationTemplate,
   getOrganizationCommunicationDeliverySummary,
   listOrganizationCommunications,
+  listOrganizationScheduledMessages,
   listOrganizationCommunicationTemplates,
   listOrganizationEvents,
   previewOrganizationCommunicationReach,
@@ -28,6 +30,7 @@ const defaultAudience: CommunicationAudienceRequest = {
   globalStatuses: ["Active"],
   profileIds: [],
   rsvp: "All",
+  targetAudiences: ["Members"],
   voiceParts: [],
 };
 
@@ -51,6 +54,8 @@ function channelFromValue(value: string): CommunicationChannel {
   if (value === "SMS" || value === "Both") return value;
   return "Email";
 }
+
+const audienceOptions = ["Members", "Ticket Buyers", "Donors"] as const;
 
 function TemplateLibrary({
   channel,
@@ -173,6 +178,7 @@ function TemplateLibrary({
   );
 }
 
+// eslint-disable-next-line complexity -- this coordinator owns compose, audience, scheduled-message, and delivery workflows.
 export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) {
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
@@ -180,6 +186,9 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
   const [subject, setSubject] = useState("");
   const [voiceParts, setVoiceParts] = useState("");
   const [messages, setMessages] = useState<readonly CommunicationMessage[]>([]);
+  const [scheduledMessages, setScheduledMessages] = useState<
+    readonly CommunicationScheduledMessage[]
+  >([]);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
   const [reach, setReach] = useState<string | null>(null);
@@ -192,10 +201,12 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     const controller = new AbortController();
     Promise.all([
       listOrganizationCommunications(controller.signal),
+      listOrganizationScheduledMessages(controller.signal),
       listOrganizationEvents(controller.signal),
     ])
-      .then(([loadedMessages, loadedEvents]) => {
+      .then(([loadedMessages, loadedScheduledMessages, loadedEvents]) => {
         setMessages(loadedMessages);
+        setScheduledMessages(loadedScheduledMessages);
         setEvents(loadedEvents);
       })
       .catch((failure: unknown) => {
@@ -322,6 +333,29 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     }));
   }
 
+  function toggleAudience(target: (typeof audienceOptions)[number], checked: boolean) {
+    setAudience((current) => ({
+      ...current,
+      targetAudiences: checked
+        ? [...new Set([...current.targetAudiences, target])]
+        : current.targetAudiences.filter((candidate) => candidate !== target),
+    }));
+    setReach(null);
+  }
+
+  function scheduledKindLabel(kind: CommunicationScheduledMessage["kind"]): string {
+    switch (kind) {
+      case "attendance_report":
+        return "Attendance report";
+      case "event_reminder":
+        return "Event reminder";
+      case "ticket_confirmation":
+        return "Ticket confirmation";
+      case "ticket_reminder":
+        return "Ticket buyer reminder";
+    }
+  }
+
   if (!enabled) return null;
   return (
     <section className="panel" aria-labelledby="communications-heading">
@@ -362,59 +396,91 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
           </select>
         </div>
         <fieldset>
-          <legend>Profile status</legend>
-          {(["Active", "Idle", "Inactive"] as const).map((status) => (
-            <label key={status}>
+          <legend>Audience</legend>
+          <p className="field-help">
+            Donors and ticket buyers include paid contacts who opted into updates. An event-specific
+            ticket audience includes all paid buyers for that event.
+          </p>
+          <div className="checkbox-grid">
+            {audienceOptions.map((target) => (
+              <label key={target} className="checkbox-row">
+                <input
+                  checked={audience.targetAudiences.includes(target)}
+                  disabled={
+                    audience.targetAudiences.length === 1 &&
+                    audience.targetAudiences.includes(target)
+                  }
+                  onChange={(event) => {
+                    toggleAudience(target, event.target.checked);
+                  }}
+                  type="checkbox"
+                />
+                {target}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {audience.targetAudiences.includes("Members") ? (
+          <>
+            <fieldset>
+              <legend>Profile status</legend>
+              {(["Active", "Idle", "Inactive"] as const).map((status) => (
+                <label key={status}>
+                  <input
+                    checked={audience.globalStatuses.includes(status)}
+                    onChange={(event) => {
+                      toggleStatus(status, event.target.checked);
+                      setReach(null);
+                    }}
+                    type="checkbox"
+                  />
+                  {status === "Idle" ? "On Break" : status}
+                </label>
+              ))}
+            </fieldset>
+            <div className="field">
+              <label htmlFor="communication-voice-parts">Voice parts or sections (optional)</label>
               <input
-                checked={audience.globalStatuses.includes(status)}
+                id="communication-voice-parts"
                 onChange={(event) => {
-                  toggleStatus(status, event.target.checked);
+                  setVoiceParts(event.target.value);
                   setReach(null);
                 }}
-                type="checkbox"
+                placeholder="S1, S2, A"
+                value={voiceParts}
               />
-              {status === "Idle" ? "On Break" : status}
-            </label>
-          ))}
-        </fieldset>
-        <div className="field">
-          <label htmlFor="communication-voice-parts">Voice parts or sections (optional)</label>
-          <input
-            id="communication-voice-parts"
-            onChange={(event) => {
-              setVoiceParts(event.target.value);
-              setReach(null);
-            }}
-            placeholder="S1, S2, A"
-            value={voiceParts}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="communication-event">Event audience (optional)</label>
-          <select
-            id="communication-event"
-            onChange={(event) => {
-              const eventId = event.target.value || null;
-              setAudience((current) => ({
-                ...current,
-                eventId,
-                rsvp: eventId ? current.rsvp : "All",
-              }));
-              setReach(null);
-            }}
-            value={audience.eventId ?? ""}
-          >
-            <option value="">All matching Profiles</option>
-            {events.map((event) => (
-              <option key={event.id} value={event.id}>
-                {eventLabel(event)}
-              </option>
-            ))}
-          </select>
-        </div>
-        {audience.eventId ? (
+            </div>
+          </>
+        ) : null}
+        {audience.targetAudiences.includes("Members") ||
+        audience.targetAudiences.includes("Ticket Buyers") ? (
           <div className="field">
-            <label htmlFor="communication-rsvp">RSVP response</label>
+            <label htmlFor="communication-event">Event audience (optional)</label>
+            <select
+              id="communication-event"
+              onChange={(event) => {
+                const eventId = event.target.value || null;
+                setAudience((current) => ({
+                  ...current,
+                  eventId,
+                  rsvp: eventId ? current.rsvp : "All",
+                }));
+                setReach(null);
+              }}
+              value={audience.eventId ?? ""}
+            >
+              <option value="">All matching contacts</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {eventLabel(event)}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        {audience.eventId && audience.targetAudiences.includes("Members") ? (
+          <div className="field">
+            <label htmlFor="communication-rsvp">Member RSVP response</label>
             <select
               id="communication-rsvp"
               onChange={(event) => {
@@ -490,6 +556,28 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
         }}
         subject={subject}
       />
+
+      <h3>Scheduled and automated messages</h3>
+      {scheduledMessages.length === 0 ? (
+        <p>No scheduled messages yet.</p>
+      ) : (
+        <ul className="account-list">
+          {scheduledMessages.map((message) => (
+            <li key={message.id}>
+              <div>
+                <strong>{scheduledKindLabel(message.kind)}</strong>
+                <p>
+                  {message.eventTitle} · {message.subject}
+                </p>
+              </div>
+              <div>
+                <span className="status-pill">{message.status}</span>
+                <p>{displayDate(message.scheduledAt)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <h3>History and drafts</h3>
       {messages.length === 0 ? (

@@ -3,6 +3,7 @@ import {
   communicationMessageSchema,
   communicationMessagesResponseSchema,
   communicationReachSchema,
+  communicationScheduledMessagesResponseSchema,
   communicationTemplateSchema,
   communicationTemplatesResponseSchema,
   type CommunicationAudienceRequest,
@@ -10,6 +11,7 @@ import {
   type CommunicationDraftRequest,
   type CommunicationMessage,
   type CommunicationReach,
+  type CommunicationScheduledMessage,
   type CommunicationSendRequest,
   type CommunicationTemplate,
   type CommunicationTemplateRequest,
@@ -26,6 +28,7 @@ const candidateResponseSchema = z.object({
     z.object({
       displayName: z.string().min(1).max(200),
       doNotEmail: z.boolean(),
+      email: z.string().max(320).nullable(),
       emailSuppressed: z.boolean(),
       phone: z.string().max(40),
       profileId: z.uuid(),
@@ -124,14 +127,24 @@ async function resolveRecipients(
   ]);
   const candidates = candidateResponseSchema.parse(await response.json()).recipients;
   const issuedAt = Math.floor(Date.now() / 1_000);
+  const merged = new Map<string, (typeof candidates)[number]>();
+  candidates.forEach((candidate) => {
+    const email = candidate.email ?? emails.get(candidate.profileId) ?? "";
+    const key = email.trim().toLowerCase();
+    if (!key) return;
+    const isMember = emails.has(candidate.profileId);
+    const previous = merged.get(key);
+    if (!previous || isMember) merged.set(key, candidate);
+  });
   return Promise.all(
-    candidates.map(async (candidate) => {
+    [...merged.values()].map(async (candidate) => {
+      const isMember = emails.has(candidate.profileId);
       const email =
         candidate.doNotEmail || candidate.emailSuppressed
           ? ""
-          : (emails.get(candidate.profileId) ?? "");
+          : (candidate.email ?? emails.get(candidate.profileId) ?? "");
       const token =
-        email && unsubscribeOrigin
+        email && unsubscribeOrigin && isMember
           ? await issueSignedLink(env.SIGNED_LINK_SECRET, {
               algorithm: "HS256",
               expiresAt: issuedAt + 365 * 24 * 60 * 60,
@@ -229,6 +242,19 @@ export async function listOrganizationCommunications(
   if (!response.ok) throw await failure(response);
   return communicationMessagesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .messages;
+}
+
+export async function listOrganizationScheduledMessages(
+  env: Env,
+  organizationId: string,
+): Promise<readonly CommunicationScheduledMessage[]> {
+  const url = new URL("https://organization.internal/internal/communications/scheduled");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) throw await failure(response);
+  return communicationScheduledMessagesResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json()).messages;
 }
 
 export async function readCommunicationDeliverySummary(

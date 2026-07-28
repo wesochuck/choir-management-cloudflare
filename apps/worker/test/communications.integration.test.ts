@@ -3,6 +3,7 @@ import {
   communicationMessageResponseSchema,
   communicationReachResponseSchema,
   communicationRetryResponseSchema,
+  communicationScheduledMessagesResponseSchema,
   communicationDeleteResponseSchema,
   communicationTemplateResponseSchema,
   communicationTemplatesResponseSchema,
@@ -145,6 +146,129 @@ beforeEach(async () => {
 afterEach(async () => reset());
 
 describe("Organization communications", () => {
+  it("resolves opted-in donors and ticket buyers and lists automated sends", async () => {
+    const cookie = await signIn();
+    const now = new Date().toISOString();
+    const eventId = crypto.randomUUID();
+    const purchaseId = crypto.randomUUID();
+    const donationId = crypto.randomUUID();
+    const notificationId = crypto.randomUUID();
+    const scheduledJobId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const providerSessionId = crypto.randomUUID();
+    await runInDurableObject<OrganizationStore, undefined>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `INSERT INTO events
+            (id, title, type, starts_at, created_at, updated_at)
+           VALUES (?, 'Spring concert', 'Performance', ?, ?, ?)`,
+          eventId,
+          new Date(Date.now() + 86_400_000).toISOString(),
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO ticket_purchases
+            (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+             buyer_name, buyer_email, quantity, unit_price_cents, fee_cents, amount_paid_cents,
+             currency, provider_session_id, provider_payment_id, status, marketing_opt_in,
+             created_at, updated_at, included_events_json, bundle_title)
+           VALUES (?, ?, ?, 'Spring concert', ?, 'America/New_York', 'Ticket Buyer',
+             'buyer@example.test', 2, 2000, 100, 4100, 'usd', ?, '', 'paid', 1, ?, ?, '[]', '')`,
+          purchaseId,
+          checkoutRequestId,
+          eventId,
+          new Date(Date.now() + 86_400_000).toISOString(),
+          providerSessionId,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO donations
+            (id, checkout_request_id, status, amount_cents, buyer_name, buyer_email,
+             provider_session_id, created_at, updated_at, marketing_consent)
+           VALUES (?, ?, 'paid', 5000, 'Donor', 'donor@example.test', ?, ?, ?, 1)`,
+          donationId,
+          crypto.randomUUID(),
+          crypto.randomUUID(),
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO ticket_notifications
+            (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+             content_markdown, status, scheduled_for, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'reminder', 'buyer@example.test', 'Reminder: Spring concert',
+             'Reminder body', 'queued', ?, ?, ?)`,
+          notificationId,
+          purchaseId,
+          eventId,
+          "ticket-reminder-test",
+          now,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO scheduled_job_outbox
+            (job_id, kind, idempotency_key, due_at, created_at)
+           VALUES (?, 'event_reminder', ?, ?, ?)`,
+          scheduledJobId,
+          "event-reminder:organization-alpha:" + eventId,
+          now,
+          now,
+        );
+        return undefined;
+      },
+    );
+
+    const ticketAudience = {
+      eventId,
+      globalStatuses: ["Active"],
+      profileIds: [],
+      rsvp: "All",
+      targetAudiences: ["Ticket Buyers"],
+      voiceParts: [],
+    };
+    const ticketReach = communicationReachResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/reach-preview", cookie, {
+          audience: ticketAudience,
+          channel: "Email",
+        })
+      ).json(),
+    );
+    expect(ticketReach).toMatchObject({ email: 1, total: 1 });
+
+    const donorReach = communicationReachResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/reach-preview", cookie, {
+          audience: {
+            eventId: null,
+            globalStatuses: ["Active"],
+            profileIds: [],
+            rsvp: "All",
+            targetAudiences: ["Donors"],
+            voiceParts: [],
+          },
+          channel: "Email",
+        })
+      ).json(),
+    );
+    expect(donorReach).toMatchObject({ email: 1, total: 1 });
+
+    const scheduled = communicationScheduledMessagesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/communications/scheduled", cookie),
+        )
+      ).json(),
+    );
+    expect(scheduled.messages.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining(["ticket_reminder", "event_reminder"]),
+    );
+  });
+
   it("saves drafts without queueing work and rejects invalid or unreachable sends", async () => {
     const cookie = await signIn();
     const audience = {

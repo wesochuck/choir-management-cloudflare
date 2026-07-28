@@ -4,6 +4,7 @@ import {
   communicationMessagesResponseSchema,
   communicationReachResponseSchema,
   communicationRetryResponseSchema,
+  communicationScheduledMessagesResponseSchema,
   communicationDeleteResponseSchema,
   communicationTemplateResponseSchema,
   communicationTemplatesResponseSchema,
@@ -96,6 +97,7 @@ import {
   type CommunicationDraftRequest,
   type CommunicationMessage,
   type CommunicationReach,
+  type CommunicationScheduledMessage,
   type CommunicationSendRequest,
   type CommunicationTemplate,
   type CommunicationTemplateRequest,
@@ -647,6 +649,15 @@ export async function listOrganizationCommunications(
     signal: signal ?? null,
   });
   return communicationMessagesResponseSchema.parse(await response.json()).messages;
+}
+
+export async function listOrganizationScheduledMessages(
+  signal?: AbortSignal,
+): Promise<readonly CommunicationScheduledMessage[]> {
+  const response = await request("/api/organization/communications/scheduled", {
+    signal: signal ?? null,
+  });
+  return communicationScheduledMessagesResponseSchema.parse(await response.json()).messages;
 }
 
 export async function saveOrganizationCommunicationDraft(

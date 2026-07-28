@@ -3,6 +3,7 @@ import {
   communicationDeliverySummarySchema,
   communicationDraftRequestSchema,
   communicationMessageSchema,
+  communicationScheduledMessageSchema,
   communicationSendRequestSchema,
   communicationTemplateRequestSchema,
   communicationTemplateSchema,
@@ -105,6 +106,7 @@ interface CandidateRow {
   readonly [column: string]: SqlStorageValue;
   readonly displayName: string;
   readonly doNotEmail: number;
+  readonly email: string;
   readonly emailSuppressed: number;
   readonly globalStatus: "Active" | "Idle" | "Inactive";
   readonly id: string;
@@ -261,6 +263,92 @@ function trackOnlyVoiceParts(storage: DurableObjectStorage): Set<string> {
   );
 }
 
+interface CommerceCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly buyerEmail: string;
+  readonly buyerName: string;
+  readonly id: string;
+  readonly phone: string;
+}
+
+function commerceRecipients(
+  storage: DurableObjectStorage,
+  audience: z.infer<typeof communicationAudienceRequestSchema>,
+): readonly {
+  readonly displayName: string;
+  readonly doNotEmail: boolean;
+  readonly email: string;
+  readonly emailSuppressed: boolean;
+  readonly phone: string;
+  readonly profileId: string;
+  readonly voicePart: string;
+}[] {
+  const recipients: {
+    readonly displayName: string;
+    readonly doNotEmail: boolean;
+    readonly email: string;
+    readonly emailSuppressed: boolean;
+    readonly phone: string;
+    readonly profileId: string;
+    readonly voicePart: string;
+  }[] = [];
+  const seenEmails = new Set<string>();
+  const add = (row: CommerceCandidateRow, voicePart: "Donor" | "Ticket Buyer") => {
+    const email = row.buyerEmail.trim().toLowerCase();
+    if (!email || seenEmails.has(email)) return;
+    seenEmails.add(email);
+    recipients.push({
+      displayName: row.buyerName,
+      doNotEmail: false,
+      email: row.buyerEmail,
+      emailSuppressed: false,
+      phone: row.phone,
+      profileId: row.id,
+      voicePart,
+    });
+  };
+
+  if (audience.targetAudiences.includes("Ticket Buyers")) {
+    const ticketRows = storage.sql
+      .exec<CommerceCandidateRow>(
+        `SELECT p.id, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail, '' AS phone
+         FROM ticket_purchases p
+         WHERE p.status = 'paid'
+           AND (
+             (? <> '' AND (p.event_id = ? OR p.id IN (
+               SELECT purchase_id FROM ticket_bundle_allocations WHERE event_id = ?
+             )))
+             OR (? = '' AND p.marketing_opt_in = 1)
+           )
+         ORDER BY p.buyer_name COLLATE NOCASE, p.id LIMIT 500`,
+        audience.eventId ?? "",
+        audience.eventId ?? "",
+        audience.eventId ?? "",
+        audience.eventId ?? "",
+      )
+      .toArray();
+    ticketRows.forEach((row) => {
+      add(row, "Ticket Buyer");
+    });
+  }
+
+  if (audience.targetAudiences.includes("Donors")) {
+    const donorRows = storage.sql
+      .exec<CommerceCandidateRow>(
+        `SELECT d.id, d.buyer_name AS buyerName, d.buyer_email AS buyerEmail, '' AS phone
+         FROM donations d
+         WHERE d.status = 'paid' AND d.marketing_consent = 1
+         ORDER BY d.buyer_name COLLATE NOCASE, d.id LIMIT 500`,
+      )
+      .toArray();
+    donorRows.forEach((row) => {
+      add(row, "Donor");
+    });
+  }
+
+  return recipients;
+}
+
 export async function resolveCommunicationAudienceFromStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -271,39 +359,51 @@ export async function resolveCommunicationAudienceFromStore(
   const { audience, organizationId } = parsed.data;
   if (!identityMatches(storage, organizationId))
     return Response.json({ code: "organization_not_found" }, { status: 404 });
-  const rows = storage.sql
-    .exec<CandidateRow>(
-      `SELECT p.id, p.display_name AS displayName, p.phone, p.voice_part AS voicePart,
-        p.global_status AS globalStatus, p.do_not_email AS doNotEmail,
-        EXISTS (
-          SELECT 1 FROM communication_suppressions s
-          WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
-        ) AS emailSuppressed,
-        COALESCE(r.rsvp, 'Pending') AS rsvp
-       FROM profiles p
-       LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
-       ORDER BY p.display_name COLLATE NOCASE, p.id LIMIT 500`,
-      audience.eventId ?? "",
-    )
-    .toArray();
+  const rows = audience.targetAudiences.includes("Members")
+    ? storage.sql
+        .exec<CandidateRow>(
+          `SELECT p.id, p.display_name AS displayName, NULL AS email, p.phone,
+              p.voice_part AS voicePart, p.global_status AS globalStatus, p.do_not_email AS doNotEmail,
+              EXISTS (
+                SELECT 1 FROM communication_suppressions s
+                WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+              ) AS emailSuppressed,
+              COALESCE(r.rsvp, 'Pending') AS rsvp
+             FROM profiles p
+             LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+             ORDER BY p.display_name COLLATE NOCASE, p.id LIMIT 500`,
+          audience.eventId ?? "",
+        )
+        .toArray()
+    : [];
   const requestedProfiles = audience.profileIds.length > 0 ? new Set(audience.profileIds) : null;
   const requestedVoiceParts = allowedVoiceParts(storage, audience.voiceParts);
   const excludedVoiceParts = trackOnlyVoiceParts(storage);
   const statuses = new Set(audience.globalStatuses);
-  const recipients = rows
+  const recipients: {
+    readonly displayName: string;
+    readonly doNotEmail: boolean;
+    readonly email: string;
+    readonly emailSuppressed: boolean;
+    readonly phone: string;
+    readonly profileId: string;
+    readonly voicePart: string;
+  }[] = rows
     .filter(({ id }) => !requestedProfiles || requestedProfiles.has(id))
     .filter(({ globalStatus }) => statuses.has(globalStatus))
     .filter(({ voicePart }) => voicePart.length > 0 && !excludedVoiceParts.has(voicePart))
     .filter(({ voicePart }) => !requestedVoiceParts || requestedVoiceParts.has(voicePart))
     .filter(({ rsvp }) => !audience.eventId || audience.rsvp === "All" || audience.rsvp === rsvp)
-    .map(({ displayName, doNotEmail, emailSuppressed, id, phone, voicePart }) => ({
+    .map(({ displayName, doNotEmail, email, emailSuppressed, id, phone, voicePart }) => ({
       displayName,
       doNotEmail: doNotEmail === 1,
+      email,
       emailSuppressed: emailSuppressed === 1,
       phone,
       profileId: id,
       voicePart,
     }));
+  recipients.push(...commerceRecipients(storage, audience));
   return Response.json({ recipients });
 }
 
@@ -673,6 +773,114 @@ export function listCommunicationMessagesFromStore(
     .toArray()
     .map(parseMessage);
   return Response.json({ messages });
+}
+
+interface ScheduledTicketMessageRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly eventId: string | null;
+  readonly eventTitle: string;
+  readonly id: string;
+  readonly kind: "confirmation" | "reminder";
+  readonly scheduledAt: string;
+  readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
+  readonly subject: string;
+}
+
+interface ScheduledOutboxMessageRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly dueAt: string;
+  readonly enqueuedAt: string | null;
+  readonly idempotencyKey: string;
+  readonly jobId: string;
+  readonly jobStatus: "claimed" | "completed" | "failed" | null;
+  readonly kind: "attendance_report" | "event_reminder";
+}
+
+function scheduledJobStatus(
+  enqueuedAt: string | null,
+  jobStatus: ScheduledOutboxMessageRow["jobStatus"],
+): "Failed" | "Queued" | "Scheduled" | "Sent" {
+  if (jobStatus === "completed") return "Sent";
+  if (jobStatus === "failed") return "Failed";
+  return enqueuedAt ? "Queued" : "Scheduled";
+}
+
+export function listCommunicationScheduledMessagesFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!organizationId || !identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const messages: z.infer<typeof communicationScheduledMessageSchema>[] = storage.sql
+    .exec<ScheduledTicketMessageRow>(
+      `SELECT n.id, n.kind, n.subject, n.status,
+        n.scheduled_for AS scheduledAt, n.event_id AS eventId,
+        COALESCE(e.title, p.event_title) AS eventTitle
+       FROM ticket_notifications n
+       JOIN ticket_purchases p ON p.id = n.purchase_id
+       LEFT JOIN events e ON e.id = n.event_id
+       ORDER BY n.scheduled_for DESC, n.id DESC LIMIT 100`,
+    )
+    .toArray()
+    .map((row) =>
+      communicationScheduledMessageSchema.parse({
+        eventId: row.eventId,
+        eventTitle: row.eventTitle,
+        id: row.id,
+        kind: row.kind === "reminder" ? "ticket_reminder" : "ticket_confirmation",
+        recipientCount: 1,
+        scheduledAt: row.scheduledAt,
+        status:
+          row.status === "failed"
+            ? "Failed"
+            : row.status === "sent" || row.status === "suppressed"
+              ? "Sent"
+              : "Queued",
+        subject: row.subject,
+      }),
+    );
+
+  const scheduledJobs = storage.sql
+    .exec<ScheduledOutboxMessageRow>(
+      `SELECT o.job_id AS jobId, o.kind, o.idempotency_key AS idempotencyKey,
+        o.due_at AS dueAt, o.enqueued_at AS enqueuedAt, l.status AS jobStatus
+       FROM scheduled_job_outbox o
+       LEFT JOIN job_ledger l ON l.job_id = o.job_id
+       WHERE o.kind IN ('event_reminder', 'attendance_report')
+       ORDER BY o.due_at DESC, o.job_id DESC LIMIT 100`,
+    )
+    .toArray();
+  for (const job of scheduledJobs) {
+    const eventId = job.idempotencyKey.split(":").at(-1) ?? "";
+    const event = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly title: string }>(
+        "SELECT title FROM events WHERE id = ? LIMIT 1",
+        eventId,
+      )
+      .toArray()
+      .at(0);
+    if (!event) continue;
+    messages.push(
+      communicationScheduledMessageSchema.parse({
+        eventId,
+        eventTitle: event.title,
+        id: job.jobId,
+        kind: job.kind,
+        recipientCount: 0,
+        scheduledAt: job.dueAt,
+        status: scheduledJobStatus(job.enqueuedAt, job.jobStatus),
+        subject:
+          job.kind === "event_reminder"
+            ? "Event reminder: " + event.title
+            : "Attendance report: " + event.title,
+      }),
+    );
+  }
+  messages.sort(
+    (left, right) => new Date(right.scheduledAt).getTime() - new Date(left.scheduledAt).getTime(),
+  );
+  return Response.json({ messages: messages.slice(0, 200) });
 }
 
 export function listCommunicationTemplatesFromStore(
