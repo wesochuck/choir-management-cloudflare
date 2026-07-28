@@ -41,6 +41,9 @@ jobs:
       - name: Validate parity ledger
         run: npm run check:parity
 
+      - name: Audit parity implementation
+        run: npm run check:parity:implementation
+
       - name: Unit tests
         run: npm test
 
