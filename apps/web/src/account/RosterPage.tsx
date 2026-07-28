@@ -1,17 +1,22 @@
 import type {
+  OrganizationMembershipSummary,
   OrganizationProfile,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { organizationInvitationRequestSchema } from "@choir/contracts";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
 import {
   AuthApiError,
   createOrganizationProfile,
+  createOrganizationInvitation,
   getOrganizationRosterConfiguration,
   importOrganizationProfilesCsv,
+  listOrganizationMemberships,
   listOrganizationProfiles,
+  requestPasswordReset,
   updateOrganizationProfile,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
@@ -36,6 +41,7 @@ type RosterState =
   | { readonly status: "loading" }
   | {
       readonly configuration: OrganizationRosterConfiguration;
+      readonly memberships: readonly OrganizationMembershipSummary[];
       readonly profiles: readonly OrganizationProfile[];
       readonly status: "ready";
     };
@@ -69,6 +75,9 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
+  const [profileEmail, setProfileEmail] = useState("");
+  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+  const [resettingProfileId, setResettingProfileId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [roster, setRoster] = useState<RosterState>({ status: "loading" });
   const [success, setSuccess] = useState<string | null>(null);
@@ -79,9 +88,15 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     Promise.all([
       listOrganizationProfiles(controller.signal),
       getOrganizationRosterConfiguration(controller.signal),
+      listOrganizationMemberships(controller.signal),
     ])
-      .then(([profiles, configuration]) => {
-        setRoster({ configuration, profiles, status: "ready" });
+      .then(([profiles, configuration, membershipResult]) => {
+        setRoster({
+          configuration,
+          memberships: membershipResult.memberships,
+          profiles,
+          status: "ready",
+        });
       })
       .catch((loadError: unknown) => {
         if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
@@ -98,7 +113,12 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     const normalized = query.trim().toLocaleLowerCase();
     return normalized
       ? roster.profiles.filter((candidate) =>
-          [candidate.displayName, candidate.phone, candidate.voicePart]
+          [
+            candidate.displayName,
+            candidate.phone,
+            candidate.voicePart,
+            roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "",
+          ]
             .join(" ")
             .toLocaleLowerCase()
             .includes(normalized),
@@ -111,6 +131,8 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setDialogOpen(false);
     setEditingId(null);
     setProfile(emptyProfile);
+    setProfileEmail("");
+    setResetFeedback(null);
     setError(null);
   }
 
@@ -123,6 +145,8 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   function openCreate() {
     setEditingId(null);
     setProfile(emptyProfile);
+    setProfileEmail("");
+    setResetFeedback(null);
     setError(null);
     setSuccess(null);
     setDialogOpen(true);
@@ -131,18 +155,49 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   function openEdit(candidate: OrganizationProfile) {
     setEditingId(candidate.id);
     setProfile(profileRequestFrom(candidate));
+    setProfileEmail(
+      roster.status === "ready"
+        ? (roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "")
+        : "",
+    );
+    setResetFeedback(null);
     setError(null);
     setSuccess(null);
     setDialogOpen(true);
   }
 
   async function saveProfile() {
+    const normalizedEmail = profileEmail.trim().toLowerCase();
+    const linkedEmail =
+      editingId && roster.status === "ready"
+        ? (roster.memberships.find(({ profileId }) => profileId === editingId)?.email ?? "")
+        : "";
+    if (normalizedEmail && normalizedEmail !== linkedEmail) {
+      const parsedInvitation = organizationInvitationRequestSchema.safeParse({
+        email: normalizedEmail,
+        role: "member",
+      });
+      if (!parsedInvitation.success) {
+        setError("Enter a valid email address.");
+        return;
+      }
+    }
     setBusy(true);
     setError(null);
     try {
       const saved = editingId
         ? await updateOrganizationProfile(editingId, profile)
         : await createOrganizationProfile(profile);
+      let invitationNote = "";
+      if (normalizedEmail && normalizedEmail !== linkedEmail) {
+        try {
+          await createOrganizationInvitation({ email: normalizedEmail, role: "member" });
+          invitationNote = ` A membership invitation was sent to ${normalizedEmail}.`;
+        } catch {
+          invitationNote =
+            " The Profile was saved, but the membership invitation could not be created.";
+        }
+      }
       setRoster((current) =>
         current.status === "ready"
           ? {
@@ -157,10 +212,12 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
             }
           : current,
       );
-      setSuccess(editingId ? "Profile updated." : "Profile created.");
+      setSuccess(`${editingId ? "Profile updated." : "Profile created."}${invitationNote}`);
       setDialogOpen(false);
       setEditingId(null);
       setProfile(emptyProfile);
+      setProfileEmail("");
+      setResetFeedback(null);
     } catch (saveError: unknown) {
       setError(
         saveError instanceof AuthApiError
@@ -169,6 +226,20 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendPasswordReset() {
+    if (!editingId || !profileEmail) return;
+    setResettingProfileId(editingId);
+    setResetFeedback(null);
+    try {
+      await requestPasswordReset(profileEmail);
+      setResetFeedback(`Password reset email sent to ${profileEmail}.`);
+    } catch {
+      setResetFeedback("The password reset email could not be sent. Try again.");
+    } finally {
+      setResettingProfileId(null);
     }
   }
 
@@ -271,6 +342,19 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
                 sortValue: (candidate) => candidate.displayName,
               },
               {
+                header: "Email",
+                id: "email",
+                render: (candidate) => {
+                  const email = roster.memberships.find(
+                    ({ profileId }) => profileId === candidate.id,
+                  )?.email;
+                  return email ? <a href={`mailto:${email}`}>{email}</a> : "Not linked";
+                },
+                sortValue: (candidate) =>
+                  roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ??
+                  "",
+              },
+              {
                 header: "Voice part",
                 id: "voicePart",
                 render: (candidate) => candidate.voicePart || "Not assigned",
@@ -356,6 +440,39 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
               }}
               value={profile.phone}
             />
+          </div>
+          <div className="field">
+            <label htmlFor="roster-profile-email">Email address</label>
+            <input
+              id="roster-profile-email"
+              onChange={(event) => {
+                setProfileEmail(event.target.value);
+              }}
+              placeholder="Enter an email to invite this singer"
+              readOnly={Boolean(editingId && profileEmail)}
+              type="email"
+              value={profileEmail}
+            />
+            <p className="field-help">
+              Linked account emails are managed through Membership invitations.
+            </p>
+            {editingId && profileEmail ? (
+              <button
+                className="button button--secondary button--small"
+                disabled={busy || resettingProfileId !== null}
+                onClick={() => {
+                  void sendPasswordReset();
+                }}
+                type="button"
+              >
+                {resettingProfileId ? "Sending reset email…" : "Send password reset"}
+              </button>
+            ) : null}
+            {resetFeedback ? (
+              <p className="notice notice--info" role="status">
+                {resetFeedback}
+              </p>
+            ) : null}
           </div>
           <div className="field">
             <label htmlFor="roster-profile-voice-part">Voice part</label>
