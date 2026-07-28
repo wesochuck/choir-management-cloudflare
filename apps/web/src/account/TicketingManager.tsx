@@ -4,6 +4,7 @@ import type {
   TicketBundle,
   TicketScanResult,
 } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
 import {
@@ -40,6 +41,7 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
   const [scanToken, setScanToken] = useState("");
   const [scanResult, setScanResult] = useState<TicketScanResult | null>(null);
   const [bundles, setBundles] = useState<readonly TicketBundle[]>([]);
+  const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
   const [bundleTitle, setBundleTitle] = useState("");
   const [bundlePrice, setBundlePrice] = useState("");
@@ -83,6 +85,18 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
     setBundleIsActive(true);
   }
 
+  function closeBundleDialog(): void {
+    if (busy) return;
+    setBundleDialogOpen(false);
+    clearBundleForm();
+  }
+
+  function openNewBundle(): void {
+    clearBundleForm();
+    setMessage(null);
+    setBundleDialogOpen(true);
+  }
+
   async function saveBundle(formEvent: SyntheticEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     setBusy(true);
@@ -101,6 +115,7 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
       );
       setBundles((current) => [saved, ...current.filter(({ id }) => id !== saved.id)]);
       clearBundleForm();
+      setBundleDialogOpen(false);
       setMessage("Ticket bundle saved. Publish the public website to make it visible.");
     } catch {
       setMessage("The ticket bundle could not be saved.");
@@ -120,6 +135,7 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
     );
     setBundleEventIds(bundle.eventIds);
     setBundleIsActive(bundle.isActive);
+    setBundleDialogOpen(true);
   }
 
   async function removeBundle(bundleId: string) {
@@ -128,7 +144,10 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
     try {
       await deleteTicketBundle(bundleId);
       setBundles((current) => current.filter(({ id }) => id !== bundleId));
-      if (editingBundleId === bundleId) clearBundleForm();
+      if (editingBundleId === bundleId) {
+        setBundleDialogOpen(false);
+        clearBundleForm();
+      }
       setMessage("Ticket bundle deleted.");
     } catch {
       setMessage("Bundles with orders cannot be deleted; edit or deactivate them instead.");
@@ -198,109 +217,122 @@ export function TicketingManager({ enabled }: { readonly enabled: boolean }) {
         </p>
       ) : null}
       <div className="split-panel">
-        <form className="form-stack" onSubmit={(formEvent) => void saveBundle(formEvent)}>
-          <h3>{editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}</h3>
-          <label className="field">
-            Bundle title
-            <input
-              required
-              maxLength={500}
-              value={bundleTitle}
-              onChange={(event) => {
-                setBundleTitle(event.target.value);
-              }}
-            />
-          </label>
-          <div className="form-grid form-grid--two">
-            <label className="field">
-              Price (USD)
-              <input
-                required
-                min="0"
-                step="0.01"
-                type="number"
-                value={bundlePrice}
-                onChange={(event) => {
-                  setBundlePrice(event.target.value);
-                }}
-              />
-            </label>
-            <label className="field">
-              Capacity (blank is unlimited)
-              <input
-                min="1"
-                step="1"
-                type="number"
-                value={bundleCapacity}
-                onChange={(event) => {
-                  setBundleCapacity(event.target.value);
-                }}
-              />
-            </label>
-          </div>
-          <label className="field">
-            Sale ends
-            <input
-              required
-              type="datetime-local"
-              value={bundleSaleEnd}
-              onChange={(event) => {
-                setBundleSaleEnd(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            <input
-              checked={bundleIsActive}
-              type="checkbox"
-              onChange={(event) => {
-                setBundleIsActive(event.target.checked);
-              }}
-            />{" "}
-            Active for public sale
-          </label>
-          <fieldset className="field">
-            <legend>Included performances</legend>
-            {ticketEvents.length === 0 ? <p>Create ticketed performances first.</p> : null}
-            {ticketEvents.map((event) => (
-              <label key={event.id}>
-                <input
-                  checked={bundleEventIds.includes(event.id)}
-                  type="checkbox"
-                  onChange={(change) => {
-                    setBundleEventIds((current) =>
-                      change.target.checked
-                        ? [...current, event.id]
-                        : current.filter((id) => id !== event.id),
-                    );
-                  }}
-                />{" "}
-                {event.title}
-              </label>
-            ))}
-          </fieldset>
-          <div className="form-actions">
-            <button
-              className="button button--primary"
-              disabled={busy || bundleEventIds.length === 0}
-              type="submit"
-            >
-              {busy ? "Saving…" : "Save bundle"}
-            </button>
-            {editingBundleId ? (
-              <button
-                className="button button--secondary"
-                disabled={busy}
-                onClick={clearBundleForm}
-                type="button"
-              >
-                Cancel
-              </button>
-            ) : null}
-          </div>
-        </form>
         <div>
           <h3>Ticket bundles</h3>
+          <p>Create a bundle, pass, or ticket tier for one or more performances.</p>
+          <button className="button button--primary" onClick={openNewBundle} type="button">
+            New ticket bundle
+          </button>
+        </div>
+        <Dialog
+          description="Set pricing, capacity, sale timing, and included performances."
+          onClose={closeBundleDialog}
+          open={bundleDialogOpen}
+          title={editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}
+        >
+          <form className="form-stack" onSubmit={(formEvent) => void saveBundle(formEvent)}>
+            <h3>{editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}</h3>
+            <label className="field">
+              Bundle title
+              <input
+                required
+                maxLength={500}
+                value={bundleTitle}
+                onChange={(event) => {
+                  setBundleTitle(event.target.value);
+                }}
+              />
+            </label>
+            <div className="form-grid form-grid--two">
+              <label className="field">
+                Price (USD)
+                <input
+                  required
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={bundlePrice}
+                  onChange={(event) => {
+                    setBundlePrice(event.target.value);
+                  }}
+                />
+              </label>
+              <label className="field">
+                Capacity (blank is unlimited)
+                <input
+                  min="1"
+                  step="1"
+                  type="number"
+                  value={bundleCapacity}
+                  onChange={(event) => {
+                    setBundleCapacity(event.target.value);
+                  }}
+                />
+              </label>
+            </div>
+            <label className="field">
+              Sale ends
+              <input
+                required
+                type="datetime-local"
+                value={bundleSaleEnd}
+                onChange={(event) => {
+                  setBundleSaleEnd(event.target.value);
+                }}
+              />
+            </label>
+            <label>
+              <input
+                checked={bundleIsActive}
+                type="checkbox"
+                onChange={(event) => {
+                  setBundleIsActive(event.target.checked);
+                }}
+              />{" "}
+              Active for public sale
+            </label>
+            <fieldset className="field">
+              <legend>Included performances</legend>
+              {ticketEvents.length === 0 ? <p>Create ticketed performances first.</p> : null}
+              {ticketEvents.map((event) => (
+                <label key={event.id}>
+                  <input
+                    checked={bundleEventIds.includes(event.id)}
+                    type="checkbox"
+                    onChange={(change) => {
+                      setBundleEventIds((current) =>
+                        change.target.checked
+                          ? [...current, event.id]
+                          : current.filter((id) => id !== event.id),
+                      );
+                    }}
+                  />{" "}
+                  {event.title}
+                </label>
+              ))}
+            </fieldset>
+            <div className="form-actions">
+              <button
+                className="button button--primary"
+                disabled={busy || bundleEventIds.length === 0}
+                type="submit"
+              >
+                {busy ? "Saving…" : "Save bundle"}
+              </button>
+              {editingBundleId ? (
+                <button
+                  className="button button--secondary"
+                  disabled={busy}
+                  onClick={closeBundleDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </Dialog>
+        <div>
           {bundles.length === 0 ? <p>No bundles yet.</p> : null}
           {bundles.map((bundle) => (
             <article className="compact-card" key={bundle.id}>

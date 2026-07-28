@@ -3,6 +3,7 @@ import type {
   OrganizationMusicPieceRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -415,6 +416,7 @@ function MusicDeleteControls({
 export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
   const [roster, setRoster] = useState<OrganizationRosterConfiguration | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [piece, setPiece] = useState<OrganizationMusicPieceRequest>(emptyPiece);
   const [durationInput, setDurationInput] = useState("");
@@ -456,7 +458,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const childCount = editingId ? pieces.filter(({ parentId }) => parentId === editingId).length : 0;
   const selectedPiece = pieces.find(({ id }) => id === editingId) ?? null;
 
-  function selectPiece(selected: OrganizationMusicPiece): void {
+  function setEditorPiece(selected: OrganizationMusicPiece): void {
     setEditingId(selected.id);
     setPiece(requestFrom(selected));
     setDurationInput(durationText(selected.durationSeconds));
@@ -468,6 +470,24 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setError(null);
   }
 
+  function closeDialog(): void {
+    if (busy) return;
+    setDialogOpen(false);
+    setEditingId(null);
+    setPiece(emptyPiece);
+    setDurationInput("");
+    setGenresInput("");
+    setCopiesInput("");
+    setDeleteConfirm(false);
+    setUnlinkChildren(false);
+    setError(null);
+  }
+
+  function selectPiece(selected: OrganizationMusicPiece): void {
+    setEditorPiece(selected);
+    setDialogOpen(true);
+  }
+
   function beginNew(parentId: string | null = null): void {
     setEditingId(null);
     setPiece({ ...emptyPiece, parentId });
@@ -477,6 +497,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setDeleteConfirm(false);
     setMessage(null);
     setError(null);
+    setDialogOpen(true);
   }
 
   async function save(): Promise<void> {
@@ -508,8 +529,11 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
           ? current.map((candidate) => (candidate.id === saved.id ? saved : candidate))
           : [...current, saved].sort((a, b) => a.title.localeCompare(b.title)),
       );
-      selectPiece(saved);
+      setEditorPiece(saved);
       setMessage("Music piece saved.");
+      setDialogOpen(false);
+      setEditingId(null);
+      setPiece(emptyPiece);
     } catch (caught: unknown) {
       setError(
         caught instanceof AuthApiError ? caught.message : "The music piece could not be saved.",
@@ -532,7 +556,14 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
             candidate.parentId === editingId ? { ...candidate, parentId: null } : candidate,
           ),
       );
-      beginNew();
+      setDialogOpen(false);
+      setEditingId(null);
+      setPiece(emptyPiece);
+      setDurationInput("");
+      setGenresInput("");
+      setCopiesInput("");
+      setDeleteConfirm(false);
+      setUnlinkChildren(false);
       setMessage("Music piece deleted.");
     } catch (caught: unknown) {
       setError(
@@ -650,178 +681,184 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               search={search}
             />
           </div>
-          <form
-            className="form-stack music-piece-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
-            }}
+          <Dialog
+            description="Catalog metadata, sections, movements, and private learning tracks."
+            onClose={closeDialog}
+            open={dialogOpen}
+            title={
+              editingId ? "Edit music piece" : piece.parentId ? "Add movement" : "Add music piece"
+            }
           >
-            <h3>
-              {editingId ? "Edit music piece" : piece.parentId ? "Add movement" : "Add music piece"}
-            </h3>
-            <div className="music-fields-grid">
-              <label className="field music-field--wide">
-                Title
-                <input
-                  maxLength={500}
-                  required
-                  value={piece.title}
-                  onChange={(event) => {
-                    setPiece((current) => ({ ...current, title: event.target.value }));
-                  }}
-                />
-              </label>
-              <label className="field">
-                Composer
-                <input
-                  maxLength={300}
-                  value={piece.composer}
-                  onChange={(event) => {
-                    setPiece((current) => ({ ...current, composer: event.target.value }));
-                  }}
-                />
-              </label>
-              <label className="field">
-                Arranger
-                <input
-                  maxLength={300}
-                  value={piece.arranger}
-                  onChange={(event) => {
-                    setPiece((current) => ({ ...current, arranger: event.target.value }));
-                  }}
-                />
-              </label>
-              <label className="field">
-                Catalog ID
-                <input
-                  maxLength={200}
-                  value={piece.catalogId}
-                  onChange={(event) => {
-                    setPiece((current) => ({ ...current, catalogId: event.target.value }));
-                  }}
-                />
-              </label>
-              <label className="field">
-                Purchase date
-                <input
-                  type="date"
-                  value={piece.purchaseDate ?? ""}
-                  onChange={(event) => {
-                    setPiece((current) => ({
-                      ...current,
-                      purchaseDate: event.target.value || null,
-                    }));
-                  }}
-                />
-              </label>
-              <label className="field">
-                Copies
-                <input
-                  inputMode="numeric"
-                  min="0"
-                  step="1"
-                  type="number"
-                  value={copiesInput}
-                  onChange={(event) => {
-                    setCopiesInput(event.target.value);
-                  }}
-                />
-              </label>
-              <label className="field">
-                Duration (minutes:seconds)
-                <input
-                  placeholder="4:05"
-                  value={durationInput}
-                  onChange={(event) => {
-                    setDurationInput(event.target.value);
-                  }}
-                />
-              </label>
-              <label className="field music-field--wide">
-                Genres (comma separated)
-                <input
-                  value={genresInput}
-                  onChange={(event) => {
-                    setGenresInput(event.target.value);
-                  }}
-                />
-              </label>
-              <label className="field music-field--wide">
-                Parent work
-                <select
-                  value={piece.parentId ?? ""}
-                  onChange={(event) => {
-                    setPiece((current) => ({ ...current, parentId: event.target.value || null }));
-                  }}
-                >
-                  <option value="">Top-level work</option>
-                  {topLevelPieces.map((parent) => (
-                    <option key={parent.id} value={parent.id}>
-                      {parent.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field music-field--wide">
-                Notes
-                <textarea
-                  maxLength={100_000}
-                  rows={4}
-                  value={piece.notes}
-                  onChange={(event) => {
-                    setPiece((current) => ({ ...current, notes: event.target.value }));
-                  }}
-                />
-              </label>
-            </div>
-            <SectionBuckets
-              configuration={roster}
-              selected={piece.sectionBuckets}
-              onChange={(sectionBuckets) => {
-                setPiece((current) => ({ ...current, sectionBuckets }));
+            <form
+              className="form-stack music-piece-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void save();
               }}
-            />
-            {selectedPiece ? (
-              <MusicAudioTracks
+            >
+              <div className="music-fields-grid">
+                <label className="field music-field--wide">
+                  Title
+                  <input
+                    maxLength={500}
+                    required
+                    value={piece.title}
+                    onChange={(event) => {
+                      setPiece((current) => ({ ...current, title: event.target.value }));
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Composer
+                  <input
+                    maxLength={300}
+                    value={piece.composer}
+                    onChange={(event) => {
+                      setPiece((current) => ({ ...current, composer: event.target.value }));
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Arranger
+                  <input
+                    maxLength={300}
+                    value={piece.arranger}
+                    onChange={(event) => {
+                      setPiece((current) => ({ ...current, arranger: event.target.value }));
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Catalog ID
+                  <input
+                    maxLength={200}
+                    value={piece.catalogId}
+                    onChange={(event) => {
+                      setPiece((current) => ({ ...current, catalogId: event.target.value }));
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Purchase date
+                  <input
+                    type="date"
+                    value={piece.purchaseDate ?? ""}
+                    onChange={(event) => {
+                      setPiece((current) => ({
+                        ...current,
+                        purchaseDate: event.target.value || null,
+                      }));
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Copies
+                  <input
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    type="number"
+                    value={copiesInput}
+                    onChange={(event) => {
+                      setCopiesInput(event.target.value);
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Duration (minutes:seconds)
+                  <input
+                    placeholder="4:05"
+                    value={durationInput}
+                    onChange={(event) => {
+                      setDurationInput(event.target.value);
+                    }}
+                  />
+                </label>
+                <label className="field music-field--wide">
+                  Genres (comma separated)
+                  <input
+                    value={genresInput}
+                    onChange={(event) => {
+                      setGenresInput(event.target.value);
+                    }}
+                  />
+                </label>
+                <label className="field music-field--wide">
+                  Parent work
+                  <select
+                    value={piece.parentId ?? ""}
+                    onChange={(event) => {
+                      setPiece((current) => ({ ...current, parentId: event.target.value || null }));
+                    }}
+                  >
+                    <option value="">Top-level work</option>
+                    {topLevelPieces.map((parent) => (
+                      <option key={parent.id} value={parent.id}>
+                        {parent.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field music-field--wide">
+                  Notes
+                  <textarea
+                    maxLength={100_000}
+                    rows={4}
+                    value={piece.notes}
+                    onChange={(event) => {
+                      setPiece((current) => ({ ...current, notes: event.target.value }));
+                    }}
+                  />
+                </label>
+              </div>
+              <SectionBuckets
                 configuration={roster}
-                piece={selectedPiece}
-                onSaved={(saved, successMessage) => {
-                  setPieces((current) =>
-                    current.map((candidate) => (candidate.id === saved.id ? saved : candidate)),
-                  );
-                  selectPiece(saved);
-                  setMessage(successMessage);
+                selected={piece.sectionBuckets}
+                onChange={(sectionBuckets) => {
+                  setPiece((current) => ({ ...current, sectionBuckets }));
                 }}
               />
-            ) : null}
-            {editingId ? (
-              <p className="field-help">
-                Private tracks linked: {String(Object.keys(piece.trackFileIds).length)} · Movements:{" "}
-                {String(childCount)}
-              </p>
-            ) : null}
-            <MusicDeleteControls
-              busy={busy}
-              childCount={childCount}
-              deleteConfirm={deleteConfirm}
-              editingId={editingId}
-              unlinkChildren={unlinkChildren}
-              onAddMovement={() => {
-                beginNew(editingId);
-              }}
-              onCancel={() => {
-                setDeleteConfirm(false);
-              }}
-              onConfirm={() => void remove()}
-              onRequest={() => {
-                setDeleteConfirm(true);
-              }}
-              onUnlinkChildren={(selected) => {
-                setUnlinkChildren(selected);
-              }}
-            />
-          </form>
+              {selectedPiece ? (
+                <MusicAudioTracks
+                  configuration={roster}
+                  piece={selectedPiece}
+                  onSaved={(saved, successMessage) => {
+                    setPieces((current) =>
+                      current.map((candidate) => (candidate.id === saved.id ? saved : candidate)),
+                    );
+                    setEditorPiece(saved);
+                    setMessage(successMessage);
+                  }}
+                />
+              ) : null}
+              {editingId ? (
+                <p className="field-help">
+                  Private tracks linked: {String(Object.keys(piece.trackFileIds).length)} ·
+                  Movements: {String(childCount)}
+                </p>
+              ) : null}
+              <MusicDeleteControls
+                busy={busy}
+                childCount={childCount}
+                deleteConfirm={deleteConfirm}
+                editingId={editingId}
+                unlinkChildren={unlinkChildren}
+                onAddMovement={() => {
+                  beginNew(editingId);
+                }}
+                onCancel={() => {
+                  setDeleteConfirm(false);
+                }}
+                onConfirm={() => void remove()}
+                onRequest={() => {
+                  setDeleteConfirm(true);
+                }}
+                onUnlinkChildren={(selected) => {
+                  setUnlinkChildren(selected);
+                }}
+              />
+            </form>
+          </Dialog>
         </div>
       )}
     </section>

@@ -1,4 +1,5 @@
 import type { OrganizationResource, OrganizationResourceRequest } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -25,12 +26,44 @@ export function OrganizationResources({
   readonly manager: boolean;
 }) {
   const [resources, setResources] = useState<readonly OrganizationResource[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<OrganizationResource | null>(null);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  function resetForm(): void {
+    setEditingResource(null);
+    setTitle("");
+    setUrl("");
+    setFile(null);
+  }
+
+  function closeDialog(): void {
+    if (busy) return;
+    setDialogOpen(false);
+    resetForm();
+  }
+
+  function openAdd(): void {
+    resetForm();
+    setError(null);
+    setSuccess(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(resource: OrganizationResource): void {
+    setEditingResource(resource);
+    setTitle(resource.title);
+    setUrl(resource.url ?? "");
+    setFile(null);
+    setError(null);
+    setSuccess(null);
+    setDialogOpen(true);
+  }
 
   useEffect(() => {
     if (!enabled) return;
@@ -45,8 +78,12 @@ export function OrganizationResources({
     };
   }, [enabled]);
 
-  async function addResource() {
-    if (!title.trim() || (!file && !url.trim()) || (file && url.trim())) {
+  // eslint-disable-next-line complexity -- add/edit source validation and cleanup are intentionally co-located.
+  async function saveResource() {
+    const keepsExistingSource = Boolean(
+      editingResource && (editingResource.fileId ?? editingResource.url),
+    );
+    if (!title.trim() || (!file && !url.trim() && !keepsExistingSource) || (file && url.trim())) {
       setError("Enter a title and choose either one file or one HTTPS link.");
       return;
     }
@@ -56,44 +93,34 @@ export function OrganizationResources({
     let uploadedFileId: string | null = null;
     try {
       if (file) uploadedFileId = (await uploadPrivateOrganizationFile(file)).id;
+      const normalizedUrl = url.trim();
       const request: OrganizationResourceRequest = {
         fileId: uploadedFileId,
-        sortOrder: resources.length,
+        sortOrder: editingResource?.sortOrder ?? resources.length,
         title: title.trim(),
-        url: uploadedFileId ? null : url.trim(),
+        url: uploadedFileId ? null : normalizedUrl ? normalizedUrl : (editingResource?.url ?? null),
       };
-      const created = await createOrganizationResource(request);
-      setResources((current) => [...current, created]);
-      setTitle("");
-      setUrl("");
-      setFile(null);
-      setSuccess("Resource added.");
+      const saved = editingResource
+        ? await updateOrganizationResource(editingResource.id, {
+            ...request,
+            fileId: uploadedFileId ?? editingResource.fileId,
+            url: uploadedFileId ? null : normalizedUrl ? normalizedUrl : editingResource.url,
+          })
+        : await createOrganizationResource(request);
+      setResources((current) =>
+        editingResource
+          ? current.map((item) => (item.id === saved.id ? saved : item))
+          : [...current, saved],
+      );
+      setDialogOpen(false);
+      resetForm();
+      setSuccess(editingResource ? "Resource updated." : "Resource added.");
     } catch (failure: unknown) {
       setError(message(failure));
       if (uploadedFileId)
         await fetch(`/api/organization/files/${encodeURIComponent(uploadedFileId)}`, {
           method: "DELETE",
         }).catch(() => undefined);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function rename(resource: OrganizationResource) {
-    const nextTitle = window.prompt("Resource title", resource.title)?.trim();
-    if (!nextTitle || nextTitle === resource.title) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const updated = await updateOrganizationResource(resource.id, {
-        fileId: resource.fileId,
-        sortOrder: resource.sortOrder,
-        title: nextTitle,
-        url: resource.url,
-      });
-      setResources((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-    } catch (failure: unknown) {
-      setError(message(failure));
     } finally {
       setBusy(false);
     }
@@ -183,8 +210,14 @@ export function OrganizationResources({
                   >
                     Down
                   </button>
-                  <button disabled={busy} onClick={() => void rename(resource)} type="button">
-                    Rename
+                  <button
+                    disabled={busy}
+                    onClick={() => {
+                      openEdit(resource);
+                    }}
+                    type="button"
+                  >
+                    Edit
                   </button>
                   <button disabled={busy} onClick={() => void remove(resource)} type="button">
                     Delete
@@ -196,44 +229,80 @@ export function OrganizationResources({
         </ol>
       )}
       {manager ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void addResource();
-          }}
-        >
-          <h3>Add a resource</h3>
-          <label htmlFor="resource-title">Title</label>
-          <input
-            id="resource-title"
-            maxLength={300}
-            onChange={(event) => {
-              setTitle(event.target.value);
-            }}
-            value={title}
-          />
-          <label htmlFor="resource-url">HTTPS link</label>
-          <input
-            id="resource-url"
-            onChange={(event) => {
-              setUrl(event.target.value);
-            }}
-            placeholder="https://"
-            type="url"
-            value={url}
-          />
-          <label htmlFor="resource-file">Or upload a file</label>
-          <input
-            id="resource-file"
-            onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null);
-            }}
-            type="file"
-          />
-          <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Saving…" : "Add resource"}
+        <>
+          <button className="button button--primary" onClick={openAdd} type="button">
+            Add resource
           </button>
-        </form>
+          <Dialog
+            description="Share a file or trusted HTTPS link with Organization members."
+            onClose={closeDialog}
+            open={dialogOpen}
+            title={editingResource ? "Edit resource" : "Add resource"}
+          >
+            <form
+              className="form-stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveResource();
+              }}
+            >
+              {error ? (
+                <p className="notice notice--error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <label className="field" htmlFor="resource-title">
+                Title
+                <input
+                  autoFocus
+                  id="resource-title"
+                  maxLength={300}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                  }}
+                  required
+                  value={title}
+                />
+              </label>
+              <label className="field" htmlFor="resource-url">
+                HTTPS link
+                <input
+                  id="resource-url"
+                  onChange={(event) => {
+                    if (event.target.value) setFile(null);
+                    setUrl(event.target.value);
+                  }}
+                  placeholder="https://"
+                  type="url"
+                  value={url}
+                />
+              </label>
+              <label className="field" htmlFor="resource-file">
+                {editingResource ? "Replace file (optional)" : "Or upload a file"}
+                <input
+                  id="resource-file"
+                  onChange={(event) => {
+                    setFile(event.target.files?.[0] ?? null);
+                    if (event.target.files?.[0]) setUrl("");
+                  }}
+                  type="file"
+                />
+              </label>
+              <p className="field-help">
+                Choose exactly one source. Leave the file blank when editing a link or keeping the
+                existing file.
+              </p>
+              <div className="dialog__actions">
+                <button className="button button--secondary" onClick={closeDialog} type="button">
+                  Cancel
+                </button>
+                <button className="button button--primary" disabled={busy} type="submit">
+                  {busy ? "Saving…" : editingResource ? "Save changes" : "Add resource"}
+                </button>
+              </div>
+            </form>
+          </Dialog>
+        </>
       ) : null}
     </section>
   );

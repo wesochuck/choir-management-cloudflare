@@ -11,6 +11,7 @@ import {
   moveSetListItem,
   parseSetListDuration,
 } from "@choir/domain";
+import { Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -189,6 +190,7 @@ function SetListCreditEditor({
   );
 }
 
+// eslint-disable-next-line complexity -- this editor coordinates ordering, drafts, and modal forms.
 export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   const [resources, setResources] = useState<Resources>(emptyResources);
   const [loaded, setLoaded] = useState(false);
@@ -202,6 +204,9 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   const [customComposer, setCustomComposer] = useState("");
   const [customDuration, setCustomDuration] = useState("");
   const [customNotes, setCustomNotes] = useState("");
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [editingItem, setEditingItem] = useState<SetListItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -293,6 +298,56 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     setCustomComposer("");
     setCustomDuration("");
     setCustomNotes("");
+    setError(null);
+    setCustomDialogOpen(false);
+  }
+
+  function openCustomItem(): void {
+    setCustomType("song");
+    setCustomTitle("");
+    setCustomComposer("");
+    setCustomDuration("");
+    setCustomNotes("");
+    setError(null);
+    setCustomDialogOpen(true);
+  }
+
+  function openItemEditor(index: number): void {
+    const item = items[index];
+    if (!item) return;
+    setEditingItemIndex(index);
+    setEditingItem({ ...item });
+    setError(null);
+  }
+
+  function closeItemEditor(): void {
+    setEditingItemIndex(null);
+    setEditingItem(null);
+  }
+
+  function saveItemEdit(): void {
+    if (editingItemIndex === null || !editingItem) return;
+    if (!editingItem.title.trim()) {
+      setError("Enter a title for the set-list item.");
+      return;
+    }
+    if (editingItem.duration && parseSetListDuration(editingItem.duration) === null) {
+      setError("Duration must be minutes, minutes:seconds, hours:minutes:seconds, or named units.");
+      return;
+    }
+    updateItem(editingItemIndex, {
+      ...editingItem,
+      title: editingItem.title.trim(),
+      composer:
+        itemType(editingItem) === "song"
+          ? editingItem.composer?.trim()
+            ? editingItem.composer.trim()
+            : undefined
+          : undefined,
+      duration: editingItem.duration?.trim() ? editingItem.duration.trim() : undefined,
+      notes: editingItem.notes?.trim() ? editingItem.notes.trim() : undefined,
+    });
+    closeItemEditor();
     setError(null);
   }
 
@@ -494,63 +549,10 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
             </div>
             <div className="form-stack">
               <h3>Add a custom item</h3>
-              <label className="field">
-                Type
-                <select
-                  value={customType}
-                  onChange={(event) => {
-                    setCustomType(event.target.value === "intermission" ? "intermission" : "song");
-                  }}
-                >
-                  <option value="song">Song</option>
-                  <option value="intermission">Intermission</option>
-                </select>
-              </label>
-              <label className="field">
-                Title
-                <input
-                  maxLength={300}
-                  value={customTitle}
-                  onChange={(event) => {
-                    setCustomTitle(event.target.value);
-                  }}
-                />
-              </label>
-              {customType === "song" ? (
-                <label className="field">
-                  Composer
-                  <input
-                    maxLength={300}
-                    value={customComposer}
-                    onChange={(event) => {
-                      setCustomComposer(event.target.value);
-                    }}
-                  />
-                </label>
-              ) : null}
-              <label className="field">
-                Duration
-                <input
-                  maxLength={20}
-                  placeholder="4:05"
-                  value={customDuration}
-                  onChange={(event) => {
-                    setCustomDuration(event.target.value);
-                  }}
-                />
-              </label>
-              <label className="field">
-                Notes
-                <textarea
-                  maxLength={10_000}
-                  rows={2}
-                  value={customNotes}
-                  onChange={(event) => {
-                    setCustomNotes(event.target.value);
-                  }}
-                />
-              </label>
-              <button className="button button--secondary" type="button" onClick={addCustomItem}>
+              <p className="field-help">
+                Add an intermission or a song that is not in the catalog.
+              </p>
+              <button className="button button--secondary" type="button" onClick={openCustomItem}>
                 Add custom item
               </button>
             </div>
@@ -637,91 +639,231 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                         </button>
                       </div>
                     </div>
-                    <div className="set-list-item-fields">
-                      <label className="field">
-                        Title
-                        <input
-                          maxLength={300}
-                          required
-                          value={item.title}
-                          onChange={(event) => {
-                            updateItem(index, { ...item, title: event.target.value });
-                          }}
-                        />
-                      </label>
-                      {itemType(item) === "song" ? (
-                        <label className="field">
-                          Composer
-                          <input
-                            maxLength={300}
-                            value={item.composer ?? ""}
-                            onChange={(event) => {
-                              updateItem(index, {
-                                ...item,
-                                composer: event.target.value || undefined,
-                              });
-                            }}
-                          />
-                        </label>
-                      ) : null}
-                      <label className="field">
-                        Duration
-                        <input
-                          aria-invalid={
-                            Boolean(item.duration) && parseSetListDuration(item.duration) === null
-                          }
-                          maxLength={20}
-                          value={item.duration ?? ""}
-                          onChange={(event) => {
-                            updateItem(index, {
-                              ...item,
-                              duration: event.target.value || undefined,
-                            });
-                          }}
-                        />
-                      </label>
-                      <label className="field set-list-notes-field">
-                        Notes
-                        <textarea
-                          maxLength={10_000}
-                          rows={2}
-                          value={item.notes ?? ""}
-                          onChange={(event) => {
-                            updateItem(index, { ...item, notes: event.target.value || undefined });
-                          }}
-                        />
-                      </label>
+                    <div className="set-list-item-summary">
+                      <span>
+                        {[item.composer, item.duration].filter(Boolean).join(" · ") ||
+                          (item.notes ? "Notes added" : "No additional details")}
+                      </span>
+                      {item.isFeaturedNumber ? <span className="status-pill">Featured</span> : null}
                     </div>
-                    {itemType(item) === "song" ? (
-                      <label className="checkbox-field">
-                        <input
-                          checked={item.isFeaturedNumber ?? item.soloSmallGroup ?? false}
-                          type="checkbox"
-                          onChange={(event) => {
-                            const isFeaturedNumber = event.target.checked;
-                            const updated = { ...item, isFeaturedNumber };
-                            delete updated.soloSmallGroup;
-                            if (!isFeaturedNumber) updated.performerCredits = [];
-                            updateItem(index, updated);
-                          }}
-                        />
-                        Featured number
-                      </label>
-                    ) : null}
-                    {itemType(item) === "song" && item.isFeaturedNumber ? (
-                      <SetListCreditEditor
-                        item={item}
-                        profiles={resources.profiles}
-                        onChange={(updated) => {
-                          updateItem(index, updated);
+                    <div className="button-row">
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => {
+                          openItemEditor(index);
                         }}
-                      />
-                    ) : null}
+                      >
+                        Edit item
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ol>
             </>
           )}
+
+          <Dialog
+            description="Add a song or intermission to this Performance without expanding the editor."
+            onClose={() => {
+              setCustomDialogOpen(false);
+            }}
+            open={customDialogOpen}
+            title="Add custom set-list item"
+          >
+            <form
+              className="form-stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                addCustomItem();
+              }}
+            >
+              {error ? (
+                <p className="notice notice--error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <label className="field">
+                Type
+                <select
+                  value={customType}
+                  onChange={(event) => {
+                    setCustomType(event.target.value === "intermission" ? "intermission" : "song");
+                  }}
+                >
+                  <option value="song">Song</option>
+                  <option value="intermission">Intermission</option>
+                </select>
+              </label>
+              <label className="field">
+                Title
+                <input
+                  autoFocus
+                  maxLength={300}
+                  required
+                  value={customTitle}
+                  onChange={(event) => {
+                    setCustomTitle(event.target.value);
+                  }}
+                />
+              </label>
+              {customType === "song" ? (
+                <label className="field">
+                  Composer
+                  <input
+                    maxLength={300}
+                    value={customComposer}
+                    onChange={(event) => {
+                      setCustomComposer(event.target.value);
+                    }}
+                  />
+                </label>
+              ) : null}
+              <label className="field">
+                Duration
+                <input
+                  maxLength={20}
+                  placeholder="4:05"
+                  value={customDuration}
+                  onChange={(event) => {
+                    setCustomDuration(event.target.value);
+                  }}
+                />
+              </label>
+              <label className="field">
+                Notes
+                <textarea
+                  maxLength={10_000}
+                  rows={3}
+                  value={customNotes}
+                  onChange={(event) => {
+                    setCustomNotes(event.target.value);
+                  }}
+                />
+              </label>
+              <div className="dialog__actions">
+                <button
+                  className="button button--secondary"
+                  onClick={() => {
+                    setCustomDialogOpen(false);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button className="button button--primary" type="submit">
+                  Add item
+                </button>
+              </div>
+            </form>
+          </Dialog>
+
+          <Dialog
+            description="Update the item details and performer assignments, then close when finished."
+            onClose={closeItemEditor}
+            open={editingItem !== null}
+            title="Edit set-list item"
+          >
+            {editingItem ? (
+              <form
+                className="form-stack"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  saveItemEdit();
+                }}
+              >
+                {error ? (
+                  <p className="notice notice--error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                <label className="field">
+                  Title
+                  <input
+                    autoFocus
+                    maxLength={300}
+                    required
+                    value={editingItem.title}
+                    onChange={(event) => {
+                      setEditingItem({ ...editingItem, title: event.target.value });
+                    }}
+                  />
+                </label>
+                {itemType(editingItem) === "song" ? (
+                  <label className="field">
+                    Composer
+                    <input
+                      maxLength={300}
+                      value={editingItem.composer ?? ""}
+                      onChange={(event) => {
+                        setEditingItem({ ...editingItem, composer: event.target.value });
+                      }}
+                    />
+                  </label>
+                ) : null}
+                <label className="field">
+                  Duration
+                  <input
+                    aria-invalid={
+                      Boolean(editingItem.duration) &&
+                      parseSetListDuration(editingItem.duration) === null
+                    }
+                    maxLength={20}
+                    value={editingItem.duration ?? ""}
+                    onChange={(event) => {
+                      setEditingItem({ ...editingItem, duration: event.target.value });
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Notes
+                  <textarea
+                    maxLength={10_000}
+                    rows={3}
+                    value={editingItem.notes ?? ""}
+                    onChange={(event) => {
+                      setEditingItem({ ...editingItem, notes: event.target.value });
+                    }}
+                  />
+                </label>
+                {itemType(editingItem) === "song" ? (
+                  <label className="checkbox-field">
+                    <input
+                      checked={editingItem.isFeaturedNumber ?? editingItem.soloSmallGroup ?? false}
+                      type="checkbox"
+                      onChange={(event) => {
+                        const isFeaturedNumber = event.target.checked;
+                        const updated = { ...editingItem, isFeaturedNumber };
+                        delete updated.soloSmallGroup;
+                        if (!isFeaturedNumber) updated.performerCredits = [];
+                        setEditingItem(updated);
+                      }}
+                    />
+                    Featured number
+                  </label>
+                ) : null}
+                {itemType(editingItem) === "song" && editingItem.isFeaturedNumber ? (
+                  <SetListCreditEditor
+                    item={editingItem}
+                    profiles={resources.profiles}
+                    onChange={setEditingItem}
+                  />
+                ) : null}
+                <div className="dialog__actions">
+                  <button
+                    className="button button--secondary"
+                    onClick={closeItemEditor}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button className="button button--primary" type="submit">
+                    Save item
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </Dialog>
 
           <div className="set-list-save-row">
             <label className="checkbox-field">
