@@ -18,6 +18,7 @@ import {
   updateOrganizationEvent,
   uploadPrivateOrganizationFile,
 } from "../auth/api";
+import { dayOfPriceStartLabel } from "./eventPricing";
 
 const emptyEvent: OrganizationEventRequest = {
   advancePriceCents: 0,
@@ -440,35 +441,43 @@ function EventEditorDialog({
               />
             </div>
             <div className="field">
-              <label htmlFor="events-page-advance-price">Advance price (cents)</label>
+              <label htmlFor="events-page-advance-price">Advance price (USD)</label>
               <input
                 id="events-page-advance-price"
                 min={0}
                 onChange={(change) => {
                   setEvent((current) => ({
                     ...current,
-                    advancePriceCents: optionalInteger(change.target.value) ?? 0,
+                    advancePriceCents: Math.round(Number(change.target.value) * 100),
                   }));
                 }}
+                step="0.01"
                 type="number"
-                value={event.advancePriceCents}
+                value={(event.advancePriceCents / 100).toFixed(2)}
               />
             </div>
             <div className="field">
-              <label htmlFor="events-page-day-price">Day-of price (cents)</label>
+              <label htmlFor="events-page-day-price">Day-of price (USD)</label>
               <input
                 id="events-page-day-price"
                 min={0}
                 onChange={(change) => {
                   setEvent((current) => ({
                     ...current,
-                    dayOfPriceCents: optionalInteger(change.target.value) ?? 0,
+                    dayOfPriceCents: Math.round(Number(change.target.value) * 100),
                   }));
                 }}
+                step="0.01"
                 type="number"
-                value={event.dayOfPriceCents}
+                value={(event.dayOfPriceCents / 100).toFixed(2)}
               />
             </div>
+            {state.status === "ready" ? (
+              <p className="ticketing-price-note" role="status">
+                {dayOfPriceStartLabel(eventStart, state.timezone) ??
+                  "Choose an event start to confirm when day-of pricing begins."}
+              </p>
+            ) : null}
           </div>
         ) : null}
         <div className="dialog__actions">

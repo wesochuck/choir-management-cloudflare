@@ -31,6 +31,7 @@ import {
   uploadPrivateOrganizationFile,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
+import { dayOfPriceStartLabel } from "./eventPricing";
 
 interface Resources {
   readonly events: readonly OrganizationEvent[];
@@ -256,12 +257,16 @@ function CalendarNotices(props: {
 
 function PublicPerformanceFields({
   event,
+  eventStart,
   onChange,
   onFileChange,
+  timezone,
 }: {
   readonly event: OrganizationEventRequest;
+  readonly eventStart: string;
   readonly onChange: (changes: Partial<OrganizationEventRequest>) => void;
   readonly onFileChange: (file: File | null) => void;
+  readonly timezone: string;
 }) {
   if (event.type !== "Performance") return null;
   return (
@@ -326,6 +331,10 @@ function PublicPerformanceFields({
               value={(event.dayOfPriceCents / 100).toFixed(2)}
             />
           </label>
+          <p className="ticketing-price-note" role="status">
+            {dayOfPriceStartLabel(eventStart, timezone) ??
+              "Choose an event start to confirm when day-of pricing begins."}
+          </p>
           <label className="field">
             Capacity (blank means unlimited)
             <input
@@ -1041,10 +1050,12 @@ export function OrganizationCalendar({
                 </div>
                 <PublicPerformanceFields
                   event={event}
+                  eventStart={eventStart}
                   onChange={(changes) => {
                     setEvent((current) => ({ ...current, ...changes }));
                   }}
                   onFileChange={setEventGraphicFile}
+                  timezone={resources.timezone}
                 />
                 <button className="button button--primary" disabled={busy} type="submit">
                   {editingEventId ? "Save event" : "Create event"}
