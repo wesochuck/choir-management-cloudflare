@@ -268,11 +268,13 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
                 header: "Name",
                 id: "name",
                 render: (candidate) => <strong>{candidate.displayName}</strong>,
+                sortValue: (candidate) => candidate.displayName,
               },
               {
                 header: "Voice part",
                 id: "voicePart",
                 render: (candidate) => candidate.voicePart || "Not assigned",
+                sortValue: (candidate) => candidate.voicePart,
               },
               {
                 header: "Status",
@@ -280,11 +282,13 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
                 render: (candidate) => (
                   <span className="status-pill">{statusLabel(candidate.globalStatus)}</span>
                 ),
+                sortValue: (candidate) => statusLabel(candidate.globalStatus),
               },
               {
                 header: "Directory",
                 id: "directory",
                 render: (candidate) => (candidate.showInDirectory ? "Shown" : "Hidden"),
+                sortValue: (candidate) => candidate.showInDirectory,
               },
               {
                 header: "Actions",
@@ -304,6 +308,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
               },
             ]}
             emptyMessage={query ? "No Profiles match your search." : "No Profiles yet."}
+            initialSort={{ columnId: "name", direction: "asc" }}
             keySelector={(candidate) => candidate.id}
             rows={filteredProfiles}
           />
