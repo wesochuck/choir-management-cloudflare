@@ -10,7 +10,7 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
-import { deliveryJobSchema } from "../jobs/contracts";
+import { deliveryJobSchema, type DeliveryJob } from "../jobs/contracts";
 import {
   privateFileIdSchema,
   privateFileReservationSchema,
@@ -31,7 +31,7 @@ import {
   readRosterConfigurationFromStore,
 } from "./calendarManagementStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
-import { readPlayerDetailsFromStore } from "./playerStore";
+import { readPlayerDetailsFromStore, readPlayerPlaylistFromStore } from "./playerStore";
 import {
   createAuditionInStore,
   deleteAuditionInStore,
@@ -85,6 +85,7 @@ import {
   listTicketOrdersFromStore,
   manageTicketingInStore,
   readTicketNotificationJobFromStore,
+  readTicketPurchaseByProviderSessionFromStore,
   readTicketPurchaseFromStore,
   readTicketWillCallFromStore,
 } from "./ticketingStore";
@@ -130,6 +131,12 @@ const profileCreateSchema = z.object({
   requestId: z.uuid(),
 });
 const profileUpdateSchema = profileCreateSchema;
+const profileDeleteSchema = z.object({
+  actorUserId: z.string().min(1).max(128),
+  organizationId: z.string().min(1).max(128),
+  profileId: z.uuid(),
+  requestId: z.uuid(),
+});
 const profileImportSchema = z.object({
   actorUserId: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
@@ -580,6 +587,36 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
     )
     .one().createdAt;
   return Response.json({ ...profile, createdAt, id: parsed.data.profileId, updatedAt: occurredAt });
+}
+
+async function deleteProfile(storage: DurableObjectStorage, request: Request): Promise<Response> {
+  const parsed = profileDeleteSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return Response.json({ code: "invalid_profile_delete" }, { status: 400 });
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const occurredAt = new Date().toISOString();
+  const deleted = storage.transactionSync(() => {
+    const existing = storage.sql
+      .exec("SELECT id FROM profiles WHERE id = ? LIMIT 1", parsed.data.profileId)
+      .toArray();
+    if (existing.length === 0) return false;
+    storage.sql.exec("DELETE FROM profiles WHERE id = ?", parsed.data.profileId);
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'profile.deleted', 'profile', ?, ?, '{}', ?)`,
+      crypto.randomUUID(),
+      parsed.data.actorUserId,
+      parsed.data.profileId,
+      parsed.data.requestId,
+      occurredAt,
+    );
+    return true;
+  });
+  return deleted
+    ? Response.json({ deleted: true, profileId: parsed.data.profileId })
+    : Response.json({ code: "profile_not_found" }, { status: 404 });
 }
 
 async function updateMemberProfile(
@@ -1295,6 +1332,7 @@ function getPrivateFileMetadata(storage: DurableObjectStorage, encodedFileId: st
 
 async function dispatchPostRequest(
   storage: DurableObjectStorage,
+  queue: Queue<DeliveryJob>,
   pathname: string,
   request: Request,
 ): Promise<Response | null> {
@@ -1311,6 +1349,24 @@ async function dispatchPostRequest(
   if (pathname === "/internal/seasons/manage") return manageSeasonsInStore(storage, request);
   if (pathname === "/internal/setup/manage") return manageSetupInStore(storage, request);
   if (pathname === "/internal/polls/manage") return managePollInStore(storage, request);
+  if (pathname === "/internal/scheduler/run-now") {
+    const body: unknown = await request.json().catch(() => null);
+    const parsed = z.object({ organizationId: z.string().min(1).max(128) }).safeParse(body);
+    if (!parsed.success) {
+      return Response.json({ code: "invalid_scheduler_request" }, { status: 400 });
+    }
+    const identityRow = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly organizationId: string }>(
+        "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+      )
+      .toArray()
+      .at(0);
+    if (identityRow?.organizationId !== parsed.data.organizationId) {
+      return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+    }
+    const result = await runOrganizationAlarm(storage, queue);
+    return Response.json({ ...result, ranAt: new Date().toISOString() });
+  }
   return dispatchOperationalPostRequest(storage, pathname, request);
 }
 
@@ -1617,6 +1673,17 @@ const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readTicketPurchaseFromStore(storage, organizationId, url.searchParams.get("purchaseId")),
+  "/internal/ticketing/purchase-by-session": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) =>
+    readTicketPurchaseByProviderSessionFromStore(
+      storage,
+      organizationId,
+      url.searchParams.get("purchaseId"),
+      url.searchParams.get("sessionId"),
+    ),
   "/internal/ticketing/will-call": (
     storage: DurableObjectStorage,
     url: URL,
@@ -1657,6 +1724,11 @@ const contentGetHandlers: Record<
       url.searchParams.get("eventId"),
       url.searchParams.get("profileId"),
     ),
+  "/internal/player/playlist": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readPlayerPlaylistFromStore(storage, organizationId, url.searchParams.get("eventId")),
   "/internal/audition/details": (
     storage: DurableObjectStorage,
     url: URL,
@@ -1743,6 +1815,8 @@ async function dispatchProfilePostRequest(
       return importProfiles(storage, request);
     case "/internal/profiles/update":
       return updateProfile(storage, request);
+    case "/internal/profiles/delete":
+      return deleteProfile(storage, request);
     default:
       return null;
   }
@@ -1879,7 +1953,12 @@ export class OrganizationStore extends DurableObject<Env> {
     const url = new URL(request.url);
 
     if (request.method === "POST") {
-      const response = await dispatchPostRequest(this.ctx.storage, url.pathname, request);
+      const response = await dispatchPostRequest(
+        this.ctx.storage,
+        this.env.JOBS_QUEUE,
+        url.pathname,
+        request,
+      );
       if (response) {
         return response;
       }

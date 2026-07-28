@@ -166,6 +166,7 @@ import {
 } from "./organization/organizationCommunications";
 import {
   createOrganizationProfile,
+  deleteOrganizationProfile,
   importOrganizationProfiles,
   listOrganizationDirectoryProfiles,
   listOrganizationProfileEmails,
@@ -191,7 +192,8 @@ import {
   readPublishedOrganization,
   readPublishedOrganizationMedia,
 } from "./publication/publishOrganization";
-import { verifySignedLinkScope } from "./security/signedLinks";
+import { issueSignedLink, verifySignedLinkScope } from "./security/signedLinks";
+import { handleStripeWebhook } from "./payments/stripeWebhookHandler";
 import {
   MAX_PRIVATE_FILE_BYTES,
   PrivateFileStorageError,
@@ -223,7 +225,9 @@ import {
   deleteOrganizationTicketBundle,
   listOrganizationTicketBundles,
   listOrganizationTicketOrders,
+  readPublicTicketPurchaseByProviderSession,
   readOrganizationTicketWillCallCsv,
+  refundOrganizationBundleByProviderPayment,
   readPublicTicketPurchase,
   resendOrganizationTicketConfirmation,
   refundFakeTicketPurchase,
@@ -263,7 +267,12 @@ import {
   resolvePollDetails,
   submitPollResponse,
 } from "./organization/organizationPollLinks";
-import { generatePlayerTokens, resolvePlayerDetails } from "./organization/organizationPlayerLinks";
+import {
+  generatePlayerTokens,
+  generatePublicPlayerToken,
+  resolvePlayerDetails,
+  resolvePublicPlayerPlaylist,
+} from "./organization/organizationPlayerLinks";
 import { organizationExportKey } from "./organization/exportStore";
 import {
   generateAuditionTokens,
@@ -306,6 +315,52 @@ interface WorkerHonoEnvironment {
 }
 
 export const router = new Hono<WorkerHonoEnvironment>();
+
+type LegacyForwardMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
+
+function legacyForwardMethod(method: string): LegacyForwardMethod {
+  if (
+    method === "DELETE" ||
+    method === "GET" ||
+    method === "PATCH" ||
+    method === "POST" ||
+    method === "PUT"
+  ) {
+    return method;
+  }
+  throw new Error(`Unsupported legacy forwarding method: ${method}`);
+}
+
+/**
+ * Keep the legacy API paths link-compatible while routing all behavior through the
+ * hostname-first handlers above. The forwarded request keeps the original headers,
+ * cookies, query string, and request ID, but never reuses a consumed request body.
+ */
+async function forwardLegacyRequest(
+  context: Context<WorkerHonoEnvironment>,
+  targetPath: string,
+  options: { body?: ArrayBuffer | string; method?: LegacyForwardMethod } = {},
+): Promise<Response> {
+  const source = context.req.raw;
+  const method = options.method ?? legacyForwardMethod(source.method);
+  const targetUrl = new URL(source.url);
+  targetUrl.pathname = targetPath;
+  const headers = new Headers(source.headers);
+  headers.set("x-request-id", context.get("requestId"));
+  headers.delete("content-length");
+  const body = options.body ?? (method === "GET" ? undefined : await source.clone().arrayBuffer());
+  const requestInit: RequestInit = { headers, method };
+  if (body !== undefined) requestInit.body = body;
+  return router.fetch(new Request(targetUrl, requestInit), context.env, context.executionCtx);
+}
+
+async function readLegacyObject(
+  context: Context<WorkerHonoEnvironment>,
+): Promise<Record<string, unknown> | null> {
+  const value: unknown = await context.req.json<unknown>().catch(() => null);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return Object.fromEntries(Object.entries(value));
+}
 
 function isErrorResponse(
   value: unknown,
@@ -3989,6 +4044,19 @@ router.post("/api/organization/tickets/:purchaseId/confirmation", async (context
       400,
     );
   }
+  const body = z
+    .object({ recipientEmail: z.email().optional() })
+    .safeParse(await context.req.json<unknown>().catch(() => ({})));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid recipient email is required when overriding the ticket destination.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
   try {
     await resendOrganizationTicketConfirmation(
       context.env,
@@ -3998,6 +4066,7 @@ router.post("/api/organization/tickets/:purchaseId/confirmation", async (context
         requestId: context.get("requestId"),
       },
       purchaseId.data,
+      body.data.recipientEmail,
     );
     return context.json({ queued: true, requestId: context.get("requestId") });
   } catch (error: unknown) {
@@ -9364,6 +9433,895 @@ router.get("/api/modules/state", async (context) => {
       {
         code: "modules_unavailable",
         message: "Module state is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+// Legacy API compatibility. These paths remain supported for signed links, older
+// clients, and integrations while the canonical handlers above own authorization
+// and Organization resolution.
+async function forwardLegacyTicketCheckout(
+  context: Context<WorkerHonoEnvironment>,
+  kind: "bundleId" | "eventId",
+): Promise<Response> {
+  const body = await readLegacyObject(context);
+  const payload: Record<string, unknown> = {
+    buyerEmail: body?.buyerEmail ?? body?.email,
+    buyerName: body?.buyerName ?? body?.name,
+    checkoutRequestId: body?.checkoutRequestId ?? crypto.randomUUID(),
+    marketingOptIn: body?.marketingOptIn ?? false,
+    quantity: body?.quantity,
+  };
+  payload[kind] = body?.[kind];
+  return forwardLegacyRequest(context, "/api/public/tickets/checkout", {
+    body: JSON.stringify(payload),
+    method: "POST",
+  });
+}
+
+router.get("/api/hooks/health", (context) =>
+  context.json({
+    fingerprint: "cloudflare-worker",
+    ok: true,
+    requestId: context.get("requestId"),
+  }),
+);
+
+router.post("/api/rsvp-details", (context) =>
+  forwardLegacyRequest(context, "/api/public/rsvp-details"),
+);
+
+router.post("/api/quick-rsvp", (context) =>
+  forwardLegacyRequest(context, "/api/public/quick-rsvp"),
+);
+
+router.post("/api/unsubscribe", (context) =>
+  forwardLegacyRequest(context, "/api/public/unsubscribe"),
+);
+
+router.post("/api/generate-rsvp-tokens", (context) =>
+  forwardLegacyRequest(context, "/api/organization/rsvp-tokens"),
+);
+
+router.post("/api/generate-player-token", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const eventId = z.uuid().safeParse(body?.eventId);
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const result = await generatePublicPlayerToken(
+      context.env,
+      authorization.organizationId,
+      eventId.data,
+    );
+    return context.json({ ...result, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "player_token_unavailable",
+        message: "The player link could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/checkout/create-tickets-session", (context) =>
+  forwardLegacyTicketCheckout(context, "eventId"),
+);
+
+router.post("/api/checkout/create-bundle-session", (context) =>
+  forwardLegacyTicketCheckout(context, "bundleId"),
+);
+
+router.get("/api/player-playlist", async (context) => {
+  validateStartupConfig(context.env);
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  const token = context.req.query("token") ?? "";
+  if (!resolved.ok || token.length === 0 || token.length > 4_096) {
+    return context.json(
+      {
+        code: "invalid_link",
+        message: "This player link is invalid or expired.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const details = await resolvePublicPlayerPlaylist(
+    context.env,
+    resolved.value.organizationId,
+    token,
+  );
+  if (isErrorResponse(details)) {
+    return context.json(
+      {
+        code: details.code,
+        message: "This player link is invalid or expired.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const playlist = z
+    .object({
+      eventId: z.uuid(),
+      eventStartsAt: z.iso.datetime(),
+      eventTitle: z.string().min(1).max(500),
+      items: z.array(z.record(z.string(), z.unknown())).max(500),
+    })
+    .safeParse(details);
+  if (!playlist.success) {
+    return context.json(
+      {
+        code: "player_playlist_unavailable",
+        message: "Practice tracks are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+  return context.json({
+    allPieces: playlist.data.items,
+    event: {
+      date: playlist.data.eventStartsAt,
+      id: playlist.data.eventId,
+      title: playlist.data.eventTitle,
+    },
+    pieces: playlist.data.items,
+    requestId: context.get("requestId"),
+    setList: playlist.data.items,
+    voiceParts: [],
+  });
+});
+
+router.get("/api/setup/health", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const status = await getSetupStatus(context.env, authorization.organizationId);
+    return context.json({
+      ...status,
+      environment: {
+        externalEffectsMode: context.env.EXTERNAL_EFFECTS_MODE,
+        platformEmailConfigured: Boolean(context.env.PLATFORM_EMAIL),
+        signedLinksConfigured: context.env.SIGNED_LINK_SECRET.length >= 32,
+      },
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "setup_health_unavailable",
+        message: "Setup health is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+const administratorRecoveryRequestSchema = z.object({
+  email: z.email(),
+  name: z.string().trim().min(1).max(200).optional(),
+  password: z.string().max(128).optional(),
+  passwordConfirm: z.string().max(128).optional(),
+});
+
+interface AdministratorRecoveryRequest {
+  readonly email: string;
+  readonly displayName: string;
+}
+
+interface AdministratorRecoveryAuthorization {
+  readonly userId: string;
+}
+
+interface AdministratorRecoveryIdentity {
+  readonly createdMembership: boolean;
+  readonly createdUser: boolean;
+  readonly email: string;
+  readonly membershipId: string;
+  readonly upgradedMembership: boolean;
+  readonly userId: string;
+}
+
+async function readAdministratorRecoveryRequest(
+  context: Context<WorkerHonoEnvironment>,
+): Promise<AdministratorRecoveryRequest | Response> {
+  const body = await readLegacyObject(context);
+  const parsed = administratorRecoveryRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid administrator email and display name are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  if (
+    parsed.data.password !== undefined &&
+    parsed.data.passwordConfirm !== undefined &&
+    parsed.data.password !== parsed.data.passwordConfirm
+  ) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Passwords do not match. Passwords are not stored by administrator recovery.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const email = parsed.data.email.toLowerCase();
+  return {
+    displayName: parsed.data.name?.trim() ?? email.split("@", 1)[0] ?? "Administrator",
+    email,
+  };
+}
+
+async function authorizeAdministratorRecovery(
+  context: Context<WorkerHonoEnvironment>,
+  requestUrl: URL,
+  organizationId: string,
+): Promise<AdministratorRecoveryAuthorization | Response> {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const platform = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!platform.ok) {
+    return context.json(
+      {
+        code: platform.error.code,
+        message: platform.error.message,
+        requestId: context.get("requestId"),
+      },
+      platform.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  const elevation = await getPlatformOrganizationContext(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id ?? "",
+    platform.value.userId,
+  );
+  return elevation.canEdit
+    ? { userId: platform.value.userId }
+    : context.json(
+        {
+          code: "platform_elevation_required",
+          message:
+            "Enable a current Platform Administrator elevation before recovering an administrator.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        403,
+      );
+}
+
+async function ensureAdministratorRecoverySetup(
+  context: Context<WorkerHonoEnvironment>,
+  organizationId: string,
+): Promise<Response | true> {
+  try {
+    const status = await getSetupStatus(context.env, organizationId);
+    return status.launched
+      ? true
+      : context.json(
+          {
+            code: "admin_recovery_not_required",
+            message: "Administrator recovery is available only after setup has been launched.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          409,
+        );
+  } catch {
+    return context.json(
+      {
+        code: "setup_recovery_unavailable",
+        message: "Administrator recovery status is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+}
+
+async function recoverAdministratorIdentity(
+  context: Context<WorkerHonoEnvironment>,
+  organizationId: string,
+  request: AdministratorRecoveryRequest,
+): Promise<AdministratorRecoveryIdentity | Response> {
+  const membershipCount = await context.env.CONTROL_DB.prepare(
+    `SELECT COUNT(*) AS count FROM member WHERE organizationId = ? AND role IN ('owner', 'admin')`,
+  )
+    .bind(organizationId)
+    .first<{ count: number }>();
+  if ((membershipCount?.count ?? 0) > 0) {
+    return context.json(
+      {
+        code: "admin_recovery_not_required",
+        message: "Administrator recovery is not required for this Organization.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      409,
+    );
+  }
+  const now = Date.now();
+  const existingUser = await context.env.CONTROL_DB.prepare(
+    "SELECT id FROM user WHERE lower(email) = lower(?) LIMIT 1",
+  )
+    .bind(request.email)
+    .first<{ id: string }>();
+  const userId = existingUser?.id ?? crypto.randomUUID();
+  const existingMembership = await context.env.CONTROL_DB.prepare(
+    "SELECT id, role FROM member WHERE organizationId = ? AND userId = ? LIMIT 1",
+  )
+    .bind(organizationId, userId)
+    .first<{ id: string; role: "owner" | "admin" | "member" }>();
+  const membershipId = existingMembership?.id ?? crypto.randomUUID();
+  const statements = [
+    context.env.CONTROL_DB.prepare(
+      `INSERT OR IGNORE INTO user (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+       VALUES (?, ?, ?, 1, ?, ?, 0)`,
+    ).bind(userId, request.displayName, request.email, now, now),
+    existingMembership
+      ? context.env.CONTROL_DB.prepare(
+          "UPDATE member SET role = 'admin' WHERE id = ? AND organizationId = ? AND userId = ?",
+        ).bind(membershipId, organizationId, userId)
+      : context.env.CONTROL_DB.prepare(
+          "INSERT INTO member (id, organizationId, userId, role, createdAt) VALUES (?, ?, ?, 'admin', ?)",
+        ).bind(membershipId, organizationId, userId, now),
+  ];
+  try {
+    await context.env.CONTROL_DB.batch(statements);
+  } catch {
+    return context.json(
+      {
+        code: "admin_recovery_conflict",
+        message: "The administrator identity could not be recovered.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      409,
+    );
+  }
+  return {
+    createdMembership: existingMembership === null,
+    createdUser: existingUser === null,
+    email: request.email,
+    membershipId,
+    upgradedMembership: existingMembership?.role === "member",
+    userId,
+  };
+}
+
+async function createAdministratorRecoveryProfile(
+  context: Context<WorkerHonoEnvironment>,
+  organizationId: string,
+  actorUserId: string,
+  request: AdministratorRecoveryRequest,
+  identity: AdministratorRecoveryIdentity,
+): Promise<string | Response> {
+  let profileId: string | null = null;
+  try {
+    const profile = await createOrganizationProfile(context.env, {
+      actorUserId,
+      organizationId,
+      profile: organizationProfileRequestSchema.parse({ displayName: request.displayName }),
+      requestId: context.get("requestId"),
+    });
+    profileId = profile.id;
+    await context.env.CONTROL_DB.prepare(
+      "UPDATE member SET profileId = ? WHERE id = ? AND organizationId = ?",
+    )
+      .bind(profile.id, identity.membershipId, organizationId)
+      .run();
+    return profile.id;
+  } catch {
+    const cleanup = identity.createdMembership
+      ? [
+          context.env.CONTROL_DB.prepare(
+            "DELETE FROM member WHERE id = ? AND organizationId = ? AND userId = ?",
+          ).bind(identity.membershipId, organizationId, identity.userId),
+        ]
+      : identity.upgradedMembership
+        ? [
+            context.env.CONTROL_DB.prepare(
+              "UPDATE member SET role = 'member' WHERE id = ? AND organizationId = ? AND userId = ?",
+            ).bind(identity.membershipId, organizationId, identity.userId),
+          ]
+        : [];
+    if (identity.createdUser)
+      cleanup.push(
+        context.env.CONTROL_DB.prepare("DELETE FROM user WHERE id = ? AND email = ?").bind(
+          identity.userId,
+          identity.email,
+        ),
+      );
+    await context.env.CONTROL_DB.batch(cleanup).catch(() => undefined);
+    if (profileId) {
+      await deleteOrganizationProfile(context.env, {
+        actorUserId,
+        organizationId,
+        profileId,
+        requestId: context.get("requestId"),
+      }).catch(() => undefined);
+    }
+    return context.json(
+      {
+        code: "admin_recovery_unavailable",
+        message: "The administrator Profile could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+}
+
+async function recoverAdministrator(context: Context<WorkerHonoEnvironment>): Promise<Response> {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Administrator recovery requires a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const request = await readAdministratorRecoveryRequest(context);
+  if (request instanceof Response) return request;
+  const authorization = await authorizeAdministratorRecovery(context, requestUrl, organizationId);
+  if (authorization instanceof Response) return authorization;
+  const setup = await ensureAdministratorRecoverySetup(context, organizationId);
+  if (setup instanceof Response) return setup;
+  const identity = await recoverAdministratorIdentity(context, organizationId, request);
+  if (identity instanceof Response) return identity;
+  const profile = await createAdministratorRecoveryProfile(
+    context,
+    organizationId,
+    authorization.userId,
+    request,
+    identity,
+  );
+  if (profile instanceof Response) return profile;
+  await context.env.CONTROL_DB.prepare(
+    "INSERT INTO platform_audit_events (id, actor_user_id, organization_id, action, target_type, target_id, request_id, change_summary, occurred_at) VALUES (?, ?, ?, 'organization.admin.recovered', 'organization_membership', ?, ?, ?, ?)",
+  )
+    .bind(
+      crypto.randomUUID(),
+      authorization.userId,
+      organizationId,
+      identity.membershipId,
+      context.get("requestId"),
+      JSON.stringify({ email: identity.email, profileCreated: true, role: "administrator" }),
+      new Date().toISOString(),
+    )
+    .run();
+  return context.json({
+    membershipId: identity.membershipId,
+    requestId: context.get("requestId"),
+    success: true,
+    userId: identity.userId,
+  });
+}
+
+router.post("/api/setup/recover-admin", recoverAdministrator);
+
+router.get("/api/calendar/download", (context) =>
+  forwardLegacyRequest(context, "/api/calendar/feed", { method: "GET" }),
+);
+
+router.post("/api/tickets/validate", (context) =>
+  forwardLegacyRequest(context, "/api/organization/tickets/scan"),
+);
+
+router.post("/api/singer/rsvp", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const eventId = z.uuid().safeParse(body?.eventId);
+  const rsvp = singerRsvpRequestSchema.safeParse({
+    rsvp: body?.rsvp,
+    rsvpNote: body?.rsvpNote,
+  });
+  if (!eventId.success || !rsvp.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event and RSVP are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  return forwardLegacyRequest(context, `/api/singer/events/${eventId.data}/rsvp`, {
+    body: JSON.stringify(rsvp.data),
+    method: "PUT",
+  });
+});
+
+router.post("/api/admin/bulk-upsert-attendance", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const eventId = z.uuid().safeParse(body?.eventId);
+  const updates = organizationAttendanceBulkRequestSchema.safeParse({ updates: body?.updates });
+  if (!eventId.success || !updates.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event and attendance updates are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  return forwardLegacyRequest(context, `/api/organization/events/${eventId.data}/attendance`, {
+    body: JSON.stringify(updates.data),
+    method: "PUT",
+  });
+});
+
+router.post("/api/admin/refund-ticket", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const purchaseId = z.uuid().safeParse(body?.purchaseId);
+  if (!purchaseId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid ticket order is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  return forwardLegacyRequest(context, `/api/organization/tickets/${purchaseId.data}/refund`, {
+    body: "{}",
+    method: "POST",
+  });
+});
+
+router.post("/api/admin/refund-bundle", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const providerPaymentId = z.string().trim().min(1).max(256).safeParse(body?.paymentIntentId);
+  if (!providerPaymentId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid bundle payment is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    await refundOrganizationBundleByProviderPayment(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      providerPaymentId.data,
+    );
+    return context.json({ requestId: context.get("requestId"), success: true });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof TicketingError ? error.code : "ticket_bundle_refund_unavailable",
+        message:
+          error instanceof TicketingError
+            ? error.message
+            : "The ticket bundle could not be refunded.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof TicketingError && (error.status === 404 || error.status === 409)
+        ? error.status
+        : 503,
+    );
+  }
+});
+
+router.post("/api/admin/resend-ticket-confirmation", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const purchaseId = z.uuid().safeParse(body?.purchaseId);
+  if (!purchaseId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid ticket order is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const recipientEmail = body?.recipientEmail
+    ? z.email().safeParse(body.recipientEmail)
+    : { success: true as const, data: undefined };
+  if (!recipientEmail.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid recipient email is required when provided.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  return forwardLegacyRequest(
+    context,
+    `/api/organization/tickets/${purchaseId.data}/confirmation`,
+    {
+      body: JSON.stringify(recipientEmail.data ? { recipientEmail: recipientEmail.data } : {}),
+      method: "POST",
+    },
+  );
+});
+
+router.post("/api/admin/communications/delivery-summary", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const messageId = z.uuid().safeParse(body?.messageId);
+  if (!messageId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid communication is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  return forwardLegacyRequest(
+    context,
+    `/api/organization/communications/${messageId.data}/delivery-summary`,
+    { method: "GET" },
+  );
+});
+
+router.post("/api/admin/communications/retry-failed", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = await readLegacyObject(context);
+  const messageId = z.uuid().safeParse(body?.messageId);
+  if (!messageId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid communication is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  return forwardLegacyRequest(
+    context,
+    `/api/organization/communications/${messageId.data}/retry-failed`,
+    { body: "{}", method: "POST" },
+  );
+});
+
+router.post("/api/queue/process", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  // Cloudflare Queues process delivery jobs continuously through the Worker
+  // consumer. Keep the old manual trigger idempotent and truthful: it confirms
+  // that the Organization is authorized and reports automatic processing rather
+  // than pretending to synchronously drain a queue in the request.
+  return context.json({
+    mode: "automatic",
+    requestId: context.get("requestId"),
+    success: true,
+  });
+});
+
+router.get("/api/maintenance/run", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const response = await stub.fetch("https://organization.internal/internal/scheduler/run-now", {
+      body: JSON.stringify({ organizationId: authorization.organizationId }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "maintenance_unavailable",
+          message: "Organization maintenance could not be run.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+    const result = z
+      .object({
+        enqueuedJobCount: z.number().int().nonnegative(),
+        organizationId: z.string().min(1),
+        ranAt: z.string(),
+      })
+      .safeParse(body);
+    if (!result.success) throw new Error("maintenance_result_invalid");
+    return context.json({ ...result.data, requestId: context.get("requestId"), success: true });
+  } catch {
+    return context.json(
+      {
+        code: "maintenance_unavailable",
+        message: "Organization maintenance could not be run.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/webhook/stripe", handleStripeWebhook);
+
+router.get("/api/tickets/scan-context", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const resolved = await resolveOrganization(requestUrl, context.env);
+  const sessionId = requestUrl.searchParams.get("session_id") ?? "";
+  const purchaseId = z.uuid().safeParse(requestUrl.searchParams.get("purchase_id"));
+  if (!resolved.ok || sessionId.length === 0 || sessionId.length > 256 || !purchaseId.success) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Ticket purchase not found.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const purchase = await readPublicTicketPurchaseByProviderSession(
+      context.env,
+      resolved.value.organizationId,
+      purchaseId.data,
+      sessionId,
+    );
+    if (purchase.status !== "paid") {
+      return context.json(
+        {
+          code: "ticket_purchase_pending",
+          message: "Ticket purchase is not yet paid.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    const token = await issueSignedLink(context.env.SIGNED_LINK_SECRET, {
+      algorithm: "HS256",
+      expiresAt: Math.floor(Date.now() / 1_000) + 7 * 24 * 60 * 60,
+      issuedAt: Math.floor(Date.now() / 1_000),
+      nonce: crypto.randomUUID(),
+      organizationId: resolved.value.organizationId,
+      purpose: "ticket_scan",
+      resourceId: purchase.id,
+      version: 1,
+    });
+    const scanUrl = new URL("/admin/tickets/scan", requestUrl.origin);
+    scanUrl.searchParams.set("token", token);
+    const primaryEvent = purchase.includedEvents[0];
+    return context.json({
+      buyerName: purchase.buyerName,
+      bundleTitle: purchase.bundleTitle || undefined,
+      eventDate: primaryEvent?.startsAt ?? purchase.eventStartsAt,
+      eventTitle: primaryEvent?.title ?? purchase.eventTitle,
+      isBundlePass: purchase.bundleId !== null,
+      requestId: context.get("requestId"),
+      scanUrl: scanUrl.href,
+      token,
+    });
+  } catch (error: unknown) {
+    if (error instanceof TicketingError && error.status === 404) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "Ticket purchase not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    return context.json(
+      {
+        code: "ticket_scan_context_unavailable",
+        message: "Ticket purchase details are temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

@@ -10,12 +10,13 @@ and target-evidence paths. It does not prove that an entry's behavior matches th
 pass compared the current implementation with the legacy source, current contracts, the Organization
 Durable Object handlers, and the focused browser/integration tests.
 
-The matrix now records **48 verified, 142 implemented, 0 partial, and 0 planned** entries across
+The matrix now records **66 verified, 124 implemented, 0 partial, and 0 planned** entries across
 nine sections (190 entries total after adding the asynchronous export routes). `verified` means the
 entry has both the required local evidence and permanent-staging evidence; `implemented` means the
-behavior and focused local/integration evidence exist, while staging proof is still outstanding.
-There are no unfinished implementation entries. The remaining release work is evidence qualification
-for the 142 implemented entries, not a missing feature or a database migration.
+behavior and focused local/integration evidence exist, while staging proof is still outstanding;
+`partial` means the feature has target code or a renamed replacement, but the baseline contract is
+not yet complete. Before the route-contract repair, setup recovery and Stripe were the two real
+compatibility gaps; both now have typed target handlers and focused local evidence.
 
 ### Closed gaps and evidence
 
@@ -26,27 +27,52 @@ for the 142 implemented entries, not a missing feature or a database migration.
 | Organization export | Typed queued/processing/completed/failed contracts, bounded R2 archive generation, checksum manifest, owner/elevated-platform authorization, replay-safe completion, download verification, and audit records are covered by `calendarManagement.integration.test.ts`. |
 | Mobile shell focus  | Staging exposed a drawer focus-return regression; the Radix Sheet now restores focus to the trigger on Escape/close, with mobile browser coverage in `auth.spec.ts`.                                                                                                   |
 
-### Evidence debt across the remaining entries
+### Open work across the remaining entries
 
-The matrix is implementation-complete, but not every entry is staging-verified. The remaining 142
-entries are distributed as follows:
+The remaining 124 non-verified entries are staging evidence debt for the 124 implemented entries:
 
 | Section               | Entries still `implemented` | Completion evidence still required                                                                                                                                 |
 | --------------------- | --------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Public browser routes |                          18 | Public route sweep for home/history/performances, signed RSVP/poll/unsubscribe/player/ticket/donation flows, and reset/setup states on the deployed Worker.        |
-| API routes            |                          69 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
+| Public browser routes |                           0 | All 60 browser routes now have a deployed route/empty-state sweep; retain these checks in release automation.                                                      |
+| API routes            |                          67 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
 | Record hooks          |                           4 | Workerd/integration replay and audit evidence on the deployed schema; no live external effect.                                                                     |
 | Background tasks      |                           5 | Queue/alarm replay, retry, idempotency, and dead-letter visibility evidence with staging-safe fixtures.                                                            |
 | CSV contracts         |                           7 | Import/export round trips and malformed/oversized input checks against Organization-scoped fixtures.                                                               |
 | Signed flows          |                           7 | Expiry, revocation, purpose binding, tenant binding, and successful signed-link browser/API checks.                                                                |
 | Domain workflows      |                          21 | End-to-end success, authorization failure, rollback compatibility, and audit attribution for the remaining workflow families.                                      |
 | File behaviors        |                           5 | Upload/download/public-media checks, key isolation, and metadata/body agreement using non-sensitive fixtures.                                                      |
-| Responsive states     |                           6 | Public checkout, setup, communications, and data-table mobile screenshots/interaction checks; focused dialog, seating, and theme states are already verified.      |
+| Responsive states     |                           5 | Public checkout, setup, communications, and data-table mobile screenshots/interaction checks; focused dialog, seating, and theme states are already verified.      |
 
-This is evidence debt rather than an unfinished feature: each row has a target implementation and
-local tests, and the parity checker rejects missing target evidence. Keep these entries as
-`implemented` until the staging check is captured; do not promote them based on source inspection
-alone.
+The setup recovery and Stripe webhook entries are now implemented with typed, tenant-scoped handlers
+and focused tests. Staging still needs signed-provider fixtures and authenticated replay,
+authorization, and tenant-isolation evidence before those entries can be promoted to `verified`. The
+current staging Worker secret inventory contains no `STRIPE_WEBHOOK_SECRET` and no Brevo
+credentials, so this is an external secure-secret prerequisite rather than a code failure; do not
+seed placeholder provider keys into staging.
+
+### Completion plan for the repaired provider contracts
+
+- **Setup recovery:** the Better Auth replacement contract is implemented: a recently MFA-verified
+  Platform Administrator, scoped to one hostname and active elevation, creates or upgrades the
+  administrator membership, links an Organization Profile, records an audit event, and rolls back
+  partial writes. Password fields are accepted only for legacy shape validation and never stored or
+  logged. Remaining work is staging replay and invitation/rollback evidence.
+- **Stripe webhook:** raw-body `Stripe-Signature` verification with a bounded timestamp window,
+  event-id idempotency, module/Organization metadata checks, checkout-completed/expired and
+  charge-refunded transitions, and audit persistence are implemented for ticketing, donations, and
+  dues. Keep fake mode deterministic in local tests; staging still needs a secure test-mode secret,
+  signed fixtures, queue assertions, and a provider rollback drill.
+
+  The donation contract now derives and persists legacy-compatible `expired`/`expiredAt` state
+  through a forward-only Organization schema v34 `donation_expirations` table; completion removes
+  the marker and returns the donation to `paid`. Dues intentionally retain their existing `pending`
+  contract while recording the provider-expiry audit. Local expiry, replay, and
+  completion-after-expiry coverage is green; staging still needs the signed provider fixture and
+  rollback drill.
+
+The remaining 124 `implemented` entries are evidence debt: each has target code and focused tests,
+but still needs the staging success plus authorization, validation, retry, or tenant-isolation proof
+listed in the table. Keep these entries as `implemented` until that evidence is captured.
 
 The `route.admin.auditions` target evidence was corrected to point to `AuthenticatedShell.tsx` (the
 actual route owner) and `auditions.spec.ts`.
@@ -99,7 +125,43 @@ cross-tenant denial, retry/replay, bounded size handling, and audit attribution 
 integration tests. The legacy synchronous endpoint remains as a rollback-compatible compatibility
 route while the settings page uses the asynchronous contract.
 
-### Phase D — Evidence and staging qualification (in progress)
+### Phase D — Route-contract repair (in progress)
+
+**Owners:** `apps/worker/src/router.ts`, Organization payment/queue/setup modules, contracts, and
+the API integration suite.
+
+- Restore the two baseline workflows with typed compatibility handlers that delegate to the
+  canonical Organization-scoped implementation without bypassing hostname resolution, MFA, module
+  guards, audit attribution, or request-size limits.
+- Finish setup recovery through a documented Better Auth administrator-recovery flow, or explicitly
+  retire the old superuser/password path with a versioned migration and owner-approved contract.
+- Rebuild Stripe webhook behavior from the legacy contracts, including signature verification,
+  idempotency, payment/refund state transitions, and safe fake-provider behavior in staging.
+- Add contract tests for every restored path: success, malformed input, unauthorized/MFA failure,
+  cross-tenant identifiers, replay, and rollback-compatible payloads.
+
+**Exit criteria:** the implementation audit passes with no implemented/verified API missing from
+`router.ts`; every repaired entry is promoted to implemented with focused tests or changed to
+blocked/superseded with an approved contract note.
+
+Route-contract repair evidence: 87 unit tests, 118 integration tests, the Stripe Durable Object
+completion/replay/refund/expiry test, and staging Worker version
+`39d00939-901b-4b46-b278-5ac888cefb7a`. Anonymous staging health/readiness probes pass; setup status
+correctly returns 401 without a session, while Stripe remains fail-closed with a typed 503 until a
+secure staging webhook secret and signed provider fixture are supplied.
+
+The same deployment passed a cache-busted route sweep of all 60 browser entries and 70 API entries:
+2 public 200s, 13 validation 400s, 53 authorization 401s, four expected invalid-link/not-found 404s,
+and one typed Stripe configuration 503. No route-level 404 occurred.
+
+The local Milestone 6 scale slice now seeds 5,000 active Profiles and 500 upcoming events inside one
+Organization Durable Object, then exercises the dashboard-summary API. The response returns exact
+counts and only five next events in under one second, demonstrating that the overview uses bounded
+`COUNT`/`LIMIT` queries rather than loading the full dataset. This is local qualification evidence;
+the permanent-staging scale gate remains open until it runs against the deployed Cloudflare
+primitives.
+
+### Phase E — Evidence and staging qualification (in progress)
 
 **Owners:** parity maintainers, route owners, and release engineering.
 
@@ -108,15 +170,16 @@ route while the settings page uses the asynchronous contract.
 - Keep responsive browser proof for theme, public/admin audition, set lists, and existing seating
   focus/mobile modes.
 - Keep source paths alongside executable test references for traceability.
-- Run `format:check`, lint, strict typecheck, unit, integration, E2E, build, parity validation, and
-  high-severity audit. The corrected qualified commit `971e4f5` is deployed to permanent staging as
-  Worker version `b5515d2e-11ab-4e99-87e6-d1ede621dec7`.
+- Run `format:check`, lint, strict typecheck, unit, integration, E2E, build, parity validation,
+  implementation parity validation, and high-severity audit. The corrected qualified commit
+  `971e4f5` is deployed to permanent staging as Worker version
+  `b5515d2e-11ab-4e99-87e6-d1ede621dec7`.
 - Complete authenticated Organization, member, Account, and Platform Administrator browser checks
   from a signed-in staging session, including tenant switching, export completion, mobile drawer
   Escape/focus return, active navigation semantics, light-theme switching, and the MFA boundary. The
-  focused entries now have permanent-staging evidence; the 142 remaining entries retain their
-  local/integration evidence until their route-, workflow-, or contract-specific staging proof is
-  captured.
+  focused entries now have permanent-staging evidence; the 124 remaining implemented entries retain
+  their local/integration evidence until their route-, workflow-, or contract-specific staging proof
+  is captured.
 - Add a bounded staging qualification suite in four batches: public/signed browser flows, API
   contract families, queue/file/CSV workflows, and responsive visual states. Use seeded LCC/LMC
   fixtures, fake external effects, and read-only cleanup so the qualification cannot mutate a
@@ -125,15 +188,26 @@ route while the settings page uses the asynchronous contract.
   failure/isolation path are recorded in the test output or a dated staging probe. Keep the matrix
   count and this table synchronized after each batch.
 
-**Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes (met).
-Focused public and authenticated staging qualification is met. Phase D remains open until the
-remaining 142 entries are either staging-verified or explicitly blocked by a documented external
-prerequisite; production remains unlaunched.
+**Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes. Phase E
+remains open until the 124 implemented entries are staging-verified or explicitly blocked by a
+documented external prerequisite; production remains unlaunched.
+
+### Phase F — Whole-product release gate (not started)
+
+The local 5,000-Profile/500-event dashboard-summary slice is complete, but the deployed Cloudflare
+scale check, custom/apex/www domain behavior, Platform email sandbox delivery, queue and dead-letter
+replay, Stripe/Brevo webhook verification, exports, schedulers, observability, migrations,
+dependency audit, security/tenant-isolation probes, and rollback drill still need dated staging
+evidence. Do not mark the goal complete while any partial entry, unqualified provider workflow, or
+high-severity finding remains.
 
 ## Rollback and risk notes
 
 - All storage changes are forward-only and additive; retain old audition fields and payload
   compatibility during rollout.
+- Organization schema v34 adds only the tenant-local `donation_expirations` marker table; existing
+  donation rows and columns are untouched. A rollback to a pre-v34 Worker ignores the additive table
+  and continues to see the underlying donation as pending, so no destructive downgrade is required.
 - Audition messages and export jobs must honor fake/disabled external-effect modes in local,
   preview, and staging environments.
 - Hostname-first Organization resolution remains authoritative for every new route, DO call, R2 key,
@@ -147,6 +221,7 @@ prerequisite; production remains unlaunched.
 
 The rebuild plan now owns this audit artifact:
 
-| Path                             | Responsibility                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `docs/parity/completion-plan.md` | Code/test-backed parity audit, confirmed gaps, evidence debt, phased completion plan, and exit criteria |
+| Path                                      | Responsibility                                                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `docs/parity/completion-plan.md`          | Code/test-backed parity audit, confirmed gaps, evidence debt, phased completion plan, and exit criteria |
+| `scripts/audit-parity-implementation.mjs` | Fails the gate when an implemented/verified API has no matching Worker route; reports partial API work  |

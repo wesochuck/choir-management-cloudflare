@@ -1458,6 +1458,146 @@ describe("Platform Administrator MFA", () => {
     });
   });
 
+  it("recovers an unadministered launched Organization through scoped Platform MFA", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const sessionCookie = await signInInvitedUser();
+    await grantPlatformAdministratorForCurrentSession();
+
+    const organizationId = "organization-bravo";
+    const organizationStub = testEnv.ORGANIZATION_STORE.get(
+      testEnv.ORGANIZATION_STORE.idFromName(organizationId),
+    );
+    const provisionResponse = await organizationStub.fetch(
+      "https://organization.internal/internal/provision",
+      {
+        body: JSON.stringify({
+          actorUserId: "bootstrap",
+          canonicalHostname: "bravo.localhost",
+          canonicalStatus: "active",
+          name: "Organization Bravo",
+          organizationId,
+          requestId: crypto.randomUUID(),
+          slug: "bravo",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(provisionResponse.status).toBe(200);
+    await organizationStub.fetch("https://organization.internal/internal/setup/manage", {
+      body: JSON.stringify({
+        action: "save_progress",
+        data: { modules: true },
+        organizationId,
+        step: "modules",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const completeSetupResponse = await organizationStub.fetch(
+      "https://organization.internal/internal/setup/manage",
+      {
+        body: JSON.stringify({ action: "complete_setup", organizationId }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(completeSetupResponse.status).toBe(200);
+
+    const elevationResponse = await fetchWorker(
+      authRequest(
+        "/api/platform/elevations",
+        {
+          body: JSON.stringify({ reason: "Recover the unadministered Organization" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        "http://bravo.localhost",
+      ),
+    );
+    expect(elevationResponse.status).toBe(201);
+
+    const recoveryResponse = await fetchWorker(
+      authRequest(
+        "/api/setup/recover-admin",
+        {
+          body: JSON.stringify({
+            email: "recovered.admin@example.test",
+            name: "Recovered Administrator",
+            password: "not-persisted-password",
+            passwordConfirm: "not-persisted-password",
+          }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        "http://bravo.localhost",
+      ),
+    );
+    expect(recoveryResponse.status).toBe(200);
+    const recovery = z
+      .object({
+        membershipId: z.uuid(),
+        requestId: z.uuid(),
+        success: z.literal(true),
+        userId: z.uuid(),
+      })
+      .parse(await recoveryResponse.json());
+    expect(
+      await testEnv.CONTROL_DB.prepare(
+        `SELECT role, profileId FROM member WHERE id = ? AND organizationId = ?`,
+      )
+        .bind(recovery.membershipId, organizationId)
+        .first(),
+    ).toMatchObject({ role: "admin" });
+    expect(
+      await testEnv.CONTROL_DB.prepare(`SELECT name, email, emailVerified FROM user WHERE id = ?`)
+        .bind(recovery.userId)
+        .first(),
+    ).toMatchObject({ email: "recovered.admin@example.test", emailVerified: 1 });
+    expect(
+      await testEnv.CONTROL_DB.prepare(
+        `SELECT action, actor_user_id AS actorUserId, organization_id AS organizationId
+         FROM platform_audit_events WHERE target_id = ?`,
+      )
+        .bind(recovery.membershipId)
+        .first(),
+    ).toMatchObject({
+      action: "organization.admin.recovered",
+      actorUserId: "user-invited-member",
+      organizationId,
+    });
+
+    const replayResponse = await fetchWorker(
+      authRequest(
+        "/api/setup/recover-admin",
+        {
+          body: JSON.stringify({ email: "another.admin@example.test", name: "Another Admin" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        "http://bravo.localhost",
+      ),
+    );
+    expect(replayResponse.status).toBe(409);
+    await expect(replayResponse.json()).resolves.toMatchObject({
+      code: "admin_recovery_not_required",
+    });
+
+    const crossTenantResponse = await fetchWorker(
+      authRequest(
+        "/api/setup/recover-admin",
+        {
+          body: JSON.stringify({ email: "cross-tenant@example.test", name: "Cross Tenant" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        "http://alpha.localhost",
+      ),
+    );
+    expect(crossTenantResponse.status).toBe(403);
+  });
+
   it("starts audited Organization provisioning from the exact product base host", async () => {
     await seedInvitedUser();
     const sessionCookie = await signInInvitedUser();

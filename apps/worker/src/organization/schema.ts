@@ -686,6 +686,18 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE organization_exports ADD COLUMN actor_type TEXT NOT NULL DEFAULT 'organization_member'",
     ],
   },
+  {
+    version: 34,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS donation_expirations (
+        donation_id TEXT PRIMARY KEY REFERENCES donations(id) ON DELETE CASCADE,
+        stripe_event_id TEXT NOT NULL UNIQUE,
+        expired_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_donation_expirations_expired_at
+       ON donation_expirations(expired_at, donation_id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

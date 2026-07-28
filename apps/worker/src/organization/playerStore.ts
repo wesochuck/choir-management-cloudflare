@@ -149,3 +149,76 @@ export function readPlayerDetailsFromStore(
     profileName: profileRow.displayName,
   });
 }
+
+export function readPlayerPlaylistFromStore(
+  storage: DurableObjectStorage,
+  _organizationId: string | null,
+  eventId: string | null,
+): Response {
+  if (!eventId) return Response.json({ code: "missing_parameters" }, { status: 400 });
+  const eventRow = storage.sql
+    .exec<{
+      id: string;
+      setListJson: string;
+      startsAt: string;
+      title: string;
+    }>(
+      `SELECT id, set_list_json AS setListJson, starts_at AS startsAt, title
+       FROM events WHERE id = ? AND is_archived = 0 LIMIT 1`,
+      eventId,
+    )
+    .toArray()
+    .at(0);
+  if (!eventRow) return Response.json({ code: "event_not_found" }, { status: 404 });
+
+  const setList = parseSetListJson(eventRow.setListJson);
+  const pieceIds = setList
+    .map((item) => item.pieceId)
+    .filter((id): id is string => id !== undefined);
+  const pieceMap = new Map<
+    string,
+    {
+      arranger: string;
+      composer: string;
+      durationSeconds: number;
+      title: string;
+      trackFileIds: string;
+    }
+  >();
+  for (const pieceId of pieceIds) {
+    const piece = storage.sql
+      .exec<{
+        arranger: string;
+        composer: string;
+        durationSeconds: number;
+        title: string;
+        trackFileIds: string;
+      }>(
+        `SELECT arranger, composer, duration_seconds AS durationSeconds, title, track_file_ids_json AS trackFileIds
+         FROM music_pieces WHERE id = ? LIMIT 1`,
+        pieceId,
+      )
+      .toArray()
+      .at(0);
+    if (piece) pieceMap.set(pieceId, piece);
+  }
+  const items = setList.map((item) => {
+    const piece = item.pieceId ? pieceMap.get(item.pieceId) : undefined;
+    return {
+      arranger: piece?.arranger,
+      composer: piece?.composer ?? item.composer,
+      durationSeconds: piece?.durationSeconds,
+      isFeaturedNumber: item.isFeaturedNumber,
+      notes: item.notes,
+      pieceId: item.pieceId,
+      title: piece?.title ?? item.title,
+      trackFileIds: piece ? parseTrackFileIds(piece.trackFileIds) : {},
+    };
+  });
+  return Response.json({
+    eventId: eventRow.id,
+    eventStartsAt: eventRow.startsAt,
+    eventTitle: eventRow.title,
+    items,
+  });
+}

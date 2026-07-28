@@ -139,6 +139,23 @@ export async function readPublicTicketPurchase(
   return { ...purchase, scanToken };
 }
 
+export async function readPublicTicketPurchaseByProviderSession(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  purchaseId: string,
+  providerSessionId: string,
+) {
+  const url = new URL("https://organization.internal/internal/ticketing/purchase-by-session");
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("purchaseId", purchaseId);
+  url.searchParams.set("sessionId", providerSessionId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) {
+    throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
+  }
+  return organizationTicketOrderSchema.parse(await response.json());
+}
+
 export async function listOrganizationTicketOrders(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
@@ -176,6 +193,32 @@ export async function refundFakeTicketPurchase(
     throw new TicketingError(code, response.status, "The ticket order could not be refunded.");
   }
   return organizationTicketOrderSchema.parse(await response.json());
+}
+
+export async function refundOrganizationBundleByProviderPayment(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: ActorContext,
+  providerPaymentId: string,
+): Promise<void> {
+  const response = await stub(env, actor.organizationId).fetch(
+    "https://organization.internal/internal/ticketing/manage",
+    {
+      body: JSON.stringify({
+        action: "refund_provider_purchase",
+        ...actor,
+        providerPaymentId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    throw new TicketingError(
+      await errorCode(response),
+      response.status,
+      "The ticket bundle could not be refunded.",
+    );
+  }
 }
 
 export async function validateOrganizationTicketScan(
@@ -301,11 +344,17 @@ export async function resendOrganizationTicketConfirmation(
   env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,
   purchaseId: string,
+  recipientEmail?: string,
 ): Promise<void> {
   const response = await stub(env, actor.organizationId).fetch(
     "https://organization.internal/internal/ticketing/manage",
     {
-      body: JSON.stringify({ action: "resend_ticket_confirmation", ...actor, purchaseId }),
+      body: JSON.stringify({
+        action: "resend_ticket_confirmation",
+        ...actor,
+        purchaseId,
+        ...(recipientEmail ? { recipientEmail } : {}),
+      }),
       headers: { "content-type": "application/json" },
       method: "POST",
     },

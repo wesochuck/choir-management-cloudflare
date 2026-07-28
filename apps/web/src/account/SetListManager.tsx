@@ -370,7 +370,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     <section className="account-section" aria-labelledby="set-list-title">
       <div className="section-heading section-heading--compact">
         <p className="eyebrow">Performances</p>
-        <h2 id="set-list-title">Set lists</h2>
+        <h2 id="set-list-title">Set list editor</h2>
         <p className="section-description">
           Build an ordered program from the music catalog or custom items, then approve it when it
           is ready for members.

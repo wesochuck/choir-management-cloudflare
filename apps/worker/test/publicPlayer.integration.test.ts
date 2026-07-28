@@ -136,6 +136,19 @@ async function issuePlayerToken(
   });
 }
 
+async function issuePublicPlayerToken(organizationId: string, eventId: string): Promise<string> {
+  return issueSignedLink(signedLinkSecret, {
+    algorithm: "HS256",
+    expiresAt: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    issuedAt: Math.floor(Date.now() / 1000),
+    nonce: crypto.randomUUID(),
+    organizationId,
+    purpose: "player_public",
+    resourceId: eventId,
+    version: 1,
+  });
+}
+
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   await provision(
@@ -210,6 +223,22 @@ describe("public player signed flow", () => {
         },
       ],
     });
+  });
+
+  it("keeps the legacy public playlist path signed and tenant-bound", async () => {
+    const token = await issuePublicPlayerToken("organization-alpha", ALPHA_EVENT);
+    const response = await exports.default.fetch(
+      api("alpha.localhost", `/api/player-playlist?token=${encodeURIComponent(token)}`),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      event: { id: ALPHA_EVENT, title: "alpha Concert" },
+      setList: expect.arrayContaining([expect.objectContaining({ title: "Alleluia" })]),
+    });
+    const crossTenantResponse = await exports.default.fetch(
+      api("bravo.localhost", `/api/player-playlist?token=${encodeURIComponent(token)}`),
+    );
+    expect(crossTenantResponse.status).toBe(404);
   });
 
   it("rejects a token used on the wrong hostname", async () => {

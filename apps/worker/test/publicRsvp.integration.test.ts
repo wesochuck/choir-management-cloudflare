@@ -144,6 +144,20 @@ describe("public RSVP signed flow", () => {
       profileName: "alpha Singer",
       rsvp: "Pending",
     });
+
+    const legacyResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/rsvp-details", {
+        body: JSON.stringify({ token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(legacyResponse.status).toBe(200);
+    expect(await legacyResponse.json()).toMatchObject({
+      event: { id: ALPHA_EVENT },
+      profileId: ALPHA_PROFILE,
+      rsvp: "Pending",
+    });
   });
 
   it("rejects a token used on the wrong hostname", async () => {
@@ -243,6 +257,28 @@ describe("public RSVP signed flow", () => {
           .at(0) ?? null,
     );
     expect(row).toEqual({ rsvp: "No", rsvpNote: "Family event" });
+  });
+
+  it("keeps the legacy quick-RSVP path tenant-bound", async () => {
+    const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/quick-rsvp", {
+        body: JSON.stringify({ rsvp: "Yes", rsvpNote: "", token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ rsvp: "Yes" });
+
+    const crossTenantResponse = await exports.default.fetch(
+      api("bravo.localhost", "/api/quick-rsvp", {
+        body: JSON.stringify({ rsvp: "Yes", rsvpNote: "", token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(crossTenantResponse.status).toBe(404);
   });
 
   it("rejects quick RSVP with an invalid token", async () => {

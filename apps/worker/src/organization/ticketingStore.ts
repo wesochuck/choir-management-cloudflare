@@ -25,6 +25,19 @@ const refundOperationSchema = organizationContextSchema.extend({
   requestId: z.uuid(),
 });
 
+const refundProviderPurchaseOperationSchema = organizationContextSchema.extend({
+  action: z.literal("refund_provider_purchase"),
+  actorUserId: z.string().min(1).max(128),
+  providerPaymentId: z.string().min(1).max(256),
+  requestId: z.uuid(),
+});
+
+const stripeTicketOperationSchema = organizationContextSchema.extend({
+  providerPaymentId: z.string().trim().max(256),
+  providerSessionId: z.string().trim().min(1).max(256),
+  stripeEventId: z.string().trim().min(1).max(256),
+});
+
 const validateScanOperationSchema = organizationContextSchema.extend({
   action: z.literal("validate_ticket_scan"),
   actorUserId: z.string().min(1).max(128),
@@ -60,16 +73,33 @@ const ticketNotificationResultOperationSchema = organizationContextSchema.extend
 const resendConfirmationOperationSchema = bundleActorSchema.extend({
   action: z.literal("resend_ticket_confirmation"),
   purchaseId: z.uuid(),
+  recipientEmail: z.email().optional(),
+});
+
+const stripeTicketCompletedOperationSchema = stripeTicketOperationSchema.extend({
+  action: z.literal("stripe_ticket_completed"),
+});
+const stripeTicketExpiredOperationSchema = stripeTicketOperationSchema.extend({
+  action: z.literal("stripe_ticket_expired"),
+});
+const stripeTicketRefundedOperationSchema = organizationContextSchema.extend({
+  action: z.literal("stripe_ticket_refunded"),
+  providerPaymentId: z.string().trim().min(1).max(256),
+  stripeEventId: z.string().trim().min(1).max(256),
 });
 
 const operationSchema = z.discriminatedUnion("action", [
   createCheckoutOperationSchema,
   refundOperationSchema,
+  refundProviderPurchaseOperationSchema,
   validateScanOperationSchema,
   upsertBundleOperationSchema,
   deleteBundleOperationSchema,
   ticketNotificationResultOperationSchema,
   resendConfirmationOperationSchema,
+  stripeTicketCompletedOperationSchema,
+  stripeTicketExpiredOperationSchema,
+  stripeTicketRefundedOperationSchema,
 ]);
 
 interface IdentityRow {
@@ -491,6 +521,256 @@ function refundFakePurchase(
   return Response.json({ ...purchaseResult(row), status: "refunded", updatedAt: occurredAt });
 }
 
+function refundProviderPurchase(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof refundProviderPurchaseOperationSchema>,
+): Response {
+  const rows = storage.sql
+    .exec<TicketPurchaseRow>(
+      `${purchaseSelect} WHERE provider_payment_id = ? AND bundle_id IS NOT NULL
+       ORDER BY created_at, id`,
+      operation.providerPaymentId,
+    )
+    .toArray();
+  if (rows.length === 0)
+    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  if (rows.some((row) => !["paid", "refunded"].includes(row.status))) {
+    return Response.json({ code: "ticket_purchase_not_refundable" }, { status: 409 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    for (const row of rows) {
+      if (row.status === "refunded") continue;
+      storage.sql.exec(
+        "UPDATE ticket_purchases SET status = 'refunded', refunded_at = ?, updated_at = ? WHERE id = ?",
+        occurredAt,
+        occurredAt,
+        row.id,
+      );
+      storage.sql.exec(
+        `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_member', ?, 'ticket.purchase.refunded',
+          'ticket_purchase', ?, ?, ?, ?)`,
+        `ticket-refund-provider:${operation.requestId}:${row.id}`,
+        operation.actorUserId,
+        row.id,
+        operation.requestId,
+        JSON.stringify({
+          amountCents: row.amountPaidCents,
+          providerPaymentId: operation.providerPaymentId,
+        }),
+        occurredAt,
+      );
+    }
+  });
+  return Response.json({
+    purchases: rows.map((row) => ({ ...purchaseResult(row), status: "refunded" })),
+  });
+}
+
+function stripeEventWasProcessed(storage: DurableObjectStorage, eventId: string): boolean {
+  return (
+    storage.sql
+      .exec("SELECT id FROM audit_events WHERE id = ? LIMIT 1", `stripe-event:${eventId}`)
+      .toArray().length > 0
+  );
+}
+
+function completeStripeTicketPurchase(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof stripeTicketCompletedOperationSchema>,
+): Response {
+  const row = storage.sql
+    .exec<TicketPurchaseRow>(
+      `${purchaseSelect} WHERE provider_session_id = ? LIMIT 1`,
+      operation.providerSessionId,
+    )
+    .toArray()
+    .at(0);
+  if (!row) return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  if (stripeEventWasProcessed(storage, operation.stripeEventId)) {
+    return Response.json({ ...purchaseResult(row), duplicate: true });
+  }
+  if (row.status === "expired") {
+    return Response.json({ code: "ticket_purchase_expired" }, { status: 409 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    if (row.status === "pending") {
+      storage.sql.exec(
+        `UPDATE ticket_purchases
+         SET status = 'paid', provider_payment_id = ?, fulfilled_at = ?, expired_at = NULL, updated_at = ?
+         WHERE provider_session_id = ? AND status = 'pending'`,
+        operation.providerPaymentId,
+        occurredAt,
+        occurredAt,
+        operation.providerSessionId,
+      );
+      const confirmationId = crypto.randomUUID();
+      const label = row.bundleId ? row.bundleTitle : row.eventTitle;
+      storage.sql.exec(
+        `INSERT OR IGNORE INTO ticket_notifications
+          (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+           content_markdown, status, scheduled_for, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'confirmation', ?, ?, ?, 'queued', ?, ?, ?)`,
+        confirmationId,
+        row.id,
+        row.bundleId ? null : row.eventId,
+        `ticket-confirmation:${row.id}`,
+        row.buyerEmail,
+        `Your ${label} tickets`,
+        `Hello ${row.buyerName},\n\nYour order for ${String(row.quantity)} ${row.bundleId ? "pass(es)" : "ticket(s)"} to ${label} is confirmed.`,
+        occurredAt,
+        occurredAt,
+        occurredAt,
+      );
+      storage.sql.exec(
+        `INSERT OR IGNORE INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES (?, 'ticket_notification', ?, ?, ?)`,
+        crypto.randomUUID(),
+        `ticket-notification:${confirmationId}`,
+        occurredAt,
+        occurredAt,
+      );
+    }
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'provider', 'stripe', 'stripe.webhook.processed', 'stripe_event', ?, ?, ?, ?)`,
+      `stripe-event:${operation.stripeEventId}`,
+      operation.stripeEventId,
+      operation.stripeEventId,
+      JSON.stringify({
+        paymentType: row.bundleId ? "bundle" : "ticket",
+        providerPaymentId: operation.providerPaymentId,
+        providerSessionId: operation.providerSessionId,
+        status: row.status === "pending" ? "paid" : row.status,
+      }),
+      occurredAt,
+    );
+    if (row.status === "pending") {
+      storage.sql.exec(
+        `INSERT OR IGNORE INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+         VALUES (?, 'provider', 'stripe', 'ticket.purchase.fulfilled', 'ticket_purchase', ?, ?, ?, ?)`,
+        `stripe-ticket-fulfilled:${operation.stripeEventId}`,
+        row.id,
+        operation.stripeEventId,
+        JSON.stringify({
+          amountPaidCents: row.amountPaidCents,
+          providerPaymentId: operation.providerPaymentId,
+        }),
+        occurredAt,
+      );
+    }
+  });
+  const updated = storage.sql
+    .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, row.id)
+    .toArray()
+    .at(0);
+  return updated
+    ? Response.json(purchaseResult(updated))
+    : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+}
+
+function expireStripeTicketPurchase(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof stripeTicketExpiredOperationSchema>,
+): Response {
+  const row = storage.sql
+    .exec<TicketPurchaseRow>(
+      `${purchaseSelect} WHERE provider_session_id = ? LIMIT 1`,
+      operation.providerSessionId,
+    )
+    .toArray()
+    .at(0);
+  if (!row) return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  if (stripeEventWasProcessed(storage, operation.stripeEventId)) {
+    return Response.json({ ...purchaseResult(row), duplicate: true });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    if (row.status === "pending") {
+      storage.sql.exec(
+        `UPDATE ticket_purchases SET status = 'expired', expired_at = ?, updated_at = ?
+         WHERE provider_session_id = ? AND status = 'pending'`,
+        occurredAt,
+        occurredAt,
+        operation.providerSessionId,
+      );
+    }
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'provider', 'stripe', 'stripe.webhook.processed', 'stripe_event', ?, ?, ?, ?)`,
+      `stripe-event:${operation.stripeEventId}`,
+      operation.stripeEventId,
+      operation.stripeEventId,
+      JSON.stringify({ providerSessionId: operation.providerSessionId, status: "expired" }),
+      occurredAt,
+    );
+  });
+  const updated = storage.sql
+    .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, row.id)
+    .toArray()
+    .at(0);
+  return updated
+    ? Response.json(purchaseResult(updated))
+    : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+}
+
+function refundStripeTicketPurchases(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof stripeTicketRefundedOperationSchema>,
+): Response {
+  const marker = `stripe-refund:${operation.stripeEventId}`;
+  if (
+    storage.sql.exec("SELECT id FROM audit_events WHERE id = ? LIMIT 1", marker).toArray().length >
+    0
+  ) {
+    return Response.json({ refunded: 0, duplicate: true });
+  }
+  const rows = storage.sql
+    .exec<TicketPurchaseRow>(
+      `${purchaseSelect} WHERE provider_payment_id = ? ORDER BY created_at, id`,
+      operation.providerPaymentId,
+    )
+    .toArray();
+  if (rows.length === 0)
+    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  const occurredAt = new Date().toISOString();
+  let refunded = 0;
+  storage.transactionSync(() => {
+    for (const row of rows) {
+      if (row.status !== "paid") continue;
+      storage.sql.exec(
+        "UPDATE ticket_purchases SET status = 'refunded', refunded_at = ?, updated_at = ? WHERE id = ?",
+        occurredAt,
+        occurredAt,
+        row.id,
+      );
+      refunded += 1;
+    }
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'provider', 'stripe', 'stripe.webhook.processed', 'stripe_event', ?, ?, ?, ?)`,
+      marker,
+      operation.stripeEventId,
+      operation.stripeEventId,
+      JSON.stringify({
+        paymentType: "ticket",
+        providerPaymentId: operation.providerPaymentId,
+        refunded,
+      }),
+      occurredAt,
+    );
+  });
+  return Response.json({ refunded });
+}
+
 function validateTicketScan(
   storage: DurableObjectStorage,
   operation: z.infer<typeof validateScanOperationSchema>,
@@ -718,6 +998,10 @@ function resendTicketConfirmation(
   const jobId = crypto.randomUUID();
   const now = new Date().toISOString();
   const label = row.bundleId ? row.bundleTitle : row.eventTitle;
+  const recipientEmail = operation.recipientEmail ?? row.buyerEmail;
+  if (!recipientEmail) {
+    return Response.json({ code: "ticket_recipient_missing" }, { status: 400 });
+  }
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO ticket_notifications
@@ -728,7 +1012,7 @@ function resendTicketConfirmation(
       row.id,
       row.bundleId ? null : row.eventId,
       `ticket-confirmation-resend:${row.id}:${operation.requestId}`,
-      row.buyerEmail,
+      recipientEmail,
       `Your ${label} tickets`,
       `Hello ${row.buyerName},\n\nYour order for ${String(row.quantity)} ${row.bundleId ? "pass(es)" : "ticket(s)"} to ${label} is confirmed.`,
       now,
@@ -805,6 +1089,34 @@ export function readTicketPurchaseFromStore(
   }
   const row = storage.sql
     .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, parsedPurchaseId.data)
+    .toArray()
+    .at(0);
+  return row
+    ? Response.json(purchaseResult(row))
+    : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+}
+
+export function readTicketPurchaseByProviderSessionFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  purchaseId: string | null,
+  providerSessionId: string | null,
+): Response {
+  const parsedPurchaseId = z.uuid().safeParse(purchaseId);
+  if (
+    identity(storage)?.organizationId !== organizationId ||
+    !parsedPurchaseId.success ||
+    !providerSessionId ||
+    providerSessionId.length > 256
+  ) {
+    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  }
+  const row = storage.sql
+    .exec<TicketPurchaseRow>(
+      `${purchaseSelect} WHERE id = ? AND provider_session_id = ? LIMIT 1`,
+      parsedPurchaseId.data,
+      providerSessionId,
+    )
     .toArray()
     .at(0);
   return row
@@ -905,6 +1217,22 @@ export function readTicketNotificationJobFromStore(
   return Response.json(row);
 }
 
+function dispatchStripeTicketOperation(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof operationSchema>,
+): Response | null {
+  switch (operation.action) {
+    case "stripe_ticket_completed":
+      return completeStripeTicketPurchase(storage, operation);
+    case "stripe_ticket_expired":
+      return expireStripeTicketPurchase(storage, operation);
+    case "stripe_ticket_refunded":
+      return refundStripeTicketPurchases(storage, operation);
+    default:
+      return null;
+  }
+}
+
 export async function manageTicketingInStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -917,6 +1245,8 @@ export async function manageTicketingInStore(
   if (organization?.organizationId !== operation.data.organizationId) {
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
+  const stripeOperation = dispatchStripeTicketOperation(storage, operation.data);
+  if (stripeOperation) return stripeOperation;
   switch (operation.data.action) {
     case "create_fake_checkout": {
       const response = createFakeCheckout(storage, operation.data, organization);
@@ -925,6 +1255,8 @@ export async function manageTicketingInStore(
     }
     case "refund_fake_purchase":
       return refundFakePurchase(storage, operation.data);
+    case "refund_provider_purchase":
+      return refundProviderPurchase(storage, operation.data);
     case "validate_ticket_scan":
       return validateTicketScan(storage, operation.data);
     case "upsert_ticket_bundle":
@@ -939,4 +1271,5 @@ export async function manageTicketingInStore(
       return response;
     }
   }
+  return Response.json({ code: "invalid_ticketing_operation" }, { status: 400 });
 }

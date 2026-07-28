@@ -138,6 +138,28 @@ export async function createOrganizationProfile(
   return profile;
 }
 
+export async function deleteOrganizationProfile(
+  env: Env,
+  input: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly profileId: string;
+    readonly requestId: string;
+  },
+): Promise<void> {
+  const response = await organizationStub(env, input.organizationId).fetch(
+    "https://organization.internal/internal/profiles/delete",
+    {
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok && response.status !== 404) {
+    throw new Error("The Organization store rejected the Profile delete request.");
+  }
+}
+
 export async function importOrganizationProfiles(
   env: Env,
   input: {

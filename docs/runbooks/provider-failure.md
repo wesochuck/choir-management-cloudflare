@@ -26,9 +26,18 @@
 
 ## Stripe
 
+- The Worker fails closed with `stripe_webhook_unavailable` (HTTP 503) when the environment has no
+  `STRIPE_WEBHOOK_SECRET`; do not replace this with an unsigned compatibility path.
 - Verify webhook signatures before account lookup.
+- Read and verify the raw request body with the five-minute timestamp tolerance; reject malformed,
+  stale, or mismatched signatures without revealing provider details.
+- Require supported payment metadata and compare any Organization metadata with the canonical
+  hostname before dispatching to a Durable Object. The event ID is the stable replay identity.
 - Resolve the connected account to exactly one Organization in D1, then apply the stable event ID
   idempotently inside that Organization store.
+- `checkout.session.completed` applies ticket, donation, or dues transitions; expired sessions and
+  `charge.refunded` events use separate idempotency markers so a refund cannot suppress a completion
+  event with the same provider delivery context.
 - Never recompute price/capacity from browser values. Refunds and bundle transitions remain
   all-or-nothing where the baseline requires it.
 

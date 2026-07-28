@@ -317,6 +317,63 @@ describe("Organization calendar management", () => {
     expect(crossTenant.status).toBe(404);
   });
 
+  it("keeps the dashboard summary bounded for a large Organization dataset", async () => {
+    const cookie = await signIn();
+    await database
+      .prepare("UPDATE member SET role = 'owner' WHERE organizationId = ? AND userId = ?")
+      .bind("organization-alpha", "calendar-manager")
+      .run();
+
+    const now = new Date("2030-01-01T00:00:00.000Z");
+    const createdAt = new Date("2029-12-01T00:00:00.000Z").toISOString();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      for (let offset = 0; offset < 5_000; offset += 25) {
+        const rows = Array.from({ length: 25 }, (_, index) => {
+          const sequence = String(offset + index);
+          const id = `scale-profile-${sequence}`;
+          return [id, `Scale Profile ${sequence}`, createdAt, createdAt] as const;
+        });
+        const placeholders = rows.map(() => "(?, ?, ?, ?)").join(", ");
+        state.storage.sql.exec(
+          `INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES ${placeholders}`,
+          ...rows.flat(),
+        );
+      }
+      for (let offset = 0; offset < 500; offset += 10) {
+        const rows = Array.from({ length: 10 }, (_, index) => {
+          const sequence = offset + index;
+          const id = `00000000-0000-4000-8000-${String(sequence).padStart(12, "0")}`;
+          return [
+            id,
+            `Scale Event ${String(sequence)}`,
+            "Rehearsal",
+            new Date(now.getTime() + (offset + index + 1) * 60_000).toISOString(),
+            createdAt,
+            createdAt,
+          ] as const;
+        });
+        const placeholders = rows.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+        state.storage.sql.exec(
+          `INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES ${placeholders}`,
+          ...rows.flat(),
+        );
+      }
+    });
+
+    const startedAt = performance.now();
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/dashboard-summary", cookie),
+    );
+    const elapsedMs = performance.now() - startedAt;
+    expect(response.status).toBe(200);
+    const summary = organizationDashboardSummaryResponseSchema.parse(await response.json());
+    expect(summary.activeProfileCount).toBe(5_000);
+    expect(summary.upcomingEventCount).toBe(500);
+    expect(summary.nextEvents).toHaveLength(5);
+    expect(elapsedMs).toBeLessThan(1_000);
+  });
+
   it("exports a bounded, checksummed Organization snapshot only for the Owner", async () => {
     const cookie = await signIn();
     const denied = await exports.default.fetch(

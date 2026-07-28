@@ -1,27 +1,44 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 26, 2026 **Status:** The July 26 parity recheck now records 48 verified, 142
-implemented, 0 partial, and 0 planned entries across nine sections. No implementation gap is open;
-the 142 `implemented` entries have local and integration evidence but still need their broader
-permanent-staging qualification. The evidence debt and completion batches are recorded in
-[`docs/parity/completion-plan.md`](../parity/completion-plan.md). The previous staging deployment
-and quality-gate results below remain historical evidence for the earlier checkpoint. Production is
-isolated with `EXTERNAL_EFFECTS_MODE=disabled`, `PLATFORM_EMAIL_MODE=disabled`, and no routes or
-bindings configured. Production launch remains outside the active goal per GOAL.md.
+**Prepared:** July 28, 2026 **Status:** The July 26 parity recheck now records 66 verified, 124
+implemented, 0 partial, and 0 planned entries across nine sections. Setup recovery and Stripe
+webhooks now have typed, tenant-scoped implementations and focused local tests; staging signed-
+provider and privileged replay evidence remains outstanding. The route-repair plan and automated
+source-route audit are recorded in [`docs/parity/completion-plan.md`](../parity/completion-plan.md).
+The previous staging deployment and quality-gate results below remain historical evidence for the
+earlier checkpoint. Production is isolated with `EXTERNAL_EFFECTS_MODE=disabled`,
+`PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
+outside the active goal per GOAL.md.
 
 ## July 26 parity recheck
 
 The structural parity checker validates all 190 inventory entries and all target-evidence paths, but
 it does not prove behavior. The source, contract, Durable Object, and test review closed the prior
-audition, set-list, export, music-recency, and theme gaps. The complete local gate and focused
-permanent-staging qualification of this exact commit are complete; remaining release work is the
-bounded staging evidence plan for the 142 entries still marked `implemented`.
+audition, set-list, export, music-recency, and theme gaps. A deployed public route sweep verified
+all 60 browser routes and exposed 24 legacy API paths that had only renamed equivalents. Twenty-one
+compatibility handlers are now restored and covered by local integration checks; the remaining four
+anonymous probes are expected invalid-link/not-found states. Setup recovery and Stripe webhook
+processing are now implemented and covered by focused local tests. The remaining 124 `implemented`
+entries still need their broader permanent-staging qualification. The new
+`npm run check:parity:implementation` gate reproduces this source-route comparison without
+contacting staging or mutating data.
+
+The compatibility batch was deployed to permanent staging as Worker version
+`5e4381a2-c039-4ea0-810a-487a2c8f9d30`. A cache-busted anonymous probe of all 73 API contracts
+returned 3 expected public 200 responses, 12 validation responses, 54 authorization responses, and 4
+expected invalid-link/not-found responses (`ticket-scan-context`, `player-playlist`,
+`calendar-download`, and `calendar-feed` with missing credentials). No matrix API path returned a
+router-level 404. Local integration coverage now includes legacy RSVP aliases, ticket checkout,
+ticket validation/refund, bundle refund, scan-context proof-of-payment, setup health, automatic
+queue acknowledgement, tenant-scoped maintenance execution, fake Stripe receipt, and public player
+playlist tenant isolation. Anonymous staging probes for `/api/health` and `/api/ready` returned 200;
+`/api/maintenance/run` correctly returned 401 without a session.
 
 The setup-status handler now preserves the Organization Durable Object's known failure code/status
 and emits only a redacted request-scoped error type for unexpected failures. The corrected staging
 deployment and authenticated LCC probe now pass; the local calendar integration path remains green.
 
-The local qualification now passes formatting, lint, strict typecheck, 84 unit tests, 112
+The local qualification now passes formatting, lint, strict typecheck, 87 unit tests, 118
 integration tests, 56 Playwright tests, build, parity validation (190 entries), and the
 high-severity dependency audit (0 vulnerabilities). Integration output still includes the known
 expected FleetSchema registry-identity warning, and Playwright logs expected proxy warnings for
@@ -51,19 +68,69 @@ authorization, validation, retry, or tenant-isolation path before promoting matr
 `verified`. Staging remains in fake external-effects mode and all fixtures must remain
 Organization-scoped.
 
+## Route-contract repair checkpoint
+
+The setup-recovery and Stripe webhook entries are now implemented. Recovery requires a recent
+Platform Administrator MFA assertion and active Organization elevation, creates or upgrades only the
+hostname-resolved Organization membership, links a Profile inside that Organization, records an
+audit event, and rolls back partial writes. Stripe uses raw-body HMAC verification, a five-minute
+timestamp tolerance, event-id idempotency, module and Organization metadata guards, and tenant-local
+ticketing, donation, and dues transitions. Local evidence now includes 87 unit tests, 118
+integration tests, and a dedicated Stripe completion/replay/refund Durable Object test.
+
+The repaired Worker was deployed to permanent staging as version
+`39d00939-901b-4b46-b278-5ac888cefb7a`. Smoke probes on `lcc.staging.musicsite.org` returned HTTP
+200 for `/api/health` and `/api/ready`, HTTP 401 for anonymous `/api/setup/status`, and the typed
+HTTP 503 `stripe_webhook_unavailable` response for `/api/webhook/stripe` because no staging Stripe
+webhook secret has been provisioned. Production remains unlaunched; signed Stripe fixtures and the
+provider rollback drill remain the explicit staging prerequisites. The read-only staging secret
+inventory also has no Brevo credentials; both provider lanes must be configured through their secure
+secret flows before signed sandbox qualification can run. No placeholder credentials were created.
+
+The provider checklist now has legacy-compatible expiry coverage for ticket purchases and donations:
+donations expose `expiredAt` through the forward-only Organization schema v34 `donation_expirations`
+table, and a later completion removes that marker. Dues retain their existing `pending` contract
+while recording the provider-expiry audit. Local expiry, replay, and completion-after-expiry
+coverage is green; staging still needs the signed provider fixture and rollback drill.
+
+Read-only staging control-plane checks after that deployment found the two expected active
+Organizations (`lcc` and `lmc`) with only their canonical staging domains, and
+`wrangler d1 migrations list --remote --env staging` reported no migrations to apply. No rows were
+written by these checks.
+
+A cache-busted anonymous route sweep against the same version returned HTTP 200 for all 60 browser
+routes. The 70 API entries returned 2 public 200 responses, 13 validation 400 responses, 53
+authorization 401 responses, and four expected invalid-link/not-found 404 responses. The only
+additional response was the expected typed 503 for the unconfigured Stripe webhook; no matrix API
+path fell through to a router-level 404.
+
+The schema-v34 deployment (`39d00939-901b-4b46-b278-5ac888cefb7a`) passed fresh HTTPS smoke checks:
+the product, LCC, and LMC hosts returned 200 for health/readiness, registered Organization setup
+status remained 401 without a session, unregistered product-host setup returned the expected 404,
+and `/admin/setlists` plus `/admin/seating` returned the application shell. The Stripe endpoint
+returned the typed 503 fail-closed response because the staging secret is still absent. The remote
+D1 migration ledger reported no pending migrations; these checks did not write control-plane rows.
+
+The local large-data qualification now seeds 5,000 active Profiles and 500 upcoming events in one
+Organization Durable Object and exercises `/api/organization/dashboard-summary`. It returns exact
+counts and five next events in under one second, confirming bounded `COUNT`/`LIMIT` behavior without
+serializing the full dataset. This evidence is local only; the equivalent deployed scale run remains
+part of the open Milestone 6 staging gate.
+
 ## Repository topology
 
 - Writable target: `/Users/wesandlaura/Downloads/choir-management-cloudflare`
-- Current task working mirror:
+- Retired task mirror (stale after `bd190db`; preserve only until its uncommitted duplicate work is
+  reviewed, and never sync it over the authoritative target):
   `/Users/wesandlaura/Documents/Codex/2026-07-20/prior-conversation-with-codex-conversation-role/choir-management-cloudflare-work`
 - Legacy planning checkout: `/Users/wesandlaura/Downloads/choir-management-tool`
 - Read-only parity worktree: `/Users/wesandlaura/Downloads/choir-management-tool-parity`
 - Immutable parity commit: `6874d43a3c3698ae53218a44d17649bc454ca9ac`
 - Local parity tag: `parity-baseline-2026-07-20`
 
-The Downloads target remains authoritative. The task mirror exists only because this Codex task's
-filesystem root does not include Downloads; sync it back after verified changes. Never implement in
-the parity worktree.
+The Downloads target remains authoritative and is directly writable. The retired mirror is not a
+source of truth and must not be synced back over newer commits. Never implement in the parity
+worktree.
 
 The parity worktree is detached at the correct commit, but `pocketbase/pb_hooks/main.pb.js` contains
 four added/two removed generated lines from a prior regeneration. Source and test files are clean.
@@ -74,7 +141,8 @@ generated file as baseline truth.
 
 - Git is installed; local identity is `wesochuck <cwosborn@gmail.com>`.
 - Node.js `v26.5.0` and npm/npx `11.17.0` are installed.
-- GitHub CLI `2.96.0` is installed but is not authenticated.
+- GitHub CLI `2.96.0` is authenticated as `wesochuck` through the macOS keyring; `origin` is the
+  private `wesochuck/choir-management-cloudflare` repository.
 - The Codex GitHub connector is authenticated as `wesochuck` for the legacy repository.
 - Wrangler `4.113.0` is pinned in the lockfile. Miniflare's transitive `sharp` is overridden to
   `0.35.3` to clear the July 21 libvips advisories without downgrading the Cloudflare test pool.
@@ -93,7 +161,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `b5515d2e-11ab-4e99-87e6-d1ede621dec7`
+- Current verified Worker version: `39d00939-901b-4b46-b278-5ac888cefb7a`
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`

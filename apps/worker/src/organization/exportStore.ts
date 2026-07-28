@@ -29,6 +29,7 @@ const EXPORT_TABLES = [
   "audition_notifications",
   "patrons",
   "donations",
+  "donation_expirations",
   "seasons",
   "dues",
   "setup_state",

@@ -25,7 +25,7 @@
         "path": "/",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:305; src/views/PublicLandingView.tsx",
         "targetEvidence":
           ["apps/web/src/App.tsx", "apps/web/src/public/PublicOrganizationSite.tsx"],
@@ -35,7 +35,7 @@
         "path": "/history",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:313; src/views/PublicHistoryView.tsx",
         "targetEvidence":
           [
@@ -48,7 +48,7 @@
         "path": "/performances",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:321; src/views/PublicPastPerformancesView.tsx",
         "targetEvidence":
           [
@@ -61,7 +61,7 @@
         "path": "/auditions",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:209; src/views/PublicAuditionView.tsx",
         "targetEvidence":
           [
@@ -76,7 +76,7 @@
         "path": "/rsvp",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:217; src/views/EventRSVPView.tsx",
         "targetEvidence":
           [
@@ -90,7 +90,7 @@
         "path": "/rsvp/:eventId",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:273; src/views/PublicRsvpView.tsx",
         "targetEvidence":
           [
@@ -106,7 +106,7 @@
         "path": "/poll",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:225; src/views/PublicPollView.tsx",
         "targetEvidence":
           [
@@ -120,7 +120,7 @@
         "path": "/unsubscribe",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:233; src/views/PublicUnsubscribeView.tsx",
         "targetEvidence":
           [
@@ -134,7 +134,7 @@
         "path": "/player",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:241; src/views/PublicPlayerView.tsx",
         "targetEvidence":
           [
@@ -148,7 +148,7 @@
         "path": "/tickets",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:249; src/views/PublicTicketListView.tsx",
         "targetEvidence":
           [
@@ -162,7 +162,7 @@
         "path": "/tickets/order/success",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:257; src/views/PublicTicketSuccessView.tsx",
         "targetEvidence":
           [
@@ -176,7 +176,7 @@
         "path": "/tickets/bundle/:bundleId",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:265; src/views/PublicBundlePurchaseView.tsx",
         "targetEvidence":
           [
@@ -190,7 +190,7 @@
         "path": "/tickets/:eventId",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:281; src/views/PublicTicketPurchaseView.tsx",
         "targetEvidence":
           [
@@ -204,7 +204,7 @@
         "path": "/donate",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:289; src/views/PublicDonationView.tsx",
         "targetEvidence":
           [
@@ -218,7 +218,7 @@
         "path": "/donate/success",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:297; src/views/PublicDonationSuccessView.tsx",
         "targetEvidence":
           ["apps/web/src/public/PublicDonationSuccessView.tsx", "apps/web/src/App.tsx"],
@@ -228,7 +228,7 @@
         "path": "/login",
         "owner": "apps/web",
         "milestone": 2,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:207; src/views/LoginView.tsx",
         "targetEvidence":
           [
@@ -242,7 +242,7 @@
         "path": "/reset-password",
         "owner": "apps/web",
         "milestone": 2,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:208; src/views/ResetPasswordView.tsx",
         "targetEvidence":
           [
@@ -256,7 +256,7 @@
         "path": "/setup",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/App.tsx:206; src/views/setup/SetupView.tsx",
         "targetEvidence":
           ["apps/web/src/App.tsx", "apps/web/src/setup/SetupView.tsx", "apps/worker/src/router.ts"],
@@ -1017,7 +1017,12 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1489",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationSetup.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSetup.ts",
+            "apps/worker/src/organization/profiles.ts",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
       },
       {
         "id": "api.setup-health",
@@ -1296,8 +1301,14 @@
         "targetEvidence":
           [
             "apps/worker/src/router.ts",
-            "apps/worker/src/organization/organizationDonations.ts",
-            "apps/worker/src/payments/ticketCheckout.ts",
+            "apps/worker/src/payments/stripeWebhook.ts",
+            "apps/worker/src/payments/stripeWebhookHandler.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/src/organization/seasonStore.ts",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/test/stripeWebhook.test.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
           ],
       },
       {
@@ -1507,7 +1518,12 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1542",
         "targetEvidence":
-          ["apps/worker/src/index.ts", "apps/worker/src/organization/OrganizationStore.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.delivery-summary",

@@ -19,9 +19,23 @@ const refundOperationSchema = organizationContextSchema.extend({
   requestId: z.uuid(),
 });
 
+const stripeDuesOperationSchema = organizationContextSchema.extend({
+  providerPaymentId: z.string().trim().max(256),
+  providerSessionId: z.string().trim().min(1).max(256),
+  stripeEventId: z.string().trim().min(1).max(256),
+});
+const stripeDuesCompletedOperationSchema = stripeDuesOperationSchema.extend({
+  action: z.literal("stripe_dues_completed"),
+});
+const stripeDuesExpiredOperationSchema = stripeDuesOperationSchema.extend({
+  action: z.literal("stripe_dues_expired"),
+});
+
 const operationSchema = z.discriminatedUnion("action", [
   createDuesCheckoutOperationSchema,
   refundOperationSchema,
+  stripeDuesCompletedOperationSchema,
+  stripeDuesExpiredOperationSchema,
 ]);
 
 interface SeasonRow {
@@ -42,6 +56,7 @@ interface DuesRow {
   readonly id: string;
   readonly paidAt: string | null;
   readonly profileId: string;
+  readonly providerSessionId: string;
   readonly seasonId: string;
   readonly status: "paid" | "pending" | "refunded";
   readonly updatedAt: string;
@@ -53,6 +68,7 @@ const seasonSelect = `SELECT s.id, s.name, s.starts_at AS startsAt, s.ends_at AS
 
 const duesSelect = `SELECT d.id, d.season_id AS seasonId, d.profile_id AS profileId,
   d.amount_cents AS amountCents, d.status, d.paid_at AS paidAt,
+  d.provider_session_id AS providerSessionId,
   d.created_at AS createdAt, d.updated_at AS updatedAt
   FROM dues d`;
 
@@ -192,6 +208,97 @@ function refundDues(
   return Response.json({ ...duesResult(row), status: "refunded", updatedAt: occurredAt });
 }
 
+function stripeDuesEventWasProcessed(storage: DurableObjectStorage, eventId: string): boolean {
+  return (
+    storage.sql
+      .exec("SELECT id FROM audit_events WHERE id = ? LIMIT 1", `stripe-event:${eventId}`)
+      .toArray().length > 0
+  );
+}
+
+function completeStripeDues(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof stripeDuesCompletedOperationSchema>,
+): Response {
+  const rows = storage.sql
+    .exec<DuesRow>(
+      `${duesSelect} WHERE d.provider_session_id = ? ORDER BY d.id`,
+      operation.providerSessionId,
+    )
+    .toArray();
+  if (rows.length === 0) return Response.json({ code: "dues_not_found" }, { status: 404 });
+  if (stripeDuesEventWasProcessed(storage, operation.stripeEventId)) {
+    return Response.json({ dues: rows.map(duesResult), duplicate: true });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    for (const row of rows) {
+      if (row.status !== "pending") continue;
+      storage.sql.exec(
+        `UPDATE dues SET status = 'paid', paid_at = ?, updated_at = ?
+         WHERE id = ? AND status = 'pending'`,
+        occurredAt,
+        occurredAt,
+        row.id,
+      );
+    }
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'provider', 'stripe', 'stripe.webhook.processed', 'stripe_event', ?, ?, ?, ?)`,
+      `stripe-event:${operation.stripeEventId}`,
+      operation.stripeEventId,
+      operation.stripeEventId,
+      JSON.stringify({
+        paymentType: "dues",
+        providerPaymentId: operation.providerPaymentId,
+        providerSessionId: operation.providerSessionId,
+        duesCount: rows.length,
+      }),
+      occurredAt,
+    );
+  });
+  const updated = storage.sql
+    .exec<DuesRow>(
+      `${duesSelect} WHERE d.provider_session_id = ? ORDER BY d.id`,
+      operation.providerSessionId,
+    )
+    .toArray();
+  return Response.json({ dues: updated.map(duesResult) });
+}
+
+function expireStripeDues(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof stripeDuesExpiredOperationSchema>,
+): Response {
+  const rows = storage.sql
+    .exec<DuesRow>(
+      `${duesSelect} WHERE d.provider_session_id = ? ORDER BY d.id`,
+      operation.providerSessionId,
+    )
+    .toArray();
+  if (rows.length === 0) return Response.json({ code: "dues_not_found" }, { status: 404 });
+  if (stripeDuesEventWasProcessed(storage, operation.stripeEventId)) {
+    return Response.json({ dues: rows.map(duesResult), duplicate: true });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.sql.exec(
+    `INSERT INTO audit_events
+      (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+     VALUES (?, 'provider', 'stripe', 'stripe.webhook.processed', 'stripe_event', ?, ?, ?, ?)`,
+    `stripe-event:${operation.stripeEventId}`,
+    operation.stripeEventId,
+    operation.stripeEventId,
+    JSON.stringify({
+      paymentType: "dues",
+      providerSessionId: operation.providerSessionId,
+      status: "expired",
+    }),
+    occurredAt,
+  );
+  return Response.json({ dues: rows.map(duesResult) });
+}
+
 export function listSeasonsFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -239,5 +346,9 @@ export async function manageSeasonsInStore(
       return createDuesCheckout(storage, operation.data);
     case "refund_dues":
       return refundDues(storage, operation.data);
+    case "stripe_dues_completed":
+      return completeStripeDues(storage, operation.data);
+    case "stripe_dues_expired":
+      return expireStripeDues(storage, operation.data);
   }
 }

@@ -302,17 +302,17 @@ export async function runOrganizationAlarm(
   storage: DurableObjectStorage,
   queue: Queue<DeliveryJob>,
   now = new Date(),
-): Promise<void> {
+): Promise<{ readonly enqueuedJobCount: number; readonly organizationId: string | null }> {
   const organizationId = readOrganizationId(storage);
   if (!organizationId) {
     await storage.deleteAlarm();
-    return;
+    return { enqueuedJobCount: 0, organizationId: null };
   }
   createDueJobs(storage, organizationId, now);
   const pendingJobs = readPendingJobs(storage);
   if (pendingJobs.length === 0) {
     await scheduleNextAlarm(storage, now, false);
-    return;
+    return { enqueuedJobCount: 0, organizationId };
   }
   try {
     await queue.sendBatch(
@@ -345,4 +345,5 @@ export async function runOrganizationAlarm(
     }
   });
   await scheduleNextAlarm(storage, now, pendingJobs.length === OUTBOX_BATCH_SIZE);
+  return { enqueuedJobCount: pendingJobs.length, organizationId };
 }

@@ -28,6 +28,26 @@ export async function generatePlayerTokens(
   return { tokens };
 }
 
+export async function generatePublicPlayerToken(
+  env: Pick<Env, "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  eventId: string,
+): Promise<{ token: string }> {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    token: await issueSignedLink(env.SIGNED_LINK_SECRET, {
+      algorithm: "HS256",
+      expiresAt: now + 7 * 24 * 60 * 60,
+      issuedAt: now,
+      nonce: crypto.randomUUID(),
+      organizationId,
+      purpose: "player_public",
+      resourceId: eventId,
+      version: 1,
+    }),
+  };
+}
+
 type PlayerDetailResponse = Record<string, unknown>;
 
 export async function resolvePlayerDetails(
@@ -50,5 +70,23 @@ export async function resolvePlayerDetails(
   if (!response.ok) {
     return { code: "player_details_failed", status: response.status };
   }
+  return await response.json();
+}
+
+export async function resolvePublicPlayerPlaylist(
+  env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  token: string,
+): Promise<Record<string, unknown> | { readonly code: string; readonly status: number }> {
+  const envelope = await verifySignedLinkScope(env.SIGNED_LINK_SECRET, token, {
+    expectedOrganizationId: organizationId,
+    expectedPurpose: "player_public",
+  });
+  if (!envelope?.resourceId) return { code: "invalid_link", status: 404 };
+  const url = new URL("https://organization.internal/internal/player/playlist");
+  url.searchParams.set("eventId", envelope.resourceId);
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) return { code: "player_playlist_failed", status: response.status };
   return await response.json();
 }

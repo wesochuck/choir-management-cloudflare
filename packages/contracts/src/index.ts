@@ -1011,7 +1011,7 @@ export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
 export type CommunicationTemplateRequest = z.infer<typeof communicationTemplateRequestSchema>;
 export type SingerLearningTrackPiece = z.infer<typeof singerLearningTrackPieceSchema>;
 
-export const donationStatusSchema = z.enum(["pending", "paid", "refunded"]);
+export const donationStatusSchema = z.enum(["pending", "paid", "refunded", "expired"]);
 
 export const donationTributeTypeSchema = z.enum(["honor", "memory", "anonymous", "none"]);
 
@@ -1037,6 +1037,7 @@ export const donationRecordSchema = z.object({
   buyerEmail: z.email().max(320),
   buyerName: z.string().min(1).max(200),
   createdAt: z.iso.datetime(),
+  expiredAt: z.iso.datetime().nullable(),
   id: z.uuid(),
   marketingConsent: z.boolean(),
   patronId: z.uuid().nullable(),
