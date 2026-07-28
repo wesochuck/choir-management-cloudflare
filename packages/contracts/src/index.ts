@@ -896,6 +896,12 @@ export const communicationSendRequestSchema = communicationDraftRequestSchema.su
   },
 );
 
+export const communicationTestEmailRequestSchema = z.object({
+  contentMarkdown: z.string().trim().min(1).max(100_000),
+  email: z.email().max(320),
+  subject: z.string().trim().min(1).max(300),
+});
+
 export const communicationTemplateRequestSchema = z
   .object({
     channel: communicationChannelSchema,
@@ -993,6 +999,10 @@ export const communicationMessagesResponseSchema = z.object({
 export const communicationReachResponseSchema = communicationReachSchema.and(
   z.object({ requestId: requestIdSchema }),
 );
+export const communicationTestEmailResponseSchema = z.object({
+  requestId: requestIdSchema,
+  sent: z.literal(true),
+});
 export const communicationDeliverySummaryResponseSchema = communicationDeliverySummarySchema.and(
   z.object({ requestId: requestIdSchema }),
 );
@@ -1029,6 +1039,7 @@ export type CommunicationMessage = z.infer<typeof communicationMessageSchema>;
 export type CommunicationReach = z.infer<typeof communicationReachSchema>;
 export type CommunicationScheduledMessage = z.infer<typeof communicationScheduledMessageSchema>;
 export type CommunicationSendRequest = z.infer<typeof communicationSendRequestSchema>;
+export type CommunicationTestEmailRequest = z.infer<typeof communicationTestEmailRequestSchema>;
 export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
 export type CommunicationTemplateRequest = z.infer<typeof communicationTemplateRequestSchema>;
 export type SingerLearningTrackPiece = z.infer<typeof singerLearningTrackPieceSchema>;

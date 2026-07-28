@@ -1146,6 +1146,50 @@ h2 {
   justify-content: flex-start;
 }
 
+.communication-test-send {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.communication-test-send__address {
+  min-width: min(22rem, 100%);
+  flex: 1 1 18rem;
+}
+
+.communication-preview dl {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+}
+
+.communication-preview dl > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.communication-preview dt {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.communication-preview dd {
+  margin: 0;
+}
+
+.communication-preview__message {
+  max-height: 18rem;
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  white-space: pre-wrap;
+}
+
 .seasons-manager-controls {
   display: flex;
   align-items: center;

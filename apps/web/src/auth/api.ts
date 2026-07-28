@@ -8,6 +8,7 @@ import {
   communicationDeleteResponseSchema,
   communicationTemplateResponseSchema,
   communicationTemplatesResponseSchema,
+  communicationTestEmailResponseSchema,
   communicationUnsubscribeResponseSchema,
   memberProfileResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
@@ -102,6 +103,7 @@ import {
   type CommunicationSendRequest,
   type CommunicationTemplate,
   type CommunicationTemplateRequest,
+  type CommunicationTestEmailRequest,
   type TransactionFeeSettings,
   type AccountPasswordRequest,
   type AccountSecurityResponse,
@@ -680,6 +682,16 @@ export async function sendOrganizationCommunication(
     method: "POST",
   });
   return communicationMessageResponseSchema.parse(await response.json());
+}
+
+export async function sendOrganizationCommunicationTestEmail(
+  message: CommunicationTestEmailRequest,
+): Promise<void> {
+  const response = await request("/api/organization/communications/test-email", {
+    body: JSON.stringify(message),
+    method: "POST",
+  });
+  communicationTestEmailResponseSchema.parse(await response.json());
 }
 
 export async function getOrganizationCommunicationDeliverySummary(

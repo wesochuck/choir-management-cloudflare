@@ -6,6 +6,7 @@ import {
   communicationAudienceRequestSchema,
   communicationDraftRequestSchema,
   communicationSendRequestSchema,
+  communicationTestEmailRequestSchema,
   communicationTemplateRequestSchema,
   communicationUnsubscribeRequestSchema,
   organizationAttendanceBulkRequestSchema,
@@ -91,6 +92,7 @@ import {
 } from "@choir/domain";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
+import { sendPlatformEmail } from "./auth/platformEmail";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
 import {
   CalendarMutationError,
@@ -5029,6 +5031,43 @@ router.post("/api/organization/communications/send", async (context) => {
       error,
       context.get("requestId"),
       "The communication could not be queued.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.post("/api/organization/communications/test-email", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const body = communicationTestEmailRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid recipient email, subject, and message are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    await sendPlatformEmail(context.env, {
+      kind: "communication-test",
+      recipient: body.data.email,
+      subject: `[Test] ${body.data.subject}`,
+      text: `This is a test communication from Choir Management.\n\n${body.data.contentMarkdown}`,
+    });
+    return context.json({ requestId: context.get("requestId"), sent: true as const }, 202);
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "The test email could not be sent. Check the email delivery setup and try again.",
     );
     return context.json(result.problem, result.status);
   }

@@ -1,7 +1,7 @@
 import type { Env } from "../env";
 
 export type PlatformEmailKind =
-  "email-one-time-code" | "organization-invitation" | "password-reset";
+  "communication-test" | "email-one-time-code" | "organization-invitation" | "password-reset";
 
 export interface PlatformEmailMessage {
   readonly kind: PlatformEmailKind;

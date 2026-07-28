@@ -7,6 +7,7 @@ import type {
   CommunicationTemplate,
   OrganizationEvent,
 } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -23,6 +24,7 @@ import {
   saveOrganizationCommunicationDraft,
   saveOrganizationCommunicationTemplate,
   sendOrganizationCommunication,
+  sendOrganizationCommunicationTestEmail,
 } from "../auth/api";
 
 const defaultAudience: CommunicationAudienceRequest = {
@@ -192,6 +194,8 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
   const [reach, setReach] = useState<string | null>(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -247,6 +251,40 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     }
   }
 
+  async function openFinalPreview() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await previewOrganizationCommunicationReach(composeRequest());
+      setReach(
+        `${String(result.total)} reachable · ${String(result.email)} by email · ${String(result.sms)} by SMS · ${String(result.unreachable)} unreachable`,
+      );
+      setPreviewOpen(true);
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTestEmail() {
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await sendOrganizationCommunicationTestEmail({
+        contentMarkdown,
+        email: testEmail.trim(),
+        subject,
+      });
+      setSuccess(`Test email sent to ${testEmail.trim()}.`);
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveDraft() {
     setBusy(true);
     setError(null);
@@ -272,6 +310,7 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
       setContentMarkdown("");
       setSubject("");
       setReach(null);
+      setPreviewOpen(false);
       setSuccess("Communication queued for delivery.");
     } catch (failure: unknown) {
       setError(failureMessage(failure));
@@ -377,7 +416,7 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
         className="form-stack"
         onSubmit={(event) => {
           event.preventDefault();
-          void send();
+          void openFinalPreview();
         }}
       >
         <div className="field">
@@ -527,6 +566,43 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
             value={contentMarkdown}
           />
         </div>
+        <fieldset className="communication-test-send">
+          <legend>Test email delivery</legend>
+          <p className="field-help">
+            Send this subject and message to one address before you contact the full audience. This
+            tests email delivery only.
+          </p>
+          <div className="form-actions form-actions--start">
+            <div className="field communication-test-send__address">
+              <label htmlFor="communication-test-email">Test recipient</label>
+              <input
+                id="communication-test-email"
+                onChange={(event) => {
+                  setTestEmail(event.target.value);
+                }}
+                placeholder="you@example.com"
+                type="email"
+                value={testEmail}
+              />
+            </div>
+            <button
+              disabled={
+                busy ||
+                channel === "SMS" ||
+                !testEmail.trim() ||
+                !contentMarkdown.trim() ||
+                !subject.trim()
+              }
+              onClick={() => void sendTestEmail()}
+              type="button"
+            >
+              Send test email
+            </button>
+          </div>
+          {channel === "SMS" ? (
+            <p className="field-help">Select Email or Both to test email.</p>
+          ) : null}
+        </fieldset>
         {reach ? (
           <p className="notice notice--info" role="status">
             {reach}
@@ -540,10 +616,63 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
             Save draft
           </button>
           <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Working…" : "Queue communication"}
+            {busy ? "Working…" : "Preview before queueing"}
           </button>
         </div>
       </form>
+
+      <Dialog
+        description="Review the exact message and audience reach before queueing it for delivery."
+        onClose={() => {
+          if (!busy) setPreviewOpen(false);
+        }}
+        open={previewOpen}
+        title="Final message preview"
+      >
+        <div className="communication-preview">
+          <dl>
+            <div>
+              <dt>Channel</dt>
+              <dd>{channel}</dd>
+            </div>
+            {channel !== "SMS" ? (
+              <div>
+                <dt>Subject</dt>
+                <dd>{subject}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>Audience reach</dt>
+              <dd>{reach ?? "Reach not calculated"}</dd>
+            </div>
+          </dl>
+          <div className="communication-preview__message">{contentMarkdown}</div>
+          <p className="field-help">
+            Queueing will create delivery records for the selected audience. You can review delivery
+            status afterward.
+          </p>
+        </div>
+        <div className="dialog__actions">
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={() => {
+              setPreviewOpen(false);
+            }}
+            type="button"
+          >
+            Back to edit
+          </button>
+          <button
+            className="button button--primary"
+            disabled={busy}
+            onClick={() => void send()}
+            type="button"
+          >
+            {busy ? "Queueing…" : "Queue communication"}
+          </button>
+        </div>
+      </Dialog>
 
       <TemplateLibrary
         channel={channel}
