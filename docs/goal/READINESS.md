@@ -120,6 +120,15 @@ configuration response. The remote D1 ledger reported no pending migrations. A r
 query confirmed two active Organizations plus one verified, active Platform Administrator identity
 for `cwosborn@gmail.com`.
 
+The same read-only control check found LCC recorded at Organization schema version 23 and LMC at
+version 29 while the deployed Worker supports version 34. Both Organizations are active and
+`cwosborn@gmail.com` is their Owner, but the membership-to-Profile links are still unset. The normal
+bounded fleet-schema action is ready in the signed-in Platform Organizations page and correctly
+requires a fresh Platform Administrator authenticator assertion. No direct D1 or Durable Object
+write was used to bypass that boundary. Resume by completing that interactive MFA check, starting
+the fleet preparation, confirming both registry versions reach 34, and then completing the
+Organization Profile links through the application.
+
 The local large-data qualification now seeds 5,000 active Profiles and 500 upcoming events in one
 Organization Durable Object and exercises `/api/organization/dashboard-summary`. It returns exact
 counts and five next events in under one second, confirming bounded `COUNT`/`LIMIT` behavior without
