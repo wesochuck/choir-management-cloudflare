@@ -890,7 +890,7 @@ describe("Organization ticketing", () => {
         overdueAt,
         overdueAt,
       );
-      return state.storage.setAlarm(Date.now() + 1).then(() => undefined);
+      return state.storage.setAlarm(Date.now() - 1).then(() => undefined);
     });
     await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
     const notificationKinds = await runInDurableObject<OrganizationStore, string[]>(
