@@ -56,7 +56,10 @@ jobs:
       - name: Qualify anonymous staging boundary
         run: npm run qualify:staging
         env:
-          STAGING_QUALIFY_DELAY_MS: "250"
+          # Cloudflare's edge protection can rate-limit a GitHub runner that
+          # probes every public route in a tight burst. Keep the qualification
+          # read-only, but pace requests below that threshold.
+          STAGING_QUALIFY_DELAY_MS: "1000"
 
       - name: Record staging provenance
         run: |
