@@ -1635,7 +1635,6 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                   className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
                   aria-label="Seating chart assignments"
                 >
-                  <div className="seating-stage-marker">Director / stage</div>
                   <div className="seating-grid seating-grid--canvas">
                     {rows.map((rowIndex) => {
                       const count = chart.rowCounts[rowIndex] ?? 0;
@@ -1731,6 +1730,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                       );
                     })}
                   </div>
+                  <div className="seating-stage-marker">Director</div>
                   {isEditing ? (
                     <button
                       className="button button--secondary button--small no-print"
