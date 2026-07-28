@@ -164,10 +164,10 @@ automation or credentials: the default product/LCC/LMC run passed 180 browser-sh
 probes, and 75 product/Organization-host GET API probes. Supplying
 `STAGING_UNREGISTERED_URL=https://qualification-check.staging.musicsite.org` also passed the
 unregistered wildcard-host boundary (240 shell probes and 12 core probes total). The qualifier paces
-requests to stay below the edge rate limit seen from GitHub runners and uses a browser-like user agent.
-If a GitHub runner is refused by a zone-level edge rule before the first application response, the
-qualifier reports that distinction and leaves the deployment intact; the same read-only check still
-passes from the local/interactive network shown above.
+requests to stay below the edge rate limit seen from GitHub runners and uses a browser-like user
+agent. If a GitHub runner is refused by a zone-level edge rule before the first application
+response, the qualifier reports that distinction and leaves the deployment intact; the same
+read-only check still passes from the local/interactive network shown above.
 
 The public audition-settings contract returned HTTP 200 on both canonical Organization hosts, with
 the tenant-local default response shape and no cross-host data exposed; this promotes that public
