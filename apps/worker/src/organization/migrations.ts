@@ -16,6 +16,7 @@ export function migrateOrganization(sql: SqlStorage): void {
       continue;
     }
 
+    migration.apply?.(sql);
     for (const statement of migration.statements) {
       sql.exec(statement);
     }

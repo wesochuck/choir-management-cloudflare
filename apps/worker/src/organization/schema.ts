@@ -1,6 +1,7 @@
 import { defaultRosterConfiguration, defaultSeatingConfiguration } from "@choir/domain";
 
 export interface OrganizationSchemaMigration {
+  readonly apply?: (sql: SqlStorage) => void;
   readonly statements: readonly string[];
   readonly version: number;
 }
@@ -697,6 +698,29 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       `CREATE INDEX IF NOT EXISTS idx_donation_expirations_expired_at
        ON donation_expirations(expired_at, donation_id)`,
     ],
+  },
+  {
+    apply: (sql) => {
+      const seasonColumns = new Set(
+        [...sql.exec<{ readonly name: string }>("PRAGMA table_info(seasons)")].map(
+          ({ name }) => name,
+        ),
+      );
+      if (!seasonColumns.has("is_active")) {
+        sql.exec(
+          "ALTER TABLE seasons ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1))",
+        );
+      }
+
+      const duesColumns = new Set(
+        [...sql.exec<{ readonly name: string }>("PRAGMA table_info(dues)")].map(({ name }) => name),
+      );
+      if (!duesColumns.has("provider_session_id")) {
+        sql.exec("ALTER TABLE dues ADD COLUMN provider_session_id TEXT NOT NULL DEFAULT ''");
+      }
+    },
+    statements: [],
+    version: 35,
   },
 ] as const;
 

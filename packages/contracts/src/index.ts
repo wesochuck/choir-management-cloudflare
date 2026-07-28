@@ -1928,10 +1928,20 @@ export const seasonSchema = z.object({
   duesAmountCents: z.number().int().nonnegative(),
   endsAt: z.iso.datetime(),
   id: z.uuid(),
+  isActive: z.boolean(),
   name: z.string().min(1).max(200),
   startsAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
+
+export const seasonCreateRequestSchema = z.object({
+  duesAmountCents: z.number().int().nonnegative(),
+  endsAt: z.iso.datetime(),
+  name: z.string().trim().min(1).max(200),
+  startsAt: z.iso.datetime(),
+});
+
+export const seasonUpdateRequestSchema = seasonCreateRequestSchema;
 
 export const seasonsResponseSchema = z.object({
   requestId: requestIdSchema,
@@ -1968,6 +1978,8 @@ export const duesCheckoutResponseSchema = z.object({
 });
 
 export type Season = z.infer<typeof seasonSchema>;
+export type SeasonCreateRequest = z.infer<typeof seasonCreateRequestSchema>;
+export type SeasonUpdateRequest = z.infer<typeof seasonUpdateRequestSchema>;
 export type SeasonsResponse = z.infer<typeof seasonsResponseSchema>;
 export type DuesStatus = z.infer<typeof duesStatusSchema>;
 export type DuesRecord = z.infer<typeof duesRecordSchema>;

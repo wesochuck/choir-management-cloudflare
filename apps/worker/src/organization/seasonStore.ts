@@ -1,8 +1,42 @@
-import { duesCheckoutRequestSchema } from "@choir/contracts";
+import {
+  duesCheckoutRequestSchema,
+  seasonCreateRequestSchema,
+  seasonUpdateRequestSchema,
+} from "@choir/contracts";
 import { z } from "zod";
 
 const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
+});
+
+const seasonCreateOperationSchema = organizationContextSchema.extend({
+  action: z.literal("create_season"),
+  actorUserId: z.string().min(1).max(128),
+  requestId: z.uuid(),
+  season: seasonCreateRequestSchema,
+  seasonId: z.uuid(),
+});
+
+const seasonUpdateOperationSchema = organizationContextSchema.extend({
+  action: z.literal("update_season"),
+  actorUserId: z.string().min(1).max(128),
+  requestId: z.uuid(),
+  season: seasonUpdateRequestSchema,
+  seasonId: z.uuid(),
+});
+
+const seasonActivateOperationSchema = organizationContextSchema.extend({
+  action: z.literal("activate_season"),
+  actorUserId: z.string().min(1).max(128),
+  requestId: z.uuid(),
+  seasonId: z.uuid(),
+});
+
+const seasonDeleteOperationSchema = organizationContextSchema.extend({
+  action: z.literal("delete_season"),
+  actorUserId: z.string().min(1).max(128),
+  requestId: z.uuid(),
+  seasonId: z.uuid(),
 });
 
 const createDuesCheckoutOperationSchema = organizationContextSchema.extend({
@@ -32,6 +66,10 @@ const stripeDuesExpiredOperationSchema = stripeDuesOperationSchema.extend({
 });
 
 const operationSchema = z.discriminatedUnion("action", [
+  seasonCreateOperationSchema,
+  seasonUpdateOperationSchema,
+  seasonActivateOperationSchema,
+  seasonDeleteOperationSchema,
   createDuesCheckoutOperationSchema,
   refundOperationSchema,
   stripeDuesCompletedOperationSchema,
@@ -44,6 +82,7 @@ interface SeasonRow {
   readonly duesAmountCents: number;
   readonly endsAt: string;
   readonly id: string;
+  readonly isActive: number;
   readonly name: string;
   readonly startsAt: string;
   readonly updatedAt: string;
@@ -63,7 +102,8 @@ interface DuesRow {
 }
 
 const seasonSelect = `SELECT s.id, s.name, s.starts_at AS startsAt, s.ends_at AS endsAt,
-  s.dues_amount_cents AS duesAmountCents, s.created_at AS createdAt, s.updated_at AS updatedAt
+  s.dues_amount_cents AS duesAmountCents, s.is_active AS isActive,
+  s.created_at AS createdAt, s.updated_at AS updatedAt
   FROM seasons s`;
 
 const duesSelect = `SELECT d.id, d.season_id AS seasonId, d.profile_id AS profileId,
@@ -87,10 +127,198 @@ function seasonResult(row: SeasonRow) {
     duesAmountCents: row.duesAmountCents,
     endsAt: row.endsAt,
     id: row.id,
+    isActive: row.isActive === 1,
     name: row.name,
     startsAt: row.startsAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function seasonById(storage: DurableObjectStorage, seasonId: string): SeasonRow | undefined {
+  return storage.sql
+    .exec<SeasonRow>(`${seasonSelect} WHERE s.id = ? LIMIT 1`, seasonId)
+    .toArray()
+    .at(0);
+}
+
+function validateSeasonInput(
+  storage: DurableObjectStorage,
+  season: z.infer<typeof seasonCreateRequestSchema>,
+  excludedSeasonId?: string,
+): Response | null {
+  if (new Date(season.endsAt).getTime() < new Date(season.startsAt).getTime()) {
+    return Response.json(
+      { code: "season_dates_invalid", message: "End date cannot be before start date." },
+      { status: 400 },
+    );
+  }
+  const overlap = storage.sql
+    .exec<SeasonRow>(`${seasonSelect} ORDER BY s.starts_at ASC, s.id ASC`)
+    .toArray()
+    .find(
+      (candidate) =>
+        candidate.id !== excludedSeasonId &&
+        season.startsAt <= candidate.endsAt &&
+        season.endsAt >= candidate.startsAt,
+    );
+  return overlap
+    ? Response.json(
+        {
+          code: "season_overlap",
+          message: `The selected dates overlap with ${overlap.name}.`,
+        },
+        { status: 409 },
+      )
+    : null;
+}
+
+function createSeason(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof seasonCreateOperationSchema>,
+): Response {
+  const validation = validateSeasonInput(storage, operation.season);
+  if (validation) return validation;
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT INTO seasons
+        (id, name, starts_at, ends_at, dues_amount_cents, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+      operation.seasonId,
+      operation.season.name,
+      operation.season.startsAt,
+      operation.season.endsAt,
+      operation.season.duesAmountCents,
+      occurredAt,
+      occurredAt,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'season.created', 'season', ?, ?, ?, ?)`,
+      crypto.randomUUID(),
+      operation.actorUserId,
+      operation.seasonId,
+      operation.requestId,
+      JSON.stringify(operation.season),
+      occurredAt,
+    );
+  });
+  const created = seasonById(storage, operation.seasonId);
+  return created
+    ? Response.json(seasonResult(created), { status: 201 })
+    : Response.json({ code: "season_not_found" }, { status: 404 });
+}
+
+function updateSeason(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof seasonUpdateOperationSchema>,
+): Response {
+  if (!seasonById(storage, operation.seasonId)) {
+    return Response.json({ code: "season_not_found" }, { status: 404 });
+  }
+  const validation = validateSeasonInput(storage, operation.season, operation.seasonId);
+  if (validation) return validation;
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE seasons
+       SET name = ?, starts_at = ?, ends_at = ?, dues_amount_cents = ?, updated_at = ?
+       WHERE id = ?`,
+      operation.season.name,
+      operation.season.startsAt,
+      operation.season.endsAt,
+      operation.season.duesAmountCents,
+      occurredAt,
+      operation.seasonId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'season.updated', 'season', ?, ?, ?, ?)`,
+      crypto.randomUUID(),
+      operation.actorUserId,
+      operation.seasonId,
+      operation.requestId,
+      JSON.stringify(operation.season),
+      occurredAt,
+    );
+  });
+  const updated = seasonById(storage, operation.seasonId);
+  return updated
+    ? Response.json(seasonResult(updated))
+    : Response.json({ code: "season_not_found" }, { status: 404 });
+}
+
+function activateSeason(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof seasonActivateOperationSchema>,
+): Response {
+  if (!seasonById(storage, operation.seasonId)) {
+    return Response.json({ code: "season_not_found" }, { status: 404 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec("UPDATE seasons SET is_active = 0, updated_at = ?", occurredAt);
+    storage.sql.exec(
+      "UPDATE seasons SET is_active = 1, updated_at = ? WHERE id = ?",
+      occurredAt,
+      operation.seasonId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'season.activated', 'season', ?, ?, ?, ?)`,
+      crypto.randomUUID(),
+      operation.actorUserId,
+      operation.seasonId,
+      operation.requestId,
+      JSON.stringify({ seasonId: operation.seasonId }),
+      occurredAt,
+    );
+  });
+  const activated = seasonById(storage, operation.seasonId);
+  return activated
+    ? Response.json(seasonResult(activated))
+    : Response.json({ code: "season_not_found" }, { status: 404 });
+}
+
+function deleteSeason(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof seasonDeleteOperationSchema>,
+): Response {
+  if (!seasonById(storage, operation.seasonId)) {
+    return Response.json({ code: "season_not_found" }, { status: 404 });
+  }
+  try {
+    storage.transactionSync(() => {
+      storage.sql.exec("DELETE FROM seasons WHERE id = ?", operation.seasonId);
+      storage.sql.exec(
+        `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_member', ?, 'season.deleted', 'season', ?, ?, ?, ?)`,
+        crypto.randomUUID(),
+        operation.actorUserId,
+        operation.seasonId,
+        operation.requestId,
+        JSON.stringify({ seasonId: operation.seasonId }),
+        new Date().toISOString(),
+      );
+    });
+  } catch {
+    return Response.json(
+      {
+        code: "season_has_dues",
+        message: "This season has dues records and cannot be deleted.",
+      },
+      { status: 409 },
+    );
+  }
+  return Response.json({ deleted: true, seasonId: operation.seasonId });
 }
 
 function duesResult(row: DuesRow) {
@@ -342,6 +570,14 @@ export async function manageSeasonsInStore(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   switch (operation.data.action) {
+    case "create_season":
+      return createSeason(storage, operation.data);
+    case "update_season":
+      return updateSeason(storage, operation.data);
+    case "activate_season":
+      return activateSeason(storage, operation.data);
+    case "delete_season":
+      return deleteSeason(storage, operation.data);
     case "create_dues_checkout":
       return createDuesCheckout(storage, operation.data);
     case "refund_dues":

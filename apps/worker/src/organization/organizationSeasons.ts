@@ -3,10 +3,15 @@ import {
   duesCheckoutResponseSchema,
   duesRecordSchema,
   duesRecordsResponseSchema,
+  seasonCreateRequestSchema,
+  seasonSchema,
+  seasonUpdateRequestSchema,
   seasonsResponseSchema,
   type DuesCheckoutRequest,
   type DuesRecord,
   type Season,
+  type SeasonCreateRequest,
+  type SeasonUpdateRequest,
 } from "@choir/contracts";
 import { z } from "zod";
 
@@ -31,6 +36,30 @@ export class SeasonError extends Error {
 
 function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+}
+
+async function mutateSeason(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const response = await stub(env, organizationId).fetch(
+    "https://organization.internal/internal/seasons/manage",
+    {
+      body: JSON.stringify({ ...body, organizationId }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    const code = await errorCode(response);
+    const status =
+      response.status === 400 || response.status === 404 || response.status === 409
+        ? response.status
+        : 503;
+    throw new SeasonError(code, status, "The season could not be updated.");
+  }
+  return response;
 }
 
 async function errorCode(response: Response): Promise<string> {
@@ -92,6 +121,64 @@ export async function listDues(
   const response = await stub(env, organizationId).fetch(url);
   if (!response.ok) throw new SeasonError("dues_unavailable", 503, "Dues unavailable.");
   return duesRecordsResponseSchema.omit({ requestId: true }).parse(await response.json()).dues;
+}
+
+export async function createSeason(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  context: ActorContext,
+  season: SeasonCreateRequest,
+): Promise<Season> {
+  const response = await mutateSeason(env, context.organizationId, {
+    action: "create_season",
+    actorUserId: context.actorUserId,
+    requestId: context.requestId,
+    season: seasonCreateRequestSchema.parse(season),
+    seasonId: crypto.randomUUID(),
+  });
+  return seasonSchema.parse(await response.json());
+}
+
+export async function updateSeason(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  context: ActorContext,
+  seasonId: string,
+  season: SeasonUpdateRequest,
+): Promise<Season> {
+  const response = await mutateSeason(env, context.organizationId, {
+    action: "update_season",
+    actorUserId: context.actorUserId,
+    requestId: context.requestId,
+    season: seasonUpdateRequestSchema.parse(season),
+    seasonId: z.uuid().parse(seasonId),
+  });
+  return seasonSchema.parse(await response.json());
+}
+
+export async function activateSeason(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  context: ActorContext,
+  seasonId: string,
+): Promise<Season> {
+  const response = await mutateSeason(env, context.organizationId, {
+    action: "activate_season",
+    actorUserId: context.actorUserId,
+    requestId: context.requestId,
+    seasonId: z.uuid().parse(seasonId),
+  });
+  return seasonSchema.parse(await response.json());
+}
+
+export async function deleteSeason(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  context: ActorContext,
+  seasonId: string,
+): Promise<void> {
+  await mutateSeason(env, context.organizationId, {
+    action: "delete_season",
+    actorUserId: context.actorUserId,
+    requestId: context.requestId,
+    seasonId: z.uuid().parse(seasonId),
+  });
 }
 
 export async function refundDues(

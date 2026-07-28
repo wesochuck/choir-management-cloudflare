@@ -1,11 +1,22 @@
-import {
-  duesRecordSchema,
-  duesRecordsResponseSchema,
-  seasonsResponseSchema,
-  type DuesRecord,
-  type Season,
+import type {
+  DuesRecord,
+  Season,
+  SeasonCreateRequest,
+  SeasonUpdateRequest,
 } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
+
+import {
+  activateOrganizationSeason,
+  AuthApiError,
+  createOrganizationSeason,
+  deleteOrganizationSeason,
+  listOrganizationDues,
+  listOrganizationSeasons,
+  refundOrganizationDues,
+  updateOrganizationSeason,
+} from "../auth/api";
 
 type SeasonState =
   | { readonly status: "error" }
@@ -17,53 +28,87 @@ type DuesState =
   | { readonly status: "loading" }
   | { readonly dues: readonly DuesRecord[]; readonly status: "ready" };
 
+interface SeasonForm {
+  readonly duesAmount: string;
+  readonly endsAt: string;
+  readonly name: string;
+  readonly startsAt: string;
+}
+
+const emptySeasonForm: SeasonForm = {
+  duesAmount: "0.00",
+  endsAt: "",
+  name: "",
+  startsAt: "",
+};
+
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
     cents / 100,
   );
 }
 
-function parseSeasons(body: unknown): readonly Season[] {
-  const parsed = seasonsResponseSchema.safeParse(body);
-  return parsed.success ? parsed.data.seasons : [];
+function dateOnly(value: string): string {
+  return value.slice(0, 10);
 }
 
-function parseDues(body: unknown): readonly DuesRecord[] {
-  const parsed = duesRecordsResponseSchema.safeParse(body);
-  return parsed.success ? parsed.data.dues : [];
+function seasonPayload(form: SeasonForm): SeasonCreateRequest | SeasonUpdateRequest {
+  const amount = Number(form.duesAmount);
+  return {
+    duesAmountCents: Math.round(amount * 100),
+    endsAt: new Date(`${form.endsAt}T23:59:59.000Z`).toISOString(),
+    name: form.name.trim(),
+    startsAt: new Date(`${form.startsAt}T00:00:00.000Z`).toISOString(),
+  };
+}
+
+function seasonFormFor(season: Season | null): SeasonForm {
+  return season
+    ? {
+        duesAmount: (season.duesAmountCents / 100).toFixed(2),
+        endsAt: dateOnly(season.endsAt),
+        name: season.name,
+        startsAt: dateOnly(season.startsAt),
+      }
+    : emptySeasonForm;
+}
+
+function apiError(error: unknown, fallback: string): string {
+  return error instanceof AuthApiError ? error.message : fallback;
 }
 
 export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
   const [seasonState, setSeasonState] = useState<SeasonState>({ status: "loading" });
   const [duesState, setDuesState] = useState<DuesState>({ status: "loading" });
+  const [confirmSeason, setConfirmSeason] = useState<Season | null>(null);
+  const [editingSeason, setEditingSeason] = useState<Season | null>(null);
+  const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
+  const [seasonForm, setSeasonForm] = useState<SeasonForm>(emptySeasonForm);
   const [refundId, setRefundId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [seasonBusy, setSeasonBusy] = useState(false);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [tab, setTab] = useState<"seasons" | "dues">("seasons");
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    Promise.all([
-      fetch("/api/organization/seasons", { credentials: "same-origin", signal: controller.signal }),
-      fetch("/api/organization/dues", { credentials: "same-origin", signal: controller.signal }),
-    ])
-      .then(async ([seasonsRes, duesRes]) => {
-        if (!seasonsRes.ok || !duesRes.ok) {
-          if (!controller.signal.aborted) {
-            setSeasonState({ status: "error" });
-            setDuesState({ status: "error" });
-          }
-          return;
-        }
-        const seasonsBody: unknown = await seasonsRes.json();
-        const duesBody: unknown = await duesRes.json();
-        setSeasonState({ seasons: parseSeasons(seasonsBody), status: "ready" });
-        setDuesState({ dues: parseDues(duesBody), status: "ready" });
+    listOrganizationSeasons(controller.signal)
+      .then((seasons) => {
+        setSeasonState({ seasons, status: "ready" });
       })
-      .catch(() => {
-        if (!controller.signal.aborted) {
+      .catch((loadError: unknown) => {
+        if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
           setSeasonState({ status: "error" });
+        }
+      });
+    listOrganizationDues(controller.signal)
+      .then((dues) => {
+        setDuesState({ dues, status: "ready" });
+      })
+      .catch((loadError: unknown) => {
+        if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
           setDuesState({ status: "error" });
         }
       });
@@ -72,88 +117,350 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled]);
 
-  async function refund(duesId: string) {
-    setBusy(true);
+  function openSeasonDialog(season: Season | null = null) {
+    setError(null);
     setMessage(null);
+    setEditingSeason(season);
+    setSeasonForm(seasonFormFor(season));
+    setSeasonDialogOpen(true);
+  }
+
+  async function saveSeason() {
+    const amount = Number(seasonForm.duesAmount);
+    if (!seasonForm.name.trim()) {
+      setError("Enter a season name.");
+      return;
+    }
+    if (!seasonForm.startsAt || !seasonForm.endsAt || seasonForm.endsAt < seasonForm.startsAt) {
+      setError("The end date must be on or after the start date.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount < 0) {
+      setError("Enter a valid dues amount.");
+      return;
+    }
+    setSeasonBusy(true);
+    setError(null);
     try {
-      const response = await fetch("/api/admin/refund-dues", {
-        body: JSON.stringify({ duesId }),
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
+      const payload = seasonPayload(seasonForm);
+      const saved = editingSeason
+        ? await updateOrganizationSeason(editingSeason.id, payload)
+        : await createOrganizationSeason(payload);
+      setSeasonState((current) => {
+        if (current.status !== "ready") return current;
+        const seasons = editingSeason
+          ? current.seasons.map((season) => (season.id === saved.id ? saved : season))
+          : [saved, ...current.seasons];
+        return { seasons, status: "ready" };
       });
-      if (!response.ok) throw new Error("Refund failed");
-      const body: unknown = await response.json();
-      const parsed = duesRecordSchema.safeParse(body);
-      const refunded = parsed.success ? parsed.data : null;
-      if (!refunded) throw new Error("Invalid response");
+      setSeasonDialogOpen(false);
+      setMessage(editingSeason ? "Season updated." : "Season created.");
+    } catch (saveError: unknown) {
+      setError(apiError(saveError, "The season could not be saved."));
+    } finally {
+      setSeasonBusy(false);
+    }
+  }
+
+  async function activateSeason(season: Season) {
+    setSeasonBusy(true);
+    setError(null);
+    try {
+      const activated = await activateOrganizationSeason(season.id);
+      setSeasonState((current) =>
+        current.status === "ready"
+          ? {
+              seasons: current.seasons.map((candidate) =>
+                candidate.id === activated.id ? activated : { ...candidate, isActive: false },
+              ),
+              status: "ready",
+            }
+          : current,
+      );
+      setMessage(`${season.name} is now active.`);
+    } catch (activateError: unknown) {
+      setError(apiError(activateError, "The season could not be activated."));
+    } finally {
+      setSeasonBusy(false);
+    }
+  }
+
+  async function removeSeason() {
+    if (!confirmSeason) return;
+    setSeasonBusy(true);
+    setError(null);
+    try {
+      await deleteOrganizationSeason(confirmSeason.id);
+      setSeasonState((current) =>
+        current.status === "ready"
+          ? {
+              seasons: current.seasons.filter((season) => season.id !== confirmSeason.id),
+              status: "ready",
+            }
+          : current,
+      );
+      setConfirmSeason(null);
+      setMessage("Season deleted.");
+    } catch (deleteError: unknown) {
+      setError(apiError(deleteError, "The season could not be deleted."));
+    } finally {
+      setSeasonBusy(false);
+    }
+  }
+
+  async function refund(duesId: string) {
+    setRefundBusy(true);
+    setError(null);
+    try {
+      const refunded = await refundOrganizationDues(duesId);
       setDuesState((current) =>
         current.status === "ready"
           ? {
-              dues: current.dues.map((d) => (d.id === refunded.id ? refunded : d)),
+              dues: current.dues.map((dues) => (dues.id === refunded.id ? refunded : dues)),
               status: "ready",
             }
           : current,
       );
       setRefundId(null);
       setMessage("Dues refunded.");
-    } catch {
-      setMessage("The dues could not be refunded.");
+    } catch (refundError: unknown) {
+      setError(apiError(refundError, "The dues could not be refunded."));
     } finally {
-      setBusy(false);
+      setRefundBusy(false);
     }
   }
 
   if (!enabled) return null;
   return (
-    <section className="panel" aria-labelledby="seasons-manager-heading">
-      <p className="eyebrow">Manager tools</p>
-      <h2 id="seasons-manager-heading">Seasons &amp; Dues</h2>
-      {message ? (
-        <p className="notice notice--info" role="status">
-          {message}
+    <>
+      <section className="panel" aria-labelledby="seasons-manager-heading">
+        <p className="eyebrow">Manager tools</p>
+        <h2 id="seasons-manager-heading">Seasons &amp; Dues</h2>
+        {error && !seasonDialogOpen && !confirmSeason ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {message ? (
+          <p className="notice notice--success" role="status">
+            {message}
+          </p>
+        ) : null}
+        <div className="form-actions">
+          <button
+            className={`button ${tab === "seasons" ? "button--primary" : "button--secondary"}`}
+            onClick={() => {
+              setTab("seasons");
+            }}
+            type="button"
+          >
+            Seasons
+          </button>
+          <button
+            className={`button ${tab === "dues" ? "button--primary" : "button--secondary"}`}
+            onClick={() => {
+              setTab("dues");
+            }}
+            type="button"
+          >
+            Dues Records
+          </button>
+        </div>
+        {tab === "seasons" ? (
+          <>
+            <div className="page-toolbar page-toolbar--end">
+              <button
+                className="button button--primary"
+                onClick={() => {
+                  openSeasonDialog();
+                }}
+                type="button"
+              >
+                Add season
+              </button>
+            </div>
+            <SeasonsTab
+              onActivate={(season) => void activateSeason(season)}
+              onDelete={(season) => {
+                setError(null);
+                setMessage(null);
+                setConfirmSeason(season);
+              }}
+              onEdit={openSeasonDialog}
+              seasonState={seasonState}
+              busy={seasonBusy}
+            />
+          </>
+        ) : (
+          <DuesTab
+            busy={refundBusy}
+            duesState={duesState}
+            refund={refund}
+            refundId={refundId}
+            setRefundId={setRefundId}
+          />
+        )}
+      </section>
+
+      <Dialog
+        description="Set the dates and dues amount for this choir season. Overlapping seasons are not allowed."
+        onClose={() => {
+          if (!seasonBusy) {
+            setError(null);
+            setSeasonDialogOpen(false);
+          }
+        }}
+        open={seasonDialogOpen}
+        title={editingSeason ? "Edit season" : "Create season"}
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveSeason();
+          }}
+        >
+          {error ? (
+            <p className="notice notice--error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="field">
+            <label htmlFor="season-name">Name</label>
+            <input
+              autoFocus
+              id="season-name"
+              maxLength={200}
+              onChange={(event) => {
+                setSeasonForm((current) => ({ ...current, name: event.target.value }));
+              }}
+              required
+              value={seasonForm.name}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="season-dues-amount">Dues amount</label>
+            <input
+              id="season-dues-amount"
+              min="0"
+              onChange={(event) => {
+                setSeasonForm((current) => ({ ...current, duesAmount: event.target.value }));
+              }}
+              required
+              step="0.01"
+              type="number"
+              value={seasonForm.duesAmount}
+            />
+          </div>
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="season-starts-at">Start date</label>
+              <input
+                id="season-starts-at"
+                onChange={(event) => {
+                  setSeasonForm((current) => ({ ...current, startsAt: event.target.value }));
+                }}
+                required
+                type="date"
+                value={seasonForm.startsAt}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="season-ends-at">End date</label>
+              <input
+                id="season-ends-at"
+                onChange={(event) => {
+                  setSeasonForm((current) => ({ ...current, endsAt: event.target.value }));
+                }}
+                required
+                type="date"
+                value={seasonForm.endsAt}
+              />
+            </div>
+          </div>
+          <div className="dialog__actions">
+            <button
+              className="button button--secondary"
+              disabled={seasonBusy}
+              onClick={() => {
+                setError(null);
+                setSeasonDialogOpen(false);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className="button button--primary" disabled={seasonBusy} type="submit">
+              {seasonBusy ? "Saving…" : editingSeason ? "Save changes" : "Create season"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        description="A season with dues records cannot be deleted."
+        onClose={() => {
+          if (!seasonBusy) {
+            setError(null);
+            setConfirmSeason(null);
+          }
+        }}
+        open={confirmSeason !== null}
+        title="Delete season?"
+      >
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <p>
+          {confirmSeason
+            ? `Delete ${confirmSeason.name}? This action cannot be undone.`
+            : "Delete this season?"}
         </p>
-      ) : null}
-      <div className="form-actions">
-        <button
-          className={`button ${tab === "seasons" ? "button--primary" : "button--secondary"}`}
-          onClick={() => {
-            setTab("seasons");
-          }}
-          type="button"
-        >
-          Seasons
-        </button>
-        <button
-          className={`button ${tab === "dues" ? "button--primary" : "button--secondary"}`}
-          onClick={() => {
-            setTab("dues");
-          }}
-          type="button"
-        >
-          Dues Records
-        </button>
-      </div>
-      {tab === "seasons" ? (
-        <SeasonsTab seasonState={seasonState} />
-      ) : (
-        <DuesTab
-          busy={busy}
-          duesState={duesState}
-          refund={refund}
-          refundId={refundId}
-          setRefundId={setRefundId}
-        />
-      )}
-    </section>
+        <div className="dialog__actions">
+          <button
+            className="button button--secondary"
+            disabled={seasonBusy}
+            onClick={() => {
+              setError(null);
+              setConfirmSeason(null);
+            }}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="button button--danger"
+            disabled={seasonBusy}
+            onClick={() => void removeSeason()}
+            type="button"
+          >
+            {seasonBusy ? "Deleting…" : "Delete season"}
+          </button>
+        </div>
+      </Dialog>
+    </>
   );
 }
 
-function SeasonsTab({ seasonState }: { readonly seasonState: SeasonState }) {
+function SeasonsTab({
+  busy,
+  onActivate,
+  onDelete,
+  onEdit,
+  seasonState,
+}: {
+  readonly busy: boolean;
+  readonly onActivate: (season: Season) => void;
+  readonly onDelete: (season: Season) => void;
+  readonly onEdit: (season: Season) => void;
+  readonly seasonState: SeasonState;
+}) {
   if (seasonState.status === "loading") return <p>Loading seasons…</p>;
   if (seasonState.status === "error")
     return <p className="notice notice--error">Seasons could not be loaded.</p>;
-  if (seasonState.seasons.length === 0) return <p>No seasons yet.</p>;
+  if (seasonState.seasons.length === 0) return <p>No seasons yet. Add one to get started.</p>;
   return (
     <div className="table-scroll">
       <table>
@@ -162,16 +469,57 @@ function SeasonsTab({ seasonState }: { readonly seasonState: SeasonState }) {
             <th>Name</th>
             <th>Starts</th>
             <th>Ends</th>
-            <th>Dues Amount</th>
+            <th>Dues amount</th>
+            <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {seasonState.seasons.map((season) => (
             <tr key={season.id}>
-              <td>{season.name}</td>
+              <td>
+                <strong>{season.name}</strong>
+              </td>
               <td>{new Date(season.startsAt).toLocaleDateString()}</td>
               <td>{new Date(season.endsAt).toLocaleDateString()}</td>
               <td>{money(season.duesAmountCents)}</td>
+              <td>{season.isActive ? <span className="badge">Active</span> : ""}</td>
+              <td>
+                <div className="form-actions">
+                  {!season.isActive ? (
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => {
+                        onActivate(season);
+                      }}
+                      type="button"
+                    >
+                      Make active
+                    </button>
+                  ) : null}
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => {
+                      onEdit(season);
+                    }}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-button text-button--danger"
+                    disabled={busy}
+                    onClick={() => {
+                      onDelete(season);
+                    }}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
