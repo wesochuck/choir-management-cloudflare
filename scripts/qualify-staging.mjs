@@ -15,6 +15,7 @@ const organizationSlugs = (process.env.STAGING_ORG_SLUGS ?? "lcc,lmc")
   .map((slug) => slug.trim().toLowerCase())
   .filter(Boolean);
 const unregisteredUrl = (process.env.STAGING_UNREGISTERED_URL ?? "").replace(/\/$/, "");
+const requestDelayMs = Math.max(0, Number(process.env.STAGING_QUALIFY_DELAY_MS ?? "250"));
 const organizationUrls = organizationSlugs.map((slug) => ({
   label: slug,
   url: `${productOrigin.protocol}//${slug}.${productOrigin.hostname}`,
@@ -31,6 +32,7 @@ const expectedRegistered404 = new Set([
 ]);
 const failures = [];
 const counts = { browser: 0, api: 0, core: 0 };
+const browserPaths = [...new Set(["/", ...matrix.browserRoutes.map((route) => route.path)])];
 
 function routePath(path) {
   return path.replace(/:([A-Za-z0-9_]+)/g, placeholderId);
@@ -52,8 +54,10 @@ async function request(url) {
       signal: AbortSignal.timeout(15_000),
     });
     const text = await response.text();
+    if (requestDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, requestDelayMs));
     return { code: responseCode(text), status: response.status };
   } catch (error) {
+    if (requestDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, requestDelayMs));
     return { error: error instanceof Error ? error.message : String(error), status: 0 };
   }
 }
@@ -63,7 +67,7 @@ function fail(label, message) {
 }
 
 for (const host of hosts) {
-  for (const path of ["/", ...matrix.browserRoutes.map((route) => route.path)]) {
+  for (const path of browserPaths) {
     const route = routePath(path);
     const result = await request(`${host.url}${route}`);
     counts.browser += 1;

@@ -160,10 +160,11 @@ intentionally still absent. The product and unregistered hosts correctly reject 
 by hostname-first resolution.
 
 The repeatable read-only `npm run qualify:staging` check now captures this boundary without browser
-automation or credentials: the default product/LCC/LMC run passed 183 browser-shell probes, 9 core
+automation or credentials: the default product/LCC/LMC run passed 180 browser-shell probes, 9 core
 probes, and 75 product/Organization-host GET API probes. Supplying
 `STAGING_UNREGISTERED_URL=https://qualification-check.staging.musicsite.org` also passed the
-unregistered wildcard-host boundary (244 shell probes and 12 core probes total).
+unregistered wildcard-host boundary (240 shell probes and 12 core probes total). The qualifier paces
+requests to stay below the edge rate limit seen from GitHub runners.
 
 The public audition-settings contract returned HTTP 200 on both canonical Organization hosts, with
 the tenant-local default response shape and no cross-host data exposed; this promotes that public

@@ -55,6 +55,8 @@ jobs:
 
       - name: Qualify anonymous staging boundary
         run: npm run qualify:staging
+        env:
+          STAGING_QUALIFY_DELAY_MS: "250"
 
       - name: Record staging provenance
         run: |
