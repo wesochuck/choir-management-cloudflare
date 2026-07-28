@@ -159,6 +159,12 @@ unhandled Worker error. `POST /api/webhook/stripe` returned the typed fail-close
 intentionally still absent. The product and unregistered hosts correctly reject tenant-scoped routes
 by hostname-first resolution.
 
+The repeatable read-only `npm run qualify:staging` check now captures this boundary without browser
+automation or credentials: the default product/LCC/LMC run passed 183 browser-shell probes, 9 core
+probes, and 75 registered-host GET API probes. Supplying
+`STAGING_UNREGISTERED_URL=https://qualification-check.staging.musicsite.org` also passed the
+unregistered wildcard-host boundary (244 shell probes and 12 core probes total).
+
 The local non-browser gate was rerun from this exact commit: formatting, lint, strict typecheck, 87
 unit tests, 118 workerd integration tests, and all workspace builds passed. Integration output still
 contains the expected FleetSchema negative-test identity warning; it does not affect the zero exit

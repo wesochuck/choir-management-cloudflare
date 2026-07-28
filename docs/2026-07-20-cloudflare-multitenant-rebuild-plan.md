@@ -193,6 +193,7 @@ milestone complete.
 | `playwright.config.ts`                                         | Desktop/mobile browser-test projects and preview server                                                                                            |
 | `scripts/check-parity-matrix.mjs`                              | Standalone executable parity-ledger validation                                                                                                     |
 | `scripts/audit-parity-implementation.mjs`                      | Fails parity gates when implemented/verified API entries lack a matching Worker route; reports partial compatibility work                          |
+| `scripts/qualify-staging.mjs`                                  | Read-only anonymous permanent-staging shell/API boundary qualification across product and seeded Organization hosts                                |
 | `scripts/capture-baseline-screenshots.mjs`                     | Development-only deterministic Parity Bridge screenshot capture                                                                                    |
 | `scripts/bootstrap-staging-platform-admin.mjs`                 | Production-refusing, Wrangler-authenticated first Platform Administrator grant                                                                     |
 | `scripts/bootstrap-staging-platform-admin.test.mjs`            | Bootstrap validation, escaping, audit, and environment-refusal unit coverage                                                                       |

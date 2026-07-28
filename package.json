@@ -17,6 +17,7 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build",
     "check:parity:implementation": "node scripts/audit-parity-implementation.mjs",
     "check:parity": "node scripts/check-parity-matrix.mjs",
+    "qualify:staging": "node scripts/qualify-staging.mjs",
     "deploy:staging": "npm run build && WRANGLER_LOG_PATH=.wrangler/logs wrangler deploy --config apps/worker/wrangler.jsonc --env staging",
     "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",
     "format": "prettier --write .",
