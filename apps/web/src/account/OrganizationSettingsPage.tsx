@@ -4,11 +4,20 @@ import {
   AuthApiError,
   getOrganizationCalendarSettings,
   getOrganizationExportStatus,
+  getOrganizationTransactionFeeSettings,
   startOrganizationExport,
   updateOrganizationCalendarSettings,
+  updateOrganizationTransactionFeeSettings,
 } from "../auth/api";
-import type { OrganizationExportStatusResponse } from "@choir/contracts";
+import type { OrganizationExportStatusResponse, TransactionFeeSettings } from "@choir/contracts";
+import { transactionProcessingFeeCents } from "@choir/domain";
 import { RosterConfiguration } from "./RosterConfiguration";
+
+function money(cents: number): string {
+  return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
+    cents / 100,
+  );
+}
 
 function OrganizationExportPanel() {
   const [exportId, setExportId] = useState<string | null>(null);
@@ -124,14 +133,26 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState<string | null>(null);
+  const [feeBusy, setFeeBusy] = useState(false);
+  const [feeError, setFeeError] = useState<string | null>(null);
+  const [feeSuccess, setFeeSuccess] = useState<string | null>(null);
+  const [transactionFeeSettings, setTransactionFeeSettings] = useState<TransactionFeeSettings>({
+    fixedCents: 30,
+    passFeeToDonor: false,
+    percentage: 2.9,
+  });
   const [timezone, setTimezone] = useState("UTC");
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    getOrganizationCalendarSettings(controller.signal)
-      .then((settings) => {
-        setTimezone(settings.timezone);
+    void Promise.all([
+      getOrganizationCalendarSettings(controller.signal),
+      getOrganizationTransactionFeeSettings(controller.signal),
+    ])
+      .then(([calendarSettings, feeSettings]) => {
+        setTimezone(calendarSettings.timezone);
+        setTransactionFeeSettings(feeSettings);
         setLoading(false);
       })
       .catch((loadError: unknown) => {
@@ -163,6 +184,29 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
       setBusy(false);
     }
   }
+
+  async function saveTransactionFees() {
+    setFeeBusy(true);
+    setFeeError(null);
+    setFeeSuccess(null);
+    try {
+      const settings = await updateOrganizationTransactionFeeSettings(transactionFeeSettings);
+      setTransactionFeeSettings(settings);
+      setFeeSuccess("Transaction fee settings updated.");
+    } catch (saveError: unknown) {
+      setFeeError(
+        saveError instanceof AuthApiError
+          ? saveError.message
+          : "Transaction fee settings could not be updated.",
+      );
+    } finally {
+      setFeeBusy(false);
+    }
+  }
+
+  const exampleFeeCents = transactionProcessingFeeCents(1_000, transactionFeeSettings);
+  const examplePayerTotalCents =
+    1_000 + (transactionFeeSettings.passFeeToDonor ? exampleFeeCents : 0);
 
   if (!enabled) {
     return (
@@ -220,6 +264,93 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
             </div>
             <button className="button button--primary" disabled={busy} type="submit">
               {busy ? "Saving…" : "Save timezone"}
+            </button>
+          </form>
+        ) : null}
+      </section>
+      <section className="surface-card" aria-labelledby="transaction-fee-settings-title">
+        <div className="section-heading section-heading--compact">
+          <p className="eyebrow">Payments</p>
+          <h2 id="transaction-fee-settings-title">Transaction processing fees</h2>
+          <p className="section-description">
+            Tickets, ticket bundles, and dues use this fee. You can optionally pass the same fee
+            through to donation checkout.
+          </p>
+        </div>
+        {feeError ? (
+          <p className="notice notice--error" role="alert">
+            {feeError}
+          </p>
+        ) : null}
+        {feeSuccess ? (
+          <p className="notice notice--success" role="status">
+            {feeSuccess}
+          </p>
+        ) : null}
+        {!loading ? (
+          <form
+            className="form-stack settings-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveTransactionFees();
+            }}
+          >
+            <div className="settings-grid">
+              <label className="field" htmlFor="transaction-fee-percentage">
+                Percentage (%)
+                <input
+                  id="transaction-fee-percentage"
+                  min="0"
+                  onChange={(event) => {
+                    setTransactionFeeSettings((current) => ({
+                      ...current,
+                      percentage: Number(event.target.value) || 0,
+                    }));
+                  }}
+                  step="0.01"
+                  type="number"
+                  value={transactionFeeSettings.percentage}
+                />
+              </label>
+              <label className="field" htmlFor="transaction-fee-fixed">
+                Fixed fee (USD)
+                <input
+                  id="transaction-fee-fixed"
+                  min="0"
+                  onChange={(event) => {
+                    setTransactionFeeSettings((current) => ({
+                      ...current,
+                      fixedCents: Math.round((Number(event.target.value) || 0) * 100),
+                    }));
+                  }}
+                  step="0.01"
+                  type="number"
+                  value={(transactionFeeSettings.fixedCents / 100).toFixed(2)}
+                />
+              </label>
+            </div>
+            <label className="checkbox-row">
+              <input
+                checked={transactionFeeSettings.passFeeToDonor}
+                onChange={(event) => {
+                  setTransactionFeeSettings((current) => ({
+                    ...current,
+                    passFeeToDonor: event.target.checked,
+                  }));
+                }}
+                type="checkbox"
+              />
+              Pass the processing fee through to donors
+            </label>
+            <p className="notice notice--info">
+              On a $10.00 charge, the processing fee is {money(exampleFeeCents)} (
+              {money(Math.round(1_000 * (transactionFeeSettings.percentage / 100)))} variable +{" "}
+              {money(transactionFeeSettings.fixedCents)} fixed), for a total of{" "}
+              {money(examplePayerTotalCents)} paid by the donor when pass-through is enabled;
+              otherwise the Organization covers the fee.
+            </p>
+            <button className="button button--primary" disabled={feeBusy} type="submit">
+              {feeBusy ? "Saving…" : "Save transaction fees"}
             </button>
           </form>
         ) : null}

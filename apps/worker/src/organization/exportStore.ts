@@ -284,6 +284,7 @@ function readMetadata(
         timezone, roster_configuration_json AS rosterConfigurationJson,
         seating_configuration_json AS seatingConfigurationJson,
         donation_settings_json AS donationSettingsJson,
+        transaction_fee_settings_json AS transactionFeeSettingsJson,
         audition_settings_json AS auditionSettingsJson
        FROM organization_metadata WHERE organization_id = ? LIMIT 1`,
       organizationId,

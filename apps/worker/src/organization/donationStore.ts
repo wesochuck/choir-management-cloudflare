@@ -1,5 +1,8 @@
 import { donationCheckoutRequestSchema, donationTributeTypeSchema } from "@choir/contracts";
+import { transactionProcessingFeeCents } from "@choir/domain";
 import { z } from "zod";
+
+import { transactionFeeSettingsFromStore } from "./transactionFeeSettingsStore";
 
 const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
@@ -57,6 +60,7 @@ interface DonationRow {
   readonly buyerName: string;
   readonly createdAt: string;
   readonly expiredAt: string | null;
+  readonly feeCents: number;
   readonly id: string;
   readonly marketingConsent: number;
   readonly patronId: string | null;
@@ -83,6 +87,7 @@ interface PatronRow {
 const donationSelect = `SELECT d.id,
   CASE WHEN de.donation_id IS NOT NULL AND d.status = 'pending' THEN 'expired' ELSE d.status END AS status,
   de.expired_at AS expiredAt, d.amount_cents AS amountCents,
+  d.fee_cents AS feeCents,
   d.tribute_type AS tributeType, d.tribute_name AS tributeName,
   d.tribute_notify_email AS tributeNotifyEmail, d.anonymous,
   d.marketing_consent AS marketingConsent,
@@ -111,6 +116,7 @@ function donationResult(row: DonationRow) {
     buyerName: row.buyerName,
     createdAt: row.createdAt,
     expiredAt: row.expiredAt,
+    feeCents: row.feeCents,
     id: row.id,
     marketingConsent: row.marketingConsent === 1,
     patronId: row.patronId,
@@ -220,6 +226,10 @@ function createDonationCheckout(
       : Response.json({ code: "donation_checkout_conflict" }, { status: 409 });
   }
   const now = new Date().toISOString();
+  const transactionFeeSettings = transactionFeeSettingsFromStore(storage);
+  const feeCents = transactionFeeSettings.passFeeToDonor
+    ? transactionProcessingFeeCents(operation.checkout.amountCents, transactionFeeSettings)
+    : 0;
   const patronId = findOrCreatePatron(
     storage,
     operation.checkout.buyerName,
@@ -230,15 +240,17 @@ function createDonationCheckout(
     storage.sql.exec(
       `INSERT INTO donations
         (id, checkout_request_id, status, amount_cents,
+         fee_cents,
          tribute_type, tribute_name, tribute_notify_email,
          anonymous, marketing_consent,
          buyer_name, buyer_email, patron_id,
          provider_session_id, provider_payment_id,
          created_at, updated_at)
-       VALUES (?, ?, 'paid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, 'paid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       operation.donationId,
       operation.checkout.checkoutRequestId,
       operation.checkout.amountCents,
+      feeCents,
       operation.checkout.tributeType,
       operation.checkout.tributeName,
       operation.checkout.tributeNotifyEmail,
@@ -264,6 +276,7 @@ function createDonationCheckout(
       operation.checkout.checkoutRequestId,
       JSON.stringify({
         amountCents: operation.checkout.amountCents,
+        feeCents,
         tributeType: operation.checkout.tributeType,
         anonymous: operation.checkout.anonymous,
       }),

@@ -82,6 +82,7 @@ import {
   organizationAuditionResponseSchema,
   organizationAuditionUpdateRequestSchema,
   donationSettingsResponseSchema,
+  transactionFeeSettingsResponseSchema,
   organizationExportStartResponseSchema,
   organizationExportStatusResponseSchema,
   duesRecordSchema,
@@ -101,6 +102,7 @@ import {
   type CommunicationSendRequest,
   type CommunicationTemplate,
   type CommunicationTemplateRequest,
+  type TransactionFeeSettings,
   type AccountPasswordRequest,
   type AccountSecurityResponse,
   type AuthSession,
@@ -918,6 +920,34 @@ export async function updateOrganizationCalendarSettings(
     method: "PUT",
   });
   return organizationCalendarSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getPublicTransactionFeeSettings(
+  signal?: AbortSignal,
+): Promise<TransactionFeeSettings> {
+  const response = await request("/api/public/transaction-fee-settings", {
+    signal: signal ?? null,
+  });
+  return transactionFeeSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationTransactionFeeSettings(
+  signal?: AbortSignal,
+): Promise<TransactionFeeSettings> {
+  const response = await request("/api/organization/transaction-fee-settings", {
+    signal: signal ?? null,
+  });
+  return transactionFeeSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationTransactionFeeSettings(
+  settings: TransactionFeeSettings,
+): Promise<TransactionFeeSettings> {
+  const response = await request("/api/organization/transaction-fee-settings", {
+    body: JSON.stringify(settings),
+    method: "PUT",
+  });
+  return transactionFeeSettingsResponseSchema.parse(await response.json());
 }
 
 export async function getPublicDonationSettings(signal?: AbortSignal): Promise<DonationSettings> {

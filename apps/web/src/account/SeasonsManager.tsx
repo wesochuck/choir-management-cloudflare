@@ -584,6 +584,12 @@ function DuesTab({
           sortValue: (record) => record.amountCents,
         },
         {
+          header: "Processing fee",
+          id: "fee",
+          render: (record) => (record.feeCents > 0 ? money(record.feeCents) : "Covered"),
+          sortValue: (record) => record.feeCents,
+        },
+        {
           header: "Status",
           id: "status",
           render: (record) => record.status,

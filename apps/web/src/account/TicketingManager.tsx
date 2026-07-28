@@ -388,6 +388,7 @@ export function TicketingManager({
                 <th>Buyer</th>
                 <th>Performance</th>
                 <th>Quantity</th>
+                <th>Processing fee</th>
                 <th>Total</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -403,6 +404,7 @@ export function TicketingManager({
                   </td>
                   <td>{order.eventTitle}</td>
                   <td>{order.quantity}</td>
+                  <td>{money(order.feeCents)}</td>
                   <td>{money(order.amountPaidCents)}</td>
                   <td>
                     {order.status}

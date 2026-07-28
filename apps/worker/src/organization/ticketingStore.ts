@@ -7,6 +7,8 @@ import {
 import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
 import { z } from "zod";
 
+import { transactionFeeSettingsFromStore } from "./transactionFeeSettingsStore";
+
 const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
 });
@@ -387,7 +389,11 @@ function createFakeCheckout(
     startsAt: event.startsAt,
     title: event.title,
   }));
-  const feeCents = ticketProcessingFeeCents(unitPriceCents, operation.checkout.quantity);
+  const feeCents = ticketProcessingFeeCents(
+    unitPriceCents,
+    operation.checkout.quantity,
+    transactionFeeSettingsFromStore(storage),
+  );
   const amountPaidCents = unitPriceCents * operation.checkout.quantity + feeCents;
   const occurredAt = now.toISOString();
   const confirmationId = crypto.randomUUID();

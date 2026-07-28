@@ -1,9 +1,14 @@
-import type { PublishedOrganizationProjection, PublicTicketReceipt } from "@choir/contracts";
+import type {
+  PublishedOrganizationProjection,
+  PublicTicketReceipt,
+  TransactionFeeSettings,
+} from "@choir/contracts";
 import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
 import {
   createPublicTicketCheckout,
+  getPublicTransactionFeeSettings,
   getPublicTicketPurchase,
   getPublishedOrganizationProjection,
 } from "../auth/api";
@@ -12,7 +17,17 @@ import { OrganizationLayout } from "./PublicOrganizationSite";
 type LoadState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
-  | { readonly projection: PublishedOrganizationProjection; readonly status: "ready" };
+  | {
+      readonly feeSettings: TransactionFeeSettings;
+      readonly projection: PublishedOrganizationProjection;
+      readonly status: "ready";
+    };
+
+const DEFAULT_TRANSACTION_FEE_SETTINGS: TransactionFeeSettings = {
+  fixedCents: 30,
+  passFeeToDonor: false,
+  percentage: 2.9,
+};
 
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
@@ -89,10 +104,12 @@ function TicketReceipt({ token }: { readonly token: string }) {
 
 function TicketPurchaseForm({
   event,
+  feeSettings,
   nowMs,
   projection,
 }: {
   readonly event: PublishedOrganizationProjection["payload"]["performances"][number];
+  readonly feeSettings: TransactionFeeSettings;
   readonly nowMs: number;
   readonly projection: PublishedOrganizationProjection;
 }) {
@@ -111,7 +128,7 @@ function TicketPurchaseForm({
     startsAt: event.startsAt,
     timezone: projection.payload.timezone,
   });
-  const feeCents = ticketProcessingFeeCents(unitPriceCents, quantity);
+  const feeCents = ticketProcessingFeeCents(unitPriceCents, quantity, feeSettings);
   const totalCents = unitPriceCents * quantity + feeCents;
 
   async function submit(formEvent: SyntheticEvent<HTMLFormElement>) {
@@ -226,9 +243,11 @@ function TicketPurchaseForm({
 
 function TicketBundlePurchaseForm({
   bundle,
+  feeSettings,
   projection,
 }: {
   readonly bundle: PublishedOrganizationProjection["payload"]["ticketBundles"][number];
+  readonly feeSettings: TransactionFeeSettings;
   readonly projection: PublishedOrganizationProjection;
 }) {
   const [buyerName, setBuyerName] = useState("");
@@ -239,7 +258,7 @@ function TicketBundlePurchaseForm({
   const [checkoutRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const feeCents = ticketProcessingFeeCents(bundle.priceCents, quantity);
+  const feeCents = ticketProcessingFeeCents(bundle.priceCents, quantity, feeSettings);
   const includedEvents = bundle.eventIds
     .map((eventId) => projection.payload.performances.find(({ id }) => id === eventId))
     .filter((event) => event !== undefined);
@@ -360,10 +379,12 @@ function TicketBundlePurchaseForm({
 }
 
 function TicketsContent({
+  feeSettings,
   pathname,
   projection,
   nowMs,
 }: {
+  readonly feeSettings: TransactionFeeSettings;
   readonly pathname: string;
   readonly projection: PublishedOrganizationProjection;
   readonly nowMs: number;
@@ -375,7 +396,7 @@ function TicketsContent({
   if (bundleId) {
     const bundle = projection.payload.ticketBundles.find((candidate) => candidate.id === bundleId);
     return bundle && new Date(bundle.saleEndAt).getTime() > nowMs ? (
-      <TicketBundlePurchaseForm bundle={bundle} projection={projection} />
+      <TicketBundlePurchaseForm bundle={bundle} feeSettings={feeSettings} projection={projection} />
     ) : (
       <p className="notice notice--error">This ticket bundle is no longer available.</p>
     );
@@ -384,7 +405,12 @@ function TicketsContent({
   if (eventId) {
     const event = projection.payload.performances.find((candidate) => candidate.id === eventId);
     return event?.isTicketingEnabled ? (
-      <TicketPurchaseForm event={event} nowMs={nowMs} projection={projection} />
+      <TicketPurchaseForm
+        event={event}
+        feeSettings={feeSettings}
+        nowMs={nowMs}
+        projection={projection}
+      />
     ) : (
       <p className="notice notice--error">Ticket sales are closed for this performance.</p>
     );
@@ -437,9 +463,16 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
   const [nowMs] = useState(() => Date.now());
   useEffect(() => {
     const controller = new AbortController();
-    getPublishedOrganizationProjection(controller.signal)
-      .then((projection) => {
-        setState(projection ? { projection, status: "ready" } : { status: "error" });
+    void getPublishedOrganizationProjection(controller.signal)
+      .then(async (projection) => {
+        if (!projection) {
+          setState({ status: "error" });
+          return;
+        }
+        const feeSettings = await getPublicTransactionFeeSettings(controller.signal).catch(
+          () => DEFAULT_TRANSACTION_FEE_SETTINGS,
+        );
+        setState({ feeSettings, projection, status: "ready" });
       })
       .catch(() => {
         if (!controller.signal.aborted) setState({ status: "error" });
@@ -462,7 +495,12 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
     );
   return (
     <OrganizationLayout projection={state.projection}>
-      <TicketsContent nowMs={nowMs} pathname={pathname} projection={state.projection} />
+      <TicketsContent
+        feeSettings={state.feeSettings}
+        nowMs={nowMs}
+        pathname={pathname}
+        projection={state.projection}
+      />
     </OrganizationLayout>
   );
 }

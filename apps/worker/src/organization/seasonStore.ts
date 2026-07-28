@@ -3,7 +3,10 @@ import {
   seasonCreateRequestSchema,
   seasonUpdateRequestSchema,
 } from "@choir/contracts";
+import { transactionProcessingFeeCents } from "@choir/domain";
 import { z } from "zod";
+
+import { transactionFeeSettingsFromStore } from "./transactionFeeSettingsStore";
 
 const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
@@ -92,6 +95,7 @@ interface DuesRow {
   readonly [column: string]: SqlStorageValue;
   readonly amountCents: number;
   readonly createdAt: string;
+  readonly feeCents: number;
   readonly id: string;
   readonly paidAt: string | null;
   readonly profileId: string;
@@ -107,7 +111,7 @@ const seasonSelect = `SELECT s.id, s.name, s.starts_at AS startsAt, s.ends_at AS
   FROM seasons s`;
 
 const duesSelect = `SELECT d.id, d.season_id AS seasonId, d.profile_id AS profileId,
-  d.amount_cents AS amountCents, d.status, d.paid_at AS paidAt,
+  d.amount_cents AS amountCents, d.fee_cents AS feeCents, d.status, d.paid_at AS paidAt,
   d.provider_session_id AS providerSessionId,
   d.created_at AS createdAt, d.updated_at AS updatedAt
   FROM dues d`;
@@ -325,6 +329,7 @@ function duesResult(row: DuesRow) {
   return {
     amountCents: row.amountCents,
     createdAt: row.createdAt,
+    feeCents: row.feeCents,
     id: row.id,
     paidAt: row.paidAt,
     profileId: row.profileId,
@@ -346,6 +351,10 @@ function createDuesCheckout(
 
   const now = new Date().toISOString();
   const sessionId = `fake_session_${crypto.randomUUID()}`;
+  const feeCents = transactionProcessingFeeCents(
+    season.duesAmountCents,
+    transactionFeeSettingsFromStore(storage),
+  );
 
   storage.transactionSync(() => {
     for (const profileId of operation.checkout.profileIds) {
@@ -362,12 +371,14 @@ function createDuesCheckout(
       const duesId = crypto.randomUUID();
       storage.sql.exec(
         `INSERT INTO dues
-          (id, season_id, profile_id, amount_cents, provider_session_id, status, paid_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'pending', NULL, ?, ?)`,
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           status, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL, ?, ?)`,
         duesId,
         operation.checkout.seasonId,
         profileId,
         season.duesAmountCents,
+        feeCents,
         sessionId,
         now,
         now,
@@ -383,6 +394,7 @@ function createDuesCheckout(
         operation.requestId,
         JSON.stringify({
           amountCents: season.duesAmountCents,
+          feeCents,
           profileId,
           seasonId: operation.checkout.seasonId,
         }),

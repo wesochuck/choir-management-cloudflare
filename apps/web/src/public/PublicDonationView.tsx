@@ -1,7 +1,8 @@
-import type { DonationSettings } from "@choir/contracts";
+import type { DonationSettings, TransactionFeeSettings } from "@choir/contracts";
+import { transactionProcessingFeeCents } from "@choir/domain";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
-import { getPublicDonationSettings } from "../auth/api";
+import { getPublicDonationSettings, getPublicTransactionFeeSettings } from "../auth/api";
 
 const DEFAULT_SETTINGS: DonationSettings = {
   buttonText: "Support our Music",
@@ -20,6 +21,12 @@ const DEFAULT_SETTINGS: DonationSettings = {
   ],
 };
 
+const DEFAULT_TRANSACTION_FEE_SETTINGS: TransactionFeeSettings = {
+  fixedCents: 30,
+  passFeeToDonor: false,
+  percentage: 2.9,
+};
+
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
     cents / 100,
@@ -28,6 +35,9 @@ function money(cents: number): string {
 
 export function PublicDonationView() {
   const [settings, setSettings] = useState<DonationSettings>(DEFAULT_SETTINGS);
+  const [transactionFeeSettings, setTransactionFeeSettings] = useState<TransactionFeeSettings>(
+    DEFAULT_TRANSACTION_FEE_SETTINGS,
+  );
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -47,9 +57,13 @@ export function PublicDonationView() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getPublicDonationSettings(controller.signal)
-      .then((loaded) => {
+    void Promise.all([
+      getPublicDonationSettings(controller.signal),
+      getPublicTransactionFeeSettings(controller.signal),
+    ])
+      .then(([loaded, feeSettings]) => {
         setSettings(loaded);
+        setTransactionFeeSettings(feeSettings);
         const first = loaded.levels[0];
         if (first) {
           setSelectedLevelId(first.id);
@@ -74,6 +88,10 @@ export function PublicDonationView() {
     setUseCustom(false);
     setAmountCents(cents);
   }
+
+  const feeCents = transactionFeeSettings.passFeeToDonor
+    ? transactionProcessingFeeCents(amountCents, transactionFeeSettings)
+    : 0;
 
   function handleCustomChange(value: string) {
     setCustomAmount(value);
@@ -324,9 +342,17 @@ export function PublicDonationView() {
             />
           </label>
         </fieldset>
-        <p>
-          <strong>Total: {money(amountCents)}</strong>
-        </p>
+        <div>
+          <p>
+            Processing fee:{" "}
+            {transactionFeeSettings.passFeeToDonor
+              ? money(feeCents)
+              : "Covered by the Organization"}
+          </p>
+          <p>
+            <strong>Total: {money(amountCents + feeCents)}</strong>
+          </p>
+        </div>
         <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Completing donation…" : "Complete donation"}
         </button>

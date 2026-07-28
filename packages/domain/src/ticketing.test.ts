@@ -6,6 +6,7 @@ import {
   renderTicketWillCallCsv,
   ticketWillCallFilename,
   ticketProcessingFeeCents,
+  transactionProcessingFeeCents,
   ticketUnitPriceCents,
 } from "./ticketing";
 
@@ -27,6 +28,7 @@ describe("ticketing rules", () => {
 
   it("calculates the displayed processing fee and bounded remaining capacity", () => {
     expect(ticketProcessingFeeCents(2_000, 2)).toBe(146);
+    expect(transactionProcessingFeeCents(2_000, { fixedCents: 25, percentage: 5 })).toBe(125);
     expect(ticketProcessingFeeCents(0, 2)).toBe(0);
     expect(remainingTicketCapacity(100, 37)).toBe(63);
     expect(remainingTicketCapacity(10, 12)).toBe(0);

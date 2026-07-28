@@ -6,6 +6,7 @@ import {
   organizationAuditionSettingsSchema,
   organizationAuditionUpdateRequestSchema,
   donationSettingsSchema,
+  transactionFeeSettingsSchema,
   organizationProfileRequestSchema,
   organizationRosterConfigurationRequestSchema,
 } from "@choir/contracts";
@@ -100,6 +101,10 @@ import {
   readDonationSettingsFromStore,
   updateDonationSettingsInStore,
 } from "./donationSettingsStore";
+import {
+  readTransactionFeeSettingsFromStore,
+  updateTransactionFeeSettingsInStore,
+} from "./transactionFeeSettingsStore";
 import { getSetupStateFromStore, getModuleStateFromStore, manageSetupInStore } from "./setupStore";
 import { readAttendanceReportJobFromStore, readEventReminderJobFromStore } from "./schedulingStore";
 import { listSeasonsFromStore, listDuesFromStore, manageSeasonsInStore } from "./seasonStore";
@@ -942,6 +947,28 @@ async function donationSettingsUpdateHandler(
   });
 }
 
+async function transactionFeeSettingsUpdateHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const raw: unknown = await request.json().catch(() => null);
+  const parsed = transactionFeeSettingsSchema.safeParse(raw);
+  const context = z
+    .object({
+      actorUserId: z.string().min(1),
+      organizationId: z.string().min(1),
+      requestId: z.uuid(),
+    })
+    .safeParse(raw);
+  if (!parsed.success || !context.success) {
+    return Response.json({ code: "validation_failed" }, { status: 400 });
+  }
+  return updateTransactionFeeSettingsInStore(storage, context.data.organizationId, parsed.data, {
+    actorUserId: context.data.actorUserId,
+    requestId: context.data.requestId,
+  });
+}
+
 async function manageCalendarCredential(
   storage: DurableObjectStorage,
   request: Request,
@@ -1358,6 +1385,7 @@ function getPrivateFileMetadata(storage: DurableObjectStorage, encodedFileId: st
     : Response.json({ code: "private_file_not_found" }, { status: 404 });
 }
 
+// eslint-disable-next-line complexity
 async function dispatchPostRequest(
   storage: DurableObjectStorage,
   queue: Queue<DeliveryJob>,
@@ -1375,6 +1403,9 @@ async function dispatchPostRequest(
   if (pathname === "/internal/ticketing/manage") return manageTicketingInStore(storage, request);
   if (pathname === "/internal/donations/settings") {
     return donationSettingsUpdateHandler(storage, request);
+  }
+  if (pathname === "/internal/transaction-fee-settings") {
+    return transactionFeeSettingsUpdateHandler(storage, request);
   }
   if (pathname === "/internal/donations/manage") return manageDonationsInStore(storage, request);
   if (pathname === "/internal/seasons/manage") return manageSeasonsInStore(storage, request);
@@ -1932,6 +1963,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return readAuditionSettingsFromStore(storage, organizationId);
     case "/internal/donations/settings":
       return readDonationSettingsFromStore(storage, organizationId);
+    case "/internal/transaction-fee-settings":
+      return readTransactionFeeSettingsFromStore(storage, organizationId);
     case "/internal/health":
       return Response.json({ status: "ok" });
     case "/internal/roster/configuration":

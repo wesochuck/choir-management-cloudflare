@@ -1054,6 +1054,16 @@ export const donationSettingsResponseSchema = donationSettingsSchema.extend({
   requestId: requestIdSchema,
 });
 
+export const transactionFeeSettingsSchema = z.object({
+  fixedCents: z.number().int().nonnegative().max(100_000),
+  passFeeToDonor: z.boolean().default(false),
+  percentage: z.number().min(0).max(100),
+});
+
+export const transactionFeeSettingsResponseSchema = transactionFeeSettingsSchema.extend({
+  requestId: requestIdSchema,
+});
+
 export const donationCheckoutRequestSchema = z.object({
   amountCents: z.number().int().positive().max(10_000_000),
   anonymous: z.boolean().default(false),
@@ -1077,6 +1087,7 @@ export const donationRecordSchema = z.object({
   buyerName: z.string().min(1).max(200),
   createdAt: z.iso.datetime(),
   expiredAt: z.iso.datetime().nullable(),
+  feeCents: z.number().int().nonnegative().default(0),
   id: z.uuid(),
   marketingConsent: z.boolean(),
   patronId: z.uuid().nullable(),
@@ -1118,6 +1129,7 @@ export type DonationStatus = z.infer<typeof donationStatusSchema>;
 export type DonationTributeType = z.infer<typeof donationTributeTypeSchema>;
 export type DonationLevel = z.infer<typeof donationLevelSchema>;
 export type DonationSettings = z.infer<typeof donationSettingsSchema>;
+export type TransactionFeeSettings = z.infer<typeof transactionFeeSettingsSchema>;
 export type DonationCheckoutRequest = z.infer<typeof donationCheckoutRequestSchema>;
 export type DonationRecord = z.infer<typeof donationRecordSchema>;
 export type DonationRefundRequest = z.infer<typeof donationRefundRequestSchema>;
@@ -1994,6 +2006,7 @@ export const duesStatusSchema = z.enum(["pending", "paid", "refunded"]);
 export const duesRecordSchema = z.object({
   amountCents: z.number().int().nonnegative(),
   createdAt: z.iso.datetime(),
+  feeCents: z.number().int().nonnegative().default(0),
   id: z.uuid(),
   paidAt: z.iso.datetime().nullable(),
   profileId: z.uuid(),

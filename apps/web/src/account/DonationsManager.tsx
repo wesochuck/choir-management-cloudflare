@@ -366,6 +366,7 @@ function DonationsTab({
           <tr>
             <th>Donor</th>
             <th>Amount</th>
+            <th>Processing fee</th>
             <th>Tribute</th>
             <th>Status</th>
             <th>Date</th>
@@ -381,6 +382,7 @@ function DonationsTab({
                 <small>{donation.anonymous ? "" : donation.buyerEmail}</small>
               </td>
               <td>{money(donation.amountCents)}</td>
+              <td>{donation.feeCents > 0 ? money(donation.feeCents) : "Covered"}</td>
               <td>
                 {tributeLabel(donation.tributeType)}
                 {donation.tributeName ? `: ${donation.tributeName}` : ""}

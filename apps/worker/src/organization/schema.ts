@@ -729,6 +729,20 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        DEFAULT '{"buttonText":"Support our Music","description":"Your contribution helps us keep the music playing and supports our mission in the community.","levels":[{"id":"level-1","label":"Friend","amountCents":2500,"benefit":"Mention in program"},{"id":"level-2","label":"Supporter","amountCents":5000,"benefit":"Mention in program"},{"id":"level-3","label":"Patron","amountCents":10000,"benefit":"Priority seating"},{"id":"level-4","label":"Benefactor","amountCents":25000,"benefit":"Invitation to VIP reception"}]}'`,
     ],
   },
+  {
+    version: 37,
+    statements: [
+      `ALTER TABLE organization_metadata ADD COLUMN transaction_fee_settings_json TEXT NOT NULL
+       DEFAULT '{"fixedCents":30,"passFeeToDonor":false,"percentage":2.9}'`,
+    ],
+  },
+  {
+    version: 38,
+    statements: [
+      "ALTER TABLE donations ADD COLUMN fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (fee_cents >= 0)",
+      "ALTER TABLE dues ADD COLUMN fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (fee_cents >= 0)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

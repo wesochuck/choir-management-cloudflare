@@ -6,6 +6,16 @@ export interface TicketPriceInput {
   readonly timezone: string;
 }
 
+export interface TransactionFeeSettings {
+  readonly fixedCents: number;
+  readonly percentage: number;
+}
+
+export const defaultTransactionFeeSettings: TransactionFeeSettings = {
+  fixedCents: 30,
+  percentage: 2.9,
+};
+
 function calendarDate(value: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     day: "2-digit",
@@ -22,9 +32,21 @@ export function ticketUnitPriceCents(input: TicketPriceInput): number {
   return isShowDay ? input.dayOfPriceCents : input.advancePriceCents;
 }
 
-export function ticketProcessingFeeCents(unitPriceCents: number, quantity: number): number {
-  const subtotal = unitPriceCents * quantity;
-  return subtotal > 0 ? Math.round(subtotal * 0.029) + 30 : 0;
+export function transactionProcessingFeeCents(
+  baseAmountCents: number,
+  settings: TransactionFeeSettings = defaultTransactionFeeSettings,
+): number {
+  return baseAmountCents > 0
+    ? Math.round(baseAmountCents * (settings.percentage / 100)) + settings.fixedCents
+    : 0;
+}
+
+export function ticketProcessingFeeCents(
+  unitPriceCents: number,
+  quantity: number,
+  settings: TransactionFeeSettings = defaultTransactionFeeSettings,
+): number {
+  return transactionProcessingFeeCents(unitPriceCents * quantity, settings);
 }
 
 export function remainingTicketCapacity(
