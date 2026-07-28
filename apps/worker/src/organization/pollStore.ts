@@ -266,7 +266,14 @@ export async function managePollInStore(
         JSON.stringify({ title: poll.title }),
         createdAt,
       );
-      return Response.json({ id, title: poll.title });
+      return Response.json({
+        ...poll,
+        archivedAt: "",
+        createdAt,
+        createdBy: actorUserId,
+        id,
+        updatedAt: createdAt,
+      });
     }
     case "update_poll": {
       const { id, ...poll } = parsed.data.poll;
