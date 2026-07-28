@@ -168,6 +168,24 @@ footer {
   flex: 1;
 }
 
+.set-list-catalog-picker,
+.set-list-custom-action {
+  min-width: 0;
+}
+
+.set-list-custom-action {
+  align-self: end;
+  padding: 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-surface-raised) 70%, transparent);
+}
+
+.set-list-custom-action h3,
+.set-list-custom-action p {
+  margin-top: 0;
+}
+
 .set-list-summary,
 .set-list-save-row {
   align-items: center;
@@ -252,6 +270,51 @@ footer {
 .set-list-item-heading {
   align-items: center;
   margin-bottom: 1rem;
+}
+
+.set-list-item-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.set-list-drag-handle {
+  display: inline-grid;
+  width: 1.5rem;
+  min-width: 1.5rem;
+  min-height: 1.75rem;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+  background: var(--color-surface-raised);
+  cursor: grab;
+  font-size: 1.15rem;
+  letter-spacing: -0.25em;
+  line-height: 1;
+}
+
+.set-list-item--dragging .set-list-drag-handle {
+  color: var(--color-accent);
+  cursor: grabbing;
+}
+
+.set-list-item-type {
+  flex: none;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
+  border-radius: 999px;
+  color: var(--color-accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.set-list-item--intermission {
+  border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
 }
 
 .set-list-notes-field {

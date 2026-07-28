@@ -12,7 +12,7 @@ import {
   parseSetListDuration,
 } from "@choir/domain";
 import { Dialog } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -211,6 +211,10 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [musicQuery, setMusicQuery] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const saveTimerRef = useRef<number | null>(null);
+  const saveRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (!enabled) return;
@@ -226,6 +230,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
         setSelectedEventId(firstPerformance?.id ?? "");
         setItems(normalizeItems(firstPerformance?.setList ?? []));
         setApproved(firstPerformance?.setListApproved ?? false);
+        setDirty(false);
         setLoaded(true);
       })
       .catch((caught: unknown) => {
@@ -247,9 +252,23 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     [resources.events],
   );
   const selectedEvent = performances.find(({ id }) => id === selectedEventId) ?? null;
+  const filteredMusic = useMemo(() => {
+    const query = musicQuery.trim().toLocaleLowerCase();
+    if (!query) return resources.music;
+    return resources.music.filter(({ composer, title }) =>
+      `${title} ${composer}`.toLocaleLowerCase().includes(query),
+    );
+  }, [musicQuery, resources.music]);
+
+  function updateDraftItems(updater: (current: SetListItem[]) => SetListItem[]): void {
+    setItems(updater);
+    setDirty(true);
+  }
 
   function updateItem(index: number, updated: SetListItem): void {
-    setItems((current) => current.map((item, itemIndex) => (itemIndex === index ? updated : item)));
+    updateDraftItems((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? updated : item)),
+    );
   }
 
   function addMusicPiece(): void {
@@ -259,7 +278,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
       setError("That music piece is already in this set list.");
       return;
     }
-    setItems((current) => [
+    updateDraftItems((current) => [
       ...current,
       {
         composer: piece.composer || undefined,
@@ -283,7 +302,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
       setError("Duration must be minutes, minutes:seconds, hours:minutes:seconds, or named units.");
       return;
     }
-    setItems((current) => [
+    updateDraftItems((current) => [
       ...current,
       {
         composer: customType === "song" ? customComposer.trim() || undefined : undefined,
@@ -360,13 +379,17 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
       copied += 1;
       return [{ ...sourceItem, id: crypto.randomUUID() }];
     });
-    setItems((current) => [...current, ...additions]);
+    updateDraftItems((current) => [...current, ...additions]);
     setMessage(`${String(copied)} item(s) copied; linked duplicates were skipped.`);
     setCopyEventId("");
   }
 
   async function save(): Promise<void> {
-    if (!selectedEvent) return;
+    if (!selectedEvent || busy) return;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
     if (items.some((item) => item.duration && parseSetListDuration(item.duration) === null)) {
       setError("Correct invalid item durations before saving.");
       return;
@@ -384,6 +407,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
         events: current.events.map((event) => (event.id === saved.id ? saved : event)),
       }));
       setItems(normalizeItems(saved.setList));
+      setDirty(false);
       setMessage("Set list saved.");
     } catch (caught: unknown) {
       setError(
@@ -393,6 +417,26 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
       setBusy(false);
     }
   }
+
+  saveRef.current = save;
+
+  useEffect(() => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (!dirty || !selectedEvent) return;
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void saveRef.current();
+    }, 900);
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [dirty, items, approved, selectedEvent?.id]);
 
   async function copyListText(): Promise<void> {
     if (!selectedEvent) return;
@@ -414,7 +458,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   function moveDraggedItem(toIndex: number): void {
     if (dragIndex === null || dragIndex === toIndex) return;
     const moved = items[dragIndex];
-    setItems((current) => moveItemToIndex(current, dragIndex, toIndex));
+    updateDraftItems((current) => moveItemToIndex(current, dragIndex, toIndex));
     setDragIndex(null);
     if (moved) setMessage(`Moved ${moved.title} to position ${String(toIndex + 1)}.`);
   }
@@ -475,6 +519,8 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                   setSelectedEventId(nextEvent?.id ?? "");
                   setItems(normalizeItems(nextEvent?.setList ?? []));
                   setApproved(nextEvent?.setListApproved ?? false);
+                  setDirty(false);
+                  setMusicQuery("");
                   setCopyEventId("");
                   setError(null);
                   setMessage(null);
@@ -518,10 +564,21 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
           </div>
 
           <div className="set-list-add-grid">
-            <div className="form-stack">
+            <div className="form-stack set-list-catalog-picker">
               <h3>Add from music catalog</h3>
               <label className="field">
-                Music piece
+                Search music library
+                <input
+                  onChange={(event) => {
+                    setMusicQuery(event.target.value);
+                  }}
+                  placeholder="Search by title or composer…"
+                  type="search"
+                  value={musicQuery}
+                />
+              </label>
+              <label className="field">
+                Matching music
                 <select
                   value={musicPieceId}
                   onChange={(event) => {
@@ -529,13 +586,19 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                   }}
                 >
                   <option value="">Choose music…</option>
-                  {resources.music.map((piece) => (
+                  {filteredMusic.map((piece) => (
                     <option key={piece.id} value={piece.id}>
                       {piece.title}
+                      {piece.composer ? ` — ${piece.composer}` : ""}
                     </option>
                   ))}
                 </select>
               </label>
+              <p className="field-help">
+                {musicQuery.trim()
+                  ? `${String(filteredMusic.length)} matching piece${filteredMusic.length === 1 ? "" : "s"}.`
+                  : `${String(resources.music.length)} pieces available. Search to narrow the list.`}
+              </p>
               <button
                 className="button button--secondary"
                 disabled={!musicPieceId}
@@ -545,11 +608,9 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                 Add music
               </button>
             </div>
-            <div className="form-stack">
+            <div className="set-list-custom-action">
               <h3>Add a custom item</h3>
-              <p className="field-help">
-                Add an intermission or a song that is not in the catalog.
-              </p>
+              <p className="field-help">For intermissions or music not in the catalog.</p>
               <button className="button button--secondary" type="button" onClick={openCustomItem}>
                 Add custom item
               </button>
@@ -571,7 +632,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
               <ol className="set-list-items" aria-label="Ordered set-list items">
                 {items.map((item, index) => (
                   <li
-                    className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}`}
+                    className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}`}
                     draggable
                     key={item.id}
                     onDragEnd={() => {
@@ -598,9 +659,21 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                     }}
                   >
                     <div className="set-list-item-heading">
-                      <strong>
-                        {String(index + 1)}. {item.title}
-                      </strong>
+                      <div className="set-list-item-title">
+                        <span
+                          className="set-list-drag-handle"
+                          aria-hidden="true"
+                          title="Drag to reorder"
+                        >
+                          ⋮⋮
+                        </span>
+                        {item.type === "intermission" ? (
+                          <span className="set-list-item-type">Intermission</span>
+                        ) : null}
+                        <strong>
+                          {String(index + 1)}. {item.title}
+                        </strong>
+                      </div>
                       <div className="button-row">
                         <button
                           aria-label={`Move ${item.title} up`}
@@ -608,7 +681,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                           disabled={index === 0}
                           type="button"
                           onClick={() => {
-                            setItems((current) => [...moveSetListItem(current, index, -1)]);
+                            updateDraftItems((current) => [...moveSetListItem(current, index, -1)]);
                           }}
                         >
                           Move up
@@ -619,7 +692,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                           disabled={index === items.length - 1}
                           type="button"
                           onClick={() => {
-                            setItems((current) => [...moveSetListItem(current, index, 1)]);
+                            updateDraftItems((current) => [...moveSetListItem(current, index, 1)]);
                           }}
                         >
                           Move down
@@ -628,7 +701,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                           className="text-button text-button--danger"
                           type="button"
                           onClick={() => {
-                            setItems((current) =>
+                            updateDraftItems((current) =>
                               current.filter((_, itemIndex) => itemIndex !== index),
                             );
                           }}
@@ -864,12 +937,20 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
           </Dialog>
 
           <div className="set-list-save-row">
+            <span className="field-help" role="status">
+              {busy
+                ? "Saving automatically…"
+                : dirty
+                  ? "Changes save automatically."
+                  : "All changes saved."}
+            </span>
             <label className="checkbox-field">
               <input
                 checked={approved}
                 type="checkbox"
                 onChange={(event) => {
                   setApproved(event.target.checked);
+                  setDirty(true);
                 }}
               />
               Set list approved for member use
@@ -880,7 +961,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
               type="button"
               onClick={() => void save()}
             >
-              {busy ? "Saving…" : "Save set list"}
+              {busy ? "Saving…" : "Save now"}
             </button>
           </div>
         </div>
