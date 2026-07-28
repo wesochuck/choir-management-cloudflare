@@ -142,11 +142,32 @@ counts and five next events in under one second, confirming bounded `COUNT`/`LIM
 serializing the full dataset. This evidence is local only; the equivalent deployed scale run remains
 part of the open Milestone 6 staging gate.
 
+## July 28 current staging qualification
+
+The authoritative `main` commit `4833e18` passed the GitHub CI workflow and its automatic staging
+deployment completed successfully. The current 100%-traffic Worker version is
+`c57fb241-d693-4b30-aa56-ed89ada0098b`; the permanent staging URL remains
+`https://staging.musicsite.org` with canonical `lcc` and `lmc` Organization hosts. Fresh HTTPS
+probes returned HTTP 200 for `/`, `/api/health`, and `/api/ready`, and the remote control D1 ledger
+reported no migrations to apply.
+
+All 60 browser-route shells returned HTTP 200 on the product, LCC, and LMC hosts (180 requests). The
+73-entry anonymous API sweep returned only expected public, validation, authorization, and
+invalid-link/not-found responses on the registered Organization hosts. No request fell through to an
+unhandled Worker error. `POST /api/webhook/stripe` returned the typed fail-closed
+`stripe_webhook_unavailable` HTTP 503 on every host because the staging Stripe webhook secret is
+intentionally still absent. The product and unregistered hosts correctly reject tenant-scoped routes
+by hostname-first resolution.
+
+The local non-browser gate was rerun from this exact commit: formatting, lint, strict typecheck, 87
+unit tests, 118 workerd integration tests, and all workspace builds passed. Integration output still
+contains the expected FleetSchema negative-test identity warning; it does not affect the zero exit
+status. Browser automation remains intentionally deferred to conserve tokens.
+
 ## Repository topology
 
 - Writable target: `/Users/wesandlaura/Downloads/choir-management-cloudflare`
-- Retired task mirror (stale after `bd190db`; preserve only until its uncommitted duplicate work is
-  reviewed, and never sync it over the authoritative target):
+- Retired task mirror (stale after `bd190db`; do not use or sync it over the authoritative target):
   `/Users/wesandlaura/Documents/Codex/2026-07-20/prior-conversation-with-codex-conversation-role/choir-management-cloudflare-work`
 - Legacy planning checkout: `/Users/wesandlaura/Downloads/choir-management-tool`
 - Read-only parity worktree: `/Users/wesandlaura/Downloads/choir-management-tool-parity`
@@ -186,7 +207,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `1c7cd1bb-7812-4a6c-a5bd-ee731ede0d90` (commit `8ed2421`)
+- Current verified Worker version: `c57fb241-d693-4b30-aa56-ed89ada0098b` (commit `4833e18`)
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
@@ -908,17 +929,17 @@ committing.
 
 ## Remaining secure or external prerequisites
 
-These do not prevent local implementation of Milestones 0–4:
+GitHub authentication, the private repository, the remote, and the repository-scoped least-privilege
+Cloudflare account ID/API token secrets are configured. The staging CI workflow has run successfully
+from `main`; the local Wrangler OAuth credential remains separate from CI.
 
-- Authenticate GitHub CLI with `gh auth login -h github.com`.
-- Create private repository `wesochuck/choir-management-cloudflare`, add `origin`, and push the seed
-  commit.
-- Create a least-privilege Cloudflare API token for GitHub Actions and store it, plus the account
-  ID, as GitHub environment secrets. The local Wrangler OAuth credential must not be reused in CI.
-- Keep the staging email recipient allowlist narrow. Add a recipient only as an intentional access
-  decision and update the Worker secret; do not turn staging into an unrestricted mail sender.
-- Supply Stripe Connect test credentials/webhook secret and Brevo test credentials/verified
-  sender/SMS number only at their Milestone 5 staging gates.
+Keep the staging email recipient allowlist narrow. Add a recipient only as an intentional access
+decision and update the Worker secret; do not turn staging into an unrestricted mail sender.
+
+Supply Stripe Connect test credentials/webhook secret and Brevo test credentials/verified sender/SMS
+number only at their Milestone 5 staging gates. Until those secrets are intentionally supplied,
+Stripe remains fail-closed and Brevo remains in fake mode; no placeholder credentials should be
+created.
 
 ## Environment decisions
 
