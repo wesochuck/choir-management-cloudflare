@@ -1,6 +1,6 @@
 # Parity Completion Plan
 
-**Audit date:** July 26, 2026 **Baseline:** `6874d43a3c3698ae53218a44d17649bc454ca9ac` **Matrix:**
+**Audit date:** July 28, 2026 **Baseline:** `6874d43a3c3698ae53218a44d17649bc454ca9ac` **Matrix:**
 `docs/parity/feature-matrix.yaml`
 
 ## Audit result
@@ -34,7 +34,7 @@ The remaining 124 non-verified entries are staging evidence debt for the 124 imp
 | Section               | Entries still `implemented` | Completion evidence still required                                                                                                                                 |
 | --------------------- | --------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Public browser routes |                           0 | All 60 browser routes now have a deployed route/empty-state sweep; retain these checks in release automation.                                                      |
-| API routes            |                          67 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
+| API routes            |                          70 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
 | Record hooks          |                           4 | Workerd/integration replay and audit evidence on the deployed schema; no live external effect.                                                                     |
 | Background tasks      |                           5 | Queue/alarm replay, retry, idempotency, and dead-letter visibility evidence with staging-safe fixtures.                                                            |
 | CSV contracts         |                           7 | Import/export round trips and malformed/oversized input checks against Organization-scoped fixtures.                                                               |
@@ -187,6 +187,14 @@ primitives.
 - Promote an entry from `implemented` to `verified` only after its successful path and the relevant
   failure/isolation path are recorded in the test output or a dated staging probe. Keep the matrix
   count and this table synchronized after each batch.
+
+July 28 staging evidence now covers the deployed shell and anonymous route boundary: the current
+CI-promoted Worker (`c57fb241-d693-4b30-aa56-ed89ada0098b`, commit `4833e18`) returned HTTP 200 for
+all 60 browser routes on the product, LCC, and LMC hosts. The 73 API contracts returned only the
+expected public, validation, authorization, and invalid-link/not-found responses for anonymous
+requests; Stripe alone returned the intentional typed 503 because its webhook secret is not yet
+configured. No router-level 404 or unhandled 5xx occurred. This closes the public-shell sweep but
+does not promote authenticated API, queue/file/CSV, signed-flow, or responsive entries by itself.
 
 **Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes. Phase E
 remains open until the 124 implemented entries are staging-verified or explicitly blocked by a
