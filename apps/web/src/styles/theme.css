@@ -3250,6 +3250,7 @@ footer {
 
 .split-layout__aside {
   align-self: start;
+  margin-top: 0;
 }
 
 .split-layout__aside h2 {
