@@ -1470,6 +1470,17 @@ h2 {
   color: var(--color-danger-text);
 }
 
+.seating-drag-status {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
+  border-radius: var(--radius-control);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-raised));
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
 .seating-editor-canvas {
   display: flex;
   min-width: 0;
@@ -1598,6 +1609,14 @@ button.seating-seat--canvas:active {
   background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
 }
 
+.seating-seat--dragging {
+  position: relative;
+  z-index: 2;
+  opacity: 0.72;
+  transform: translateY(-0.15rem) scale(1.04);
+  box-shadow: 0 0.65rem 1.2rem color-mix(in srgb, var(--color-text) 24%, transparent);
+}
+
 .seating-seat--drop-target,
 .seating-seat--canvas:focus-visible {
   border-color: var(--color-accent);
@@ -1723,6 +1742,14 @@ button.seating-seat--canvas:active {
   cursor: grab;
   font-size: 0.78rem;
   touch-action: none;
+}
+
+.seating-profile-chip--dragging {
+  position: relative;
+  z-index: 2;
+  opacity: 0.72;
+  transform: translateY(-0.1rem) scale(1.03);
+  box-shadow: 0 0.55rem 1rem color-mix(in srgb, var(--color-text) 24%, transparent);
 }
 
 .seating-profile-chip span {

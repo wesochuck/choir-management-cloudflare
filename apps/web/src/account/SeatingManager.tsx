@@ -363,7 +363,7 @@ function UnassignedProfileChip({
   const draggable = useDraggable({ id: `profile:${profile.id}` });
   return (
     <div
-      className="seating-profile-chip"
+      className={`seating-profile-chip${draggable.isDragging ? " seating-profile-chip--dragging" : ""}`}
       draggable
       ref={draggable.setNodeRef}
       style={{ opacity: draggable.isDragging ? 0.45 : undefined }}
@@ -402,7 +402,7 @@ function SeatTile({
   return (
     <button
       aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
-      className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
+      className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}${draggable.isDragging ? " seating-seat--dragging" : ""}${droppable.isOver ? " seating-seat--drop-target" : ""}`}
       draggable={Boolean(assigned)}
       ref={(node) => {
         draggable.setNodeRef(node);
@@ -471,7 +471,7 @@ function UnassignedTray({
   }, [profiles, query]);
   return (
     <section
-      className="seating-tray"
+      className={`seating-tray${droppable.isOver ? " seating-tray--drop-target" : ""}`}
       aria-labelledby="unassigned-title"
       ref={droppable.setNodeRef}
       onDragOver={(event) => {
@@ -596,6 +596,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const [query, setQuery] = useState("");
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
   const [dragMessage, setDragMessage] = useState("");
+  const [draggingToken, setDraggingToken] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [chartDialog, setChartDialog] = useState<"create" | "rename" | null>(null);
   const [chartName, setChartName] = useState("");
@@ -961,6 +962,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   function handleDragStart(event: DragStartEvent): void {
     nativeDropHandledRef.current = false;
     const token = String(event.active.id);
+    setDraggingToken(token);
     setDragMessage(
       token.startsWith("profile:")
         ? "Dragging Profile. Choose an empty or occupied seat to assign or replace."
@@ -969,6 +971,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   }
 
   function handleDragEnd(event: DragEndEvent): void {
+    setDraggingToken(null);
     if (nativeDropHandledRef.current) {
       nativeDropHandledRef.current = false;
       return;
@@ -990,6 +993,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
 
   function handleNativeDrop(token: string, targetSeatKey?: string): void {
     nativeDropHandledRef.current = true;
+    setDraggingToken(null);
     handleDropToken(token, targetSeatKey);
     setDragMessage(
       targetSeatKey
@@ -1261,7 +1265,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
       className={`seating-workspace${focusMode ? " seating-workspace--focus" : ""}${fallbackFocus ? " seating-workspace--fallback-focus" : ""}`}
       ref={workspaceRef}
     >
-      <p aria-live="polite" className="sr-only">
+      <p aria-live="polite" className={draggingToken ? "seating-drag-status" : "sr-only"}>
         {dragMessage}
       </p>
       <div className="seating-page-heading no-print">
@@ -1620,6 +1624,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
               <DndContext
                 collisionDetection={closestCenter}
                 onDragCancel={() => {
+                  setDraggingToken(null);
                   setDragMessage("Drag canceled.");
                 }}
                 onDragEnd={handleDragEnd}
