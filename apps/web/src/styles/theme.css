@@ -348,25 +348,51 @@ footer {
 }
 
 .music-catalog-layout {
-  display: grid;
-  grid-template-columns: minmax(18rem, 0.8fr) minmax(24rem, 1.2fr);
-  gap: 1.5rem;
+  display: block;
   margin-top: 1.5rem;
-  align-items: start;
 }
 
 .music-catalog-toolbar {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
   gap: 0.75rem;
+}
+
+.music-catalog-toolbar .field {
+  flex: 1 1 20rem;
+  min-width: min(100%, 18rem);
+}
+
+.music-catalog-toolbar > .button,
+.music-catalog-toolbar > a {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.music-csv-import {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.music-csv-import .field {
+  min-width: 0;
+}
+
+.music-csv-import .field-help {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .music-catalog-list {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
   gap: 0.5rem;
-  max-height: 48rem;
   margin: 1rem 0 0;
   padding: 0;
-  overflow: auto;
   list-style: none;
 }
 
@@ -409,10 +435,7 @@ footer {
 }
 
 .music-piece-form {
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-raised);
+  padding: 0;
 }
 
 .music-piece-form h3 {
@@ -2320,8 +2343,12 @@ footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .music-catalog-layout {
+  .music-csv-import {
     grid-template-columns: 1fr;
+  }
+
+  .music-csv-import .field-help {
+    grid-column: auto;
   }
 
   .set-list-add-grid,
