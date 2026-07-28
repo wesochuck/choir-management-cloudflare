@@ -19,6 +19,7 @@
     "check:parity": "node scripts/check-parity-matrix.mjs",
     "qualify:staging": "node scripts/qualify-staging.mjs",
     "qualify:staging:auth": "node scripts/qualify-staging-auth.mjs",
+    "qualify:staging:auth:login": "node scripts/qualify-staging-auth-login.mjs",
     "deploy:staging": "npm run build && WRANGLER_LOG_PATH=.wrangler/logs wrangler deploy --config apps/worker/wrangler.jsonc --env staging",
     "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",
     "format": "prettier --write .",

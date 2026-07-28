@@ -176,8 +176,10 @@ API entry alongside the already verified hook-health endpoint.
 The authenticated companion check is available as `npm run qualify:staging:auth`. It accepts only a
 locally supplied `STAGING_SESSION_COOKIE` (and optional `STAGING_AUTH_EMAIL`), verifies the
 signed-in identity, and performs read-only account, Platform MFA-status, Organization, export, and
-singer surface checks on both canonical hosts. It never writes staging data or logs the cookie;
-browser automation remains intentionally deferred.
+singer surface checks on both canonical hosts. For a complete local email-code flow without copying
+a cookie, use `npm run qualify:staging:auth:login`; it requests a code, reads the code from the
+terminal, keeps the resulting session only in memory, and invokes the same read-only check. Neither
+command writes staging data or logs the cookie; browser automation remains intentionally deferred.
 
 The local non-browser gate was rerun from this exact commit: formatting, lint, strict typecheck, 87
 unit tests, 118 workerd integration tests, and all workspace builds passed. Integration output still
