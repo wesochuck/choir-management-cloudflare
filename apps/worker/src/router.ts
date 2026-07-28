@@ -60,6 +60,7 @@ import {
   type OrganizationInvitationDetails,
   type OrganizationInvitationsResponse,
   type OrganizationInvitationSummary,
+  type OrganizationMembershipsResponse,
   type OrganizationProvisionResponse,
   type PlatformOrganizationSummary,
   type PlatformJobDeadLetterSummary,
@@ -7902,6 +7903,84 @@ router.post("/api/organization/mfa/verify", async (context) => {
     requestId: context.get("requestId"),
     status: "verified" as const,
   });
+});
+
+router.get("/api/organization/members", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Organization Memberships require a registered canonical hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return context.json(
+      {
+        code: authorization.error.code,
+        message: authorization.error.message,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      authorization.error.code === "unauthorized" ? 401 : 403,
+    );
+  }
+  if (authorization.value.role === "member") {
+    return context.json(
+      {
+        code: "forbidden",
+        message: "Only Organization Owners and Administrators may list Memberships.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      403,
+    );
+  }
+  const rows = await context.env.CONTROL_DB.prepare(
+    `SELECT m.id, u.email, u.name, m.profileId, m.role
+     FROM member m
+     INNER JOIN user u ON u.id = m.userId
+     WHERE m.organizationId = ?
+     ORDER BY lower(u.name), lower(u.email), m.id
+     LIMIT 501`,
+  )
+    .bind(organizationId)
+    .all<{
+      email: string;
+      id: string;
+      name: string;
+      profileId: string | null;
+      role: "admin" | "member" | "owner";
+    }>();
+  const response: OrganizationMembershipsResponse = {
+    memberships: rows.results.slice(0, 500).map((row) => ({
+      email: row.email,
+      id: row.id,
+      name: row.name,
+      profileId: row.profileId,
+      role: row.role === "admin" ? "administrator" : row.role,
+    })),
+    requestId: context.get("requestId"),
+    truncated: rows.results.length > 500,
+  };
+  return context.json(response);
 });
 
 router.put("/api/organization/members/:membershipId/profile", async (context) => {

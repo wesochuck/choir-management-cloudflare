@@ -9,6 +9,7 @@ import {
   organizationInvitationResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
+  organizationMembershipsResponseSchema,
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
   platformMfaStatusResponseSchema,
@@ -1066,6 +1067,28 @@ describe("host-derived Organization authorization", () => {
         now,
         now,
       );
+    });
+
+    const membershipsResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/members",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(membershipsResponse.status).toBe(200);
+    expect(
+      organizationMembershipsResponseSchema.parse(await membershipsResponse.json()),
+    ).toMatchObject({
+      memberships: [
+        {
+          email: INVITED_EMAIL,
+          id: "member-alpha",
+          profileId: null,
+          role: "administrator",
+        },
+      ],
+      truncated: false,
     });
 
     const linkResponse = await fetchWorker(

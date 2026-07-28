@@ -1260,6 +1260,23 @@ export const organizationProfileLinkResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const organizationMembershipSummarySchema = z.object({
+  email: z.email(),
+  id: z.string().min(1).max(128),
+  name: z.string().min(1).max(200),
+  profileId: z.uuid().nullable(),
+  role: organizationInvitationRoleSchema,
+});
+
+export const organizationMembershipsResponseSchema = z.object({
+  memberships: z.array(organizationMembershipSummarySchema).max(500),
+  requestId: requestIdSchema,
+  truncated: z.boolean(),
+});
+
+export type OrganizationMembershipSummary = z.infer<typeof organizationMembershipSummarySchema>;
+export type OrganizationMembershipsResponse = z.infer<typeof organizationMembershipsResponseSchema>;
+
 export const publicWebsiteHostnameSchema = z
   .string()
   .trim()

@@ -2,6 +2,8 @@ import {
   organizationInvitationRequestSchema,
   type OrganizationAuthStatusResponse,
   type OrganizationInvitationSummary,
+  type OrganizationMembershipSummary,
+  type OrganizationProfile,
 } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
@@ -9,7 +11,10 @@ import {
   AuthApiError,
   cancelOrganizationInvitation,
   createOrganizationInvitation,
+  linkOrganizationMembershipProfile,
   listOrganizationInvitations,
+  listOrganizationMemberships,
+  listOrganizationProfiles,
 } from "../auth/api";
 
 function displayDate(value: string): string {
@@ -47,6 +52,216 @@ interface PendingInvitationListProps {
   readonly onSetConfirmation: (invitationId: string | null) => void;
   readonly role: OrganizationAuthStatusResponse["role"];
   readonly truncated: boolean;
+}
+
+type MembershipLinkState =
+  | { readonly status: "error" | "loading" }
+  | {
+      readonly memberships: readonly OrganizationMembershipSummary[];
+      readonly profiles: readonly OrganizationProfile[];
+      readonly status: "ready";
+      readonly truncated: boolean;
+    };
+
+function MembershipProfileLinkList({
+  busyMembershipId,
+  onLink,
+  onSelectedProfile,
+  selectedProfiles,
+  state,
+}: {
+  readonly busyMembershipId: string | null;
+  readonly onLink: (membership: OrganizationMembershipSummary) => void;
+  readonly onSelectedProfile: (membershipId: string, profileId: string) => void;
+  readonly selectedProfiles: Readonly<Record<string, string>>;
+  readonly state: Extract<MembershipLinkState, { status: "ready" }>;
+}) {
+  if (state.memberships.length === 0) {
+    return <p className="empty-state">There are no Organization Memberships to link.</p>;
+  }
+  if (state.profiles.length === 0) {
+    return (
+      <p className="empty-state">Create an Organization Profile before linking a Membership.</p>
+    );
+  }
+  const profileMembership = new Map(
+    state.memberships.flatMap((membership) =>
+      membership.profileId ? [[membership.profileId, membership.id] as const] : [],
+    ),
+  );
+  return (
+    <>
+      <ul className="account-list organization-invitation-list">
+        {state.memberships.map((membership) => (
+          <li aria-label={`Membership: ${membership.email}`} key={membership.id}>
+            <div>
+              <h4>{membership.name}</h4>
+              <p>{membership.email}</p>
+              <p>{roleLabel(membership.role)}</p>
+            </div>
+            <div className="form-actions">
+              <label className="field">
+                Organization Profile
+                <select
+                  value={selectedProfiles[membership.id] ?? ""}
+                  onChange={(event) => {
+                    onSelectedProfile(membership.id, event.target.value);
+                  }}
+                >
+                  <option value="">Choose a Profile</option>
+                  {state.profiles.map((profile) => {
+                    const linkedMembershipId = profileMembership.get(profile.id);
+                    return (
+                      <option
+                        disabled={
+                          linkedMembershipId !== undefined && linkedMembershipId !== membership.id
+                        }
+                        key={profile.id}
+                        value={profile.id}
+                      >
+                        {profile.displayName}
+                        {linkedMembershipId === membership.id ? " (linked)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <button
+                className="button button--secondary"
+                disabled={
+                  busyMembershipId !== null ||
+                  !selectedProfiles[membership.id] ||
+                  selectedProfiles[membership.id] === membership.profileId
+                }
+                onClick={() => {
+                  onLink(membership);
+                }}
+                type="button"
+              >
+                {busyMembershipId === membership.id ? "Linking…" : "Link Profile"}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {state.truncated ? (
+        <p className="notice notice--warning">
+          Showing the first 500 Memberships. Link additional accounts through a smaller maintenance
+          batch.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function MembershipProfileLinks({ context }: { readonly context: OrganizationAuthStatusResponse }) {
+  const [busyMembershipId, setBusyMembershipId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [selectedProfiles, setSelectedProfiles] = useState<Record<string, string>>({});
+  const [state, setState] = useState<MembershipLinkState>({ status: "loading" });
+  const mfaBlocked = context.mfaRequired && !context.mfaVerifiedUntil;
+
+  useEffect(() => {
+    if (context.role === "member" || mfaBlocked) return;
+    const abortController = new AbortController();
+    Promise.all([
+      listOrganizationMemberships(abortController.signal),
+      listOrganizationProfiles(abortController.signal),
+    ])
+      .then(([membershipResult, profiles]) => {
+        setState({
+          memberships: membershipResult.memberships,
+          profiles,
+          status: "ready",
+          truncated: membershipResult.truncated,
+        });
+        setSelectedProfiles(
+          Object.fromEntries(
+            membershipResult.memberships.map((membership) => [
+              membership.id,
+              membership.profileId ?? "",
+            ]),
+          ),
+        );
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setState({ status: "error" });
+        }
+      });
+    return () => {
+      abortController.abort();
+    };
+  }, [context.role, mfaBlocked]);
+
+  if (context.role === "member") return null;
+  if (mfaBlocked) {
+    return (
+      <div className="organization-pending-invitations">
+        <h3>Membership Profile links</h3>
+        <p className="notice notice--info">Verify Organization MFA before linking Profiles.</p>
+      </div>
+    );
+  }
+
+  async function linkProfile(membership: OrganizationMembershipSummary) {
+    const profileId = selectedProfiles[membership.id] ?? "";
+    if (!profileId || profileId === membership.profileId) return;
+    setBusyMembershipId(membership.id);
+    setMessage(null);
+    try {
+      await linkOrganizationMembershipProfile(membership.id, profileId);
+      setState((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              memberships: current.memberships.map((candidate) =>
+                candidate.id === membership.id ? { ...candidate, profileId } : candidate,
+              ),
+            }
+          : current,
+      );
+      setMessage(`Profile linked for ${membership.email}.`);
+    } catch (error: unknown) {
+      setMessage(
+        error instanceof AuthApiError
+          ? error.message
+          : "The Membership Profile link could not be saved.",
+      );
+    } finally {
+      setBusyMembershipId(null);
+    }
+  }
+
+  return (
+    <div className="organization-pending-invitations">
+      <h3>Membership Profile links</h3>
+      <p>
+        Link each sign-in Membership to one Profile in this Organization. Profiles already linked to
+        another Membership cannot be selected.
+      </p>
+      {state.status === "loading" ? <p role="status">Loading Memberships and Profiles…</p> : null}
+      {state.status === "error" ? (
+        <p className="notice notice--error" role="alert">
+          Membership Profile links could not be loaded.
+        </p>
+      ) : null}
+      {message ? <p role="status">{message}</p> : null}
+      {state.status === "ready" ? (
+        <MembershipProfileLinkList
+          busyMembershipId={busyMembershipId}
+          onLink={(membership) => {
+            void linkProfile(membership);
+          }}
+          onSelectedProfile={(membershipId, profileId) => {
+            setSelectedProfiles((current) => ({ ...current, [membershipId]: profileId }));
+          }}
+          selectedProfiles={selectedProfiles}
+          state={state}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 function PendingInvitationList(props: PendingInvitationListProps) {
@@ -335,6 +550,7 @@ export function OrganizationInvitations({
         role={context.role}
         truncated={truncated}
       />
+      <MembershipProfileLinks context={context} />
     </section>
   );
 }

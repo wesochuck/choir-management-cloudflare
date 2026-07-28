@@ -67,7 +67,7 @@ milestone complete.
 | `apps/web/src/account/PlatformOperations.tsx`                  | Platform Administrator Organization provisioning and scoped-elevation UI                                                                           |
 | `apps/web/src/account/AccountSecurity.tsx`                     | User-managed password creation and change UI                                                                                                       |
 | `apps/web/src/account/OrganizationAccess.tsx`                  | Hostname-scoped Organization MFA enrollment, verification, and Owner policy UI                                                                     |
-| `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation on the hostname-derived Organization                                                                       |
+| `apps/web/src/account/OrganizationInvitations.tsx`             | Owner/Administrator invitation creation plus audited Membership-to-Profile linking on the hostname-derived Organization                            |
 | `apps/web/src/account/CalendarSubscription.tsx`                | Member calendar subscription and explicit credential reset                                                                                         |
 | `apps/web/src/account/OrganizationCalendar.tsx`                | Profile, venue, event, and RSVP Organization management UI                                                                                         |
 | `apps/web/src/account/RosterPage.tsx`                          | Focused responsive Organization Profile roster, CSV actions, and Profile dialogs                                                                   |

@@ -28,6 +28,7 @@ import {
   organizationInvitationActionResponseSchema,
   organizationInvitationResponseSchema,
   organizationInvitationsResponseSchema,
+  organizationMembershipsResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
@@ -111,6 +112,7 @@ import {
   type OrganizationAuditionSettings,
   type OrganizationInvitationResponse,
   type OrganizationInvitationsResponse,
+  type OrganizationMembershipsResponse,
   type OrganizationEvent,
   type OrganizationDashboardSummaryResponse,
   type OrganizationEventRequest,
@@ -302,6 +304,23 @@ export async function listOrganizationProfiles(
 ): Promise<readonly OrganizationProfile[]> {
   const response = await request("/api/organization/profiles", { signal: signal ?? null });
   return organizationProfilesResponseSchema.parse(await response.json()).profiles;
+}
+
+export async function listOrganizationMemberships(
+  signal?: AbortSignal,
+): Promise<OrganizationMembershipsResponse> {
+  const response = await request("/api/organization/members", { signal: signal ?? null });
+  return organizationMembershipsResponseSchema.parse(await response.json());
+}
+
+export async function linkOrganizationMembershipProfile(
+  membershipId: string,
+  profileId: string,
+): Promise<void> {
+  await request(`/api/organization/members/${encodeURIComponent(membershipId)}/profile`, {
+    body: JSON.stringify({ profileId }),
+    method: "PUT",
+  });
 }
 
 export async function createOrganizationProfile(
