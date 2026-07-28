@@ -3,7 +3,7 @@ import type {
   OrganizationMusicPieceRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -80,59 +80,129 @@ function uniqueLabels(value: string): string[] {
   ];
 }
 
-function CatalogList({
-  editingId,
+function composerText(piece: OrganizationMusicPiece): string {
+  if (piece.composer && piece.arranger) return `${piece.composer} / arr. ${piece.arranger}`;
+  return piece.composer || piece.arranger || "—";
+}
+
+function trackCount(
+  piece: OrganizationMusicPiece,
+  pieces: readonly OrganizationMusicPiece[],
+): number {
+  const directTracks = Object.values(piece.trackFileIds).filter(Boolean).length;
+  const movementTracks = pieces
+    .filter(({ parentId }) => parentId === piece.id)
+    .reduce(
+      (total, movement) => total + Object.values(movement.trackFileIds).filter(Boolean).length,
+      0,
+    );
+  return directTracks + movementTracks;
+}
+
+function MusicCatalogTable({
   onEdit,
   pieces,
   search,
 }: {
-  readonly editingId: string | null;
   readonly onEdit: (piece: OrganizationMusicPiece) => void;
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly search: string;
 }) {
   const parents = new Map(pieces.map((piece) => [piece.id, piece]));
+  const trackCounts = useMemo(
+    () => new Map(pieces.map((piece) => [piece.id, trackCount(piece, pieces)])),
+    [pieces],
+  );
   const needle = search.trim().toLocaleLowerCase();
-  const visible = pieces.filter((piece) =>
+  const visiblePieces = pieces.filter((piece) =>
     [piece.title, piece.composer, piece.arranger, piece.catalogId, ...piece.genres]
       .join(" ")
       .toLocaleLowerCase()
       .includes(needle),
   );
-  if (visible.length === 0) {
-    return <p className="empty-state">No music pieces match this catalog search.</p>;
-  }
+
   return (
-    <ul className="music-catalog-list">
-      {visible.map((piece) => (
-        <li className={editingId === piece.id ? "is-selected" : ""} key={piece.id}>
-          <button
-            aria-label={`Edit music piece: ${piece.title}`}
-            type="button"
-            onClick={() => {
-              onEdit(piece);
-            }}
-          >
-            <span>
-              <strong>{piece.parentId ? `↳ ${piece.title}` : piece.title}</strong>
-              {piece.parentId ? (
-                <small>Movement of {parents.get(piece.parentId)?.title}</small>
-              ) : null}
-              <small>
-                {[piece.composer, piece.arranger, piece.catalogId].filter(Boolean).join(" · ") ||
-                  "No catalog metadata"}
-              </small>
-              <small>
-                {piece.performanceCount > 0
-                  ? `${String(piece.performanceCount)} performance${piece.performanceCount === 1 ? "" : "s"} · last ${piece.lastPerformedAt ? new Date(piece.lastPerformedAt).toLocaleDateString() : "—"}`
-                  : "Not performed yet"}
-              </small>
-            </span>
-            <span className="status-pill">{durationText(piece.durationSeconds) || "—"}</span>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="music-catalog-table">
+      <DataTable
+        columns={[
+          {
+            header: "Title",
+            id: "title",
+            render: (piece) => (
+              <div className="music-table-title">
+                <strong>{piece.parentId ? `↳ ${piece.title}` : piece.title}</strong>
+                {piece.parentId ? (
+                  <small>Movement of {parents.get(piece.parentId)?.title ?? "Unknown work"}</small>
+                ) : null}
+                {piece.genres.length > 0 ? <small>{piece.genres.join(" · ")}</small> : null}
+              </div>
+            ),
+            sortValue: (piece) => piece.title,
+          },
+          {
+            header: "Composer / arranger",
+            id: "composer",
+            render: composerText,
+            sortValue: composerText,
+          },
+          {
+            header: "Catalog ID",
+            id: "catalogId",
+            render: (piece) => piece.catalogId || "—",
+            sortValue: (piece) => piece.catalogId,
+          },
+          {
+            header: "Duration",
+            id: "duration",
+            render: (piece) => durationText(piece.durationSeconds) || "—",
+            sortValue: (piece) => piece.durationSeconds,
+          },
+          {
+            header: "Performances",
+            id: "performances",
+            render: (piece) => piece.performanceCount || "—",
+            sortValue: (piece) => piece.performanceCount,
+          },
+          {
+            header: "Last performed",
+            id: "lastPerformed",
+            render: (piece) =>
+              piece.lastPerformedAt ? new Date(piece.lastPerformedAt).toLocaleDateString() : "—",
+            sortValue: (piece) => piece.lastPerformedAt,
+          },
+          {
+            header: "Tracks",
+            id: "tracks",
+            render: (piece) => {
+              const count = trackCounts.get(piece.id) ?? 0;
+              return count > 0 ? `${String(count)} attached` : "—";
+            },
+            sortValue: (piece) => trackCounts.get(piece.id) ?? 0,
+          },
+          {
+            header: "Actions",
+            id: "actions",
+            mobileLabel: "Manage",
+            render: (piece) => (
+              <button
+                aria-label={`Edit music piece: ${piece.title}`}
+                className="text-button"
+                onClick={() => {
+                  onEdit(piece);
+                }}
+                type="button"
+              >
+                Edit
+              </button>
+            ),
+          },
+        ]}
+        emptyMessage="No music pieces match this catalog search."
+        initialSort={{ columnId: "title", direction: "asc" }}
+        keySelector={(piece) => piece.id}
+        rows={visiblePieces}
+      />
+    </div>
   );
 }
 
@@ -674,12 +744,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                 Imports up to 500 top-level works atomically. Existing catalog entries are retained.
               </p>
             </div>
-            <CatalogList
-              editingId={editingId}
-              onEdit={selectPiece}
-              pieces={pieces}
-              search={search}
-            />
+            <MusicCatalogTable onEdit={selectPiece} pieces={pieces} search={search} />
           </div>
           <Dialog
             description="Catalog metadata, sections, movements, and private learning tracks."

@@ -1,5 +1,10 @@
 export { Collapsible } from "./Collapsible";
-export { DataTable } from "./DataTable";
+export {
+  DataTable,
+  type DataTableColumn,
+  type DataTableSort,
+  type DataTableSortDirection,
+} from "./DataTable";
 export { Dialog } from "./Dialog";
 export { DropdownMenu } from "./DropdownMenu";
 export { Sheet } from "./Sheet";
