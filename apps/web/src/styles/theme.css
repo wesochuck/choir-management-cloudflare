@@ -1083,6 +1083,20 @@ h2 {
   justify-content: flex-start;
 }
 
+.seasons-manager-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.seasons-manager-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .audition-selection-actions {
   margin-top: 0.75rem;
 }
@@ -2686,8 +2700,14 @@ footer {
 }
 
 /* === DataTable responsive === */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .data-table {
   width: 100%;
+  min-width: 42rem;
   border-collapse: collapse;
 }
 
@@ -2726,6 +2746,20 @@ footer {
 }
 
 @media (max-width: 640px) {
+  .seasons-manager-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .seasons-manager-tabs {
+    width: 100%;
+  }
+
+  .seasons-manager-tabs .button,
+  .seasons-manager-controls > .button {
+    flex: 1 1 10rem;
+  }
+
   .data-table {
     display: none;
   }

@@ -1,5 +1,5 @@
 import type { DuesRecord, Season, SeasonCreateRequest } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -242,39 +242,49 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
             {message}
           </p>
         ) : null}
-        <div className="form-actions">
-          <button
-            className={`button ${tab === "seasons" ? "button--primary" : "button--secondary"}`}
-            onClick={() => {
-              setTab("seasons");
-            }}
-            type="button"
-          >
-            Seasons
-          </button>
-          <button
-            className={`button ${tab === "dues" ? "button--primary" : "button--secondary"}`}
-            onClick={() => {
-              setTab("dues");
-            }}
-            type="button"
-          >
-            Dues Records
-          </button>
+        <div className="seasons-manager-controls">
+          <div className="seasons-manager-tabs" role="tablist" aria-label="Seasons and dues views">
+            <button
+              aria-controls="seasons-manager-panel"
+              aria-selected={tab === "seasons"}
+              className={`button ${tab === "seasons" ? "button--primary" : "button--secondary"}`}
+              id="seasons-manager-tab"
+              onClick={() => {
+                setTab("seasons");
+              }}
+              role="tab"
+              type="button"
+            >
+              Manage seasons
+            </button>
+            <button
+              aria-controls="seasons-manager-panel"
+              aria-selected={tab === "dues"}
+              className={`button ${tab === "dues" ? "button--primary" : "button--secondary"}`}
+              id="dues-manager-tab"
+              onClick={() => {
+                setTab("dues");
+              }}
+              role="tab"
+              type="button"
+            >
+              Dues records
+            </button>
+          </div>
+          {tab === "seasons" ? (
+            <button
+              className="button button--primary"
+              onClick={() => {
+                openSeasonDialog();
+              }}
+              type="button"
+            >
+              Add season
+            </button>
+          ) : null}
         </div>
         {tab === "seasons" ? (
-          <>
-            <div className="page-toolbar page-toolbar--end">
-              <button
-                className="button button--primary"
-                onClick={() => {
-                  openSeasonDialog();
-                }}
-                type="button"
-              >
-                Add season
-              </button>
-            </div>
+          <div aria-labelledby="seasons-manager-tab" id="seasons-manager-panel" role="tabpanel">
             <SeasonsTab
               onActivate={(season) => void activateSeason(season)}
               onDelete={(season) => {
@@ -286,15 +296,17 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
               seasonState={seasonState}
               busy={seasonBusy}
             />
-          </>
+          </div>
         ) : (
-          <DuesTab
-            busy={refundBusy}
-            duesState={duesState}
-            refund={refund}
-            refundId={refundId}
-            setRefundId={setRefundId}
-          />
+          <div aria-labelledby="dues-manager-tab" id="seasons-manager-panel" role="tabpanel">
+            <DuesTab
+              busy={refundBusy}
+              duesState={duesState}
+              refund={refund}
+              refundId={refundId}
+              setRefundId={setRefundId}
+            />
+          </div>
         )}
       </section>
 
@@ -458,69 +470,86 @@ function SeasonsTab({
     return <p className="notice notice--error">Seasons could not be loaded.</p>;
   if (seasonState.seasons.length === 0) return <p>No seasons yet. Add one to get started.</p>;
   return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Starts</th>
-            <th>Ends</th>
-            <th>Dues amount</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {seasonState.seasons.map((season) => (
-            <tr key={season.id}>
-              <td>
-                <strong>{season.name}</strong>
-              </td>
-              <td>{new Date(season.startsAt).toLocaleDateString()}</td>
-              <td>{new Date(season.endsAt).toLocaleDateString()}</td>
-              <td>{money(season.duesAmountCents)}</td>
-              <td>{season.isActive ? <span className="badge">Active</span> : ""}</td>
-              <td>
-                <div className="form-actions">
-                  {!season.isActive ? (
-                    <button
-                      className="text-button"
-                      disabled={busy}
-                      onClick={() => {
-                        onActivate(season);
-                      }}
-                      type="button"
-                    >
-                      Make active
-                    </button>
-                  ) : null}
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      onEdit(season);
-                    }}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="text-button text-button--danger"
-                    disabled={busy}
-                    onClick={() => {
-                      onDelete(season);
-                    }}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={[
+        {
+          header: "Name",
+          id: "name",
+          render: (season) => <strong>{season.name}</strong>,
+          sortValue: (season) => season.name,
+        },
+        {
+          header: "Starts",
+          id: "startsAt",
+          render: (season) => new Date(season.startsAt).toLocaleDateString(),
+          sortValue: (season) => season.startsAt,
+        },
+        {
+          header: "Ends",
+          id: "endsAt",
+          render: (season) => new Date(season.endsAt).toLocaleDateString(),
+          sortValue: (season) => season.endsAt,
+        },
+        {
+          header: "Dues amount",
+          id: "duesAmount",
+          render: (season) => money(season.duesAmountCents),
+          sortValue: (season) => season.duesAmountCents,
+        },
+        {
+          header: "Status",
+          id: "status",
+          render: (season) =>
+            season.isActive ? <span className="badge">Active</span> : "Inactive",
+          sortValue: (season) => season.isActive,
+        },
+        {
+          header: "Actions",
+          id: "actions",
+          mobileLabel: "Manage",
+          render: (season) => (
+            <div className="table-actions">
+              {!season.isActive ? (
+                <button
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() => {
+                    onActivate(season);
+                  }}
+                  type="button"
+                >
+                  Make active
+                </button>
+              ) : null}
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => {
+                  onEdit(season);
+                }}
+                type="button"
+              >
+                Edit
+              </button>
+              <button
+                className="text-button text-button--danger"
+                disabled={busy}
+                onClick={() => {
+                  onDelete(season);
+                }}
+                type="button"
+              >
+                Delete
+              </button>
+            </div>
+          ),
+        },
+      ]}
+      emptyMessage="No seasons yet. Add one to get started."
+      initialSort={{ columnId: "startsAt", direction: "desc" }}
+      keySelector={(season) => season.id}
+      rows={seasonState.seasons}
+    />
   );
 }
 
@@ -542,66 +571,78 @@ function DuesTab({
     return <p className="notice notice--error">Dues records could not be loaded.</p>;
   if (duesState.dues.length === 0) return <p>No dues records yet.</p>;
   return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Profile</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Paid At</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {duesState.dues.map((record) => (
-            <tr key={record.id}>
-              <td>{record.profileId}</td>
-              <td>{money(record.amountCents)}</td>
-              <td>{record.status}</td>
-              <td>{record.paidAt ? new Date(record.paidAt).toLocaleDateString() : ""}</td>
-              <td>
-                {refundId === record.id ? (
-                  <div className="danger-confirmation">
-                    <p>Refund this dues record?</p>
-                    <div className="form-actions">
-                      <button
-                        className="button button--secondary"
-                        disabled={busy}
-                        onClick={() => {
-                          setRefundId(null);
-                        }}
-                        type="button"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="button button--danger"
-                        disabled={busy}
-                        onClick={() => void refund(record.id)}
-                        type="button"
-                      >
-                        {busy ? "Refunding…" : "Confirm refund"}
-                      </button>
-                    </div>
-                  </div>
-                ) : record.status === "paid" ? (
+    <DataTable
+      columns={[
+        {
+          header: "Profile",
+          id: "profile",
+          render: (record) => record.profileId,
+          sortValue: (record) => record.profileId,
+        },
+        {
+          header: "Amount",
+          id: "amount",
+          render: (record) => money(record.amountCents),
+          sortValue: (record) => record.amountCents,
+        },
+        {
+          header: "Status",
+          id: "status",
+          render: (record) => record.status,
+          sortValue: (record) => record.status,
+        },
+        {
+          header: "Paid at",
+          id: "paidAt",
+          render: (record) => (record.paidAt ? new Date(record.paidAt).toLocaleDateString() : "—"),
+          sortValue: (record) => record.paidAt,
+        },
+        {
+          header: "Action",
+          id: "action",
+          render: (record) =>
+            refundId === record.id ? (
+              <div className="danger-confirmation">
+                <p>Refund this dues record?</p>
+                <div className="form-actions">
                   <button
-                    className="text-button"
+                    className="button button--secondary"
                     disabled={busy}
                     onClick={() => {
-                      setRefundId(record.id);
+                      setRefundId(null);
                     }}
                     type="button"
                   >
-                    Refund
+                    Cancel
                   </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                  <button
+                    className="button button--danger"
+                    disabled={busy}
+                    onClick={() => void refund(record.id)}
+                    type="button"
+                  >
+                    {busy ? "Refunding…" : "Confirm refund"}
+                  </button>
+                </div>
+              </div>
+            ) : record.status === "paid" ? (
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => {
+                  setRefundId(record.id);
+                }}
+                type="button"
+              >
+                Refund
+              </button>
+            ) : null,
+        },
+      ]}
+      emptyMessage="No dues records yet."
+      initialSort={{ columnId: "paidAt", direction: "desc" }}
+      keySelector={(record) => record.id}
+      rows={duesState.dues}
+    />
   );
 }
