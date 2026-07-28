@@ -287,6 +287,15 @@ export function TicketScanner({ events }: { readonly events: readonly Organizati
       const url = new URL(window.location.href);
       url.searchParams.set("eventId", nextEventId);
       window.history.replaceState(null, "", url);
+    } else {
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        // Local storage is optional.
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("eventId");
+      window.history.replaceState(null, "", url);
     }
   }
 
