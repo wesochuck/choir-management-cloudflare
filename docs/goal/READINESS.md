@@ -120,14 +120,21 @@ configuration response. The remote D1 ledger reported no pending migrations. A r
 query confirmed two active Organizations plus one verified, active Platform Administrator identity
 for `cwosborn@gmail.com`.
 
-The same read-only control check found LCC recorded at Organization schema version 23 and LMC at
-version 29 while the deployed Worker supports version 34. Both Organizations are active and
-`cwosborn@gmail.com` is their Owner, but the membership-to-Profile links are still unset. The normal
-bounded fleet-schema action is ready in the signed-in Platform Organizations page and correctly
-requires a fresh Platform Administrator authenticator assertion. No direct D1 or Durable Object
-write was used to bypass that boundary. Resume by completing that interactive MFA check, starting
-the fleet preparation, confirming both registry versions reach 34, and then completing the
-Organization Profile links through the application.
+After a fresh interactive Platform Administrator authenticator assertion, the normal bounded
+fleet-schema Workflow completed successfully with two Organizations processed and no failure code.
+LCC and LMC now both record Organization schema version 34. LMC's previously unfinished setup wizard
+was completed with its existing name/slug, the people/events/programs modules enabled, and the
+repository default staging theme; both LCC and LMC now report setup complete.
+
+The missing manager surface for the existing audited Membership-to-Profile API was implemented in
+commit `8ed2421`. The full non-browser gate passed with 87 unit tests, 118 integration tests, strict
+types, lint, build, both parity audits, and zero high-severity dependency findings. The commit was
+deployed as Worker version `1c7cd1bb-7812-4a6c-a5bd-ee731ede0d90`. Through that UI,
+`cwosborn@gmail.com`'s Owner Membership in each Organization was linked to a distinct tenant-local
+`Wes Osborn` Profile. Read-only D1 verification confirmed both non-null Profile IDs, one
+`organization.membership.profile_linked` audit event per Organization, and schema version 34 for
+both registry rows. The member Profile page then loaded the correct email and display name on both
+canonical hosts. No session token or direct control-plane write was used.
 
 The local large-data qualification now seeds 5,000 active Profiles and 500 upcoming events in one
 Organization Durable Object and exercises `/api/organization/dashboard-summary`. It returns exact
@@ -179,7 +186,7 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `42fc841d-77c7-4c09-a952-b9672768882d` (commit `deecd8d`)
+- Current verified Worker version: `1c7cd1bb-7812-4a6c-a5bd-ee731ede0d90` (commit `8ed2421`)
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
   `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
