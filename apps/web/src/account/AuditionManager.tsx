@@ -1190,7 +1190,7 @@ export function AuditionManager({ enabled }: Props) {
           </select>
         </label>
       </div>
-      <div className="form-actions form-actions--start">
+      <div className="form-actions form-actions--start audition-selection-actions">
         <button
           className="button button--secondary"
           disabled={selectedIds.length === 0}
