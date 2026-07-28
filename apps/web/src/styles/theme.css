@@ -1971,13 +1971,40 @@ button.seating-seat--canvas:active {
 }
 
 @media print {
-  .signed-in-shell,
+  .signed-in-header,
+  .signed-in-sidebar,
+  .skip-link,
+  .page-heading,
   .no-print,
   .seating-tray,
   .seating-page-heading__actions,
   .seating-tabs,
   .seating-toolbar {
     display: none !important;
+  }
+
+  .signed-in-shell {
+    --color-background: #fff;
+    --color-border: #bbb;
+    --color-surface: #fff;
+    --color-surface-raised: #fff;
+    --color-text-muted: #555;
+    --color-text: #111;
+    min-height: 0;
+    background: #fff;
+    color: #111;
+  }
+
+  .signed-in-body {
+    display: block;
+    min-height: 0;
+  }
+
+  .signed-in-main {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
   }
 
   .seating-workspace,
