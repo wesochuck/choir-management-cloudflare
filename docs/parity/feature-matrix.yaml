@@ -2278,7 +2278,7 @@
         "workflow": "resumable first-run setup, module readiness, and launch",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/views/setup; src/services/setupService.ts; test/App.setup.test.tsx",
         "targetEvidence":
@@ -2288,6 +2288,7 @@
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/web/src/setup/SetupView.tsx",
             "apps/worker/src/organization/schema.ts",
+            "docs/goal/READINESS.md",
           ],
       },
       {

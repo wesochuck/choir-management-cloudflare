@@ -1,6 +1,6 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 28, 2026 **Status:** The July 28 staging recheck now records 68 verified, 122
+**Prepared:** July 28, 2026 **Status:** The July 28 staging recheck now records 69 verified, 121
 implemented, 0 partial, and 0 planned entries across nine sections. Setup recovery and Stripe
 webhooks now have typed, tenant-scoped implementations and focused local tests; staging signed-
 provider and privileged replay evidence remains outstanding. The route-repair plan and automated
@@ -18,7 +18,7 @@ audition, set-list, export, music-recency, and theme gaps. A deployed public rou
 all 60 browser routes and exposed 24 legacy API paths that had only renamed equivalents. Twenty-one
 compatibility handlers are now restored and covered by local integration checks; the remaining four
 anonymous probes are expected invalid-link/not-found states. Setup recovery and Stripe webhook
-processing are now implemented and covered by focused local tests. The remaining 122 `implemented`
+processing are now implemented and covered by focused local tests. The remaining 121 `implemented`
 entries still need their broader permanent-staging qualification. The new
 `npm run check:parity:implementation` gate reproduces this source-route comparison without
 contacting staging or mutating data.

@@ -10,7 +10,7 @@ and target-evidence paths. It does not prove that an entry's behavior matches th
 pass compared the current implementation with the legacy source, current contracts, the Organization
 Durable Object handlers, and the focused browser/integration tests.
 
-The matrix now records **68 verified, 122 implemented, 0 partial, and 0 planned** entries across
+The matrix now records **69 verified, 121 implemented, 0 partial, and 0 planned** entries across
 nine sections (190 entries total after adding the asynchronous export routes). `verified` means the
 entry has both the required local evidence and permanent-staging evidence; `implemented` means the
 behavior and focused local/integration evidence exist, while staging proof is still outstanding;
@@ -29,7 +29,7 @@ compatibility gaps; both now have typed target handlers and focused local eviden
 
 ### Open work across the remaining entries
 
-The remaining 122 non-verified entries are staging evidence debt for the 122 implemented entries:
+The remaining 121 non-verified entries are staging evidence debt for the 121 implemented entries:
 
 | Section               | Entries still `implemented` | Completion evidence still required                                                                                                                                 |
 | --------------------- | --------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -39,7 +39,7 @@ The remaining 122 non-verified entries are staging evidence debt for the 122 imp
 | Background tasks      |                           5 | Queue/alarm replay, retry, idempotency, and dead-letter visibility evidence with staging-safe fixtures.                                                            |
 | CSV contracts         |                           7 | Import/export round trips and malformed/oversized input checks against Organization-scoped fixtures.                                                               |
 | Signed flows          |                           7 | Expiry, revocation, purpose binding, tenant binding, and successful signed-link browser/API checks.                                                                |
-| Domain workflows      |                          21 | End-to-end success, authorization failure, rollback compatibility, and audit attribution for the remaining workflow families.                                      |
+| Domain workflows      |                          20 | End-to-end success, authorization failure, rollback compatibility, and audit attribution for the remaining workflow families.                                      |
 | File behaviors        |                           5 | Upload/download/public-media checks, key isolation, and metadata/body agreement using non-sensitive fixtures.                                                      |
 | Responsive states     |                           5 | Public checkout, setup, communications, and data-table mobile screenshots/interaction checks; focused dialog, seating, and theme states are already verified.      |
 
@@ -70,7 +70,7 @@ seed placeholder provider keys into staging.
   completion-after-expiry coverage is green; staging still needs the signed provider fixture and
   rollback drill.
 
-The remaining 122 `implemented` entries are evidence debt: each has target code and focused tests,
+The remaining 121 `implemented` entries are evidence debt: each has target code and focused tests,
 but still needs the staging success plus authorization, validation, retry, or tenant-isolation proof
 listed in the table. Keep these entries as `implemented` until that evidence is captured.
 
@@ -197,7 +197,7 @@ configured. No router-level 404 or unhandled 5xx occurred. This closes the publi
 does not promote authenticated API, queue/file/CSV, signed-flow, or responsive entries by itself.
 
 **Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes. Phase E
-remains open until the 122 implemented entries are staging-verified or explicitly blocked by a
+remains open until the 121 implemented entries are staging-verified or explicitly blocked by a
 documented external prerequisite; production remains unlaunched.
 
 ### Phase F — Whole-product release gate (not started)
