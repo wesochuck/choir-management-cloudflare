@@ -161,7 +161,7 @@ by hostname-first resolution.
 
 The repeatable read-only `npm run qualify:staging` check now captures this boundary without browser
 automation or credentials: the default product/LCC/LMC run passed 183 browser-shell probes, 9 core
-probes, and 75 registered-host GET API probes. Supplying
+probes, and 75 product/Organization-host GET API probes. Supplying
 `STAGING_UNREGISTERED_URL=https://qualification-check.staging.musicsite.org` also passed the
 unregistered wildcard-host boundary (244 shell probes and 12 core probes total).
 

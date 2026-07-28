@@ -109,7 +109,7 @@ for (const host of hosts.filter((entry) => entry.label !== "unregistered")) {
 }
 
 console.log(
-  `Staging qualification: ${hosts.length} hosts, ${counts.browser} browser-shell probes, ${counts.core} core probes, ${counts.api} registered-host GET API probes.`,
+  `Staging qualification: ${hosts.length} hosts, ${counts.browser} browser-shell probes, ${counts.core} core probes, ${counts.api} product/Organization-host GET API probes.`,
 );
 if (failures.length > 0) {
   console.error(`Qualification failed with ${String(failures.length)} issue(s):`);
