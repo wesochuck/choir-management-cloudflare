@@ -35,6 +35,7 @@ const expectedRegistered404 = new Set([
 ]);
 const failures = [];
 const counts = { browser: 0, api: 0, core: 0 };
+let edgeBlocked = false;
 const browserPaths = [...new Set(["/", ...matrix.browserRoutes.map((route) => route.path)])];
 
 function routePath(path) {
@@ -62,7 +63,11 @@ async function request(url) {
     });
     const text = await response.text();
     if (requestDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, requestDelayMs));
-    return { code: responseCode(text), status: response.status };
+    return {
+      code: responseCode(text),
+      edgeBlocked: response.status === 403,
+      status: response.status,
+    };
   } catch (error) {
     if (requestDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, requestDelayMs));
     return { error: error instanceof Error ? error.message : String(error), status: 0 };
@@ -74,15 +79,19 @@ function fail(label, message) {
 }
 
 for (const host of hosts) {
+  if (edgeBlocked) break;
   for (const path of browserPaths) {
+    if (edgeBlocked) break;
     const route = routePath(path);
     const result = await request(`${host.url}${route}`);
     counts.browser += 1;
     if (result.status !== 200) {
       fail(`${host.label} GET ${route}`, `expected 200, received ${String(result.status)}`);
     }
+    edgeBlocked ||= result.edgeBlocked === true;
   }
 
+  if (edgeBlocked) break;
   for (const path of ["/api/health", "/api/ready", "/api/auth/get-session"]) {
     const result = await request(`${host.url}${path}`);
     counts.core += 1;
@@ -94,11 +103,15 @@ for (const host of hosts) {
         `expected ${String(expectedStatus)}, received ${String(result.status)}`,
       );
     }
+    edgeBlocked ||= result.edgeBlocked === true;
+    if (edgeBlocked) break;
   }
 }
 
 for (const host of hosts.filter((entry) => entry.label !== "unregistered")) {
+  if (edgeBlocked) break;
   for (const route of matrix.apiRoutes.filter((entry) => entry.method === "GET")) {
+    if (edgeBlocked) break;
     const path = routePath(route.path);
     const methodPath = `GET ${path}`;
     const result = await request(`${host.url}${path}`);
@@ -116,14 +129,15 @@ for (const host of hosts.filter((entry) => entry.label !== "unregistered")) {
         `unexpected tenant-route 404 (${result.code || "no code"})`,
       );
     }
+    edgeBlocked ||= result.edgeBlocked === true;
   }
 }
 
 console.log(
-  `Staging qualification: ${hosts.length} hosts, ${counts.browser} browser-shell probes, ${counts.core} core probes, ${counts.api} product/Organization-host GET API probes.`,
+  `Staging qualification: ${hosts.length} hosts, ${counts.browser} browser-shell probes, ${counts.core} core probes, ${counts.api} product/Organization-host GET API probes${edgeBlocked ? " before edge blocking" : ""}.`,
 );
 if (failures.length > 0) {
-  if (failures.every((failure) => failure.includes("received 403"))) {
+  if (edgeBlocked && failures.every((failure) => failure.includes("received 403"))) {
     console.warn(
       `Qualification was blocked by the Cloudflare edge for this runner (${String(failures.length)} HTTP 403 responses). ` +
         "Run the same read-only check from an allowlisted or interactive network to qualify the custom domains.",
