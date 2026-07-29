@@ -29,7 +29,7 @@ describe("roster configuration", () => {
       expect(defaultRosterConfiguration.sections.length).toBeGreaterThan(0);
       expect(defaultRosterConfiguration.voiceParts.length).toBeGreaterThan(0);
 
-      const sections = defaultRosterConfiguration.sections.map(s => s.code);
+      const sections = defaultRosterConfiguration.sections.map((s) => s.code);
       expect(sections).toContain("S");
       expect(sections).toContain("A");
       expect(sections).toContain("T");
