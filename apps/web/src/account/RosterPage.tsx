@@ -67,6 +67,7 @@ function statusLabel(status: OrganizationProfile["globalStatus"]): string {
   return status === "Idle" ? "On Break" : status;
 }
 
+// eslint-disable-next-line complexity -- the roster page coordinates search, membership, dialogs, and profile actions.
 export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -166,6 +167,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setDialogOpen(true);
   }
 
+  // eslint-disable-next-line complexity -- profile save coordinates linked membership and roster updates.
   async function saveProfile() {
     const normalizedEmail = profileEmail.trim().toLowerCase();
     const linkedEmail =
@@ -554,6 +556,19 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
               type="checkbox"
             />
             Do not email
+          </label>
+          <label className="checkbox-row">
+            <input
+              checked={profile.receiveAdminNotifications}
+              onChange={(event) => {
+                setProfile((current) => ({
+                  ...current,
+                  receiveAdminNotifications: event.target.checked,
+                }));
+              }}
+              type="checkbox"
+            />
+            Receive administrator notifications, including audition emails
           </label>
           <div className="dialog__actions">
             <button className="button button--secondary" onClick={closeDialog} type="button">

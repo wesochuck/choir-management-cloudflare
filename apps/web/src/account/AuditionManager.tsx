@@ -6,6 +6,8 @@ import type {
   OrganizationAudition,
   OrganizationAuditionCreateRequest,
   OrganizationAuditionSettings,
+  OrganizationMembershipSummary,
+  OrganizationProfile,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
@@ -18,6 +20,8 @@ import {
   getOrganizationAuditionSettings,
   listOrganizationEvents,
   listOrganizationAuditions,
+  listOrganizationMemberships,
+  listOrganizationProfiles,
   updateOrganizationAudition,
   updateOrganizationAuditionSettings,
 } from "../auth/api";
@@ -30,6 +34,12 @@ type ManagerState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly auditions: readonly OrganizationAudition[] };
+
+interface AdministratorRecipient {
+  readonly email: string;
+  readonly profile: OrganizationProfile;
+  readonly role: OrganizationMembershipSummary["role"];
+}
 
 const STATUS_LABELS: Record<AuditionStatus, string> = {
   cancelled: "Cancelled",
@@ -367,11 +377,13 @@ function CreateAuditionForm({
 }
 
 function SettingsForm({
+  administratorRecipients,
   initial,
   onCancel,
   onSave,
   performances,
 }: {
+  readonly administratorRecipients: readonly AdministratorRecipient[];
   readonly initial: OrganizationAuditionSettings;
   readonly onCancel: () => void;
   readonly onSave: (settings: OrganizationAuditionSettings) => Promise<void>;
@@ -442,6 +454,15 @@ function SettingsForm({
       adminNotifyUsers: [...current.adminNotifyUsers, email],
     }));
     setRecipientEmail("");
+  }
+
+  function toggleAdministrator(recipient: AdministratorRecipient, checked: boolean) {
+    setDraft((current) => ({
+      ...current,
+      adminNotifyUsers: checked
+        ? [...new Set([...current.adminNotifyUsers, recipient.email])]
+        : current.adminNotifyUsers.filter((email) => email !== recipient.email),
+    }));
   }
   return (
     <form
@@ -603,10 +624,52 @@ function SettingsForm({
         </label>
         {draft.adminNotifyEnabled ? (
           <>
+            <fieldset className="form-stack">
+              <legend>Roster administrators</legend>
+              <p className="field-help">
+                Select linked Organization owners and administrators. A Profile must allow
+                administrator notifications to receive audition emails.
+              </p>
+              {administratorRecipients.length > 0 ? (
+                <div className="form-stack">
+                  {administratorRecipients.map((recipient) => {
+                    const eligible =
+                      recipient.profile.receiveAdminNotifications && !recipient.profile.doNotEmail;
+                    return (
+                      <label className="checkbox-row" key={recipient.profile.id}>
+                        <input
+                          checked={draft.adminNotifyUsers.includes(recipient.email)}
+                          disabled={!eligible}
+                          onChange={(event) => {
+                            toggleAdministrator(recipient, event.target.checked);
+                          }}
+                          type="checkbox"
+                        />
+                        <span>
+                          {recipient.profile.displayName} · {recipient.email}
+                          <small className="field-help">
+                            {!eligible
+                              ? "Audition emails disabled in this Profile"
+                              : recipient.role === "owner"
+                                ? "Owner"
+                                : "Administrator"}
+                          </small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="notice">
+                  No linked roster administrators are available. Link an owner or administrator to a
+                  Profile to select them here.
+                </p>
+              )}
+            </fieldset>
             <div className="form-actions">
               <input
                 aria-label="Administrator notification email"
-                placeholder="admin@example.com"
+                placeholder="Additional email address (optional)"
                 type="email"
                 value={recipientEmail}
                 onChange={(event) => {
@@ -614,7 +677,7 @@ function SettingsForm({
                 }}
               />
               <button className="button button--secondary" onClick={addRecipient} type="button">
-                Add recipient
+                Add additional recipient
               </button>
             </div>
             {draft.adminNotifyUsers.length > 0 ? (
@@ -640,7 +703,7 @@ function SettingsForm({
                 ))}
               </ul>
             ) : (
-              <p className="notice">Add at least one administrator email.</p>
+              <p className="notice">Select at least one administrator or add an email address.</p>
             )}
           </>
         ) : null}
@@ -768,6 +831,7 @@ function AuditionTable({
 }
 
 function AuditionDialogs({
+  administratorRecipients,
   confirm,
   createAudition,
   createOpen,
@@ -789,6 +853,7 @@ function AuditionDialogs({
   settings,
   settingsOpen,
 }: {
+  readonly administratorRecipients: readonly AdministratorRecipient[];
   readonly confirm: {
     readonly action: "convert" | "delete";
     readonly audition: OrganizationAudition;
@@ -906,6 +971,7 @@ function AuditionDialogs({
       >
         {settingsOpen ? (
           <SettingsForm
+            administratorRecipients={administratorRecipients}
             initial={settings}
             onCancel={onCancelSettings}
             onSave={saveSettings}
@@ -964,6 +1030,9 @@ export function AuditionManager({ enabled }: Props) {
   const [tokens, setTokens] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [administratorRecipients, setAdministratorRecipients] = useState<
+    readonly AdministratorRecipient[]
+  >([]);
   const [statusFilter, setStatusFilter] = useState<AuditionStatus | "all">("all");
   const [search, setSearch] = useState("");
 
@@ -986,6 +1055,29 @@ export function AuditionManager({ enabled }: Props) {
       .then(setPerformances)
       .catch(() => {
         setPerformances([]);
+      });
+    Promise.all([
+      listOrganizationProfiles(controller.signal),
+      listOrganizationMemberships(controller.signal),
+    ])
+      .then(([profiles, membershipResult]) => {
+        const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+        setAdministratorRecipients(
+          membershipResult.memberships
+            .filter(
+              (membership) =>
+                (membership.role === "owner" || membership.role === "administrator") &&
+                membership.profileId !== null,
+            )
+            .map((membership) => {
+              const profile = profilesById.get(membership.profileId ?? "");
+              return profile ? { email: membership.email, profile, role: membership.role } : null;
+            })
+            .filter((recipient): recipient is AdministratorRecipient => recipient !== null),
+        );
+      })
+      .catch(() => {
+        setAdministratorRecipients([]);
       });
     return () => {
       controller.abort();
@@ -1269,6 +1361,7 @@ export function AuditionManager({ enabled }: Props) {
       ) : null}
 
       <AuditionDialogs
+        administratorRecipients={administratorRecipients}
         confirm={confirm}
         createAudition={createAudition}
         createOpen={createOpen}
