@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { MusicCsvError, musicCsvHeader, parseMusicCsv, renderMusicCsv } from "./musicCsv";
+import {
+  inspectMusicCsv,
+  MusicCsvError,
+  musicCsvHeader,
+  parseMusicCsv,
+  renderMusicCsv,
+  selectMusicCsvColumns,
+} from "./musicCsv";
 
 describe("music CSV", () => {
   it("preserves the baseline header and renders current metadata safely", () => {
@@ -70,5 +77,28 @@ describe("music CSV", () => {
       "Duration minutes and seconds must be below 60.",
     );
     expect(() => parseMusicCsv("Composer\nHandel")).toThrow('CSV must contain a "Title" column.');
+  });
+
+  it("previews ignored columns and invalid rows for a graceful import", () => {
+    const inspection = inspectMusicCsv(
+      ["Title,Duration,Legacy Notes", "Good,4:05,ok", "Needs review,4:99,ok"].join("\n"),
+    );
+    expect(inspection.warnings).toEqual([
+      {
+        header: "Legacy Notes",
+        message: "This column is not part of the preferred music format and will be ignored.",
+      },
+      {
+        header: "Duration",
+        message: "Duration minutes and seconds must be below 60.",
+        rows: [3],
+      },
+    ]);
+  });
+
+  it("can remove excluded columns before the server import", () => {
+    expect(
+      selectMusicCsvColumns("Title,Duration,Legacy\nGood,4:05,ignore", ["Duration", "Legacy"]),
+    ).toBe('"Title"\n"Good"');
   });
 });

@@ -124,6 +124,20 @@ interface MusicHeaderIndexes {
   readonly notes: number;
   readonly purchaseDate: number;
   readonly title: number;
+  readonly voicing: number;
+}
+
+export interface MusicCsvColumnWarning {
+  readonly header: string;
+  readonly message: string;
+  readonly rows?: readonly number[];
+}
+
+export interface MusicCsvInspection {
+  readonly fatalError: string | null;
+  readonly headers: readonly string[];
+  readonly rowCount: number;
+  readonly warnings: readonly MusicCsvColumnWarning[];
 }
 
 function musicHeaderIndexes(headers: readonly string[]): MusicHeaderIndexes {
@@ -138,6 +152,7 @@ function musicHeaderIndexes(headers: readonly string[]): MusicHeaderIndexes {
     notes: headerIndex(headers, "notes", "note"),
     purchaseDate: headerIndex(headers, "purchase date"),
     title: headerIndex(headers, "title"),
+    voicing: headerIndex(headers, "voicing"),
   };
 }
 
@@ -230,4 +245,95 @@ export function parseMusicCsv(csv: string, maximumRows = 500): MusicCsvPiece[] {
     imported.push(piece);
   }
   return imported;
+}
+
+function warningMessage(error: unknown): string {
+  return error instanceof MusicCsvError
+    ? error.message
+    : "This column contains unsupported values.";
+}
+
+/**
+ * Performs a non-mutating preflight so the UI can explain ignored columns and
+ * malformed bounded values before asking the server to import the file.
+ */
+export function inspectMusicCsv(csv: string): MusicCsvInspection {
+  try {
+    const rows = parseRows(csv.replace(/^\uFEFF/, ""));
+    const [headerRow, ...dataRows] = rows;
+    if (!headerRow) {
+      return { fatalError: "The CSV is empty.", headers: [], rowCount: 0, warnings: [] };
+    }
+    const headers = headerRow.map((header) => header.trim());
+    const normalizedHeaders = headers.map((header) => header.toLocaleLowerCase());
+    const indexes = musicHeaderIndexes(normalizedHeaders);
+    if (indexes.title < 0) {
+      return {
+        fatalError: 'CSV must contain a "Title" column.',
+        headers,
+        rowCount: dataRows.length,
+        warnings: [],
+      };
+    }
+    const supportedIndexes = new Set(Object.values(indexes).filter((index) => index >= 0));
+    const warnings: MusicCsvColumnWarning[] = headers.flatMap((header, index) =>
+      supportedIndexes.has(index)
+        ? []
+        : [
+            {
+              header: header || `Column ${String(index + 1)}`,
+              message: "This column is not part of the preferred music format and will be ignored.",
+            },
+          ],
+    );
+    const validators: readonly [number, string, (value: string, row: number) => unknown][] = [
+      [indexes.copies, "Copies", parseCopies],
+      [indexes.duration, "Duration", parseDuration],
+    ];
+    validators.forEach(([columnIndex, fallbackHeader, validate]) => {
+      if (columnIndex < 0) return;
+      const invalidRows: number[] = [];
+      let message: string | null = null;
+      dataRows.forEach((cells, rowIndex) => {
+        try {
+          validate(cell(cells, columnIndex), rowIndex + 2);
+        } catch (error: unknown) {
+          invalidRows.push(rowIndex + 2);
+          message ??= warningMessage(error);
+        }
+      });
+      if (invalidRows.length > 0) {
+        warnings.push({
+          header: headers[columnIndex] || fallbackHeader,
+          message: message ?? "This column contains unsupported values.",
+          rows: invalidRows,
+        });
+      }
+    });
+    return { fatalError: null, headers, rowCount: dataRows.length, warnings };
+  } catch (error: unknown) {
+    return {
+      fatalError: error instanceof MusicCsvError ? error.message : "The CSV could not be read.",
+      headers: [],
+      rowCount: 0,
+      warnings: [],
+    };
+  }
+}
+
+/** Returns a CSV containing only columns the user chose to keep. */
+export function selectMusicCsvColumns(csv: string, excludedHeaders: readonly string[]): string {
+  if (excludedHeaders.length === 0) return csv;
+  const rows = parseRows(csv.replace(/^\uFEFF/, ""));
+  const [headerRow, ...dataRows] = rows;
+  if (!headerRow) return csv;
+  const excluded = new Set(excludedHeaders.map((header) => header.trim().toLocaleLowerCase()));
+  const keptIndexes = headerRow.reduce<number[]>((indexes, header, index) => {
+    if (!excluded.has(header.trim().toLocaleLowerCase())) indexes.push(index);
+    return indexes;
+  }, []);
+  return [
+    keptIndexes.map((index) => csvField(headerRow[index] ?? "")).join(","),
+    ...dataRows.map((row) => keptIndexes.map((index) => csvField(row[index] ?? "")).join(",")),
+  ].join("\n");
 }

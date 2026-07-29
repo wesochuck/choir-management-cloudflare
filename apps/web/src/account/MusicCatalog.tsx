@@ -3,6 +3,7 @@ import type {
   OrganizationMusicPieceRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { inspectMusicCsv, selectMusicCsvColumns, type MusicCsvInspection } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
@@ -697,6 +698,14 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [unlinkChildren, setUnlinkChildren] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [musicImportInspection, setMusicImportInspection] = useState<MusicCsvInspection | null>(
+    null,
+  );
+  const [musicImportExcludedColumns, setMusicImportExcludedColumns] = useState<readonly string[]>(
+    [],
+  );
+  const [musicImportConfirmed, setMusicImportConfirmed] = useState(false);
+  const [musicImportInspecting, setMusicImportInspecting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editorTab, setEditorTab] = useState<MusicEditorTab>("details");
@@ -776,6 +785,33 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     if (busy) return;
     setImportDialogOpen(false);
     setImportFile(null);
+    setMusicImportInspection(null);
+    setMusicImportExcludedColumns([]);
+    setMusicImportConfirmed(false);
+    setMusicImportInspecting(false);
+  }
+
+  function handleMusicImportFile(file: File | null): void {
+    setImportFile(file);
+    setMusicImportInspection(null);
+    setMusicImportExcludedColumns([]);
+    setMusicImportConfirmed(false);
+    setError(null);
+    setMusicImportInspecting(Boolean(file));
+    if (!file) return;
+    void file
+      .text()
+      .then((csv) => {
+        const inspection = inspectMusicCsv(csv);
+        setMusicImportInspection(inspection);
+        if (inspection.fatalError) setError(inspection.fatalError);
+      })
+      .catch(() => {
+        setError("The CSV could not be read.");
+      })
+      .finally(() => {
+        setMusicImportInspecting(false);
+      });
   }
 
   function selectPiece(selected: OrganizationMusicPiece): void {
@@ -879,10 +915,17 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setError(null);
     setMessage(null);
     try {
-      const imported = await importOrganizationMusicCsv(await importFile.text());
+      const csv = await importFile.text();
+      const imported = await importOrganizationMusicCsv(
+        selectMusicCsvColumns(csv, musicImportExcludedColumns),
+      );
       setPieces(await listOrganizationMusic());
       setImportFile(null);
       setImportDialogOpen(false);
+      setMusicImportInspection(null);
+      setMusicImportExcludedColumns([]);
+      setMusicImportConfirmed(false);
+      setMusicImportInspecting(false);
       setMessage(`${String(imported)} music piece(s) imported.`);
     } catch (caught: unknown) {
       setError(
@@ -1197,16 +1240,34 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
             </form>
           </Dialog>
           <CsvImportDialog
-            busy={busy}
+            busy={busy || musicImportInspecting}
+            columnWarnings={musicImportInspection?.warnings ?? []}
+            confirmed={musicImportConfirmed}
             description="Import up to 500 top-level works atomically. Existing catalog entries are retained."
+            excludedColumns={musicImportExcludedColumns}
             error={error}
             file={importFile}
+            invalid={Boolean(musicImportInspection?.fatalError)}
             onClose={closeImportDialog}
-            onFileChange={setImportFile}
+            onConfirmationChange={setMusicImportConfirmed}
+            onFileChange={handleMusicImportFile}
             onImport={() => {
               void importCsv();
             }}
+            onToggleColumn={(header) => {
+              setMusicImportExcludedColumns((current) =>
+                current.includes(header)
+                  ? current.filter((column) => column !== header)
+                  : [...current, header],
+              );
+              setMusicImportConfirmed(false);
+            }}
             open={importDialogOpen}
+            requiredExcludedColumns={
+              musicImportInspection?.warnings
+                .filter((warning) => warning.rows && warning.rows.length > 0)
+                .map((warning) => warning.header) ?? []
+            }
             title="Import music CSV"
           />
         </div>
