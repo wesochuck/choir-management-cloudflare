@@ -3,7 +3,7 @@ import type {
   OrganizationAttendanceStatus,
   OrganizationEvent,
 } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   listOrganizationEventAttendance,
@@ -11,17 +11,44 @@ import {
   updateOrganizationEventAttendance,
 } from "../auth/api";
 
-function attendanceValue(value: string): OrganizationAttendanceStatus {
-  if (value === "Present" || value === "Absent") return value;
-  return "Pending";
+type AttendanceFilter = "All" | "Present" | "Absent" | "Pending";
+
+const nextAttendance: Record<OrganizationAttendanceStatus, OrganizationAttendanceStatus> = {
+  Absent: "Pending",
+  Pending: "Present",
+  Present: "Absent",
+};
+
+function attendanceLabel(status: OrganizationAttendanceStatus): string {
+  if (status === "Present") return "Present";
+  if (status === "Absent") return "Absent";
+  return "Tap to check in";
+}
+
+function displayEventDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatSyncTime(value: Date | null): string {
+  if (!value) return "Waiting for updates";
+  return `Updated ${value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
 export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [eventId, setEventId] = useState("");
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState<AttendanceFilter>("Pending");
+  const [query, setQuery] = useState("");
+  const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const pendingIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     if (!enabled) return;
@@ -29,7 +56,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     listOrganizationEvents(controller.signal)
       .then((loaded) => {
         setEvents(loaded);
-        setEventId((current) => (current.length > 0 ? current : (loaded[0]?.id ?? "")));
+        setEventId((current) => (current ? current : (loaded[0]?.id ?? "")));
       })
       .catch(() => {
         if (!controller.signal.aborted) setMessage("Attendance events could not be loaded.");
@@ -39,148 +66,411 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled]);
 
+  const refreshRows = useCallback(
+    async (signal: AbortSignal, initial = false) => {
+      if (!eventId) return;
+      try {
+        const loaded = await listOrganizationEventAttendance(eventId, signal);
+        if (signal.aborted) return;
+        setRows((current) => {
+          if (initial) return loaded;
+          const currentById = new Map(current.map((row) => [row.profileId, row]));
+          return loaded.map((row) =>
+            pendingIdsRef.current.has(row.profileId)
+              ? (currentById.get(row.profileId) ?? row)
+              : row,
+          );
+        });
+        setLastUpdated(new Date());
+        if (initial) setMessage(null);
+      } catch {
+        if (!signal.aborted && initial) setMessage("Attendance could not be loaded.");
+      }
+    },
+    [eventId],
+  );
+
   useEffect(() => {
-    if (!enabled || !eventId) {
-      return;
-    }
+    if (!enabled || !eventId) return;
+    pendingIdsRef.current.clear();
     const controller = new AbortController();
-    listOrganizationEventAttendance(eventId, controller.signal)
-      .then(setRows)
-      .catch(() => {
-        if (!controller.signal.aborted) setMessage("Attendance could not be loaded.");
-      });
+    void refreshRows(controller.signal, true);
+    const interval = window.setInterval(() => {
+      void refreshRows(controller.signal);
+    }, 5_000);
     return () => {
       controller.abort();
+      window.clearInterval(interval);
     };
-  }, [enabled, eventId]);
+  }, [enabled, eventId, refreshRows]);
 
-  function changeAttendance(profileId: string, attendance: OrganizationAttendanceStatus) {
-    setRows((current) =>
-      current.map((row) => (row.profileId === profileId ? { ...row, attendance } : row)),
-    );
-    setMessage(null);
+  function markSaving(profileId: string, saving: boolean) {
+    setSavingIds((current) => {
+      const next = new Set(current);
+      if (saving) next.add(profileId);
+      else next.delete(profileId);
+      return next;
+    });
   }
 
-  function changeFolder(
-    profileId: string,
-    update: { readonly folderNumber?: string; readonly folderReturned?: boolean },
+  async function saveRow(
+    row: OrganizationAttendanceRow,
+    updates: Partial<OrganizationAttendanceRow>,
   ) {
-    setRows((current) =>
-      current.map((row) => (row.profileId === profileId ? { ...row, ...update } : row)),
-    );
-    setMessage(null);
-  }
-
-  async function saveAttendance() {
-    if (!eventId || rows.length === 0) return;
-    setBusy(true);
+    pendingIdsRef.current.add(row.profileId);
+    markSaving(row.profileId, true);
     setMessage(null);
     try {
-      setRows(
-        await updateOrganizationEventAttendance(
-          eventId,
-          rows.map(({ attendance, folderNumber, folderReturned, profileId }) => ({
-            attendance,
-            folderNumber,
-            folderReturned,
-            profileId,
-          })),
-        ),
-      );
-      setMessage("Attendance saved.");
+      const saved = await updateOrganizationEventAttendance(eventId, [
+        {
+          attendance: updates.attendance ?? row.attendance,
+          folderNumber: updates.folderNumber ?? row.folderNumber,
+          folderReturned: updates.folderReturned ?? row.folderReturned,
+          profileId: row.profileId,
+        },
+      ]);
+      const savedRow = saved.find((candidate) => candidate.profileId === row.profileId);
+      if (savedRow) {
+        setRows((current) =>
+          current.map((candidate) =>
+            candidate.profileId === row.profileId ? savedRow : candidate,
+          ),
+        );
+      }
+      setLastUpdated(new Date());
     } catch {
-      setMessage("Attendance could not be saved. Try again.");
+      setMessage("That attendance update could not be saved. Try again.");
+      throw new Error("attendance_update_failed");
     } finally {
-      setBusy(false);
+      pendingIdsRef.current.delete(row.profileId);
+      markSaving(row.profileId, false);
     }
   }
+
+  async function changeAttendance(profileId: string) {
+    const row = rows.find((candidate) => candidate.profileId === profileId);
+    if (!row || savingIds.has(profileId) || bulkBusy) return;
+    const next = nextAttendance[row.attendance];
+    setRows((current) =>
+      current.map((candidate) =>
+        candidate.profileId === profileId ? { ...candidate, attendance: next } : candidate,
+      ),
+    );
+    try {
+      await saveRow(row, { attendance: next });
+    } catch {
+      setRows((current) =>
+        current.map((candidate) =>
+          candidate.profileId === profileId
+            ? { ...candidate, attendance: row.attendance }
+            : candidate,
+        ),
+      );
+    }
+  }
+
+  async function saveDetails(profileId: string) {
+    const row = rows.find((candidate) => candidate.profileId === profileId);
+    if (!row || savingIds.has(profileId) || bulkBusy) return;
+    try {
+      await saveRow(row, {});
+      setMessage("Details saved.");
+    } catch {
+      // saveRow provides the user-facing error.
+    }
+  }
+
+  async function markRemainingPresent() {
+    const targetRows = rows.filter(
+      (row) => row.rsvp !== "No" && row.attendance !== "Present" && !savingIds.has(row.profileId),
+    );
+    if (!eventId || targetRows.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    setMessage(null);
+    targetRows.forEach((row) => pendingIdsRef.current.add(row.profileId));
+    setRows((current) =>
+      current.map((row) =>
+        targetRows.some((target) => target.profileId === row.profileId)
+          ? { ...row, attendance: "Present" }
+          : row,
+      ),
+    );
+    try {
+      const saved = await updateOrganizationEventAttendance(
+        eventId,
+        targetRows.map((row) => ({
+          attendance: "Present" as const,
+          folderNumber: row.folderNumber,
+          folderReturned: row.folderReturned,
+          profileId: row.profileId,
+        })),
+      );
+      const savedById = new Map(saved.map((row) => [row.profileId, row]));
+      setRows((current) => current.map((row) => savedById.get(row.profileId) ?? row));
+      setLastUpdated(new Date());
+    } catch {
+      setMessage("The remaining attendance could not be saved. Try again.");
+      void refreshRows(new AbortController().signal, true);
+    } finally {
+      targetRows.forEach((row) => pendingIdsRef.current.delete(row.profileId));
+      setBulkBusy(false);
+    }
+  }
+
+  const selectedEvent = events.find((event) => event.id === eventId);
+  const counts = useMemo(() => {
+    const expected = rows.filter((row) => row.rsvp !== "No");
+    return {
+      absent: expected.filter((row) => row.attendance === "Absent").length,
+      expected: expected.length,
+      pending: expected.filter((row) => row.attendance === "Pending").length,
+      present: expected.filter((row) => row.attendance === "Present").length,
+    };
+  }, [rows]);
+
+  const groupedRows = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const filtered = rows.filter((row) => {
+      const matchesFilter =
+        filter === "All" ||
+        (filter === "Pending" && row.attendance === "Pending") ||
+        (filter === "Present" && row.attendance === "Present") ||
+        (filter === "Absent" && row.attendance === "Absent");
+      const matchesQuery =
+        !normalizedQuery ||
+        row.displayName.toLocaleLowerCase().includes(normalizedQuery) ||
+        row.voicePart.toLocaleLowerCase().includes(normalizedQuery);
+      return matchesFilter && matchesQuery;
+    });
+    const groups = new Map<string, OrganizationAttendanceRow[]>();
+    filtered
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .forEach((row) => {
+        const label = row.voicePart || "Other";
+        const group = groups.get(label) ?? [];
+        group.push(row);
+        groups.set(label, group);
+      });
+    return [...groups.entries()];
+  }, [filter, query, rows]);
 
   if (!enabled) return null;
   return (
-    <section className="account-section" aria-label="Attendance management">
-      <p className="section-description">
-        Mark each Profile Present, Absent, or Pending. Present promotes a Pending RSVP to Yes.
-      </p>
-      <label>
-        Event
-        <select
-          value={eventId}
-          onChange={(event) => {
-            setEventId(event.target.value);
-          }}
-        >
-          {events.map((event) => (
-            <option key={event.id} value={event.id}>
-              {event.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
-      <div className="attendance-list">
-        {rows.map((row) => (
-          <div className="attendance-row" key={row.profileId}>
-            <span>
-              {row.displayName} <small>RSVP: {row.rsvp}</small>
-            </span>
-            <div className="attendance-row__fields">
-              <label>
-                <span className="sr-only">{row.displayName} attendance</span>
-                <select
-                  aria-label={`${row.displayName} attendance`}
-                  disabled={busy}
-                  onChange={(event) => {
-                    changeAttendance(row.profileId, attendanceValue(event.target.value));
-                  }}
-                  value={row.attendance}
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Present">Present</option>
-                  <option value="Absent">Absent</option>
-                </select>
-              </label>
-              <label>
-                <span className="sr-only">{row.displayName} folder number</span>
-                <input
-                  aria-label={`${row.displayName} folder number`}
-                  disabled={busy}
-                  maxLength={50}
-                  onChange={(event) => {
-                    changeFolder(row.profileId, { folderNumber: event.target.value });
-                  }}
-                  placeholder="Folder"
-                  value={row.folderNumber}
-                />
-              </label>
-              <label className="checkbox-row">
-                <input
-                  aria-label={`${row.displayName} folder returned`}
-                  checked={row.folderReturned}
-                  disabled={busy}
-                  onChange={(event) => {
-                    changeFolder(row.profileId, { folderReturned: event.target.checked });
-                  }}
-                  type="checkbox"
-                />
-                Returned
-              </label>
-            </div>
-          </div>
-        ))}
+    <section className="account-section attendance-manager" aria-label="Attendance management">
+      <div className="attendance-manager__intro">
+        <div>
+          <p className="section-description">
+            Tap a name to cycle Pending, Present, and Absent. Changes save immediately.
+          </p>
+          <p className="attendance-manager__sync" role="status">
+            <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
+            {formatSyncTime(lastUpdated)}
+          </p>
+        </div>
+        <div className="attendance-manager__count" aria-label="Attendance progress">
+          <strong>{counts.present}</strong> / {counts.expected}
+          <span>present</span>
+        </div>
       </div>
-      <div className="form-actions">
+
+      <div className="attendance-manager__controls">
+        <label className="field">
+          <span>Event</span>
+          <select
+            value={eventId}
+            onChange={(event) => {
+              pendingIdsRef.current.clear();
+              setRows([]);
+              setDetailsId(null);
+              setEventId(event.target.value);
+            }}
+          >
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.title} · {displayEventDate(event.startsAt)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field attendance-manager__search">
+          <span>Find a singer</span>
+          <input
+            inputMode="search"
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            placeholder="Search name or voice part"
+            type="search"
+            value={query}
+          />
+        </label>
+      </div>
+
+      {selectedEvent ? (
+        <div className="attendance-manager__event-summary">
+          <strong>{selectedEvent.title}</strong>
+          <span>{displayEventDate(selectedEvent.startsAt)}</span>
+          <span>{selectedEvent.location || "No location"}</span>
+        </div>
+      ) : null}
+
+      <div className="attendance-manager__toolbar">
+        <div className="attendance-filters" aria-label="Attendance filter" role="group">
+          {(
+            [
+              ["Pending", `Unmarked ${String(counts.pending)}`],
+              ["All", `All ${String(counts.expected)}`],
+              ["Present", `Present ${String(counts.present)}`],
+              ["Absent", `Absent ${String(counts.absent)}`],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              className={
+                filter === value
+                  ? "attendance-filter attendance-filter--active"
+                  : "attendance-filter"
+              }
+              key={value}
+              onClick={() => {
+                setFilter(value);
+              }}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button
-          className="button button--primary"
-          disabled={busy || rows.length === 0}
+          className="button button--primary attendance-manager__bulk"
+          disabled={bulkBusy || counts.pending + counts.absent === 0}
           onClick={() => {
-            void saveAttendance();
+            void markRemainingPresent();
           }}
           type="button"
         >
-          {busy ? "Saving…" : "Save attendance"}
+          {bulkBusy ? "Saving…" : "Mark remaining present"}
         </button>
       </div>
-      {message ? <p role="status">{message}</p> : null}
+
+      <div
+        className="attendance-progress"
+        aria-label={`${String(counts.present)} of ${String(counts.expected)} present`}
+      >
+        <span
+          style={{
+            width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
+          }}
+        />
+      </div>
+
+      {message ? (
+        <p className="attendance-manager__message" role="alert">
+          {message}
+        </p>
+      ) : null}
+
+      {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
+      {rows.length > 0 && groupedRows.length === 0 ? (
+        <p className="attendance-manager__empty">No singers match this filter.</p>
+      ) : null}
+      <div className="attendance-list">
+        {groupedRows.map(([voicePart, group]) => (
+          <div className="attendance-group" key={voicePart}>
+            <h3>{voicePart}</h3>
+            {group.map((row) => {
+              const isSaving = savingIds.has(row.profileId) || bulkBusy;
+              const isOpen = detailsId === row.profileId;
+              return (
+                <div
+                  className={`attendance-row attendance-row--${row.attendance.toLowerCase()}`}
+                  key={row.profileId}
+                >
+                  <button
+                    aria-label={`${row.displayName}: ${attendanceLabel(row.attendance)}. Tap to change.`}
+                    className="attendance-row__toggle"
+                    disabled={isSaving}
+                    onClick={() => {
+                      void changeAttendance(row.profileId);
+                    }}
+                    type="button"
+                  >
+                    <span className="attendance-row__indicator" aria-hidden="true">
+                      {row.attendance === "Present" ? "✓" : row.attendance === "Absent" ? "×" : ""}
+                    </span>
+                    <span className="attendance-row__identity">
+                      <strong>{row.displayName}</strong>
+                      <span>
+                        {row.voicePart || "Voice part not set"} · {attendanceLabel(row.attendance)}
+                      </span>
+                    </span>
+                    {row.rsvp === "No" ? (
+                      <span className="attendance-row__rsvp">Declined</span>
+                    ) : null}
+                  </button>
+                  <button
+                    aria-expanded={isOpen}
+                    aria-label={`${isOpen ? "Hide" : "Show"} details for ${row.displayName}`}
+                    className="attendance-row__details-button"
+                    disabled={isSaving}
+                    onClick={() => {
+                      setDetailsId(isOpen ? null : row.profileId);
+                    }}
+                    type="button"
+                  >
+                    {isOpen ? "Done" : "Details"}
+                  </button>
+                  {isOpen ? (
+                    <div className="attendance-row__details">
+                      <label className="field">
+                        <span>Folder number</span>
+                        <input
+                          maxLength={50}
+                          onChange={(event) => {
+                            setRows((current) =>
+                              current.map((candidate) =>
+                                candidate.profileId === row.profileId
+                                  ? { ...candidate, folderNumber: event.target.value }
+                                  : candidate,
+                              ),
+                            );
+                          }}
+                          value={row.folderNumber}
+                        />
+                      </label>
+                      <label className="checkbox-row">
+                        <input
+                          checked={row.folderReturned}
+                          onChange={(event) => {
+                            setRows((current) =>
+                              current.map((candidate) =>
+                                candidate.profileId === row.profileId
+                                  ? { ...candidate, folderReturned: event.target.checked }
+                                  : candidate,
+                              ),
+                            );
+                          }}
+                          type="checkbox"
+                        />
+                        Folder returned
+                      </label>
+                      <button
+                        className="button button--secondary"
+                        disabled={isSaving}
+                        onClick={() => {
+                          void saveDetails(row.profileId);
+                        }}
+                        type="button"
+                      >
+                        Save details
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

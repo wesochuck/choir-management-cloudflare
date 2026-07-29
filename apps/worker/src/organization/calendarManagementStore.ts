@@ -144,6 +144,7 @@ interface AttendanceRow {
   readonly profileId: string;
   readonly rsvp: "No" | "Pending" | "Yes";
   readonly updatedAt: string | null;
+  readonly voicePart: string;
 }
 
 function identityMatches(storage: DurableObjectStorage, organizationId: string | null): boolean {
@@ -528,6 +529,7 @@ export function listEventAttendanceFromStore(
   const rows = storage.sql
     .exec<AttendanceRow>(
       `SELECT p.id AS profileId, p.display_name AS displayName,
+         COALESCE(p.voice_part, '') AS voicePart,
          COALESCE(r.rsvp, 'Pending') AS rsvp,
          COALESCE(r.attendance, 'Pending') AS attendance,
          COALESCE(r.folder_number, '') AS folderNumber,

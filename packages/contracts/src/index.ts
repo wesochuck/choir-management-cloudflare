@@ -442,6 +442,7 @@ export const organizationAttendanceRowSchema = z.object({
   profileId: z.uuid(),
   rsvp: z.enum(["Yes", "No", "Pending"]),
   updatedAt: z.iso.datetime().nullable(),
+  voicePart: z.string().max(100).default(""),
 });
 
 export const organizationAttendanceResponseSchema = z.object({
