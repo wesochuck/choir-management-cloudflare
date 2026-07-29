@@ -75,6 +75,7 @@ async function processBatch(
     EXTERNAL_EFFECTS_MODE: externalEffectsMode,
     ORGANIZATION_FILES: organizationFiles,
     ORGANIZATION_STORE: organizationStore,
+    PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
     SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
   });
   const result: unknown = await getQueueResult(batch, executionContext);

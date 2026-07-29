@@ -1105,7 +1105,7 @@ router.get("/api/platform/setup-status", async (context) => {
   let schemaStatus: PlatformSchemaStatusRow | null = null;
   try {
     const [ready, organizations, deadLetters, schema] = await Promise.all([
-      context.env.CONTROL_DB.prepare("SELECT 1 AS ready").first<PlatformCountRow>(),
+      context.env.CONTROL_DB.prepare("SELECT 1 AS ready").first<{ readonly ready: number }>(),
       context.env.CONTROL_DB.prepare(
         "SELECT COUNT(*) AS count FROM organizations",
       ).first<PlatformCountRow>(),

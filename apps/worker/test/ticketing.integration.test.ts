@@ -158,6 +158,7 @@ async function deliverQueuedTicketNotification(organizationId: string): Promise<
     EXTERNAL_EFFECTS_MODE: "fake",
     ORGANIZATION_FILES: organizationFiles,
     ORGANIZATION_STORE: stores,
+    PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
     SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
   });
   const result = await getQueueResult(batch, createExecutionContext());
