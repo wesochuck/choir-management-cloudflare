@@ -4424,10 +4424,15 @@ footer {
   font-size: 1.25rem;
 }
 
-.section-heading--compact h2,
+.signed-in-main .section-heading h2,
 .table-heading h2,
 .split-layout__aside h2 {
   font-size: 1.25rem;
+}
+
+.signed-in-main .section-heading > p:last-child {
+  font-size: 0.82rem;
+  line-height: 1.55;
 }
 
 .workspace-card-grid {
