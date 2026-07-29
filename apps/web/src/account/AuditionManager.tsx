@@ -37,6 +37,8 @@ type ManagerState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly auditions: readonly OrganizationAudition[] };
 
+type AuditionTab = "inquiries" | "settings";
+
 interface AdministratorRecipient {
   readonly email: string;
   readonly profile: OrganizationProfile;
@@ -840,7 +842,6 @@ function AuditionTable({
 }
 
 function AuditionDialogs({
-  administratorRecipients,
   confirm,
   createAudition,
   createOpen,
@@ -850,19 +851,13 @@ function AuditionDialogs({
   onCancelCreate,
   onCancelEdit,
   onCancelSchedule,
-  onCancelSettings,
   onScheduleTimeChange,
-  performances,
   saveEdit,
-  saveSettings,
   schedule,
   scheduleAudition,
   scheduleOpen,
   scheduleTime,
-  settings,
-  settingsOpen,
 }: {
-  readonly administratorRecipients: readonly AdministratorRecipient[];
   readonly confirm: {
     readonly action: "convert" | "delete";
     readonly audition: OrganizationAudition;
@@ -875,9 +870,7 @@ function AuditionDialogs({
   readonly onCancelCreate: () => void;
   readonly onCancelEdit: () => void;
   readonly onCancelSchedule: () => void;
-  readonly onCancelSettings: () => void;
   readonly onScheduleTimeChange: (value: string) => void;
-  readonly performances: readonly OrganizationEvent[];
   readonly saveEdit: (update: {
     readonly adminNotes: string;
     readonly availabilityNotes: string;
@@ -888,13 +881,10 @@ function AuditionDialogs({
     readonly status: AuditionStatus;
     readonly voicePart: string;
   }) => Promise<void>;
-  readonly saveSettings: (next: OrganizationAuditionSettings) => Promise<void>;
   readonly schedule: OrganizationAudition | null;
   readonly scheduleAudition: () => Promise<void>;
   readonly scheduleOpen: boolean;
   readonly scheduleTime: string;
-  readonly settings: OrganizationAuditionSettings;
-  readonly settingsOpen: boolean;
 }) {
   return (
     <>
@@ -973,22 +963,6 @@ function AuditionDialogs({
         </form>
       </Dialog>
       <Dialog
-        description="This change affects the public audition form."
-        onClose={onCancelSettings}
-        open={settingsOpen}
-        title="Audition settings"
-      >
-        {settingsOpen ? (
-          <SettingsForm
-            administratorRecipients={administratorRecipients}
-            initial={settings}
-            onCancel={onCancelSettings}
-            onSave={saveSettings}
-            performances={performances}
-          />
-        ) : null}
-      </Dialog>
-      <Dialog
         description="This action cannot be undone."
         onClose={onCancelConfirm}
         open={confirm !== null}
@@ -1027,7 +1001,7 @@ export function AuditionManager({ enabled }: Props) {
   const [state, setState] = useState<ManagerState>({ status: "loading" });
   const [settings, setSettings] = useState<OrganizationAuditionSettings>(fallbackSettings);
   const [performances, setPerformances] = useState<readonly OrganizationEvent[]>([]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<AuditionTab>("inquiries");
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationAudition | null>(null);
   const [schedule, setSchedule] = useState<OrganizationAudition | null>(null);
@@ -1140,7 +1114,6 @@ export function AuditionManager({ enabled }: Props) {
 
   async function saveSettings(next: OrganizationAuditionSettings) {
     setSettings(await updateOrganizationAuditionSettings(next));
-    setSettingsOpen(false);
     setNotice("Audition settings saved.");
   }
 
@@ -1234,15 +1207,6 @@ export function AuditionManager({ enabled }: Props) {
           >
             New audition
           </button>
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setSettingsOpen(true);
-            }}
-            type="button"
-          >
-            Settings
-          </button>
         </div>
       </div>
       {notice ? (
@@ -1255,151 +1219,204 @@ export function AuditionManager({ enabled }: Props) {
           {actionError}
         </p>
       ) : null}
-      <QRCodeShareCard
-        description={
-          settings.enabled && settings.defaultPerformanceId && settings.slots.length > 0
-            ? `Share this link or download the QR code so prospective ${performerLabelPlural.toLowerCase()} can submit an audition request.`
-            : "This is the public audition signup link. Configure a performance and time slots, then enable requests before sharing it."
-        }
-        path="/auditions"
-        title="Public audition signup page"
-      />
-      <div className="form-grid form-grid--compact">
-        <label className="field">
-          Search
-          <input
-            placeholder="Name, email, voice part"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
+      <div className="audition-tabs" role="tablist" aria-label="Audition sections">
+        <button
+          aria-controls="audition-inquiries-panel"
+          aria-selected={activeTab === "inquiries"}
+          className={activeTab === "inquiries" ? "is-active" : undefined}
+          id="audition-inquiries-tab"
+          onClick={() => {
+            setActiveTab("inquiries");
+          }}
+          role="tab"
+          type="button"
+        >
+          Inquiries
+        </button>
+        <button
+          aria-controls="audition-settings-panel"
+          aria-selected={activeTab === "settings"}
+          className={activeTab === "settings" ? "is-active" : undefined}
+          id="audition-settings-tab"
+          onClick={() => {
+            setActiveTab("settings");
+          }}
+          role="tab"
+          type="button"
+        >
+          Settings
+        </button>
+      </div>
+      {activeTab === "settings" ? (
+        <div
+          aria-labelledby="audition-settings-tab"
+          className="audition-tab-panel"
+          id="audition-settings-panel"
+          role="tabpanel"
+        >
+          <h2>Audition settings</h2>
+          <p className="section-description">
+            Configure the public audition form, available time slots, and administrator
+            notifications.
+          </p>
+          <SettingsForm
+            administratorRecipients={administratorRecipients}
+            initial={settings}
+            onCancel={() => {
+              setActiveTab("inquiries");
             }}
+            onSave={saveSettings}
+            performances={performances}
           />
-        </label>
-        <label className="field">
-          Narrow results
-          <select
-            aria-label="Audition filter"
-            value={statusFilter}
-            onChange={(event) => {
-              const value = event.target.value;
-              setStatusFilter(value === "all" ? "all" : auditionStatusSchema.parse(value));
-            }}
-          >
-            <option value="all">All statuses</option>
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="field-help audition-token-help">
-        Need to follow up with selected applicants? Generate secure, expiring links that let them
-        review or update their audition information. These links are different from the public
-        signup page above.
-      </p>
-      <div className="form-actions form-actions--start audition-selection-actions">
-        <button
-          className="button button--secondary"
-          disabled={selectedIds.length === 0}
-          onClick={() => void generateTokens()}
-          type="button"
-        >
-          Generate {String(selectedIds.length)} follow-up link(s)
-        </button>
-        <button
-          className="button button--secondary"
-          onClick={() => {
-            setSelectedIds(filteredAuditions.map(({ id }) => id));
-          }}
-          type="button"
-        >
-          Select visible
-        </button>
-        <button
-          className="text-button"
-          onClick={() => {
-            setSelectedIds([]);
-          }}
-          type="button"
-        >
-          Clear selection
-        </button>
-      </div>
-      {filteredAuditions.length === 0 ? (
-        <div className="notice">
-          {state.auditions.length === 0
-            ? "No audition inquiries yet. Configure settings or create an audition to begin."
-            : "No auditions match the current filters."}
         </div>
       ) : (
-        <AuditionTable
-          auditions={filteredAuditions}
-          onConvert={(audition) => {
-            setConfirm({ action: "convert", audition });
-          }}
-          onDelete={(audition) => {
-            setConfirm({ action: "delete", audition });
-          }}
-          onEdit={setEditing}
-          onSchedule={(audition) => {
-            setSchedule(audition);
-            setScheduleTime(
-              audition.scheduledTimeSlot
-                ? new Date(audition.scheduledTimeSlot).toISOString().slice(0, 16)
-                : "",
-            );
-          }}
-          onToggle={(id) => {
-            setSelectedIds((current) =>
-              current.includes(id)
-                ? current.filter((candidate) => candidate !== id)
-                : [...current, id],
-            );
-          }}
-          selectedIds={selectedIds}
-        />
-      )}
-      {Object.keys(tokens).length > 0 ? (
-        <details className="mt-4">
-          <summary>Generated follow-up links</summary>
-          <p className="field-help">
-            These secure links expire after 90 days. Copy the full link when sending it to an
-            applicant.
+        <div aria-labelledby="audition-inquiries-tab" id="audition-inquiries-panel" role="tabpanel">
+          <QRCodeShareCard
+            description={
+              settings.enabled && settings.defaultPerformanceId && settings.slots.length > 0
+                ? `Share this link or download the QR code so prospective ${performerLabelPlural.toLowerCase()} can submit an audition request.`
+                : "This is the public audition signup link. Configure a performance and time slots, then enable requests before sharing it."
+            }
+            path="/auditions"
+            title="Public audition signup page"
+          />
+          <div className="form-grid form-grid--compact">
+            <label className="field">
+              Search
+              <input
+                placeholder="Name, email, voice part"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                }}
+              />
+            </label>
+            <label className="field">
+              Narrow results
+              <select
+                aria-label="Audition filter"
+                value={statusFilter}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setStatusFilter(value === "all" ? "all" : auditionStatusSchema.parse(value));
+                }}
+              >
+                <option value="all">All statuses</option>
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="field-help audition-token-help">
+            Need to follow up with selected applicants? Generate secure, expiring links that let
+            them review or update their audition information. These links are different from the
+            public signup page above.
           </p>
-          <ul className="account-list">
-            {Object.entries(tokens).map(([id, token]) => {
-              const link = auditionFollowUpUrl(token);
-              return (
-                <li className="flex items-center gap-2" key={id}>
-                  <strong>
-                    {`${state.auditions.find((audition) => audition.id === id)?.name ?? id}:`}
-                  </strong>
-                  <a
-                    className="text-xs break-all flex-1"
-                    href={link}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    {link}
-                  </a>
-                  <button
-                    className="button button--secondary button--sm"
-                    onClick={() => void navigator.clipboard.writeText(link)}
-                    type="button"
-                  >
-                    Copy link
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      ) : null}
+          <div className="form-actions form-actions--start audition-selection-actions">
+            <button
+              className="button button--secondary"
+              disabled={selectedIds.length === 0}
+              onClick={() => void generateTokens()}
+              type="button"
+            >
+              Generate {String(selectedIds.length)} follow-up link(s)
+            </button>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setSelectedIds(filteredAuditions.map(({ id }) => id));
+              }}
+              type="button"
+            >
+              Select visible
+            </button>
+            <button
+              className="text-button"
+              onClick={() => {
+                setSelectedIds([]);
+              }}
+              type="button"
+            >
+              Clear selection
+            </button>
+          </div>
+          {filteredAuditions.length === 0 ? (
+            <div className="notice">
+              {state.auditions.length === 0
+                ? "No audition inquiries yet. Configure settings or create an audition to begin."
+                : "No auditions match the current filters."}
+            </div>
+          ) : (
+            <AuditionTable
+              auditions={filteredAuditions}
+              onConvert={(audition) => {
+                setConfirm({ action: "convert", audition });
+              }}
+              onDelete={(audition) => {
+                setConfirm({ action: "delete", audition });
+              }}
+              onEdit={setEditing}
+              onSchedule={(audition) => {
+                setSchedule(audition);
+                setScheduleTime(
+                  audition.scheduledTimeSlot
+                    ? new Date(audition.scheduledTimeSlot).toISOString().slice(0, 16)
+                    : "",
+                );
+              }}
+              onToggle={(id) => {
+                setSelectedIds((current) =>
+                  current.includes(id)
+                    ? current.filter((candidate) => candidate !== id)
+                    : [...current, id],
+                );
+              }}
+              selectedIds={selectedIds}
+            />
+          )}
+          {Object.keys(tokens).length > 0 ? (
+            <details className="mt-4">
+              <summary>Generated follow-up links</summary>
+              <p className="field-help">
+                These secure links expire after 90 days. Copy the full link when sending it to an
+                applicant.
+              </p>
+              <ul className="account-list">
+                {Object.entries(tokens).map(([id, token]) => {
+                  const link = auditionFollowUpUrl(token);
+                  return (
+                    <li className="flex items-center gap-2" key={id}>
+                      <strong>
+                        {`${state.auditions.find((audition) => audition.id === id)?.name ?? id}:`}
+                      </strong>
+                      <a
+                        className="text-xs break-all flex-1"
+                        href={link}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {link}
+                      </a>
+                      <button
+                        className="button button--secondary button--sm"
+                        onClick={() => void navigator.clipboard.writeText(link)}
+                        type="button"
+                      >
+                        Copy link
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          ) : null}
+        </div>
+      )}
 
       <AuditionDialogs
-        administratorRecipients={administratorRecipients}
         confirm={confirm}
         createAudition={createAudition}
         createOpen={createOpen}
@@ -1417,19 +1434,12 @@ export function AuditionManager({ enabled }: Props) {
         onCancelSchedule={() => {
           setSchedule(null);
         }}
-        onCancelSettings={() => {
-          setSettingsOpen(false);
-        }}
         onScheduleTimeChange={setScheduleTime}
-        performances={performances}
         saveEdit={saveEdit}
-        saveSettings={saveSettings}
         schedule={schedule}
         scheduleAudition={scheduleAudition}
         scheduleOpen={schedule !== null}
         scheduleTime={scheduleTime}
-        settings={settings}
-        settingsOpen={settingsOpen}
       />
     </section>
   );
