@@ -79,6 +79,16 @@ const organizationExportSnapshotSchema = z.object({
   metadata: z.record(z.string(), z.unknown()),
   records: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
 });
+const deadLetterInsertSql = `INSERT INTO job_dead_letters
+  (id, queue_name, message_id, message_valid, observed_attempt,
+   organization_id, job_id, job_kind, idempotency_key,
+   first_seen_at, last_seen_at, observation_count)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+ ON CONFLICT(id) DO UPDATE SET
+   last_seen_at = excluded.last_seen_at,
+   observed_attempt = excluded.observed_attempt,
+   observation_count = job_dead_letters.observation_count + 1`;
+
 function retryDelaySeconds(attempt: number): number {
   const exponentialDelay = Math.min(300, 2 ** attempt);
   const deterministicJitter = (attempt * 17) % 11;
@@ -525,43 +535,41 @@ export async function processDeadLetterBatch(
   batch: MessageBatch,
   env: DeadLetterConsumerEnv,
 ): Promise<void> {
-  for (const message of batch.messages) {
+  const records = batch.messages.map((message) => {
     const parsed = deliveryJobSchema.safeParse(message.body);
     const observedAt = new Date().toISOString();
     const recordId = `${batch.queue}:${message.id}`;
-    await env.CONTROL_DB.prepare(
-      `INSERT INTO job_dead_letters
-        (id, queue_name, message_id, message_valid, observed_attempt,
-         organization_id, job_id, job_kind, idempotency_key,
-         first_seen_at, last_seen_at, observation_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-       ON CONFLICT(id) DO UPDATE SET
-         last_seen_at = excluded.last_seen_at,
-         observed_attempt = excluded.observed_attempt,
-         observation_count = job_dead_letters.observation_count + 1`,
-    )
-      .bind(
+    const job = parsed.success ? parsed.data : null;
+    return {
+      job,
+      message,
+      statement: env.CONTROL_DB.prepare(deadLetterInsertSql).bind(
         recordId,
         batch.queue,
         message.id,
-        parsed.success ? 1 : 0,
+        job ? 1 : 0,
         message.attempts,
-        parsed.success ? parsed.data.organizationId : null,
-        parsed.success ? parsed.data.jobId : null,
-        parsed.success ? parsed.data.kind : null,
-        parsed.success ? parsed.data.idempotencyKey : null,
+        job?.organizationId ?? null,
+        job?.jobId ?? null,
+        job?.kind ?? null,
+        job?.idempotencyKey ?? null,
         observedAt,
         observedAt,
-      )
-      .run();
+      ),
+    };
+  });
+  if (records.length > 0) {
+    await env.CONTROL_DB.batch(records.map(({ statement }) => statement));
+  }
+  for (const { job, message } of records) {
     message.ack();
     console.error(
       JSON.stringify({
         event: "queue_job_dead_lettered",
-        jobId: parsed.success ? parsed.data.jobId : null,
-        kind: parsed.success ? parsed.data.kind : null,
+        jobId: job?.jobId ?? null,
+        kind: job?.kind ?? null,
         messageId: message.id,
-        organizationId: parsed.success ? parsed.data.organizationId : null,
+        organizationId: job?.organizationId ?? null,
         queue: batch.queue,
       }),
     );

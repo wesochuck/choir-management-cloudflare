@@ -14,6 +14,10 @@ const operationContextSchema = z.object({
   requestId: z.uuid(),
 });
 
+// Keep each statement below SQLite's bound-parameter limit while still reducing
+// a large import to a small number of writes.
+const MUSIC_IMPORT_BATCH_SIZE = 50;
+
 const musicOperationSchema = z.discriminatedUnion("action", [
   operationContextSchema.extend({
     action: z.literal("create"),
@@ -432,29 +436,36 @@ function importPieces(
   }
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
-    for (const imported of operation.pieces) {
-      const piece = imported.piece;
+    for (let offset = 0; offset < operation.pieces.length; offset += MUSIC_IMPORT_BATCH_SIZE) {
+      const importedBatch = operation.pieces.slice(offset, offset + MUSIC_IMPORT_BATCH_SIZE);
+      const values = importedBatch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      const parameters = importedBatch.flatMap((imported) => {
+        const piece = imported.piece;
+        return [
+          imported.pieceId,
+          piece.title,
+          piece.composer,
+          piece.arranger,
+          piece.purchaseDate,
+          piece.copies,
+          piece.catalogId,
+          piece.durationSeconds,
+          piece.notes,
+          JSON.stringify(piece.sectionBuckets),
+          JSON.stringify(piece.genres),
+          piece.parentId,
+          JSON.stringify(piece.trackFileIds),
+          occurredAt,
+          occurredAt,
+        ];
+      });
       storage.sql.exec(
         `INSERT INTO music_pieces
           (id, title, composer, arranger, purchase_date, copies, catalog_id, duration_seconds,
            notes, section_buckets_json, genres_json, parent_id, track_file_ids_json,
            created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        imported.pieceId,
-        piece.title,
-        piece.composer,
-        piece.arranger,
-        piece.purchaseDate,
-        piece.copies,
-        piece.catalogId,
-        piece.durationSeconds,
-        piece.notes,
-        JSON.stringify(piece.sectionBuckets),
-        JSON.stringify(piece.genres),
-        piece.parentId,
-        JSON.stringify(piece.trackFileIds),
-        occurredAt,
-        occurredAt,
+         VALUES ${values.join(", ")}`,
+        ...parameters,
       );
     }
     storage.sql.exec(
