@@ -1,3 +1,12 @@
+export interface RosterConfig {
+  maxMembers: number;
+  sections: string[];
+}
+
+export function isValidRoster(config: RosterConfig): boolean {
+  return config.maxMembers > 0 && config.sections.length > 0;
+}
+
 export const defaultRosterConfiguration = {
   sections: [
     { code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false },
