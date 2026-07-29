@@ -196,6 +196,8 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
           ]}
           emptyMessage="No venues have been created yet."
           keySelector={(venue) => venue.id}
+          onRowClick={openEditDialog}
+          rowLabel={(venue) => `Edit ${venue.name}`}
           rows={state.venues}
         />
       ) : null}
