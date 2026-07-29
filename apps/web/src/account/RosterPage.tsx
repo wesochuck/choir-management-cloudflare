@@ -58,6 +58,21 @@ function voicePartFilterKey(label: string): string {
   return `part:${label}`;
 }
 
+function reportableSections(
+  configuration: OrganizationRosterConfiguration,
+): readonly OrganizationRosterConfiguration["sections"][number][] {
+  return configuration.sections.filter(({ trackOnly }) => !trackOnly);
+}
+
+function reportableVoiceParts(
+  configuration: OrganizationRosterConfiguration,
+): readonly OrganizationRosterConfiguration["voiceParts"][number][] {
+  const trackOnlySections = new Set(
+    configuration.sections.filter(({ trackOnly }) => trackOnly).map(({ code }) => code),
+  );
+  return configuration.voiceParts.filter(({ sectionCode }) => !trackOnlySections.has(sectionCode));
+}
+
 function profileSectionCode(
   profile: OrganizationProfile,
   configuration: OrganizationRosterConfiguration,
@@ -74,6 +89,15 @@ function profileMatchesVoiceFilters(
 ): boolean {
   if (filters.length === 0) return true;
   const sectionCode = profileSectionCode(profile, configuration);
+  const voicePart = configuration.voiceParts.find(({ label }) => label === profile.voicePart);
+  if (
+    voicePart &&
+    configuration.sections.some(
+      ({ code, trackOnly }) => code === voicePart.sectionCode && trackOnly,
+    )
+  ) {
+    return false;
+  }
   return filters.some((filter) =>
     filter === UNASSIGNED_VOICE_FILTER
       ? !profile.voicePart
@@ -94,14 +118,18 @@ function VoicePartBalance({
   readonly selectedFilters: readonly string[];
 }) {
   const counts = useMemo(() => {
-    const sections = new Map(configuration.sections.map(({ code }) => [code, 0]));
-    const voiceParts = new Map(configuration.voiceParts.map(({ label }) => [label, 0]));
+    const sectionsForReporting = reportableSections(configuration);
+    const voicePartsForReporting = reportableVoiceParts(configuration);
+    const sections = new Map(sectionsForReporting.map(({ code }) => [code, 0]));
+    const voiceParts = new Map(voicePartsForReporting.map(({ label }) => [label, 0]));
+    const reportableLabels = new Set(voicePartsForReporting.map(({ label }) => label));
     let unassigned = 0;
     profiles.forEach((profile) => {
       if (!profile.voicePart) {
         unassigned += 1;
         return;
       }
+      if (!reportableLabels.has(profile.voicePart)) return;
       voiceParts.set(profile.voicePart, (voiceParts.get(profile.voicePart) ?? 0) + 1);
       const sectionCode = profileSectionCode(profile, configuration);
       if (sectionCode) sections.set(sectionCode, (sections.get(sectionCode) ?? 0) + 1);
@@ -120,7 +148,7 @@ function VoicePartBalance({
         <span className="status-pill">{profiles.length} profiles</span>
       </div>
       <div className="roster-balance__sections">
-        {configuration.sections.map((section) => {
+        {reportableSections(configuration).map((section) => {
           const filter = sectionFilterKey(section.code);
           const selected = selectedFilters.includes(filter);
           return (
@@ -140,7 +168,7 @@ function VoicePartBalance({
         })}
       </div>
       <div className="roster-balance__parts">
-        {configuration.voiceParts.map((voicePart) => {
+        {reportableVoiceParts(configuration).map((voicePart) => {
           const filter = voicePartFilterKey(voicePart.label);
           const selected = selectedFilters.includes(filter);
           return (
