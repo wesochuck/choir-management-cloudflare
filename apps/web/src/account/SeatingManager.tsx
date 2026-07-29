@@ -900,6 +900,10 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     () => eligibleProfiles.filter(({ id }) => !assignedIds.has(id)),
     [assignedIds, eligibleProfiles],
   );
+  const lookupProfiles = useMemo(() => {
+    const presentIds = new Set([...unassignedProfiles.map(({ id }) => id), ...assignedIds]);
+    return (resources?.profiles ?? []).filter(({ id }) => !presentIds.has(id));
+  }, [assignedIds, resources?.profiles, unassignedProfiles]);
   const currentFormation = useMemo(() => {
     const found = resources?.seating.formations.find(({ id }) => id === chart.formationId);
     return found ?? resources?.seating.formations[0] ?? null;
@@ -2217,7 +2221,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
             />
           </label>
           <div className="seating-lookup-list">
-            {resources.profiles
+            {lookupProfiles
               .filter((profile) => {
                 const normalized = lookupQuery.trim().toLocaleLowerCase();
                 return (
