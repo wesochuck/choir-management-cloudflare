@@ -12,6 +12,7 @@ import {
   saveTicketBundle,
 } from "../auth/api";
 import { TicketScanner } from "./TicketScanner";
+import { QRCodeShareCard } from "./QRCodeShareCard";
 
 type OrderState =
   | { readonly status: "error" }
@@ -214,6 +215,11 @@ export function TicketingManager({
       <p className="eyebrow">Manager tools</p>
       <h2 id="ticketing-manager-heading">Ticket Orders</h2>
       <p>Ticket prices and capacity are configured on each performance.</p>
+      <QRCodeShareCard
+        description="Share this page with your audience so they can see available performances and buy tickets."
+        path="/tickets"
+        title="Public ticketing page"
+      />
       <div className="table-actions">
         <a className="button button--secondary" href="/admin/tickets/scan">
           Scan tickets

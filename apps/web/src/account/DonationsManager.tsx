@@ -11,6 +11,7 @@ import { Dialog } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
 import { getOrganizationDonationSettings, updateOrganizationDonationSettings } from "../auth/api";
+import { QRCodeShareCard } from "./QRCodeShareCard";
 
 type DonationState =
   | { readonly status: "error" }
@@ -224,6 +225,11 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           {message}
         </p>
       ) : null}
+      <QRCodeShareCard
+        description="Share this page with supporters so they can choose a donation level or enter a custom amount."
+        path="/donate"
+        title="Public donation page"
+      />
       <div className="form-actions">
         <button
           className={`button ${tab === "donations" ? "button--primary" : "button--secondary"}`}

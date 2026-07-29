@@ -3330,6 +3330,70 @@ footer {
   margin-top: 1.25rem;
 }
 
+.public-link-share {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-raised);
+}
+
+.public-link-share__details {
+  display: grid;
+  min-width: 0;
+  gap: 0.6rem;
+}
+
+.public-link-share__details h3,
+.public-link-share__details p {
+  margin: 0;
+}
+
+.public-link-share__url-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.public-link-share__url-row a {
+  min-width: 12rem;
+  flex: 1 1 20rem;
+  overflow: hidden;
+  color: var(--color-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-link-share__qr {
+  display: grid;
+  width: 10rem;
+  min-height: 10rem;
+  place-items: center;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+}
+
+.public-link-share__qr img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.public-link-share__qr .notice {
+  margin: 0;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
 .table-heading {
   display: flex;
   align-items: baseline;
@@ -4613,5 +4677,14 @@ footer {
     max-height: 92vh;
     border-radius: 0.85rem 0.85rem 0 0;
     padding: 1rem;
+  }
+
+  .public-link-share {
+    grid-template-columns: 1fr;
+  }
+
+  .public-link-share__qr {
+    width: 8.5rem;
+    min-height: 8.5rem;
   }
 }
