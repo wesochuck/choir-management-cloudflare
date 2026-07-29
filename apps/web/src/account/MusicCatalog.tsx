@@ -294,7 +294,8 @@ function MusicCatalogTable({
     [pieces],
   );
   const needle = search.trim().toLocaleLowerCase();
-  const visiblePieces = pieces.filter((piece) => {
+  const selected = selectedGenres.map(genreKey);
+  const matchesPiece = (piece: OrganizationMusicPiece): boolean => {
     const matchesSearch = [
       piece.title,
       piece.composer,
@@ -306,14 +307,42 @@ function MusicCatalogTable({
       .toLocaleLowerCase()
       .includes(needle);
     const pieceGenres = piece.genres.map(genreKey);
-    const selected = selectedGenres.map(genreKey);
     const matchesGenres =
       selected.length === 0 ||
       (genreFilterMode === "and"
         ? selected.every((genre) => pieceGenres.includes(genre))
         : selected.some((genre) => pieceGenres.includes(genre)));
     return matchesSearch && matchesGenres;
+  };
+  const matchingIds = new Set(pieces.filter(matchesPiece).map((piece) => piece.id));
+  const childrenByParent = new Map<string, OrganizationMusicPiece[]>();
+  pieces.forEach((piece) => {
+    if (!piece.parentId) return;
+    const children = childrenByParent.get(piece.parentId) ?? [];
+    children.push(piece);
+    childrenByParent.set(piece.parentId, children);
   });
+  const visiblePieces: OrganizationMusicPiece[] = [];
+  const includedIds = new Set<string>();
+  pieces
+    .filter((piece) => !piece.parentId)
+    .forEach((parent) => {
+      const matchingChildren = (childrenByParent.get(parent.id) ?? []).filter((child) =>
+        matchingIds.has(child.id),
+      );
+      if (!matchingIds.has(parent.id) && matchingChildren.length === 0) return;
+      visiblePieces.push(parent);
+      includedIds.add(parent.id);
+      matchingChildren.forEach((child) => {
+        visiblePieces.push(child);
+        includedIds.add(child.id);
+      });
+    });
+  pieces.forEach((piece) => {
+    if (!includedIds.has(piece.id) && matchingIds.has(piece.id)) visiblePieces.push(piece);
+  });
+  const sortParent = (piece: OrganizationMusicPiece): OrganizationMusicPiece =>
+    piece.parentId ? (parents.get(piece.parentId) ?? piece) : piece;
 
   return (
     <div className="music-catalog-table">
@@ -331,38 +360,38 @@ function MusicCatalogTable({
                 {piece.genres.length > 0 ? <GenreChips genres={piece.genres} /> : null}
               </div>
             ),
-            sortValue: (piece) => piece.title,
+            sortValue: (piece) => sortParent(piece).title,
           },
           {
             header: "Composer / arranger",
             id: "composer",
             render: composerText,
-            sortValue: composerText,
+            sortValue: (piece) => composerText(sortParent(piece)),
           },
           {
             header: "Catalog ID",
             id: "catalogId",
             render: (piece) => piece.catalogId || "—",
-            sortValue: (piece) => piece.catalogId,
+            sortValue: (piece) => sortParent(piece).catalogId,
           },
           {
             header: "Duration",
             id: "duration",
             render: (piece) => durationText(piece.durationSeconds) || "—",
-            sortValue: (piece) => piece.durationSeconds,
+            sortValue: (piece) => sortParent(piece).durationSeconds,
           },
           {
             header: "Performances",
             id: "performances",
             render: (piece) => piece.performanceCount || "—",
-            sortValue: (piece) => piece.performanceCount,
+            sortValue: (piece) => sortParent(piece).performanceCount,
           },
           {
             header: "Last performed",
             id: "lastPerformed",
             render: (piece) =>
               piece.lastPerformedAt ? new Date(piece.lastPerformedAt).toLocaleDateString() : "—",
-            sortValue: (piece) => piece.lastPerformedAt,
+            sortValue: (piece) => sortParent(piece).lastPerformedAt,
           },
           {
             header: "Tracks",
@@ -371,7 +400,7 @@ function MusicCatalogTable({
               const count = trackCounts.get(piece.id) ?? 0;
               return count > 0 ? `${String(count)} attached` : "—";
             },
-            sortValue: (piece) => trackCounts.get(piece.id) ?? 0,
+            sortValue: (piece) => trackCounts.get(sortParent(piece).id) ?? 0,
           },
           {
             header: "Actions",
