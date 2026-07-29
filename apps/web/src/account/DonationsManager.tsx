@@ -561,7 +561,7 @@ function DonationHistoryTab({
         ) : null}
         {filteredDonations.length > 0 ? (
           <div className="table-scroll">
-            <table>
+            <table className="table--actions">
               <thead>
                 <tr>
                   <th>Donor</th>
@@ -750,7 +750,7 @@ function DonationLevelsTab({
       {settingsState.settings.levels.length === 0 ? <p>No donor levels configured yet.</p> : null}
       {settingsState.settings.levels.length > 0 ? (
         <div className="table-scroll donation-level-table-scroll">
-          <table className="data-table donation-level-table">
+          <table className="data-table donation-level-table table--actions">
             <thead>
               <tr>
                 <th scope="col">Level</th>

@@ -353,7 +353,7 @@ export function RsvpManagerPage({
           <p className="empty-state">No active profiles match this RSVP filter.</p>
         ) : (
           <div className="table-scroll">
-            <table className="data-table rsvp-manager__table">
+            <table className="data-table rsvp-manager__table table--actions">
               <thead>
                 <tr>
                   <th>Name</th>

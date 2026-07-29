@@ -580,7 +580,7 @@ export function TicketingManager({
             ) : null}
             {visibleOrders.length > 0 ? (
               <div className="table-scroll">
-                <table>
+                <table className="table--actions">
                   <thead>
                     <tr>
                       <th>Buyer name</th>
@@ -829,7 +829,7 @@ export function TicketingManager({
           ) : null}
           {bundleOrders.length > 0 ? (
             <div className="table-scroll">
-              <table>
+              <table className="table--actions">
                 <thead>
                   <tr>
                     <th>Buyer</th>

@@ -322,6 +322,10 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
         ]}
         emptyMessage="No polls yet. Create the first poll for your Organization."
         keySelector={(poll) => poll.id}
+        onRowClick={(poll) => {
+          void openEditDialog(poll);
+        }}
+        rowLabel={(poll) => `Edit poll ${poll.title}`}
         rows={state.polls}
       />
       <Dialog

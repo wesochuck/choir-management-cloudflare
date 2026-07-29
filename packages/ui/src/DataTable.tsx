@@ -32,6 +32,14 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
   );
 }
 
+function isActionColumn<T>(column: DataTableColumn<T>): boolean {
+  return (
+    column.id === "action" ||
+    column.id === "actions" ||
+    /^(action|actions|manage)$/i.test(column.header)
+  );
+}
+
 function compareValues(
   left: boolean | number | string | null | undefined,
   right: boolean | number | string | null | undefined,
@@ -98,11 +106,13 @@ export function DataTable<T>({
           <tr>
             {columns.map((column) => {
               const active = sort?.columnId === column.id;
+              const actionColumn = isActionColumn(column);
               return (
                 <th
                   aria-sort={
                     active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"
                   }
+                  className={actionColumn ? "data-table__cell--actions" : undefined}
                   key={column.id}
                 >
                   {column.sortValue ? (
@@ -146,7 +156,12 @@ export function DataTable<T>({
               aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
             >
               {columns.map((column) => (
-                <td key={column.id}>{column.render(row)}</td>
+                <td
+                  className={isActionColumn(column) ? "data-table__cell--actions" : undefined}
+                  key={column.id}
+                >
+                  {column.render(row)}
+                </td>
               ))}
             </tr>
           ))}
@@ -174,7 +189,14 @@ export function DataTable<T>({
             tabIndex={onRowClick ? 0 : undefined}
           >
             {columns.map((column) => (
-              <div className="data-table-card__field" key={column.id}>
+              <div
+                className={
+                  isActionColumn(column)
+                    ? "data-table-card__field data-table-card__field--actions"
+                    : "data-table-card__field"
+                }
+                key={column.id}
+              >
                 <span className="data-table-card__label">
                   {column.mobileLabel ?? column.header}
                 </span>
