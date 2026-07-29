@@ -743,6 +743,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE dues ADD COLUMN fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (fee_cents >= 0)",
     ],
   },
+  {
+    version: 39,
+    statements: [
+      `ALTER TABLE organization_metadata ADD COLUMN ticket_confirmation_settings_json TEXT NOT NULL
+       DEFAULT '{"successMessage":"Your purchase has been successfully processed.","pendingMessage":"We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.","willCallInstructions":"A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.","qrCodeInstructions":"Print or screenshot this entire page and bring it with you. We also sent a confirmation email with a link back to this page."}'`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -1,6 +1,7 @@
 import type {
   PublishedOrganizationProjection,
   PublicTicketReceipt,
+  TicketConfirmationSettings,
   TransactionFeeSettings,
 } from "@choir/contracts";
 import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
@@ -9,6 +10,7 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 import {
   createPublicTicketCheckout,
   getPublicCommerceProjection,
+  getPublicTicketConfirmationSettings,
   getPublicTransactionFeeSettings,
   getPublicTicketPurchase,
   getPublishedOrganizationProjection,
@@ -30,6 +32,16 @@ const DEFAULT_TRANSACTION_FEE_SETTINGS: TransactionFeeSettings = {
   percentage: 2.9,
 };
 
+const DEFAULT_TICKET_CONFIRMATION_SETTINGS: TicketConfirmationSettings = {
+  pendingMessage:
+    "We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.",
+  qrCodeInstructions:
+    "Print or screenshot this entire page and bring it with you. We also sent a confirmation email with a link back to this page.",
+  successMessage: "Your purchase has been successfully processed.",
+  willCallInstructions:
+    "A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.",
+};
+
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
     cents / 100,
@@ -46,11 +58,22 @@ function publicDate(value: string, timezone: string): string {
 
 function TicketReceipt({ token }: { readonly token: string }) {
   const [purchase, setPurchase] = useState<PublicTicketReceipt | null>(null);
+  const [confirmationSettings, setConfirmationSettings] = useState(
+    DEFAULT_TICKET_CONFIRMATION_SETTINGS,
+  );
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    getPublicTicketPurchase(token, controller.signal)
-      .then(setPurchase)
+    void Promise.all([
+      getPublicTicketPurchase(token, controller.signal),
+      getPublicTicketConfirmationSettings(controller.signal).catch(
+        () => DEFAULT_TICKET_CONFIRMATION_SETTINGS,
+      ),
+    ])
+      .then(([nextPurchase, nextSettings]) => {
+        setPurchase(nextPurchase);
+        setConfirmationSettings(nextSettings);
+      })
       .catch(() => {
         if (!controller.signal.aborted) setFailed(true);
       });
@@ -64,7 +87,14 @@ function TicketReceipt({ token }: { readonly token: string }) {
   return (
     <section className="public-section public-section--narrow">
       <p className="eyebrow">Order complete</p>
-      <h1>Your tickets are confirmed</h1>
+      <h1>
+        {purchase.status === "pending" ? "Ticket order processing" : "Your tickets are confirmed"}
+      </h1>
+      <p>
+        {purchase.status === "pending"
+          ? confirmationSettings.pendingMessage
+          : confirmationSettings.successMessage}
+      </p>
       {purchase.checkoutMode === "fake" ? (
         <p className="notice notice--warning">Staging simulation: no payment card was charged.</p>
       ) : null}
@@ -90,9 +120,10 @@ function TicketReceipt({ token }: { readonly token: string }) {
         <p>
           Total: <strong>{money(purchase.amountPaidCents)}</strong>
         </p>
+        <p>{confirmationSettings.willCallInstructions}</p>
         <details>
           <summary>Door credential</summary>
-          <p>Keep this credential private and present it to the ticket desk.</p>
+          <p>{confirmationSettings.qrCodeInstructions}</p>
           <code className="ticket-credential">{purchase.scanToken}</code>
         </details>
       </div>

@@ -6,6 +6,7 @@ import {
   organizationAuditionSettingsSchema,
   organizationAuditionUpdateRequestSchema,
   donationSettingsSchema,
+  ticketConfirmationSettingsSchema,
   transactionFeeSettingsSchema,
   organizationProfileRequestSchema,
   organizationRosterConfigurationRequestSchema,
@@ -106,6 +107,10 @@ import {
   readTransactionFeeSettingsFromStore,
   updateTransactionFeeSettingsInStore,
 } from "./transactionFeeSettingsStore";
+import {
+  readTicketConfirmationSettingsFromStore,
+  updateTicketConfirmationSettingsInStore,
+} from "./ticketConfirmationSettingsStore";
 import { getSetupStateFromStore, getModuleStateFromStore, manageSetupInStore } from "./setupStore";
 import { readAttendanceReportJobFromStore, readEventReminderJobFromStore } from "./schedulingStore";
 import { listSeasonsFromStore, listDuesFromStore, manageSeasonsInStore } from "./seasonStore";
@@ -970,6 +975,33 @@ async function transactionFeeSettingsUpdateHandler(
   });
 }
 
+async function ticketConfirmationSettingsUpdateHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const raw: unknown = await request.json().catch(() => null);
+  const parsed = ticketConfirmationSettingsSchema.safeParse(raw);
+  const context = z
+    .object({
+      actorUserId: z.string().min(1),
+      organizationId: z.string().min(1),
+      requestId: z.uuid(),
+    })
+    .safeParse(raw);
+  if (!parsed.success || !context.success) {
+    return Response.json({ code: "validation_failed" }, { status: 400 });
+  }
+  return updateTicketConfirmationSettingsInStore(
+    storage,
+    context.data.organizationId,
+    parsed.data,
+    {
+      actorUserId: context.data.actorUserId,
+      requestId: context.data.requestId,
+    },
+  );
+}
+
 async function manageCalendarCredential(
   storage: DurableObjectStorage,
   request: Request,
@@ -1407,6 +1439,9 @@ async function dispatchPostRequest(
   }
   if (pathname === "/internal/transaction-fee-settings") {
     return transactionFeeSettingsUpdateHandler(storage, request);
+  }
+  if (pathname === "/internal/ticket-confirmation-settings") {
+    return ticketConfirmationSettingsUpdateHandler(storage, request);
   }
   if (pathname === "/internal/donations/manage") return manageDonationsInStore(storage, request);
   if (pathname === "/internal/seasons/manage") return manageSeasonsInStore(storage, request);
@@ -1968,6 +2003,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return readDonationSettingsFromStore(storage, organizationId);
     case "/internal/transaction-fee-settings":
       return readTransactionFeeSettingsFromStore(storage, organizationId);
+    case "/internal/ticket-confirmation-settings":
+      return readTicketConfirmationSettingsFromStore(storage, organizationId);
     case "/internal/health":
       return Response.json({ status: "ok" });
     case "/internal/roster/configuration":

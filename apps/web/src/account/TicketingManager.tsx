@@ -1,15 +1,22 @@
-import type { OrganizationEvent, OrganizationTicketOrder, TicketBundle } from "@choir/contracts";
+import type {
+  OrganizationEvent,
+  OrganizationTicketOrder,
+  TicketBundle,
+  TicketConfirmationSettings,
+} from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
 import {
   deleteTicketBundle,
+  getOrganizationTicketConfirmationSettings,
   listOrganizationEvents,
   listOrganizationTicketOrders,
   listTicketBundles,
   refundOrganizationTicketOrder,
   resendTicketConfirmation,
   saveTicketBundle,
+  updateOrganizationTicketConfirmationSettings,
 } from "../auth/api";
 import { TicketScanner } from "./TicketScanner";
 import { QRCodeShareCard } from "./QRCodeShareCard";
@@ -24,6 +31,16 @@ function money(cents: number): string {
     cents / 100,
   );
 }
+
+const DEFAULT_TICKET_CONFIRMATION_SETTINGS: TicketConfirmationSettings = {
+  pendingMessage:
+    "We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.",
+  qrCodeInstructions:
+    "Print or screenshot this entire page and bring it with you. We also sent a confirmation email with a link back to this page.",
+  successMessage: "Your purchase has been successfully processed.",
+  willCallInstructions:
+    "A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.",
+};
 
 // This component coordinates three intentionally co-located manager tools and their shared state.
 // eslint-disable-next-line complexity
@@ -52,6 +69,10 @@ export function TicketingManager({
   const [bundleSaleEnd, setBundleSaleEnd] = useState("");
   const [bundleEventIds, setBundleEventIds] = useState<readonly string[]>([]);
   const [bundleIsActive, setBundleIsActive] = useState(true);
+  const [confirmationDraft, setConfirmationDraft] = useState<TicketConfirmationSettings>(
+    DEFAULT_TICKET_CONFIRMATION_SETTINGS,
+  );
+  const [confirmationSaving, setConfirmationSaving] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -62,11 +83,15 @@ export function TicketingManager({
     const bundlesRequest = scanOnly
       ? Promise.resolve<readonly TicketBundle[]>([])
       : listTicketBundles(controller.signal);
+    const confirmationRequest = scanOnly
+      ? Promise.resolve<TicketConfirmationSettings | null>(null)
+      : getOrganizationTicketConfirmationSettings(controller.signal);
     void Promise.allSettled([
       ordersRequest,
       listOrganizationEvents(controller.signal),
       bundlesRequest,
-    ]).then(([ordersResult, eventsResult, bundlesResult]) => {
+      confirmationRequest,
+    ]).then(([ordersResult, eventsResult, bundlesResult, confirmationResult]) => {
       if (controller.signal.aborted) return;
       if (ordersResult.status === "fulfilled") {
         setState({ orders: ordersResult.value, status: "ready" });
@@ -86,6 +111,9 @@ export function TicketingManager({
           );
       }
       if (bundlesResult.status === "fulfilled") setBundles(bundlesResult.value);
+      if (confirmationResult.status === "fulfilled" && confirmationResult.value) {
+        setConfirmationDraft(confirmationResult.value);
+      }
     });
     return () => {
       controller.abort();
@@ -230,6 +258,21 @@ export function TicketingManager({
     }
   }
 
+  async function saveConfirmationSettings(formEvent: SyntheticEvent<HTMLFormElement>) {
+    formEvent.preventDefault();
+    setConfirmationSaving(true);
+    setMessage(null);
+    try {
+      const saved = await updateOrganizationTicketConfirmationSettings(confirmationDraft);
+      setConfirmationDraft(saved);
+      setMessage("Ticket confirmation wording saved.");
+    } catch {
+      setMessage("Ticket confirmation wording could not be saved.");
+    } finally {
+      setConfirmationSaving(false);
+    }
+  }
+
   const selectedPerformance = ticketEvents.find(({ id }) => id === selectedPerformanceId);
   const performanceOrders =
     state.status === "ready"
@@ -296,6 +339,77 @@ export function TicketingManager({
           Scan tickets
         </a>
       </div>
+      <form
+        className="ticket-confirmation-settings"
+        onSubmit={(event) => {
+          void saveConfirmationSettings(event);
+        }}
+      >
+        <div>
+          <p className="eyebrow">Confirmation page</p>
+          <h3>Ticket sales wording</h3>
+          <p>Customize the messages shown to buyers after they purchase tickets.</p>
+        </div>
+        <div className="ticket-confirmation-settings__grid">
+          <label className="field">
+            Success Message
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  successMessage: event.target.value,
+                }));
+              }}
+              rows={3}
+              value={confirmationDraft.successMessage}
+            />
+          </label>
+          <label className="field">
+            Pending / Unverified Message
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  pendingMessage: event.target.value,
+                }));
+              }}
+              rows={3}
+              value={confirmationDraft.pendingMessage}
+            />
+          </label>
+          <label className="field">
+            Will Call Instructions
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  willCallInstructions: event.target.value,
+                }));
+              }}
+              rows={4}
+              value={confirmationDraft.willCallInstructions}
+            />
+          </label>
+          <label className="field">
+            QR Code Instructions
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  qrCodeInstructions: event.target.value,
+                }));
+              }}
+              rows={4}
+              value={confirmationDraft.qrCodeInstructions}
+            />
+          </label>
+        </div>
+        <div className="form-actions">
+          <button className="button button--primary" disabled={confirmationSaving} type="submit">
+            {confirmationSaving ? "Saving…" : "Save ticket wording"}
+          </button>
+        </div>
+      </form>
       {message ? (
         <p className="notice notice--info" role="status">
           {message}

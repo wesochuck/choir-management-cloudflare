@@ -52,6 +52,8 @@ import {
   organizationExportStatusResponseSchema,
   donationCheckoutRequestSchema,
   donationSettingsSchema,
+  ticketConfirmationSettingsSchema,
+  ticketConfirmationSettingsResponseSchema,
   transactionFeeSettingsSchema,
   transactionFeeSettingsResponseSchema,
   donationRefundRequestSchema,
@@ -1112,6 +1114,40 @@ router.get("/api/public/transaction-fee-settings", async (context) => {
       {
         code: "service_unavailable",
         message: "Transaction fee settings are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/public/ticket-confirmation-settings", async (context) => {
+  validateStartupConfig(context.env);
+  const resolvedOrganization = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolvedOrganization.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Ticketing is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const url = new URL("https://organization.internal/internal/ticket-confirmation-settings");
+    url.searchParams.set("organizationId", resolvedOrganization.value.organizationId);
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(resolvedOrganization.value.organizationId),
+    ).fetch(url);
+    const settings = ticketConfirmationSettingsSchema.safeParse(await response.json());
+    if (!response.ok || !settings.success) throw new Error("invalid_settings");
+    return context.json({ ...settings.data, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Ticket confirmation wording is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
@@ -4112,6 +4148,110 @@ router.put("/api/organization/transaction-fee-settings", async (context) => {
       {
         code: "service_unavailable",
         message: "Transaction fee settings could not be saved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/ticket-confirmation-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const url = new URL("https://organization.internal/internal/ticket-confirmation-settings");
+    url.searchParams.set("organizationId", authorization.organizationId);
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch(url);
+    const settings = ticketConfirmationSettingsSchema.safeParse(await response.json());
+    if (!response.ok || !settings.success) throw new Error("invalid_settings");
+    return context.json(
+      ticketConfirmationSettingsResponseSchema.parse({
+        ...settings.data,
+        requestId: context.get("requestId"),
+      }),
+    );
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Ticket confirmation wording could not be retrieved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/ticket-confirmation-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = ticketConfirmationSettingsSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid ticket confirmation wording is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const response = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch("https://organization.internal/internal/ticket-confirmation-settings", {
+      body: JSON.stringify({
+        ...body.data,
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return context.json(
+        {
+          code:
+            response.status === 400
+              ? "validation_failed"
+              : "ticket_confirmation_settings_update_failed",
+          message:
+            response.status === 400
+              ? "Valid ticket confirmation wording is required."
+              : "Ticket confirmation wording could not be saved.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        response.status === 400 || response.status === 409 ? response.status : 503,
+      );
+    }
+    const settings = ticketConfirmationSettingsSchema.safeParse(await response.json());
+    if (!settings.success) throw new Error("invalid_settings");
+    return context.json(
+      ticketConfirmationSettingsResponseSchema.parse({
+        ...settings.data,
+        requestId: context.get("requestId"),
+      }),
+    );
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Ticket confirmation wording could not be saved.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

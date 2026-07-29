@@ -1075,6 +1075,17 @@ export const transactionFeeSettingsResponseSchema = transactionFeeSettingsSchema
   requestId: requestIdSchema,
 });
 
+export const ticketConfirmationSettingsSchema = z.object({
+  pendingMessage: z.string().trim().max(5_000),
+  qrCodeInstructions: z.string().trim().max(5_000),
+  successMessage: z.string().trim().max(5_000),
+  willCallInstructions: z.string().trim().max(5_000),
+});
+
+export const ticketConfirmationSettingsResponseSchema = ticketConfirmationSettingsSchema.extend({
+  requestId: requestIdSchema,
+});
+
 export const donationCheckoutRequestSchema = z.object({
   amountCents: z.number().int().positive().max(10_000_000),
   anonymous: z.boolean().default(false),
@@ -1141,6 +1152,7 @@ export type DonationTributeType = z.infer<typeof donationTributeTypeSchema>;
 export type DonationLevel = z.infer<typeof donationLevelSchema>;
 export type DonationSettings = z.infer<typeof donationSettingsSchema>;
 export type TransactionFeeSettings = z.infer<typeof transactionFeeSettingsSchema>;
+export type TicketConfirmationSettings = z.infer<typeof ticketConfirmationSettingsSchema>;
 export type DonationCheckoutRequest = z.infer<typeof donationCheckoutRequestSchema>;
 export type DonationRecord = z.infer<typeof donationRecordSchema>;
 export type DonationRefundRequest = z.infer<typeof donationRefundRequestSchema>;

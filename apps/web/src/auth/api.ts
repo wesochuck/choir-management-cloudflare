@@ -83,6 +83,7 @@ import {
   organizationAuditionResponseSchema,
   organizationAuditionUpdateRequestSchema,
   donationSettingsResponseSchema,
+  ticketConfirmationSettingsResponseSchema,
   transactionFeeSettingsResponseSchema,
   organizationExportStartResponseSchema,
   organizationExportStatusResponseSchema,
@@ -105,6 +106,7 @@ import {
   type CommunicationTemplateRequest,
   type CommunicationTestEmailRequest,
   type TransactionFeeSettings,
+  type TicketConfirmationSettings,
   type AccountPasswordRequest,
   type AccountSecurityResponse,
   type AuthSession,
@@ -983,6 +985,34 @@ export async function updateOrganizationTransactionFeeSettings(
     method: "PUT",
   });
   return transactionFeeSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getPublicTicketConfirmationSettings(
+  signal?: AbortSignal,
+): Promise<TicketConfirmationSettings> {
+  const response = await request("/api/public/ticket-confirmation-settings", {
+    signal: signal ?? null,
+  });
+  return ticketConfirmationSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationTicketConfirmationSettings(
+  signal?: AbortSignal,
+): Promise<TicketConfirmationSettings> {
+  const response = await request("/api/organization/ticket-confirmation-settings", {
+    signal: signal ?? null,
+  });
+  return ticketConfirmationSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationTicketConfirmationSettings(
+  settings: TicketConfirmationSettings,
+): Promise<TicketConfirmationSettings> {
+  const response = await request("/api/organization/ticket-confirmation-settings", {
+    body: JSON.stringify(settings),
+    method: "PUT",
+  });
+  return ticketConfirmationSettingsResponseSchema.parse(await response.json());
 }
 
 export async function getPublicDonationSettings(signal?: AbortSignal): Promise<DonationSettings> {
