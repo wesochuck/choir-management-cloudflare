@@ -495,15 +495,11 @@ function OverviewPage({
 
   return (
     <>
-      {!admin ? (
+      {!admin && !platform ? (
         <div className="workspace-hero">
           <p className="eyebrow">{workspaceLabel(workspace)}</p>
-          <h1>{platform ? "Platform operations" : "Your choir at a glance"}</h1>
-          <p>
-            {platform
-              ? "Keep Organization operations safe, scoped, and auditable."
-              : "Everything you need for the next rehearsal, performance, and practice session."}
-          </p>
+          <h1>Your choir at a glance</h1>
+          <p>Everything you need for the next rehearsal, performance, and practice session.</p>
         </div>
       ) : null}
       {admin ? <OrganizationOverviewSummary navigate={navigate} /> : null}
