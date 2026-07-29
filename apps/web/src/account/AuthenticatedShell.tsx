@@ -286,6 +286,7 @@ function pageTitle(pathname: string): string {
     ["/admin/settings/modules", "Modules"],
     ["/admin/settings/setup-checklist", "Setup checklist"],
     ["/admin/roster", "Roster"],
+    ["/admin/auditions", "Auditions"],
     ["/admin/events", "Events"],
     ["/admin/venues", "Venues"],
     ["/admin/rsvp", "Event RSVPs"],
