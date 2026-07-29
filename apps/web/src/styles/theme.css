@@ -1286,6 +1286,24 @@ button.music-genre-chip.is-selected {
   color: var(--color-text-muted);
 }
 
+.music-table-track-player {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto;
+  min-width: 16rem;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.music-table-track-player .music-audio-track__player {
+  min-width: 0;
+}
+
+.music-table-track-player > .text-button {
+  min-width: 1.75rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 1.1rem;
+}
+
 .music-piece-form .field-hint {
   color: var(--color-text-muted);
   font-size: 0.78rem;

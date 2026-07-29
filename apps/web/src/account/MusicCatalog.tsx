@@ -488,6 +488,11 @@ function MusicCatalogTable({
             sortValue: (piece) => sortParent(piece).lastPerformedAt,
           },
           {
+            header: "Play",
+            id: "play",
+            render: (piece) => <MusicTableTuttiPlayer piece={piece} />,
+          },
+          {
             header: "Tracks",
             id: "tracks",
             render: (piece) => {
@@ -967,6 +972,49 @@ function MusicInlineAudioPlayer({ label, src }: { readonly label: string; readon
       <span aria-hidden="true" className="music-audio-track__time">
         {audioTimeText(duration)}
       </span>
+    </div>
+  );
+}
+
+function MusicTableTuttiPlayer({ piece }: { readonly piece: OrganizationMusicPiece }) {
+  const fileId = piece.trackFileIds.tutti;
+  const [expanded, setExpanded] = useState(false);
+
+  if (!fileId) return <span>—</span>;
+  if (!expanded) {
+    return (
+      <button
+        className="button button--secondary button--small"
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setExpanded(true);
+        }}
+      >
+        <span aria-hidden="true">▶</span> Play
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="music-table-track-player"
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
+    >
+      <MusicInlineAudioPlayer label="Tutti" src={`/api/organization/files/${fileId}`} />
+      <button
+        aria-label={`Close player for ${piece.title}`}
+        className="text-button"
+        title="Close player"
+        type="button"
+        onClick={() => {
+          setExpanded(false);
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 }
