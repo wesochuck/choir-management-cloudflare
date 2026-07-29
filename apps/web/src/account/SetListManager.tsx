@@ -487,6 +487,12 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
             >
               Print list
             </button>
+            <a
+              className="button button--secondary"
+              href={`/practice?eventId=${encodeURIComponent(selectedEvent.id)}`}
+            >
+              Practice player
+            </a>
           </div>
         ) : null}
       </div>
@@ -687,6 +693,19 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                         >
                           Set list details
                         </button>
+                        {item.pieceId &&
+                        resources.music.some(
+                          (piece) =>
+                            (piece.id === item.pieceId || piece.parentId === item.pieceId) &&
+                            Object.keys(piece.trackFileIds).length > 0,
+                        ) ? (
+                          <a
+                            className="text-button"
+                            href={`/practice?pieceId=${encodeURIComponent(item.pieceId)}`}
+                          >
+                            Play
+                          </a>
+                        ) : null}
                         <button
                           aria-label={`Move ${item.title} up`}
                           className="text-button"
