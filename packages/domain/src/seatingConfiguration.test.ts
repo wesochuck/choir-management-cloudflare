@@ -8,7 +8,7 @@ describe("validateSeatingConfig", () => {
       validateSeatingConfig([
         { id: "S", name: "Soprano", capacity: 10 },
         { id: "A", name: "Alto", capacity: 5 },
-      ])
+      ]),
     ).toBe(true);
   });
 
@@ -17,7 +17,7 @@ describe("validateSeatingConfig", () => {
       validateSeatingConfig([
         { id: "S", name: "Soprano", capacity: 10 },
         { id: "A", name: "Alto", capacity: 0 },
-      ])
+      ]),
     ).toBe(false);
   });
 
@@ -26,7 +26,7 @@ describe("validateSeatingConfig", () => {
       validateSeatingConfig([
         { id: "S", name: "Soprano", capacity: 10 },
         { id: "A", name: "Alto", capacity: -5 },
-      ])
+      ]),
     ).toBe(false);
   });
 

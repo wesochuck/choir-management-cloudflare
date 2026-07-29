@@ -25,5 +25,5 @@ export interface SeatingSection {
 }
 
 export function validateSeatingConfig(sections: SeatingSection[]): boolean {
-  return sections.every(s => s.capacity > 0);
+  return sections.every((s) => s.capacity > 0);
 }
