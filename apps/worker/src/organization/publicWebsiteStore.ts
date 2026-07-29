@@ -1,4 +1,8 @@
-import { publicWebsiteSettingsRequestSchema, publicWebsiteSettingsSchema } from "@choir/contracts";
+import {
+  publicWebsiteProjectionPayloadSchema,
+  publicWebsiteSettingsRequestSchema,
+  publicWebsiteSettingsSchema,
+} from "@choir/contracts";
 import { z } from "zod";
 
 const actorSchema = z.object({
@@ -161,6 +165,79 @@ export function readPublicWebsiteSettingsFromStore(
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
   return Response.json(parsedSettings(settingsRow(storage), organization.name));
+}
+
+export function readPublicCommerceProjectionFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  const organization = identity(storage);
+  if (organization?.organizationId !== organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const performances = storage.sql
+    .exec<PublicEventRow>(
+      `SELECT e.id, e.title, e.starts_at AS startsAt, e.location,
+        e.advance_price_cents AS advancePriceCents,
+        e.day_of_price_cents AS dayOfPriceCents, e.doors_open_time AS doorsOpenTime,
+        e.is_ticketing_enabled AS isTicketingEnabled, e.ticket_capacity AS ticketCapacity,
+        e.public_details AS publicDetails, e.public_graphic_file_id AS graphicFileId,
+        COALESCE(v.name, '') AS venueName
+       FROM events e LEFT JOIN venues v ON v.id = e.venue_id
+       WHERE e.is_archived = 0 AND e.type = 'Performance' AND e.is_ticketing_enabled = 1
+       ORDER BY e.starts_at DESC, e.id DESC LIMIT 100`,
+    )
+    .toArray()
+    .map((event) => ({ ...event, isTicketingEnabled: event.isTicketingEnabled === 1 }));
+  const performanceIds = new Set(performances.map(({ id }) => id));
+  const ticketBundles = storage.sql
+    .exec<PublicTicketBundleRow>(
+      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt
+       FROM ticket_bundles WHERE is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 100`,
+    )
+    .toArray()
+    .map((bundle) => ({
+      ...bundle,
+      eventIds: storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly eventId: string }>(
+          `SELECT event_id AS eventId FROM ticket_bundle_events
+           WHERE bundle_id = ? ORDER BY sort_order, event_id`,
+          bundle.id,
+        )
+        .toArray()
+        .map(({ eventId }) => eventId),
+    }))
+    .filter(
+      (bundle) =>
+        bundle.eventIds.length > 0 &&
+        bundle.eventIds.every((eventId) => performanceIds.has(eventId)),
+    );
+  const payload = publicWebsiteProjectionPayloadSchema.parse({
+    mediaFileIds: [],
+    organizationName: organization.name,
+    performances,
+    settings: {
+      aboutUsText: "",
+      bodyFont: "system",
+      contactEmail: "",
+      enabledNavigation: ["tickets", "donations"],
+      headerFont: "system",
+      heroFileId: null,
+      heroHeadline: `${organization.name} tickets`,
+      heroSubtitle: "Purchase tickets and support our organization.",
+      historyText: "",
+      logoFileId: null,
+      showBrandingHeaderFooter: false,
+    },
+    ticketBundles,
+    timezone: organization.timezone,
+  });
+  return Response.json({
+    generatedAt: new Date().toISOString(),
+    organizationId: organization.organizationId,
+    payload,
+    version: 1,
+  });
 }
 
 function updateSettings(

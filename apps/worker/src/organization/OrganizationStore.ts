@@ -81,6 +81,7 @@ import {
 import { currentOrganizationSchemaVersion } from "./schema";
 import {
   managePublicWebsiteInStore,
+  readPublicCommerceProjectionFromStore,
   readPublicWebsiteSettingsFromStore,
 } from "./publicWebsiteStore";
 import {
@@ -1710,6 +1711,8 @@ const contentGetHandlers: Record<
     readOrganizationExportJobFromStore(storage, organizationId, url.searchParams.get("exportId")),
   "/internal/website/settings": (storage, _url, organizationId) =>
     readPublicWebsiteSettingsFromStore(storage, organizationId),
+  "/internal/website/commerce-projection": (storage, _url, organizationId) =>
+    readPublicCommerceProjectionFromStore(storage, organizationId),
   "/internal/polls": (storage, _url, organizationId) => listPollsFromStore(storage, organizationId),
   "/internal/polls/archived": (storage, _url, organizationId) =>
     listArchivedPollsFromStore(storage, organizationId),

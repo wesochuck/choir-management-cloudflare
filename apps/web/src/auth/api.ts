@@ -474,6 +474,17 @@ export async function getPublishedOrganizationProjection(
   return publishedOrganizationProjectionSchema.parse(await response.json());
 }
 
+export async function getPublicCommerceProjection(
+  signal?: AbortSignal,
+): Promise<PublishedOrganizationProjection> {
+  const response = await fetch("/api/public/commerce-projection", {
+    headers: { accept: "application/json" },
+    signal: signal ?? null,
+  });
+  if (!response.ok) throw await responseError(response);
+  return publishedOrganizationProjectionSchema.parse(await response.json());
+}
+
 export async function getOrganizationPublicWebsiteSettings(
   signal?: AbortSignal,
 ): Promise<PublicWebsiteSettings> {

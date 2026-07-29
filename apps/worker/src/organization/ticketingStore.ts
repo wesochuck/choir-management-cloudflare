@@ -271,7 +271,6 @@ function ticketEventIsOpen(event: TicketEventRow | undefined, now: Date): event 
   return (
     event?.type === "Performance" &&
     event.isArchived === 0 &&
-    event.publishOnWebsite === 1 &&
     event.isTicketingEnabled === 1 &&
     new Date(event.startsAt).getTime() > now.getTime()
   );

@@ -8,6 +8,7 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 
 import {
   createPublicTicketCheckout,
+  getPublicCommerceProjection,
   getPublicTransactionFeeSettings,
   getPublicTicketPurchase,
   getPublishedOrganizationProjection,
@@ -464,11 +465,8 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
   useEffect(() => {
     const controller = new AbortController();
     void getPublishedOrganizationProjection(controller.signal)
+      .then((projection) => projection ?? getPublicCommerceProjection(controller.signal))
       .then(async (projection) => {
-        if (!projection) {
-          setState({ status: "error" });
-          return;
-        }
         const feeSettings = await getPublicTransactionFeeSettings(controller.signal).catch(
           () => DEFAULT_TRANSACTION_FEE_SETTINGS,
         );

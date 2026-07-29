@@ -1054,6 +1054,37 @@ router.get("/api/public/projection", async (context) => {
   return context.json(published.projection);
 });
 
+router.get("/api/public/commerce-projection", async (context) => {
+  validateStartupConfig(context.env);
+  const resolvedOrganization = await resolveOrganization(new URL(context.req.url), context.env);
+  if (!resolvedOrganization.ok) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Ticketing is not available for this hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const url = new URL("https://organization.internal/internal/website/commerce-projection");
+  url.searchParams.set("organizationId", resolvedOrganization.value.organizationId);
+  const response = await context.env.ORGANIZATION_STORE.get(
+    context.env.ORGANIZATION_STORE.idFromName(resolvedOrganization.value.organizationId),
+  ).fetch(url);
+  if (!response.ok) {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Ticketing is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+  return context.json(await response.json());
+});
+
 router.get("/api/public/transaction-fee-settings", async (context) => {
   validateStartupConfig(context.env);
   const resolvedOrganization = await resolveOrganization(new URL(context.req.url), context.env);
