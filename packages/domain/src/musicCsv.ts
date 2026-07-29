@@ -1,3 +1,5 @@
+import { mapCsvColumns, type CsvColumnMapping } from "./csvMapping";
+
 export interface MusicCsvPiece {
   readonly arranger: string;
   readonly catalogId: string;
@@ -23,6 +25,20 @@ export class MusicCsvError extends Error {
 
 export const musicCsvHeader =
   "Title,Composer,Arranger,Copies,Catalog ID,Duration,Voicing,Applies To,Genres,Purchase Date,Notes";
+
+export const musicCsvColumnOptions = [
+  "Title",
+  "Composer",
+  "Arranger",
+  "Copies",
+  "Catalog ID",
+  "Duration",
+  "Voicing",
+  "Applies To",
+  "Genres",
+  "Purchase Date",
+  "Notes",
+] as const;
 
 const dangerousFormulaPrefix = /^[=+\-@\t\r]/;
 
@@ -154,6 +170,22 @@ function musicHeaderIndexes(headers: readonly string[]): MusicHeaderIndexes {
     title: headerIndex(headers, "title"),
     voicing: headerIndex(headers, "voicing"),
   };
+}
+
+export function musicCsvColumnForHeader(header: string): string | null {
+  const normalized = header.trim().toLocaleLowerCase();
+  if (["title"].includes(normalized)) return "Title";
+  if (["composer"].includes(normalized)) return "Composer";
+  if (["arranger"].includes(normalized)) return "Arranger";
+  if (["copies", "copy count"].includes(normalized)) return "Copies";
+  if (["catalog id", "catalog", "id"].includes(normalized)) return "Catalog ID";
+  if (["duration", "length", "time"].includes(normalized)) return "Duration";
+  if (["voicing"].includes(normalized)) return "Voicing";
+  if (["applies to", "sections"].includes(normalized)) return "Applies To";
+  if (["genres", "genre"].includes(normalized)) return "Genres";
+  if (["purchase date"].includes(normalized)) return "Purchase Date";
+  if (["notes", "note"].includes(normalized)) return "Notes";
+  return null;
 }
 
 function cell(cells: readonly string[], index: number): string {
@@ -293,19 +325,21 @@ export function inspectMusicCsv(csv: string): MusicCsvInspection {
     validators.forEach(([columnIndex, fallbackHeader, validate]) => {
       if (columnIndex < 0) return;
       const invalidRows: number[] = [];
-      let message: string | null = null;
+      let message = "This column contains unsupported values.";
       dataRows.forEach((cells, rowIndex) => {
         try {
           validate(cell(cells, columnIndex), rowIndex + 2);
         } catch (error: unknown) {
           invalidRows.push(rowIndex + 2);
-          message ??= warningMessage(error);
+          if (message === "This column contains unsupported values.") {
+            message = warningMessage(error);
+          }
         }
       });
       if (invalidRows.length > 0) {
         warnings.push({
-          header: headers[columnIndex] || fallbackHeader,
-          message: message ?? "This column contains unsupported values.",
+          header: headers[columnIndex] ?? fallbackHeader,
+          message,
           rows: invalidRows,
         });
       }
@@ -328,12 +362,12 @@ export function selectMusicCsvColumns(csv: string, excludedHeaders: readonly str
   const [headerRow, ...dataRows] = rows;
   if (!headerRow) return csv;
   const excluded = new Set(excludedHeaders.map((header) => header.trim().toLocaleLowerCase()));
-  const keptIndexes = headerRow.reduce<number[]>((indexes, header, index) => {
-    if (!excluded.has(header.trim().toLocaleLowerCase())) indexes.push(index);
-    return indexes;
-  }, []);
-  return [
-    keptIndexes.map((index) => csvField(headerRow[index] ?? "")).join(","),
-    ...dataRows.map((row) => keptIndexes.map((index) => csvField(row[index] ?? "")).join(",")),
-  ].join("\n");
+  const mappings = headerRow.flatMap<CsvColumnMapping>((header, sourceIndex) =>
+    excluded.has(header.trim().toLocaleLowerCase()) ? [] : [{ sourceIndex, targetHeader: header }],
+  );
+  return mapCsvColumns([headerRow, ...dataRows], mappings);
+}
+
+export function mapMusicCsvColumns(csv: string, mappings: readonly CsvColumnMapping[]): string {
+  return mapCsvColumns(parseRows(csv.replace(/^\uFEFF/, "")), mappings);
 }

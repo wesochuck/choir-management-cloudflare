@@ -5,6 +5,14 @@ import type {
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { organizationInvitationRequestSchema } from "@choir/contracts";
+import {
+  inspectRosterCsv,
+  mapRosterCsvColumns,
+  rosterCsvColumnForHeader,
+  rosterCsvColumnOptions,
+  type CsvColumnMapping,
+  type RosterCsvInspection,
+} from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
@@ -239,6 +247,14 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [rosterImportCsv, setRosterImportCsv] = useState("");
+  const [rosterImportHeaders, setRosterImportHeaders] = useState<readonly string[]>([]);
+  const [rosterImportMappings, setRosterImportMappings] = useState<readonly CsvColumnMapping[]>([]);
+  const [rosterImportInspection, setRosterImportInspection] = useState<RosterCsvInspection | null>(
+    null,
+  );
+  const [rosterImportConfirmed, setRosterImportConfirmed] = useState(false);
+  const [rosterImportInspecting, setRosterImportInspecting] = useState(false);
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [profileEmail, setProfileEmail] = useState("");
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
@@ -327,6 +343,54 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     if (busy) return;
     setImportDialogOpen(false);
     setImportFile(null);
+    setRosterImportCsv("");
+    setRosterImportHeaders([]);
+    setRosterImportMappings([]);
+    setRosterImportInspection(null);
+    setRosterImportConfirmed(false);
+    setRosterImportInspecting(false);
+  }
+
+  function handleRosterImportFile(file: File | null): void {
+    setImportFile(file);
+    setRosterImportCsv("");
+    setRosterImportHeaders([]);
+    setRosterImportMappings([]);
+    setRosterImportInspection(null);
+    setRosterImportConfirmed(false);
+    setRosterImportInspecting(Boolean(file));
+    setError(null);
+    if (!file) return;
+    void file
+      .text()
+      .then((csv) => {
+        const initialInspection = inspectRosterCsv(csv);
+        const mappings = initialInspection.headers.map((header, sourceIndex) => ({
+          sourceIndex,
+          targetHeader: rosterCsvColumnForHeader(header),
+        }));
+        setRosterImportCsv(csv);
+        setRosterImportHeaders(initialInspection.headers);
+        setRosterImportMappings(mappings);
+        const inspection = inspectRosterCsv(mapRosterCsvColumns(csv, mappings));
+        setRosterImportInspection(inspection);
+        if (inspection.fatalError) setError(inspection.fatalError);
+      })
+      .catch(() => {
+        setError("The CSV could not be read.");
+      })
+      .finally(() => {
+        setRosterImportInspecting(false);
+      });
+  }
+
+  function handleRosterColumnMap(sourceIndex: number, targetHeader: string | null): void {
+    const nextMappings = rosterImportMappings.map((mapping) =>
+      mapping.sourceIndex === sourceIndex ? { ...mapping, targetHeader } : mapping,
+    );
+    setRosterImportMappings(nextMappings);
+    setRosterImportConfirmed(false);
+    setRosterImportInspection(inspectRosterCsv(mapRosterCsvColumns(rosterImportCsv, nextMappings)));
   }
 
   function openCreate() {
@@ -437,11 +501,19 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setError(null);
     setSuccess(null);
     try {
-      const result = await importOrganizationProfilesCsv(await importFile.text());
+      const result = await importOrganizationProfilesCsv(
+        mapRosterCsvColumns(await importFile.text(), rosterImportMappings),
+      );
       const profiles = await listOrganizationProfiles();
       setRoster((current) => (current.status === "ready" ? { ...current, profiles } : current));
       setImportFile(null);
       setImportDialogOpen(false);
+      setRosterImportCsv("");
+      setRosterImportHeaders([]);
+      setRosterImportMappings([]);
+      setRosterImportInspection(null);
+      setRosterImportConfirmed(false);
+      setRosterImportInspecting(false);
       setSuccess(
         `${String(result.imported)} Profile(s) imported. ${String(result.invitationCandidates)} email address(es) are ready for Membership invitations.`,
       );
@@ -799,16 +871,29 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
         </form>
       </Dialog>
       <CsvImportDialog
-        busy={busy}
+        busy={busy || rosterImportInspecting}
+        columnMappings={rosterImportMappings.map((mapping) => ({
+          ...mapping,
+          header: rosterImportHeaders[mapping.sourceIndex] ?? "",
+        }))}
+        confirmed={rosterImportConfirmed}
         description="Add Profiles from the established roster CSV format."
         error={error}
         file={importFile}
         helpText="Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
+        invalid={Boolean(rosterImportInspection?.fatalError)}
+        mappingOptions={rosterCsvColumnOptions.map((value) => ({
+          label: value,
+          required: value === "Name",
+          value,
+        }))}
         onClose={closeImportDialog}
-        onFileChange={setImportFile}
+        onConfirmationChange={setRosterImportConfirmed}
+        onFileChange={handleRosterImportFile}
         onImport={() => {
           void importRoster();
         }}
+        onMapColumn={handleRosterColumnMap}
         open={importDialogOpen}
         title="Import roster CSV"
       />

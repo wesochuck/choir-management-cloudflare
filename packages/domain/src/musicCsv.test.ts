@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   inspectMusicCsv,
+  mapMusicCsvColumns,
   MusicCsvError,
   musicCsvHeader,
   parseMusicCsv,
@@ -100,5 +101,19 @@ describe("music CSV", () => {
     expect(
       selectMusicCsvColumns("Title,Duration,Legacy\nGood,4:05,ignore", ["Duration", "Legacy"]),
     ).toBe('"Title"\n"Good"');
+  });
+
+  it("maps arbitrary source headers and ignores unneeded columns", () => {
+    const mapped = mapMusicCsvColumns(
+      ["Work title,Writer,Legacy field", "Hallelujah,Handel,ignore"].join("\n"),
+      [
+        { sourceIndex: 0, targetHeader: "Title" },
+        { sourceIndex: 1, targetHeader: "Composer" },
+        { sourceIndex: 2, targetHeader: null },
+      ],
+    );
+    expect(parseMusicCsv(mapped)).toEqual([
+      expect.objectContaining({ composer: "Handel", title: "Hallelujah" }),
+    ]);
   });
 });

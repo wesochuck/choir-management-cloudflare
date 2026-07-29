@@ -28,19 +28,29 @@ export {
   zonedLocalDateTimeToUtc,
 } from "./calendarTime";
 export {
+  inspectRosterCsv,
+  mapRosterCsvColumns,
   parseRosterCsv,
   renderRosterCsv,
   RosterCsvError,
+  rosterCsvColumnForHeader,
+  rosterCsvColumnOptions,
   type RosterCsvImportProfile,
   type RosterCsvProfile,
+  type RosterCsvColumnWarning,
+  type RosterCsvInspection,
 } from "./rosterCsv";
 export { defaultRosterConfiguration } from "./rosterConfiguration";
 export { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
 export type { EventRsvpExportSort, EventRsvpStatus } from "./eventRsvpCsv";
+export type { CsvColumnMapping } from "./csvMapping";
 export {
   MusicCsvError,
   inspectMusicCsv,
+  mapMusicCsvColumns,
   musicCsvHeader,
+  musicCsvColumnForHeader,
+  musicCsvColumnOptions,
   parseMusicCsv,
   renderMusicCsv,
   selectMusicCsvColumns,

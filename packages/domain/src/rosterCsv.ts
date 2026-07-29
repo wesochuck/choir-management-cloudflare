@@ -1,3 +1,5 @@
+import { mapCsvColumns, type CsvColumnMapping } from "./csvMapping";
+
 export interface RosterCsvProfile {
   readonly displayName: string;
   readonly email: string;
@@ -28,6 +30,15 @@ export class RosterCsvError extends Error {
 }
 
 const header = "Name,Email,Phone,Voice Part,Status";
+export const rosterCsvColumnOptions = [
+  "Name",
+  "Email",
+  "Phone",
+  "Voice Part",
+  "Status",
+  "Notes",
+  "Section Leader",
+] as const;
 const dangerousFormulaPrefix = /^[=+\-@\t\r]/;
 
 function csvField(value: string): string {
@@ -81,6 +92,18 @@ function parseRows(csv: string): string[][] {
 
 function headerIndex(headers: readonly string[], names: readonly string[]): number {
   return headers.findIndex((candidate) => names.includes(candidate));
+}
+
+export function rosterCsvColumnForHeader(headerValue: string): string | null {
+  const normalized = headerValue.trim().toLocaleLowerCase();
+  if (["name", "singer", "singer name", "full name"].includes(normalized)) return "Name";
+  if (["email", "e-mail", "email address"].includes(normalized)) return "Email";
+  if (["phone", "cell", "mobile", "telephone"].includes(normalized)) return "Phone";
+  if (["voice part", "voice", "part", "section"].includes(normalized)) return "Voice Part";
+  if (["status", "global status"].includes(normalized)) return "Status";
+  if (["notes", "note", "comments"].includes(normalized)) return "Notes";
+  if (["section leader", "is section leader"].includes(normalized)) return "Section Leader";
+  return null;
 }
 
 function valueAt(row: readonly string[], index: number): string {
@@ -147,6 +170,81 @@ export function parseRosterCsv(csv: string, maximumRows = 500): RosterCsvImportP
       voicePart: valueAt(row, voicePartIndex),
     };
   });
+}
+
+export interface RosterCsvColumnWarning {
+  readonly header: string;
+  readonly message: string;
+}
+
+export interface RosterCsvInspection {
+  readonly fatalError: string | null;
+  readonly headers: readonly string[];
+  readonly rowCount: number;
+  readonly warnings: readonly RosterCsvColumnWarning[];
+}
+
+export function inspectRosterCsv(csv: string): RosterCsvInspection {
+  try {
+    const rows = parseRows(csv.replace(/^\uFEFF/, ""));
+    const [headerRow, ...remaining] = rows;
+    if (!headerRow)
+      return { fatalError: "The CSV is empty.", headers: [], rowCount: 0, warnings: [] };
+    const headers = headerRow.map((value) => value.trim());
+    const normalizedHeaders = headers.map((value) => value.toLocaleLowerCase());
+    const nameIndex = headerIndex(normalizedHeaders, [
+      "name",
+      "singer",
+      "singer name",
+      "full name",
+    ]);
+    const sectionLeaderMarker = remaining.findIndex(
+      (row) => row.length === 1 && row[0]?.toLocaleLowerCase() === "section leaders",
+    );
+    const profileRows =
+      sectionLeaderMarker < 0 ? remaining : remaining.slice(0, sectionLeaderMarker);
+    const warnings: RosterCsvColumnWarning[] = headers.flatMap((header) =>
+      rosterCsvColumnForHeader(header)
+        ? []
+        : [
+            {
+              header: header || `Column ${String(headers.indexOf(header) + 1)}`,
+              message:
+                "This column is not part of the preferred roster format and will be ignored.",
+            },
+          ],
+    );
+    if (nameIndex < 0) {
+      return {
+        fatalError: "The CSV requires a Name column.",
+        headers,
+        rowCount: profileRows.length,
+        warnings,
+      };
+    }
+    try {
+      parseRosterCsv(csv);
+    } catch (error: unknown) {
+      return {
+        fatalError: error instanceof RosterCsvError ? error.message : "The CSV could not be read.",
+        headers,
+        rowCount: profileRows.length,
+        warnings,
+      };
+    }
+    return { fatalError: null, headers, rowCount: profileRows.length, warnings };
+  } catch (error: unknown) {
+    return {
+      fatalError: error instanceof RosterCsvError ? error.message : "The CSV could not be read.",
+      headers: [],
+      rowCount: 0,
+      warnings: [],
+    };
+  }
+}
+
+export function mapRosterCsvColumns(csv: string, mappings: readonly CsvColumnMapping[]): string {
+  return mapCsvColumns(parseRows(csv.replace(/^\uFEFF/, "")), mappings);
 }
 
 function profileRow(profile: RosterCsvProfile): string {

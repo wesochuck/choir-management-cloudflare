@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRosterCsv, renderRosterCsv, RosterCsvError } from "./rosterCsv";
+import { mapRosterCsvColumns, parseRosterCsv, renderRosterCsv, RosterCsvError } from "./rosterCsv";
 
 describe("roster CSV", () => {
   it("preserves field order, Idle status, escaping, and the section-leader block", () => {
@@ -110,5 +110,32 @@ describe("roster CSV", () => {
     expect(() => parseRosterCsv("Name,Email\nSinger,invalid")).toThrow(/not valid/);
     expect(() => parseRosterCsv("Name,Status\nSinger,Unknown")).toThrow(/not recognized/);
     expect(() => parseRosterCsv("Name\nOne\nTwo", 1)).toThrow(/at most 1/);
+  });
+
+  it("maps arbitrary source headers and preserves section leader rows", () => {
+    const mapped = mapRosterCsvColumns(
+      [
+        "Full name,Contact,Part,Ignore me",
+        "Alex Singer,alex@example.test,S1,no",
+        "",
+        "Section Leaders",
+        "Full name,Contact,Part,Ignore me",
+        "Alex Singer,alex@example.test,S1,no",
+      ].join("\n"),
+      [
+        { sourceIndex: 0, targetHeader: "Name" },
+        { sourceIndex: 1, targetHeader: "Email" },
+        { sourceIndex: 2, targetHeader: "Voice Part" },
+        { sourceIndex: 3, targetHeader: null },
+      ],
+    );
+    expect(parseRosterCsv(mapped)).toEqual([
+      expect.objectContaining({
+        displayName: "Alex Singer",
+        email: "alex@example.test",
+        isSectionLeader: true,
+        voicePart: "S1",
+      }),
+    ]);
   });
 });

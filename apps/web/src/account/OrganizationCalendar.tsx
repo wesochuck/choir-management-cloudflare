@@ -7,7 +7,16 @@ import type {
   OrganizationRosterConfiguration,
   OrganizationVenue,
 } from "@choir/contracts";
-import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
+import {
+  inspectRosterCsv,
+  mapRosterCsvColumns,
+  rosterCsvColumnForHeader,
+  rosterCsvColumnOptions,
+  utcToZonedLocalDateTime,
+  zonedLocalDateTimeToUtc,
+  type CsvColumnMapping,
+  type RosterCsvInspection,
+} from "@choir/domain";
 import { useEffect, useState } from "react";
 
 import {
@@ -419,6 +428,7 @@ function RosterCsvControls({ onOpenImport }: { readonly onOpenImport: () => void
   );
 }
 
+// eslint-disable-next-line complexity -- the calendar page coordinates events, RSVPs, venues, and roster imports.
 export function OrganizationCalendar({
   context,
   enabled,
@@ -442,6 +452,14 @@ export function OrganizationCalendar({
   const [rsvpStatus, setRsvpStatus] = useState<"No" | "Pending" | "Yes">("Pending");
   const [rosterImportDialogOpen, setRosterImportDialogOpen] = useState(false);
   const [rosterImportFile, setRosterImportFile] = useState<File | null>(null);
+  const [rosterImportCsv, setRosterImportCsv] = useState("");
+  const [rosterImportHeaders, setRosterImportHeaders] = useState<readonly string[]>([]);
+  const [rosterImportMappings, setRosterImportMappings] = useState<readonly CsvColumnMapping[]>([]);
+  const [rosterImportInspection, setRosterImportInspection] = useState<RosterCsvInspection | null>(
+    null,
+  );
+  const [rosterImportConfirmed, setRosterImportConfirmed] = useState(false);
+  const [rosterImportInspecting, setRosterImportInspecting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [timezoneInput, setTimezoneInput] = useState("UTC");
   const [venueAddress, setVenueAddress] = useState("");
@@ -685,11 +703,19 @@ export function OrganizationCalendar({
     if (!rosterImportFile) return;
     beginAction();
     try {
-      const result = await importOrganizationProfilesCsv(await rosterImportFile.text());
+      const result = await importOrganizationProfilesCsv(
+        mapRosterCsvColumns(await rosterImportFile.text(), rosterImportMappings),
+      );
       const profiles = await listOrganizationProfiles();
       setResources((current) => (current.status === "ready" ? { ...current, profiles } : current));
       setRosterImportFile(null);
       setRosterImportDialogOpen(false);
+      setRosterImportCsv("");
+      setRosterImportHeaders([]);
+      setRosterImportMappings([]);
+      setRosterImportInspection(null);
+      setRosterImportConfirmed(false);
+      setRosterImportInspecting(false);
       setSuccess(
         `${String(result.imported)} Profile(s) imported. ${String(result.invitationCandidates)} email address(es) are ready for separate Membership invitations.`,
       );
@@ -697,6 +723,45 @@ export function OrganizationCalendar({
     } catch (actionError: unknown) {
       failAction(actionError, "The roster CSV could not be imported.");
     }
+  }
+
+  function handleRosterImportFile(file: File | null): void {
+    setRosterImportFile(file);
+    setRosterImportCsv("");
+    setRosterImportHeaders([]);
+    setRosterImportMappings([]);
+    setRosterImportInspection(null);
+    setRosterImportConfirmed(false);
+    setRosterImportInspecting(Boolean(file));
+    if (!file) return;
+    void file
+      .text()
+      .then((csv) => {
+        const initialInspection = inspectRosterCsv(csv);
+        const mappings = initialInspection.headers.map((header, sourceIndex) => ({
+          sourceIndex,
+          targetHeader: rosterCsvColumnForHeader(header),
+        }));
+        setRosterImportCsv(csv);
+        setRosterImportHeaders(initialInspection.headers);
+        setRosterImportMappings(mappings);
+        setRosterImportInspection(inspectRosterCsv(mapRosterCsvColumns(csv, mappings)));
+      })
+      .catch(() => {
+        setError("The CSV could not be read.");
+      })
+      .finally(() => {
+        setRosterImportInspecting(false);
+      });
+  }
+
+  function handleRosterColumnMap(sourceIndex: number, targetHeader: string | null): void {
+    const nextMappings = rosterImportMappings.map((mapping) =>
+      mapping.sourceIndex === sourceIndex ? { ...mapping, targetHeader } : mapping,
+    );
+    setRosterImportMappings(nextMappings);
+    setRosterImportConfirmed(false);
+    setRosterImportInspection(inspectRosterCsv(mapRosterCsvColumns(rosterImportCsv, nextMappings)));
   }
 
   return (
@@ -1269,20 +1334,39 @@ export function OrganizationCalendar({
         </>
       ) : null}
       <CsvImportDialog
-        busy={busy}
+        busy={busy || rosterImportInspecting}
+        columnMappings={rosterImportMappings.map((mapping) => ({
+          ...mapping,
+          header: rosterImportHeaders[mapping.sourceIndex] ?? "",
+        }))}
+        confirmed={rosterImportConfirmed}
         description="Add Profiles from the established roster CSV format."
         error={error}
         file={rosterImportFile}
         helpText="Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
+        invalid={Boolean(rosterImportInspection?.fatalError)}
+        mappingOptions={rosterCsvColumnOptions.map((value) => ({
+          label: value,
+          required: value === "Name",
+          value,
+        }))}
         onClose={() => {
           if (busy) return;
           setRosterImportDialogOpen(false);
           setRosterImportFile(null);
+          setRosterImportCsv("");
+          setRosterImportHeaders([]);
+          setRosterImportMappings([]);
+          setRosterImportInspection(null);
+          setRosterImportConfirmed(false);
+          setRosterImportInspecting(false);
         }}
-        onFileChange={setRosterImportFile}
+        onConfirmationChange={setRosterImportConfirmed}
+        onFileChange={handleRosterImportFile}
         onImport={() => {
           void importRoster();
         }}
+        onMapColumn={handleRosterColumnMap}
         open={rosterImportDialogOpen}
         title="Import roster CSV"
       />

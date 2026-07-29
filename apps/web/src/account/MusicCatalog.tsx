@@ -8,8 +8,11 @@ import type {
 } from "@choir/contracts";
 import {
   inspectMusicCsv,
-  selectMusicCsvColumns,
+  mapMusicCsvColumns,
+  musicCsvColumnForHeader,
+  musicCsvColumnOptions,
   zonedLocalDateTimeToUtc,
+  type CsvColumnMapping,
   type MusicCsvInspection,
 } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
@@ -1034,11 +1037,11 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [unlinkChildren, setUnlinkChildren] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [musicImportCsv, setMusicImportCsv] = useState("");
+  const [musicImportHeaders, setMusicImportHeaders] = useState<readonly string[]>([]);
+  const [musicImportMappings, setMusicImportMappings] = useState<readonly CsvColumnMapping[]>([]);
   const [musicImportInspection, setMusicImportInspection] = useState<MusicCsvInspection | null>(
     null,
-  );
-  const [musicImportExcludedColumns, setMusicImportExcludedColumns] = useState<readonly string[]>(
-    [],
   );
   const [musicImportConfirmed, setMusicImportConfirmed] = useState(false);
   const [musicImportInspecting, setMusicImportInspecting] = useState(false);
@@ -1140,16 +1143,20 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     if (busy) return;
     setImportDialogOpen(false);
     setImportFile(null);
+    setMusicImportCsv("");
+    setMusicImportHeaders([]);
+    setMusicImportMappings([]);
     setMusicImportInspection(null);
-    setMusicImportExcludedColumns([]);
     setMusicImportConfirmed(false);
     setMusicImportInspecting(false);
   }
 
   function handleMusicImportFile(file: File | null): void {
     setImportFile(file);
+    setMusicImportCsv("");
+    setMusicImportHeaders([]);
+    setMusicImportMappings([]);
     setMusicImportInspection(null);
-    setMusicImportExcludedColumns([]);
     setMusicImportConfirmed(false);
     setError(null);
     setMusicImportInspecting(Boolean(file));
@@ -1157,7 +1164,15 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     void file
       .text()
       .then((csv) => {
-        const inspection = inspectMusicCsv(csv);
+        const initialInspection = inspectMusicCsv(csv);
+        const mappings = initialInspection.headers.map((header, sourceIndex) => ({
+          sourceIndex,
+          targetHeader: musicCsvColumnForHeader(header),
+        }));
+        setMusicImportCsv(csv);
+        setMusicImportHeaders(initialInspection.headers);
+        setMusicImportMappings(mappings);
+        const inspection = inspectMusicCsv(mapMusicCsvColumns(csv, mappings));
         setMusicImportInspection(inspection);
         if (inspection.fatalError) setError(inspection.fatalError);
       })
@@ -1167,6 +1182,15 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
       .finally(() => {
         setMusicImportInspecting(false);
       });
+  }
+
+  function handleMusicColumnMap(sourceIndex: number, targetHeader: string | null): void {
+    const nextMappings = musicImportMappings.map((mapping) =>
+      mapping.sourceIndex === sourceIndex ? { ...mapping, targetHeader } : mapping,
+    );
+    setMusicImportMappings(nextMappings);
+    setMusicImportConfirmed(false);
+    setMusicImportInspection(inspectMusicCsv(mapMusicCsvColumns(musicImportCsv, nextMappings)));
   }
 
   function selectPiece(selected: OrganizationMusicPiece): void {
@@ -1288,13 +1312,15 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     try {
       const csv = await importFile.text();
       const imported = await importOrganizationMusicCsv(
-        selectMusicCsvColumns(csv, musicImportExcludedColumns),
+        mapMusicCsvColumns(csv, musicImportMappings),
       );
       setPieces(await listOrganizationMusic());
       setImportFile(null);
       setImportDialogOpen(false);
+      setMusicImportCsv("");
+      setMusicImportHeaders([]);
+      setMusicImportMappings([]);
       setMusicImportInspection(null);
-      setMusicImportExcludedColumns([]);
       setMusicImportConfirmed(false);
       setMusicImportInspecting(false);
       setMessage(`${String(imported)} music piece(s) imported.`);
@@ -1655,32 +1681,28 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
           <CsvImportDialog
             busy={busy || musicImportInspecting}
             columnWarnings={musicImportInspection?.warnings ?? []}
+            columnMappings={musicImportMappings.map((mapping) => ({
+              ...mapping,
+              header: musicImportHeaders[mapping.sourceIndex] ?? "",
+            }))}
             confirmed={musicImportConfirmed}
             description="Import up to 500 top-level works atomically. Existing catalog entries are retained."
-            excludedColumns={musicImportExcludedColumns}
             error={error}
             file={importFile}
             invalid={Boolean(musicImportInspection?.fatalError)}
+            mappingOptions={musicCsvColumnOptions.map((value) => ({
+              label: value,
+              required: value === "Title",
+              value,
+            }))}
             onClose={closeImportDialog}
             onConfirmationChange={setMusicImportConfirmed}
             onFileChange={handleMusicImportFile}
             onImport={() => {
               void importCsv();
             }}
-            onToggleColumn={(header) => {
-              setMusicImportExcludedColumns((current) =>
-                current.includes(header)
-                  ? current.filter((column) => column !== header)
-                  : [...current, header],
-              );
-              setMusicImportConfirmed(false);
-            }}
+            onMapColumn={handleMusicColumnMap}
             open={importDialogOpen}
-            requiredExcludedColumns={
-              musicImportInspection?.warnings
-                .filter((warning) => warning.rows && warning.rows.length > 0)
-                .map((warning) => warning.header) ?? []
-            }
             title="Import music CSV"
           />
         </div>
