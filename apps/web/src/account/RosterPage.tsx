@@ -1,9 +1,11 @@
 import type {
+  DuesRecord,
   OrganizationMembershipSummary,
   OrganizationProfile,
   OrganizationProfilePerformanceHistoryResponse,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
+  Season,
 } from "@choir/contracts";
 import { organizationInvitationRequestSchema } from "@choir/contracts";
 import {
@@ -24,8 +26,10 @@ import {
   getOrganizationRosterConfiguration,
   getOrganizationProfilePerformanceHistory,
   importOrganizationProfilesCsv,
+  listOrganizationDues,
   listOrganizationMemberships,
   listOrganizationProfiles,
+  listOrganizationSeasons,
   requestPasswordReset,
   updateOrganizationProfile,
 } from "../auth/api";
@@ -249,6 +253,16 @@ type PerformanceHistoryState =
       readonly status: "ready";
     };
 
+type ProfileDuesState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | { readonly status: "error" }
+  | {
+      readonly dues: readonly DuesRecord[];
+      readonly seasons: readonly Season[];
+      readonly status: "ready";
+    };
+
 function formatPerformanceDate(value: string): { readonly date: string; readonly time: string } {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return { date: "Date unavailable", time: "" };
@@ -338,6 +352,75 @@ function PerformanceHistory({ state }: { readonly state: PerformanceHistoryState
   );
 }
 
+function formatDuesAmount(cents: number): string {
+  return (cents / 100).toLocaleString(undefined, {
+    currency: "USD",
+    style: "currency",
+  });
+}
+
+function duesStatusLabel(record: DuesRecord | undefined): string {
+  if (!record) return "Not paid";
+  return record.status === "paid" ? "Paid" : record.status === "refunded" ? "Refunded" : "Pending";
+}
+
+function ProfileDues({ state }: { readonly state: ProfileDuesState }) {
+  if (state.status === "loading") {
+    return <p className="notice notice--info">Loading dues history…</p>;
+  }
+  if (state.status === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Dues history could not be loaded. Try again later.
+      </p>
+    );
+  }
+  if (state.status !== "ready") return null;
+  if (state.seasons.length === 0) {
+    return <p className="profile-dues-history__empty">No seasons have been configured yet.</p>;
+  }
+
+  return (
+    <div className="profile-dues-history">
+      <div className="profile-dues-history__heading">
+        <div>
+          <p className="eyebrow">Membership</p>
+          <h3>Dues by season</h3>
+        </div>
+        <span className="field-help">Payment status is updated from checkout records.</span>
+      </div>
+      <div className="profile-dues-history__list" role="list">
+        {state.seasons.map((season) => {
+          const record = state.dues.find(({ seasonId }) => seasonId === season.id);
+          return (
+            <div className="profile-dues-row" key={season.id} role="listitem">
+              <div className="profile-dues-row__season">
+                <strong>{season.name}</strong>
+                <span>
+                  {new Date(season.startsAt).toLocaleDateString()} –{" "}
+                  {new Date(season.endsAt).toLocaleDateString()}
+                </span>
+              </div>
+              <div className="profile-dues-row__amount">
+                <span className="profile-performance-card__label">Amount</span>
+                <strong>{formatDuesAmount(record?.amountCents ?? season.duesAmountCents)}</strong>
+              </div>
+              <div className="profile-dues-row__status">
+                <span className="profile-performance-card__label">Status</span>
+                <span className="status-pill">{duesStatusLabel(record)}</span>
+              </div>
+              <div className="profile-dues-row__paid">
+                <span className="profile-performance-card__label">Paid at</span>
+                <span>{record?.paidAt ? new Date(record.paidAt).toLocaleDateString() : "—"}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // eslint-disable-next-line complexity -- the roster page coordinates search, membership, dialogs, and profile actions.
 export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const { performerLabel } = useOrganizationTerminology();
@@ -357,10 +440,11 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [rosterImportInspecting, setRosterImportInspecting] = useState(false);
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [profileEmail, setProfileEmail] = useState("");
-  const [profileTab, setProfileTab] = useState<"info" | "performance">("info");
+  const [profileTab, setProfileTab] = useState<"info" | "performance" | "dues">("info");
   const [performanceHistory, setPerformanceHistory] = useState<PerformanceHistoryState>({
     status: "idle",
   });
+  const [profileDues, setProfileDues] = useState<ProfileDuesState>({ status: "idle" });
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const [resettingProfileId, setResettingProfileId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -405,6 +489,26 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       .catch((historyError: unknown) => {
         if (!(historyError instanceof DOMException && historyError.name === "AbortError")) {
           setPerformanceHistory({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [dialogOpen, editingId, profileTab]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingId || profileTab !== "dues") return;
+    const controller = new AbortController();
+    Promise.all([
+      listOrganizationSeasons(controller.signal),
+      listOrganizationDues(controller.signal),
+    ])
+      .then(([seasons, dues]) => {
+        setProfileDues({ dues, seasons, status: "ready" });
+      })
+      .catch((duesError: unknown) => {
+        if (!(duesError instanceof DOMException && duesError.name === "AbortError")) {
+          setProfileDues({ status: "error" });
         }
       });
     return () => {
@@ -458,6 +562,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setProfileEmail("");
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
+    setProfileDues({ status: "idle" });
     setResetFeedback(null);
     setError(null);
   }
@@ -520,6 +625,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setEditingId(null);
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
+    setProfileDues({ status: "idle" });
     setProfile(emptyProfile);
     setProfileEmail("");
     setResetFeedback(null);
@@ -532,6 +638,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setEditingId(candidate.id);
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
+    setProfileDues({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
     setProfileEmail(
       roster.status === "ready"
@@ -851,10 +958,24 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
             >
               Performance RSVPs
             </button>
+            <button
+              aria-selected={profileTab === "dues"}
+              className={profileTab === "dues" ? "is-active" : ""}
+              onClick={() => {
+                setProfileDues({ status: "loading" });
+                setProfileTab("dues");
+              }}
+              role="tab"
+              type="button"
+            >
+              Dues
+            </button>
           </div>
         ) : null}
         {editingId && profileTab === "performance" ? (
           <PerformanceHistory state={performanceHistory} />
+        ) : editingId && profileTab === "dues" ? (
+          <ProfileDues state={profileDues} />
         ) : (
           <form
             className="form-stack"

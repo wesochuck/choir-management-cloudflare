@@ -830,6 +830,77 @@ footer {
   white-space: nowrap;
 }
 
+.profile-dues-history {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.profile-dues-history__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.profile-dues-history__heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.profile-dues-history__heading .eyebrow {
+  margin-bottom: 0.25rem;
+}
+
+.profile-dues-history__empty {
+  margin: 0;
+  padding: 0.9rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--control-radius);
+  color: var(--color-text-muted);
+}
+
+.profile-dues-history__list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.profile-dues-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.35fr) minmax(5.5rem, 0.7fr) minmax(6rem, 0.75fr) minmax(
+      5rem,
+      0.65fr
+    );
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--control-radius);
+  background: var(--color-surface-raised);
+}
+
+.profile-dues-row__season,
+.profile-dues-row__amount,
+.profile-dues-row__status,
+.profile-dues-row__paid {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.profile-dues-row__season span,
+.profile-dues-row__paid span:last-child {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-dues-row__status .status-pill {
+  justify-self: start;
+  white-space: nowrap;
+}
+
 .directory-filters {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
@@ -4915,6 +4986,10 @@ footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .profile-dues-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .calendar-event-form {
     grid-column: auto;
   }
@@ -5091,6 +5166,15 @@ footer {
   }
 
   .profile-performance-card {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-dues-history__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-dues-row {
     grid-template-columns: 1fr;
   }
 
