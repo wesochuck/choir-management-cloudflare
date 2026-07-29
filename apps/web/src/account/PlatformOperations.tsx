@@ -55,6 +55,29 @@ function displayDate(value: string): string {
   );
 }
 
+function schemaStatusMessage(state: FleetSchemaState, running: boolean, upToDate: boolean): string {
+  if (state.status !== "ready") return "";
+  if (upToDate) {
+    return "No action is needed. The latest completed run matches the deployed schema, and new Organizations are prepared automatically.";
+  }
+  if (running) {
+    return "Preparation is in progress. Wait for it to finish before starting another run.";
+  }
+  if (state.result.preparation?.status === "failed") {
+    return "The last preparation did not finish. Review the failure before retrying.";
+  }
+  return "Run preparation only after a schema-changing deployment requires existing Organizations to be upgraded.";
+}
+
+function schemaButtonLabel(state: FleetSchemaState, busy: boolean, running: boolean): string {
+  if (busy) return "Starting preparation…";
+  if (running) return "Preparation running";
+  if (state.status === "ready" && state.result.preparation?.status === "failed") {
+    return "Retry preparation";
+  }
+  return "Prepare schemas";
+}
+
 function organizationHref(hostname: string): string {
   const protocol = hostname === "localhost" || hostname.endsWith(".localhost") ? "http:" : "https:";
   return `${protocol}//${hostname}/account`;
@@ -168,12 +191,16 @@ function FleetSchemaPreparation() {
   }
 
   const running = state.status === "ready" && state.result.preparation?.status === "running";
+  const upToDate =
+    state.status === "ready" &&
+    state.result.preparation?.status === "completed" &&
+    state.result.preparation.targetVersion >= state.result.currentVersion;
   return (
     <div className="platform-directory" aria-live="polite">
       <h4>Organization schema preparation</h4>
       <p>
-        Run the bounded Workflow before code requires a newer Organization schema. Each Durable
-        Object confirms its own identity and version before the control plane advances.
+        This is an operator-only migration step for a deployed schema change. New Organizations are
+        initialized automatically; routine Organization setup does not require this action.
       </p>
       {state.status === "loading" ? <p>Loading schema preparation status…</p> : null}
       {state.status === "error" ? (
@@ -182,23 +209,30 @@ function FleetSchemaPreparation() {
         </p>
       ) : null}
       {state.status === "ready" ? (
-        <p>
-          Deployed schema version: {String(state.result.currentVersion)}.{" "}
-          {state.result.preparation
-            ? `Latest run: ${state.result.preparation.status}; ${String(state.result.preparation.processedCount)} Organizations prepared.`
-            : "No fleet preparation has run yet."}
-        </p>
+        <>
+          <p>
+            Deployed schema version: {String(state.result.currentVersion)}.{" "}
+            {state.result.preparation
+              ? `Latest run: ${state.result.preparation.status}; ${String(state.result.preparation.processedCount)} Organizations prepared.`
+              : "No fleet preparation has run yet."}
+          </p>
+          <p className="notice notice--info">{schemaStatusMessage(state, running, upToDate)}</p>
+        </>
       ) : null}
-      <button
-        className="button button--secondary"
-        disabled={busy || running || state.status === "loading"}
-        onClick={() => {
-          void startPreparation();
-        }}
-        type="button"
-      >
-        {busy ? "Starting preparation…" : running ? "Preparation running" : "Prepare schemas"}
-      </button>
+      {state.status === "ready" && upToDate ? (
+        <span className="status-pill platform-schema-status">All Organizations prepared</span>
+      ) : (
+        <button
+          className="button button--secondary"
+          disabled={busy || running || state.status === "loading"}
+          onClick={() => {
+            void startPreparation();
+          }}
+          type="button"
+        >
+          {schemaButtonLabel(state, busy, running)}
+        </button>
+      )}
     </div>
   );
 }

@@ -3949,6 +3949,12 @@ h2 {
   margin-top: 2rem;
 }
 
+.platform-schema-status {
+  justify-self: start;
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+  color: var(--color-success);
+}
+
 .platform-organization-list h5,
 .platform-organization-list p {
   margin: 0;
