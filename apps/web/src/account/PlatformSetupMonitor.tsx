@@ -119,6 +119,55 @@ export function PlatformSetupMonitor() {
               );
             })}
           </div>
+          <details className="platform-setup-guide">
+            <summary>Stripe and Brevo setup instructions</summary>
+            <div>
+              <p>
+                Configure these once per environment with secure Worker secrets. Organization
+                administrators see the resulting health status, but never the secret values.
+              </p>
+              <h3>Stripe payments</h3>
+              <ol>
+                <li>
+                  Set up the Stripe platform and connected-account configuration for this
+                  environment.
+                </li>
+                <li>
+                  Point Stripe webhooks at the product webhook endpoint and store the signing secret
+                  as <code>STRIPE_WEBHOOK_SECRET</code>.
+                </li>
+                <li>
+                  Keep checkout in fake mode until live Stripe Connect activation and a signed
+                  webhook test are complete.
+                </li>
+              </ol>
+              <p className="field-help">
+                This build does not yet onboard Organization connected accounts or create live
+                direct charges; a webhook secret alone is not payment activation.
+              </p>
+              <h3>Brevo communications</h3>
+              <ol>
+                <li>Verify a Brevo sender/domain and create an environment-specific API key.</li>
+                <li>
+                  Store <code>BREVO_API_KEY</code> and <code>BREVO_EMAIL_FROM</code>; optionally add{" "}
+                  <code>BREVO_EMAIL_FROM_NAME</code>.
+                </li>
+                <li>
+                  For SMS sandbox tests, add <code>BREVO_SMS_SENDER</code> and the comma-separated{" "}
+                  <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
+                </li>
+                <li>
+                  Use sandbox mode, then have an Organization administrator send a test email from
+                  Communications → Settings.
+                </li>
+              </ol>
+              <p className="field-help">
+                Current staging checkout is simulated and Brevo sandbox email is dropped by the
+                provider. A green health check means the required settings are present, not that a
+                live payment or message has been sent.
+              </p>
+            </div>
+          </details>
           <p className="field-help">
             Background job failures recorded: {String(state.data.jobDeadLetterCount ?? 0)}. This
             monitor reports platform-level signals; Organization data remains scoped to its own

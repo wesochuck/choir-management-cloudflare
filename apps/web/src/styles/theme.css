@@ -2034,6 +2034,97 @@ h2 {
   white-space: nowrap;
 }
 
+.provider-status-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.provider-status-card .section-heading,
+.provider-status-card .section-description {
+  margin-bottom: 0;
+}
+
+.provider-status-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.provider-status-card__rows {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.provider-status-card__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.provider-status-card__row strong {
+  display: block;
+}
+
+.provider-status-card__row p {
+  max-width: 58rem;
+  margin: 0.2rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.provider-status-card__guide,
+.platform-setup-guide {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.provider-status-card__guide summary,
+.platform-setup-guide summary {
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.provider-status-card__guide > div,
+.platform-setup-guide > div {
+  max-width: 68rem;
+  margin-top: 0.85rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.provider-status-card__guide h3,
+.platform-setup-guide h3 {
+  margin: 1rem 0 0.3rem;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.provider-status-card__guide ol,
+.platform-setup-guide ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.provider-status-card__guide code,
+.platform-setup-guide code {
+  padding: 0.08rem 0.25rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-text);
+  font-size: 0.9em;
+}
+
 .communication-preview dl {
   display: grid;
   gap: 0.6rem;
@@ -6059,6 +6150,14 @@ footer {
   .platform-setup-check__status {
     justify-content: space-between;
     text-align: left;
+  }
+
+  .provider-status-card__row {
+    flex-direction: column;
+  }
+
+  .provider-status-card__row .platform-setup-status {
+    align-self: flex-start;
   }
 
   .ticketing-page-header {

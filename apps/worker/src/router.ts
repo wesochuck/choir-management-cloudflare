@@ -76,6 +76,7 @@ import {
   type PlatformFleetSchemaPreparation,
   type PlatformOrganizationContextResponse,
   type PlatformSetupStatusResponse,
+  type OrganizationProviderStatusResponse,
   type ProblemDetails,
   type PrivateFileResponse,
 } from "@choir/contracts";
@@ -401,6 +402,84 @@ const invitationIdSchema = z
   .regex(/^[a-zA-Z0-9_-]+$/);
 const platformOrganizationCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(128)]);
 const platformDeadLetterCursorSchema = z.tuple([z.iso.datetime(), z.string().min(1).max(512)]);
+
+type ProviderSetupChecks = Pick<OrganizationProviderStatusResponse, "brevo" | "stripe">;
+
+function providerSetupChecks(
+  env: Pick<
+    Env,
+    | "BREVO_API_KEY"
+    | "BREVO_EMAIL_FROM"
+    | "BREVO_SMS_ALLOWED_RECIPIENTS"
+    | "BREVO_SMS_SENDER"
+    | "EXTERNAL_EFFECTS_MODE"
+    | "STRIPE_WEBHOOK_SECRET"
+  >,
+  mode: "disabled" | "fake" | "sandbox",
+): ProviderSetupChecks {
+  const brevoEmailReady =
+    Boolean(env.BREVO_API_KEY?.trim()) && z.email().safeParse(env.BREVO_EMAIL_FROM).success;
+  const brevoSmsReady =
+    Boolean(env.BREVO_SMS_SENDER?.trim()) &&
+    (env.BREVO_SMS_ALLOWED_RECIPIENTS ?? "")
+      .split(",")
+      .some((recipient) => recipient.trim().length > 0);
+  const stripeWebhookReady = Boolean(env.STRIPE_WEBHOOK_SECRET?.trim());
+
+  const brevo =
+    mode === "fake"
+      ? {
+          detail:
+            "Fake mode is active, so no Brevo request is sent. Configure a Brevo API key and verified sender before sandbox or live delivery.",
+          status: "attention" as const,
+        }
+      : mode === "disabled"
+        ? {
+            detail:
+              "External delivery is disabled for this environment. Brevo is not sending messages.",
+            status: "attention" as const,
+          }
+        : brevoEmailReady
+          ? {
+              detail: brevoSmsReady
+                ? "Brevo email sandbox is configured; email is dropped by sandbox mode. SMS is restricted to the configured allowlist."
+                : "Brevo email sandbox is configured; email is dropped by sandbox mode. Add an SMS sender and allowlist only if SMS testing is needed.",
+              status: "ok" as const,
+            }
+          : {
+              detail:
+                "Add BREVO_API_KEY and a verified BREVO_EMAIL_FROM sender. Use sandbox mode to qualify email delivery before enabling live effects.",
+              status: "error" as const,
+            };
+
+  const stripe =
+    mode === "fake"
+      ? {
+          detail: stripeWebhookReady
+            ? "A Stripe webhook secret is present, but ticket and donation checkout remain simulated in fake mode."
+            : "Fake mode is active and no Stripe webhook secret is present. Checkout is simulated; signed Stripe webhooks will be rejected outside local fake mode.",
+          status: "attention" as const,
+        }
+      : mode === "disabled"
+        ? {
+            detail:
+              "Stripe checkout is disabled for this environment. A webhook secret alone does not enable live Organization payments.",
+            status: "attention" as const,
+          }
+        : stripeWebhookReady
+          ? {
+              detail:
+                "Stripe webhook verification is configured, but this build still uses simulated checkout. Live Stripe Connect activation is not enabled yet.",
+              status: "attention" as const,
+            }
+          : {
+              detail:
+                "Add STRIPE_WEBHOOK_SECRET for signed webhook verification. Live Stripe Connect checkout still requires a payment activation step in this build.",
+              status: "error" as const,
+            };
+
+  return { brevo, stripe };
+}
 
 type CalendarAuthorization =
   | {
@@ -1140,6 +1219,7 @@ router.get("/api/platform/setup-status", async (context) => {
   }
   const emailDeliveryReady =
     config.PLATFORM_EMAIL_MODE === "disabled" || Boolean(context.env.PLATFORM_EMAIL);
+  const providerChecks = providerSetupChecks(context.env, config.EXTERNAL_EFFECTS_MODE);
 
   const checks: PlatformSetupStatusResponse["checks"] = [
     {
@@ -1196,6 +1276,18 @@ router.get("/api/platform/setup-status", async (context) => {
       id: "schema",
       label: "Organization schema",
       status: schemaStatus?.status === "failed" ? "attention" : "ok",
+    },
+    {
+      detail: providerChecks.stripe.detail,
+      id: "stripe",
+      label: "Stripe payments",
+      status: providerChecks.stripe.status,
+    },
+    {
+      detail: providerChecks.brevo.detail,
+      id: "brevo",
+      label: "Brevo communications",
+      status: providerChecks.brevo.status,
     },
   ];
 
@@ -6135,6 +6227,24 @@ router.get("/api/organization/venues", async (context) => {
       503,
     );
   }
+});
+
+router.get("/api/organization/provider-status", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const config = validateStartupConfig(context.env);
+  const providerChecks = providerSetupChecks(context.env, config.EXTERNAL_EFFECTS_MODE);
+  return context.json({
+    ...providerChecks,
+    environment: config.APP_ENV,
+    externalEffectsMode: config.EXTERNAL_EFFECTS_MODE,
+    requestId: context.get("requestId"),
+  } satisfies OrganizationProviderStatusResponse);
 });
 
 router.get("/api/organization/calendar-settings", async (context) => {

@@ -29,6 +29,7 @@ import {
 import { CommunicationComposer } from "./CommunicationComposer";
 import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
 import { templateMatchesCommunicationContext } from "./communicationPlaceholders";
+import { OrganizationProviderStatus } from "./OrganizationProviderStatus";
 
 const defaultAudience: CommunicationAudienceRequest = {
   eventId: null,
@@ -954,6 +955,7 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
 
       {activeTab === "settings" ? (
         <div className="communication-tab-panel" role="tabpanel">
+          <OrganizationProviderStatus />
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Communication settings</h2>

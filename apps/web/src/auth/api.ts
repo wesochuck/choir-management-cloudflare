@@ -31,6 +31,7 @@ import {
   organizationInvitationResponseSchema,
   organizationInvitationsResponseSchema,
   organizationMembershipsResponseSchema,
+  organizationProviderStatusResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
@@ -132,6 +133,7 @@ import {
   type OrganizationInvitationResponse,
   type OrganizationInvitationsResponse,
   type OrganizationMembershipsResponse,
+  type OrganizationProviderStatusResponse,
   type OrganizationEvent,
   type OrganizationDashboardSummaryResponse,
   type OrganizationEventRequest,
@@ -1204,6 +1206,15 @@ export async function getPlatformSetupStatus(
 ): Promise<PlatformSetupStatusResponse> {
   const response = await request("/api/platform/setup-status", { signal: signal ?? null });
   return platformSetupStatusResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationProviderStatus(
+  signal?: AbortSignal,
+): Promise<OrganizationProviderStatusResponse> {
+  const response = await request("/api/organization/provider-status", {
+    signal: signal ?? null,
+  });
+  return organizationProviderStatusResponseSchema.parse(await response.json());
 }
 
 function optionalPasswordBody(password: string): { readonly password?: string } {

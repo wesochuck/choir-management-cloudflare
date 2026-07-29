@@ -29,6 +29,8 @@ export const platformSetupCheckSchema = z.object({
     "email_delivery",
     "background_jobs",
     "schema",
+    "stripe",
+    "brevo",
   ]),
   label: z.string().min(1).max(120),
   status: z.enum(["attention", "error", "ok"]),
@@ -45,6 +47,23 @@ export const platformSetupStatusResponseSchema = z.object({
 
 export type PlatformSetupCheck = z.infer<typeof platformSetupCheckSchema>;
 export type PlatformSetupStatusResponse = z.infer<typeof platformSetupStatusResponseSchema>;
+
+const providerSetupCheckSchema = z.object({
+  detail: z.string().min(1).max(500),
+  status: z.enum(["attention", "error", "ok"]),
+});
+
+export const organizationProviderStatusResponseSchema = z.object({
+  brevo: providerSetupCheckSchema,
+  environment: z.enum(["local", "preview", "staging", "production"]),
+  externalEffectsMode: z.enum(["disabled", "fake", "sandbox"]),
+  requestId: requestIdSchema,
+  stripe: providerSetupCheckSchema,
+});
+
+export type OrganizationProviderStatusResponse = z.infer<
+  typeof organizationProviderStatusResponseSchema
+>;
 
 export const organizationContextResponseSchema = z.object({
   organizationId: organizationIdSchema,
