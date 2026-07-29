@@ -6074,11 +6074,16 @@ footer {
 
 .ticketing-share-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Share cards are data-driven. Let a lone public link use the available
+     width instead of reserving an empty second column; add columns only when
+     multiple cards can fit comfortably. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr));
   gap: 1rem;
+  min-width: 0;
 }
 
 .ticketing-share-grid .public-link-share {
+  min-width: 0;
   margin: 0;
 }
 
