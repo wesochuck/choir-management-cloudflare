@@ -5740,3 +5740,106 @@ footer {
     width: 100%;
   }
 }
+
+/* Keep the visual seating chart full-width in print. This intentionally lives
+   after the signed-in responsive rules so those screen constraints cannot
+   narrow the chart back to the workspace column. */
+@media print {
+  @page {
+    size: landscape;
+    margin: 0.35in;
+  }
+
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body,
+  #root,
+  .signed-in-shell,
+  .signed-in-body,
+  .signed-in-main,
+  .seating-workspace,
+  .seating-editor-canvas,
+  .seating-grid--canvas {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .signed-in-body {
+    display: block !important;
+  }
+
+  .seating-editor-canvas {
+    display: flex !important;
+    gap: 0.35rem !important;
+  }
+
+  .seating-grid--canvas {
+    display: flex !important;
+    gap: 0.3rem !important;
+  }
+
+  .seating-row--canvas {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns: 5rem repeat(var(--seating-seat-count), minmax(0, 1fr)) !important;
+    gap: 0.2rem !important;
+    break-inside: avoid;
+  }
+
+  .seating-row-label--canvas {
+    min-width: 0 !important;
+    padding-right: 0.3rem !important;
+    color: #111 !important;
+    font-size: 0.68rem !important;
+  }
+
+  .seating-row-label--canvas span {
+    color: #444 !important;
+    font-size: 0.6rem !important;
+  }
+
+  .seating-seat--canvas {
+    min-width: 0 !important;
+    min-height: 3.25rem !important;
+    padding: 0.2rem !important;
+    border-color: #777 !important;
+    border-radius: 0.35rem !important;
+    color: #111 !important;
+    background: #fff !important;
+    font-size: 0.62rem !important;
+  }
+
+  .seating-seat--canvas * {
+    color: #111 !important;
+  }
+
+  .seating-seat--canvas .seating-seat__suggestion,
+  .seating-seat--canvas .seating-seat__voice {
+    color: #555 !important;
+  }
+
+  .seating-stage-marker {
+    min-width: 15rem !important;
+    color: #333 !important;
+    border-color: #777 !important;
+  }
+
+  body .no-print.no-print.no-print {
+    display: none !important;
+  }
+}
