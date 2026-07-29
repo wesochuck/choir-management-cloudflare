@@ -2298,6 +2298,12 @@ h2 {
   margin-top: 2rem;
 }
 
+/* Detail views contain one full-width panel; keep the two-column grid for the
+   overview shortcut cards, but do not leave detail pages in a narrow half-column. */
+.account-grid > .account-section {
+  grid-column: 1 / -1;
+}
+
 .account-section {
   padding: clamp(1.25rem, 4vw, 2rem);
   border: 1px solid var(--color-border);
