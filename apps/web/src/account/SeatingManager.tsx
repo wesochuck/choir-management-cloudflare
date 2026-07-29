@@ -442,23 +442,23 @@ function SeatTile({
       <strong>{assigned?.displayName ?? "Empty"}</strong>
       {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
       {mismatch ? <span className="seating-seat__warning">Voice part mismatch</span> : null}
-      {assigned ? (
-        <button
-          aria-label={`Remove ${assigned.displayName} from ${label}`}
-          className="seating-seat__remove"
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemove();
-          }}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-          }}
-          title="Remove seat"
-          type="button"
-        >
-          ×
-        </button>
-      ) : null}
+      <button
+        aria-label={
+          assigned ? `Remove ${assigned.displayName} from ${label}` : `Delete empty ${label}`
+        }
+        className="seating-seat__remove"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+        }}
+        title="Delete seat"
+        type="button"
+      >
+        ×
+      </button>
     </div>
   );
 }
