@@ -3842,6 +3842,19 @@ h2 {
   font-size: 0.82rem;
 }
 
+.platform-setup-monitor__error {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.platform-setup-monitor__error .notice {
+  margin: 0;
+}
+
+.platform-setup-monitor__error .button {
+  justify-self: start;
+}
+
 .platform-setup-checks {
   display: grid;
   gap: 0.55rem;
@@ -5790,6 +5803,10 @@ footer {
   }
 
   .platform-setup-monitor__heading .button {
+    width: 100%;
+  }
+
+  .platform-setup-monitor__error .button {
     width: 100%;
   }
 

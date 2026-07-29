@@ -77,10 +77,15 @@ export function PlatformSetupMonitor() {
       </div>
       {state.status === "loading" ? <p role="status">Checking platform setup…</p> : null}
       {state.status === "error" ? (
-        <p className="notice notice--error" role="alert">
-          Platform setup status could not be loaded. Verify Platform Administrator MFA, then try
-          again.
-        </p>
+        <div className="platform-setup-monitor__error" role="alert">
+          <p className="notice notice--error">
+            Platform setup status could not be loaded. Verify Platform Administrator MFA, then try
+            again.
+          </p>
+          <a className="button button--secondary" href="/platform/security">
+            Verify Platform MFA
+          </a>
+        </div>
       ) : null}
       {state.status === "ready" ? (
         <>
