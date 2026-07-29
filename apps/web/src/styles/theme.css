@@ -623,6 +623,10 @@ footer {
   margin-top: 1.5rem;
 }
 
+.account-section.music-catalog-section {
+  overflow: visible;
+}
+
 .music-catalog-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -649,11 +653,11 @@ footer {
 
 .music-genre-filter summary {
   display: flex;
-  min-height: 3.25rem;
+  min-height: 2.45rem;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 0.9rem;
+  padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface);
@@ -688,7 +692,9 @@ footer {
   right: 0;
   display: grid;
   width: min(24rem, calc(100vw - 2rem));
+  max-height: min(32rem, calc(100dvh - 1.5rem));
   gap: 0.75rem;
+  overflow-y: auto;
   padding: 0.9rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
@@ -745,7 +751,7 @@ footer {
 
 .music-genre-filter__options {
   display: flex;
-  min-height: 3rem;
+  min-height: 0;
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 0.45rem;

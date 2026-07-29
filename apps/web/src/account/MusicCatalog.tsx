@@ -981,7 +981,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   if (!enabled) return null;
 
   return (
-    <section className="account-section" aria-label="Music catalog">
+    <section className="account-section music-catalog-section" aria-label="Music catalog">
       <div className="section-heading section-heading--compact">
         <p className="section-description">
           Manage owned works and movements. Audio tracks are stored securely as Organization files
