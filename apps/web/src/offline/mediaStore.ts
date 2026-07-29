@@ -75,7 +75,7 @@ export async function saveOfflineAudio(
   sourceUrl: string,
 ): Promise<void> {
   const response = await fetch(sourceUrl, { credentials: "same-origin" });
-  if (!response.ok) throw new Error("The private learning track could not be downloaded.");
+  if (!response.ok) throw new Error("The learning track could not be downloaded.");
   const blob = await response.blob();
   if (!blob.type.startsWith("audio/") || blob.size === 0) {
     throw new Error("The downloaded learning track was not valid audio.");

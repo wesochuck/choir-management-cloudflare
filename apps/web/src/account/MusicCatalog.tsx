@@ -569,7 +569,7 @@ function MusicAudioTracks({
 
   return (
     <fieldset className="music-audio-tracks">
-      <legend>Private learning tracks</legend>
+      <legend>Learning tracks</legend>
       <p className="field-help">
         Attach a full mix, section, or voice-part track. Organization members can play or download
         these files after signing in.
@@ -984,8 +984,8 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     <section className="account-section" aria-label="Music catalog">
       <div className="section-heading section-heading--compact">
         <p className="section-description">
-          Manage owned works and movements. Audio tracks remain private Organization files and will
-          appear here when linked through the track workflow.
+          Manage owned works and movements. Audio tracks are stored securely as Organization files
+          and will appear here when linked through the track workflow.
         </p>
       </div>
       {error ? (
@@ -1060,7 +1060,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
             />
           </div>
           <Dialog
-            description="Catalog metadata, sections, movements, and private learning tracks."
+            description="Catalog metadata, sections, movements, and learning tracks."
             onClose={closeDialog}
             open={dialogOpen}
             title={
@@ -1264,7 +1264,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               )}
               {editingId ? (
                 <p className="field-help">
-                  Private tracks linked: {String(Object.keys(piece.trackFileIds).length)} ·
+                  Learning tracks linked: {String(Object.keys(piece.trackFileIds).length)} ·
                   Movements: {String(childCount)}
                 </p>
               ) : null}

@@ -293,7 +293,7 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
       ) : null}
       {!loaded ? <p>Loading learning tracks…</p> : null}
       {loaded && tracks.length === 0 ? (
-        <p className="empty-state">No private learning tracks are available yet.</p>
+        <p className="empty-state">No learning tracks are available yet.</p>
       ) : null}
       {loaded && tracks.length > 0 ? (
         <>
