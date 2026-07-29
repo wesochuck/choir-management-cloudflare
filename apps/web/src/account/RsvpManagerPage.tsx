@@ -160,28 +160,32 @@ export function RsvpManagerPage({
     }),
     [activeRows],
   );
+  const balanceRows = useMemo(
+    () => (filter === "active" ? activeRows : activeRows.filter((row) => row.rsvp === filter)),
+    [activeRows, filter],
+  );
   const voicePartCounts = useMemo(() => {
     const values = new Map<string, number>();
     if (state.status !== "ready") return values;
     reportableVoiceParts(state.roster).forEach(({ label }) => values.set(label, 0));
-    activeRows.forEach((row) => {
+    balanceRows.forEach((row) => {
       if (values.has(row.voicePart))
         values.set(row.voicePart, (values.get(row.voicePart) ?? 0) + 1);
     });
     return values;
-  }, [activeRows, state]);
+  }, [balanceRows, state]);
   const sectionCounts = useMemo(() => {
     const values = new Map<string, number>();
     if (state.status !== "ready") return values;
     reportableSections(state.roster).forEach(({ code }) => values.set(code, 0));
-    activeRows.forEach((row) => {
+    balanceRows.forEach((row) => {
       const voicePart = state.roster.voiceParts.find(({ label }) => label === row.voicePart);
       if (voicePart && values.has(voicePart.sectionCode)) {
         values.set(voicePart.sectionCode, (values.get(voicePart.sectionCode) ?? 0) + 1);
       }
     });
     return values;
-  }, [activeRows, state]);
+  }, [balanceRows, state]);
   const visibleRows = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return activeRows
