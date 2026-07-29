@@ -17,7 +17,7 @@ import {
   type MusicCsvInspection,
 } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -185,9 +185,26 @@ function MusicGenreFilter({
   readonly search: string;
   readonly selected: readonly string[];
 }) {
+  const filterRef = useRef<HTMLDetailsElement>(null);
   const visibleGenres = genres.filter((genre) => genreKey(genre).includes(genreKey(search)));
+
+  useEffect(() => {
+    function closeWhenClickedAway(event: PointerEvent): void {
+      const filter = filterRef.current;
+      if (!filter?.open || !(event.target instanceof Node) || filter.contains(event.target)) {
+        return;
+      }
+      filter.open = false;
+    }
+
+    document.addEventListener("pointerdown", closeWhenClickedAway);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenClickedAway);
+    };
+  }, []);
+
   return (
-    <details className="music-genre-filter">
+    <details className="music-genre-filter" ref={filterRef}>
       <summary>
         Genres
         <span className="music-genre-filter__summary-count">
