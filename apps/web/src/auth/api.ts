@@ -778,6 +778,18 @@ export async function createOrganizationVenue(
   return organizationVenueSchema.parse(await response.json());
 }
 
+export async function updateOrganizationVenue(
+  venueId: string,
+  name: string,
+  address: string,
+): Promise<OrganizationVenue> {
+  const response = await request(`/api/organization/venues/${encodeURIComponent(venueId)}`, {
+    body: JSON.stringify({ address, name }),
+    method: "PUT",
+  });
+  return organizationVenueSchema.parse(await response.json());
+}
+
 export async function deleteOrganizationVenue(venueId: string): Promise<void> {
   const response = await request(`/api/organization/venues/${encodeURIComponent(venueId)}`, {
     method: "DELETE",

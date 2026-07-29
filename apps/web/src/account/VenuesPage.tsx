@@ -7,6 +7,7 @@ import {
   createOrganizationVenue,
   deleteOrganizationVenue,
   listOrganizationVenues,
+  updateOrganizationVenue,
 } from "../auth/api";
 
 type VenueState =
@@ -14,11 +15,13 @@ type VenueState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly venues: readonly OrganizationVenue[] };
 
+// eslint-disable-next-line complexity -- this page coordinates loading, editing, and deletion dialogs.
 export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmVenue, setConfirmVenue] = useState<OrganizationVenue | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingVenue, setEditingVenue] = useState<OrganizationVenue | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [state, setState] = useState<VenueState>({ status: "loading" });
@@ -41,17 +44,19 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled]);
 
-  async function createVenue() {
+  async function saveVenue() {
     setBusy(true);
     setError(null);
     try {
-      const venue = await createOrganizationVenue(name, address);
+      const venue = editingVenue
+        ? await updateOrganizationVenue(editingVenue.id, name, address)
+        : await createOrganizationVenue(name, address);
       setState((current) =>
         current.status === "ready"
           ? {
               status: "ready",
-              venues: [...current.venues, venue].toSorted((left, right) =>
-                left.name.localeCompare(right.name),
+              venues: [...current.venues.filter(({ id }) => id !== venue.id), venue].toSorted(
+                (left, right) => left.name.localeCompare(right.name),
               ),
             }
           : current,
@@ -59,16 +64,37 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
       setName("");
       setAddress("");
       setCreateOpen(false);
-      setSuccess("Venue created.");
+      setEditingVenue(null);
+      setSuccess(editingVenue ? "Venue updated." : "Venue created.");
     } catch (createError: unknown) {
       setError(
         createError instanceof AuthApiError
           ? createError.message
-          : "The venue could not be created.",
+          : editingVenue
+            ? "The venue could not be updated."
+            : "The venue could not be created.",
       );
     } finally {
       setBusy(false);
     }
+  }
+
+  function openCreateDialog(): void {
+    setError(null);
+    setSuccess(null);
+    setEditingVenue(null);
+    setName("");
+    setAddress("");
+    setCreateOpen(true);
+  }
+
+  function openEditDialog(venue: OrganizationVenue): void {
+    setError(null);
+    setSuccess(null);
+    setEditingVenue(venue);
+    setName(venue.name);
+    setAddress(venue.address);
+    setCreateOpen(true);
   }
 
   async function removeVenue() {
@@ -105,15 +131,7 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
   return (
     <>
       <div className="page-toolbar page-toolbar--end">
-        <button
-          className="button button--primary"
-          onClick={() => {
-            setError(null);
-            setSuccess(null);
-            setCreateOpen(true);
-          }}
-          type="button"
-        >
+        <button className="button button--primary" onClick={openCreateDialog} type="button">
           Add venue
         </button>
       </div>
@@ -151,17 +169,28 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
               id: "actions",
               mobileLabel: "Manage",
               render: (venue) => (
-                <button
-                  className="text-button text-button--danger"
-                  onClick={() => {
-                    setError(null);
-                    setSuccess(null);
-                    setConfirmVenue(venue);
-                  }}
-                  type="button"
-                >
-                  Delete
-                </button>
+                <div className="button-row">
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      openEditDialog(venue);
+                    }}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-button text-button--danger"
+                    onClick={() => {
+                      setError(null);
+                      setSuccess(null);
+                      setConfirmVenue(venue);
+                    }}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
               ),
             },
           ]}
@@ -174,16 +203,19 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
       <Dialog
         description="Save an address once and reuse it when scheduling events."
         onClose={() => {
-          if (!busy) setCreateOpen(false);
+          if (!busy) {
+            setCreateOpen(false);
+            setEditingVenue(null);
+          }
         }}
         open={createOpen}
-        title="Add venue"
+        title={editingVenue ? "Edit venue" : "Add venue"}
       >
         <form
           className="form-stack"
           onSubmit={(event) => {
             event.preventDefault();
-            void createVenue();
+            void saveVenue();
           }}
         >
           {error ? (
@@ -221,13 +253,14 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
               className="button button--secondary"
               onClick={() => {
                 setCreateOpen(false);
+                setEditingVenue(null);
               }}
               type="button"
             >
               Cancel
             </button>
             <button className="button button--primary" disabled={busy} type="submit">
-              {busy ? "Creating…" : "Create venue"}
+              {busy ? "Saving…" : editingVenue ? "Save changes" : "Create venue"}
             </button>
           </div>
         </form>

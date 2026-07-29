@@ -110,6 +110,7 @@ import {
   readOrganizationRosterConfiguration,
   setOrganizationEventRsvp,
   updateOrganizationCalendarSettings,
+  updateOrganizationVenue,
   updateOrganizationRosterConfiguration,
   updateOrganizationEvent,
   updateOrganizationEventAttendance,
@@ -6238,6 +6239,61 @@ router.post("/api/organization/venues", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization venue could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/venues/:venueId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const venueId = z.uuid().safeParse(context.req.param("venueId"));
+  const body = organizationVenueRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!venueId.success || !body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid venue name and address are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const venue = await updateOrganizationVenue(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      { ...body.data, id: venueId.data },
+    );
+    return context.json({ ...venue, requestId: context.get("requestId") });
+  } catch (caught: unknown) {
+    if (caught instanceof CalendarMutationError && caught.code === "venue_not_found") {
+      return context.json(
+        {
+          code: "venue_not_found",
+          message: "The venue was not found in this Organization.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization venue could not be updated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

@@ -153,6 +153,20 @@ export async function createOrganizationVenue(
   );
 }
 
+export async function updateOrganizationVenue(
+  env: Env,
+  actor: ActorContext,
+  venue: OrganizationVenueRequest & Readonly<{ id: string }>,
+): Promise<OrganizationVenue> {
+  return organizationVenueSchema.parse(
+    await mutate(env, {
+      action: "update_venue",
+      ...actor,
+      venue,
+    }),
+  );
+}
+
 export async function deleteOrganizationVenue(
   env: Env,
   actor: ActorContext,

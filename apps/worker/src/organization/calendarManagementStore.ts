@@ -39,6 +39,10 @@ const managementRequestSchema = z.discriminatedUnion("action", [
     venue: organizationVenueRequestSchema.extend({ id: z.uuid() }),
   }),
   actorSchema.extend({
+    action: z.literal("update_venue"),
+    venue: organizationVenueRequestSchema.extend({ id: z.uuid() }),
+  }),
+  actorSchema.extend({
     action: z.literal("delete_venue"),
     venueId: z.uuid(),
   }),
@@ -61,7 +65,7 @@ type ManagementRequest = z.infer<typeof managementRequestSchema>;
 type EventOperation = Extract<ManagementRequest, { readonly event: unknown }>;
 type VenueOperation = Extract<
   ManagementRequest,
-  { readonly action: "create_venue" | "delete_venue" }
+  { readonly action: "create_venue" | "delete_venue" | "update_venue" }
 >;
 
 interface IdentityRow {
@@ -894,6 +898,27 @@ function writeVenue(
     });
     return Response.json({ ...venue, createdAt: occurredAt, updatedAt: occurredAt });
   }
+  if (operation.action === "update_venue") {
+    const venue = operation.venue;
+    const existing = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly createdAt: string }>(
+        "SELECT created_at AS createdAt FROM venues WHERE id = ?",
+        venue.id,
+      )
+      .toArray()[0];
+    if (!existing) return Response.json({ code: "venue_not_found" }, { status: 404 });
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        "UPDATE venues SET name = ?, address = ?, updated_at = ? WHERE id = ?",
+        venue.name,
+        venue.address,
+        occurredAt,
+        venue.id,
+      );
+      insertAudit(storage, operation, "venue.updated", "venue", venue.id, venue, occurredAt);
+    });
+    return Response.json({ ...venue, createdAt: existing.createdAt, updatedAt: occurredAt });
+  }
   if (!recordExists(storage, "venues", operation.venueId)) {
     return Response.json({ code: "venue_not_found" }, { status: 404 });
   }
@@ -951,6 +976,7 @@ function updateTimezone(
   return Response.json(operation.settings);
 }
 
+// eslint-disable-next-line complexity -- the calendar store dispatches the bounded mutation union.
 export async function manageOrganizationCalendarInStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -971,7 +997,11 @@ export async function manageOrganizationCalendarInStore(
   if (parsed.data.action === "update_timezone") {
     return updateTimezone(storage, parsed.data, occurredAt);
   }
-  if (parsed.data.action === "create_venue" || parsed.data.action === "delete_venue") {
+  if (
+    parsed.data.action === "create_venue" ||
+    parsed.data.action === "update_venue" ||
+    parsed.data.action === "delete_venue"
+  ) {
     return writeVenue(storage, parsed.data, occurredAt);
   }
   if (parsed.data.action === "create_event" || parsed.data.action === "update_event") {
