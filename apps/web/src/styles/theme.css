@@ -2676,6 +2676,13 @@ h2 {
   gap: 0.5rem 1rem;
 }
 
+.communication-status-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem 1.25rem;
+}
+
 .seating-save-status {
   min-width: 5.25rem;
   color: var(--color-text-muted);

@@ -569,19 +569,21 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
                   <>
                     <fieldset>
                       <legend>Profile status</legend>
-                      {(["Active", "Idle", "Inactive"] as const).map((status) => (
-                        <label key={status}>
-                          <input
-                            checked={audience.globalStatuses.includes(status)}
-                            onChange={(event) => {
-                              toggleStatus(status, event.target.checked);
-                              setReach(null);
-                            }}
-                            type="checkbox"
-                          />
-                          {status === "Idle" ? "On Break" : status}
-                        </label>
-                      ))}
+                      <div className="communication-status-options">
+                        {(["Active", "Idle", "Inactive"] as const).map((status) => (
+                          <label key={status} className="checkbox-row">
+                            <input
+                              checked={audience.globalStatuses.includes(status)}
+                              onChange={(event) => {
+                                toggleStatus(status, event.target.checked);
+                                setReach(null);
+                              }}
+                              type="checkbox"
+                            />
+                            {status === "Idle" ? "On Break" : status}
+                          </label>
+                        ))}
+                      </div>
                     </fieldset>
                     <div className="field">
                       <label htmlFor="communication-voice-parts">
