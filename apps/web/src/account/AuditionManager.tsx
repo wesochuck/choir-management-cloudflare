@@ -25,6 +25,7 @@ import {
   updateOrganizationAudition,
   updateOrganizationAuditionSettings,
 } from "../auth/api";
+import { QRCodeShareCard } from "./QRCodeShareCard";
 
 interface Props {
   readonly enabled: boolean;
@@ -48,6 +49,13 @@ const STATUS_LABELS: Record<AuditionStatus, string> = {
   pending: "Pending Review",
   scheduled: "Scheduled",
 };
+
+function auditionFollowUpUrl(token: string): string {
+  const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+  const url = new URL("/auditions", origin);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
 
 const STATUS_OPTIONS: readonly { readonly label: string; readonly value: AuditionStatus }[] = [
   { label: "Pending Review", value: "pending" },
@@ -1245,6 +1253,15 @@ export function AuditionManager({ enabled }: Props) {
           {actionError}
         </p>
       ) : null}
+      <QRCodeShareCard
+        description={
+          settings.enabled && settings.defaultPerformanceId && settings.slots.length > 0
+            ? "Share this link or download the QR code so prospective singers can submit an audition request."
+            : "This is the public audition signup link. Configure a performance and time slots, then enable requests before sharing it."
+        }
+        path="/auditions"
+        title="Public audition signup page"
+      />
       <div className="form-grid form-grid--compact">
         <label className="field">
           Search
@@ -1275,6 +1292,11 @@ export function AuditionManager({ enabled }: Props) {
           </select>
         </label>
       </div>
+      <p className="field-help audition-token-help">
+        Need to follow up with selected applicants? Generate secure, expiring links that let them
+        review or update their audition information. These links are different from the public
+        signup page above.
+      </p>
       <div className="form-actions form-actions--start audition-selection-actions">
         <button
           className="button button--secondary"
@@ -1282,7 +1304,7 @@ export function AuditionManager({ enabled }: Props) {
           onClick={() => void generateTokens()}
           type="button"
         >
-          Generate {String(selectedIds.length)} token(s)
+          Generate {String(selectedIds.length)} follow-up link(s)
         </button>
         <button
           className="button button--secondary"
@@ -1339,23 +1361,37 @@ export function AuditionManager({ enabled }: Props) {
       )}
       {Object.keys(tokens).length > 0 ? (
         <details className="mt-4">
-          <summary>Generated Tokens</summary>
+          <summary>Generated follow-up links</summary>
+          <p className="field-help">
+            These secure links expire after 90 days. Copy the full link when sending it to an
+            applicant.
+          </p>
           <ul className="account-list">
-            {Object.entries(tokens).map(([id, token]) => (
-              <li className="flex items-center gap-2" key={id}>
-                <strong>
-                  {`${state.auditions.find((audition) => audition.id === id)?.name ?? id}:`}
-                </strong>
-                <code className="text-xs break-all flex-1">{token}</code>
-                <button
-                  className="button button--secondary button--sm"
-                  onClick={() => void navigator.clipboard.writeText(token)}
-                  type="button"
-                >
-                  Copy
-                </button>
-              </li>
-            ))}
+            {Object.entries(tokens).map(([id, token]) => {
+              const link = auditionFollowUpUrl(token);
+              return (
+                <li className="flex items-center gap-2" key={id}>
+                  <strong>
+                    {`${state.auditions.find((audition) => audition.id === id)?.name ?? id}:`}
+                  </strong>
+                  <a
+                    className="text-xs break-all flex-1"
+                    href={link}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {link}
+                  </a>
+                  <button
+                    className="button button--secondary button--sm"
+                    onClick={() => void navigator.clipboard.writeText(link)}
+                    type="button"
+                  >
+                    Copy link
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </details>
       ) : null}
