@@ -467,19 +467,31 @@ footer {
 }
 
 .set-list-drag-handle {
-  display: inline-grid;
-  width: 1.5rem;
-  min-width: 1.5rem;
-  min-height: 1.75rem;
-  place-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  position: relative;
+  display: inline-block;
+  width: 1rem;
+  min-width: 1rem;
+  height: 1.35rem;
+  flex: 0 0 1rem;
   color: var(--color-text-muted);
-  background: var(--color-surface-raised);
   cursor: grab;
-  font-size: 1.15rem;
-  letter-spacing: -0.25em;
-  line-height: 1;
+}
+
+.set-list-drag-handle::before {
+  position: absolute;
+  top: 0.18rem;
+  left: 0.1rem;
+  width: 0.22rem;
+  height: 0.22rem;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 0.38rem currentColor,
+    0 0.76rem currentColor,
+    0.38rem 0 currentColor,
+    0.38rem 0.38rem currentColor,
+    0.38rem 0.76rem currentColor;
+  content: "";
 }
 
 .set-list-item--dragging .set-list-drag-handle {

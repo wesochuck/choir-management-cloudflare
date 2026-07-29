@@ -676,9 +676,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                           className="set-list-drag-handle"
                           aria-hidden="true"
                           title="Drag to reorder"
-                        >
-                          ⋮⋮
-                        </span>
+                        />
                         {item.type === "intermission" ? (
                           <span className="set-list-item-type">Intermission</span>
                         ) : null}
