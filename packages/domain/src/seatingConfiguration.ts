@@ -17,3 +17,13 @@ export const defaultSeatingConfiguration = {
     },
   ],
 } as const;
+
+export interface SeatingSection {
+  id: string;
+  name: string;
+  capacity: number;
+}
+
+export function validateSeatingConfig(sections: SeatingSection[]): boolean {
+  return sections.every(s => s.capacity > 0);
+}
