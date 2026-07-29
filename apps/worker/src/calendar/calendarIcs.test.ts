@@ -43,7 +43,9 @@ describe("renderCalendarIcs", () => {
     // Testing location escaping
     expect(ics).toContain("LOCATION:Location\\, NY");
     // Testing description details escaping
-    expect(ics).toContain("Details:\\nThis is a test\\nwith newlines\\, commas\\, and semi\\;colons\\\\");
+    expect(ics).toContain(
+      "Details:\\nThis is a test\\nwith newlines\\, commas\\, and semi\\;colons\\\\",
+    );
   });
 
   it("generates a basic event with start and end times", () => {
@@ -187,7 +189,7 @@ describe("renderCalendarIcs", () => {
     // Call time event
     expect(ics).toContain("UID:call-event-event-call@choir-management.local");
     expect(ics).toContain("DTSTART:20240101T230000Z"); // 18:00 EST -> 23:00 UTC
-    expect(ics).toContain("DTEND:20240101T233000Z");   // 18:30 EST -> 23:30 UTC
+    expect(ics).toContain("DTEND:20240101T233000Z"); // 18:30 EST -> 23:30 UTC
     expect(ics).toContain("SUMMARY:Call Time: Concert");
     expect(ics).toContain("DESCRIPTION:Arrival and warm-up for Concert.");
 
@@ -237,7 +239,9 @@ describe("renderCalendarIcs", () => {
     const projection = { ...defaultProjection, events: [event] };
     const ics = renderCalendarIcs(projection);
 
-    expect(ics).toContain("DESCRIPTION:Type: Rehearsal\\nYour Status: Pending RSVP\\n\\nDetails:\\nWear concert black.");
+    expect(ics).toContain(
+      "DESCRIPTION:Type: Rehearsal\\nYour Status: Pending RSVP\\n\\nDetails:\\nWear concert black.",
+    );
   });
 
   it("renders set list if approved, RSVP is Yes, and set list is not empty", () => {
@@ -251,10 +255,19 @@ describe("renderCalendarIcs", () => {
       setListApproved: true,
       setListJson: JSON.stringify([
         { title: "Song 1", composer: "Composer A", isFeaturedNumber: false },
-        { title: "Song 2", composer: "", soloSmallGroup: true, performerCredits: [{ displayName: "Jane Doe" }] },
-        { title: "Song 3", isFeaturedNumber: true, performerCredits: [{ displayName: "John Doe" }, { displayName: "Jane Doe" }] },
+        {
+          title: "Song 2",
+          composer: "",
+          soloSmallGroup: true,
+          performerCredits: [{ displayName: "Jane Doe" }],
+        },
+        {
+          title: "Song 3",
+          isFeaturedNumber: true,
+          performerCredits: [{ displayName: "John Doe" }, { displayName: "Jane Doe" }],
+        },
         { title: "Intermission", type: "intermission" },
-        { title: "Song 5", isFeaturedNumber: true, performerCredits: [] }
+        { title: "Song 5", isFeaturedNumber: true, performerCredits: [] },
       ]),
       startsAt: "2024-01-01T10:00:00Z",
       title: "Event",
@@ -265,7 +278,8 @@ describe("renderCalendarIcs", () => {
     const projection = { ...defaultProjection, events: [event] };
     const ics = renderCalendarIcs(projection);
 
-    const description = "DESCRIPTION:Type: Performance\\nYour Status: Attending\\n\\nSet List:\\n" +
+    const description =
+      "DESCRIPTION:Type: Performance\\nYour Status: Attending\\n\\nSet List:\\n" +
       "1. Song 1 (Composer A)\\n" +
       "2. Song 2\\n   Solo — Jane Doe\\n" +
       "3. Song 3\\n   Group — John Doe\\, Jane Doe\\n" +
