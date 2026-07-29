@@ -22,7 +22,9 @@ export function isPerformer(profile: { readonly voicePart: string | null }): boo
 }
 
 export {
+  addDays,
   datePartInTimeZone,
+  formatTime,
   isValidTimeZone,
   utcToZonedLocalDateTime,
   zonedLocalDateTimeToUtc,
