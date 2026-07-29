@@ -95,7 +95,7 @@ import {
 } from "@choir/domain";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
-import { sendPlatformEmail } from "./auth/platformEmail";
+import { deliverOrganizationCommunication } from "./communications/provider";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
 import {
   CalendarMutationError,
@@ -5533,12 +5533,24 @@ router.post("/api/organization/communications/test-email", async (context) => {
       400,
     );
   try {
-    await sendPlatformEmail(context.env, {
-      kind: "communication-test",
-      recipient: body.data.email,
+    const delivery = await deliverOrganizationCommunication(context.env, {
+      channel: "email",
+      contentMarkdown: body.data.contentMarkdown,
+      deliveryId: crypto.randomUUID(),
+      destination: body.data.email,
+      messageId: crypto.randomUUID(),
+      recipientName: "Test recipient",
       subject: `[Test] ${body.data.subject}`,
-      text: `This is a test communication from Choir Management.\n\n${body.data.contentMarkdown}`,
+      unsubscribeUrl: null,
     });
+    if (delivery.status === "suppressed") {
+      throw new Error("Organization email delivery is disabled.");
+    }
+    if (delivery.status === "failed") {
+      throw new Error(
+        delivery.failureDetail || "The Organization email provider rejected the test.",
+      );
+    }
     return context.json({ requestId: context.get("requestId"), sent: true as const }, 202);
   } catch (error: unknown) {
     const result = communicationProblem(

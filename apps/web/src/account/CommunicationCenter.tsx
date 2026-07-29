@@ -64,6 +64,10 @@ const audienceOptions = ["Members", "Ticket Buyers", "Donors"] as const;
 type CommunicationStage = "audience" | "compose";
 type CommunicationTab = "compose" | "drafts" | "history" | "templates" | "upcoming" | "settings";
 
+const defaultTestEmailSubject = "Choir Management connection test";
+const defaultTestEmailContent =
+  "This is a test email from Choir Management. Your organization email delivery is configured.";
+
 function TemplateLibrary({
   audience,
   channel,
@@ -320,13 +324,16 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     setBusy(true);
     setError(null);
     setSuccess(null);
+    const recipient = testEmail.trim();
+    const testSubject = subject.trim() || defaultTestEmailSubject;
+    const testContent = contentMarkdown.trim() || defaultTestEmailContent;
     try {
       await sendOrganizationCommunicationTestEmail({
-        contentMarkdown,
-        email: testEmail.trim(),
-        subject,
+        contentMarkdown: testContent,
+        email: recipient,
+        subject: testSubject,
       });
-      setSuccess(`Test email sent to ${testEmail.trim()}.`);
+      setSuccess(`Test email accepted for delivery to ${recipient}.`);
     } catch (failure: unknown) {
       setError(failureMessage(failure));
     } finally {
@@ -954,7 +961,8 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
           <fieldset className="communication-test-send">
             <legend>Connection test</legend>
             <p className="field-help">
-              Send the current message to one address to verify the configured delivery service.
+              Send a test message to one address to verify the configured delivery service. If a
+              message is already composed, its subject and content will be used.
             </p>
             <div className="form-actions form-actions--start">
               <div className="field communication-test-send__address">
@@ -970,13 +978,8 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
                 />
               </div>
               <button
-                disabled={
-                  busy ||
-                  channel === "SMS" ||
-                  !testEmail.trim() ||
-                  !contentMarkdown.trim() ||
-                  !subject.trim()
-                }
+                className="button button--secondary communication-test-send__button"
+                disabled={busy || !testEmail.trim()}
                 onClick={() => void sendTestEmail()}
                 type="button"
               >

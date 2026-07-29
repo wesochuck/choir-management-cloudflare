@@ -1850,6 +1850,15 @@ h2 {
   flex: 1 1 18rem;
 }
 
+.communication-test-send .form-actions {
+  align-items: flex-end;
+}
+
+.communication-test-send__button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .communication-preview dl {
   display: grid;
   gap: 0.6rem;
