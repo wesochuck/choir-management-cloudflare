@@ -160,7 +160,22 @@ function VoicePartBalance({
           <h2 id="roster-balance-title">Voice part balance</h2>
           <p className="field-help">Select a section or voice part to filter the roster below.</p>
         </div>
-        <span className="status-pill">{profiles.length} profiles</span>
+        <div className="roster-balance__meta">
+          <span className="status-pill">{profiles.length} profiles</span>
+          {counts.unassigned > 0 ? (
+            <button
+              aria-pressed={selectedFilters.includes(UNASSIGNED_VOICE_FILTER)}
+              className={`roster-balance__unassigned${selectedFilters.includes(UNASSIGNED_VOICE_FILTER) ? " roster-balance__unassigned--selected" : ""}`}
+              type="button"
+              onClick={() => {
+                onToggle(UNASSIGNED_VOICE_FILTER);
+              }}
+            >
+              <span>Unassigned</span>
+              <strong>{counts.unassigned}</strong>
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="roster-balance__sections">
         {reportableSections(configuration).map((section) => {
@@ -201,19 +216,6 @@ function VoicePartBalance({
             </button>
           );
         })}
-        {counts.unassigned > 0 ? (
-          <button
-            aria-pressed={selectedFilters.includes(UNASSIGNED_VOICE_FILTER)}
-            className={`roster-balance__part${selectedFilters.includes(UNASSIGNED_VOICE_FILTER) ? " roster-balance__part--selected" : ""}`}
-            onClick={() => {
-              onToggle(UNASSIGNED_VOICE_FILTER);
-            }}
-            type="button"
-          >
-            <span>Unassigned</span>
-            <strong>{counts.unassigned}</strong>
-          </button>
-        ) : null}
       </div>
     </section>
   );
