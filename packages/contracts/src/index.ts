@@ -763,6 +763,30 @@ export const organizationMusicPieceRequestSchema = z.object({
     .default({}),
 });
 
+export const organizationMusicBulkUpdateRequestSchema = z
+  .object({
+    pieceIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(500)
+      .superRefine((ids, context) => {
+        if (new Set(ids).size !== ids.length) {
+          context.addIssue({ code: "custom", message: "Music piece IDs must be unique." });
+        }
+      }),
+    changes: z
+      .object({
+        arranger: z.string().trim().max(300).optional(),
+        composer: z.string().trim().max(300).optional(),
+        genres: uniqueMusicLabelsSchema.optional(),
+        sectionBuckets: uniqueMusicLabelsSchema.optional(),
+      })
+      .refine((changes) => Object.keys(changes).length > 0, {
+        message: "At least one music field must be selected for bulk update.",
+      }),
+  })
+  .strict();
+
 export const organizationMusicPieceSchema = organizationMusicPieceRequestSchema.extend({
   createdAt: z.iso.datetime(),
   id: z.uuid(),
@@ -807,6 +831,9 @@ export const organizationMusicImportResponseSchema = z.object({
 });
 
 export type OrganizationMusicPieceRequest = z.infer<typeof organizationMusicPieceRequestSchema>;
+export type OrganizationMusicBulkUpdateRequest = z.infer<
+  typeof organizationMusicBulkUpdateRequestSchema
+>;
 export type OrganizationMusicPiece = z.infer<typeof organizationMusicPieceSchema>;
 export type OrganizationMusicImportResponse = z.infer<typeof organizationMusicImportResponseSchema>;
 

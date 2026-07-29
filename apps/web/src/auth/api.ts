@@ -11,10 +11,10 @@ import {
   communicationTestEmailResponseSchema,
   communicationUnsubscribeResponseSchema,
   memberProfileResponseSchema,
+  organizationMusicPiecesResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
   organizationMusicImportResponseSchema,
   organizationMusicPieceResponseSchema,
-  organizationMusicPiecesResponseSchema,
   organizationResourceDeleteResponseSchema,
   organizationResourceResponseSchema,
   organizationResourcesResponseSchema,
@@ -116,6 +116,7 @@ import {
   type MemberProfile,
   type MemberProfileUpdateRequest,
   type OrganizationMusicPiece,
+  type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicPieceRequest,
   type OrganizationResource,
   type OrganizationResourceRequest,
@@ -431,6 +432,16 @@ export async function updateOrganizationMusicPiece(
     method: "PUT",
   });
   return organizationMusicPieceResponseSchema.parse(await response.json());
+}
+
+export async function bulkUpdateOrganizationMusicPieces(
+  changesRequest: OrganizationMusicBulkUpdateRequest,
+): Promise<readonly OrganizationMusicPiece[]> {
+  const response = await request("/api/organization/music/bulk-update", {
+    body: JSON.stringify(changesRequest),
+    method: "POST",
+  });
+  return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;
 }
 
 export async function deleteOrganizationMusicPiece(

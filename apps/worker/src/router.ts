@@ -1,5 +1,6 @@
 import {
   memberProfileUpdateRequestSchema,
+  organizationMusicBulkUpdateRequestSchema,
   organizationMusicPieceRequestSchema,
   organizationResourceOrderRequestSchema,
   organizationResourceRequestSchema,
@@ -148,6 +149,7 @@ import { validateStartupConfig } from "./env";
 import { currentOrganizationSchemaVersion } from "./organization/schema";
 import {
   createOrganizationMusicPiece,
+  bulkUpdateOrganizationMusicPieces,
   deleteOrganizationMusicPiece,
   importOrganizationMusicPieces,
   listOrganizationMusicPieces,
@@ -5856,6 +5858,51 @@ router.post("/api/organization/music", async (context) => {
       {
         code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
         message: "The music piece could not be created.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      status,
+    );
+  }
+});
+
+router.post("/api/organization/music/bulk-update", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationMusicBulkUpdateRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Select at least one music field and one or more pieces.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const pieces = await bulkUpdateOrganizationMusicPieces(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ pieces, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const status = error instanceof MusicRepositoryError ? error.status : 503;
+    return context.json(
+      {
+        code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+        message: "The music pieces could not be updated.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       status,

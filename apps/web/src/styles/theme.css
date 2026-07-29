@@ -921,6 +921,57 @@ button.music-genre-chip.is-selected {
   margin-top: 1rem;
 }
 
+.music-selection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-info-surface);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.music-selection-toolbar .button-row {
+  gap: 0.5rem;
+}
+
+.music-catalog-table .data-table th:first-child,
+.music-catalog-table .data-table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.music-bulk-edit-fields {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.music-bulk-edit-fields legend {
+  padding-inline: 0.35rem;
+  font-weight: 750;
+}
+
+.music-bulk-edit-field {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.45fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.music-bulk-edit-section-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+}
+
 .music-catalog-table .data-table {
   min-width: 68rem;
 }
@@ -4697,6 +4748,23 @@ footer {
   .data-table-card__value {
     font-size: 0.875rem;
     text-align: right;
+  }
+
+  .music-selection-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .music-selection-toolbar .button-row {
+    justify-content: stretch;
+  }
+
+  .music-selection-toolbar .button {
+    flex: 1;
+  }
+
+  .music-bulk-edit-field {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -2,6 +2,7 @@ import {
   organizationMusicPieceSchema,
   organizationMusicPiecesResponseSchema,
   type OrganizationMusicPiece,
+  type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicPieceRequest,
 } from "@choir/contracts";
 
@@ -114,6 +115,26 @@ export async function updateOrganizationMusicPiece(
   if (updated.id !== pieceId)
     throw new Error("The Organization store returned a mismatched piece.");
   return updated;
+}
+
+export async function bulkUpdateOrganizationMusicPieces(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  request: OrganizationMusicBulkUpdateRequest,
+): Promise<readonly OrganizationMusicPiece[]> {
+  const response = await mutate(env, context.organizationId, {
+    action: "bulk_update",
+    ...context,
+    changes: request.changes,
+    pieceIds: request.pieceIds,
+  });
+  return organizationMusicPiecesResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json()).pieces;
 }
 
 export async function deleteOrganizationMusicPiece(

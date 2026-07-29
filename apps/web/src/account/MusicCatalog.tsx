@@ -1,6 +1,7 @@
 import type {
   OrganizationEvent,
   OrganizationEventRequest,
+  OrganizationMusicBulkUpdateRequest,
   OrganizationMusicPiece,
   OrganizationMusicPieceRequest,
   OrganizationRosterConfiguration,
@@ -20,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   AuthApiError,
+  bulkUpdateOrganizationMusicPieces,
   createOrganizationMusicPiece,
   deleteOrganizationMusicPiece,
   deletePrivateOrganizationFile,
@@ -294,14 +296,20 @@ function trackCount(
 function MusicCatalogTable({
   genreFilterMode,
   onEdit,
+  onSelectMany,
+  onToggleSelection,
   pieces,
   search,
+  selectedIds,
   selectedGenres,
 }: {
   readonly genreFilterMode: "and" | "or";
   readonly onEdit: (piece: OrganizationMusicPiece) => void;
+  readonly onSelectMany: (pieceIds: readonly string[]) => void;
+  readonly onToggleSelection: (pieceId: string) => void;
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly search: string;
+  readonly selectedIds: readonly string[];
   readonly selectedGenres: readonly string[];
 }) {
   const parents = new Map(pieces.map((piece) => [piece.id, piece]));
@@ -362,8 +370,55 @@ function MusicCatalogTable({
 
   return (
     <div className="music-catalog-table">
+      <div className="music-selection-toolbar" role="group" aria-label="Music selection">
+        <span>
+          {selectedIds.length > 0
+            ? `${String(selectedIds.length)} piece${selectedIds.length === 1 ? "" : "s"} selected`
+            : "Select pieces to edit them together."}
+        </span>
+        <div className="button-row">
+          <button
+            className="button button--secondary button--small"
+            disabled={
+              visiblePieces.length === 0 ||
+              visiblePieces.every(({ id }) => selectedIds.includes(id))
+            }
+            type="button"
+            onClick={() => {
+              onSelectMany(visiblePieces.map(({ id }) => id));
+            }}
+          >
+            Select all shown
+          </button>
+          <button
+            className="button button--secondary button--small"
+            disabled={selectedIds.length === 0}
+            type="button"
+            onClick={() => {
+              onSelectMany([]);
+            }}
+          >
+            Clear selection
+          </button>
+        </div>
+      </div>
       <DataTable
         columns={[
+          {
+            header: "Select",
+            id: "select",
+            mobileLabel: "Select",
+            render: (piece) => (
+              <input
+                aria-label={`Select ${piece.title}`}
+                checked={selectedIds.includes(piece.id)}
+                type="checkbox"
+                onChange={() => {
+                  onToggleSelection(piece.id);
+                }}
+              />
+            ),
+          },
           {
             header: "Title",
             id: "title",
@@ -1015,6 +1070,207 @@ function MusicDeleteControls({
   );
 }
 
+function MusicBulkEditDialog({
+  busy,
+  configuration,
+  error,
+  onApply,
+  onClose,
+  open,
+  personNameOptions,
+  selectedCount,
+}: {
+  readonly busy: boolean;
+  readonly configuration: OrganizationRosterConfiguration;
+  readonly error: string | null;
+  readonly onApply: (changes: OrganizationMusicBulkUpdateRequest["changes"]) => void;
+  readonly onClose: () => void;
+  readonly open: boolean;
+  readonly personNameOptions: readonly string[];
+  readonly selectedCount: number;
+}) {
+  const [changeComposer, setChangeComposer] = useState(false);
+  const [changeArranger, setChangeArranger] = useState(false);
+  const [changeGenres, setChangeGenres] = useState(false);
+  const [changeSections, setChangeSections] = useState(false);
+  const [composer, setComposer] = useState("");
+  const [arranger, setArranger] = useState("");
+  const [genres, setGenres] = useState("");
+  const [sections, setSections] = useState<readonly string[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const availableSections = configuration.sections.filter(({ trackOnly }) => !trackOnly);
+
+  useEffect(() => {
+    if (!open) return;
+    setChangeComposer(false);
+    setChangeArranger(false);
+    setChangeGenres(false);
+    setChangeSections(false);
+    setComposer("");
+    setArranger("");
+    setGenres("");
+    setSections([]);
+    setFormError(null);
+  }, [open]);
+
+  function submit(): void {
+    const changes: OrganizationMusicBulkUpdateRequest["changes"] = {};
+    if (changeComposer) changes.composer = composer.trim();
+    if (changeArranger) changes.arranger = arranger.trim();
+    if (changeGenres) changes.genres = uniqueLabels(genres);
+    if (changeSections) changes.sectionBuckets = [...sections];
+    if (Object.keys(changes).length === 0) {
+      setFormError("Choose at least one field to change.");
+      return;
+    }
+    setFormError(null);
+    onApply(changes);
+  }
+
+  return (
+    <Dialog
+      description={`Apply shared metadata to ${String(selectedCount)} selected music pieces.`}
+      onClose={onClose}
+      open={open}
+      title="Bulk edit music pieces"
+    >
+      <form
+        className="form-stack music-bulk-edit-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <datalist id="music-bulk-composer-arranger-options">
+          {personNameOptions.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+        <p className="field-help">
+          Only the fields you select will change. Leave a selected text field blank to clear it.
+        </p>
+        {error || formError ? (
+          <p className="notice notice--error" role="alert">
+            {error ?? formError}
+          </p>
+        ) : null}
+        <fieldset className="music-bulk-edit-fields">
+          <legend>Fields to change</legend>
+          <div className="music-bulk-edit-field">
+            <label className="checkbox-row">
+              <input
+                checked={changeComposer}
+                type="checkbox"
+                onChange={(event) => {
+                  setChangeComposer(event.target.checked);
+                }}
+              />
+              Composer
+            </label>
+            <input
+              aria-label="Bulk composer"
+              disabled={!changeComposer}
+              list="music-bulk-composer-arranger-options"
+              placeholder="Leave blank to clear"
+              value={composer}
+              onChange={(event) => {
+                setComposer(event.target.value);
+              }}
+            />
+          </div>
+          <div className="music-bulk-edit-field">
+            <label className="checkbox-row">
+              <input
+                checked={changeArranger}
+                type="checkbox"
+                onChange={(event) => {
+                  setChangeArranger(event.target.checked);
+                }}
+              />
+              Arranger
+            </label>
+            <input
+              aria-label="Bulk arranger"
+              disabled={!changeArranger}
+              list="music-bulk-composer-arranger-options"
+              placeholder="Leave blank to clear"
+              value={arranger}
+              onChange={(event) => {
+                setArranger(event.target.value);
+              }}
+            />
+          </div>
+          <div className="music-bulk-edit-field">
+            <label className="checkbox-row">
+              <input
+                checked={changeGenres}
+                type="checkbox"
+                onChange={(event) => {
+                  setChangeGenres(event.target.checked);
+                }}
+              />
+              Genres
+            </label>
+            <input
+              aria-label="Bulk genres"
+              disabled={!changeGenres}
+              placeholder="Comma separated; blank clears genres"
+              value={genres}
+              onChange={(event) => {
+                setGenres(event.target.value);
+              }}
+            />
+          </div>
+          <div className="music-bulk-edit-field">
+            <label className="checkbox-row">
+              <input
+                checked={changeSections}
+                type="checkbox"
+                onChange={(event) => {
+                  setChangeSections(event.target.checked);
+                }}
+              />
+              Sections using this music
+            </label>
+            <div className="music-bulk-edit-section-options">
+              {availableSections.map((section) => (
+                <label className="checkbox-row" key={section.code}>
+                  <input
+                    checked={sections.includes(section.code)}
+                    disabled={!changeSections}
+                    type="checkbox"
+                    onChange={(event) => {
+                      setSections((current) =>
+                        event.target.checked
+                          ? [...current, section.code]
+                          : current.filter((code) => code !== section.code),
+                      );
+                    }}
+                  />
+                  {section.name} ({section.code})
+                </label>
+              ))}
+            </div>
+          </div>
+        </fieldset>
+        <div className="dialog__actions">
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            type="button"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button className="button button--primary" disabled={busy} type="submit">
+            {busy ? "Updating…" : `Update ${String(selectedCount)} pieces`}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 // eslint-disable-next-line complexity -- this coordinator owns catalog, editor, track, and import workflows.
 export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
@@ -1033,6 +1289,9 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [genreFilterSearch, setGenreFilterSearch] = useState("");
   const [genreFilterMode, setGenreFilterMode] = useState<"and" | "or">("or");
   const [selectedGenres, setSelectedGenres] = useState<readonly string[]>([]);
+  const [selectedPieceIds, setSelectedPieceIds] = useState<readonly string[]>([]);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [unlinkChildren, setUnlinkChildren] = useState(false);
@@ -1100,6 +1359,10 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
       ].sort((a, b) => a.localeCompare(b)),
     [piece.arranger, piece.composer, pieces],
   );
+  const selectedPieces = useMemo(
+    () => pieces.filter(({ id }) => selectedPieceIds.includes(id)),
+    [pieces, selectedPieceIds],
+  );
 
   function toggleGenre(genre: string): void {
     setSelectedGenres((current) =>
@@ -1107,6 +1370,20 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
         ? current.filter((item) => genreKey(item) !== genreKey(genre))
         : [...current, genre],
     );
+  }
+
+  function togglePieceSelection(pieceId: string): void {
+    setSelectedPieceIds((current) =>
+      current.includes(pieceId) ? current.filter((id) => id !== pieceId) : [...current, pieceId],
+    );
+  }
+
+  function selectManyPieces(pieceIds: readonly string[]): void {
+    if (pieceIds.length === 0) {
+      setSelectedPieceIds([]);
+      return;
+    }
+    setSelectedPieceIds((current) => [...new Set([...current, ...pieceIds])]);
   }
 
   function setEditorPiece(
@@ -1149,6 +1426,12 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setMusicImportInspection(null);
     setMusicImportConfirmed(false);
     setMusicImportInspecting(false);
+  }
+
+  function closeBulkDialog(): void {
+    if (busy) return;
+    setBulkDialogOpen(false);
+    setBulkError(null);
   }
 
   function handleMusicImportFile(file: File | null): void {
@@ -1270,6 +1553,35 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function applyBulkChanges(
+    changes: OrganizationMusicBulkUpdateRequest["changes"],
+  ): Promise<void> {
+    if (selectedPieces.length === 0) return;
+    setBusy(true);
+    setBulkError(null);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await bulkUpdateOrganizationMusicPieces({
+        changes,
+        pieceIds: selectedPieces.map(({ id }) => id),
+      });
+      const updatedById = new Map(updated.map((candidate) => [candidate.id, candidate]));
+      setPieces((current) =>
+        current.map((candidate) => updatedById.get(candidate.id) ?? candidate),
+      );
+      setSelectedPieceIds([]);
+      setBulkDialogOpen(false);
+      setMessage(`${String(updated.length)} music piece(s) updated.`);
+    } catch (caught: unknown) {
+      setBulkError(
+        caught instanceof AuthApiError ? caught.message : "The music pieces could not be updated.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove(): Promise<void> {
     if (!editingId) return;
     setBusy(true);
@@ -1380,6 +1692,17 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               />
               <button
                 className="button button--secondary"
+                disabled={selectedPieces.length === 0}
+                type="button"
+                onClick={() => {
+                  setBulkError(null);
+                  setBulkDialogOpen(true);
+                }}
+              >
+                Bulk edit{selectedPieces.length > 0 ? ` (${String(selectedPieces.length)})` : ""}
+              </button>
+              <button
+                className="button button--secondary"
                 type="button"
                 onClick={() => {
                   beginNew();
@@ -1409,8 +1732,11 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
             <MusicCatalogTable
               genreFilterMode={genreFilterMode}
               onEdit={selectPiece}
+              onSelectMany={selectManyPieces}
+              onToggleSelection={togglePieceSelection}
               pieces={pieces}
               search={search}
+              selectedIds={selectedPieceIds}
               selectedGenres={selectedGenres}
             />
           </div>
@@ -1678,6 +2004,18 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               />
             </form>
           </Dialog>
+          <MusicBulkEditDialog
+            busy={busy}
+            configuration={roster}
+            error={bulkError}
+            onApply={(changes) => {
+              void applyBulkChanges(changes);
+            }}
+            onClose={closeBulkDialog}
+            open={bulkDialogOpen}
+            personNameOptions={personNameOptions}
+            selectedCount={selectedPieces.length}
+          />
           <CsvImportDialog
             busy={busy || musicImportInspecting}
             columnWarnings={musicImportInspection?.warnings ?? []}
