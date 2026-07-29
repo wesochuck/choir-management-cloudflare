@@ -12,6 +12,7 @@ import type {
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
@@ -348,6 +349,7 @@ interface SeatTileProps {
   readonly mismatch: boolean;
   readonly onActivate: () => void;
   readonly onDrop: (token: string) => void;
+  readonly onRemove: () => void;
   readonly seatKey: string;
   readonly suggestion: string | undefined;
 }
@@ -394,13 +396,14 @@ function SeatTile({
   mismatch,
   onActivate,
   onDrop,
+  onRemove,
   seatKey,
   suggestion,
 }: SeatTileProps) {
   const draggable = useDraggable({ id: `seat:${seatKey}`, disabled: !assigned });
   const droppable = useDroppable({ id: `seat:${seatKey}` });
   return (
-    <button
+    <div
       aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
       className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}${draggable.isDragging ? " seating-seat--dragging" : ""}${droppable.isOver ? " seating-seat--drop-target" : ""}`}
       draggable={Boolean(assigned)}
@@ -423,15 +426,40 @@ function SeatTile({
         event.preventDefault();
         onDrop(event.dataTransfer.getData("text/plain"));
       }}
-      onClick={onActivate}
-      type="button"
+      onClick={(event) => {
+        if (event.target instanceof HTMLElement && event.target.closest("button")) return;
+        onActivate();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onActivate();
+      }}
+      tabIndex={0}
     >
       <span className="seating-seat__number">{label}</span>
       <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>
       <strong>{assigned?.displayName ?? "Empty"}</strong>
       {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
       {mismatch ? <span className="seating-seat__warning">Voice part mismatch</span> : null}
-    </button>
+      {assigned ? (
+        <button
+          aria-label={`Remove ${assigned.displayName} from ${label}`}
+          className="seating-seat__remove"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+          }}
+          title="Remove seat"
+          type="button"
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -963,10 +991,18 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     nativeDropHandledRef.current = false;
     const token = String(event.active.id);
     setDraggingToken(token);
+    const profileId = token.startsWith("profile:")
+      ? token.slice("profile:".length)
+      : token.startsWith("seat:")
+        ? chart.assignments[token.slice("seat:".length)]
+        : undefined;
+    const profileName = profileId ? profilesById.get(profileId)?.displayName : undefined;
     setDragMessage(
-      token.startsWith("profile:")
-        ? "Dragging Profile. Choose an empty or occupied seat to assign or replace."
-        : "Dragging assigned seat. Choose another seat to move or swap, or the tray to unassign.",
+      profileName
+        ? `Dragging ${profileName}. Choose a seat to assign or move, or the tray to unassign.`
+        : token.startsWith("profile:")
+          ? "Dragging Profile. Choose an empty or occupied seat to assign or replace."
+          : "Dragging assigned seat. Choose another seat to move or swap, or the tray to unassign.",
     );
   }
 
@@ -1256,6 +1292,16 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const activeEvent = resources.events.find(({ id }) => id === eventId);
   const isEditing = !isNarrow || mobileEditing;
   const profileForSeat = (seatKey: string) => profilesById.get(chart.assignments[seatKey] ?? "");
+  const draggingProfileId = draggingToken
+    ? draggingToken.startsWith("profile:")
+      ? draggingToken.slice("profile:".length)
+      : draggingToken.startsWith("seat:")
+        ? chart.assignments[draggingToken.slice("seat:".length)]
+        : undefined
+    : undefined;
+  const draggingProfileName = draggingProfileId
+    ? profilesById.get(draggingProfileId)?.displayName
+    : undefined;
   const rows = chart.rowCounts.map((_count, index) => index).reverse();
   const totalSeats = chart.rowCounts.reduce((sum, count) => sum + count, 0);
   const assignedCount = Object.keys(chart.assignments).length;
@@ -1695,6 +1741,9 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                                 onDrop={(token) => {
                                   handleNativeDrop(token, seatKey);
                                 }}
+                                onRemove={() => {
+                                  requestRemoveSeat(rowIndex, seatIndex);
+                                }}
                                 seatKey={seatKey}
                                 suggestion={suggestion}
                               />
@@ -1774,6 +1823,17 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                     Edit chart
                   </button>
                 )}
+                <DragOverlay dropAnimation={null}>
+                  {draggingToken ? (
+                    <div className="seating-drag-overlay">
+                      <span>Moving</span>
+                      <strong>
+                        {draggingProfileName ??
+                          (draggingToken.startsWith("profile:") ? "Profile" : "Assigned Profile")}
+                      </strong>
+                    </div>
+                  ) : null}
+                </DragOverlay>
               </DndContext>
               {isEditing ? (
                 <button
