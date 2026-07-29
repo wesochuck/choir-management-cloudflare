@@ -30,14 +30,23 @@ interface EnrollmentSecrets {
 interface PlatformSectionProps {
   readonly actionError: string | null;
   readonly children: ReactNode;
+  readonly eyebrow?: string;
+  readonly title?: string;
+  readonly titleId?: string;
 }
 
-function PlatformSection({ actionError, children }: PlatformSectionProps) {
+function PlatformSection({
+  actionError,
+  children,
+  eyebrow = "Platform security",
+  title = "Platform Administrator access",
+  titleId = "platform-title",
+}: PlatformSectionProps) {
   return (
-    <section className="account-section account-section--platform" aria-labelledby="platform-title">
+    <section className="account-section account-section--platform" aria-labelledby={titleId}>
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Platform security</p>
-        <h2 id="platform-title">Platform Administrator access</h2>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2 id={titleId}>{title}</h2>
       </div>
       {actionError ? (
         <p className="notice notice--error" role="alert">
@@ -295,7 +304,40 @@ async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
   }
 }
 
-export function PlatformAccess() {
+type PlatformAccessView = "access" | "organizations" | "security";
+
+interface PlatformAccessProps {
+  readonly view?: PlatformAccessView;
+}
+
+function viewCopy(view: PlatformAccessView): {
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly titleId: string;
+} {
+  if (view === "organizations") {
+    return {
+      eyebrow: "Platform operations",
+      title: "Organizations",
+      titleId: "platform-organizations-title",
+    };
+  }
+  if (view === "access") {
+    return {
+      eyebrow: "Platform operations",
+      title: "Organization access",
+      titleId: "platform-access-title",
+    };
+  }
+  return {
+    eyebrow: "Platform security",
+    title: "Platform Administrator access",
+    titleId: "platform-title",
+  };
+}
+
+export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
+  const copy = viewCopy(view);
   const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
   const [acknowledgedRecoveryCodes, setAcknowledgedRecoveryCodes] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -429,7 +471,7 @@ export function PlatformAccess() {
   }
   if (accessState.status === "error") {
     return (
-      <PlatformSection actionError={actionError}>
+      <PlatformSection actionError={actionError} {...copy}>
         <p className="notice notice--error" role="alert">
           Platform Administrator status could not be checked. Refresh the page and try again.
         </p>
@@ -438,18 +480,20 @@ export function PlatformAccess() {
   }
   if (accessState.status === "ready") {
     return (
-      <PlatformSection actionError={actionError}>
+      <PlatformSection actionError={actionError} {...copy}>
         <div className="notice notice--success" role="status">
           <strong>Platform access is ready.</strong> Verified with {accessState.context.mfaMethod};
           expires {displayDate(accessState.context.mfaVerifiedUntil)}.
         </div>
-        <PlatformOperations scope={accessState.context.scope} />
+        {view === "security" ? null : (
+          <PlatformOperations mode={view} scope={accessState.context.scope} />
+        )}
       </PlatformSection>
     );
   }
   if (accessState.status === "needs_verification") {
     return (
-      <PlatformSection actionError={actionError}>
+      <PlatformSection actionError={actionError} {...copy}>
         <VerificationPanel
           busy={busy}
           code={verificationCode}
@@ -467,7 +511,7 @@ export function PlatformAccess() {
     );
   }
   return (
-    <PlatformSection actionError={actionError}>
+    <PlatformSection actionError={actionError} {...copy}>
       <EnrollmentPanel
         acknowledgedRecoveryCodes={acknowledgedRecoveryCodes}
         busy={busy}

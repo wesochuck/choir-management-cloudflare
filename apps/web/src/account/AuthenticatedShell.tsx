@@ -835,11 +835,16 @@ function WorkspacePage({
     return renderAccountPage(route.pathname, currentSession, onSignedOut);
   if (workspace === "platform") {
     if (!platformAvailable) return <AccessDeniedPage workspace="Platform Admin" />;
-    return route.pathname === "/platform" ? (
-      <OverviewPage context={null} navigate={navigate} workspace="platform" />
-    ) : (
-      <PlatformAccess />
-    );
+    if (route.pathname === "/platform") {
+      return <OverviewPage context={null} navigate={navigate} workspace="platform" />;
+    }
+    if (route.pathname === "/platform/organizations") {
+      return <PlatformAccess view="organizations" />;
+    }
+    if (route.pathname === "/platform/access") {
+      return <PlatformAccess view="access" />;
+    }
+    return <PlatformAccess view="security" />;
   }
   if (workspace === "organization") {
     return <OrganizationWorkspacePage access={access} navigate={navigate} route={route} />;

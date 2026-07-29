@@ -581,10 +581,38 @@ function OrganizationElevation({ organizationId }: { readonly organizationId: st
   );
 }
 
-export function PlatformOperations({ scope }: { readonly scope: PlatformScope }) {
-  return scope.kind === "product_base" ? (
-    <OrganizationDirectory />
-  ) : (
+export type PlatformOperationsMode = "access" | "organizations";
+
+function OrganizationsUnavailable() {
+  return (
+    <p className="notice notice--warning" role="status">
+      The Organization directory is available from the platform control-plane host. Open this page
+      from that host to provision and monitor Organizations.
+    </p>
+  );
+}
+
+function AccessUnavailable() {
+  return (
+    <p className="notice notice--warning" role="status">
+      Scoped Organization access is available after an Organization host has been selected.
+    </p>
+  );
+}
+
+export function PlatformOperations({
+  mode,
+  scope,
+}: {
+  readonly mode: PlatformOperationsMode;
+  readonly scope: PlatformScope;
+}) {
+  if (mode === "organizations") {
+    return scope.kind === "product_base" ? <OrganizationDirectory /> : <OrganizationsUnavailable />;
+  }
+  return scope.kind === "organization" ? (
     <OrganizationElevation organizationId={scope.organizationId} />
+  ) : (
+    <AccessUnavailable />
   );
 }

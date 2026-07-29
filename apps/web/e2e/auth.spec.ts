@@ -983,20 +983,25 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await platformSection.getByLabel("6-digit code").fill("654321");
   await platformSection.getByRole("button", { name: "Verify Platform access" }).click();
   await expect(platformSection.getByRole("status")).toContainText("Platform access is ready");
+
+  await page.goto("/platform/organizations");
+  const organizationsSection = page.getByRole("region", { name: "Organizations" });
   await expect(
-    platformSection.getByRole("heading", { name: "Organization provisioning" }),
+    organizationsSection.getByRole("heading", { name: "Organization provisioning" }),
   ).toBeVisible();
   await expect(
-    platformSection.getByText("No jobs have reached the dead-letter queue."),
+    organizationsSection.getByText("No jobs have reached the dead-letter queue."),
   ).toBeVisible();
-  await platformSection.getByRole("button", { name: "Prepare schemas" }).click();
-  await expect(platformSection.getByRole("button", { name: "Preparation running" })).toBeDisabled();
-  await platformSection.getByLabel("Organization name").fill("Staging Choir");
-  await platformSection.getByLabel("Hostname slug").fill("staging-choir");
-  await platformSection.getByRole("button", { name: "Create Organization" }).click();
-  await expect(platformSection.getByText("Staging Choir", { exact: true })).toBeVisible();
-  await expect(platformSection.getByText("Provisioning", { exact: true })).toBeVisible();
-  await expect(platformSection.getByRole("status").last()).toContainText(
+  await organizationsSection.getByRole("button", { name: "Prepare schemas" }).click();
+  await expect(
+    organizationsSection.getByRole("button", { name: "Preparation running" }),
+  ).toBeDisabled();
+  await organizationsSection.getByLabel("Organization name").fill("Staging Choir");
+  await organizationsSection.getByLabel("Hostname slug").fill("staging-choir");
+  await organizationsSection.getByRole("button", { name: "Create Organization" }).click();
+  await expect(organizationsSection.getByText("Staging Choir", { exact: true })).toBeVisible();
+  await expect(organizationsSection.getByText("Provisioning", { exact: true })).toBeVisible();
+  await expect(organizationsSection.getByRole("status").last()).toContainText(
     "canonical hostname remains pending",
   );
   await expect(page.getByText("recovery-01")).toHaveCount(0);
