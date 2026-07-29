@@ -30,12 +30,24 @@ interface SeasonForm {
   readonly startsAt: string;
 }
 
-const emptySeasonForm: SeasonForm = {
-  duesAmount: "0.00",
-  endsAt: "",
-  name: "",
-  startsAt: "",
-};
+function dateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${String(year)}-${month}-${day}`;
+}
+
+function emptySeasonForm(): SeasonForm {
+  const startsAt = new Date();
+  const endsAt = new Date(startsAt);
+  endsAt.setFullYear(endsAt.getFullYear() + 1);
+  return {
+    duesAmount: "0.00",
+    endsAt: dateInputValue(endsAt),
+    name: "",
+    startsAt: dateInputValue(startsAt),
+  };
+}
 
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
@@ -65,7 +77,7 @@ function seasonFormFor(season: Season | null): SeasonForm {
         name: season.name,
         startsAt: dateOnly(season.startsAt),
       }
-    : emptySeasonForm;
+    : emptySeasonForm();
 }
 
 function apiError(error: unknown, fallback: string): string {
@@ -131,7 +143,7 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
       setError("The end date must be on or after the start date.");
       return;
     }
-    if (!Number.isFinite(amount) || amount < 0) {
+    if (!seasonForm.duesAmount.trim() || !Number.isFinite(amount) || amount < 0) {
       setError("Enter a valid dues amount.");
       return;
     }
@@ -321,6 +333,8 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
       >
         <form
           className="form-stack"
+          autoComplete="off"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             void saveSeason();
