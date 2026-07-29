@@ -29,9 +29,9 @@ describe("validateStartupConfig", () => {
   });
 
   it("throws when BETTER_AUTH_SECRET is too short", () => {
-    expect(() => validateStartupConfig({ ...validEnv, BETTER_AUTH_SECRET: "short" } as Env)).toThrowError(
-      /Too small/,
-    );
+    expect(() =>
+      validateStartupConfig({ ...validEnv, BETTER_AUTH_SECRET: "short" } as Env),
+    ).toThrowError(/Too small/);
   });
 
   it("throws when BETTER_AUTH_SECRET is missing", () => {
@@ -41,9 +41,9 @@ describe("validateStartupConfig", () => {
   });
 
   it("throws when SIGNED_LINK_SECRET is too short", () => {
-    expect(() => validateStartupConfig({ ...validEnv, SIGNED_LINK_SECRET: "short" } as Env)).toThrowError(
-      /Too small/,
-    );
+    expect(() =>
+      validateStartupConfig({ ...validEnv, SIGNED_LINK_SECRET: "short" } as Env),
+    ).toThrowError(/Too small/);
   });
 
   it("throws when APP_ENV is invalid", () => {
@@ -53,7 +53,9 @@ describe("validateStartupConfig", () => {
   });
 
   it("throws when BUILD_VERSION is empty", () => {
-    expect(() => validateStartupConfig({ ...validEnv, BUILD_VERSION: "" } as Env)).toThrowError(/Too small/);
+    expect(() => validateStartupConfig({ ...validEnv, BUILD_VERSION: "" } as Env)).toThrowError(
+      /Too small/,
+    );
   });
 
   it("throws when EXTERNAL_EFFECTS_MODE is invalid", () => {
@@ -63,7 +65,9 @@ describe("validateStartupConfig", () => {
   });
 
   it("throws when JOBS_DLQ_NAME is empty", () => {
-    expect(() => validateStartupConfig({ ...validEnv, JOBS_DLQ_NAME: "" } as Env)).toThrowError(/Too small/);
+    expect(() => validateStartupConfig({ ...validEnv, JOBS_DLQ_NAME: "" } as Env)).toThrowError(
+      /Too small/,
+    );
   });
 
   it("throws when PLATFORM_EMAIL_FROM is invalid email", () => {
@@ -73,14 +77,14 @@ describe("validateStartupConfig", () => {
   });
 
   it("throws when PLATFORM_EMAIL_MODE is invalid", () => {
-    expect(() => validateStartupConfig({ ...validEnv, PLATFORM_EMAIL_MODE: "invalid" } as Env)).toThrowError(
-      /Invalid option/,
-    );
+    expect(() =>
+      validateStartupConfig({ ...validEnv, PLATFORM_EMAIL_MODE: "invalid" } as Env),
+    ).toThrowError(/Invalid option/);
   });
 
   it("throws when PRODUCT_BASE_DOMAIN is empty", () => {
-    expect(() => validateStartupConfig({ ...validEnv, PRODUCT_BASE_DOMAIN: "" } as Env)).toThrowError(
-      /Too small/,
-    );
+    expect(() =>
+      validateStartupConfig({ ...validEnv, PRODUCT_BASE_DOMAIN: "" } as Env),
+    ).toThrowError(/Too small/);
   });
 });
