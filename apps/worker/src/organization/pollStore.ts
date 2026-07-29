@@ -58,6 +58,10 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function isExpired(expiresAt: string): boolean {
+  return expiresAt !== "" && Date.parse(expiresAt) <= Date.now();
+}
+
 interface PollRow {
   readonly [column: string]: SqlStorageValue;
   readonly archivedAt: string;
@@ -202,7 +206,7 @@ export function readProfilePollFromStore(
     ? safeParseStringArray(JSON.parse(responseRow.optionIds))
     : [];
   return Response.json({
-    canSubmit: pollRow.archivedAt === "" && !responseRow,
+    canSubmit: pollRow.archivedAt === "" && !responseRow && !isExpired(pollRow.expiresAt),
     description: pollRow.description,
     expiresAt: pollRow.expiresAt,
     multipleChoice: pollRow.multipleChoice === 1,
@@ -215,6 +219,7 @@ export function readProfilePollFromStore(
   });
 }
 
+// eslint-disable-next-line complexity -- this store dispatches the bounded poll management union.
 export async function managePollInStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -300,7 +305,7 @@ export async function managePollInStore(
           option.sortOrder,
         );
       }
-      return Response.json({ id, title: poll.title });
+      return readPollFromStore(storage, parsed.data.organizationId, id);
     }
     case "archive_poll": {
       const { pollId } = parsed.data;
@@ -316,8 +321,9 @@ export async function managePollInStore(
     case "submit_poll_response": {
       const { pollId, response } = parsed.data;
       const poll = storage.sql
-        .exec<{ multipleChoice: number; archivedAt: string }>(
-          `SELECT multiple_choice AS multipleChoice, archived_at AS archivedAt
+        .exec<{ multipleChoice: number; archivedAt: string; expiresAt: string }>(
+          `SELECT multiple_choice AS multipleChoice, archived_at AS archivedAt,
+                  expires_at AS expiresAt
            FROM polls WHERE id = ? LIMIT 1`,
           pollId,
         )
@@ -326,6 +332,9 @@ export async function managePollInStore(
       if (!poll) return Response.json({ code: "poll_not_found" }, { status: 404 });
       if (poll.archivedAt !== "") {
         return Response.json({ code: "poll_archived" }, { status: 410 });
+      }
+      if (isExpired(poll.expiresAt)) {
+        return Response.json({ code: "poll_expired" }, { status: 410 });
       }
       if (!poll.multipleChoice && response.optionIds.length > 1) {
         return Response.json({ code: "single_choice_only" }, { status: 400 });

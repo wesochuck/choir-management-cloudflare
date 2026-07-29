@@ -1571,13 +1571,14 @@ router.post("/api/public/poll-vote", async (context) => {
     body.data.optionIds,
   );
   if ("code" in result) {
+    const status = result.code === "invalid_link" ? 404 : result.status === 410 ? 410 : 503;
     return context.json(
       {
         code: result.code,
         message: "Poll response could not be submitted.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
-      result.code === "invalid_link" ? 404 : 503,
+      status,
     );
   }
   return context.json({ submitted: true, requestId: context.get("requestId") });

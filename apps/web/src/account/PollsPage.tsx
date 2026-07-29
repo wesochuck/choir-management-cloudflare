@@ -2,6 +2,7 @@ import {
   organizationPollRequestSchema,
   organizationPollSchema,
   organizationPollSummariesResponseSchema,
+  type OrganizationPoll,
   type OrganizationPollSummary,
 } from "@choir/contracts";
 import { DataTable, Dialog } from "@choir/ui";
@@ -14,12 +15,40 @@ type PollState =
   | { readonly status: "error" }
   | { readonly polls: readonly Poll[]; readonly status: "ready" };
 
+function toDateTimeLocal(value: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
+}
+
+function toIsoDateTime(value: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function formatExpiry(value: string): string {
+  if (!value) return "No expiry";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "No expiry"
+    : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
 export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   const [state, setState] = useState<PollState>({ status: "loading" });
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPollId, setEditingPollId] = useState<string | null>(null);
+  const [loadingPollId, setLoadingPollId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [archivedAt, setArchivedAt] = useState("");
+  const [multipleChoice, setMultipleChoice] = useState(false);
   const [options, setOptions] = useState(["Yes", "No"]);
+  const [optionIds, setOptionIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [sharingPollId, setSharingPollId] = useState<string | null>(null);
   const [communicationsDraftId, setCommunicationsDraftId] = useState<string | null>(null);
@@ -46,15 +75,64 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled]);
 
-  async function createPoll(event: SyntheticEvent<HTMLFormElement>) {
+  function openCreateDialog(): void {
+    setEditingPollId(null);
+    setTitle("");
+    setDescription("");
+    setExpiresAt("");
+    setArchivedAt("");
+    setMultipleChoice(false);
+    setOptions(["Yes", "No"]);
+    setOptionIds([crypto.randomUUID(), crypto.randomUUID()]);
+    setMessage(null);
+    setDialogOpen(true);
+  }
+
+  async function openEditDialog(poll: Poll): Promise<void> {
+    setLoadingPollId(poll.id);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/organization/polls/${encodeURIComponent(poll.id)}`, {
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error("Poll details unavailable");
+      const details: OrganizationPoll = organizationPollSchema.parse(await response.json());
+      setEditingPollId(details.id);
+      setTitle(details.title);
+      setDescription(details.description);
+      setExpiresAt(toDateTimeLocal(details.expiresAt));
+      setArchivedAt(details.archivedAt);
+      setMultipleChoice(details.multipleChoice);
+      setOptionIds(details.options.map(({ id }) => id));
+      setOptions(
+        details.options
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map(({ label }) => label),
+      );
+      setDialogOpen(true);
+    } catch {
+      setMessage("The poll could not be loaded for editing. Try again.");
+    } finally {
+      setLoadingPollId(null);
+    }
+  }
+
+  async function savePoll(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setMessage(null);
-    const id = crypto.randomUUID();
     const request = organizationPollRequestSchema.safeParse({
+      archivedAt,
       description,
+      expiresAt: toIsoDateTime(expiresAt),
+      multipleChoice,
       options: options
-        .map((label) => ({ id: crypto.randomUUID(), label: label.trim(), sortOrder: 0 }))
+        .map((label, index) => ({
+          id: optionIds[index] ?? crypto.randomUUID(),
+          label: label.trim(),
+          sortOrder: index,
+        }))
         .filter((option) => option.label),
       title,
     });
@@ -64,39 +142,68 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       return;
     }
     try {
-      const response = await fetch("/api/organization/polls", {
-        body: JSON.stringify({ ...request.data, id }),
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
-      if (!response.ok) throw new Error("Poll could not be created");
-      const created = organizationPollSchema.parse(await response.json());
+      const editing = editingPollId !== null;
+      const response = await fetch(
+        editing
+          ? `/api/organization/polls/${encodeURIComponent(editingPollId)}`
+          : "/api/organization/polls",
+        {
+          body: JSON.stringify(
+            editing ? request.data : { ...request.data, id: crypto.randomUUID() },
+          ),
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          method: editing ? "PUT" : "POST",
+        },
+      );
+      if (!response.ok)
+        throw new Error(editing ? "Poll could not be updated" : "Poll could not be created");
+      const saved = organizationPollSchema.parse(await response.json());
       setState((current) =>
         current.status === "ready"
           ? {
-              polls: [
-                {
-                  archivedAt: created.archivedAt,
-                  createdAt: created.createdAt,
-                  expiresAt: created.expiresAt,
-                  id: created.id,
-                  responseCount: 0,
-                  title: created.title,
-                },
-                ...current.polls,
-              ],
+              polls: editing
+                ? current.polls.map((poll) =>
+                    poll.id === saved.id
+                      ? {
+                          ...poll,
+                          archivedAt: saved.archivedAt,
+                          expiresAt: saved.expiresAt,
+                          title: saved.title,
+                        }
+                      : poll,
+                  )
+                : [
+                    {
+                      archivedAt: saved.archivedAt,
+                      createdAt: saved.createdAt,
+                      expiresAt: saved.expiresAt,
+                      id: saved.id,
+                      responseCount: 0,
+                      title: saved.title,
+                    },
+                    ...current.polls,
+                  ],
               status: "ready",
             }
           : current,
       );
       setTitle("");
       setDescription("");
+      setExpiresAt("");
+      setArchivedAt("");
+      setMultipleChoice(false);
       setOptions(["Yes", "No"]);
+      setOptionIds([]);
       setDialogOpen(false);
-      setMessage("Poll created.");
+      setMessage(editingPollId ? "Poll updated." : "Poll created.");
+      setEditingPollId(null);
     } catch {
-      setMessage("The poll could not be created. Try again.");
+      setMessage(
+        editingPollId
+          ? "The poll could not be updated. Try again."
+          : "The poll could not be created. Try again.",
+      );
     } finally {
       setSaving(false);
     }
@@ -149,13 +256,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   return (
     <section className="manager-page" aria-label="Poll management">
       <div className="page-toolbar page-toolbar--end">
-        <button
-          className="button button--primary"
-          onClick={() => {
-            setDialogOpen(true);
-          }}
-          type="button"
-        >
+        <button className="button button--primary" onClick={openCreateDialog} type="button">
           Create poll
         </button>
       </div>
@@ -186,7 +287,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
           {
             header: "Expires",
             id: "expires",
-            render: (poll: Poll) => poll.expiresAt || "No expiry",
+            render: (poll: Poll) => formatExpiry(poll.expiresAt),
           },
           {
             header: "Sharing",
@@ -203,6 +304,21 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
               </button>
             ),
           },
+          {
+            header: "Actions",
+            id: "actions",
+            render: (poll: Poll) => (
+              <button
+                disabled={loadingPollId === poll.id}
+                onClick={() => {
+                  void openEditDialog(poll);
+                }}
+                type="button"
+              >
+                {loadingPollId === poll.id ? "Loading…" : "Edit"}
+              </button>
+            ),
+          },
         ]}
         emptyMessage="No polls yet. Create the first poll for your Organization."
         keySelector={(poll) => poll.id}
@@ -211,15 +327,15 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       <Dialog
         description="Ask a focused question with two or more response options."
         onClose={() => {
-          setDialogOpen(false);
+          if (!saving) setDialogOpen(false);
         }}
         open={dialogOpen}
-        title="Create poll"
+        title={editingPollId ? "Edit poll" : "Create poll"}
       >
         <form
           className="stack-form"
           onSubmit={(event) => {
-            void createPoll(event);
+            void savePoll(event);
           }}
         >
           <label>
@@ -240,6 +356,19 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
               }}
               value={description}
             />
+          </label>
+          <label>
+            Expiration date and time (optional)
+            <input
+              onChange={(event) => {
+                setExpiresAt(event.target.value);
+              }}
+              type="datetime-local"
+              value={expiresAt}
+            />
+            <span className="field-help">
+              Responses will no longer be accepted after this time.
+            </span>
           </label>
           <fieldset>
             <legend>Options</legend>
@@ -271,7 +400,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
               Cancel
             </button>
             <button className="button button--primary" disabled={saving} type="submit">
-              {saving ? "Creating…" : "Create poll"}
+              {saving ? "Saving…" : editingPollId ? "Save changes" : "Create poll"}
             </button>
           </div>
         </form>

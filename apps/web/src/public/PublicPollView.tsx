@@ -22,6 +22,7 @@ type PageStatus =
   | { type: "loading" }
   | { type: "no_token" }
   | { type: "not_found" }
+  | { type: "poll_closed" }
   | { type: "already_voted" }
   | { type: "ready"; details: PollDetails }
   | { type: "submitting"; details: PollDetails }
@@ -72,6 +73,10 @@ function formatExpiry(iso: string): string {
     timeZone: "UTC",
     year: "numeric",
   });
+}
+
+function isExpired(iso: string): boolean {
+  return Boolean(iso) && !Number.isNaN(Date.parse(iso)) && Date.parse(iso) <= Date.now();
 }
 
 function PollForm({
@@ -168,7 +173,7 @@ export function PublicPollView() {
     fetchPollDetails(token)
       .then((details) => {
         if (!details.canSubmit) {
-          setPageStatus({ type: "already_voted" });
+          setPageStatus({ type: isExpired(details.expiresAt) ? "poll_closed" : "already_voted" });
           return;
         }
         setPageStatus({ type: "ready", details });
@@ -240,6 +245,22 @@ export function PublicPollView() {
           <h1 id="poll-title">Vote Recorded</h1>
           <p className="notice notice--success" role="status">
             You have already voted on this poll. Thank you for your participation.
+          </p>
+          <a className="button button--secondary" href="/">
+            Return to the Organization site
+          </a>
+        </section>
+      </main>
+    );
+  }
+
+  if (pageStatus.type === "poll_closed") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="poll-title">
+          <h1 id="poll-title">Poll closed</h1>
+          <p className="notice notice--warning" role="status">
+            This poll is no longer accepting responses.
           </p>
           <a className="button button--secondary" href="/">
             Return to the Organization site
