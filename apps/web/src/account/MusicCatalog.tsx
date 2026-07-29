@@ -83,6 +83,178 @@ function uniqueLabels(value: string): string[] {
   ];
 }
 
+const genreChipColors = [
+  "teal",
+  "blue",
+  "violet",
+  "rose",
+  "orange",
+  "green",
+  "indigo",
+  "gold",
+] as const;
+type GenreChipColor = (typeof genreChipColors)[number];
+
+function genreKey(label: string): string {
+  return label.trim().toLocaleLowerCase();
+}
+
+function uniqueGenreLabels(labels: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return labels.reduce<string[]>((result, label) => {
+    const trimmed = label.trim();
+    const key = genreKey(trimmed);
+    if (trimmed && !seen.has(key)) {
+      seen.add(key);
+      result.push(trimmed);
+    }
+    return result;
+  }, []);
+}
+
+function genreChipColor(label: string): GenreChipColor {
+  const value = genreKey(label);
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = hash * 31 + value.charCodeAt(index);
+  }
+  return genreChipColors[Math.abs(hash) % genreChipColors.length] ?? "teal";
+}
+
+function GenreChip({
+  genre,
+  onClick,
+  selected = false,
+}: {
+  readonly genre: string;
+  readonly onClick?: () => void;
+  readonly selected?: boolean;
+}) {
+  const className = `music-genre-chip music-genre-chip--${genreChipColor(genre)}${selected ? " is-selected" : ""}`;
+  if (!onClick) return <span className={className}>{genre}</span>;
+  return (
+    <button aria-pressed={selected} className={className} type="button" onClick={onClick}>
+      {genre}
+    </button>
+  );
+}
+
+function GenreChips({ genres }: { readonly genres: readonly string[] }) {
+  return (
+    <span className="music-genre-chips">
+      {genres.map((genre) => (
+        <GenreChip genre={genre} key={genreKey(genre)} />
+      ))}
+    </span>
+  );
+}
+
+function MusicGenreFilter({
+  genres,
+  mode,
+  onModeChange,
+  onSearchChange,
+  onToggle,
+  search,
+  selected,
+}: {
+  readonly genres: readonly string[];
+  readonly mode: "and" | "or";
+  readonly onModeChange: (mode: "and" | "or") => void;
+  readonly onSearchChange: (value: string) => void;
+  readonly onToggle: (genre: string) => void;
+  readonly search: string;
+  readonly selected: readonly string[];
+}) {
+  const visibleGenres = genres.filter((genre) => genreKey(genre).includes(genreKey(search)));
+  return (
+    <details className="music-genre-filter">
+      <summary>
+        Genres
+        <span className="music-genre-filter__summary-count">
+          {selected.length > 0 ? `${String(selected.length)} selected` : "All genres"}
+        </span>
+      </summary>
+      <div
+        className="music-genre-filter__panel"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <div className="music-genre-filter__header">
+          <strong>
+            {selected.length === 0 ? "All genres" : `${String(selected.length)} selected`}
+          </strong>
+          <div aria-label="Genre match mode" className="music-genre-filter__mode" role="group">
+            <button
+              aria-pressed={mode === "or"}
+              className={mode === "or" ? "is-active" : undefined}
+              type="button"
+              onClick={() => {
+                onModeChange("or");
+              }}
+            >
+              OR
+            </button>
+            <button
+              aria-pressed={mode === "and"}
+              className={mode === "and" ? "is-active" : undefined}
+              type="button"
+              onClick={() => {
+                onModeChange("and");
+              }}
+            >
+              AND
+            </button>
+          </div>
+        </div>
+        <input
+          aria-label="Filter genres"
+          placeholder="Filter genres…"
+          type="search"
+          value={search}
+          onChange={(event) => {
+            onSearchChange(event.target.value);
+          }}
+        />
+        <div className="music-genre-filter__options">
+          {visibleGenres.length > 0 ? (
+            visibleGenres.map((genre) => (
+              <GenreChip
+                genre={genre}
+                key={genreKey(genre)}
+                selected={selected.some((item) => genreKey(item) === genreKey(genre))}
+                onClick={() => {
+                  onToggle(genre);
+                }}
+              />
+            ))
+          ) : (
+            <span className="music-genre-filter__empty">No matching genres.</span>
+          )}
+        </div>
+        <div className="music-genre-filter__footer">
+          <span>
+            {selected.length > 0 ? "Select one or more genres" : "Choose genres to filter"}
+          </span>
+          <button
+            className="button button--secondary"
+            disabled={selected.length === 0}
+            type="button"
+            onClick={() => {
+              selected.forEach((genre) => {
+                onToggle(genre);
+              });
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function composerText(piece: OrganizationMusicPiece): string {
   if (piece.composer && piece.arranger) return `${piece.composer} / arr. ${piece.arranger}`;
   return piece.composer || piece.arranger || "—";
@@ -103,13 +275,17 @@ function trackCount(
 }
 
 function MusicCatalogTable({
+  genreFilterMode,
   onEdit,
   pieces,
   search,
+  selectedGenres,
 }: {
+  readonly genreFilterMode: "and" | "or";
   readonly onEdit: (piece: OrganizationMusicPiece) => void;
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly search: string;
+  readonly selectedGenres: readonly string[];
 }) {
   const parents = new Map(pieces.map((piece) => [piece.id, piece]));
   const trackCounts = useMemo(
@@ -117,12 +293,26 @@ function MusicCatalogTable({
     [pieces],
   );
   const needle = search.trim().toLocaleLowerCase();
-  const visiblePieces = pieces.filter((piece) =>
-    [piece.title, piece.composer, piece.arranger, piece.catalogId, ...piece.genres]
+  const visiblePieces = pieces.filter((piece) => {
+    const matchesSearch = [
+      piece.title,
+      piece.composer,
+      piece.arranger,
+      piece.catalogId,
+      ...piece.genres,
+    ]
       .join(" ")
       .toLocaleLowerCase()
-      .includes(needle),
-  );
+      .includes(needle);
+    const pieceGenres = piece.genres.map(genreKey);
+    const selected = selectedGenres.map(genreKey);
+    const matchesGenres =
+      selected.length === 0 ||
+      (genreFilterMode === "and"
+        ? selected.every((genre) => pieceGenres.includes(genre))
+        : selected.some((genre) => pieceGenres.includes(genre)));
+    return matchesSearch && matchesGenres;
+  });
 
   return (
     <div className="music-catalog-table">
@@ -137,7 +327,7 @@ function MusicCatalogTable({
                 {piece.parentId ? (
                   <small>Movement of {parents.get(piece.parentId)?.title ?? "Unknown work"}</small>
                 ) : null}
-                {piece.genres.length > 0 ? <small>{piece.genres.join(" · ")}</small> : null}
+                {piece.genres.length > 0 ? <GenreChips genres={piece.genres} /> : null}
               </div>
             ),
             sortValue: (piece) => piece.title,
@@ -500,6 +690,9 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [genresInput, setGenresInput] = useState("");
   const [copiesInput, setCopiesInput] = useState("");
   const [search, setSearch] = useState("");
+  const [genreFilterSearch, setGenreFilterSearch] = useState("");
+  const [genreFilterMode, setGenreFilterMode] = useState<"and" | "or">("or");
+  const [selectedGenres, setSelectedGenres] = useState<readonly string[]>([]);
   const [busy, setBusy] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [unlinkChildren, setUnlinkChildren] = useState(false);
@@ -535,6 +728,19 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   );
   const childCount = editingId ? pieces.filter(({ parentId }) => parentId === editingId).length : 0;
   const selectedPiece = pieces.find(({ id }) => id === editingId) ?? null;
+  const availableGenres = useMemo(
+    () =>
+      uniqueGenreLabels(pieces.flatMap(({ genres }) => genres)).sort((a, b) => a.localeCompare(b)),
+    [pieces],
+  );
+
+  function toggleGenre(genre: string): void {
+    setSelectedGenres((current) =>
+      current.some((item) => genreKey(item) === genreKey(genre))
+        ? current.filter((item) => genreKey(item) !== genreKey(genre))
+        : [...current, genre],
+    );
+  }
 
   function setEditorPiece(
     selected: OrganizationMusicPiece,
@@ -723,6 +929,15 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                   }}
                 />
               </label>
+              <MusicGenreFilter
+                genres={availableGenres}
+                mode={genreFilterMode}
+                search={genreFilterSearch}
+                selected={selectedGenres}
+                onModeChange={setGenreFilterMode}
+                onSearchChange={setGenreFilterSearch}
+                onToggle={toggleGenre}
+              />
               <button
                 className="button button--secondary"
                 type="button"
@@ -751,7 +966,13 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                 Export CSV
               </a>
             </div>
-            <MusicCatalogTable onEdit={selectPiece} pieces={pieces} search={search} />
+            <MusicCatalogTable
+              genreFilterMode={genreFilterMode}
+              onEdit={selectPiece}
+              pieces={pieces}
+              search={search}
+              selectedGenres={selectedGenres}
+            />
           </div>
           <Dialog
             description="Catalog metadata, sections, movements, and private learning tracks."
@@ -886,6 +1107,10 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                           setGenresInput(event.target.value);
                         }}
                       />
+                      <small className="field-hint">Use commas to add multiple genres.</small>
+                      {uniqueLabels(genresInput).length > 0 ? (
+                        <GenreChips genres={uniqueLabels(genresInput)} />
+                      ) : null}
                     </label>
                     <label className="field music-field--wide">
                       Parent work
