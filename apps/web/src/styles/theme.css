@@ -3285,6 +3285,27 @@ h2 {
   font-size: 0.84rem;
 }
 
+.setup-checklist__item {
+  align-items: flex-start;
+}
+
+.setup-checklist__details {
+  min-width: 0;
+}
+
+.setup-checklist__details p {
+  max-width: 42rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.setup-checklist__item .button {
+  flex: 0 0 auto;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.82rem;
+}
+
 .status-pill {
   flex: 0 0 auto;
   padding: 0.4rem 0.65rem;
@@ -5703,5 +5724,13 @@ footer {
   .public-link-share__qr {
     width: 8.5rem;
     min-height: 8.5rem;
+  }
+
+  .setup-checklist__item {
+    flex-direction: column;
+  }
+
+  .setup-checklist__item .button {
+    width: 100%;
   }
 }

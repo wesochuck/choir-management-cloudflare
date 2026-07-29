@@ -64,7 +64,8 @@ export function SetupView() {
           const next = nextUncompleted(parsed.data.completedSteps);
           if (next) setCurrentStep(next);
         }
-        if (parsed.data.launched) {
+        setOrgName(parsed.data.organizationName);
+        if (parsed.data.launched && parsed.data.completedSteps.length >= steps.length) {
           setCompleted(true);
         }
       })
