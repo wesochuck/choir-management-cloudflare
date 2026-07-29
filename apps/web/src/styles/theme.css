@@ -1720,6 +1720,71 @@ h2 {
   color: var(--color-text-muted);
 }
 
+.communication-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin: 1rem 0 1.35rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.communication-tabs button {
+  display: inline-flex;
+  min-height: 2.7rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.communication-tabs button:hover,
+.communication-tabs button:focus-visible,
+.communication-tabs button.is-active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.communication-tabs__count {
+  display: inline-grid;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  place-items: center;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--color-info-surface);
+  color: var(--color-text);
+  font-size: 0.68rem;
+}
+
+.communication-tab-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.communication-tab-panel__heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.communication-tab-panel__heading h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.communication-tab-panel__heading p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
 .communication-stepper li {
   display: inline-flex;
   align-items: center;
@@ -6341,6 +6406,25 @@ footer {
   }
 
   .setup-checklist__item .button {
+    width: 100%;
+  }
+
+  .communication-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .communication-tabs button {
+    justify-content: center;
+    padding-inline: 0.4rem;
+  }
+
+  .communication-tab-panel__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .communication-tab-panel__heading .button {
     width: 100%;
   }
 
