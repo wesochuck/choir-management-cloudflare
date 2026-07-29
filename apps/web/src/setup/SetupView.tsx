@@ -165,7 +165,7 @@ export function SetupView() {
   }
   if (completed) {
     return (
-      <main className="account-layout">
+      <main className="account-layout setup-wizard">
         <div className="account-heading">
           <h1>Setup complete</h1>
         </div>
@@ -181,7 +181,7 @@ export function SetupView() {
   const progressPercent = ((currentIndex + 1) / steps.length) * 100;
 
   return (
-    <main className="account-layout">
+    <main className="account-layout setup-wizard">
       <div className="account-heading">
         <p className="eyebrow">Setup wizard</p>
         <h1>Welcome to your Organization</h1>
