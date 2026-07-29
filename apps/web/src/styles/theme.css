@@ -1696,13 +1696,45 @@ h2 {
 
 .seating-toolbar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(10rem, 1fr) minmax(12rem, 1.15fr) minmax(16rem, 1.45fr) auto;
   align-items: end;
   gap: 0.6rem;
   padding: 0.65rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface-raised);
+}
+
+.seating-chart-control {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.seating-chart-control > span {
+  color: var(--color-text);
+}
+
+.seating-chart-control__row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.seating-chart-control__row select {
+  min-width: 0;
+  flex: 1;
+}
+
+.seating-chart-order-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+
+.seating-toolbar__actions--chart {
+  align-self: end;
 }
 
 .seating-toolbar--secondary {
@@ -2206,6 +2238,10 @@ h2 {
 @media (max-width: 900px) {
   .seating-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .seating-toolbar__actions--chart {
+    grid-column: 1 / -1;
   }
 }
 

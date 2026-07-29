@@ -5,7 +5,6 @@ import type {
   OrganizationRosterConfiguration,
   OrganizationSeatingChart,
   OrganizationSeatingChartRequest,
-  OrganizationVenue,
   SeatingConfiguration,
   SeatingFormation,
 } from "@choir/contracts";
@@ -47,7 +46,6 @@ import {
   listOrganizationEvents,
   listOrganizationProfiles,
   listOrganizationSeatingCharts,
-  listOrganizationVenues,
   reorderOrganizationSeatingCharts,
   setOrganizationEventRsvp,
   updateOrganizationSeatingChart,
@@ -60,7 +58,6 @@ interface SeatingResources {
   readonly profiles: readonly OrganizationProfile[];
   readonly roster: OrganizationRosterConfiguration;
   readonly seating: SeatingConfiguration;
-  readonly venues: readonly OrganizationVenue[];
 }
 
 type ViewMode = "grid" | "list";
@@ -813,13 +810,12 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
     Promise.all([
       listOrganizationEvents(controller.signal),
       listOrganizationProfiles(controller.signal),
-      listOrganizationVenues(controller.signal),
       getOrganizationRosterConfiguration(controller.signal),
       getOrganizationSeatingConfiguration(controller.signal),
     ])
-      .then(([events, profiles, venues, roster, seating]) => {
+      .then(([events, profiles, roster, seating]) => {
         const performances = events.filter(({ type }) => type === "Performance");
-        setResources({ events: performances, profiles, venues, roster, seating });
+        setResources({ events: performances, profiles, roster, seating });
         const requested = new URLSearchParams(window.location.search).get("eventId");
         const selected = performances.some(({ id }) => id === requested)
           ? requested
@@ -1553,23 +1549,6 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
               </select>
             </label>
             <label className="field field--compact">
-              Venue
-              <select
-                aria-label="Seating Venue"
-                onChange={(event) => {
-                  applyChart({ ...chart, venueId: event.target.value || null });
-                }}
-                value={chart.venueId ?? ""}
-              >
-                <option value="">No venue</option>
-                {resources.venues.map((venue) => (
-                  <option key={venue.id} value={venue.id}>
-                    {venue.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field field--compact">
               Formation
               <select
                 aria-label="Seating formation"
@@ -1585,23 +1564,48 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                 ))}
               </select>
             </label>
-            <label className="field field--compact">
-              Chart
-              <select
-                aria-label="Select seating chart"
-                onChange={(event) => {
-                  selectChart(event.target.value);
-                }}
-                value={editingId ?? ""}
-              >
-                {charts.map((candidate, index) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {index + 1}. {candidate.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="seating-toolbar__actions">
+            <div className="seating-chart-control field--compact">
+              <span>Chart</span>
+              <div className="seating-chart-control__row">
+                <select
+                  aria-label="Select seating chart"
+                  onChange={(event) => {
+                    selectChart(event.target.value);
+                  }}
+                  value={editingId ?? ""}
+                >
+                  {charts.map((candidate, index) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {index + 1}. {candidate.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="seating-chart-order-actions">
+                  <button
+                    aria-label="Move chart earlier"
+                    className="button button--secondary button--small"
+                    disabled={!editingId || charts.findIndex(({ id }) => id === editingId) <= 0}
+                    onClick={() => void reorderCharts(-1)}
+                    type="button"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    aria-label="Move chart later"
+                    className="button button--secondary button--small"
+                    disabled={
+                      !editingId ||
+                      charts.findIndex(({ id }) => id === editingId) === charts.length - 1
+                    }
+                    onClick={() => void reorderCharts(1)}
+                    type="button"
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="seating-toolbar__actions seating-toolbar__actions--chart">
               <button
                 className="button button--secondary button--small"
                 onClick={() => {
@@ -1622,26 +1626,6 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                 type="button"
               >
                 Rename
-              </button>
-              <button
-                aria-label="Move chart earlier"
-                className="button button--secondary button--small"
-                disabled={!editingId || charts.findIndex(({ id }) => id === editingId) <= 0}
-                onClick={() => void reorderCharts(-1)}
-                type="button"
-              >
-                ↑
-              </button>
-              <button
-                aria-label="Move chart later"
-                className="button button--secondary button--small"
-                disabled={
-                  !editingId || charts.findIndex(({ id }) => id === editingId) === charts.length - 1
-                }
-                onClick={() => void reorderCharts(1)}
-                type="button"
-              >
-                ↓
               </button>
               <button
                 className="button button--danger button--small"
