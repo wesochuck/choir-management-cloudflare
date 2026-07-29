@@ -2120,7 +2120,18 @@ h2 {
   }
 }
 
+@page {
+  size: landscape;
+  margin: 0.35in;
+}
+
 @media print {
+  html,
+  body {
+    width: 100%;
+    min-width: 0;
+  }
+
   .signed-in-header,
   .signed-in-sidebar,
   .skip-link,
@@ -2158,16 +2169,28 @@ h2 {
   }
 
   .seating-workspace,
-  .seating-editor-canvas,
-  .seating-grid--canvas {
+  .seating-editor-canvas {
+    width: 100%;
     display: block;
     padding: 0;
     border: 0;
     background: transparent;
   }
 
+  .seating-grid--canvas {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
   .seating-row--canvas {
-    grid-template-columns: 5rem repeat(var(--seating-seat-count), minmax(2.2rem, 1fr));
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 5rem repeat(var(--seating-seat-count), minmax(2.4rem, 1fr));
     break-inside: avoid;
   }
 
