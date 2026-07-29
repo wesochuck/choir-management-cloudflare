@@ -46,6 +46,136 @@ type RosterState =
       readonly status: "ready";
     };
 
+type RosterStatusFilter = "all" | OrganizationProfile["globalStatus"];
+
+const UNASSIGNED_VOICE_FILTER = "unassigned";
+
+function sectionFilterKey(code: string): string {
+  return `section:${code}`;
+}
+
+function voicePartFilterKey(label: string): string {
+  return `part:${label}`;
+}
+
+function profileSectionCode(
+  profile: OrganizationProfile,
+  configuration: OrganizationRosterConfiguration,
+): string | null {
+  return (
+    configuration.voiceParts.find(({ label }) => label === profile.voicePart)?.sectionCode ?? null
+  );
+}
+
+function profileMatchesVoiceFilters(
+  profile: OrganizationProfile,
+  configuration: OrganizationRosterConfiguration,
+  filters: readonly string[],
+): boolean {
+  if (filters.length === 0) return true;
+  const sectionCode = profileSectionCode(profile, configuration);
+  return filters.some((filter) =>
+    filter === UNASSIGNED_VOICE_FILTER
+      ? !profile.voicePart
+      : filter === voicePartFilterKey(profile.voicePart) ||
+        filter === sectionFilterKey(sectionCode ?? ""),
+  );
+}
+
+function VoicePartBalance({
+  configuration,
+  profiles,
+  selectedFilters,
+  onToggle,
+}: {
+  readonly configuration: OrganizationRosterConfiguration;
+  readonly onToggle: (filter: string) => void;
+  readonly profiles: readonly OrganizationProfile[];
+  readonly selectedFilters: readonly string[];
+}) {
+  const counts = useMemo(() => {
+    const sections = new Map(configuration.sections.map(({ code }) => [code, 0]));
+    const voiceParts = new Map(configuration.voiceParts.map(({ label }) => [label, 0]));
+    let unassigned = 0;
+    profiles.forEach((profile) => {
+      if (!profile.voicePart) {
+        unassigned += 1;
+        return;
+      }
+      voiceParts.set(profile.voicePart, (voiceParts.get(profile.voicePart) ?? 0) + 1);
+      const sectionCode = profileSectionCode(profile, configuration);
+      if (sectionCode) sections.set(sectionCode, (sections.get(sectionCode) ?? 0) + 1);
+    });
+    return { sections, unassigned, voiceParts };
+  }, [configuration, profiles]);
+
+  return (
+    <section className="surface-card roster-balance" aria-labelledby="roster-balance-title">
+      <div className="roster-balance__header">
+        <div>
+          <p className="eyebrow">Roster overview</p>
+          <h2 id="roster-balance-title">Voice part balance</h2>
+          <p className="field-help">Select a section or voice part to filter the roster below.</p>
+        </div>
+        <span className="status-pill">{profiles.length} profiles</span>
+      </div>
+      <div className="roster-balance__sections">
+        {configuration.sections.map((section) => {
+          const filter = sectionFilterKey(section.code);
+          const selected = selectedFilters.includes(filter);
+          return (
+            <button
+              aria-pressed={selected}
+              className={`roster-balance__section${selected ? " roster-balance__section--selected" : ""}`}
+              key={section.code}
+              onClick={() => {
+                onToggle(filter);
+              }}
+              type="button"
+            >
+              <span>{section.name}</span>
+              <strong>{counts.sections.get(section.code) ?? 0}</strong>
+            </button>
+          );
+        })}
+      </div>
+      <div className="roster-balance__parts">
+        {configuration.voiceParts.map((voicePart) => {
+          const filter = voicePartFilterKey(voicePart.label);
+          const selected = selectedFilters.includes(filter);
+          return (
+            <button
+              aria-pressed={selected}
+              className={`roster-balance__part${selected ? " roster-balance__part--selected" : ""}`}
+              key={voicePart.label}
+              onClick={() => {
+                onToggle(filter);
+              }}
+              type="button"
+            >
+              <span>{voicePart.label}</span>
+              <strong>{counts.voiceParts.get(voicePart.label) ?? 0}</strong>
+            </button>
+          );
+        })}
+        {counts.unassigned > 0 ? (
+          <button
+            aria-pressed={selectedFilters.includes(UNASSIGNED_VOICE_FILTER)}
+            className={`roster-balance__part${selectedFilters.includes(UNASSIGNED_VOICE_FILTER) ? " roster-balance__part--selected" : ""}`}
+            onClick={() => {
+              onToggle(UNASSIGNED_VOICE_FILTER);
+            }}
+            type="button"
+          >
+            <span>Unassigned</span>
+            <strong>{counts.unassigned}</strong>
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function profileRequestFrom(profile: OrganizationProfile): OrganizationProfileRequest {
   return {
     displayName: profile.displayName,
@@ -67,6 +197,10 @@ function statusLabel(status: OrganizationProfile["globalStatus"]): string {
   return status === "Idle" ? "On Break" : status;
 }
 
+function parseRosterStatusFilter(value: string): RosterStatusFilter {
+  return value === "Active" || value === "Idle" || value === "Inactive" ? value : "all";
+}
+
 // eslint-disable-next-line complexity -- the roster page coordinates search, membership, dialogs, and profile actions.
 export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -81,6 +215,8 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [resettingProfileId, setResettingProfileId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [roster, setRoster] = useState<RosterState>({ status: "loading" });
+  const [selectedVoiceFilters, setSelectedVoiceFilters] = useState<readonly string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
@@ -112,20 +248,40 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const filteredProfiles = useMemo(() => {
     if (roster.status !== "ready") return [];
     const normalized = query.trim().toLocaleLowerCase();
-    return normalized
-      ? roster.profiles.filter((candidate) =>
-          [
-            candidate.displayName,
-            candidate.phone,
-            candidate.voicePart,
-            roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "",
-          ]
-            .join(" ")
-            .toLocaleLowerCase()
-            .includes(normalized),
-        )
-      : roster.profiles;
-  }, [query, roster]);
+    return roster.profiles.filter((candidate) => {
+      const matchesQuery =
+        !normalized ||
+        [
+          candidate.displayName,
+          candidate.phone,
+          candidate.voicePart,
+          roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "",
+        ]
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(normalized);
+      const matchesStatus = statusFilter === "all" || candidate.globalStatus === statusFilter;
+      return (
+        matchesQuery &&
+        matchesStatus &&
+        profileMatchesVoiceFilters(candidate, roster.configuration, selectedVoiceFilters)
+      );
+    });
+  }, [query, roster, selectedVoiceFilters, statusFilter]);
+
+  function toggleVoiceFilter(filter: string): void {
+    setSelectedVoiceFilters((current) =>
+      current.includes(filter)
+        ? current.filter((candidate) => candidate !== filter)
+        : [...current, filter],
+    );
+  }
+
+  function clearRosterFilters(): void {
+    setQuery("");
+    setSelectedVoiceFilters([]);
+    setStatusFilter("all");
+  }
 
   function closeDialog() {
     if (busy) return;
@@ -277,17 +433,6 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   return (
     <>
       <div className="page-toolbar">
-        <label className="search-field">
-          <span className="sr-only">Search Profiles</span>
-          <input
-            onChange={(event) => {
-              setQuery(event.target.value);
-            }}
-            placeholder="Search Profiles"
-            type="search"
-            value={query}
-          />
-        </label>
         <div className="page-toolbar__actions">
           <a
             className="button button--secondary"
@@ -331,6 +476,49 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       ) : null}
       {roster.status === "ready" ? (
         <>
+          <VoicePartBalance
+            configuration={roster.configuration}
+            onToggle={toggleVoiceFilter}
+            profiles={roster.profiles}
+            selectedFilters={selectedVoiceFilters}
+          />
+          <div className="roster-filter-row">
+            <label className="search-field">
+              <span className="sr-only">Search Profiles</span>
+              <input
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                }}
+                placeholder="Search by name or email"
+                type="search"
+                value={query}
+              />
+            </label>
+            <label className="field roster-filter-row__status">
+              <span className="sr-only">Filter by status</span>
+              <select
+                aria-label="Filter by status"
+                onChange={(event) => {
+                  setStatusFilter(parseRosterStatusFilter(event.target.value));
+                }}
+                value={statusFilter}
+              >
+                <option value="all">All statuses</option>
+                <option value="Active">Active</option>
+                <option value="Idle">On Break</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </label>
+            {query || selectedVoiceFilters.length > 0 || statusFilter !== "all" ? (
+              <button
+                className="button button--secondary"
+                onClick={clearRosterFilters}
+                type="button"
+              >
+                Clear filters
+              </button>
+            ) : null}
+          </div>
           <div className="table-heading">
             <h2>Profiles</h2>
             <span>{filteredProfiles.length} shown</span>
