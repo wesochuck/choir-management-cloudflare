@@ -57,6 +57,7 @@ import {
   platformContextResponseSchema,
   platformFleetSchemaStatusResponseSchema,
   platformJobDeadLettersResponseSchema,
+  platformSetupStatusResponseSchema,
   platformElevationRevocationResponseSchema,
   platformMfaEnrollmentResponseSchema,
   platformMfaStatusResponseSchema,
@@ -152,6 +153,7 @@ import {
   type PlatformContextResponse,
   type PlatformFleetSchemaStatusResponse,
   type PlatformJobDeadLettersResponse,
+  type PlatformSetupStatusResponse,
   type PlatformOrganizationContextResponse,
   type PrivateFileResponse,
   type PlatformOrganizationsResponse,
@@ -1176,6 +1178,13 @@ export async function getPlatformMfaStatus(
 ): Promise<PlatformMfaStatusResponse> {
   const response = await request("/api/platform/mfa/status", { signal: signal ?? null });
   return platformMfaStatusResponseSchema.parse(await response.json());
+}
+
+export async function getPlatformSetupStatus(
+  signal?: AbortSignal,
+): Promise<PlatformSetupStatusResponse> {
+  const response = await request("/api/platform/setup-status", { signal: signal ?? null });
+  return platformSetupStatusResponseSchema.parse(await response.json());
 }
 
 function optionalPasswordBody(password: string): { readonly password?: string } {

@@ -34,6 +34,7 @@ import { OrganizationAccess } from "./OrganizationAccess";
 import { OrganizationResources } from "./OrganizationResources";
 import { OrganizationSettingsPage } from "./OrganizationSettingsPage";
 import { PlatformAccess } from "./PlatformAccess";
+import { PlatformSetupMonitor } from "./PlatformSetupMonitor";
 import { PollsPage } from "./PollsPage";
 import { PublicWebsiteManager } from "./PublicWebsiteManager";
 import { ReportsView } from "./ReportsView";
@@ -513,6 +514,7 @@ function OverviewPage({
         </p>
       </div>
       {admin ? <OrganizationOverviewSummary navigate={navigate} /> : null}
+      {platform ? <PlatformSetupMonitor /> : null}
       <section className="overview-section" aria-labelledby="quick-actions-title">
         <div className="section-heading section-heading--compact">
           <p className="eyebrow">Quick actions</p>

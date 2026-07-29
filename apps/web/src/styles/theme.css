@@ -3567,6 +3567,107 @@ h2 {
   margin-top: 1.5rem;
 }
 
+.platform-setup-monitor {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.platform-setup-monitor__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.platform-setup-monitor__heading h2,
+.platform-setup-monitor__heading p {
+  margin: 0;
+}
+
+.platform-setup-monitor__heading p:not(.eyebrow) {
+  max-width: 56rem;
+  margin-top: 0.35rem;
+  color: var(--color-text-muted);
+}
+
+.platform-setup-monitor__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.platform-setup-checks {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.platform-setup-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.platform-setup-check__copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.platform-setup-check__copy span {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.platform-setup-check__status {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: right;
+}
+
+.platform-setup-check__status a {
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.platform-setup-status {
+  display: inline-flex;
+  min-width: 6.5rem;
+  justify-content: center;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.platform-setup-status--ok {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.platform-setup-status--attention {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: var(--color-accent);
+}
+
+.platform-setup-status--error {
+  background: color-mix(in srgb, var(--color-danger) 18%, transparent);
+  color: var(--color-danger);
+}
+
 .section-heading--nested h3,
 .section-heading--nested p,
 .platform-directory h4 {
@@ -5272,6 +5373,21 @@ footer {
 }
 
 @media (max-width: 760px) {
+  .platform-setup-monitor__heading,
+  .platform-setup-check {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .platform-setup-monitor__heading .button {
+    width: 100%;
+  }
+
+  .platform-setup-check__status {
+    justify-content: space-between;
+    text-align: left;
+  }
+
   .ticketing-page-header {
     align-items: stretch;
     flex-direction: column;

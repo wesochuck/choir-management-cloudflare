@@ -20,6 +20,32 @@ export const healthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+export const platformSetupCheckSchema = z.object({
+  detail: z.string().min(1).max(500),
+  id: z.enum([
+    "startup_configuration",
+    "control_plane",
+    "platform_mfa",
+    "email_delivery",
+    "background_jobs",
+    "schema",
+  ]),
+  label: z.string().min(1).max(120),
+  status: z.enum(["attention", "error", "ok"]),
+});
+
+export const platformSetupStatusResponseSchema = z.object({
+  checks: z.array(platformSetupCheckSchema).max(10),
+  environment: z.enum(["local", "preview", "staging", "production"]),
+  jobDeadLetterCount: z.number().int().nonnegative().nullable(),
+  organizationCount: z.number().int().nonnegative().nullable(),
+  requestId: requestIdSchema,
+  version: z.string().min(1),
+});
+
+export type PlatformSetupCheck = z.infer<typeof platformSetupCheckSchema>;
+export type PlatformSetupStatusResponse = z.infer<typeof platformSetupStatusResponseSchema>;
+
 export const organizationContextResponseSchema = z.object({
   organizationId: organizationIdSchema,
   requestId: requestIdSchema,
