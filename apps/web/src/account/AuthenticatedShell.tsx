@@ -424,12 +424,10 @@ function Navigation({
 function OverviewPage({
   context,
   navigate,
-  organizationName,
   workspace,
 }: {
   readonly context: OrganizationAuthStatusResponse | null;
   readonly navigate: (href: string) => void;
-  readonly organizationName: string | null;
   readonly workspace: Workspace;
 }) {
   const admin = workspace === "organization";
@@ -496,23 +494,17 @@ function OverviewPage({
 
   return (
     <>
-      <div className="workspace-hero">
-        <p className="eyebrow">{workspaceLabel(workspace)}</p>
-        <h1>
-          {admin
-            ? `Welcome to ${organizationName ?? "your Organization"}`
-            : platform
-              ? "Platform operations"
-              : "Your choir at a glance"}
-        </h1>
-        <p>
-          {admin
-            ? "Keep people, events, programs, and communications moving from one focused workspace."
-            : platform
+      {!admin ? (
+        <div className="workspace-hero">
+          <p className="eyebrow">{workspaceLabel(workspace)}</p>
+          <h1>{platform ? "Platform operations" : "Your choir at a glance"}</h1>
+          <p>
+            {platform
               ? "Keep Organization operations safe, scoped, and auditable."
               : "Everything you need for the next rehearsal, performance, and practice session."}
-        </p>
-      </div>
+          </p>
+        </div>
+      ) : null}
       {admin ? <OrganizationOverviewSummary navigate={navigate} /> : null}
       {platform ? <PlatformSetupMonitor /> : null}
       <section className="overview-section" aria-labelledby="quick-actions-title">
@@ -817,7 +809,6 @@ function OrganizationWorkspacePage({
       <OverviewPage
         context={access.status === "ready" ? access.context : null}
         navigate={navigate}
-        organizationName={access.status === "ready" ? access.organizationName : null}
         workspace="organization"
       />
     )
@@ -848,12 +839,7 @@ function WorkspacePage({
   if (workspace === "platform") {
     if (!platformAvailable) return <AccessDeniedPage workspace="Platform Admin" />;
     return route.pathname === "/platform" ? (
-      <OverviewPage
-        context={null}
-        navigate={navigate}
-        organizationName={null}
-        workspace="platform"
-      />
+      <OverviewPage context={null} navigate={navigate} workspace="platform" />
     ) : (
       <PlatformAccess />
     );
@@ -874,7 +860,6 @@ function WorkspacePage({
       <OverviewPage
         context={access.status === "ready" ? access.context : null}
         navigate={navigate}
-        organizationName={access.status === "ready" ? access.organizationName : null}
         workspace="member"
       />
     )
