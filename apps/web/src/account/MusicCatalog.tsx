@@ -902,7 +902,15 @@ function MusicInlineAudioPlayer({ label, src }: { readonly label: string; readon
   }
 
   return (
-    <div className="music-audio-track__player">
+    <div
+      className="music-audio-track__player"
+      onChange={(event) => {
+        event.stopPropagation();
+      }}
+      onInput={(event) => {
+        event.stopPropagation();
+      }}
+    >
       <audio
         aria-label={`${label} learning track`}
         className="music-audio-track__audio"
