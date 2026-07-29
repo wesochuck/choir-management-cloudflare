@@ -737,7 +737,7 @@ function DonationLevelsTab({
   }
   return (
     <section className="surface-card" aria-labelledby="donation-levels-heading">
-      <div className="section-heading section-heading--compact">
+      <div className="section-heading section-heading--compact donation-levels-heading">
         <div>
           <p className="eyebrow">Recognition tiers</p>
           <h3 id="donation-levels-heading">Donor levels</h3>
@@ -748,39 +748,53 @@ function DonationLevelsTab({
       </div>
       <p>Suggested amounts and benefits appear on the public donation page.</p>
       {settingsState.settings.levels.length === 0 ? <p>No donor levels configured yet.</p> : null}
-      <div className="donation-level-list">
-        {settingsState.settings.levels.map((level) => (
-          <article className="compact-card" key={level.id}>
-            <div>
-              <h4>{level.label}</h4>
-              <p>{money(level.amountCents)}</p>
-              <small>{level.benefit || "No benefit specified"}</small>
-            </div>
-            <div className="form-actions">
-              <button
-                className="text-button"
-                disabled={busy}
-                onClick={() => {
-                  editLevel(level);
-                }}
-                type="button"
-              >
-                Edit
-              </button>
-              <button
-                className="text-button text-button--danger"
-                disabled={busy}
-                onClick={() => {
-                  void deleteLevel(level.id);
-                }}
-                type="button"
-              >
-                Delete
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
+      {settingsState.settings.levels.length > 0 ? (
+        <div className="table-scroll donation-level-table-scroll">
+          <table className="data-table donation-level-table">
+            <thead>
+              <tr>
+                <th scope="col">Level</th>
+                <th scope="col">Suggested amount</th>
+                <th scope="col">Recognition benefit</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {settingsState.settings.levels.map((level) => (
+                <tr key={level.id}>
+                  <th scope="row">{level.label}</th>
+                  <td>{money(level.amountCents)}</td>
+                  <td>{level.benefit || "No benefit specified"}</td>
+                  <td>
+                    <div className="table-actions">
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() => {
+                          editLevel(level);
+                        }}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="text-button text-button--danger"
+                        disabled={busy}
+                        onClick={() => {
+                          void deleteLevel(level.id);
+                        }}
+                        type="button"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </section>
   );
 }
