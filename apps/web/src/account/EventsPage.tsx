@@ -42,6 +42,16 @@ const emptyEvent: OrganizationEventRequest = {
   venueId: null,
 };
 
+const DAYS_OF_WEEK = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
 type EventsState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
@@ -104,6 +114,33 @@ function eventDialogTitle(editingId: string | null, title: string): string {
 function eventSaveLabel(busy: boolean, editingId: string | null): string {
   if (busy) return "Saving…";
   return editingId ? "Save event" : "Create event";
+}
+
+function rehearsalDatesBeforePerformance(
+  performance: OrganizationEvent,
+  count: number,
+  dayOfWeek: number,
+  time: string,
+  timezone: string,
+): readonly string[] | null {
+  const localPerformanceStart = utcToZonedLocalDateTime(performance.startsAt, timezone);
+  if (!localPerformanceStart) return null;
+  const performanceDate = localPerformanceStart.slice(0, 10);
+  const cursor = new Date(`${performanceDate}T12:00:00Z`);
+  if (!Number.isFinite(cursor.getTime())) return null;
+  while (cursor.getUTCDay() !== dayOfWeek) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  if (cursor.getTime() >= new Date(`${performanceDate}T00:00:00Z`).getTime()) {
+    cursor.setUTCDate(cursor.getUTCDate() - 7);
+  }
+  const dates: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const date = cursor.toISOString().slice(0, 10);
+    const startsAt = zonedLocalDateTimeToUtc(`${date}T${time}`, timezone);
+    if (!startsAt) return null;
+    dates.push(startsAt);
+    cursor.setUTCDate(cursor.getUTCDate() - 7);
+  }
+  return dates.reverse();
 }
 
 function EventList({
@@ -533,9 +570,159 @@ function ArchiveEventDialog({
   );
 }
 
+function BulkRehearsalDialog({
+  busy,
+  count,
+  dayOfWeek,
+  error,
+  onClose,
+  onSubmit,
+  open,
+  performanceId,
+  performances,
+  rehearsalTime,
+  setCount,
+  setDayOfWeek,
+  setPerformanceId,
+  setRehearsalTime,
+  setVenueId,
+  venueId,
+  venues,
+}: {
+  readonly busy: boolean;
+  readonly count: string;
+  readonly dayOfWeek: string;
+  readonly error: string | null;
+  readonly onClose: () => void;
+  readonly onSubmit: () => void;
+  readonly open: boolean;
+  readonly performanceId: string;
+  readonly performances: readonly OrganizationEvent[];
+  readonly rehearsalTime: string;
+  readonly setCount: (value: string) => void;
+  readonly setDayOfWeek: (value: string) => void;
+  readonly setPerformanceId: (value: string) => void;
+  readonly setRehearsalTime: (value: string) => void;
+  readonly setVenueId: (value: string) => void;
+  readonly venueId: string;
+  readonly venues: readonly OrganizationVenue[];
+}) {
+  return (
+    <Dialog
+      description="Quickly generate a series of weekly rehearsals leading up to a performance."
+      onClose={onClose}
+      open={open}
+      title="Bulk add rehearsals"
+    >
+      <form
+        className="form-stack bulk-rehearsal-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <label className="field">
+          Target performance
+          <select
+            required
+            value={performanceId}
+            onChange={(event) => {
+              setPerformanceId(event.target.value);
+            }}
+          >
+            <option value="">Select performance…</option>
+            {performances.map((performance) => (
+              <option key={performance.id} value={performance.id}>
+                {performance.title} · {new Date(performance.startsAt).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Rehearsal venue
+          <select
+            value={venueId}
+            onChange={(event) => {
+              setVenueId(event.target.value);
+            }}
+          >
+            <option value="">No saved venue</option>
+            {venues.map((venue) => (
+              <option key={venue.id} value={venue.id}>
+                {venue.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="bulk-rehearsal-form__split">
+          <label className="field">
+            Count
+            <input
+              min={1}
+              max={52}
+              required
+              type="number"
+              value={count}
+              onChange={(event) => {
+                setCount(event.target.value);
+              }}
+            />
+          </label>
+          <label className="field">
+            Time
+            <input
+              required
+              type="time"
+              value={rehearsalTime}
+              onChange={(event) => {
+                setRehearsalTime(event.target.value);
+              }}
+            />
+          </label>
+        </div>
+        <label className="field">
+          Day of week
+          <select
+            required
+            value={dayOfWeek}
+            onChange={(event) => {
+              setDayOfWeek(event.target.value);
+            }}
+          >
+            {DAYS_OF_WEEK.map((day, index) => (
+              <option key={day} value={String(index)}>
+                {day}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="dialog__actions">
+          <button className="button button--secondary" onClick={onClose} type="button">
+            Cancel
+          </button>
+          <button className="button button--primary" disabled={busy} type="submit">
+            {busy ? "Generating…" : "Generate rehearsals"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const [archiveCandidate, setArchiveCandidate] = useState<OrganizationEvent | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bulkRehearsalOpen, setBulkRehearsalOpen] = useState(false);
+  const [bulkRehearsalCount, setBulkRehearsalCount] = useState("8");
+  const [bulkRehearsalDay, setBulkRehearsalDay] = useState("2");
+  const [bulkRehearsalPerformanceId, setBulkRehearsalPerformanceId] = useState("");
+  const [bulkRehearsalTime, setBulkRehearsalTime] = useState("19:00");
+  const [bulkRehearsalVenueId, setBulkRehearsalVenueId] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -598,6 +785,26 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     setError(null);
     setSuccess(null);
     setDialogOpen(true);
+  }
+
+  function openBulkRehearsals() {
+    if (state.status !== "ready") return;
+    const performances = state.events.filter((candidate) => candidate.type === "Performance");
+    const target = performances[0];
+    setBulkRehearsalPerformanceId(target?.id ?? "");
+    setBulkRehearsalVenueId(state.venues[0]?.id ?? "");
+    if (target) {
+      const localStart = utcToZonedLocalDateTime(target.startsAt, state.timezone);
+      if (localStart) {
+        const date = new Date(`${localStart.slice(0, 10)}T12:00:00Z`);
+        if (Number.isFinite(date.getTime())) setBulkRehearsalDay(String(date.getUTCDay()));
+      }
+    }
+    setBulkRehearsalCount("8");
+    setBulkRehearsalTime("19:00");
+    setError(null);
+    setSuccess(null);
+    setBulkRehearsalOpen(true);
   }
 
   function openEdit(candidate: OrganizationEvent) {
@@ -712,6 +919,73 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function bulkAddRehearsals() {
+    if (state.status !== "ready") return;
+    const target = state.events.find(({ id }) => id === bulkRehearsalPerformanceId);
+    const count = Number.parseInt(bulkRehearsalCount, 10);
+    const dayOfWeek = Number.parseInt(bulkRehearsalDay, 10);
+    if (target?.type !== "Performance") {
+      setError("Choose a target Performance.");
+      return;
+    }
+    if (!Number.isInteger(count) || count < 1 || count > 52) {
+      setError("Choose between 1 and 52 rehearsals.");
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(bulkRehearsalTime)) {
+      setError("Enter a valid rehearsal time.");
+      return;
+    }
+    const startsAt = rehearsalDatesBeforePerformance(
+      target,
+      count,
+      dayOfWeek,
+      bulkRehearsalTime,
+      state.timezone,
+    );
+    if (!startsAt) {
+      setError("The rehearsal dates could not be created in the Organization timezone.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const created: OrganizationEvent[] = [];
+      for (const start of startsAt) {
+        created.push(
+          await createOrganizationEvent({
+            ...emptyEvent,
+            parentPerformanceId: target.id,
+            startsAt: start,
+            title: `${target.title} rehearsal`,
+            type: "Rehearsal",
+            venueId: bulkRehearsalVenueId || null,
+          }),
+        );
+      }
+      setState((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              events: [...current.events, ...created].toSorted((left, right) =>
+                left.startsAt.localeCompare(right.startsAt),
+              ),
+            }
+          : current,
+      );
+      setBulkRehearsalOpen(false);
+      setSuccess(`${String(created.length)} rehearsals created leading up to ${target.title}.`);
+    } catch (bulkError: unknown) {
+      setError(
+        bulkError instanceof AuthApiError
+          ? bulkError.message
+          : "The rehearsal series could not be created.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!enabled) {
     return <p className="notice notice--warning">Verify Organization MFA to manage events.</p>;
   }
@@ -731,6 +1005,17 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
             value={query}
           />
         </label>
+        <button
+          className="button button--secondary"
+          disabled={
+            state.status !== "ready" ||
+            !state.events.some((candidate) => candidate.type === "Performance")
+          }
+          onClick={openBulkRehearsals}
+          type="button"
+        >
+          Bulk add rehearsals
+        </button>
         <button className="button button--primary" onClick={openCreate} type="button">
           Create event
         </button>
@@ -792,6 +1077,31 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
         onClose={() => {
           if (!busy) setArchiveCandidate(null);
         }}
+      />
+      <BulkRehearsalDialog
+        busy={busy}
+        count={bulkRehearsalCount}
+        dayOfWeek={bulkRehearsalDay}
+        error={error}
+        onClose={() => {
+          if (!busy) setBulkRehearsalOpen(false);
+        }}
+        onSubmit={() => {
+          void bulkAddRehearsals();
+        }}
+        open={bulkRehearsalOpen}
+        performanceId={bulkRehearsalPerformanceId}
+        performances={
+          readyState?.events.filter((candidate) => candidate.type === "Performance") ?? []
+        }
+        rehearsalTime={bulkRehearsalTime}
+        setCount={setBulkRehearsalCount}
+        setDayOfWeek={setBulkRehearsalDay}
+        setPerformanceId={setBulkRehearsalPerformanceId}
+        setRehearsalTime={setBulkRehearsalTime}
+        setVenueId={setBulkRehearsalVenueId}
+        venueId={bulkRehearsalVenueId}
+        venues={readyState?.venues ?? []}
       />
     </>
   );

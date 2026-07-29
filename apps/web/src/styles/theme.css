@@ -3645,6 +3645,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .bulk-rehearsal-form__split {
+    grid-template-columns: 1fr;
+  }
+
   .set-list-notes-field {
     grid-column: auto;
   }
@@ -4620,6 +4624,12 @@ footer {
   color: var(--color-text-muted);
   font-size: 0.82rem;
   line-height: 1.45;
+}
+
+.bulk-rehearsal-form__split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
 .ticket-confirmation-settings {
