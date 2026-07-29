@@ -6112,6 +6112,11 @@ footer {
   gap: 0.75rem;
 }
 
+.bulk-rehearsal-form__split .field input {
+  height: 2.5rem;
+  min-height: 2.5rem;
+}
+
 .ticket-confirmation-settings {
   display: grid;
   gap: 1rem;
