@@ -3381,6 +3381,75 @@ h2 {
   gap: 0.7rem 1.25rem;
 }
 
+.communication-section-picker-field .field-label {
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.communication-section-picker {
+  position: relative;
+}
+
+.communication-section-picker summary {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  list-style: none;
+}
+
+.communication-section-picker summary::-webkit-details-marker {
+  display: none;
+}
+
+.communication-section-picker summary::after {
+  display: inline-block;
+  color: var(--color-text-muted);
+  content: "⌄";
+  line-height: 1;
+  transition: transform 120ms ease;
+}
+
+.communication-section-picker[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.communication-section-picker__summary-value {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.communication-section-picker__panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  display: grid;
+  width: min(28rem, calc(100vw - 2rem));
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+  box-shadow: 0 1rem 2.5rem var(--color-shadow);
+}
+
+.communication-section-picker__panel .field-help {
+  margin: 0;
+}
+
+.communication-section-picker__panel .button {
+  justify-self: start;
+}
+
 .seating-save-status {
   min-width: 5.25rem;
   color: var(--color-text-muted);

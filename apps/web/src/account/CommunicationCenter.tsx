@@ -6,6 +6,7 @@ import type {
   CommunicationScheduledMessage,
   CommunicationTemplate,
   OrganizationEvent,
+  OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
@@ -16,6 +17,7 @@ import {
   deleteOrganizationCommunicationTemplate,
   getOrganizationCommunicationDeliverySummary,
   listOrganizationCommunications,
+  getOrganizationRosterConfiguration,
   listOrganizationScheduledMessages,
   listOrganizationCommunicationTemplates,
   listOrganizationEvents,
@@ -59,6 +61,76 @@ function eventLabel(event: OrganizationEvent): string {
 function channelFromValue(value: string): CommunicationChannel {
   if (value === "SMS" || value === "Both") return value;
   return "Email";
+}
+
+function CommunicationSectionPicker({
+  configuration,
+  onChange,
+  value,
+}: {
+  readonly configuration: OrganizationRosterConfiguration;
+  readonly onChange: (sections: readonly string[]) => void;
+  readonly value: string;
+}) {
+  const sections = configuration.sections.filter(({ trackOnly }) => !trackOnly);
+  const selected = value
+    .split(",")
+    .map((section) => section.trim())
+    .filter((section) => sections.some(({ code }) => code === section));
+
+  function toggle(sectionCode: string, checked: boolean): void {
+    const next = checked
+      ? [...new Set([...selected, sectionCode])]
+      : selected.filter((code) => code !== sectionCode);
+    onChange(next);
+  }
+
+  const selectedLabel =
+    selected.length === 0
+      ? "All sections"
+      : selected.length === 1
+        ? (sections.find(({ code }) => code === selected[0])?.name ?? selected[0])
+        : `${String(selected.length)} sections selected`;
+
+  return (
+    <div className="field communication-section-picker-field">
+      <span className="field-label">Sections (optional)</span>
+      <details className="communication-section-picker">
+        <summary>
+          <span>Member sections</span>
+          <span className="communication-section-picker__summary-value">{selectedLabel}</span>
+        </summary>
+        <div className="communication-section-picker__panel">
+          <p className="field-help">Choose one or more sections. Track-only sections are hidden.</p>
+          <div className="checkbox-grid">
+            {sections.map((section) => (
+              <label className="checkbox-row" key={section.code}>
+                <input
+                  checked={selected.includes(section.code)}
+                  type="checkbox"
+                  onChange={(event) => {
+                    toggle(section.code, event.target.checked);
+                  }}
+                />
+                {section.name}
+              </label>
+            ))}
+          </div>
+          {selected.length > 0 ? (
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                onChange([]);
+              }}
+              type="button"
+            >
+              Clear sections
+            </button>
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
 }
 
 const audienceOptions = ["Members", "Ticket Buyers", "Donors"] as const;
@@ -213,6 +285,8 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     readonly CommunicationScheduledMessage[]
   >([]);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
+  const [rosterConfiguration, setRosterConfiguration] =
+    useState<OrganizationRosterConfiguration | null>(null);
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
   const [reach, setReach] = useState<string | null>(null);
   const [testEmail, setTestEmail] = useState("");
@@ -274,6 +348,21 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
       controller.abort();
     };
   }, [draftId, enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    getOrganizationRosterConfiguration(controller.signal)
+      .then((configuration) => {
+        if (!controller.signal.aborted) setRosterConfiguration(configuration);
+      })
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted) setError(failureMessage(failure));
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [enabled]);
 
   function composeRequest() {
     return {
@@ -586,20 +675,16 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
                         ))}
                       </div>
                     </fieldset>
-                    <div className="field">
-                      <label htmlFor="communication-voice-parts">
-                        Voice parts or sections (optional)
-                      </label>
-                      <input
-                        id="communication-voice-parts"
-                        onChange={(event) => {
-                          setVoiceParts(event.target.value);
+                    {rosterConfiguration ? (
+                      <CommunicationSectionPicker
+                        configuration={rosterConfiguration}
+                        onChange={(sections) => {
+                          setVoiceParts(sections.join(", "));
                           setReach(null);
                         }}
-                        placeholder="S1, S2, A"
                         value={voiceParts}
                       />
-                    </div>
+                    ) : null}
                   </>
                 ) : null}
                 {audience.targetAudiences.includes("Members") ||
