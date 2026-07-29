@@ -28,6 +28,8 @@ type DonationSettingsState =
   | { readonly status: "loading" }
   | { readonly settings: DonationSettings; readonly status: "ready" };
 
+type DonationTab = "history" | "levels" | "portal" | "pageSettings";
+
 const EMPTY_DONATIONS: readonly DonationRecord[] = [];
 
 function money(cents: number): string {
@@ -85,7 +87,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   const [refundId, setRefundId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [tab, setTab] = useState<"history" | "settings">("history");
+  const [tab, setTab] = useState<DonationTab>("history");
   const [settingsState, setSettingsState] = useState<DonationSettingsState>({
     status: "loading",
   });
@@ -275,15 +277,37 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           Donation History
         </button>
         <button
-          aria-selected={tab === "settings"}
-          className={tab === "settings" ? "is-active" : undefined}
+          aria-selected={tab === "levels"}
+          className={tab === "levels" ? "is-active" : undefined}
           onClick={() => {
-            setTab("settings");
+            setTab("levels");
           }}
           role="tab"
           type="button"
         >
-          Tiers &amp; Page Settings
+          Donor levels
+        </button>
+        <button
+          aria-selected={tab === "portal"}
+          className={tab === "portal" ? "is-active" : undefined}
+          onClick={() => {
+            setTab("portal");
+          }}
+          role="tab"
+          type="button"
+        >
+          Public portal
+        </button>
+        <button
+          aria-selected={tab === "pageSettings"}
+          className={tab === "pageSettings" ? "is-active" : undefined}
+          onClick={() => {
+            setTab("pageSettings");
+          }}
+          role="tab"
+          type="button"
+        >
+          Page settings
         </button>
       </nav>
       {tab === "history" ? (
@@ -295,12 +319,19 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           refundId={refundId}
           setRefundId={setRefundId}
         />
-      ) : (
-        <DonationSettingsTab
+      ) : tab === "levels" ? (
+        <DonationLevelsTab
           busy={busy}
           deleteLevel={deleteLevel}
           editLevel={openEditLevel}
           newLevel={openNewLevel}
+          settingsState={settingsState}
+        />
+      ) : tab === "portal" ? (
+        <DonationPortalTab settingsState={settingsState} />
+      ) : (
+        <DonationPageSettingsTab
+          busy={busy}
           savePortalSettings={savePortalSettings}
           settingsState={settingsState}
           portalButtonText={portalButtonText}
@@ -613,11 +644,22 @@ function DonationHistoryTab({
   );
 }
 
-function DonationSettingsTab({
+function DonationPortalTab({ settingsState }: { readonly settingsState: DonationSettingsState }) {
+  if (settingsState.status === "loading") return <p>Loading donation settings…</p>;
+  if (settingsState.status === "error") {
+    return <p className="notice notice--error">Donation settings could not be loaded.</p>;
+  }
+  return (
+    <QRCodeShareCard
+      description="Share this page with supporters so they can choose a donation level or enter a custom amount."
+      path="/donate"
+      title="Public donation page"
+    />
+  );
+}
+
+function DonationPageSettingsTab({
   busy,
-  deleteLevel,
-  editLevel,
-  newLevel,
   portalButtonText,
   portalDescription,
   savePortalSettings,
@@ -626,9 +668,6 @@ function DonationSettingsTab({
   settingsState,
 }: {
   readonly busy: boolean;
-  readonly deleteLevel: (levelId: string) => Promise<void>;
-  readonly editLevel: (level: DonationLevel) => void;
-  readonly newLevel: () => void;
   readonly portalButtonText: string;
   readonly portalDescription: string;
   readonly savePortalSettings: (event: SyntheticEvent<HTMLFormElement>) => Promise<void>;
@@ -641,98 +680,108 @@ function DonationSettingsTab({
     return <p className="notice notice--error">Donation settings could not be loaded.</p>;
   }
   return (
-    <div className="donation-settings-tab">
-      <QRCodeShareCard
-        description="Share this page with supporters so they can choose a donation level or enter a custom amount."
-        path="/donate"
-        title="Public donation page"
-      />
-      <div className="donation-settings-grid">
-        <form
-          className="surface-card form-stack"
-          onSubmit={(event) => void savePortalSettings(event)}
-        >
-          <div>
-            <p className="eyebrow">Public portal</p>
-            <h3>Donation page settings</h3>
-            <p>Customize the headline and explanation shown to donors before checkout.</p>
-          </div>
-          <label className="field">
-            Call-to-action heading
-            <input
-              required
-              maxLength={200}
-              value={portalButtonText}
-              onChange={(event) => {
-                setPortalButtonText(event.target.value);
-              }}
-            />
-          </label>
-          <label className="field">
-            Portal description
-            <textarea
-              maxLength={2000}
-              rows={5}
-              value={portalDescription}
-              onChange={(event) => {
-                setPortalDescription(event.target.value);
-              }}
-            />
-          </label>
-          <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Saving…" : "Save page settings"}
-          </button>
-        </form>
-        <section className="surface-card" aria-labelledby="donation-levels-heading">
-          <div className="section-heading section-heading--compact">
-            <div>
-              <p className="eyebrow">Recognition tiers</p>
-              <h3 id="donation-levels-heading">Donor levels</h3>
-            </div>
-            <button className="button button--primary" onClick={newLevel} type="button">
-              Add level
-            </button>
-          </div>
-          <p>Suggested amounts and benefits appear on the public donation page.</p>
-          {settingsState.settings.levels.length === 0 ? (
-            <p>No donor levels configured yet.</p>
-          ) : null}
-          <div className="donation-level-list">
-            {settingsState.settings.levels.map((level) => (
-              <article className="compact-card" key={level.id}>
-                <div>
-                  <h4>{level.label}</h4>
-                  <p>{money(level.amountCents)}</p>
-                  <small>{level.benefit || "No benefit specified"}</small>
-                </div>
-                <div className="form-actions">
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      editLevel(level);
-                    }}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="text-button text-button--danger"
-                    disabled={busy}
-                    onClick={() => {
-                      void deleteLevel(level.id);
-                    }}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+    <form
+      className="surface-card form-stack donation-page-settings"
+      onSubmit={(event) => void savePortalSettings(event)}
+    >
+      <div>
+        <p className="eyebrow">Public portal</p>
+        <h3>Donation page settings</h3>
+        <p>Customize the headline and explanation shown to donors before checkout.</p>
       </div>
-    </div>
+      <label className="field">
+        Call-to-action heading
+        <input
+          required
+          maxLength={200}
+          value={portalButtonText}
+          onChange={(event) => {
+            setPortalButtonText(event.target.value);
+          }}
+        />
+      </label>
+      <label className="field">
+        Portal description
+        <textarea
+          maxLength={2000}
+          rows={5}
+          value={portalDescription}
+          onChange={(event) => {
+            setPortalDescription(event.target.value);
+          }}
+        />
+      </label>
+      <button className="button button--primary" disabled={busy} type="submit">
+        {busy ? "Saving…" : "Save page settings"}
+      </button>
+    </form>
+  );
+}
+
+function DonationLevelsTab({
+  busy,
+  deleteLevel,
+  editLevel,
+  newLevel,
+  settingsState,
+}: {
+  readonly busy: boolean;
+  readonly deleteLevel: (levelId: string) => Promise<void>;
+  readonly editLevel: (level: DonationLevel) => void;
+  readonly newLevel: () => void;
+  readonly settingsState: DonationSettingsState;
+}) {
+  if (settingsState.status === "loading") return <p>Loading donation settings…</p>;
+  if (settingsState.status === "error") {
+    return <p className="notice notice--error">Donation settings could not be loaded.</p>;
+  }
+  return (
+    <section className="surface-card" aria-labelledby="donation-levels-heading">
+      <div className="section-heading section-heading--compact">
+        <div>
+          <p className="eyebrow">Recognition tiers</p>
+          <h3 id="donation-levels-heading">Donor levels</h3>
+        </div>
+        <button className="button button--primary" onClick={newLevel} type="button">
+          Add level
+        </button>
+      </div>
+      <p>Suggested amounts and benefits appear on the public donation page.</p>
+      {settingsState.settings.levels.length === 0 ? <p>No donor levels configured yet.</p> : null}
+      <div className="donation-level-list">
+        {settingsState.settings.levels.map((level) => (
+          <article className="compact-card" key={level.id}>
+            <div>
+              <h4>{level.label}</h4>
+              <p>{money(level.amountCents)}</p>
+              <small>{level.benefit || "No benefit specified"}</small>
+            </div>
+            <div className="form-actions">
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => {
+                  editLevel(level);
+                }}
+                type="button"
+              >
+                Edit
+              </button>
+              <button
+                className="text-button text-button--danger"
+                disabled={busy}
+                onClick={() => {
+                  void deleteLevel(level.id);
+                }}
+                type="button"
+              >
+                Delete
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
