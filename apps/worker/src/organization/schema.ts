@@ -750,6 +750,21 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        DEFAULT '{"successMessage":"Your purchase has been successfully processed.","pendingMessage":"We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.","willCallInstructions":"A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.","qrCodeInstructions":"Print or screenshot this entire page and bring it with you. We also sent a confirmation email with a link back to this page."}'`,
     ],
   },
+  {
+    version: 40,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS stripe_connect_accounts (
+        organization_id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL UNIQUE,
+        details_submitted INTEGER NOT NULL DEFAULT 0 CHECK (details_submitted IN (0, 1)),
+        charges_enabled INTEGER NOT NULL DEFAULT 0 CHECK (charges_enabled IN (0, 1)),
+        payouts_enabled INTEGER NOT NULL DEFAULT 0 CHECK (payouts_enabled IN (0, 1)),
+        requirements_due_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

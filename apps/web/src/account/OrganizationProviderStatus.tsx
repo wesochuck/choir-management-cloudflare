@@ -1,12 +1,24 @@
-import type { OrganizationProviderStatusResponse } from "@choir/contracts";
+import type {
+  OrganizationProviderStatusResponse,
+  OrganizationStripeConnectStatusResponse,
+} from "@choir/contracts";
 import { useEffect, useState } from "react";
 
-import { getOrganizationProviderStatus } from "../auth/api";
+import {
+  getOrganizationProviderStatus,
+  getOrganizationStripeConnectStatus,
+  startOrganizationStripeConnectOnboarding,
+} from "../auth/api";
 
 type ProviderStatusState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly data: OrganizationProviderStatusResponse; readonly status: "ready" };
+
+type ConnectStatusState =
+  | { readonly status: "error" }
+  | { readonly status: "loading" }
+  | { readonly data: OrganizationStripeConnectStatusResponse; readonly status: "ready" };
 
 function statusLabel(status: "attention" | "error" | "ok"): string {
   if (status === "ok") return "Configured";
@@ -38,20 +50,51 @@ function ProviderRow({
 
 export function OrganizationProviderStatus() {
   const [state, setState] = useState<ProviderStatusState>({ status: "loading" });
+  const [connectState, setConnectState] = useState<ConnectStatusState>({ status: "loading" });
+  const [connectBusy, setConnectBusy] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    getOrganizationProviderStatus(controller.signal)
-      .then((data) => {
+    Promise.all([
+      getOrganizationProviderStatus(controller.signal),
+      getOrganizationStripeConnectStatus(controller.signal),
+    ])
+      .then(([data, connect]) => {
         setState({ data, status: "ready" });
+        setConnectState({ data: connect, status: "ready" });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setState({ status: "error" });
+        if (!controller.signal.aborted) {
+          setState({ status: "error" });
+          setConnectState({ status: "error" });
+        }
       });
     return () => {
       controller.abort();
     };
   }, []);
+
+  async function beginConnectOnboarding() {
+    setConnectBusy(true);
+    setConnectError(null);
+    try {
+      const result = await startOrganizationStripeConnectOnboarding();
+      window.location.assign(result.url);
+    } catch {
+      setConnectError(
+        "Stripe onboarding could not be started. Ask a Platform Administrator to verify the Stripe setup.",
+      );
+      setConnectBusy(false);
+    }
+  }
+
+  function connectStatusLabel(status: "not_started" | "onboarding" | "restricted" | "ready") {
+    if (status === "ready") return "Ready";
+    if (status === "restricted") return "Needs information";
+    if (status === "onboarding") return "Onboarding started";
+    return "Not connected";
+  }
 
   return (
     <section className="surface-card provider-status-card" aria-labelledby="provider-status-title">
@@ -80,6 +123,64 @@ export function OrganizationProviderStatus() {
             <ProviderRow label="Stripe" {...state.data.stripe} />
             <ProviderRow label="Brevo" {...state.data.brevo} />
           </div>
+          <div className="provider-status-card__connect">
+            <div>
+              <p className="eyebrow">Organization payments</p>
+              <h3>Stripe Connect account</h3>
+              {connectState.status === "loading" ? <p>Checking connected-account status…</p> : null}
+              {connectState.status === "error" ? (
+                <p className="notice notice--error" role="alert">
+                  Connected-account status could not be loaded.
+                </p>
+              ) : null}
+              {connectState.status === "ready" ? (
+                <>
+                  <p>
+                    Each Organization uses its own Stripe connected account. Stripe handles the
+                    identity and payout details; this app stores only the account ID and readiness
+                    state.
+                  </p>
+                  <p className="field-help">
+                    Status: <strong>{connectStatusLabel(connectState.data.stripe.status)}</strong>
+                    {connectState.data.stripe.accountId
+                      ? ` · ${connectState.data.stripe.accountId}`
+                      : ""}
+                  </p>
+                  {connectState.data.stripe.requirementsDue.length > 0 ? (
+                    <p className="field-help">
+                      Stripe still needs {connectState.data.stripe.requirementsDue.length} item(s)
+                      before payments can be enabled.
+                    </p>
+                  ) : null}
+                  {connectError ? (
+                    <p className="notice notice--error" role="alert">
+                      {connectError}
+                    </p>
+                  ) : null}
+                  <button
+                    className="button button--secondary"
+                    disabled={!connectState.data.platformConfigured || connectBusy}
+                    onClick={() => {
+                      void beginConnectOnboarding();
+                    }}
+                    type="button"
+                  >
+                    {connectBusy
+                      ? "Opening Stripe…"
+                      : connectState.data.stripe.status === "not_started"
+                        ? "Connect Stripe account"
+                        : "Continue Stripe onboarding"}
+                  </button>
+                  {!connectState.data.platformConfigured ? (
+                    <p className="field-help">
+                      A Platform Administrator must configure the Stripe platform key before this
+                      Organization can connect.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </div>
         </>
       ) : null}
       <details className="provider-status-card__guide">
@@ -92,20 +193,18 @@ export function OrganizationProviderStatus() {
           <h3>Stripe</h3>
           <ol>
             <li>
-              Create the Stripe platform and connected-account configuration for the environment.
+              The Platform Administrator stores the Stripe platform API secret as{" "}
+              <code>STRIPE_SECRET_KEY</code>.
             </li>
             <li>
               Point Stripe webhooks at the product webhook endpoint and store its signing secret as{" "}
               <code>STRIPE_WEBHOOK_SECRET</code>.
             </li>
-            <li>
-              Keep checkout in fake mode until live Stripe Connect activation has been completed and
-              verified.
-            </li>
+            <li>Have each Organization owner complete the Stripe Connect onboarding card above.</li>
           </ol>
           <p className="field-help">
-            The current build does not onboard an Organization&apos;s connected account or create
-            live direct charges yet; a webhook secret alone is not payment activation.
+            This release records connected-account readiness but keeps checkout in fake mode until
+            live direct-charge activation and webhook routing are verified.
           </p>
           <h3>Brevo</h3>
           <ol>

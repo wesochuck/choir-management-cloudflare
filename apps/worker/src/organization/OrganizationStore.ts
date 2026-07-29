@@ -114,6 +114,10 @@ import {
 import { getSetupStateFromStore, getModuleStateFromStore, manageSetupInStore } from "./setupStore";
 import { readAttendanceReportJobFromStore, readEventReminderJobFromStore } from "./schedulingStore";
 import { listSeasonsFromStore, listDuesFromStore, manageSeasonsInStore } from "./seasonStore";
+import {
+  readStripeConnectStatusFromStore,
+  upsertStripeConnectAccountInStore,
+} from "./stripeConnectStore";
 
 const completionSchema = z.object({
   attempt: z.number().int().min(1).max(10),
@@ -1440,6 +1444,9 @@ async function dispatchPostRequest(
   if (pathname === "/internal/transaction-fee-settings") {
     return transactionFeeSettingsUpdateHandler(storage, request);
   }
+  if (pathname === "/internal/stripe-connect") {
+    return upsertStripeConnectAccountInStore(storage, request);
+  }
   if (pathname === "/internal/ticket-confirmation-settings") {
     return ticketConfirmationSettingsUpdateHandler(storage, request);
   }
@@ -2003,6 +2010,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return readDonationSettingsFromStore(storage, organizationId);
     case "/internal/transaction-fee-settings":
       return readTransactionFeeSettingsFromStore(storage, organizationId);
+    case "/internal/stripe-connect":
+      return readStripeConnectStatusFromStore(storage, organizationId);
     case "/internal/ticket-confirmation-settings":
       return readTicketConfirmationSettingsFromStore(storage, organizationId);
     case "/internal/health":

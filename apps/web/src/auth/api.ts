@@ -32,6 +32,8 @@ import {
   organizationInvitationsResponseSchema,
   organizationMembershipsResponseSchema,
   organizationProviderStatusResponseSchema,
+  organizationStripeConnectOnboardingResponseSchema,
+  organizationStripeConnectStatusResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
   organizationEventsResponseSchema,
@@ -134,6 +136,8 @@ import {
   type OrganizationInvitationsResponse,
   type OrganizationMembershipsResponse,
   type OrganizationProviderStatusResponse,
+  type OrganizationStripeConnectOnboardingResponse,
+  type OrganizationStripeConnectStatusResponse,
   type OrganizationEvent,
   type OrganizationDashboardSummaryResponse,
   type OrganizationEventRequest,
@@ -1215,6 +1219,20 @@ export async function getOrganizationProviderStatus(
     signal: signal ?? null,
   });
   return organizationProviderStatusResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationStripeConnectStatus(
+  signal?: AbortSignal,
+): Promise<OrganizationStripeConnectStatusResponse> {
+  const response = await request("/api/organization/stripe-connect", {
+    signal: signal ?? null,
+  });
+  return organizationStripeConnectStatusResponseSchema.parse(await response.json());
+}
+
+export async function startOrganizationStripeConnectOnboarding(): Promise<OrganizationStripeConnectOnboardingResponse> {
+  const response = await request("/api/organization/stripe-connect/onboard", { method: "POST" });
+  return organizationStripeConnectOnboardingResponseSchema.parse(await response.json());
 }
 
 function optionalPasswordBody(password: string): { readonly password?: string } {

@@ -45,6 +45,7 @@ export interface Env {
   readonly PROVISIONING_WORKFLOW: Workflow<ProvisioningParams>;
   readonly ROUTING_CACHE: KVNamespace;
   readonly SIGNED_LINK_SECRET: string;
+  readonly STRIPE_SECRET_KEY?: string;
   readonly STRIPE_WEBHOOK_SECRET?: string;
 }
 

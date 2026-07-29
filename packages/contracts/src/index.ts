@@ -65,6 +65,39 @@ export type OrganizationProviderStatusResponse = z.infer<
   typeof organizationProviderStatusResponseSchema
 >;
 
+const stripeConnectStatusSchema = z.object({
+  accountId: z
+    .string()
+    .regex(/^acct_[A-Za-z0-9]+$/)
+    .nullable(),
+  chargesEnabled: z.boolean(),
+  detailsSubmitted: z.boolean(),
+  payoutsEnabled: z.boolean(),
+  requirementsDue: z.array(z.string().min(1).max(200)).max(100),
+  status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+});
+
+export const organizationStripeConnectStatusResponseSchema = z.object({
+  platformConfigured: z.boolean(),
+  requestId: requestIdSchema,
+  stripe: stripeConnectStatusSchema,
+});
+
+export type OrganizationStripeConnectStatusResponse = z.infer<
+  typeof organizationStripeConnectStatusResponseSchema
+>;
+
+export const organizationStripeConnectOnboardingResponseSchema = z.object({
+  accountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
+  requestId: requestIdSchema,
+  status: stripeConnectStatusSchema.shape.status,
+  url: z.url(),
+});
+
+export type OrganizationStripeConnectOnboardingResponse = z.infer<
+  typeof organizationStripeConnectOnboardingResponseSchema
+>;
+
 export const organizationContextResponseSchema = z.object({
   organizationId: organizationIdSchema,
   requestId: requestIdSchema,

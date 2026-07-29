@@ -129,7 +129,7 @@ export function PlatformSetupMonitor() {
               <h3>Stripe payments</h3>
               <ol>
                 <li>
-                  Set up the Stripe platform and connected-account configuration for this
+                  Store the Stripe platform API secret as <code>STRIPE_SECRET_KEY</code> for this
                   environment.
                 </li>
                 <li>
@@ -137,13 +137,13 @@ export function PlatformSetupMonitor() {
                   as <code>STRIPE_WEBHOOK_SECRET</code>.
                 </li>
                 <li>
-                  Keep checkout in fake mode until live Stripe Connect activation and a signed
-                  webhook test are complete.
+                  Have each Organization complete Stripe Connect onboarding from Organization
+                  settings.
                 </li>
               </ol>
               <p className="field-help">
-                This build does not yet onboard Organization connected accounts or create live
-                direct charges; a webhook secret alone is not payment activation.
+                This release records Organization connected-account readiness but keeps checkout in
+                fake mode until live direct-charge activation and webhook routing are verified.
               </p>
               <h3>Brevo communications</h3>
               <ol>

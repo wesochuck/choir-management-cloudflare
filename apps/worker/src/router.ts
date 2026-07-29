@@ -77,6 +77,8 @@ import {
   type PlatformOrganizationContextResponse,
   type PlatformSetupStatusResponse,
   type OrganizationProviderStatusResponse,
+  organizationStripeConnectOnboardingResponseSchema,
+  organizationStripeConnectStatusResponseSchema,
   type ProblemDetails,
   type PrivateFileResponse,
 } from "@choir/contracts";
@@ -210,6 +212,12 @@ import {
 } from "./publication/publishOrganization";
 import { issueSignedLink, verifySignedLinkScope } from "./security/signedLinks";
 import { handleStripeWebhook } from "./payments/stripeWebhookHandler";
+import {
+  createStripeAccountOnboardingLink,
+  createStripeConnectedAccount,
+  retrieveStripeConnectedAccount,
+  StripeConnectError,
+} from "./payments/stripeConnect";
 import {
   MAX_PRIVATE_FILE_BYTES,
   PrivateFileStorageError,
@@ -405,6 +413,8 @@ const platformDeadLetterCursorSchema = z.tuple([z.iso.datetime(), z.string().min
 
 type ProviderSetupChecks = Pick<OrganizationProviderStatusResponse, "brevo" | "stripe">;
 
+// Provider status intentionally reports three delivery modes and two providers in one response.
+// eslint-disable-next-line complexity
 function providerSetupChecks(
   env: Pick<
     Env,
@@ -413,6 +423,7 @@ function providerSetupChecks(
     | "BREVO_SMS_ALLOWED_RECIPIENTS"
     | "BREVO_SMS_SENDER"
     | "EXTERNAL_EFFECTS_MODE"
+    | "STRIPE_SECRET_KEY"
     | "STRIPE_WEBHOOK_SECRET"
   >,
   mode: "disabled" | "fake" | "sandbox",
@@ -425,6 +436,7 @@ function providerSetupChecks(
       .split(",")
       .some((recipient) => recipient.trim().length > 0);
   const stripeWebhookReady = Boolean(env.STRIPE_WEBHOOK_SECRET?.trim());
+  const stripePlatformReady = Boolean(env.STRIPE_SECRET_KEY?.trim());
 
   const brevo =
     mode === "fake"
@@ -455,9 +467,10 @@ function providerSetupChecks(
   const stripe =
     mode === "fake"
       ? {
-          detail: stripeWebhookReady
-            ? "A Stripe webhook secret is present, but ticket and donation checkout remain simulated in fake mode."
-            : "Fake mode is active and no Stripe webhook secret is present. Checkout is simulated; signed Stripe webhooks will be rejected outside local fake mode.",
+          detail:
+            stripePlatformReady && stripeWebhookReady
+              ? "Stripe Connect platform credentials are configured, but checkout remains simulated in fake mode."
+              : "Fake mode is active. Configure STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET before enabling Stripe Connect payments.",
           status: "attention" as const,
         }
       : mode === "disabled"
@@ -466,15 +479,15 @@ function providerSetupChecks(
               "Stripe checkout is disabled for this environment. A webhook secret alone does not enable live Organization payments.",
             status: "attention" as const,
           }
-        : stripeWebhookReady
+        : stripePlatformReady && stripeWebhookReady
           ? {
               detail:
-                "Stripe webhook verification is configured, but this build still uses simulated checkout. Live Stripe Connect activation is not enabled yet.",
+                "Stripe Connect platform credentials and webhook verification are configured. Organization onboarding is available; checkout remains simulated until activation is verified.",
               status: "attention" as const,
             }
           : {
               detail:
-                "Add STRIPE_WEBHOOK_SECRET for signed webhook verification. Live Stripe Connect checkout still requires a payment activation step in this build.",
+                "Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET for Stripe Connect onboarding and signed webhook verification.",
               status: "error" as const,
             };
 
@@ -6245,6 +6258,192 @@ router.get("/api/organization/provider-status", async (context) => {
     externalEffectsMode: config.EXTERNAL_EFFECTS_MODE,
     requestId: context.get("requestId"),
   } satisfies OrganizationProviderStatusResponse);
+});
+
+router.get("/api/organization/stripe-connect", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const secretKey = context.env.STRIPE_SECRET_KEY?.trim() ?? "";
+  try {
+    const url = new URL("https://organization.internal/internal/stripe-connect");
+    url.searchParams.set("organizationId", authorization.organizationId);
+    const storeResponse = await context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    ).fetch(url);
+    const stored = z
+      .object({
+        accountId: z
+          .string()
+          .regex(/^acct_[A-Za-z0-9]+$/)
+          .nullable(),
+        chargesEnabled: z.boolean(),
+        detailsSubmitted: z.boolean(),
+        payoutsEnabled: z.boolean(),
+        requirementsDue: z.array(z.string()),
+        status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+      })
+      .parse(await storeResponse.json());
+    if (!storeResponse.ok) throw new Error("stripe_connect_store_unavailable");
+    if (secretKey && stored.accountId) {
+      const account = await retrieveStripeConnectedAccount(secretKey, stored.accountId);
+      const syncResponse = await context.env.ORGANIZATION_STORE.get(
+        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+      ).fetch("https://organization.internal/internal/stripe-connect", {
+        body: JSON.stringify({
+          accountId: account.id,
+          actorUserId: authorization.userId,
+          chargesEnabled: account.charges_enabled,
+          detailsSubmitted: account.details_submitted,
+          organizationId: authorization.organizationId,
+          payoutsEnabled: account.payouts_enabled,
+          requestId: context.get("requestId"),
+          requirementsDue: account.requirements.currently_due,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const synced = organizationStripeConnectStatusResponseSchema.shape.stripe.safeParse(
+        await syncResponse.json(),
+      );
+      if (syncResponse.ok && synced.success) {
+        return context.json({
+          platformConfigured: Boolean(secretKey),
+          requestId: context.get("requestId"),
+          stripe: synced.data,
+        });
+      }
+    }
+    return context.json({
+      platformConfigured: Boolean(secretKey),
+      requestId: context.get("requestId"),
+      stripe: stored,
+    });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code:
+          error instanceof StripeConnectError
+            ? "stripe_connect_unavailable"
+            : "service_unavailable",
+        message:
+          error instanceof StripeConnectError
+            ? "Stripe could not verify the Organization connected account."
+            : "Stripe Connect status could not be retrieved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof StripeConnectError && error.status >= 400 && error.status < 500 ? 502 : 503,
+    );
+  }
+});
+
+// This endpoint coordinates authorization, Stripe account creation, Durable Object persistence,
+// and hosted onboarding in one idempotent request.
+// eslint-disable-next-line complexity
+router.post("/api/organization/stripe-connect/onboard", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const secretKey = context.env.STRIPE_SECRET_KEY?.trim() ?? "";
+  if (!secretKey) {
+    return context.json(
+      {
+        code: "stripe_connect_not_configured",
+        message: "A Platform Administrator must configure the Stripe platform key first.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+  try {
+    const store = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const statusUrl = new URL("https://organization.internal/internal/stripe-connect");
+    statusUrl.searchParams.set("organizationId", authorization.organizationId);
+    const statusResponse = await store.fetch(statusUrl);
+    const status = z
+      .object({
+        accountId: z
+          .string()
+          .regex(/^acct_[A-Za-z0-9]+$/)
+          .nullable(),
+      })
+      .parse(await statusResponse.json());
+    let account = status.accountId
+      ? await retrieveStripeConnectedAccount(secretKey, status.accountId)
+      : null;
+    if (!account) {
+      const organization = await context.env.CONTROL_DB.prepare(
+        "SELECT name FROM organizations WHERE id = ? LIMIT 1",
+      )
+        .bind(authorization.organizationId)
+        .first<{ readonly name: string }>();
+      account = await createStripeConnectedAccount(
+        secretKey,
+        authorization.organizationId,
+        organization?.name.trim() ?? authorization.organizationId,
+      );
+    }
+    const requestId = context.get("requestId");
+    const syncResponse = await store.fetch(
+      "https://organization.internal/internal/stripe-connect",
+      {
+        body: JSON.stringify({
+          accountId: account.id,
+          actorUserId: authorization.userId,
+          chargesEnabled: account.charges_enabled,
+          detailsSubmitted: account.details_submitted,
+          organizationId: authorization.organizationId,
+          payoutsEnabled: account.payouts_enabled,
+          requestId,
+          requirementsDue: account.requirements.currently_due,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    if (!syncResponse.ok) throw new Error("stripe_connect_store_unavailable");
+    const requestUrl = new URL(context.req.url);
+    const returnUrl = new URL("/admin/settings?stripe=return", requestUrl.origin).toString();
+    const refreshUrl = new URL("/admin/settings?stripe=refresh", requestUrl.origin).toString();
+    const onboardingUrl = await createStripeAccountOnboardingLink(
+      secretKey,
+      account.id,
+      returnUrl,
+      refreshUrl,
+    );
+    const response = organizationStripeConnectOnboardingResponseSchema.parse({
+      accountId: account.id,
+      requestId,
+      status: account.charges_enabled && account.payouts_enabled ? "ready" : "onboarding",
+      url: onboardingUrl,
+    });
+    return context.json(response);
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code:
+          error instanceof StripeConnectError
+            ? "stripe_connect_unavailable"
+            : "service_unavailable",
+        message:
+          error instanceof StripeConnectError
+            ? "Stripe could not start Organization onboarding."
+            : "Stripe Connect onboarding could not be started.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof StripeConnectError && error.status >= 400 && error.status < 500 ? 502 : 503,
+    );
+  }
 });
 
 router.get("/api/organization/calendar-settings", async (context) => {

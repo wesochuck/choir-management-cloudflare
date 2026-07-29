@@ -2099,6 +2099,25 @@ h2 {
   line-height: 1.45;
 }
 
+.provider-status-card__connect {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.provider-status-card__connect h3 {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.provider-status-card__connect p:not(.eyebrow):not(.field-help):not(.notice) {
+  max-width: 68rem;
+  margin: 0 0 0.65rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
 .provider-status-card__guide,
 .platform-setup-guide {
   padding: 0.85rem 0.95rem;
