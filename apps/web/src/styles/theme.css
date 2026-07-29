@@ -721,6 +721,115 @@ footer {
   background: var(--color-surface-raised);
 }
 
+.roster-profile-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.roster-profile-tabs button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.roster-profile-tabs button:hover,
+.roster-profile-tabs button:focus-visible,
+.roster-profile-tabs button.is-active {
+  color: var(--color-primary);
+}
+
+.roster-profile-tabs button.is-active {
+  border-bottom-color: var(--color-accent);
+}
+
+.profile-performance-history {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.profile-performance-history__heading {
+  margin-bottom: 0.55rem;
+}
+
+.profile-performance-history__heading h3 {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-performance-history__list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.profile-performance-history__empty {
+  margin: 0;
+  padding: 0.9rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--control-radius);
+  color: var(--color-text-muted);
+}
+
+.profile-performance-card {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 0.75fr) minmax(10rem, 1.45fr) minmax(6.5rem, 0.75fr) minmax(
+      7rem,
+      0.9fr
+    );
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--control-radius);
+  background: var(--color-surface-raised);
+}
+
+.profile-performance-card__date,
+.profile-performance-card__event,
+.profile-performance-card__status {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.profile-performance-card__date strong,
+.profile-performance-card__event strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-performance-card__date span,
+.profile-performance-card__event span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-performance-card__label {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-performance-card__status .status-pill {
+  justify-self: start;
+  white-space: nowrap;
+}
+
 .directory-filters {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
@@ -4802,6 +4911,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .profile-performance-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .calendar-event-form {
     grid-column: auto;
   }
@@ -4974,6 +5087,10 @@ footer {
   .directory-grid,
   .music-fields-grid,
   .profile-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-performance-card {
     grid-template-columns: 1fr;
   }
 

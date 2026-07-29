@@ -50,6 +50,7 @@ import {
   organizationProfileResponseSchema,
   organizationProfilesResponseSchema,
   organizationProfileImportResponseSchema,
+  organizationProfilePerformanceHistoryResponseSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
   organizationVenueDeleteResponseSchema,
@@ -151,6 +152,7 @@ import {
   type OrganizationMfaVerificationResponse,
   type OrganizationProfile,
   type OrganizationProfileRequest,
+  type OrganizationProfilePerformanceHistoryResponse,
   type OrganizationRsvp,
   type OrganizationVenue,
   type SingerEventsResponse,
@@ -381,6 +383,17 @@ export async function updateOrganizationProfile(
     method: "PUT",
   });
   return organizationProfileResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationProfilePerformanceHistory(
+  profileId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationProfilePerformanceHistoryResponse> {
+  const response = await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}/performance-history`,
+    { signal: signal ?? null },
+  );
+  return organizationProfilePerformanceHistoryResponseSchema.parse(await response.json());
 }
 
 export async function getMemberProfile(signal?: AbortSignal): Promise<MemberProfile> {

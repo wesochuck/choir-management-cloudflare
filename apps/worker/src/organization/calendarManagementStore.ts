@@ -135,6 +135,17 @@ interface MemberEventRow {
   readonly venueName: string;
 }
 
+interface ProfilePerformanceRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly attendance: "Absent" | "Pending" | "Present";
+  readonly id: string;
+  readonly location: string;
+  readonly rsvp: "No" | "Pending" | "Yes";
+  readonly startsAt: string;
+  readonly title: string;
+  readonly venueName: string;
+}
+
 interface AttendanceRow {
   readonly [column: string]: SqlStorageValue;
   readonly attendance: "Absent" | "Pending" | "Present";
@@ -688,6 +699,53 @@ export function listMemberEventsFromStore(
       };
     });
   return Response.json({ events });
+}
+
+export function listProfilePerformanceHistoryFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly organizationId: string | null;
+    readonly profileId: string | null;
+    readonly readAt: string | null;
+  },
+): Response {
+  const profileId = z.uuid().safeParse(input.profileId);
+  const readAt = z.iso.datetime().safeParse(input.readAt);
+  if (!identityMatches(storage, input.organizationId) || !profileId.success || !readAt.success) {
+    return Response.json({ code: "profile_performance_history_not_found" }, { status: 404 });
+  }
+  if (!recordExists(storage, "profiles", profileId.data)) {
+    return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  const events = storage.sql
+    .exec<ProfilePerformanceRow>(
+      `SELECT e.id, e.title, e.starts_at AS startsAt, e.location,
+         COALESCE(v.name, '') AS venueName,
+         COALESCE(r.rsvp, 'Pending') AS rsvp,
+         COALESCE(r.attendance, 'Pending') AS attendance
+       FROM events e
+       LEFT JOIN venues v ON v.id = e.venue_id
+       LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = ?
+       WHERE e.type = 'Performance'
+       ORDER BY e.starts_at DESC, e.id DESC LIMIT 500`,
+      profileId.data,
+    )
+    .toArray()
+    .map((event) => ({
+      attendance: event.attendance,
+      id: event.id,
+      location: event.location,
+      rsvp: event.rsvp,
+      startsAt: event.startsAt,
+      title: event.title,
+      venueName: event.venueName,
+    }));
+  const readAtDate = new Date(readAt.data).getTime();
+  return Response.json({
+    past: events.filter((event) => new Date(event.startsAt).getTime() < readAtDate),
+    profileId: profileId.data,
+    upcoming: events.filter((event) => new Date(event.startsAt).getTime() >= readAtDate).reverse(),
+  });
 }
 
 function ticketConfigurationError(

@@ -8,6 +8,7 @@ import {
   organizationDashboardSummaryResponseSchema,
   organizationRosterConfigurationRequestSchema,
   organizationRsvpSchema,
+  organizationProfilePerformanceHistoryResponseSchema,
   organizationVenueSchema,
   organizationVenueDeleteResponseSchema,
   organizationVenuesResponseSchema,
@@ -25,6 +26,7 @@ import {
   type OrganizationCalendarSettings,
   type OrganizationDashboardSummaryResponse,
   type OrganizationRosterConfiguration,
+  type OrganizationProfilePerformanceHistoryResponse,
   type SingerEvent,
 } from "@choir/contracts";
 
@@ -328,4 +330,25 @@ export async function listMemberSchedule(
   const response = await stub(env, organizationId).fetch(url);
   if (!response.ok) throw new Error("The Organization store rejected the member schedule request.");
   return singerEventsResponseSchema.pick({ events: true }).parse(await response.json()).events;
+}
+
+export async function listOrganizationProfilePerformanceHistory(
+  env: Env,
+  organizationId: string,
+  profileId: string,
+  now = new Date(),
+): Promise<Omit<OrganizationProfilePerformanceHistoryResponse, "requestId">> {
+  const url = new URL(
+    "https://organization.internal/internal/calendar/profile-performance-history",
+  );
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("profileId", profileId);
+  url.searchParams.set("readAt", now.toISOString());
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) {
+    throw new Error("The Organization store rejected the Profile performance history request.");
+  }
+  return organizationProfilePerformanceHistoryResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
 }

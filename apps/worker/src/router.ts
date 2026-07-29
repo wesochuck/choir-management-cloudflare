@@ -62,6 +62,7 @@ import {
   seasonCreateRequestSchema,
   seasonUpdateRequestSchema,
   setupProgressRequestSchema,
+  organizationProfilePerformanceHistoryResponseSchema,
   type HealthResponse,
   type CalendarFeedUrlsResponse,
   type OrganizationContextResponse,
@@ -112,6 +113,7 @@ import {
   listOrganizationEventAttendance,
   listOrganizationVenues,
   listMemberSchedule,
+  listOrganizationProfilePerformanceHistory,
   readOrganizationCalendarSettings,
   readOrganizationEventRsvpExport,
   readOrganizationRosterConfiguration,
@@ -3263,6 +3265,48 @@ router.get("/api/organization/profiles/export.csv", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization roster export could not be generated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/profiles/:profileId/performance-history", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = z.uuid().safeParse(context.req.param("profileId"));
+  if (!profileId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Profile ID is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const history = organizationProfilePerformanceHistoryResponseSchema
+      .omit({ requestId: true })
+      .parse(
+        await listOrganizationProfilePerformanceHistory(
+          context.env,
+          authorization.organizationId,
+          profileId.data,
+        ),
+      );
+    return context.json({ ...history, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Profile performance history is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

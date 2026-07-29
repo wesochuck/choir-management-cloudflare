@@ -1,6 +1,7 @@
 import type {
   OrganizationMembershipSummary,
   OrganizationProfile,
+  OrganizationProfilePerformanceHistoryResponse,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
@@ -21,6 +22,7 @@ import {
   createOrganizationProfile,
   createOrganizationInvitation,
   getOrganizationRosterConfiguration,
+  getOrganizationProfilePerformanceHistory,
   importOrganizationProfilesCsv,
   listOrganizationMemberships,
   listOrganizationProfiles,
@@ -238,6 +240,104 @@ function parseRosterStatusFilter(value: string): RosterStatusFilter {
   return value === "Active" || value === "Idle" || value === "Inactive" ? value : "all";
 }
 
+type PerformanceHistoryState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | { readonly status: "error" }
+  | {
+      readonly data: OrganizationProfilePerformanceHistoryResponse;
+      readonly status: "ready";
+    };
+
+function formatPerformanceDate(value: string): { readonly date: string; readonly time: string } {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return { date: "Date unavailable", time: "" };
+  return {
+    date: new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "short",
+      weekday: "short",
+    }).format(parsed),
+    time: new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(parsed),
+  };
+}
+
+function attendanceLabel(value: "Absent" | "Pending" | "Present"): string {
+  return value === "Present" ? "Attended" : value;
+}
+
+function rsvpLabel(value: "No" | "Pending" | "Yes"): string {
+  return value === "Yes" ? "Yes (Attending)" : value === "No" ? "Declined" : "Pending";
+}
+
+function PerformanceHistory({ state }: { readonly state: PerformanceHistoryState }) {
+  if (state.status === "loading") {
+    return <p className="notice notice--info">Loading performance history…</p>;
+  }
+  if (state.status === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Performance history could not be loaded. Try again later.
+      </p>
+    );
+  }
+  if (state.status !== "ready") return null;
+
+  const sections = [
+    { id: "upcoming", label: "Upcoming performances", rows: state.data.upcoming },
+    { id: "past", label: "Past performances", rows: state.data.past },
+  ] as const;
+  return (
+    <div className="profile-performance-history">
+      {sections.map(({ id, label, rows }) => (
+        <section aria-labelledby={`profile-performance-${id}`} key={id}>
+          <div className="profile-performance-history__heading">
+            <h3 id={`profile-performance-${id}`}>
+              {label} ({rows.length})
+            </h3>
+          </div>
+          {rows.length === 0 ? (
+            <p className="profile-performance-history__empty">
+              {id === "past" ? "No past performances yet." : "No upcoming performances."}
+            </p>
+          ) : (
+            <div className="profile-performance-history__list">
+              {rows.map((performance) => {
+                const formatted = formatPerformanceDate(performance.startsAt);
+                return (
+                  <article className="profile-performance-card" key={performance.id}>
+                    <div className="profile-performance-card__date">
+                      <strong>{formatted.date}</strong>
+                      <span>{formatted.time}</span>
+                    </div>
+                    <div className="profile-performance-card__event">
+                      <strong>{performance.title}</strong>
+                      <span>
+                        {performance.venueName || performance.location || "Venue not listed"}
+                      </span>
+                    </div>
+                    <div className="profile-performance-card__status">
+                      <span className="profile-performance-card__label">Attended</span>
+                      <span className="status-pill">{attendanceLabel(performance.attendance)}</span>
+                    </div>
+                    <div className="profile-performance-card__status">
+                      <span className="profile-performance-card__label">RSVP</span>
+                      <span className="status-pill">{rsvpLabel(performance.rsvp)}</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 // eslint-disable-next-line complexity -- the roster page coordinates search, membership, dialogs, and profile actions.
 export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const { performerLabel } = useOrganizationTerminology();
@@ -257,6 +357,10 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [rosterImportInspecting, setRosterImportInspecting] = useState(false);
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [profileEmail, setProfileEmail] = useState("");
+  const [profileTab, setProfileTab] = useState<"info" | "performance">("info");
+  const [performanceHistory, setPerformanceHistory] = useState<PerformanceHistoryState>({
+    status: "idle",
+  });
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const [resettingProfileId, setResettingProfileId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -290,6 +394,23 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       controller.abort();
     };
   }, [enabled]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingId || profileTab !== "performance") return;
+    const controller = new AbortController();
+    getOrganizationProfilePerformanceHistory(editingId, controller.signal)
+      .then((data) => {
+        setPerformanceHistory({ data, status: "ready" });
+      })
+      .catch((historyError: unknown) => {
+        if (!(historyError instanceof DOMException && historyError.name === "AbortError")) {
+          setPerformanceHistory({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [dialogOpen, editingId, profileTab]);
 
   const filteredProfiles = useMemo(() => {
     if (roster.status !== "ready") return [];
@@ -335,6 +456,8 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setEditingId(null);
     setProfile(emptyProfile);
     setProfileEmail("");
+    setProfileTab("info");
+    setPerformanceHistory({ status: "idle" });
     setResetFeedback(null);
     setError(null);
   }
@@ -395,6 +518,8 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
 
   function openCreate() {
     setEditingId(null);
+    setProfileTab("info");
+    setPerformanceHistory({ status: "idle" });
     setProfile(emptyProfile);
     setProfileEmail("");
     setResetFeedback(null);
@@ -405,6 +530,8 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
 
   function openEdit(candidate: OrganizationProfile) {
     setEditingId(candidate.id);
+    setProfileTab("info");
+    setPerformanceHistory({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
     setProfileEmail(
       roster.status === "ready"
@@ -699,176 +826,207 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
         open={dialogOpen}
         title={editingId ? "Edit Profile" : "Add Profile"}
       >
-        <form
-          className="form-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void saveProfile();
-          }}
-        >
-          {error ? (
-            <p className="notice notice--error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="field">
-            <label htmlFor="roster-profile-name">Display name</label>
-            <input
-              autoFocus
-              id="roster-profile-name"
-              maxLength={200}
-              onChange={(event) => {
-                setProfile((current) => ({ ...current, displayName: event.target.value }));
+        {editingId ? (
+          <div className="roster-profile-tabs" role="tablist" aria-label="Profile sections">
+            <button
+              aria-selected={profileTab === "info"}
+              className={profileTab === "info" ? "is-active" : ""}
+              onClick={() => {
+                setProfileTab("info");
               }}
-              required
-              value={profile.displayName}
-            />
+              role="tab"
+              type="button"
+            >
+              Profile Info
+            </button>
+            <button
+              aria-selected={profileTab === "performance"}
+              className={profileTab === "performance" ? "is-active" : ""}
+              onClick={() => {
+                setPerformanceHistory({ status: "loading" });
+                setProfileTab("performance");
+              }}
+              role="tab"
+              type="button"
+            >
+              Performance RSVPs
+            </button>
           </div>
-          <div className="field">
-            <label htmlFor="roster-profile-phone">Phone</label>
-            <input
-              id="roster-profile-phone"
-              maxLength={50}
-              onChange={(event) => {
-                setProfile((current) => ({ ...current, phone: event.target.value }));
-              }}
-              value={profile.phone}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="roster-profile-email">Email address</label>
-            <input
-              id="roster-profile-email"
-              onChange={(event) => {
-                setProfileEmail(event.target.value);
-              }}
-              placeholder={`Enter an email to invite this ${performerLabel.toLowerCase()}`}
-              readOnly={Boolean(editingId && profileEmail)}
-              type="email"
-              value={profileEmail}
-            />
-            <p className="field-help">
-              Linked account emails are managed through Membership invitations.
-            </p>
-            {editingId && profileEmail ? (
-              <button
-                className="button button--secondary button--small"
-                disabled={busy || resettingProfileId !== null}
-                onClick={() => {
-                  void sendPasswordReset();
-                }}
-                type="button"
-              >
-                {resettingProfileId ? "Sending reset email…" : "Send password reset"}
-              </button>
-            ) : null}
-            {resetFeedback ? (
-              <p className="notice notice--info" role="status">
-                {resetFeedback}
+        ) : null}
+        {editingId && profileTab === "performance" ? (
+          <PerformanceHistory state={performanceHistory} />
+        ) : (
+          <form
+            className="form-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveProfile();
+            }}
+          >
+            {error ? (
+              <p className="notice notice--error" role="alert">
+                {error}
               </p>
             ) : null}
-          </div>
-          <div className="field">
-            <label htmlFor="roster-profile-voice-part">Voice part</label>
-            <select
-              id="roster-profile-voice-part"
-              onChange={(event) => {
-                setProfile((current) => ({ ...current, voicePart: event.target.value }));
-              }}
-              value={profile.voicePart}
-            >
-              <option value="">No voice part</option>
-              {roster.status === "ready"
-                ? roster.configuration.voiceParts.map(({ fullName, label }) => (
-                    <option key={label} value={label}>
-                      {fullName} ({label})
-                    </option>
-                  ))
-                : null}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="roster-profile-status">Status</label>
-            <select
-              id="roster-profile-status"
-              onChange={(event) => {
-                const value = event.target.value;
-                setProfile((current) => ({
-                  ...current,
-                  globalStatus: value === "Idle" || value === "Inactive" ? value : "Active",
-                }));
-              }}
-              value={profile.globalStatus}
-            >
-              <option value="Active">Active</option>
-              <option value="Idle">On Break</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="roster-profile-notes">Notes</label>
-            <textarea
-              id="roster-profile-notes"
-              maxLength={100000}
-              onChange={(event) => {
-                setProfile((current) => ({ ...current, notes: event.target.value }));
-              }}
-              rows={4}
-              value={profile.notes}
-            />
-          </div>
-          <label className="checkbox-row">
-            <input
-              checked={profile.showInDirectory}
-              onChange={(event) => {
-                setProfile((current) => ({ ...current, showInDirectory: event.target.checked }));
-              }}
-              type="checkbox"
-            />
-            Show in directory
-          </label>
-          <label className="checkbox-row">
-            <input
-              checked={profile.isSectionLeader}
-              onChange={(event) => {
-                setProfile((current) => ({ ...current, isSectionLeader: event.target.checked }));
-              }}
-              type="checkbox"
-            />
-            Section leader
-          </label>
-          <label className="checkbox-row">
-            <input
-              checked={profile.doNotEmail}
-              onChange={(event) => {
-                setProfile((current) => ({ ...current, doNotEmail: event.target.checked }));
-              }}
-              type="checkbox"
-            />
-            Do not email
-          </label>
-          <label className="checkbox-row">
-            <input
-              checked={profile.receiveAdminNotifications}
-              onChange={(event) => {
-                setProfile((current) => ({
-                  ...current,
-                  receiveAdminNotifications: event.target.checked,
-                }));
-              }}
-              type="checkbox"
-            />
-            Receive administrator notifications, including audition emails
-          </label>
-          <div className="dialog__actions">
-            <button className="button button--secondary" onClick={closeDialog} type="button">
-              Cancel
-            </button>
-            <button className="button button--primary" disabled={busy} type="submit">
-              {busy ? "Saving…" : editingId ? "Save Profile" : "Create Profile"}
-            </button>
-          </div>
-        </form>
+            <div className="field">
+              <label htmlFor="roster-profile-name">Display name</label>
+              <input
+                autoFocus
+                id="roster-profile-name"
+                maxLength={200}
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, displayName: event.target.value }));
+                }}
+                required
+                value={profile.displayName}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="roster-profile-phone">Phone</label>
+              <input
+                id="roster-profile-phone"
+                maxLength={50}
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, phone: event.target.value }));
+                }}
+                value={profile.phone}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="roster-profile-email">Email address</label>
+              <input
+                id="roster-profile-email"
+                onChange={(event) => {
+                  setProfileEmail(event.target.value);
+                }}
+                placeholder={`Enter an email to invite this ${performerLabel.toLowerCase()}`}
+                readOnly={Boolean(editingId && profileEmail)}
+                type="email"
+                value={profileEmail}
+              />
+              <p className="field-help">
+                Linked account emails are managed through Membership invitations.
+              </p>
+              {editingId && profileEmail ? (
+                <button
+                  className="button button--secondary button--small"
+                  disabled={busy || resettingProfileId !== null}
+                  onClick={() => {
+                    void sendPasswordReset();
+                  }}
+                  type="button"
+                >
+                  {resettingProfileId ? "Sending reset email…" : "Send password reset"}
+                </button>
+              ) : null}
+              {resetFeedback ? (
+                <p className="notice notice--info" role="status">
+                  {resetFeedback}
+                </p>
+              ) : null}
+            </div>
+            <div className="field">
+              <label htmlFor="roster-profile-voice-part">Voice part</label>
+              <select
+                id="roster-profile-voice-part"
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, voicePart: event.target.value }));
+                }}
+                value={profile.voicePart}
+              >
+                <option value="">No voice part</option>
+                {roster.status === "ready"
+                  ? roster.configuration.voiceParts.map(({ fullName, label }) => (
+                      <option key={label} value={label}>
+                        {fullName} ({label})
+                      </option>
+                    ))
+                  : null}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="roster-profile-status">Status</label>
+              <select
+                id="roster-profile-status"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setProfile((current) => ({
+                    ...current,
+                    globalStatus: value === "Idle" || value === "Inactive" ? value : "Active",
+                  }));
+                }}
+                value={profile.globalStatus}
+              >
+                <option value="Active">Active</option>
+                <option value="Idle">On Break</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="roster-profile-notes">Notes</label>
+              <textarea
+                id="roster-profile-notes"
+                maxLength={100000}
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, notes: event.target.value }));
+                }}
+                rows={4}
+                value={profile.notes}
+              />
+            </div>
+            <label className="checkbox-row">
+              <input
+                checked={profile.showInDirectory}
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, showInDirectory: event.target.checked }));
+                }}
+                type="checkbox"
+              />
+              Show in directory
+            </label>
+            <label className="checkbox-row">
+              <input
+                checked={profile.isSectionLeader}
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, isSectionLeader: event.target.checked }));
+                }}
+                type="checkbox"
+              />
+              Section leader
+            </label>
+            <label className="checkbox-row">
+              <input
+                checked={profile.doNotEmail}
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, doNotEmail: event.target.checked }));
+                }}
+                type="checkbox"
+              />
+              Do not email
+            </label>
+            <label className="checkbox-row">
+              <input
+                checked={profile.receiveAdminNotifications}
+                onChange={(event) => {
+                  setProfile((current) => ({
+                    ...current,
+                    receiveAdminNotifications: event.target.checked,
+                  }));
+                }}
+                type="checkbox"
+              />
+              Receive administrator notifications, including audition emails
+            </label>
+            <div className="dialog__actions">
+              <button className="button button--secondary" onClick={closeDialog} type="button">
+                Cancel
+              </button>
+              <button className="button button--primary" disabled={busy} type="submit">
+                {busy ? "Saving…" : editingId ? "Save Profile" : "Create Profile"}
+              </button>
+            </div>
+          </form>
+        )}
       </Dialog>
       <CsvImportDialog
         busy={busy || rosterImportInspecting}

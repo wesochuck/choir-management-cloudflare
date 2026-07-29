@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { SqlStorageValue } from "@cloudflare/workers-types";
 
 const stripeConnectOperationSchema = z.object({
   accountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
@@ -12,6 +13,7 @@ const stripeConnectOperationSchema = z.object({
 });
 
 interface StripeConnectRow {
+  readonly [column: string]: SqlStorageValue;
   readonly accountId: string;
   readonly chargesEnabled: number;
   readonly createdAt: string;
