@@ -683,12 +683,16 @@ footer {
 }
 
 .music-genre-filter summary::after {
-  content: "⌄";
+  display: inline-block;
+  content: "⌃";
   color: var(--color-text-muted);
+  line-height: 1;
+  transform: rotate(180deg);
+  transition: transform 120ms ease;
 }
 
 .music-genre-filter[open] summary::after {
-  content: "⌃";
+  transform: rotate(0deg);
 }
 
 .music-genre-filter__summary-count {
