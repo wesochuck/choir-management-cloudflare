@@ -5191,6 +5191,135 @@ footer {
   flex: 0 1 12rem;
 }
 
+.rsvp-manager {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.rsvp-manager__balance {
+  margin: 0;
+}
+
+.rsvp-manager__summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.rsvp-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rsvp-status-filters button {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rsvp-status-filters button:hover,
+.rsvp-status-filters button:focus-visible,
+.rsvp-status-filters button.is-active {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.rsvp-manager__roster {
+  margin: 0;
+}
+
+.rsvp-manager__controls {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.8fr) minmax(18rem, 1.2fr);
+  gap: 0.9rem;
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+}
+
+.rsvp-manager__controls .field {
+  margin: 0;
+}
+
+.rsvp-manager__table-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.rsvp-manager__table-heading h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.rsvp-manager__table-heading span {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.rsvp-manager__table {
+  min-width: 48rem;
+}
+
+.rsvp-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.rsvp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-muted) 12%, var(--color-surface));
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rsvp-status-badge::before {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.rsvp-status-badge--Yes {
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface));
+  color: var(--color-success);
+}
+
+.rsvp-status-badge--No {
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
+  color: var(--color-danger);
+}
+
+.rsvp-status-badge--Pending {
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
+  color: var(--color-accent);
+}
+
 @media (max-width: 640px) {
   .roster-balance__sections {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5203,6 +5332,14 @@ footer {
 
   .roster-filter-row__status {
     flex-basis: auto;
+  }
+
+  .rsvp-manager__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .rsvp-manager__summary-actions {
+    justify-content: flex-start;
   }
 }
 
