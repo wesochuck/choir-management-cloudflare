@@ -6956,8 +6956,50 @@ footer {
   --color-danger-surface: #fff0ed;
   --color-info-surface: #eef6f8;
   --color-success: #297a63;
-  --color-shadow: rgb(23 63 95 / 14%);
+  /* Keep elevation quiet in light mode so cards do not look stamped onto the page. */
+  --color-shadow: rgb(23 63 95 / 8%);
   color-scheme: light;
+}
+
+/* Light-mode controls should use the same restrained surface and border treatment as cards.
+   A few administrative forms use native controls outside of `.field`; explicitly styling them
+   prevents the browser's heavy inset borders from taking over the layout. */
+.signed-in-shell[data-theme="light"]
+  .signed-in-main
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.signed-in-shell[data-theme="light"] .signed-in-main select,
+.signed-in-shell[data-theme="light"] .signed-in-main textarea {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+.signed-in-shell[data-theme="light"] .signed-in-main input[type="color"] {
+  padding: 0.25rem 0.35rem;
+}
+
+.signed-in-shell[data-theme="light"] .account-section--roster-configuration fieldset {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 0.55rem;
+  padding: 0.85rem;
+}
+
+.signed-in-shell[data-theme="light"] .account-section--roster-configuration fieldset legend {
+  padding-inline: 0.35rem;
+  color: var(--color-text-muted);
+}
+
+/* Use a conventional two-pixel focus ring instead of the oversized orange outline used by
+   the legacy light palette. The ring remains high-contrast without overwhelming the control. */
+.signed-in-shell[data-theme="light"] a:focus-visible,
+.signed-in-shell[data-theme="light"] button:focus-visible,
+.signed-in-shell[data-theme="light"] input:focus-visible,
+.signed-in-shell[data-theme="light"] select:focus-visible,
+.signed-in-shell[data-theme="light"] textarea:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .dialog__header {
