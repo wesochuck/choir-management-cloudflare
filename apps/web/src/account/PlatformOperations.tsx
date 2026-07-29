@@ -83,6 +83,18 @@ function organizationHref(hostname: string): string {
   return `${protocol}//${hostname}/account`;
 }
 
+function platformOrganizationsHref(): string {
+  const { hostname, port, protocol } = window.location;
+  const isIpv4Address = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+  const baseHostname = hostname.endsWith(".localhost")
+    ? "localhost"
+    : hostname === "localhost" || isIpv4Address
+      ? hostname
+      : hostname.split(".").slice(1).join(".");
+  const authority = baseHostname === "localhost" && port ? `${baseHostname}:${port}` : baseHostname;
+  return `${protocol}//${authority}/platform/organizations`;
+}
+
 function organizationStatus(organization: PlatformOrganizationSummary): string {
   if (organization.lifecycleState === "suspended") {
     return "Suspended";
@@ -620,8 +632,9 @@ export type PlatformOperationsMode = "access" | "organizations";
 function OrganizationsUnavailable() {
   return (
     <p className="notice notice--warning" role="status">
-      The Organization directory is available from the platform control-plane host. Open this page
-      from that host to provision and monitor Organizations.
+      The Organization directory is available from the platform control-plane host. Open it here to
+      provision and monitor Organizations:{" "}
+      <a href={platformOrganizationsHref()}>Platform Organizations</a>.
     </p>
   );
 }
