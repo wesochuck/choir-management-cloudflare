@@ -54,6 +54,7 @@ const deliveryJobResponseSchema = z.object({
       channel: z.enum(["email", "sms"]),
       destination: z.string().min(1).max(320),
       id: z.uuid(),
+      profileId: z.uuid(),
       recipientName: z.string().min(1).max(200),
       unsubscribeUrl: z.url().max(4_096).nullable(),
     }),

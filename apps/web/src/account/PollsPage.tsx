@@ -6,6 +6,8 @@ import {
 } from "@choir/contracts";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
+
+import { saveOrganizationCommunicationDraft } from "../auth/api";
 type Poll = OrganizationPollSummary;
 type PollState =
   | { readonly status: "loading" }
@@ -19,6 +21,8 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   const [description, setDescription] = useState("");
   const [options, setOptions] = useState(["Yes", "No"]);
   const [saving, setSaving] = useState(false);
+  const [sharingPollId, setSharingPollId] = useState<string | null>(null);
+  const [communicationsDraftId, setCommunicationsDraftId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,6 +102,35 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function sharePoll(poll: Poll) {
+    setSharingPollId(poll.id);
+    setCommunicationsDraftId(null);
+    setMessage(null);
+    try {
+      const draft = await saveOrganizationCommunicationDraft({
+        audience: {
+          eventId: null,
+          globalStatuses: ["Active", "Idle"],
+          profileIds: [],
+          rsvp: "All",
+          targetAudiences: ["Members"],
+          voiceParts: [],
+        },
+        channel: "Email",
+        contentMarkdown: `Hi {singerName},\n\nPlease share your response:\n{{POLL_LINK:${poll.id}}}\n\nThank you!`,
+        subject: `Poll: ${poll.title}`,
+      });
+      setCommunicationsDraftId(draft.id);
+      setMessage(
+        "A personalized email draft is ready. Review it in Communications before sending; each member will receive a private poll link.",
+      );
+    } catch {
+      setMessage("The poll could not be prepared for sharing. Try again.");
+    } finally {
+      setSharingPollId(null);
+    }
+  }
+
   if (!enabled) {
     return (
       <p className="notice notice--warning">
@@ -129,8 +162,23 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       {message ? (
         <p className="notice notice--success" role="status">
           {message}
+          {communicationsDraftId ? (
+            <>
+              {" "}
+              <a
+                href={`/admin/communications?draftId=${encodeURIComponent(communicationsDraftId)}`}
+              >
+                Open the draft in Communications
+              </a>
+            </>
+          ) : null}
         </p>
       ) : null}
+      <p className="notice notice--info">
+        Polls are shared through email. Choose <strong>Share with members</strong> to create a draft
+        for active and on-break members. Nothing is sent until you review and queue it in
+        Communications; the link is personalized so each member can respond once.
+      </p>
       <DataTable
         columns={[
           { header: "Title", id: "title", render: (poll: Poll) => poll.title },
@@ -139,6 +187,21 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             header: "Expires",
             id: "expires",
             render: (poll: Poll) => poll.expiresAt || "No expiry",
+          },
+          {
+            header: "Sharing",
+            id: "sharing",
+            render: (poll: Poll) => (
+              <button
+                disabled={sharingPollId === poll.id}
+                onClick={() => {
+                  void sharePoll(poll);
+                }}
+                type="button"
+              >
+                {sharingPollId === poll.id ? "Preparing…" : "Share with members"}
+              </button>
+            ),
           },
         ]}
         emptyMessage="No polls yet. Create the first poll for your Organization."

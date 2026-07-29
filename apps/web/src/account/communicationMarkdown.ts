@@ -9,6 +9,10 @@ function renderInline(value: string): string {
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/_([^_]+)_/g, "<em>$1</em>")
+    .replace(
+      /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/gi,
+      '<span class="communication-poll-link-placeholder">Personalized poll response link</span>',
+    )
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>');
 }
 

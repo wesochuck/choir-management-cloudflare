@@ -160,6 +160,12 @@ export function CommunicationComposer({
           <p className="field-help">
             Markdown is supported. Use Preview to check the formatted message.
           </p>
+          {/\{\{POLL_LINK:[0-9a-f-]{36}\}\}/i.test(contentMarkdown) ? (
+            <p className="field-help">
+              The poll response placeholder will become a private, one-time link for each member
+              when this email is sent.
+            </p>
+          ) : null}
         </>
       ) : (
         <div

@@ -192,6 +192,7 @@ function TemplateLibrary({
 
 // eslint-disable-next-line complexity -- this coordinator owns compose, audience, scheduled-message, and delivery workflows.
 export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) {
+  const draftId = new URLSearchParams(window.location.search).get("draftId");
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
   const [contentMarkdown, setContentMarkdown] = useState("");
@@ -223,6 +224,18 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
         setMessages(loadedMessages);
         setScheduledMessages(loadedScheduledMessages);
         setEvents(loadedEvents);
+        const draft = draftId
+          ? loadedMessages.find((message) => message.id === draftId && message.status === "Draft")
+          : null;
+        if (draft) {
+          setAudience(draft.audience);
+          setChannel(draft.channel);
+          setContentMarkdown(draft.contentMarkdown);
+          setSubject(draft.subject);
+          setVoiceParts(draft.audience.voiceParts.join(", "));
+          setStage("compose");
+          setSuccess("Draft loaded. Review the message and queue it when it is ready.");
+        }
       })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted) setError(failureMessage(failure));
@@ -230,7 +243,7 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [draftId, enabled]);
 
   function composeRequest() {
     return {

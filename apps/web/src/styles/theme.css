@@ -1361,6 +1361,11 @@ h2 {
   background: var(--color-background);
 }
 
+.communication-poll-link-placeholder {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
 .communication-placeholders {
   grid-column: 2;
   grid-row: 2 / span 3;

@@ -22,6 +22,7 @@ type JobConsumerEnv = Pick<
   | "EXTERNAL_EFFECTS_MODE"
   | "ORGANIZATION_FILES"
   | "ORGANIZATION_STORE"
+  | "PRODUCT_BASE_DOMAIN"
   | "SIGNED_LINK_SECRET"
 >;
 type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB">;
@@ -128,13 +129,19 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
   const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
   const results = [];
   for (const delivery of deliveryJob.deliveries) {
-    const result = await deliverOrganizationCommunication(env, {
-      channel: delivery.channel,
-      contentMarkdown: renderCommunicationTemplate(
+    const renderedContent = await renderPollLinks(
+      env,
+      job.organizationId,
+      renderCommunicationTemplate(
         deliveryJob.contentMarkdown,
         delivery.recipientName,
         deliveryJob.context ?? undefined,
       ),
+      delivery,
+    );
+    const result = await deliverOrganizationCommunication(env, {
+      channel: delivery.channel,
+      contentMarkdown: renderedContent,
       deliveryId: delivery.id,
       destination: delivery.destination,
       messageId: deliveryJob.messageId,
@@ -152,6 +159,57 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
     jobId: job.jobId,
     organizationId: job.organizationId,
     results,
+  });
+}
+
+const pollPlaceholderPattern = /\{\{POLL_LINK:([0-9a-f-]{36})\}\}/gi;
+
+async function renderPollLinks(
+  env: JobConsumerEnv,
+  organizationId: string,
+  content: string,
+  delivery: {
+    readonly profileId: string;
+    readonly unsubscribeUrl: string | null;
+  },
+): Promise<string> {
+  const pollIds = [
+    ...new Set([...content.matchAll(pollPlaceholderPattern)].map((match) => match[1])),
+  ];
+  if (pollIds.length === 0) return content;
+
+  const origin = delivery.unsubscribeUrl
+    ? new URL(delivery.unsubscribeUrl).origin
+    : env.PRODUCT_BASE_DOMAIN === "localhost"
+      ? "http://localhost"
+      : `https://${env.PRODUCT_BASE_DOMAIN}`;
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  const tokens = new Map(
+    await Promise.all(
+      pollIds.map(
+        async (pollId) =>
+          [
+            pollId,
+            await issueSignedLink(env.SIGNED_LINK_SECRET, {
+              algorithm: "HS256",
+              expiresAt: issuedAt + 30 * 24 * 60 * 60,
+              issuedAt,
+              nonce: crypto.randomUUID(),
+              organizationId,
+              purpose: "poll",
+              resourceId: pollId,
+              subjectId: delivery.profileId,
+              version: 1,
+            }),
+          ] as const,
+      ),
+    ),
+  );
+  return content.replace(pollPlaceholderPattern, (_match, pollId: string) => {
+    const token = tokens.get(pollId);
+    return token
+      ? `${origin}/poll?token=${encodeURIComponent(token)}`
+      : "Poll link unavailable; please contact your organization.";
   });
 }
 

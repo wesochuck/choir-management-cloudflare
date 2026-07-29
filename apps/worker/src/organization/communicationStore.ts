@@ -139,6 +139,7 @@ interface DeliveryRow {
   readonly failureDetail: string;
   readonly id: string;
   readonly messageId: string;
+  readonly profileId: string;
   readonly recipientName: string;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly unsubscribeUrl: string | null;
@@ -1071,7 +1072,7 @@ export function readCommunicationJobFromStore(
   );
   const deliveries = storage.sql
     .exec<DeliveryRow>(
-      `SELECT id, message_id AS messageId, recipient_name AS recipientName, channel, destination,
+      `SELECT id, message_id AS messageId, profile_id AS profileId, recipient_name AS recipientName, channel, destination,
         status, attempts, failure_detail AS failureDetail, updated_at AS updatedAt,
         unsubscribe_url AS unsubscribeUrl
        FROM communication_deliveries WHERE message_id = ? AND status = 'queued'
@@ -1079,10 +1080,11 @@ export function readCommunicationJobFromStore(
       messageId,
     )
     .toArray()
-    .map(({ channel, destination, id, recipientName, unsubscribeUrl }) => ({
+    .map(({ channel, destination, id, profileId, recipientName, unsubscribeUrl }) => ({
       channel,
       destination,
       id,
+      profileId,
       recipientName,
       unsubscribeUrl,
     }));
