@@ -254,6 +254,18 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     [resources.events],
   );
   const selectedEvent = performances.find(({ id }) => id === selectedEventId) ?? null;
+  const songsDuration = items
+    .filter((item) => item.type !== "intermission")
+    .reduce(
+      (total, item) => total + (item.duration ? (parseSetListDuration(item.duration) ?? 0) : 0),
+      0,
+    );
+  const intermissionsDuration = items
+    .filter((item) => item.type === "intermission")
+    .reduce(
+      (total, item) => total + (item.duration ? (parseSetListDuration(item.duration) ?? 0) : 0),
+      0,
+    );
   const filteredMusic = useMemo(() => {
     const query = musicQuery.trim().toLocaleLowerCase();
     if (!query) return resources.music;
@@ -321,11 +333,10 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     setCustomDialogOpen(false);
   }
 
-  function openCustomItem(): void {
-    setCustomType("song");
-    setCustomTitle("");
+  function openCustomItem(title = "", duration = ""): void {
+    setCustomTitle(title);
     setCustomComposer("");
-    setCustomDuration("");
+    setCustomDuration(duration);
     setCustomNotes("");
     setError(null);
     setCustomDialogOpen(true);
@@ -466,36 +477,30 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   if (!enabled) return null;
 
   return (
-    <section className="account-section" aria-label="Set list editor">
-      <div className="section-heading section-heading--compact">
+    <section className="account-section set-list-section" aria-label="Set list editor">
+      <div className="section-heading section-heading--compact set-list-page-intro">
         <p className="section-description">
-          Build an ordered program from the music catalog or custom items, then approve it when it
-          is ready for members.
+          Manage performance set lists, timings, and {performerLabelPlural.toLowerCase()}{" "}
+          visibility.
         </p>
         {selectedEvent ? (
           <div className="button-row" aria-label="Set-list tools">
-            <button
-              className="button button--secondary"
-              onClick={() => void copyListText()}
-              type="button"
-            >
-              Copy text
-            </button>
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                window.print();
-              }}
-              type="button"
-            >
-              Print list
-            </button>
             <a
               className="button button--secondary"
               href={`/practice?eventId=${encodeURIComponent(selectedEvent.id)}`}
             >
-              Practice player
+              Practice Player
             </a>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                void copyListText();
+                window.print();
+              }}
+              type="button"
+            >
+              Print &amp; Copy
+            </button>
           </div>
         ) : null}
       </div>
@@ -515,9 +520,9 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
       ) : null}
       {selectedEvent ? (
         <div className="set-list-layout">
-          <div className="form-stack set-list-toolbar">
+          <div className="set-list-toolbar">
             <label className="field">
-              Performance
+              Select event
               <select
                 value={selectedEventId}
                 onChange={(event) => {
@@ -541,7 +546,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
             </label>
             <div className="set-list-copy-row">
               <label className="field">
-                Copy missing items from
+                Copy from previous
                 <select
                   value={copyEventId}
                   onChange={(event) => {
@@ -567,13 +572,48 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                 Copy items
               </button>
             </div>
+            <label className="set-list-visibility checkbox-field">
+              <input
+                checked={approved}
+                type="checkbox"
+                onChange={(event) => {
+                  setApproved(event.target.checked);
+                  setDirty(true);
+                }}
+              />
+              <span>
+                <strong>Approved for {performerLabelPlural.toLowerCase()}</strong>
+                <small>Members can see this set list.</small>
+              </span>
+            </label>
           </div>
 
-          <div className="set-list-add-grid">
-            <div className="form-stack set-list-catalog-picker">
-              <h3>Add from music catalog</h3>
+          <div className="set-list-add-panel">
+            <div className="set-list-add-bar">
+              <div className="set-list-add-type" aria-label="Set-list item type" role="group">
+                <button
+                  className={`button button--small${customType === "song" ? " is-active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    setCustomType("song");
+                  }}
+                >
+                  Song
+                </button>
+                <button
+                  className={`button button--small${customType === "intermission" ? " is-active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    setCustomType("intermission");
+                  }}
+                >
+                  Intermission
+                </button>
+              </div>
               <div className="field set-list-music-search">
-                <label htmlFor="set-list-music-search">Search music library</label>
+                <label className="sr-only" htmlFor="set-list-music-search">
+                  Search music library or enter a title
+                </label>
                 <input
                   aria-controls="set-list-music-results"
                   aria-expanded={Boolean(musicQuery.trim())}
@@ -582,7 +622,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                   onChange={(event) => {
                     setMusicQuery(event.target.value);
                   }}
-                  placeholder="Search by title or composer…"
+                  placeholder="Search music library or enter a title…"
                   type="search"
                   value={musicQuery}
                 />
@@ -619,19 +659,46 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                     : `${String(resources.music.length)} pieces available. Start typing to search.`}
                 </p>
               </div>
-            </div>
-            <div className="set-list-custom-action">
-              <h3>Add a custom item</h3>
-              <p className="field-help">For intermissions or music not in the catalog.</p>
-              <button className="button button--secondary" type="button" onClick={openCustomItem}>
-                Add custom item
+              <label className="field set-list-duration-input">
+                <span className="sr-only">Duration</span>
+                <input
+                  onChange={(event) => {
+                    setCustomDuration(event.target.value);
+                  }}
+                  placeholder="Duration"
+                  type="text"
+                  value={customDuration}
+                />
+              </label>
+              <button
+                className="button button--primary"
+                type="button"
+                onClick={() => {
+                  openCustomItem(musicQuery.trim(), customDuration.trim());
+                }}
+              >
+                + Add
               </button>
             </div>
+            <p className="field-help set-list-add-tip">
+              Select an existing library item from the suggestions, or use + Add for a custom song
+              or intermission.
+            </p>
           </div>
 
           <div className="set-list-summary" aria-live="polite">
-            <strong>{String(items.length)} items</strong>
-            <span>Total duration {formatSetListDuration(calculateSetListDuration(items))}</span>
+            <span>
+              <strong>Songs</strong> {formatSetListDuration(songsDuration)}
+            </span>
+            <span>
+              <strong>Intermissions</strong> {formatSetListDuration(intermissionsDuration)}
+            </span>
+            <span>
+              <strong>Items</strong> {String(items.length)}
+            </span>
+            <span className="set-list-summary__total">
+              <strong>Total</strong> {formatSetListDuration(calculateSetListDuration(items))}
+            </span>
           </div>
 
           {items.length === 0 ? (
@@ -684,7 +751,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                           {String(index + 1)}. {item.title}
                         </strong>
                       </div>
-                      <div className="button-row">
+                      <div className="button-row set-list-item-actions">
                         <button
                           className="text-button"
                           type="button"

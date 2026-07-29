@@ -153,10 +153,30 @@ footer {
   gap: 0.75rem;
 }
 
+.set-list-section {
+  overflow: visible;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.set-list-page-intro {
+  max-width: none;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.set-list-page-intro .section-description {
+  margin: 0;
+}
+
 .set-list-toolbar {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: grid;
+  grid-template-columns: minmax(13rem, 1.05fr) minmax(16rem, 1.4fr) minmax(13rem, 1fr);
   gap: 0.65rem;
-  align-items: end;
+  align-items: stretch;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-surface-raised) 58%, transparent);
 }
 
 .set-list-add-grid,
@@ -183,9 +203,32 @@ footer {
   gap: 0.65rem;
 }
 
+.set-list-copy-row {
+  align-items: end;
+}
+
 .set-list-copy-row .field,
 .set-list-inline-control input {
   flex: 1;
+}
+
+.set-list-visibility {
+  align-self: stretch;
+  min-height: 3.3rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.set-list-visibility > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.set-list-visibility small {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
 }
 
 .set-list-catalog-picker,
@@ -261,6 +304,57 @@ footer {
   font-size: 1rem;
 }
 
+.set-list-add-panel {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-surface-raised) 46%, transparent);
+}
+
+.set-list-add-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(6rem, 8rem) auto;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.set-list-add-type {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.set-list-add-type .button {
+  border: 0;
+  border-radius: 0;
+  white-space: nowrap;
+}
+
+.set-list-add-type .button + .button {
+  border-left: 1px solid var(--color-border);
+}
+
+.set-list-add-type .button.is-active {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+}
+
+.set-list-add-bar .field {
+  gap: 0;
+}
+
+.set-list-duration-input input {
+  min-width: 6rem;
+}
+
+.set-list-add-tip {
+  margin: 0;
+}
+
 .set-list-summary,
 .set-list-save-row {
   align-items: center;
@@ -268,6 +362,23 @@ footer {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface-raised);
+}
+
+.set-list-summary {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.set-list-summary strong {
+  color: var(--color-text);
+}
+
+.set-list-summary__total {
+  margin-left: auto;
+  color: var(--color-text);
 }
 
 .set-list-items,
@@ -449,9 +560,10 @@ footer {
 }
 
 .set-list-item {
-  padding: 0.65rem 0.75rem;
+  padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
 }
 
 .set-list-item-heading {
@@ -531,6 +643,14 @@ footer {
 .set-list-item > .button-row {
   justify-content: flex-end;
   margin-top: 0.35rem;
+}
+
+.set-list-item-actions {
+  gap: 0.55rem;
+}
+
+.set-list-item-actions .text-button {
+  font-size: 0.8rem;
 }
 
 .set-list-item-dialog {
@@ -4513,6 +4633,21 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .set-list-add-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .set-list-add-bar .set-list-music-search {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .set-list-add-type {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
   .bulk-rehearsal-form__split {
     grid-template-columns: 1fr;
   }
@@ -4590,6 +4725,37 @@ footer {
   .set-list-credit-list li {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .set-list-page-intro {
+    align-items: stretch;
+  }
+
+  .set-list-page-intro .button-row,
+  .set-list-page-intro .button {
+    width: 100%;
+  }
+
+  .set-list-add-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .set-list-add-bar .set-list-music-search,
+  .set-list-add-type {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .set-list-add-type {
+    justify-self: stretch;
+  }
+
+  .set-list-add-type .button {
+    flex: 1;
+  }
+
+  .set-list-summary__total {
+    margin-left: 0;
   }
 
   .practice-player__playlist li,
