@@ -1100,19 +1100,6 @@ function MusicBulkEditDialog({
   const [formError, setFormError] = useState<string | null>(null);
   const availableSections = configuration.sections.filter(({ trackOnly }) => !trackOnly);
 
-  useEffect(() => {
-    if (!open) return;
-    setChangeComposer(false);
-    setChangeArranger(false);
-    setChangeGenres(false);
-    setChangeSections(false);
-    setComposer("");
-    setArranger("");
-    setGenres("");
-    setSections([]);
-    setFormError(null);
-  }, [open]);
-
   function submit(): void {
     const changes: OrganizationMusicBulkUpdateRequest["changes"] = {};
     if (changeComposer) changes.composer = composer.trim();
@@ -2015,6 +2002,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
             open={bulkDialogOpen}
             personNameOptions={personNameOptions}
             selectedCount={selectedPieces.length}
+            key={bulkDialogOpen ? "open" : "closed"}
           />
           <CsvImportDialog
             busy={busy || musicImportInspecting}

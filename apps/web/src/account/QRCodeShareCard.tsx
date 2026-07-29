@@ -17,8 +17,11 @@ function safeFileName(title: string): string {
 }
 
 export function QRCodeShareCard({ description, path, title }: QRCodeShareCardProps) {
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [generationError, setGenerationError] = useState(false);
+  const [qrCode, setQrCode] = useState<
+    | { readonly dataUrl: string; readonly path: string }
+    | { readonly error: true; readonly path: string }
+    | null
+  >(null);
   const [copied, setCopied] = useState(false);
   const absoluteUrl = useMemo(() => {
     const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
@@ -27,8 +30,6 @@ export function QRCodeShareCard({ description, path, title }: QRCodeShareCardPro
 
   useEffect(() => {
     let active = true;
-    setQrCodeUrl(null);
-    setGenerationError(false);
     void QRCode.toDataURL(absoluteUrl, {
       color: { dark: "#0f172a", light: "#ffffff" },
       errorCorrectionLevel: "H",
@@ -36,15 +37,18 @@ export function QRCodeShareCard({ description, path, title }: QRCodeShareCardPro
       width: 512,
     })
       .then((dataUrl) => {
-        if (active) setQrCodeUrl(dataUrl);
+        if (active) setQrCode({ dataUrl, path: absoluteUrl });
       })
       .catch(() => {
-        if (active) setGenerationError(true);
+        if (active) setQrCode({ error: true, path: absoluteUrl });
       });
     return () => {
       active = false;
     };
   }, [absoluteUrl]);
+
+  const qrCodeUrl = qrCode?.path === absoluteUrl && "dataUrl" in qrCode ? qrCode.dataUrl : null;
+  const generationError = qrCode?.path === absoluteUrl && "error" in qrCode;
 
   async function copyLink() {
     try {

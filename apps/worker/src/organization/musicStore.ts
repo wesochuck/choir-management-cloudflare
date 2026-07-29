@@ -366,17 +366,15 @@ function bulkUpdatePieces(
   if (pieces.some((piece) => piece === null)) {
     return Response.json({ code: "music_piece_not_found" }, { status: 404 });
   }
-  const requests: Array<{ piece: OrganizationMusicPieceRequest; pieceId: string }> = pieces.map(
-    (piece) => {
-      const stored = piece as OrganizationMusicPiece;
-      return {
-        piece: organizationMusicPieceRequestSchema.parse({
-          ...requestFromPiece(stored),
-          ...operation.changes,
-        }),
-        pieceId: stored.id,
-      };
-    },
+  const storedPieces = pieces.filter((piece): piece is OrganizationMusicPiece => piece !== null);
+  const requests: { piece: OrganizationMusicPieceRequest; pieceId: string }[] = storedPieces.map(
+    (stored) => ({
+      piece: organizationMusicPieceRequestSchema.parse({
+        ...requestFromPiece(stored),
+        ...operation.changes,
+      }),
+      pieceId: stored.id,
+    }),
   );
   for (const { piece, pieceId } of requests) {
     const validation = validatePiece(storage, pieceId, piece);

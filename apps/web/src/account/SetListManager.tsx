@@ -216,7 +216,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   const [musicQuery, setMusicQuery] = useState("");
   const [dirty, setDirty] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
-  const saveRef = useRef<() => Promise<void>>(async () => {});
+  const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
     if (!enabled) return;
@@ -429,7 +429,9 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
-  saveRef.current = save;
+  useEffect(() => {
+    saveRef.current = save;
+  });
 
   useEffect(() => {
     if (saveTimerRef.current !== null) {
