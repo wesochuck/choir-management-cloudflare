@@ -20,8 +20,11 @@
   --color-border: #d8d0c3;
   --color-danger: #a53b36;
   --color-danger-surface: #fff0ed;
+  --color-danger-text: var(--color-danger);
+  --color-danger-bg: var(--color-danger-surface);
   --color-info-surface: #eef6f8;
   --color-success: #297a63;
+  --color-success-text: var(--color-success);
   --color-shadow: rgb(23 63 95 / 14%);
   --radius-card: 1.25rem;
   --radius-control: 0.75rem;
@@ -43,8 +46,11 @@
   --color-border: #355264;
   --color-danger: #ffaaa2;
   --color-danger-surface: #452b2d;
+  --color-danger-text: var(--color-danger);
+  --color-danger-bg: var(--color-danger-surface);
   --color-info-surface: #1b3c49;
   --color-success: #75d1b4;
+  --color-success-text: var(--color-success);
   --color-shadow: rgb(0 0 0 / 30%);
 }
 
@@ -62,8 +68,11 @@
     --color-border: #355264;
     --color-danger: #ffaaa2;
     --color-danger-surface: #452b2d;
+    --color-danger-text: var(--color-danger);
+    --color-danger-bg: var(--color-danger-surface);
     --color-info-surface: #1b3c49;
     --color-success: #75d1b4;
+    --color-success-text: var(--color-success);
     --color-shadow: rgb(0 0 0 / 30%);
   }
 }
