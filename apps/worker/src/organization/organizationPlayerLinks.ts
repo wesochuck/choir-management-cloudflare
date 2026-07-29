@@ -11,20 +11,24 @@ export async function generatePlayerTokens(
   profileIds: readonly string[],
 ): Promise<{ tokens: Record<string, string> }> {
   const now = Math.floor(Date.now() / 1000);
+  const signedTokens = await Promise.all(
+    profileIds.map(async (profileId) => {
+      const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+        algorithm: "HS256",
+        expiresAt: now + 7 * 24 * 60 * 60,
+        issuedAt: now,
+        nonce: crypto.randomUUID(),
+        organizationId,
+        purpose: "player",
+        resourceId: eventId,
+        subjectId: profileId,
+        version: 1,
+      });
+      return [profileId, token] as const;
+    }),
+  );
   const tokens: Record<string, string> = {};
-  for (const profileId of profileIds) {
-    tokens[profileId] = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-      algorithm: "HS256",
-      expiresAt: now + 7 * 24 * 60 * 60,
-      issuedAt: now,
-      nonce: crypto.randomUUID(),
-      organizationId,
-      purpose: "player",
-      resourceId: eventId,
-      subjectId: profileId,
-      version: 1,
-    });
-  }
+  for (const [profileId, token] of signedTokens) tokens[profileId] = token;
   return { tokens };
 }
 

@@ -82,34 +82,50 @@ export class FleetSchemaWorkflow extends WorkflowEntrypoint<Env, FleetSchemaPara
     });
 
     const preparation = await step.do("prepare bounded Organization batch", async () => {
-      const preparedOrganizations: string[] = [];
-      for (const organization of organizations) {
-        const objectId = this.env.ORGANIZATION_STORE.idFromName(organization.organizationId);
-        const response = await this.env.ORGANIZATION_STORE.get(objectId).fetch(
-          new Request("https://organization.internal/internal/schema/prepare", {
-            body: JSON.stringify({
-              organizationId: organization.organizationId,
-              targetVersion: params.targetVersion,
+      const results = await Promise.all(
+        organizations.map(async (organization) => {
+          const objectId = this.env.ORGANIZATION_STORE.idFromName(organization.organizationId);
+          const response = await this.env.ORGANIZATION_STORE.get(objectId).fetch(
+            new Request("https://organization.internal/internal/schema/prepare", {
+              body: JSON.stringify({
+                organizationId: organization.organizationId,
+                targetVersion: params.targetVersion,
+              }),
+              headers: { "content-type": "application/json" },
+              method: "POST",
             }),
-            headers: { "content-type": "application/json" },
-            method: "POST",
-          }),
-        );
-        if (response.status === 400 || response.status === 409) {
-          return { identityFailure: organization.organizationId, preparedOrganizations: [] };
-        }
-        const result = preparationResponseSchema.safeParse(await response.json());
-        if (
-          !response.ok ||
-          !result.success ||
-          result.data.organizationId !== organization.organizationId ||
-          result.data.schemaVersion < params.targetVersion
-        ) {
-          throw new Error("An Organization store did not confirm its schema preparation.");
-        }
-        preparedOrganizations.push(organization.organizationId);
-      }
-      return { identityFailure: null, preparedOrganizations };
+          );
+          if (response.status === 400 || response.status === 409) {
+            return {
+              identityFailure: organization.organizationId,
+              organizationId: organization.organizationId,
+              prepared: false,
+            };
+          }
+          const result = preparationResponseSchema.safeParse(await response.json());
+          if (
+            !response.ok ||
+            !result.success ||
+            result.data.organizationId !== organization.organizationId ||
+            result.data.schemaVersion < params.targetVersion
+          ) {
+            throw new Error("An Organization store did not confirm its schema preparation.");
+          }
+          return {
+            identityFailure: null,
+            organizationId: organization.organizationId,
+            prepared: true,
+          };
+        }),
+      );
+      const identityFailure =
+        results.find((result) => result.identityFailure)?.identityFailure ?? null;
+      return {
+        identityFailure,
+        preparedOrganizations: identityFailure
+          ? []
+          : results.filter((result) => result.prepared).map((result) => result.organizationId),
+      };
     });
     if (preparation.identityFailure) {
       throw new Error("An Organization store rejected its registry identity.");

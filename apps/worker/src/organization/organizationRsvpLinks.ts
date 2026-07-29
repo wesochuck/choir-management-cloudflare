@@ -42,20 +42,25 @@ export async function generateRsvpTokens(
   eventId: string,
   profileIds: readonly string[],
 ): Promise<{ readonly tokens: Record<string, string> }> {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const signedTokens = await Promise.all(
+    profileIds.map(async (profileId) => {
+      const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+        algorithm: "HS256",
+        expiresAt: issuedAt + 30 * 24 * 60 * 60,
+        issuedAt,
+        nonce: crypto.randomUUID(),
+        organizationId,
+        purpose: "rsvp",
+        resourceId: eventId,
+        subjectId: profileId,
+        version: 1,
+      });
+      return [profileId, token] as const;
+    }),
+  );
   const tokens: Record<string, string> = {};
-  for (const profileId of profileIds) {
-    tokens[profileId] = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-      algorithm: "HS256",
-      expiresAt: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      issuedAt: Math.floor(Date.now() / 1000),
-      nonce: crypto.randomUUID(),
-      organizationId,
-      purpose: "rsvp",
-      resourceId: eventId,
-      subjectId: profileId,
-      version: 1,
-    });
-  }
+  for (const [profileId, token] of signedTokens) tokens[profileId] = token;
   return { tokens };
 }
 
