@@ -8,7 +8,7 @@ import {
   type PatronRecord,
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 
 import { getOrganizationDonationSettings, updateOrganizationDonationSettings } from "../auth/api";
 import { QRCodeShareCard } from "./QRCodeShareCard";
@@ -27,6 +27,8 @@ type DonationSettingsState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly settings: DonationSettings; readonly status: "ready" };
+
+const EMPTY_DONATIONS: readonly DonationRecord[] = [];
 
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
@@ -57,13 +59,33 @@ function parsePatrons(body: unknown): readonly PatronRecord[] {
   return parsed.success ? parsed.data.patrons : [];
 }
 
+function csvCell(value: string | number): string {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+function donationsCsv(donations: readonly DonationRecord[]): string {
+  const rows = [
+    ["Donor", "Email", "Amount", "Processing fee", "Tribute", "Status", "Date"],
+    ...donations.map((donation) => [
+      donation.anonymous ? "Anonymous" : donation.buyerName,
+      donation.anonymous ? "" : donation.buyerEmail,
+      money(donation.amountCents),
+      money(donation.feeCents),
+      `${tributeLabel(donation.tributeType)}${donation.tributeName ? `: ${donation.tributeName}` : ""}`,
+      donation.status,
+      donation.createdAt,
+    ]),
+  ];
+  return rows.map((row) => row.map((value) => csvCell(value)).join(",")).join("\n");
+}
+
 export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   const [donationState, setDonationState] = useState<DonationState>({ status: "loading" });
   const [patronState, setPatronState] = useState<PatronState>({ status: "loading" });
   const [refundId, setRefundId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [tab, setTab] = useState<"donations" | "patrons" | "settings">("donations");
+  const [tab, setTab] = useState<"history" | "settings">("history");
   const [settingsState, setSettingsState] = useState<DonationSettingsState>({
     status: "loading",
   });
@@ -218,57 +240,61 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   }
 
   if (!enabled) return null;
+  const donationExportHref =
+    donationState.status === "ready"
+      ? `data:text/csv;charset=utf-8,${encodeURIComponent(donationsCsv(donationState.donations))}`
+      : undefined;
   return (
-    <section className="panel" aria-label="Donations and patrons management">
+    <section className="panel" aria-label="Donations and giving management">
       {message ? (
         <p className="notice notice--info" role="status">
           {message}
         </p>
       ) : null}
-      <QRCodeShareCard
-        description="Share this page with supporters so they can choose a donation level or enter a custom amount."
-        path="/donate"
-        title="Public donation page"
-      />
-      <div className="form-actions">
+      <header className="ticketing-page-header">
+        <div>
+          <p>
+            Monitor your choir&apos;s incoming donations, giving activity, and donor recognition
+            tiers.
+          </p>
+        </div>
+        <a className="button button--secondary" download="donations.csv" href={donationExportHref}>
+          Export CSV
+        </a>
+      </header>
+      <nav aria-label="Donation sections" className="ticketing-tabs" role="tablist">
         <button
-          className={`button ${tab === "donations" ? "button--primary" : "button--secondary"}`}
+          aria-selected={tab === "history"}
+          className={tab === "history" ? "is-active" : undefined}
           onClick={() => {
-            setTab("donations");
+            setTab("history");
           }}
+          role="tab"
           type="button"
         >
-          Donations
+          Donation History
         </button>
         <button
-          className={`button ${tab === "patrons" ? "button--primary" : "button--secondary"}`}
-          onClick={() => {
-            setTab("patrons");
-          }}
-          type="button"
-        >
-          Patrons
-        </button>
-        <button
-          className={`button ${tab === "settings" ? "button--primary" : "button--secondary"}`}
+          aria-selected={tab === "settings"}
+          className={tab === "settings" ? "is-active" : undefined}
           onClick={() => {
             setTab("settings");
           }}
+          role="tab"
           type="button"
         >
-          Levels & settings
+          Tiers &amp; Page Settings
         </button>
-      </div>
-      {tab === "donations" ? (
-        <DonationsTab
+      </nav>
+      {tab === "history" ? (
+        <DonationHistoryTab
           busy={busy}
           donationState={donationState}
+          patronState={patronState}
           refund={refund}
           refundId={refundId}
           setRefundId={setRefundId}
         />
-      ) : tab === "patrons" ? (
-        <PatronsTab patronState={patronState} />
       ) : (
         <DonationSettingsTab
           busy={busy}
@@ -348,95 +374,241 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   );
 }
 
-function DonationsTab({
+type DonationSort = "dateDesc" | "dateAsc" | "donor";
+
+function DonationHistoryTab({
   busy,
   donationState,
+  patronState,
   refund,
   refundId,
   setRefundId,
 }: {
   readonly busy: boolean;
   readonly donationState: DonationState;
+  readonly patronState: PatronState;
   readonly refund: (id: string) => Promise<void>;
   readonly refundId: string | null;
   readonly setRefundId: (id: string | null) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [sort, setSort] = useState<DonationSort>("dateDesc");
+  const donations = donationState.status === "ready" ? donationState.donations : EMPTY_DONATIONS;
+  const paidDonations = donations.filter((donation) => donation.status === "paid");
+  const totalRaisedCents = paidDonations.reduce(
+    (total, donation) => total + donation.amountCents,
+    0,
+  );
+  const averageGiftCents = paidDonations.length
+    ? Math.round(totalRaisedCents / paidDonations.length)
+    : 0;
+  const filteredDonations = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    return donations
+      .filter((donation) => {
+        const donorText = [
+          donation.anonymous ? "Anonymous" : donation.buyerName,
+          donation.anonymous ? "" : donation.buyerEmail,
+          donation.tributeName,
+        ]
+          .join(" ")
+          .toLocaleLowerCase();
+        const donationDate = donation.createdAt.slice(0, 10);
+        return (
+          (!normalizedQuery || donorText.includes(normalizedQuery)) &&
+          (!fromDate || donationDate >= fromDate) &&
+          (!toDate || donationDate <= toDate)
+        );
+      })
+      .toSorted((left, right) => {
+        if (sort === "donor") {
+          const leftName = left.anonymous ? "Anonymous" : left.buyerName;
+          const rightName = right.anonymous ? "Anonymous" : right.buyerName;
+          return leftName.localeCompare(rightName);
+        }
+        const direction = sort === "dateDesc" ? -1 : 1;
+        return direction * left.createdAt.localeCompare(right.createdAt);
+      });
+  }, [donations, fromDate, query, sort, toDate]);
+
   if (donationState.status === "loading") return <p>Loading donations…</p>;
   if (donationState.status === "error")
     return <p className="notice notice--error">Donations could not be loaded.</p>;
-  if (donationState.donations.length === 0) return <p>No donations yet.</p>;
+
   return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Donor</th>
-            <th>Amount</th>
-            <th>Processing fee</th>
-            <th>Tribute</th>
-            <th>Status</th>
-            <th>Date</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {donationState.donations.map((donation) => (
-            <tr key={donation.id}>
-              <td>
-                {donation.anonymous ? "Anonymous" : donation.buyerName}
-                <br />
-                <small>{donation.anonymous ? "" : donation.buyerEmail}</small>
-              </td>
-              <td>{money(donation.amountCents)}</td>
-              <td>{donation.feeCents > 0 ? money(donation.feeCents) : "Covered"}</td>
-              <td>
-                {tributeLabel(donation.tributeType)}
-                {donation.tributeName ? `: ${donation.tributeName}` : ""}
-              </td>
-              <td>{donation.status}</td>
-              <td>{new Date(donation.createdAt).toLocaleDateString()}</td>
-              <td>
-                {refundId === donation.id ? (
-                  <div className="danger-confirmation">
-                    <p>Refund this donation?</p>
-                    <div className="form-actions">
-                      <button
-                        className="button button--secondary"
-                        disabled={busy}
-                        onClick={() => {
-                          setRefundId(null);
-                        }}
-                        type="button"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="button button--danger"
-                        disabled={busy}
-                        onClick={() => void refund(donation.id)}
-                        type="button"
-                      >
-                        {busy ? "Refunding…" : "Confirm refund"}
-                      </button>
-                    </div>
-                  </div>
-                ) : donation.status === "paid" ? (
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      setRefundId(donation.id);
-                    }}
-                    type="button"
-                  >
-                    Refund
-                  </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="donation-history">
+      <section
+        className="ticket-dashboard donation-dashboard"
+        aria-labelledby="donation-summary-heading"
+      >
+        <div className="ticket-dashboard__section-heading">
+          <div>
+            <h3 id="donation-summary-heading">Donation summary</h3>
+            <p>Review incoming gifts and donor activity.</p>
+          </div>
+        </div>
+        <div className="ticket-dashboard__metrics donation-dashboard__metrics">
+          <article className="summary-card ticket-dashboard__metric">
+            <span className="summary-card__label">Donations count</span>
+            <strong>{paidDonations.length}</strong>
+          </article>
+          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sales">
+            <span className="summary-card__label">Total raised</span>
+            <strong>{money(totalRaisedCents)}</strong>
+          </article>
+          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--revenue">
+            <span className="summary-card__label">Average gift</span>
+            <strong>{money(averageGiftCents)}</strong>
+          </article>
+        </div>
+      </section>
+      <section
+        className="ticket-dashboard__will-call donation-register"
+        aria-labelledby="donation-register-heading"
+      >
+        <div className="ticket-dashboard__section-heading">
+          <div>
+            <h3 id="donation-register-heading">Donations register</h3>
+            <p>Search donation history, review payment status, and process refunds.</p>
+          </div>
+          <span className="field-help">{filteredDonations.length} shown</span>
+        </div>
+        <div className="ticket-dashboard__filters donation-dashboard__filters">
+          <label className="field">
+            Search
+            <input
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+              placeholder="Donor name or email…"
+              type="search"
+              value={query}
+            />
+          </label>
+          <label className="field">
+            From date
+            <input
+              onChange={(event) => {
+                setFromDate(event.target.value);
+              }}
+              type="date"
+              value={fromDate}
+            />
+          </label>
+          <label className="field">
+            To date
+            <input
+              onChange={(event) => {
+                setToDate(event.target.value);
+              }}
+              type="date"
+              value={toDate}
+            />
+          </label>
+          <label className="field">
+            Sort by
+            <select
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === "dateDesc" || value === "dateAsc" || value === "donor") {
+                  setSort(value);
+                }
+              }}
+              value={sort}
+            >
+              <option value="dateDesc">Date (Newest First)</option>
+              <option value="dateAsc">Date (Oldest First)</option>
+              <option value="donor">Donor name</option>
+            </select>
+          </label>
+        </div>
+        {donations.length === 0 ? <p>No donations yet.</p> : null}
+        {donations.length > 0 && filteredDonations.length === 0 ? (
+          <p className="empty-state">No donations match these filters.</p>
+        ) : null}
+        {filteredDonations.length > 0 ? (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Donor</th>
+                  <th>Amount</th>
+                  <th>Processing fee</th>
+                  <th>Tribute</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDonations.map((donation) => (
+                  <tr key={donation.id}>
+                    <td>
+                      {donation.anonymous ? "Anonymous" : donation.buyerName}
+                      <br />
+                      <small>{donation.anonymous ? "" : donation.buyerEmail}</small>
+                    </td>
+                    <td>{money(donation.amountCents)}</td>
+                    <td>{donation.feeCents > 0 ? money(donation.feeCents) : "Covered"}</td>
+                    <td>
+                      {tributeLabel(donation.tributeType)}
+                      {donation.tributeName ? `: ${donation.tributeName}` : ""}
+                    </td>
+                    <td>{donation.status}</td>
+                    <td>{new Date(donation.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      {refundId === donation.id ? (
+                        <div className="danger-confirmation">
+                          <p>Refund this donation?</p>
+                          <div className="form-actions">
+                            <button
+                              className="button button--secondary"
+                              disabled={busy}
+                              onClick={() => {
+                                setRefundId(null);
+                              }}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="button button--danger"
+                              disabled={busy}
+                              onClick={() => void refund(donation.id)}
+                              type="button"
+                            >
+                              {busy ? "Refunding…" : "Confirm refund"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : donation.status === "paid" ? (
+                        <button
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() => {
+                            setRefundId(donation.id);
+                          }}
+                          type="button"
+                        >
+                          Refund
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </section>
+      <details className="donation-patrons">
+        <summary>
+          Patron summaries ({patronState.status === "ready" ? patronState.patrons.length : "…"})
+        </summary>
+        <PatronsTab patronState={patronState} />
+      </details>
     </div>
   );
 }
@@ -469,88 +641,97 @@ function DonationSettingsTab({
     return <p className="notice notice--error">Donation settings could not be loaded.</p>;
   }
   return (
-    <div className="donation-settings-grid">
-      <form
-        className="surface-card form-stack"
-        onSubmit={(event) => void savePortalSettings(event)}
-      >
-        <div>
-          <p className="eyebrow">Public portal</p>
-          <h3>Donation page settings</h3>
-          <p>Customize the headline and explanation shown to donors before checkout.</p>
-        </div>
-        <label className="field">
-          Call-to-action heading
-          <input
-            required
-            maxLength={200}
-            value={portalButtonText}
-            onChange={(event) => {
-              setPortalButtonText(event.target.value);
-            }}
-          />
-        </label>
-        <label className="field">
-          Portal description
-          <textarea
-            maxLength={2000}
-            rows={5}
-            value={portalDescription}
-            onChange={(event) => {
-              setPortalDescription(event.target.value);
-            }}
-          />
-        </label>
-        <button className="button button--primary" disabled={busy} type="submit">
-          {busy ? "Saving…" : "Save page settings"}
-        </button>
-      </form>
-      <section className="surface-card" aria-labelledby="donation-levels-heading">
-        <div className="section-heading section-heading--compact">
+    <div className="donation-settings-tab">
+      <QRCodeShareCard
+        description="Share this page with supporters so they can choose a donation level or enter a custom amount."
+        path="/donate"
+        title="Public donation page"
+      />
+      <div className="donation-settings-grid">
+        <form
+          className="surface-card form-stack"
+          onSubmit={(event) => void savePortalSettings(event)}
+        >
           <div>
-            <p className="eyebrow">Recognition tiers</p>
-            <h3 id="donation-levels-heading">Donor levels</h3>
+            <p className="eyebrow">Public portal</p>
+            <h3>Donation page settings</h3>
+            <p>Customize the headline and explanation shown to donors before checkout.</p>
           </div>
-          <button className="button button--primary" onClick={newLevel} type="button">
-            Add level
+          <label className="field">
+            Call-to-action heading
+            <input
+              required
+              maxLength={200}
+              value={portalButtonText}
+              onChange={(event) => {
+                setPortalButtonText(event.target.value);
+              }}
+            />
+          </label>
+          <label className="field">
+            Portal description
+            <textarea
+              maxLength={2000}
+              rows={5}
+              value={portalDescription}
+              onChange={(event) => {
+                setPortalDescription(event.target.value);
+              }}
+            />
+          </label>
+          <button className="button button--primary" disabled={busy} type="submit">
+            {busy ? "Saving…" : "Save page settings"}
           </button>
-        </div>
-        <p>Suggested amounts and benefits appear on the public donation page.</p>
-        {settingsState.settings.levels.length === 0 ? <p>No donor levels configured yet.</p> : null}
-        <div className="donation-level-list">
-          {settingsState.settings.levels.map((level) => (
-            <article className="compact-card" key={level.id}>
-              <div>
-                <h4>{level.label}</h4>
-                <p>{money(level.amountCents)}</p>
-                <small>{level.benefit || "No benefit specified"}</small>
-              </div>
-              <div className="form-actions">
-                <button
-                  className="text-button"
-                  disabled={busy}
-                  onClick={() => {
-                    editLevel(level);
-                  }}
-                  type="button"
-                >
-                  Edit
-                </button>
-                <button
-                  className="text-button text-button--danger"
-                  disabled={busy}
-                  onClick={() => {
-                    void deleteLevel(level.id);
-                  }}
-                  type="button"
-                >
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+        </form>
+        <section className="surface-card" aria-labelledby="donation-levels-heading">
+          <div className="section-heading section-heading--compact">
+            <div>
+              <p className="eyebrow">Recognition tiers</p>
+              <h3 id="donation-levels-heading">Donor levels</h3>
+            </div>
+            <button className="button button--primary" onClick={newLevel} type="button">
+              Add level
+            </button>
+          </div>
+          <p>Suggested amounts and benefits appear on the public donation page.</p>
+          {settingsState.settings.levels.length === 0 ? (
+            <p>No donor levels configured yet.</p>
+          ) : null}
+          <div className="donation-level-list">
+            {settingsState.settings.levels.map((level) => (
+              <article className="compact-card" key={level.id}>
+                <div>
+                  <h4>{level.label}</h4>
+                  <p>{money(level.amountCents)}</p>
+                  <small>{level.benefit || "No benefit specified"}</small>
+                </div>
+                <div className="form-actions">
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => {
+                      editLevel(level);
+                    }}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-button text-button--danger"
+                    disabled={busy}
+                    onClick={() => {
+                      void deleteLevel(level.id);
+                    }}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
