@@ -506,7 +506,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
       ) : null}
       {selectedEvent ? (
         <div className="set-list-layout">
-          <div className="form-stack">
+          <div className="form-stack set-list-toolbar">
             <label className="field">
               Performance
               <select
@@ -679,6 +679,15 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                       </div>
                       <div className="button-row">
                         <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => {
+                            openItemEditor(index);
+                          }}
+                        >
+                          Set list details
+                        </button>
+                        <button
                           aria-label={`Move ${item.title} up`}
                           className="text-button"
                           disabled={index === 0}
@@ -720,17 +729,6 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                       </span>
                       {item.isFeaturedNumber ? <span className="status-pill">Featured</span> : null}
                     </div>
-                    <div className="button-row">
-                      <button
-                        className="text-button"
-                        type="button"
-                        onClick={() => {
-                          openItemEditor(index);
-                        }}
-                      >
-                        Edit item
-                      </button>
-                    </div>
                   </li>
                 ))}
               </ol>
@@ -746,7 +744,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
             title="Add custom set-list item"
           >
             <form
-              className="form-stack"
+              className="form-stack set-list-item-dialog"
               onSubmit={(event) => {
                 event.preventDefault();
                 addCustomItem();
@@ -840,7 +838,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
           >
             {editingItem ? (
               <form
-                className="form-stack"
+                className="form-stack set-list-item-dialog"
                 onSubmit={(event) => {
                   event.preventDefault();
                   saveItemEdit();
