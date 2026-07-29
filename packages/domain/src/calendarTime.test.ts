@@ -33,12 +33,18 @@ describe("datePartInTimeZone", () => {
 
 describe("utcToZonedLocalDateTime", () => {
   it("converts a valid UTC date string to a zoned local date time", () => {
-    expect(utcToZonedLocalDateTime("2026-07-20T22:00:00.000Z", "America/New_York")).toBe("2026-07-20T18:00");
-    expect(utcToZonedLocalDateTime("2026-12-20T23:00:00.000Z", "America/New_York")).toBe("2026-12-20T18:00");
+    expect(utcToZonedLocalDateTime("2026-07-20T22:00:00.000Z", "America/New_York")).toBe(
+      "2026-07-20T18:00",
+    );
+    expect(utcToZonedLocalDateTime("2026-12-20T23:00:00.000Z", "America/New_York")).toBe(
+      "2026-12-20T18:00",
+    );
   });
 
   it("handles the midnight edge case safely", () => {
-    expect(utcToZonedLocalDateTime("2026-07-20T04:00:00.000Z", "America/New_York")).toBe("2026-07-20T00:00");
+    expect(utcToZonedLocalDateTime("2026-07-20T04:00:00.000Z", "America/New_York")).toBe(
+      "2026-07-20T00:00",
+    );
   });
 
   it("returns null for invalid dates or invalid timezones", () => {
@@ -83,8 +89,12 @@ describe("formatTime", () => {
 
 describe("zonedLocalDateTimeToUtc", () => {
   it("converts a valid zoned local date time string to UTC", () => {
-    expect(zonedLocalDateTimeToUtc("2026-07-20T18:00", "America/New_York")).toBe("2026-07-20T22:00:00.000Z");
-    expect(zonedLocalDateTimeToUtc("2026-12-20T18:00", "America/New_York")).toBe("2026-12-20T23:00:00.000Z");
+    expect(zonedLocalDateTimeToUtc("2026-07-20T18:00", "America/New_York")).toBe(
+      "2026-07-20T22:00:00.000Z",
+    );
+    expect(zonedLocalDateTimeToUtc("2026-12-20T18:00", "America/New_York")).toBe(
+      "2026-12-20T23:00:00.000Z",
+    );
   });
 
   it("rejects invalid formats", () => {

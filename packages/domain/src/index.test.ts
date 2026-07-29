@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  failure,
-  isPerformer,
-  success,
-} from "./index";
+import { failure, isPerformer, success } from "./index";
 
 describe("domain results", () => {
   it("represents success without throwing", () => {
@@ -26,4 +22,3 @@ describe("performer eligibility", () => {
     expect(isPerformer({ voicePart: null })).toBe(false);
   });
 });
-
