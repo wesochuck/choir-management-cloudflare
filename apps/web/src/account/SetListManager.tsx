@@ -198,7 +198,6 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   const [copyEventId, setCopyEventId] = useState("");
   const [items, setItems] = useState<SetListItem[]>([]);
   const [approved, setApproved] = useState(false);
-  const [musicPieceId, setMusicPieceId] = useState("");
   const [customType, setCustomType] = useState<"intermission" | "song">("song");
   const [customTitle, setCustomTitle] = useState("");
   const [customComposer, setCustomComposer] = useState("");
@@ -271,9 +270,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     );
   }
 
-  function addMusicPiece(): void {
-    const piece = resources.music.find(({ id }) => id === musicPieceId);
-    if (!piece) return;
+  function addMusicPiece(piece: OrganizationMusicPiece): void {
     if (hasSetListPiece(items, piece.id)) {
       setError("That music piece is already in this set list.");
       return;
@@ -289,7 +286,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
         type: "song",
       },
     ]);
-    setMusicPieceId("");
+    setMusicQuery("");
     setError(null);
   }
 
@@ -566,9 +563,13 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
           <div className="set-list-add-grid">
             <div className="form-stack set-list-catalog-picker">
               <h3>Add from music catalog</h3>
-              <label className="field">
-                Search music library
+              <div className="field set-list-music-search">
+                <label htmlFor="set-list-music-search">Search music library</label>
                 <input
+                  aria-controls="set-list-music-results"
+                  aria-expanded={Boolean(musicQuery.trim())}
+                  aria-autocomplete="list"
+                  id="set-list-music-search"
                   onChange={(event) => {
                     setMusicQuery(event.target.value);
                   }}
@@ -576,37 +577,39 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                   type="search"
                   value={musicQuery}
                 />
-              </label>
-              <label className="field">
-                Matching music
-                <select
-                  value={musicPieceId}
-                  onChange={(event) => {
-                    setMusicPieceId(event.target.value);
-                  }}
-                >
-                  <option value="">Choose music…</option>
-                  {filteredMusic.map((piece) => (
-                    <option key={piece.id} value={piece.id}>
-                      {piece.title}
-                      {piece.composer ? ` — ${piece.composer}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="field-help">
-                {musicQuery.trim()
-                  ? `${String(filteredMusic.length)} matching piece${filteredMusic.length === 1 ? "" : "s"}.`
-                  : `${String(resources.music.length)} pieces available. Search to narrow the list.`}
-              </p>
-              <button
-                className="button button--secondary"
-                disabled={!musicPieceId}
-                type="button"
-                onClick={addMusicPiece}
-              >
-                Add music
-              </button>
+                {musicQuery.trim() ? (
+                  <div
+                    aria-label="Matching music"
+                    className="set-list-music-results"
+                    id="set-list-music-results"
+                    role="listbox"
+                  >
+                    {filteredMusic.length > 0 ? (
+                      filteredMusic.slice(0, 50).map((piece) => (
+                        <button
+                          className="set-list-music-result"
+                          key={piece.id}
+                          onClick={() => {
+                            addMusicPiece(piece);
+                          }}
+                          role="option"
+                          type="button"
+                        >
+                          <strong>{piece.title}</strong>
+                          <span>{piece.composer || "Composer not listed"}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="set-list-music-results__empty">No matching music pieces.</p>
+                    )}
+                  </div>
+                ) : null}
+                <p className="field-help" aria-live="polite">
+                  {musicQuery.trim()
+                    ? `${String(filteredMusic.length)} matching piece${filteredMusic.length === 1 ? "" : "s"}${filteredMusic.length > 50 ? " · showing first 50" : ""}. Select a result to add it.`
+                    : `${String(resources.music.length)} pieces available. Start typing to search.`}
+                </p>
+              </div>
             </div>
             <div className="set-list-custom-action">
               <h3>Add a custom item</h3>

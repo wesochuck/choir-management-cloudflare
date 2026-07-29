@@ -173,6 +173,52 @@ footer {
   min-width: 0;
 }
 
+.set-list-music-search {
+  position: relative;
+}
+
+.set-list-music-results {
+  display: grid;
+  max-height: 17rem;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.set-list-music-result {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.set-list-music-result:last-child {
+  border-bottom: 0;
+}
+
+.set-list-music-result:hover,
+.set-list-music-result:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.set-list-music-result span,
+.set-list-music-results__empty {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.set-list-music-results__empty {
+  margin: 0;
+  padding: 0.8rem;
+}
+
 .set-list-custom-action {
   align-self: end;
   padding: 1rem;
