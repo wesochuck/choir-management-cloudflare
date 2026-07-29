@@ -2,6 +2,7 @@ import type { SingerEvent, SingerEventsResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type ScheduleState =
   | { readonly status: "error" }
@@ -24,14 +25,18 @@ function eventLocation(event: SingerEvent): string {
   return event.location;
 }
 
-function performerCredit(item: SingerEvent["setList"][number]): string | null {
+function performerCredit(
+  item: SingerEvent["setList"][number],
+  performerLabelPlural: string,
+): string | null {
   const credits = item.performerCredits?.map(({ displayName }) => displayName) ?? [];
   if (!item.isFeaturedNumber && !item.soloSmallGroup) return null;
-  if (credits.length === 0) return "Featured performers TBA";
+  if (credits.length === 0) return `Featured ${performerLabelPlural.toLowerCase()} TBA`;
   return `Featured: ${credits.join(", ")}`;
 }
 
 export function MySchedule({ enabled }: { readonly enabled: boolean }) {
+  const { performerLabelPlural } = useOrganizationTerminology();
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [state, setState] = useState<ScheduleState>({ status: "loading" });
@@ -144,7 +149,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                         <h4>Approved set list</h4>
                         <ol>
                           {event.setList.map((item, index) => {
-                            const credit = performerCredit(item);
+                            const credit = performerCredit(item, performerLabelPlural);
                             return (
                               <li key={item.id ?? `${item.title}-${String(index)}`}>
                                 <strong>{item.title}</strong>

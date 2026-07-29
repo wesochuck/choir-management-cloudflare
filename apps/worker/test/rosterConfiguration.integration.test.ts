@@ -136,11 +136,10 @@ describe("Organization roster configuration", () => {
         )
       ).json(),
     );
-    expect({ sections: defaults.sections, voiceParts: defaults.voiceParts }).toEqual(
-      defaultRosterConfiguration,
-    );
+    expect(defaults).toMatchObject(defaultRosterConfiguration);
 
     const custom = {
+      performerLabel: "Musician",
       sections: [{ code: "H", color: "#123456", name: "High voices", trackOnly: false }],
       voiceParts: [{ fullName: "High voice", label: "High", sectionCode: "H" }],
     };
@@ -216,9 +215,7 @@ describe("Organization roster configuration", () => {
         )
       ).json(),
     );
-    expect({ sections: bravo.sections, voiceParts: bravo.voiceParts }).toEqual(
-      defaultRosterConfiguration,
-    );
+    expect(bravo).toMatchObject(defaultRosterConfiguration);
 
     const stub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
     const auditCount = await runInDurableObject(

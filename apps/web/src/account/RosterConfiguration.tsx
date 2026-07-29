@@ -7,6 +7,7 @@ import {
   updateOrganizationRosterConfiguration,
 } from "../auth/api";
 import { useFloatingSaveAction } from "./FloatingSaveBar";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 interface Props {
   readonly enabled: boolean;
@@ -27,6 +28,7 @@ function configurationKey(configuration: OrganizationRosterConfiguration | null)
 }
 
 export function RosterConfiguration({ enabled }: Props) {
+  const { setPerformerLabel } = useOrganizationTerminology();
   const [configuration, setConfiguration] = useState<OrganizationRosterConfiguration | null>(null);
   const [savedConfiguration, setSavedConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
@@ -45,6 +47,7 @@ export function RosterConfiguration({ enabled }: Props) {
       .then(([nextConfiguration, profiles]) => {
         setConfiguration(nextConfiguration);
         setSavedConfiguration(nextConfiguration);
+        setPerformerLabel(nextConfiguration.performerLabel);
         setAssignedLabels(new Set(profiles.map(({ voicePart }) => voicePart).filter(Boolean)));
       })
       .catch(() => {
@@ -53,7 +56,7 @@ export function RosterConfiguration({ enabled }: Props) {
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, setPerformerLabel]);
 
   async function save(): Promise<void> {
     if (!configuration) return;
@@ -64,6 +67,7 @@ export function RosterConfiguration({ enabled }: Props) {
       const nextConfiguration = await updateOrganizationRosterConfiguration(configuration);
       setConfiguration(nextConfiguration);
       setSavedConfiguration(nextConfiguration);
+      setPerformerLabel(nextConfiguration.performerLabel);
       setSaved(true);
     } catch (caught: unknown) {
       setError(
@@ -118,6 +122,28 @@ export function RosterConfiguration({ enabled }: Props) {
       ) : (
         <div className="form-stack">
           <fieldset disabled={busy}>
+            <legend>Performer terminology</legend>
+            <div className="field">
+              <label htmlFor="roster-performer-label">Performer label</label>
+              <input
+                id="roster-performer-label"
+                maxLength={50}
+                required
+                value={configuration.performerLabel}
+                onChange={(event) => {
+                  const performerLabel = event.target.value;
+                  setConfiguration((current) =>
+                    current ? { ...current, performerLabel } : current,
+                  );
+                }}
+              />
+              <span className="field-help">
+                The name used for performing members throughout the Organization. For example:
+                Singer, Musician, or Performer.
+              </span>
+            </div>
+          </fieldset>
+          <fieldset disabled={busy}>
             <legend>Sections</legend>
             <div className="roster-configuration-list">
               {configuration.sections.map((section, index) => {
@@ -142,6 +168,7 @@ export function RosterConfiguration({ enabled }: Props) {
                           setConfiguration(
                             (current) =>
                               current && {
+                                ...current,
                                 sections: current.sections.map((item, itemIndex) =>
                                   itemIndex === index ? { ...item, code } : item,
                                 ),

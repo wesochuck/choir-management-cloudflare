@@ -1,4 +1,5 @@
 export const defaultRosterConfiguration = {
+  performerLabel: "Performer",
   sections: [
     { code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false },
     { code: "A", color: "#4a7c59", name: "Altos", trackOnly: false },

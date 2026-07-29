@@ -26,6 +26,7 @@ import {
   updateOrganizationAuditionSettings,
 } from "../auth/api";
 import { QRCodeShareCard } from "./QRCodeShareCard";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 interface Props {
   readonly enabled: boolean;
@@ -1022,6 +1023,7 @@ function AuditionDialogs({
 }
 
 export function AuditionManager({ enabled }: Props) {
+  const { performerLabelPlural } = useOrganizationTerminology();
   const [state, setState] = useState<ManagerState>({ status: "loading" });
   const [settings, setSettings] = useState<OrganizationAuditionSettings>(fallbackSettings);
   const [performances, setPerformances] = useState<readonly OrganizationEvent[]>([]);
@@ -1256,7 +1258,7 @@ export function AuditionManager({ enabled }: Props) {
       <QRCodeShareCard
         description={
           settings.enabled && settings.defaultPerformanceId && settings.slots.length > 0
-            ? "Share this link or download the QR code so prospective singers can submit an audition request."
+            ? `Share this link or download the QR code so prospective ${performerLabelPlural.toLowerCase()} can submit an audition request.`
             : "This is the public audition signup link. Configure a performance and time slots, then enable requests before sharing it."
         }
         path="/auditions"

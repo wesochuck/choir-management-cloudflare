@@ -20,6 +20,7 @@ import {
   updateOrganizationProfile,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 const emptyProfile: OrganizationProfileRequest = {
   displayName: "",
@@ -231,6 +232,7 @@ function parseRosterStatusFilter(value: string): RosterStatusFilter {
 
 // eslint-disable-next-line complexity -- the roster page coordinates search, membership, dialogs, and profile actions.
 export function RosterPage({ enabled }: { readonly enabled: boolean }) {
+  const { performerLabel } = useOrganizationTerminology();
   const [busy, setBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -668,7 +670,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
               onChange={(event) => {
                 setProfileEmail(event.target.value);
               }}
-              placeholder="Enter an email to invite this singer"
+              placeholder={`Enter an email to invite this ${performerLabel.toLowerCase()}`}
               readOnly={Boolean(editingId && profileEmail)}
               type="email"
               value={profileEmail}

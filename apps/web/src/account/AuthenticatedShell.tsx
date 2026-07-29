@@ -13,6 +13,7 @@ import {
   AuthApiError,
   getOrganizationDashboardSummary,
   getOrganizationAuthStatus,
+  getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
   signOut,
 } from "../auth/api";
@@ -33,6 +34,7 @@ import { MySchedule } from "./MySchedule";
 import { OrganizationAccess } from "./OrganizationAccess";
 import { OrganizationResources } from "./OrganizationResources";
 import { OrganizationSettingsPage } from "./OrganizationSettingsPage";
+import { OrganizationTerminologyProvider } from "./organizationTerminology";
 import { PlatformAccess } from "./PlatformAccess";
 import { PlatformSetupMonitor } from "./PlatformSetupMonitor";
 import { PollsPage } from "./PollsPage";
@@ -884,6 +886,7 @@ export function AuthenticatedShell({
   const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
   const [access, setAccess] = useState<AccessState>({ status: "loading" });
   const [platformAvailable, setPlatformAvailable] = useState(false);
+  const [organizationPerformerLabel, setOrganizationPerformerLabel] = useState("Performer");
 
   useEffect(() => {
     applyTheme(themePreference);
@@ -940,6 +943,21 @@ export function AuthenticatedShell({
       controller.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (access.status !== "ready") return;
+    const controller = new AbortController();
+    getOrganizationRosterConfiguration(controller.signal)
+      .then((configuration) => {
+        if (!controller.signal.aborted) setOrganizationPerformerLabel(configuration.performerLabel);
+      })
+      .catch(() => {
+        // Account and Platform workspaces do not have an Organization roster to load.
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [access]);
 
   const workspace = workspaceForPath(route.pathname);
 
@@ -1080,18 +1098,23 @@ export function AuthenticatedShell({
               Workspace access could not be loaded. Refresh and try again.
             </p>
           ) : null}
-          <FloatingSaveBarProvider>
-            <WorkspacePage
-              access={access}
-              currentSession={currentSession}
-              memberEnabled={memberEnabled}
-              navigate={navigate}
-              onSignedOut={onSignedOut}
-              platformAvailable={platformAvailable}
-              route={route}
-              workspace={workspace}
-            />
-          </FloatingSaveBarProvider>
+          <OrganizationTerminologyProvider
+            onLabelChange={setOrganizationPerformerLabel}
+            performerLabel={organizationPerformerLabel}
+          >
+            <FloatingSaveBarProvider>
+              <WorkspacePage
+                access={access}
+                currentSession={currentSession}
+                memberEnabled={memberEnabled}
+                navigate={navigate}
+                onSignedOut={onSignedOut}
+                platformAvailable={platformAvailable}
+                route={route}
+                workspace={workspace}
+              />
+            </FloatingSaveBarProvider>
+          </OrganizationTerminologyProvider>
         </main>
       </div>
       <Sheet

@@ -10,6 +10,7 @@ import {
   listOrganizationEvents,
   updateOrganizationEventAttendance,
 } from "../auth/api";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type AttendanceFilter = "All" | "Present" | "Absent" | "Pending";
 
@@ -38,6 +39,7 @@ function formatSyncTime(value: Date | null): string {
 }
 
 export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
+  const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [eventId, setEventId] = useState("");
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
@@ -293,7 +295,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           </select>
         </label>
         <label className="field attendance-manager__search">
-          <span>Find a singer</span>
+          <span>Find a {performerLabel.toLowerCase()}</span>
           <input
             inputMode="search"
             onChange={(event) => {
@@ -371,7 +373,9 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
 
       {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
       {rows.length > 0 && groupedRows.length === 0 ? (
-        <p className="attendance-manager__empty">No singers match this filter.</p>
+        <p className="attendance-manager__empty">
+          No {performerLabelPlural.toLowerCase()} match this filter.
+        </p>
       ) : null}
       <div className="attendance-list">
         {groupedRows.map(([voicePart, group]) => (

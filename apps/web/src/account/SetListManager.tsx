@@ -21,6 +21,7 @@ import {
   listOrganizationProfiles,
   updateOrganizationEvent,
 } from "../auth/api";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type SetListItem = OrganizationEvent["setList"][number];
 type PerformerCredit = NonNullable<SetListItem["performerCredits"]>[number];
@@ -95,6 +96,7 @@ function SetListCreditEditor({
   readonly onChange: (item: SetListItem) => void;
   readonly profiles: readonly OrganizationProfile[];
 }) {
+  const { performerLabel } = useOrganizationTerminology();
   const [guestName, setGuestName] = useState("");
   const credits = item.performerCredits ?? [];
 
@@ -112,7 +114,7 @@ function SetListCreditEditor({
 
   return (
     <div className="set-list-credits">
-      <p className="field-help">Performer credits are saved as display-name snapshots.</p>
+      <p className="field-help">{performerLabel} credits are saved as display-name snapshots.</p>
       <div className="set-list-credit-controls">
         <label className="field">
           Add Organization Profile
@@ -138,7 +140,7 @@ function SetListCreditEditor({
           </select>
         </label>
         <label className="field">
-          Add guest performer
+          Add guest {performerLabel.toLowerCase()}
           <span className="set-list-inline-control">
             <input
               maxLength={200}
@@ -192,6 +194,7 @@ function SetListCreditEditor({
 
 // eslint-disable-next-line complexity -- this editor coordinates ordering, drafts, and modal forms.
 export function SetListManager({ enabled }: { readonly enabled: boolean }) {
+  const { performerLabelPlural } = useOrganizationTerminology();
   const [resources, setResources] = useState<Resources>(emptyResources);
   const [loaded, setLoaded] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -850,7 +853,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
           </Dialog>
 
           <Dialog
-            description="Update the item details and performer assignments, then close when finished."
+            description={`Update the item details and ${performerLabelPlural.toLowerCase()} assignments, then close when finished.`}
             onClose={closeItemEditor}
             open={editingItem !== null}
             title="Edit set-list item"

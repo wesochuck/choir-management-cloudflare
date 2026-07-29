@@ -532,6 +532,7 @@ export const organizationVoicePartSchema = z.object({
 
 export const organizationRosterConfigurationRequestSchema = z
   .object({
+    performerLabel: z.string().trim().min(1).max(50).default("Performer"),
     sections: z.array(organizationSectionSchema).min(1).max(50),
     voiceParts: z.array(organizationVoicePartSchema).min(1).max(100),
   })

@@ -1048,7 +1048,11 @@ export async function getOrganizationRosterConfiguration(
     signal: signal ?? null,
   });
   const parsed = organizationRosterConfigurationResponseSchema.parse(await response.json());
-  return { sections: parsed.sections, voiceParts: parsed.voiceParts };
+  return {
+    performerLabel: parsed.performerLabel,
+    sections: parsed.sections,
+    voiceParts: parsed.voiceParts,
+  };
 }
 
 export async function updateOrganizationRosterConfiguration(
@@ -1059,7 +1063,11 @@ export async function updateOrganizationRosterConfiguration(
     method: "PUT",
   });
   const parsed = organizationRosterConfigurationResponseSchema.parse(await response.json());
-  return { sections: parsed.sections, voiceParts: parsed.voiceParts };
+  return {
+    performerLabel: parsed.performerLabel,
+    sections: parsed.sections,
+    voiceParts: parsed.voiceParts,
+  };
 }
 
 export async function getOrganizationSeatingConfiguration(
