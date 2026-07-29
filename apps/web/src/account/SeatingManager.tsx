@@ -1681,6 +1681,17 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                   className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
                   aria-label="Seating chart assignments"
                 >
+                  {isEditing ? (
+                    <button
+                      className="button button--secondary button--small no-print"
+                      onClick={() => {
+                        updateLayout(addRow({ ...chart }, "back"));
+                      }}
+                      type="button"
+                    >
+                      + Add row to back
+                    </button>
+                  ) : null}
                   <div className="seating-grid seating-grid--canvas">
                     {rows.map((rowIndex) => {
                       const count = chart.rowCounts[rowIndex] ?? 0;
@@ -1779,18 +1790,18 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                       );
                     })}
                   </div>
-                  <div className="seating-stage-marker">Director</div>
                   {isEditing ? (
                     <button
                       className="button button--secondary button--small no-print"
                       onClick={() => {
-                        updateLayout(addRow({ ...chart }, "back"));
+                        updateLayout(addRow({ ...chart }, "front"));
                       }}
                       type="button"
                     >
-                      + Add row to back
+                      + Add row to front
                     </button>
                   ) : null}
+                  <div className="seating-stage-marker">Director</div>
                 </div>
                 {isEditing ? (
                   <UnassignedTray
@@ -1835,17 +1846,6 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                   ) : null}
                 </DragOverlay>
               </DndContext>
-              {isEditing ? (
-                <button
-                  className="button button--secondary button--small no-print"
-                  onClick={() => {
-                    updateLayout(addRow({ ...chart }, "front"));
-                  }}
-                  type="button"
-                >
-                  + Add row to front
-                </button>
-              ) : null}
             </>
           ) : null}
         </>
