@@ -80,6 +80,12 @@ function durationText(seconds: number | null): string {
   return `${String(minutes)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+function audioTimeText(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const wholeSeconds = Math.floor(seconds);
+  return `${String(Math.floor(wholeSeconds / 60))}:${String(wholeSeconds % 60).padStart(2, "0")}`;
+}
+
 function parseDuration(value: string): number | null | undefined {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -866,6 +872,97 @@ function MusicPiecePerformances({
   );
 }
 
+function MusicInlineAudioPlayer({ label, src }: { readonly label: string; readonly src: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    audio.load();
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+  }, [src]);
+
+  function togglePlayback(): void {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      void audio.play().catch(() => {
+        setIsPlaying(false);
+      });
+    } else {
+      audio.pause();
+    }
+  }
+
+  return (
+    <div className="music-audio-track__player">
+      <audio
+        aria-label={`${label} learning track`}
+        className="music-audio-track__audio"
+        preload="metadata"
+        ref={audioRef}
+        src={src}
+        onEnded={() => {
+          setIsPlaying(false);
+        }}
+        onLoadedMetadata={(event) => {
+          setDuration(
+            Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0,
+          );
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+        }}
+        onPlay={() => {
+          setIsPlaying(true);
+        }}
+        onTimeUpdate={(event) => {
+          setCurrentTime(event.currentTarget.currentTime);
+        }}
+      >
+        <track kind="captions" />
+      </audio>
+      <button
+        aria-label={isPlaying ? `Pause ${label}` : `Play ${label}`}
+        className="button button--secondary button--small music-audio-track__play"
+        title={isPlaying ? "Pause" : "Play"}
+        type="button"
+        onClick={togglePlayback}
+      >
+        <span aria-hidden="true">{isPlaying ? "❚❚" : "▶"}</span>
+      </button>
+      <span aria-hidden="true" className="music-audio-track__time">
+        {audioTimeText(currentTime)}
+      </span>
+      <input
+        aria-label={`Scrub ${label}`}
+        className="music-audio-track__scrubber"
+        disabled={duration <= 0}
+        max={duration || 1}
+        min={0}
+        step={0.1}
+        type="range"
+        value={Math.min(currentTime, duration || 0)}
+        onChange={(event) => {
+          const nextTime = Number(event.target.value);
+          setCurrentTime(nextTime);
+          if (audioRef.current) audioRef.current.currentTime = nextTime;
+        }}
+      />
+      <span aria-hidden="true" className="music-audio-track__time">
+        {audioTimeText(duration)}
+      </span>
+    </div>
+  );
+}
+
 function MusicAudioTracks({
   configuration,
   onSaved,
@@ -970,9 +1067,10 @@ function MusicAudioTracks({
               </span>
               {fileId ? (
                 <div className="music-audio-track__controls">
-                  <audio controls preload="metadata" src={`/api/organization/files/${fileId}`}>
-                    <track kind="captions" />
-                  </audio>
+                  <MusicInlineAudioPlayer
+                    label={key === "tutti" ? "Tutti" : key}
+                    src={`/api/organization/files/${fileId}`}
+                  />
                   <a download href={`/api/organization/files/${fileId}`}>
                     Download
                   </a>
