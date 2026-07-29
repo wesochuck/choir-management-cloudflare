@@ -1499,7 +1499,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
             onClick={() => void (focusMode ? exitFocus() : enterFocus())}
             type="button"
           >
-            {focusMode ? "Exit focus" : "Focus"}
+            {focusMode ? "Exit full screen" : "Full Screen"}
           </button>
         </div>
       </div>

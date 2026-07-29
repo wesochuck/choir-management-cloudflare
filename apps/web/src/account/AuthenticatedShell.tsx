@@ -1075,15 +1075,17 @@ export function AuthenticatedShell({
           <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
         </aside>
         <main className="signed-in-main" id="signed-in-main">
-          <div className="page-heading">
-            <div>
-              <p className="eyebrow">{workspaceLabel(workspace)}</p>
-              <h1>{pageTitle(route.pathname)}</h1>
+          {route.pathname === "/admin/seating" ? null : (
+            <div className="page-heading">
+              <div>
+                <p className="eyebrow">{workspaceLabel(workspace)}</p>
+                <h1>{pageTitle(route.pathname)}</h1>
+              </div>
+              <span className="page-heading__location">
+                {access.status === "ready" ? access.organizationName : "Signed in"}
+              </span>
             </div>
-            <span className="page-heading__location">
-              {access.status === "ready" ? access.organizationName : "Signed in"}
-            </span>
-          </div>
+          )}
           {access.status === "error" ? (
             <p className="notice notice--error" role="alert">
               Workspace access could not be loaded. Refresh and try again.
