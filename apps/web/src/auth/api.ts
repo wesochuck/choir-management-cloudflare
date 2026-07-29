@@ -94,10 +94,13 @@ import {
   organizationExportStatusResponseSchema,
   duesRecordSchema,
   duesRecordsResponseSchema,
+  memberDuesResponseSchema,
+  duesCheckoutResponseSchema,
   seasonSchema,
   seasonsResponseSchema,
   type DuesRecord,
   type Season,
+  type DuesCheckoutResponse,
   type SeasonCreateRequest,
   type SeasonUpdateRequest,
   type AccountOrganization,
@@ -883,6 +886,28 @@ export async function deleteOrganizationSeason(seasonId: string): Promise<void> 
 export async function listOrganizationDues(signal?: AbortSignal): Promise<readonly DuesRecord[]> {
   const response = await request("/api/organization/dues", { signal: signal ?? null });
   return duesRecordsResponseSchema.parse(await response.json()).dues;
+}
+
+export async function getMyDues(signal?: AbortSignal): Promise<{
+  readonly dues: readonly DuesRecord[];
+  readonly seasons: readonly Season[];
+  readonly transactionFeeSettings: TransactionFeeSettings;
+}> {
+  const response = await request("/api/singer/dues", { signal: signal ?? null });
+  const result = memberDuesResponseSchema.parse(await response.json());
+  return {
+    dues: result.dues,
+    seasons: result.seasons,
+    transactionFeeSettings: result.transactionFeeSettings,
+  };
+}
+
+export async function createMyDuesCheckout(seasonId: string): Promise<DuesCheckoutResponse> {
+  const response = await request("/api/singer/dues/checkout", {
+    body: JSON.stringify({ seasonId }),
+    method: "POST",
+  });
+  return duesCheckoutResponseSchema.parse(await response.json());
 }
 
 export async function refundOrganizationDues(duesId: string): Promise<DuesRecord> {

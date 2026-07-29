@@ -47,6 +47,7 @@ const createDuesCheckoutOperationSchema = organizationContextSchema.extend({
   checkout: duesCheckoutRequestSchema,
   requestId: z.uuid(),
   origin: z.string(),
+  providerSessionId: z.string().trim().min(1).max(256).optional(),
 });
 
 const refundOperationSchema = organizationContextSchema.extend({
@@ -350,7 +351,7 @@ function createDuesCheckout(
   if (!season) return Response.json({ code: "season_not_found" }, { status: 404 });
 
   const now = new Date().toISOString();
-  const sessionId = `fake_session_${crypto.randomUUID()}`;
+  const sessionId = operation.providerSessionId ?? `fake_session_${crypto.randomUUID()}`;
   const feeCents = transactionProcessingFeeCents(
     season.duesAmountCents,
     transactionFeeSettingsFromStore(storage),
@@ -403,9 +404,9 @@ function createDuesCheckout(
     }
   });
 
-  const url = new URL("/dues/success", operation.origin);
+  const url = new URL("/dues?checkout=success", operation.origin);
   return Response.json({
-    checkoutMode: "fake",
+    checkoutMode: sessionId.startsWith("fake_session_") ? "fake" : "stripe",
     sessionId,
     url: url.href,
   });

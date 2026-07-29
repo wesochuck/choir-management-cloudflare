@@ -2176,10 +2176,21 @@ export const duesCheckoutRequestSchema = z.object({
   seasonId: z.uuid(),
 });
 
+export const memberDuesCheckoutRequestSchema = z.object({
+  seasonId: z.uuid(),
+});
+
 export const duesCheckoutResponseSchema = z.object({
   checkoutMode: z.enum(["fake", "stripe"]),
   sessionId: z.string().min(1).max(256),
   url: z.url(),
+});
+
+export const memberDuesResponseSchema = z.object({
+  dues: z.array(duesRecordSchema).max(500),
+  requestId: requestIdSchema,
+  seasons: z.array(seasonSchema).max(500),
+  transactionFeeSettings: transactionFeeSettingsSchema,
 });
 
 export type Season = z.infer<typeof seasonSchema>;
@@ -2191,6 +2202,8 @@ export type DuesRecord = z.infer<typeof duesRecordSchema>;
 export type DuesRecordsResponse = z.infer<typeof duesRecordsResponseSchema>;
 export type DuesCheckoutRequest = z.infer<typeof duesCheckoutRequestSchema>;
 export type DuesCheckoutResponse = z.infer<typeof duesCheckoutResponseSchema>;
+export type MemberDuesCheckoutRequest = z.infer<typeof memberDuesCheckoutRequestSchema>;
+export type MemberDuesResponse = z.infer<typeof memberDuesResponseSchema>;
 
 export const problemDetailsSchema = z.object({
   code: z.string().min(1),

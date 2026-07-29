@@ -10,6 +10,11 @@ const stripeAccountSchema = z.object({
     .default({ currently_due: [] }),
 });
 
+const stripeCheckoutSessionSchema = z.object({
+  id: z.string().regex(/^cs_[A-Za-z0-9_]+$/),
+  url: z.url(),
+});
+
 type StripeAccount = z.infer<typeof stripeAccountSchema>;
 
 export class StripeConnectError extends Error {
@@ -18,6 +23,16 @@ export class StripeConnectError extends Error {
   constructor(message: string, status = 503) {
     super(message);
     this.name = "StripeConnectError";
+    this.status = status;
+  }
+}
+
+export class StripeCheckoutError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status = 503) {
+    super(message);
+    this.name = "StripeCheckoutError";
     this.status = status;
   }
 }
@@ -42,6 +57,8 @@ async function stripeRequest(
     readonly body?: URLSearchParams;
     readonly method: "GET" | "POST";
     readonly idempotencyKey?: string;
+    readonly stripeAccount?: string;
+    readonly errorType?: "checkout" | "connect";
   },
 ): Promise<unknown> {
   const headers = new Headers({ authorization: `Bearer ${secretKey}` });
@@ -49,12 +66,56 @@ async function stripeRequest(
     headers.set("content-type", "application/x-www-form-urlencoded");
   }
   if (init.idempotencyKey) headers.set("idempotency-key", init.idempotencyKey);
+  if (init.stripeAccount) headers.set("stripe-account", init.stripeAccount);
   const requestInit: RequestInit = { headers, method: init.method };
   if (init.body) requestInit.body = init.body;
   const response = await fetch(`https://api.stripe.com${path}`, requestInit);
   const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) throw new StripeConnectError(stripeMessage(body), response.status);
+  if (!response.ok) {
+    const ErrorType = init.errorType === "checkout" ? StripeCheckoutError : StripeConnectError;
+    throw new ErrorType(stripeMessage(body), response.status);
+  }
   return body;
+}
+
+export interface StripeCheckoutSessionInput {
+  readonly cancelUrl: string;
+  readonly currency: "usd";
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly organizationName: string;
+  readonly productName: string;
+  readonly quantity: number;
+  readonly successUrl: string;
+  readonly unitAmountCents: number;
+}
+
+export async function createStripeCheckoutSession(
+  secretKey: string,
+  connectedAccountId: string,
+  input: StripeCheckoutSessionInput,
+): Promise<{ readonly id: string; readonly url: string }> {
+  const body = new URLSearchParams({
+    cancel_url: input.cancelUrl,
+    mode: "payment",
+    success_url: input.successUrl,
+    "line_items[0][price_data][currency]": input.currency,
+    "line_items[0][price_data][product_data][name]": input.productName,
+    "line_items[0][price_data][product_data][description]": `Payment to ${input.organizationName}`,
+    "line_items[0][price_data][unit_amount]": String(input.unitAmountCents),
+    "line_items[0][quantity]": String(input.quantity),
+  });
+  for (const [key, value] of Object.entries(input.metadata)) {
+    body.set(`metadata[${key}]`, value);
+  }
+  return stripeCheckoutSessionSchema.parse(
+    await stripeRequest(secretKey, "/v1/checkout/sessions", {
+      body,
+      idempotencyKey: `dues-checkout-${input.metadata.checkout_request_id ?? crypto.randomUUID()}`,
+      method: "POST",
+      errorType: "checkout",
+      stripeAccount: connectedAccountId,
+    }),
+  );
 }
 
 export async function createStripeConnectedAccount(

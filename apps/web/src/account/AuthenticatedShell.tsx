@@ -28,6 +28,7 @@ import { EventsPage } from "./EventsPage";
 import { FloatingSaveBarProvider } from "./FloatingSaveBar";
 import { LearningTrackPlayer } from "./LearningTrackPlayer";
 import { MemberProfileDirectory } from "./MemberProfileDirectory";
+import { MemberDuesPage } from "./MemberDuesPage";
 import { ModuleSettingsView } from "./ModuleSettingsView";
 import { MusicCatalog } from "./MusicCatalog";
 import { MySchedule } from "./MySchedule";
@@ -117,6 +118,7 @@ const memberGroups: readonly NavigationGroup[] = [
       { href: "/schedule", label: "My schedule", module: "events" },
       { href: "/profile", label: "My Profile", module: "people" },
       { href: "/directory", label: "Directory", module: "people" },
+      { href: "/dues", label: "Season dues", module: "people" },
     ],
   },
   {
@@ -311,6 +313,7 @@ function pageTitle(pathname: string): string {
     ["/platform", "Platform overview"],
     ["/profile", "My Profile"],
     ["/directory", "Directory"],
+    ["/dues", "Season dues"],
     ["/schedule", "My schedule"],
     ["/practice", "Practice"],
     ["/member/resources", "Resources"],
@@ -356,6 +359,7 @@ const moduleRoutePrefixes: Record<
   people: [
     "/profile",
     "/directory",
+    "/dues",
     "/admin/roster",
     "/admin/settings/invitations",
     "/admin/auditions",
@@ -763,6 +767,7 @@ function renderMemberPage(pathname: string, enabled: boolean): ReactNode {
     "/member/resources": <OrganizationResources enabled={enabled} manager={false} />,
     "/practice": <LearningTrackPlayer enabled={enabled} />,
     "/profile": <MemberProfileDirectory enabled={enabled} view="profile" />,
+    "/dues": <MemberDuesPage enabled={enabled} />,
     "/schedule": <MySchedule enabled={enabled} />,
   };
   if (pathname.startsWith("/seating/")) return <SeatingFinder enabled={enabled} />;

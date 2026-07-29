@@ -58,7 +58,7 @@ import {
   transactionFeeSettingsSchema,
   transactionFeeSettingsResponseSchema,
   donationRefundRequestSchema,
-  duesCheckoutRequestSchema,
+  memberDuesCheckoutRequestSchema,
   seasonCreateRequestSchema,
   seasonUpdateRequestSchema,
   setupProgressRequestSchema,
@@ -1577,19 +1577,17 @@ router.get("/api/public/donation-settings", async (context) => {
 });
 
 router.post("/api/checkout/create-dues-session", async (context) => {
-  validateStartupConfig(context.env);
-  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
-  const checkout = duesCheckoutRequestSchema.safeParse(
+  const authorization = await authorizeCalendarRoute(context, false);
+  const checkout = memberDuesCheckoutRequestSchema.safeParse(
     await context.req.json<unknown>().catch(() => null),
   );
-  if (!resolved.ok) {
+  if (!authorization.ok) {
     return context.json(
       {
-        code: "not_found",
-        message: "Dues checkout is not available for this hostname.",
+        ...authorization,
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
-      404,
+      authorization.status,
     );
   }
   if (!checkout.success) {
@@ -1602,13 +1600,28 @@ router.post("/api/checkout/create-dues-session", async (context) => {
       400,
     );
   }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for self-service.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
   try {
     return context.json(
       await createDuesCheckoutSession(
         context.env,
-        resolved.value.organizationId,
+        authorization.organizationId,
         new URL(context.req.url).origin,
-        checkout.data,
+        { profileIds: [profileId], seasonId: checkout.data.seasonId },
       ),
       201,
     );
@@ -3847,6 +3860,119 @@ router.get("/api/singer/profile", async (context) => {
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
+    );
+  }
+});
+
+router.get("/api/singer/dues", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for self-service.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const [seasons, dues, feeResponse] = await Promise.all([
+      listSeasons(context.env, authorization.organizationId),
+      listDues(context.env, authorization.organizationId),
+      context.env.ORGANIZATION_STORE.get(
+        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+      ).fetch(
+        `https://organization.internal/internal/transaction-fee-settings?organizationId=${encodeURIComponent(authorization.organizationId)}`,
+      ),
+    ]);
+    const transactionFeeSettings = transactionFeeSettingsSchema.parse(await feeResponse.json());
+    return context.json({
+      dues: dues.filter((record) => record.profileId === profileId),
+      requestId: context.get("requestId"),
+      seasons,
+      transactionFeeSettings,
+    });
+  } catch {
+    return context.json(
+      {
+        code: "dues_unavailable",
+        message: "Your season dues are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/singer/dues/checkout", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = memberDuesCheckoutRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Choose a valid season before starting checkout.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  if (!profileId) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "A linked Organization Profile is required for self-service.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    return context.json(
+      await createDuesCheckoutSession(
+        context.env,
+        authorization.organizationId,
+        new URL(context.req.url).origin,
+        { profileIds: [profileId], seasonId: body.data.seasonId },
+      ),
+      201,
+    );
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof SeasonError ? error.code : "dues_checkout_unavailable",
+        message:
+          error instanceof SeasonError
+            ? error.message
+            : "Online dues checkout is not available right now.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof SeasonError && error.status === 409 ? 409 : 503,
     );
   }
 });
