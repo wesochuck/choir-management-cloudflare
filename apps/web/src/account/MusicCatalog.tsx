@@ -201,6 +201,8 @@ function MusicCatalogTable({
         emptyMessage="No music pieces match this catalog search."
         initialSort={{ columnId: "title", direction: "asc" }}
         keySelector={(piece) => piece.id}
+        onRowClick={onEdit}
+        rowLabel={(piece) => `Edit music piece ${piece.title}`}
         rows={visiblePieces}
       />
     </div>

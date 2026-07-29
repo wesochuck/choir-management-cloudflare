@@ -394,6 +394,8 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
             emptyMessage={query ? "No Profiles match your search." : "No Profiles yet."}
             initialSort={{ columnId: "name", direction: "asc" }}
             keySelector={(candidate) => candidate.id}
+            onRowClick={openEdit}
+            rowLabel={(candidate) => `Edit profile ${candidate.displayName}`}
             rows={filteredProfiles}
           />
         </>

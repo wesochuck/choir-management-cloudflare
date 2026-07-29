@@ -546,6 +546,8 @@ function SeasonsTab({
       emptyMessage="No seasons yet. Add one to get started."
       initialSort={{ columnId: "startsAt", direction: "desc" }}
       keySelector={(season) => season.id}
+      onRowClick={onEdit}
+      rowLabel={(season) => `Edit season ${season.name}`}
       rows={seasonState.seasons}
     />
   );

@@ -2902,6 +2902,19 @@ footer {
   color: var(--color-primary);
 }
 
+.data-table__row--interactive {
+  cursor: pointer;
+}
+
+.data-table__row--interactive:hover td {
+  background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+}
+
+.data-table__row--interactive:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
 .data-table-cards {
   display: none;
 }
@@ -2936,6 +2949,20 @@ footer {
     border: 1px solid var(--border);
     border-radius: 0.5rem;
     padding: 1rem;
+  }
+
+  .data-table-card--interactive {
+    cursor: pointer;
+  }
+
+  .data-table-card--interactive:hover,
+  .data-table-card--interactive:focus-visible {
+    border-color: var(--color-primary);
+  }
+
+  .data-table-card--interactive:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 
   .data-table-card__field {

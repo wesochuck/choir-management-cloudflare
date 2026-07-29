@@ -20,7 +20,16 @@ interface DataTableProps<T> {
   readonly emptyMessage?: string;
   readonly initialSort?: DataTableSort;
   readonly keySelector: (row: T) => string;
+  readonly onRowClick?: (row: T) => void;
+  readonly rowLabel?: (row: T) => string;
   readonly rows: readonly T[];
+}
+
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(target.closest("a,button,input,select,textarea,[role='button']"))
+  );
 }
 
 function compareValues(
@@ -45,6 +54,8 @@ export function DataTable<T>({
   emptyMessage = "No results.",
   initialSort,
   keySelector,
+  onRowClick,
+  rowLabel,
   rows,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<DataTableSort | null>(initialSort ?? null);
@@ -118,7 +129,22 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {sortedRows.map((row) => (
-            <tr key={keySelector(row)}>
+            <tr
+              className={onRowClick ? "data-table__row--interactive" : undefined}
+              key={keySelector(row)}
+              onClick={(event) => {
+                if (!onRowClick || isInteractiveTarget(event.target)) return;
+                onRowClick(row);
+              }}
+              onKeyDown={(event) => {
+                if (!onRowClick || isInteractiveTarget(event.target)) return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onRowClick(row);
+              }}
+              tabIndex={onRowClick ? 0 : undefined}
+              aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
+            >
               {columns.map((column) => (
                 <td key={column.id}>{column.render(row)}</td>
               ))}
@@ -128,7 +154,25 @@ export function DataTable<T>({
       </table>
       <div className="data-table-cards">
         {sortedRows.map((row) => (
-          <div className="data-table-card" key={keySelector(row)}>
+          <div
+            aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
+            className={
+              onRowClick ? "data-table-card data-table-card--interactive" : "data-table-card"
+            }
+            key={keySelector(row)}
+            onClick={(event) => {
+              if (!onRowClick || isInteractiveTarget(event.target)) return;
+              onRowClick(row);
+            }}
+            onKeyDown={(event) => {
+              if (!onRowClick || isInteractiveTarget(event.target)) return;
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onRowClick(row);
+            }}
+            role={onRowClick ? "button" : undefined}
+            tabIndex={onRowClick ? 0 : undefined}
+          >
             {columns.map((column) => (
               <div className="data-table-card__field" key={column.id}>
                 <span className="data-table-card__label">

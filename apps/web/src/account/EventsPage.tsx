@@ -203,6 +203,8 @@ function EventList({
       ]}
       emptyMessage="No events match your search."
       keySelector={(candidate) => candidate.id}
+      onRowClick={onEdit}
+      rowLabel={(candidate) => `Edit event ${candidate.title}`}
       rows={filteredEvents.length > 0 ? filteredEvents : events.length > 0 ? [] : events}
     />
   );
