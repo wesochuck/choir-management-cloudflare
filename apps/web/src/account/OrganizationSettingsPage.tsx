@@ -13,6 +13,28 @@ import type { OrganizationExportStatusResponse, TransactionFeeSettings } from "@
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { RosterConfiguration } from "./RosterConfiguration";
 
+const fallbackTimeZones = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "Europe/London",
+  "Europe/Paris",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+] as const;
+
+const timeZoneOptions = [
+  ...new Set(
+    typeof Intl.supportedValuesOf === "function"
+      ? ["UTC", ...Intl.supportedValuesOf("timeZone")]
+      : fallbackTimeZones,
+  ),
+].sort((left, right) => left.localeCompare(right));
+
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
     cents / 100,
@@ -244,23 +266,23 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
           >
             <div className="field">
               <label htmlFor="settings-timezone">IANA timezone</label>
-              <input
+              <select
                 id="settings-timezone"
-                list="settings-timezones"
-                maxLength={100}
                 onChange={(event) => {
                   setTimezone(event.target.value);
                 }}
                 required
                 value={timezone}
-              />
-              <datalist id="settings-timezones">
-                <option value="UTC" />
-                <option value="America/New_York" />
-                <option value="America/Chicago" />
-                <option value="America/Denver" />
-                <option value="America/Los_Angeles" />
-              </datalist>
+              >
+                {!timeZoneOptions.includes(timezone) ? (
+                  <option value={timezone}>{timezone}</option>
+                ) : null}
+                {timeZoneOptions.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </select>
             </div>
             <button className="button button--primary" disabled={busy} type="submit">
               {busy ? "Saving…" : "Save timezone"}
