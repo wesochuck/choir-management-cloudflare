@@ -4579,6 +4579,114 @@ footer {
   line-height: 1.45;
 }
 
+.ticket-dashboard,
+.ticket-dashboard__will-call {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.ticket-dashboard__intro,
+.ticket-dashboard__section-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ticket-dashboard__intro h3,
+.ticket-dashboard__section-heading h3 {
+  margin: 0;
+}
+
+.ticket-dashboard__intro p,
+.ticket-dashboard__section-heading p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.ticket-dashboard__intro .field {
+  width: min(100%, 24rem);
+  flex: 0 1 24rem;
+}
+
+.ticket-dashboard__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ticket-dashboard__metric {
+  border-top: 0.25rem solid var(--color-accent);
+}
+
+.ticket-dashboard__metric strong {
+  color: var(--color-text);
+}
+
+.ticket-dashboard__metric--sales {
+  border-top-color: #ec4899;
+}
+
+.ticket-dashboard__metric--fees {
+  border-top-color: #f59e0b;
+}
+
+.ticket-dashboard__metric--revenue {
+  border-top-color: #10b981;
+}
+
+.ticket-dashboard__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+}
+
+.ticket-dashboard__filters .field {
+  min-width: 0;
+}
+
+.ticket-dashboard__will-call .table-scroll {
+  margin: 0;
+}
+
+.ticket-dashboard__will-call table {
+  min-width: 58rem;
+}
+
+.ticket-dashboard__will-call td:last-child,
+.ticket-dashboard__will-call th:last-child {
+  min-width: 10rem;
+}
+
+@media (max-width: 760px) {
+  .ticket-dashboard__intro,
+  .ticket-dashboard__section-heading {
+    flex-direction: column;
+  }
+
+  .ticket-dashboard__intro .field {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .ticket-dashboard__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ticket-dashboard__filters {
+    grid-template-columns: 1fr;
+  }
+}
+
 .empty-page {
   display: grid;
   justify-items: start;

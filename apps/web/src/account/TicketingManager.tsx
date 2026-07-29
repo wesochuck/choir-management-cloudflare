@@ -38,6 +38,10 @@ export function TicketingManager({
   const [refundId, setRefundId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedPerformanceId, setSelectedPerformanceId] = useState("all");
+  const [willCallSearch, setWillCallSearch] = useState("");
+  const [willCallSort, setWillCallSort] = useState<"lastName" | "saleDate">("saleDate");
+  const [lastOrderRefreshAt, setLastOrderRefreshAt] = useState<Date | null>(null);
   const [ticketEvents, setTicketEvents] = useState<readonly OrganizationEvent[]>([]);
   const [bundles, setBundles] = useState<readonly TicketBundle[]>([]);
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
@@ -66,20 +70,47 @@ export function TicketingManager({
       if (controller.signal.aborted) return;
       if (ordersResult.status === "fulfilled") {
         setState({ orders: ordersResult.value, status: "ready" });
+        setLastOrderRefreshAt(new Date());
       } else {
         setState({ status: "error" });
       }
       if (eventsResult.status === "fulfilled") {
-        setTicketEvents(
-          eventsResult.value.filter(
-            (event) => event.type === "Performance" && event.isTicketingEnabled,
-          ),
+        const ticketedEvents = eventsResult.value.filter(
+          (event) => event.type === "Performance" && event.isTicketingEnabled,
         );
+        setTicketEvents(ticketedEvents);
+        const firstTicketedEvent = ticketedEvents[0];
+        if (firstTicketedEvent)
+          setSelectedPerformanceId((current) =>
+            current === "all" ? firstTicketedEvent.id : current,
+          );
       }
       if (bundlesResult.status === "fulfilled") setBundles(bundlesResult.value);
     });
     return () => {
       controller.abort();
+    };
+  }, [enabled, scanOnly]);
+
+  useEffect(() => {
+    if (!enabled || scanOnly) return;
+    let active = true;
+    const refreshOrders = async () => {
+      try {
+        const orders = await listOrganizationTicketOrders();
+        if (!active) return;
+        setState({ orders, status: "ready" });
+        setLastOrderRefreshAt(new Date());
+      } catch {
+        // Keep the last successful will-call list visible during a transient refresh failure.
+      }
+    };
+    const interval = window.setInterval(() => {
+      void refreshOrders();
+    }, 10_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
     };
   }, [enabled, scanOnly]);
 
@@ -199,6 +230,46 @@ export function TicketingManager({
     }
   }
 
+  const selectedPerformance = ticketEvents.find(({ id }) => id === selectedPerformanceId);
+  const performanceOrders =
+    state.status === "ready"
+      ? state.orders.filter(
+          (order) =>
+            selectedPerformanceId === "all" ||
+            order.eventId === selectedPerformanceId ||
+            order.includedEvents.some(({ id }) => id === selectedPerformanceId),
+        )
+      : [];
+  const normalizedSearch = willCallSearch.trim().toLocaleLowerCase();
+  const visibleOrders = performanceOrders
+    .filter(
+      (order) =>
+        !normalizedSearch ||
+        order.buyerName.toLocaleLowerCase().includes(normalizedSearch) ||
+        order.buyerEmail.toLocaleLowerCase().includes(normalizedSearch),
+    )
+    .slice()
+    .sort((left, right) => {
+      if (willCallSort === "saleDate") {
+        return right.createdAt.localeCompare(left.createdAt);
+      }
+      const lastName = (name: string) => name.trim().split(/\s+/).slice(-1)[0] ?? name;
+      return lastName(left.buyerName).localeCompare(lastName(right.buyerName));
+    });
+  const paidOrders = performanceOrders.filter((order) => order.status === "paid");
+  const ticketsSold = paidOrders.reduce((total, order) => total + order.quantity, 0);
+  const ticketSalesCents = paidOrders.reduce(
+    (total, order) => total + Math.max(0, order.amountPaidCents - order.feeCents),
+    0,
+  );
+  const feesCollectedCents = paidOrders.reduce((total, order) => total + order.feeCents, 0);
+  const totalRevenueCents = paidOrders.reduce((total, order) => total + order.amountPaidCents, 0);
+  const ticketCapacity = selectedPerformance?.ticketCapacity ?? null;
+  const ticketSoldLabel =
+    ticketCapacity === null
+      ? String(ticketsSold)
+      : `${String(ticketsSold)}/${String(ticketCapacity)}`;
+
   if (!enabled) return null;
   if (scanOnly) {
     return (
@@ -230,6 +301,180 @@ export function TicketingManager({
           {message}
         </p>
       ) : null}
+      <div className="ticket-dashboard">
+        <div className="ticket-dashboard__intro">
+          <div>
+            <h3>Performance summary</h3>
+            <p>Choose a performance to view ticket sales, revenue, and will-call activity.</p>
+          </div>
+          <label className="field">
+            Select performance
+            <select
+              onChange={(event) => {
+                setSelectedPerformanceId(event.target.value);
+              }}
+              value={selectedPerformanceId}
+            >
+              <option value="all">All ticketed performances</option>
+              {ticketEvents.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="ticket-dashboard__metrics">
+          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sold">
+            <span className="summary-card__label">Tickets sold</span>
+            <strong>{ticketSoldLabel}</strong>
+            <small>{selectedPerformance ? selectedPerformance.title : "All performances"}</small>
+          </article>
+          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sales">
+            <span className="summary-card__label">Ticket sales</span>
+            <strong>{money(ticketSalesCents)}</strong>
+            <small>Before processing fees</small>
+          </article>
+          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--fees">
+            <span className="summary-card__label">Fees collected</span>
+            <strong>{money(feesCollectedCents)}</strong>
+            <small>Paid orders</small>
+          </article>
+          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--revenue">
+            <span className="summary-card__label">Total revenue</span>
+            <strong>{money(totalRevenueCents)}</strong>
+            <small>Including processing fees</small>
+          </article>
+        </div>
+      </div>
+      <div className="ticket-dashboard__will-call">
+        <div className="ticket-dashboard__section-heading">
+          <div>
+            <h3>Will call checklist</h3>
+            <p>Search ticket buyers, confirm payment status, and process refunds.</p>
+          </div>
+          <span className="field-help" role="status">
+            {lastOrderRefreshAt ? "Updates automatically every 10 seconds." : "Loading updates…"}
+          </span>
+        </div>
+        <div className="ticket-dashboard__filters">
+          <label className="field">
+            Search
+            <input
+              onChange={(event) => {
+                setWillCallSearch(event.target.value);
+              }}
+              placeholder="Search buyer name or email…"
+              type="search"
+              value={willCallSearch}
+            />
+          </label>
+          <label className="field">
+            Sort by
+            <select
+              onChange={(event) => {
+                if (event.target.value === "lastName" || event.target.value === "saleDate") {
+                  setWillCallSort(event.target.value);
+                }
+              }}
+              value={willCallSort}
+            >
+              <option value="saleDate">Sale date (newest first)</option>
+              <option value="lastName">Last name</option>
+            </select>
+          </label>
+        </div>
+        {state.status === "loading" ? <p>Loading ticket orders…</p> : null}
+        {state.status === "error" ? (
+          <p className="notice notice--error">Ticket orders could not be loaded.</p>
+        ) : null}
+        {state.status === "ready" && performanceOrders.length === 0 ? (
+          <p className="empty-state">No ticket orders yet.</p>
+        ) : null}
+        {state.status === "ready" && performanceOrders.length > 0 && visibleOrders.length === 0 ? (
+          <p className="empty-state">No ticket buyers match this search.</p>
+        ) : null}
+        {visibleOrders.length > 0 ? (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Buyer name</th>
+                  <th>Email</th>
+                  <th>Sale date</th>
+                  <th>Qty</th>
+                  <th>Amount paid</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td>{order.buyerName}</td>
+                    <td>{order.buyerEmail}</td>
+                    <td>{new Date(order.createdAt).toLocaleString()}</td>
+                    <td>{order.quantity}</td>
+                    <td>{money(order.amountPaidCents)}</td>
+                    <td>
+                      {order.status}
+                      {order.checkoutMode === "fake" ? " (simulation)" : ""}
+                    </td>
+                    <td>
+                      {refundId === order.id ? (
+                        <div className="danger-confirmation">
+                          <p>Refund this complete order?</p>
+                          <div className="form-actions">
+                            <button
+                              className="button button--secondary"
+                              disabled={busy}
+                              onClick={() => {
+                                setRefundId(null);
+                              }}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="button button--danger"
+                              disabled={busy}
+                              onClick={() => void refund(order.id)}
+                              type="button"
+                            >
+                              {busy ? "Refunding…" : "Confirm refund"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : order.status === "paid" ? (
+                        <div className="form-actions">
+                          <button
+                            className="text-button"
+                            disabled={busy}
+                            onClick={() => void resendConfirmation(order.id)}
+                            type="button"
+                          >
+                            Resend
+                          </button>
+                          <button
+                            className="text-button"
+                            disabled={busy}
+                            onClick={() => {
+                              setRefundId(order.id);
+                            }}
+                            type="button"
+                          >
+                            Refund
+                          </button>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
       <div className="split-panel">
         <div>
           <h3>Ticket bundles</h3>
@@ -381,94 +626,6 @@ export function TicketingManager({
         </div>
       </div>
       <TicketScanner events={ticketEvents} />
-      {state.status === "loading" ? <p>Loading ticket orders…</p> : null}
-      {state.status === "error" ? (
-        <p className="notice notice--error">Ticket orders could not be loaded.</p>
-      ) : null}
-      {state.status === "ready" && state.orders.length === 0 ? <p>No ticket orders yet.</p> : null}
-      {state.status === "ready" && state.orders.length > 0 ? (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Buyer</th>
-                <th>Performance</th>
-                <th>Quantity</th>
-                <th>Processing fee</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.orders.map((order) => (
-                <tr key={order.id}>
-                  <td>
-                    {order.buyerName}
-                    <br />
-                    <small>{order.buyerEmail}</small>
-                  </td>
-                  <td>{order.eventTitle}</td>
-                  <td>{order.quantity}</td>
-                  <td>{money(order.feeCents)}</td>
-                  <td>{money(order.amountPaidCents)}</td>
-                  <td>
-                    {order.status}
-                    {order.checkoutMode === "fake" ? " (simulation)" : ""}
-                  </td>
-                  <td>
-                    {refundId === order.id ? (
-                      <div className="danger-confirmation">
-                        <p>Refund this complete order?</p>
-                        <div className="form-actions">
-                          <button
-                            className="button button--secondary"
-                            disabled={busy}
-                            onClick={() => {
-                              setRefundId(null);
-                            }}
-                            type="button"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            className="button button--danger"
-                            disabled={busy}
-                            onClick={() => void refund(order.id)}
-                            type="button"
-                          >
-                            {busy ? "Refunding…" : "Confirm refund"}
-                          </button>
-                        </div>
-                      </div>
-                    ) : order.status === "paid" ? (
-                      <div className="form-actions">
-                        <button
-                          className="text-button"
-                          disabled={busy}
-                          onClick={() => void resendConfirmation(order.id)}
-                          type="button"
-                        >
-                          Resend confirmation
-                        </button>
-                        <button
-                          className="text-button"
-                          onClick={() => {
-                            setRefundId(order.id);
-                          }}
-                          type="button"
-                        >
-                          Refund
-                        </button>
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
     </section>
   );
 }
