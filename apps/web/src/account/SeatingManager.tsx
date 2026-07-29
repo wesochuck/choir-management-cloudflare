@@ -173,6 +173,162 @@ function ConfirmDialog({
   );
 }
 
+interface FormationOrderOption {
+  readonly label: string;
+  readonly value: string;
+}
+
+function formationOrderOptions(
+  formation: SeatingFormation,
+  roster: OrganizationRosterConfiguration,
+): readonly FormationOrderOption[] {
+  if (formation.isVoicePartLayout) {
+    return roster.voiceParts.map(({ fullName, label }) => ({
+      label: `${fullName} (${label})`,
+      value: label,
+    }));
+  }
+  return roster.sections
+    .filter(({ trackOnly }) => !trackOnly)
+    .map(({ code, name }) => ({ label: `${name} (${code})`, value: code }));
+}
+
+function normalizeFormationOrder(
+  formation: SeatingFormation,
+  roster: OrganizationRosterConfiguration,
+): string[] {
+  const options = formationOrderOptions(formation, roster);
+  const allowed = new Set(options.map(({ value }) => value));
+  const current = formation.sectionOrder.filter((value) => allowed.has(value));
+  const present = new Set(current);
+  return [...current, ...options.map(({ value }) => value).filter((value) => !present.has(value))];
+}
+
+function moveFormationOrderItem(order: readonly string[], from: number, to: number): string[] {
+  if (from === to || from < 0 || to < 0 || from >= order.length || to >= order.length) {
+    return [...order];
+  }
+  const next = [...order];
+  const [moved] = next.splice(from, 1);
+  if (moved !== undefined) next.splice(to, 0, moved);
+  return next;
+}
+
+function FormationOrderEditor({
+  formation,
+  onChange,
+  roster,
+}: {
+  readonly formation: SeatingFormation;
+  readonly onChange: (sectionOrder: readonly string[]) => void;
+  readonly roster: OrganizationRosterConfiguration;
+}) {
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const options = formationOrderOptions(formation, roster);
+  const optionByValue = new Map(options.map((option) => [option.value, option]));
+  const order = formation.sectionOrder;
+
+  function move(from: number, to: number): void {
+    onChange(moveFormationOrderItem(order, from, to));
+  }
+
+  return (
+    <div className="formation-order-editor">
+      <div className="formation-order-editor__heading">
+        <span>Section or voice-part order</span>
+        <small>Drag the handles to set the order used by this formation.</small>
+      </div>
+      <div
+        aria-label={`${formation.isVoicePartLayout ? "Voice-part" : "Section"} order`}
+        className={`formation-order-list${formation.strategy === "horizontal_row" ? " formation-order-list--rows" : ""}`}
+        role="list"
+      >
+        {order.map((value, index) => {
+          const option = optionByValue.get(value);
+          return (
+            <div
+              aria-label={`${option?.label ?? `Unknown item ${value}`}, position ${String(index + 1)}`}
+              className={`formation-order-item${draggingIndex === index ? " formation-order-item--dragging" : ""}${option ? "" : " formation-order-item--unknown"}`}
+              draggable
+              key={`${value}-${String(index)}`}
+              onDragEnd={() => {
+                setDraggingIndex(null);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+              }}
+              onDragStart={(event) => {
+                setDraggingIndex(index);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", String(index));
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const from = Number(event.dataTransfer.getData("text/plain"));
+                if (Number.isInteger(from)) move(from, index);
+                setDraggingIndex(null);
+              }}
+              onKeyDown={(event) => {
+                const previous = event.key === "ArrowLeft" || event.key === "ArrowUp";
+                const next = event.key === "ArrowRight" || event.key === "ArrowDown";
+                if (!previous && !next) return;
+                event.preventDefault();
+                const target = previous ? index - 1 : index + 1;
+                if (target >= 0 && target < order.length) move(index, target);
+              }}
+              role="listitem"
+              tabIndex={0}
+              title="Drag to reorder, or use the arrow keys"
+            >
+              <span aria-hidden="true" className="formation-order-item__handle">
+                ⠿
+              </span>
+              <span className="formation-order-item__label">
+                {option?.label ?? `Unknown item (${value})`}
+              </span>
+              <button
+                aria-label={`Remove ${option?.label ?? value} from order`}
+                className="formation-order-item__remove"
+                disabled={order.length <= 1}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onChange(order.filter((_, itemIndex) => itemIndex !== index));
+                }}
+                title={order.length <= 1 ? "A formation needs at least one item" : "Remove"}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {options.some(({ value }) => !order.includes(value)) ? (
+        <label className="formation-order-editor__add">
+          <span>Add {formation.isVoicePartLayout ? "voice part" : "section"}</span>
+          <select
+            value=""
+            onChange={(event) => {
+              if (!event.target.value) return;
+              onChange([...order, event.target.value]);
+            }}
+          >
+            <option value="">Choose an item…</option>
+            {options
+              .filter(({ value }) => !order.includes(value))
+              .map(({ label, value }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+          </select>
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
 function FormationEditor({
   initial,
   roster,
@@ -276,26 +432,25 @@ function FormationEditor({
                 checked={formation.isVoicePartLayout}
                 type="checkbox"
                 onChange={(event) => {
-                  updateFormation(index, { ...formation, isVoicePartLayout: event.target.checked });
+                  const nextFormation = {
+                    ...formation,
+                    isVoicePartLayout: event.target.checked,
+                  };
+                  updateFormation(index, {
+                    ...nextFormation,
+                    sectionOrder: normalizeFormationOrder(nextFormation, roster),
+                  });
                 }}
               />
               Arrange individual voice parts
             </label>
-            <label className="field">
-              Section or voice-part order
-              <input
-                value={formation.sectionOrder.join(", ")}
-                onChange={(event) => {
-                  updateFormation(index, {
-                    ...formation,
-                    sectionOrder: event.target.value
-                      .split(",")
-                      .map((value) => value.trim())
-                      .filter(Boolean),
-                  });
-                }}
-              />
-            </label>
+            <FormationOrderEditor
+              formation={formation}
+              onChange={(sectionOrder) => {
+                updateFormation(index, { ...formation, sectionOrder: [...sectionOrder] });
+              }}
+              roster={roster}
+            />
           </fieldset>
         ))}
         <div className="form-actions">
