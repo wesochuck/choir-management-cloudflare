@@ -742,6 +742,19 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
       uniqueGenreLabels(pieces.flatMap(({ genres }) => genres)).sort((a, b) => a.localeCompare(b)),
     [pieces],
   );
+  const personNameOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          [
+            ...pieces.flatMap(({ arranger, composer }) => [arranger.trim(), composer.trim()]),
+            piece.composer.trim(),
+            piece.arranger.trim(),
+          ].filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    [piece.arranger, piece.composer, pieces],
+  );
 
   function toggleGenre(genre: string): void {
     setSelectedGenres((current) =>
@@ -1032,6 +1045,11 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                 void save();
               }}
             >
+              <datalist id="music-composer-arranger-options">
+                {personNameOptions.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
               <div className="music-piece-tabs" role="tablist" aria-label="Music piece editor">
                 <button
                   aria-controls="music-piece-details"
@@ -1079,6 +1097,8 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                     <label className="field">
                       Composer
                       <input
+                        aria-autocomplete="list"
+                        list="music-composer-arranger-options"
                         maxLength={300}
                         value={piece.composer}
                         onChange={(event) => {
@@ -1089,6 +1109,8 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                     <label className="field">
                       Arranger
                       <input
+                        aria-autocomplete="list"
+                        list="music-composer-arranger-options"
                         maxLength={300}
                         value={piece.arranger}
                         onChange={(event) => {
