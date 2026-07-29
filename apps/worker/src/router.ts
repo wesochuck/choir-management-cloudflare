@@ -743,6 +743,18 @@ interface InvitationControlRow {
   readonly status: string;
 }
 
+interface AccountSessionRow {
+  readonly activeOrganizationId: string | null;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly id: string;
+  readonly ipAddress: string | null;
+  readonly token: string;
+  readonly updatedAt: number;
+  readonly userAgent: string | null;
+  readonly userId: string;
+}
+
 function normalizeInvitationRole(
   role: string | null,
 ): OrganizationInvitationSummary["role"] | null {
@@ -2721,6 +2733,123 @@ router.get("/api/account/organizations", async (context) => {
   return context.json({
     organizations: await listAccountOrganizations(context.env.CONTROL_DB, session.user.id),
   });
+});
+
+router.get("/api/account/sessions", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Account management requires a canonical product hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Sign in is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      401,
+    );
+  }
+  const rows = await context.env.CONTROL_DB.prepare(
+    `SELECT activeOrganizationId, createdAt, expiresAt, id, ipAddress,
+       token, updatedAt, userAgent, userId
+     FROM session
+     WHERE userId = ? AND expiresAt > ?
+     ORDER BY updatedAt DESC`,
+  )
+    .bind(session.user.id, Date.now())
+    .all<AccountSessionRow>();
+  return context.json(
+    rows.results.map((row) => ({
+      activeOrganizationId: row.activeOrganizationId,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      id: row.id,
+      ipAddress: row.ipAddress,
+      token: row.token,
+      updatedAt: row.updatedAt,
+      userAgent: row.userAgent,
+      userId: row.userId,
+    })),
+  );
+});
+
+router.post("/api/account/sessions/revoke", async (context) => {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "Account management requires a canonical product hostname.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  if (!session) {
+    return context.json(
+      {
+        code: "unauthorized",
+        message: "Sign in is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      401,
+    );
+  }
+  const body = z
+    .object({ token: z.string().trim().min(1).max(4_096) })
+    .safeParse(await context.req.json<unknown>().catch(() => null));
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid session is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  const revoked = await context.env.CONTROL_DB.prepare(
+    "DELETE FROM session WHERE token = ? AND userId = ?",
+  )
+    .bind(body.data.token, session.user.id)
+    .run();
+  if (revoked.meta.changes !== 1) {
+    return context.json(
+      {
+        code: "not_found",
+        message: "That session is no longer active.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  return context.json({ requestId: context.get("requestId"), status: true });
 });
 
 router.get("/api/account/security", async (context) => {

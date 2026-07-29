@@ -283,12 +283,12 @@ export async function signOut(): Promise<void> {
 }
 
 export async function listActiveSessions(signal?: AbortSignal): Promise<readonly AuthSession[]> {
-  const response = await request("/api/auth/list-sessions", { signal: signal ?? null });
+  const response = await request("/api/account/sessions", { signal: signal ?? null });
   return authSessionListSchema.parse(await response.json());
 }
 
 export async function revokeSession(token: string): Promise<void> {
-  await request("/api/auth/revoke-session", {
+  await request("/api/account/sessions/revoke", {
     body: JSON.stringify({ token }),
     method: "POST",
   });
