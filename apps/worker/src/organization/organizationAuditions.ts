@@ -19,19 +19,23 @@ export async function generateAuditionTokens(
     const details = await objectStub.fetch(detailsUrl);
     if (!details.ok) return { tokens: {} };
   }
-  for (const auditionId of auditionIds) {
-    tokens[auditionId] = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-      algorithm: "HS256",
-      expiresAt: now + 90 * 24 * 60 * 60,
-      issuedAt: now,
-      nonce: crypto.randomUUID(),
-      organizationId,
-      purpose: "audition",
-      resourceId: auditionId,
-      subjectId: auditionId,
-      version: 1,
-    });
-  }
+  const signedTokens = await Promise.all(
+    auditionIds.map(async (auditionId) => {
+      const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+        algorithm: "HS256",
+        expiresAt: now + 90 * 24 * 60 * 60,
+        issuedAt: now,
+        nonce: crypto.randomUUID(),
+        organizationId,
+        purpose: "audition",
+        resourceId: auditionId,
+        subjectId: auditionId,
+        version: 1,
+      });
+      return [auditionId, token] as const;
+    }),
+  );
+  for (const [auditionId, token] of signedTokens) tokens[auditionId] = token;
   return { tokens };
 }
 
