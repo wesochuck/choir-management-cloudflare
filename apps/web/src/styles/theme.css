@@ -5264,6 +5264,26 @@ footer {
   color: var(--color-text);
 }
 
+.event-manager-description {
+  margin: 0 0 0.85rem;
+}
+
+.event-manager-tabs {
+  margin-bottom: 0.85rem;
+}
+
+.event-manager-toolbar {
+  margin-bottom: 0.85rem;
+}
+
+.event-manager-toolbar__past {
+  white-space: nowrap;
+}
+
+.event-manager-search {
+  margin-bottom: 1rem;
+}
+
 .ticketing-tab-panel {
   display: grid;
   gap: 1rem;

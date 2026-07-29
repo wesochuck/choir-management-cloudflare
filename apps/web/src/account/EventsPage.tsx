@@ -62,6 +62,8 @@ type EventsState =
       readonly venues: readonly OrganizationVenue[];
     };
 
+type EventTab = "all" | "performances" | "rehearsals";
+
 function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
   return {
     advancePriceCents: event.advancePriceCents,
@@ -729,7 +731,10 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const [event, setEvent] = useState<OrganizationEventRequest>(emptyEvent);
   const [eventStart, setEventStart] = useState("");
   const [graphicFile, setGraphicFile] = useState<File | null>(null);
+  const [eventTab, setEventTab] = useState<EventTab>("all");
+  const [currentTime] = useState(() => Date.now());
   const [query, setQuery] = useState("");
+  const [showPastEvents, setShowPastEvents] = useState(false);
   const [state, setState] = useState<EventsState>({ status: "loading" });
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -757,15 +762,21 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const filteredEvents = useMemo(() => {
     if (state.status !== "ready") return [];
     const normalized = query.trim().toLocaleLowerCase();
-    return normalized
-      ? state.events.filter((candidate) =>
-          [candidate.title, candidate.type, candidate.location]
-            .join(" ")
-            .toLocaleLowerCase()
-            .includes(normalized),
-        )
-      : state.events;
-  }, [query, state]);
+    return state.events.filter((candidate) => {
+      const matchesTab =
+        eventTab === "all" ||
+        (eventTab === "performances" && candidate.type === "Performance") ||
+        (eventTab === "rehearsals" && candidate.type === "Rehearsal");
+      const matchesPast = showPastEvents || new Date(candidate.startsAt).getTime() >= currentTime;
+      const matchesQuery =
+        !normalized ||
+        [candidate.title, candidate.type, candidate.location]
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(normalized);
+      return matchesTab && matchesPast && matchesQuery;
+    });
+  }, [currentTime, eventTab, query, showPastEvents, state]);
 
   function closeDialog() {
     if (busy) return;
@@ -993,7 +1004,61 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const readyState = state.status === "ready" ? state : null;
   return (
     <>
-      <div className="page-toolbar">
+      <p className="section-description event-manager-description">
+        Create and manage rehearsals, performances, and call times. Track attendance and edit
+        seating charts.
+      </p>
+      <nav aria-label="Event sections" className="ticketing-tabs event-manager-tabs" role="tablist">
+        {(
+          [
+            ["all", "All Events"],
+            ["performances", "Performances"],
+            ["rehearsals", "Rehearsals"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            aria-selected={eventTab === value}
+            className={eventTab === value ? "is-active" : undefined}
+            key={value}
+            onClick={() => {
+              setEventTab(value);
+            }}
+            role="tab"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div className="page-toolbar event-manager-toolbar">
+        <label className="checkbox-label event-manager-toolbar__past">
+          <input
+            checked={showPastEvents}
+            onChange={(change) => {
+              setShowPastEvents(change.target.checked);
+            }}
+            type="checkbox"
+          />
+          Show past events
+        </label>
+        <div className="page-toolbar__actions">
+          <button
+            className="button button--secondary"
+            disabled={
+              state.status !== "ready" ||
+              !state.events.some((candidate) => candidate.type === "Performance")
+            }
+            onClick={openBulkRehearsals}
+            type="button"
+          >
+            Bulk add rehearsals
+          </button>
+          <button className="button button--primary" onClick={openCreate} type="button">
+            Single event
+          </button>
+        </div>
+      </div>
+      <div className="page-toolbar event-manager-search">
         <label className="search-field">
           <span className="sr-only">Search events</span>
           <input
@@ -1005,20 +1070,6 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
             value={query}
           />
         </label>
-        <button
-          className="button button--secondary"
-          disabled={
-            state.status !== "ready" ||
-            !state.events.some((candidate) => candidate.type === "Performance")
-          }
-          onClick={openBulkRehearsals}
-          type="button"
-        >
-          Bulk add rehearsals
-        </button>
-        <button className="button button--primary" onClick={openCreate} type="button">
-          Create event
-        </button>
       </div>
       {error && !dialogOpen && !archiveCandidate ? (
         <p className="notice notice--error" role="alert">
