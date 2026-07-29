@@ -3281,6 +3281,38 @@ footer {
   padding: clamp(1.5rem, 4vw, 3.5rem);
 }
 
+.floating-save-bar {
+  position: fixed;
+  z-index: 40;
+  right: 50%;
+  bottom: 1rem;
+  display: flex;
+  width: min(42rem, calc(100% - 2rem));
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.8rem 0.7rem 1rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--color-surface-raised) 94%, transparent);
+  box-shadow: 0 1rem 2.5rem var(--color-shadow);
+  transform: translateX(50%);
+  backdrop-filter: blur(1rem);
+}
+
+.floating-save-bar > span {
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.floating-save-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .page-heading {
   display: flex;
   align-items: end;
@@ -3820,6 +3852,19 @@ footer {
 
   .signed-in-main {
     padding: 1.25rem 1rem 3rem;
+  }
+
+  .floating-save-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .floating-save-bar__actions {
+    justify-content: stretch;
+  }
+
+  .floating-save-bar__actions .button {
+    flex: 1;
   }
 
   .page-heading {

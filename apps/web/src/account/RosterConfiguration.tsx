@@ -6,6 +6,7 @@ import {
   listOrganizationProfiles,
   updateOrganizationRosterConfiguration,
 } from "../auth/api";
+import { useFloatingSaveAction } from "./FloatingSaveBar";
 
 interface Props {
   readonly enabled: boolean;
@@ -21,8 +22,14 @@ function nextUniqueLabel(prefix: string, used: ReadonlySet<string>): string {
   return candidate;
 }
 
+function configurationKey(configuration: OrganizationRosterConfiguration | null): string {
+  return configuration ? JSON.stringify(configuration) : "";
+}
+
 export function RosterConfiguration({ enabled }: Props) {
   const [configuration, setConfiguration] = useState<OrganizationRosterConfiguration | null>(null);
+  const [savedConfiguration, setSavedConfiguration] =
+    useState<OrganizationRosterConfiguration | null>(null);
   const [assignedLabels, setAssignedLabels] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +44,7 @@ export function RosterConfiguration({ enabled }: Props) {
     ])
       .then(([nextConfiguration, profiles]) => {
         setConfiguration(nextConfiguration);
+        setSavedConfiguration(nextConfiguration);
         setAssignedLabels(new Set(profiles.map(({ voicePart }) => voicePart).filter(Boolean)));
       })
       .catch(() => {
@@ -47,15 +55,15 @@ export function RosterConfiguration({ enabled }: Props) {
     };
   }, [enabled]);
 
-  if (!enabled) return null;
-
   async function save(): Promise<void> {
     if (!configuration) return;
     setBusy(true);
     setError(null);
     setSaved(false);
     try {
-      setConfiguration(await updateOrganizationRosterConfiguration(configuration));
+      const nextConfiguration = await updateOrganizationRosterConfiguration(configuration);
+      setConfiguration(nextConfiguration);
+      setSavedConfiguration(nextConfiguration);
       setSaved(true);
     } catch (caught: unknown) {
       setError(
@@ -65,6 +73,20 @@ export function RosterConfiguration({ enabled }: Props) {
       setBusy(false);
     }
   }
+
+  const dirty = configurationKey(configuration) !== configurationKey(savedConfiguration);
+  useFloatingSaveAction({
+    busy,
+    dirty,
+    id: "organization-roster-configuration",
+    onDiscard: () => {
+      setConfiguration(savedConfiguration);
+      setSaved(false);
+    },
+    onSave: save,
+  });
+
+  if (!enabled) return null;
 
   return (
     <section
@@ -86,7 +108,7 @@ export function RosterConfiguration({ enabled }: Props) {
           {error}
         </p>
       ) : null}
-      {saved ? (
+      {saved && !dirty ? (
         <p className="notice notice--success" role="status">
           Roster configuration saved.
         </p>
@@ -94,13 +116,7 @@ export function RosterConfiguration({ enabled }: Props) {
       {!configuration ? (
         <p role="status">Loading roster configuration…</p>
       ) : (
-        <form
-          className="form-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save();
-          }}
-        >
+        <div className="form-stack">
           <fieldset disabled={busy}>
             <legend>Sections</legend>
             <div className="roster-configuration-list">
@@ -372,10 +388,7 @@ export function RosterConfiguration({ enabled }: Props) {
               Add voice part
             </button>
           </fieldset>
-          <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Saving…" : "Save sections and voice parts"}
-          </button>
-        </form>
+        </div>
       )}
     </section>
   );

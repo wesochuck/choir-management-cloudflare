@@ -11,6 +11,7 @@ import {
 } from "../auth/api";
 import type { OrganizationExportStatusResponse, TransactionFeeSettings } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
+import { useFloatingSaveAction } from "./FloatingSaveBar";
 import { RosterConfiguration } from "./RosterConfiguration";
 
 const fallbackTimeZones = [
@@ -38,6 +39,14 @@ const timeZoneOptions = [
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
     cents / 100,
+  );
+}
+
+function transactionFeeSettingsEqual(left: TransactionFeeSettings, right: TransactionFeeSettings) {
+  return (
+    left.fixedCents === right.fixedCents &&
+    left.passFeeToDonor === right.passFeeToDonor &&
+    left.percentage === right.percentage
   );
 }
 
@@ -163,7 +172,10 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     passFeeToDonor: false,
     percentage: 2.9,
   });
+  const [savedTransactionFeeSettings, setSavedTransactionFeeSettings] =
+    useState<TransactionFeeSettings>(transactionFeeSettings);
   const [timezone, setTimezone] = useState("UTC");
+  const [savedTimezone, setSavedTimezone] = useState("UTC");
 
   useEffect(() => {
     if (!enabled) return;
@@ -174,7 +186,9 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     ])
       .then(([calendarSettings, feeSettings]) => {
         setTimezone(calendarSettings.timezone);
+        setSavedTimezone(calendarSettings.timezone);
         setTransactionFeeSettings(feeSettings);
+        setSavedTransactionFeeSettings(feeSettings);
         setLoading(false);
       })
       .catch((loadError: unknown) => {
@@ -195,6 +209,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     try {
       const settings = await updateOrganizationCalendarSettings(timezone);
       setTimezone(settings.timezone);
+      setSavedTimezone(settings.timezone);
       setSuccess("Organization timezone updated.");
     } catch (saveError: unknown) {
       setError(
@@ -214,6 +229,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     try {
       const settings = await updateOrganizationTransactionFeeSettings(transactionFeeSettings);
       setTransactionFeeSettings(settings);
+      setSavedTransactionFeeSettings(settings);
       setFeeSuccess("Transaction fee settings updated.");
     } catch (saveError: unknown) {
       setFeeError(
@@ -225,6 +241,27 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
       setFeeBusy(false);
     }
   }
+
+  useFloatingSaveAction({
+    busy,
+    dirty: timezone !== savedTimezone,
+    id: "organization-timezone",
+    onDiscard: () => {
+      setTimezone(savedTimezone);
+      setSuccess(null);
+    },
+    onSave: saveTimezone,
+  });
+  useFloatingSaveAction({
+    busy: feeBusy,
+    dirty: !transactionFeeSettingsEqual(transactionFeeSettings, savedTransactionFeeSettings),
+    id: "organization-transaction-fees",
+    onDiscard: () => {
+      setTransactionFeeSettings(savedTransactionFeeSettings);
+      setFeeSuccess(null);
+    },
+    onSave: saveTransactionFees,
+  });
 
   const exampleFeeCents = transactionProcessingFeeCents(1_000, transactionFeeSettings);
   const examplePayerTotalCents =
@@ -257,13 +294,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
           </p>
         ) : null}
         {!loading ? (
-          <form
-            className="form-stack settings-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveTimezone();
-            }}
-          >
+          <div className="form-stack settings-form">
             <div className="field">
               <label htmlFor="settings-timezone">IANA timezone</label>
               <select
@@ -284,10 +315,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
                 ))}
               </select>
             </div>
-            <button className="button button--primary" disabled={busy} type="submit">
-              {busy ? "Saving…" : "Save timezone"}
-            </button>
-          </form>
+          </div>
         ) : null}
       </section>
       <section className="surface-card" aria-labelledby="transaction-fee-settings-title">
@@ -310,13 +338,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
           </p>
         ) : null}
         {!loading ? (
-          <form
-            className="form-stack settings-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveTransactionFees();
-            }}
-          >
+          <div className="form-stack settings-form">
             <div className="settings-grid">
               <label className="field" htmlFor="transaction-fee-percentage">
                 Percentage (%)
@@ -371,10 +393,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
               {money(examplePayerTotalCents)} paid by the donor when pass-through is enabled;
               otherwise the Organization covers the fee.
             </p>
-            <button className="button button--primary" disabled={feeBusy} type="submit">
-              {feeBusy ? "Saving…" : "Save transaction fees"}
-            </button>
-          </form>
+          </div>
         ) : null}
       </section>
       <RosterConfiguration enabled={enabled} />

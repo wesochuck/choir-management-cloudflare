@@ -24,6 +24,7 @@ import { CalendarSubscription } from "./CalendarSubscription";
 import { CommunicationCenter } from "./CommunicationCenter";
 import { DonationsManager } from "./DonationsManager";
 import { EventsPage } from "./EventsPage";
+import { FloatingSaveBarProvider } from "./FloatingSaveBar";
 import { LearningTrackPlayer } from "./LearningTrackPlayer";
 import { MemberProfileDirectory } from "./MemberProfileDirectory";
 import { ModuleSettingsView } from "./ModuleSettingsView";
@@ -1088,16 +1089,18 @@ export function AuthenticatedShell({
               Workspace access could not be loaded. Refresh and try again.
             </p>
           ) : null}
-          <WorkspacePage
-            access={access}
-            currentSession={currentSession}
-            memberEnabled={memberEnabled}
-            navigate={navigate}
-            onSignedOut={onSignedOut}
-            platformAvailable={platformAvailable}
-            route={route}
-            workspace={workspace}
-          />
+          <FloatingSaveBarProvider>
+            <WorkspacePage
+              access={access}
+              currentSession={currentSession}
+              memberEnabled={memberEnabled}
+              navigate={navigate}
+              onSignedOut={onSignedOut}
+              platformAvailable={platformAvailable}
+              route={route}
+              workspace={workspace}
+            />
+          </FloatingSaveBarProvider>
         </main>
       </div>
       <Sheet
