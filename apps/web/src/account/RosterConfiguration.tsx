@@ -1,9 +1,11 @@
-import type { OrganizationRosterConfiguration } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import type { OrganizationProfile, OrganizationRosterConfiguration } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   getOrganizationRosterConfiguration,
   listOrganizationProfiles,
+  updateOrganizationProfile,
   updateOrganizationRosterConfiguration,
 } from "../auth/api";
 import { useFloatingSaveAction } from "./FloatingSaveBar";
@@ -27,12 +29,34 @@ function configurationKey(configuration: OrganizationRosterConfiguration | null)
   return configuration ? JSON.stringify(configuration) : "";
 }
 
+function profileRequestFrom(profile: OrganizationProfile) {
+  return {
+    displayName: profile.displayName,
+    doNotEmail: profile.doNotEmail,
+    globalStatus: profile.globalStatus,
+    isSectionLeader: profile.isSectionLeader,
+    notes: profile.notes,
+    phone: profile.phone,
+    receiveAdminNotifications: profile.receiveAdminNotifications,
+    receiveAttendanceReports: profile.receiveAttendanceReports,
+    receiveFinancialAlerts: profile.receiveFinancialAlerts,
+    receiveRsvpDeclineNotices: profile.receiveRsvpDeclineNotices,
+    showInDirectory: profile.showInDirectory,
+    voicePart: profile.voicePart,
+  };
+}
+
+// eslint-disable-next-line complexity -- this editor coordinates sections, voice parts, and reassignment dialogs.
 export function RosterConfiguration({ enabled }: Props) {
   const { setPerformerLabel } = useOrganizationTerminology();
   const [configuration, setConfiguration] = useState<OrganizationRosterConfiguration | null>(null);
   const [savedConfiguration, setSavedConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
-  const [assignedLabels, setAssignedLabels] = useState<ReadonlySet<string>>(new Set());
+  const [profiles, setProfiles] = useState<readonly OrganizationProfile[]>([]);
+  const [reassigningLabel, setReassigningLabel] = useState<string | null>(null);
+  const [replacementVoicePart, setReplacementVoicePart] = useState("");
+  const [reassignmentError, setReassignmentError] = useState<string | null>(null);
+  const [assignmentMessage, setAssignmentMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -44,11 +68,11 @@ export function RosterConfiguration({ enabled }: Props) {
       getOrganizationRosterConfiguration(controller.signal),
       listOrganizationProfiles(controller.signal),
     ])
-      .then(([nextConfiguration, profiles]) => {
+      .then(([nextConfiguration, nextProfiles]) => {
         setConfiguration(nextConfiguration);
         setSavedConfiguration(nextConfiguration);
         setPerformerLabel(nextConfiguration.performerLabel);
-        setAssignedLabels(new Set(profiles.map(({ voicePart }) => voicePart).filter(Boolean)));
+        setProfiles(nextProfiles);
       })
       .catch(() => {
         if (!controller.signal.aborted) setError("Roster configuration could not be loaded.");
@@ -72,6 +96,65 @@ export function RosterConfiguration({ enabled }: Props) {
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Roster configuration could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const assignedProfilesByLabel = useMemo(() => {
+    const grouped = new Map<string, OrganizationProfile[]>();
+    profiles.forEach((profile) => {
+      if (!profile.voicePart) return;
+      const current = grouped.get(profile.voicePart) ?? [];
+      current.push(profile);
+      grouped.set(profile.voicePart, current);
+    });
+    return grouped;
+  }, [profiles]);
+
+  function openReassignment(label: string): void {
+    setReassignmentError(null);
+    setReplacementVoicePart("");
+    setReassigningLabel(label);
+  }
+
+  async function reassignProfiles(): Promise<void> {
+    if (!reassigningLabel) return;
+    const affectedProfiles = assignedProfilesByLabel.get(reassigningLabel) ?? [];
+    if (affectedProfiles.length === 0) {
+      setReassigningLabel(null);
+      return;
+    }
+    setBusy(true);
+    setReassignmentError(null);
+    try {
+      const updatedProfiles = await Promise.all(
+        affectedProfiles.map((profile) =>
+          updateOrganizationProfile(profile.id, {
+            ...profileRequestFrom(profile),
+            voicePart: replacementVoicePart,
+          }),
+        ),
+      );
+      const updatedById = new Map(updatedProfiles.map((profile) => [profile.id, profile]));
+      setProfiles((current) => current.map((profile) => updatedById.get(profile.id) ?? profile));
+      setAssignmentMessage(
+        replacementVoicePart
+          ? `Updated ${String(affectedProfiles.length)} profiles to ${replacementVoicePart}.`
+          : `Cleared the voice-part assignment for ${String(affectedProfiles.length)} profiles.`,
+      );
+      setReassigningLabel(null);
+    } catch (caught: unknown) {
+      try {
+        setProfiles(await listOrganizationProfiles());
+      } catch {
+        // Keep the existing list if the recovery refresh is unavailable.
+      }
+      setReassignmentError(
+        caught instanceof Error
+          ? `${caught.message} Some assignments may have changed; the roster was refreshed where possible.`
+          : "Some Profile assignments could not be updated. The roster was refreshed where possible.",
       );
     } finally {
       setBusy(false);
@@ -104,8 +187,8 @@ export function RosterConfiguration({ enabled }: Props) {
         </div>
       </div>
       <p className="section-description">
-        Keep the order used by roster exports and seating tools. Assigned voice-part labels cannot
-        be removed or renamed.
+        Keep the order used by roster exports and seating tools. A voice part used by Profiles is
+        protected until those assignments are moved or cleared.
       </p>
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -115,6 +198,11 @@ export function RosterConfiguration({ enabled }: Props) {
       {saved && !dirty ? (
         <p className="notice notice--success" role="status">
           Roster configuration saved.
+        </p>
+      ) : null}
+      {assignmentMessage ? (
+        <p className="notice notice--success" role="status">
+          {assignmentMessage}
         </p>
       ) : null}
       {!configuration ? (
@@ -293,7 +381,8 @@ export function RosterConfiguration({ enabled }: Props) {
             <legend>Voice parts</legend>
             <div className="roster-configuration-list">
               {configuration.voiceParts.map((voicePart, index) => {
-                const assigned = assignedLabels.has(voicePart.label);
+                const assignedProfiles = assignedProfilesByLabel.get(voicePart.label) ?? [];
+                const assigned = assignedProfiles.length > 0;
                 return (
                   <div
                     className="roster-configuration-row"
@@ -367,25 +456,37 @@ export function RosterConfiguration({ enabled }: Props) {
                         ))}
                       </select>
                     </label>
-                    <button
-                      className="button button--secondary"
-                      disabled={assigned || configuration.voiceParts.length === 1}
-                      title={assigned ? "This voice part is assigned to a Profile." : undefined}
-                      type="button"
-                      onClick={() => {
-                        setConfiguration(
-                          (current) =>
-                            current && {
-                              ...current,
-                              voiceParts: current.voiceParts.filter(
-                                (_, itemIndex) => itemIndex !== index,
-                              ),
-                            },
-                        );
-                      }}
-                    >
-                      Remove
-                    </button>
+                    <div className="roster-configuration-assignment">
+                      <button
+                        className="button button--secondary"
+                        disabled={configuration.voiceParts.length === 1}
+                        type="button"
+                        onClick={() => {
+                          if (assigned) {
+                            openReassignment(voicePart.label);
+                            return;
+                          }
+                          setConfiguration(
+                            (current) =>
+                              current && {
+                                ...current,
+                                voiceParts: current.voiceParts.filter(
+                                  (_, itemIndex) => itemIndex !== index,
+                                ),
+                              },
+                          );
+                        }}
+                      >
+                        {assigned ? "Review assignments" : "Remove"}
+                      </button>
+                      {assigned ? (
+                        <span className="field-help">
+                          Used by {String(assignedProfiles.length)} Profile
+                          {assignedProfiles.length === 1 ? "" : "s"}. Move or clear these
+                          assignments before removing this part.
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
@@ -417,6 +518,75 @@ export function RosterConfiguration({ enabled }: Props) {
           </fieldset>
         </div>
       )}
+      <Dialog
+        description="Choose a new voice part for these Profiles, or clear their assignments so this part can be removed."
+        onClose={() => {
+          if (!busy) setReassigningLabel(null);
+        }}
+        open={reassigningLabel !== null}
+        title={reassigningLabel ? `Review ${reassigningLabel} assignments` : "Review assignments"}
+      >
+        {reassignmentError ? (
+          <p className="notice notice--error" role="alert">
+            {reassignmentError}
+          </p>
+        ) : null}
+        <p>
+          {reassigningLabel
+            ? `${String(assignedProfilesByLabel.get(reassigningLabel)?.length ?? 0)} Profiles currently use ${reassigningLabel}. This change is saved immediately; the configuration save bar is only for section and voice-part setup.`
+            : "Review the affected Profiles before changing their assignments."}
+        </p>
+        <div className="field">
+          <label htmlFor="roster-replacement-voice-part">Move assignments to</label>
+          <select
+            disabled={busy}
+            id="roster-replacement-voice-part"
+            value={replacementVoicePart}
+            onChange={(event) => {
+              setReplacementVoicePart(event.target.value);
+            }}
+          >
+            <option value="">No voice part (clear assignment)</option>
+            {(savedConfiguration?.voiceParts ?? configuration?.voiceParts ?? [])
+              .filter(({ label }) => label !== reassigningLabel)
+              .map(({ label, fullName }) => (
+                <option key={label} value={label}>
+                  {label} — {fullName}
+                </option>
+              ))}
+          </select>
+        </div>
+        <ul className="account-list">
+          {(reassigningLabel ? (assignedProfilesByLabel.get(reassigningLabel) ?? []) : []).map(
+            (profile) => (
+              <li key={profile.id}>
+                <strong>{profile.displayName}</strong>
+                <span>{profile.globalStatus}</span>
+              </li>
+            ),
+          )}
+        </ul>
+        <div className="dialog__actions">
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={() => {
+              setReassigningLabel(null);
+            }}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="button button--primary"
+            disabled={busy || reassigningLabel === null}
+            onClick={() => void reassignProfiles()}
+            type="button"
+          >
+            {busy ? "Updating…" : "Apply assignments"}
+          </button>
+        </div>
+      </Dialog>
     </section>
   );
 }

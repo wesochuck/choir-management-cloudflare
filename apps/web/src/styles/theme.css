@@ -3204,6 +3204,16 @@ h2 {
   gap: 0.35rem;
 }
 
+.roster-configuration-assignment {
+  display: grid;
+  align-items: end;
+  gap: 0.35rem;
+}
+
+.roster-configuration-assignment .field-help {
+  max-width: 18rem;
+}
+
 .account-section--my-schedule {
   grid-column: 1 / -1;
 }
