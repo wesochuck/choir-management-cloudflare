@@ -5184,6 +5184,11 @@ footer {
   margin-top: 0;
 }
 
+/* Keep the aside aligned with the first card in a split layout. */
+.split-layout > .split-layout__aside {
+  margin-top: 0;
+}
+
 .split-layout__aside h2 {
   font-size: 2rem;
 }
