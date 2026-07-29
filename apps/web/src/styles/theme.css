@@ -2504,6 +2504,12 @@ h2 {
   text-transform: uppercase;
 }
 
+.seating-drag-overlay small {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
 .seating-seat--drop-target,
 .seating-seat--canvas:focus-visible {
   border-color: var(--color-accent);

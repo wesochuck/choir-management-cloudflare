@@ -1457,6 +1457,9 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const draggingProfileName = draggingProfileId
     ? profilesById.get(draggingProfileId)?.displayName
     : undefined;
+  const draggingProfileVoicePart = draggingProfileId
+    ? profilesById.get(draggingProfileId)?.voicePart
+    : undefined;
   const rows = chart.rowCounts.map((_count, index) => index).reverse();
   const totalSeats = chart.rowCounts.reduce((sum, count) => sum + count, 0);
   const assignedCount = Object.keys(chart.assignments).length;
@@ -1985,6 +1988,13 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                         {draggingProfileName ??
                           (draggingToken.startsWith("profile:") ? "Profile" : "Assigned Profile")}
                       </strong>
+                      {draggingProfileId ? (
+                        <small>
+                          {draggingProfileVoicePart?.trim()
+                            ? draggingProfileVoicePart
+                            : "No voice part"}
+                        </small>
+                      ) : null}
                     </div>
                   ) : null}
                 </DragOverlay>
