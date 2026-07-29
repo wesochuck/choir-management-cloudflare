@@ -4237,6 +4237,13 @@ h2 {
   margin-top: 0.65rem;
 }
 
+.platform-organization-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 .platform-load-more {
   margin-top: 1rem;
 }

@@ -191,7 +191,6 @@ const platformGroups: readonly NavigationGroup[] = [
       { href: "/platform", label: "Platform overview" },
       { href: "/platform/security", label: "Platform security" },
       { href: "/platform/organizations", label: "Organizations" },
-      { href: "/platform/access", label: "Organization access" },
     ],
   },
 ];
@@ -308,7 +307,7 @@ function pageTitle(pathname: string): string {
     ["/admin/settings", "Organization settings"],
     ["/platform/security", "Platform security"],
     ["/platform/organizations", "Organizations"],
-    ["/platform/access", "Organization access"],
+    ["/platform/access", "Scoped Organization access"],
     ["/platform", "Platform overview"],
     ["/profile", "My Profile"],
     ["/directory", "Directory"],
@@ -463,12 +462,7 @@ function OverviewPage({
           {
             href: "/platform/organizations",
             label: "Organizations",
-            text: "Provision and monitor Organizations.",
-          },
-          {
-            href: "/platform/access",
-            label: "Scoped access",
-            text: "Review temporary Organization access.",
+            text: "Provision, monitor, and manage scoped access.",
           },
           {
             href: "/platform/security",

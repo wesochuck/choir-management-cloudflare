@@ -83,6 +83,11 @@ function organizationHref(hostname: string): string {
   return `${protocol}//${hostname}/account`;
 }
 
+function organizationAccessHref(hostname: string): string {
+  const protocol = hostname === "localhost" || hostname.endsWith(".localhost") ? "http:" : "https:";
+  return `${protocol}//${hostname}/platform/access`;
+}
+
 function platformOrganizationsHref(): string {
   const { hostname, port, protocol } = window.location;
   const isIpv4Address = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
@@ -368,6 +373,7 @@ function OrganizationDirectory() {
         <p>
           Create one audited Organization registry and Durable Object at a time. Canonical hostname
           activation stays pending on workers.dev until a managed Cloudflare domain is available.
+          Select an Organization below to open it or manage temporary scoped Platform access.
         </p>
       </div>
       {actionError ? (
@@ -444,12 +450,20 @@ function OrganizationDirectory() {
                     <span className="status-pill">{organizationStatus(organization)}</span>
                   </div>
                   {ready ? (
-                    <a
-                      className="button button--secondary"
-                      href={organizationHref(organization.canonicalHostname)}
-                    >
-                      Open {organization.name}
-                    </a>
+                    <div className="platform-organization-actions">
+                      <a
+                        className="button button--secondary"
+                        href={organizationHref(organization.canonicalHostname)}
+                      >
+                        Open {organization.name}
+                      </a>
+                      <a
+                        className="button button--secondary"
+                        href={organizationAccessHref(organization.canonicalHostname)}
+                      >
+                        Manage access
+                      </a>
+                    </div>
                   ) : null}
                 </li>
               );
