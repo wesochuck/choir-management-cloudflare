@@ -5080,6 +5080,74 @@ footer {
   line-height: 1.45;
 }
 
+.ticketing-page-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.ticketing-page-header h2,
+.ticketing-page-header p {
+  margin: 0;
+}
+
+.ticketing-page-header p:not(.eyebrow) {
+  margin-top: 0.35rem;
+  color: var(--color-text-muted);
+}
+
+.ticketing-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.35rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ticketing-tabs button {
+  min-height: 2.7rem;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.ticketing-tabs button:hover,
+.ticketing-tabs button.is-active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.ticketing-tab-panel {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.ticketing-tab-panel h3 {
+  margin: 0;
+}
+
+.ticketing-tab-panel > div > p:not(.eyebrow) {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.ticketing-share-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ticketing-share-grid .public-link-share {
+  margin: 0;
+}
+
 .bulk-rehearsal-form__split {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5204,6 +5272,28 @@ footer {
 }
 
 @media (max-width: 760px) {
+  .ticketing-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ticketing-page-header .button {
+    width: 100%;
+  }
+
+  .ticketing-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ticketing-tabs button {
+    text-align: left;
+  }
+
+  .ticketing-share-grid {
+    grid-template-columns: 1fr;
+  }
+
   .ticket-dashboard__intro,
   .ticket-dashboard__section-heading {
     flex-direction: column;
