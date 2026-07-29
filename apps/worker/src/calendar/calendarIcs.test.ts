@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderCalendarIcs, CalendarProjectionEvent } from "./calendarIcs";
+import type { CalendarProjectionEvent } from "./calendarIcs";
+import { renderCalendarIcs } from "./calendarIcs";
 
 describe("renderCalendarIcs", () => {
   const defaultProjection = {
