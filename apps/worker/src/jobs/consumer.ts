@@ -133,12 +133,17 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
       contentMarkdown: renderCommunicationTemplate(
         deliveryJob.contentMarkdown,
         delivery.recipientName,
+        deliveryJob.context ?? undefined,
       ),
       deliveryId: delivery.id,
       destination: delivery.destination,
       messageId: deliveryJob.messageId,
       recipientName: delivery.recipientName,
-      subject: renderCommunicationTemplate(deliveryJob.subject, delivery.recipientName),
+      subject: renderCommunicationTemplate(
+        deliveryJob.subject,
+        delivery.recipientName,
+        deliveryJob.context ?? undefined,
+      ),
       unsubscribeUrl: delivery.unsubscribeUrl,
     });
     results.push({ deliveryId: delivery.id, ...result });

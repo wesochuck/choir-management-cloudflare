@@ -26,6 +26,9 @@ import {
   sendOrganizationCommunication,
   sendOrganizationCommunicationTestEmail,
 } from "../auth/api";
+import { CommunicationComposer } from "./CommunicationComposer";
+import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
+import { templateMatchesCommunicationContext } from "./communicationPlaceholders";
 
 const defaultAudience: CommunicationAudienceRequest = {
   eventId: null,
@@ -58,13 +61,16 @@ function channelFromValue(value: string): CommunicationChannel {
 }
 
 const audienceOptions = ["Members", "Ticket Buyers", "Donors"] as const;
+type CommunicationStage = "audience" | "compose";
 
 function TemplateLibrary({
+  audience,
   channel,
   contentMarkdown,
   onApply,
   subject,
 }: {
+  readonly audience: CommunicationAudienceRequest;
   readonly channel: CommunicationChannel;
   readonly contentMarkdown: string;
   readonly onApply: (template: CommunicationTemplate) => void;
@@ -128,35 +134,39 @@ function TemplateLibrary({
           {error}
         </p>
       ) : null}
-      {templates.length > 0 ? (
+      {templates.filter((template) =>
+        templateMatchesCommunicationContext(template, audience, channel),
+      ).length > 0 ? (
         <ul className="account-list">
-          {templates.map((template) => (
-            <li key={template.id}>
-              <div>
-                <strong>{template.title}</strong>
-                <p>{template.channel}</p>
-              </div>
-              <span className="button-row">
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    onApply(template);
-                  }}
-                  type="button"
-                >
-                  Use template
-                </button>
-                {!template.isSystem ? (
-                  <button disabled={busy} onClick={() => void remove(template)} type="button">
-                    Delete
+          {templates
+            .filter((template) => templateMatchesCommunicationContext(template, audience, channel))
+            .map((template) => (
+              <li key={template.id}>
+                <div>
+                  <strong>{template.title}</strong>
+                  <p>{template.channel}</p>
+                </div>
+                <span className="button-row">
+                  <button
+                    disabled={busy}
+                    onClick={() => {
+                      onApply(template);
+                    }}
+                    type="button"
+                  >
+                    Use template
                   </button>
-                ) : null}
-              </span>
-            </li>
-          ))}
+                  {!template.isSystem ? (
+                    <button disabled={busy} onClick={() => void remove(template)} type="button">
+                      Delete
+                    </button>
+                  ) : null}
+                </span>
+              </li>
+            ))}
         </ul>
       ) : (
-        <p>No templates yet.</p>
+        <p>No templates match this channel and audience yet.</p>
       )}
       <div className="field">
         <label htmlFor="communication-template-title">Save current message as a template</label>
@@ -195,6 +205,7 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
   const [reach, setReach] = useState<string | null>(null);
   const [testEmail, setTestEmail] = useState("");
+  const [stage, setStage] = useState<CommunicationStage>("audience");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -399,8 +410,20 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
   return (
     <section className="panel" aria-label="Communication center">
       <p className="section-description">
-        Compose Markdown email, SMS, or both. Use {"{singerName}"} for each recipient’s name.
+        Build a message in three steps: choose the audience, write with Markdown and placeholders,
+        then review it before queueing delivery.
       </p>
+      <ol className="communication-stepper" aria-label="Message workflow">
+        <li className={stage === "audience" ? "is-active" : "is-complete"}>
+          <span>1</span> Audience
+        </li>
+        <li className={stage === "compose" ? "is-active" : ""}>
+          <span>2</span> Compose
+        </li>
+        <li>
+          <span>3</span> Review &amp; send
+        </li>
+      </ol>
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}
@@ -416,209 +439,247 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
         className="form-stack"
         onSubmit={(event) => {
           event.preventDefault();
-          void openFinalPreview();
+          if (stage === "audience") {
+            setStage("compose");
+          } else {
+            void openFinalPreview();
+          }
         }}
       >
-        <div className="field">
-          <label htmlFor="communication-channel">Channel</label>
-          <select
-            id="communication-channel"
-            onChange={(event) => {
-              setChannel(channelFromValue(event.target.value));
-              setReach(null);
-            }}
-            value={channel}
-          >
-            <option>Email</option>
-            <option>SMS</option>
-            <option>Both</option>
-          </select>
-        </div>
-        <fieldset>
-          <legend>Audience</legend>
-          <p className="field-help">
-            Donors and ticket buyers include paid contacts who opted into updates. An event-specific
-            ticket audience includes all paid buyers for that event.
-          </p>
-          <div className="checkbox-grid">
-            {audienceOptions.map((target) => (
-              <label key={target} className="checkbox-row">
-                <input
-                  checked={audience.targetAudiences.includes(target)}
-                  disabled={
-                    audience.targetAudiences.length === 1 &&
-                    audience.targetAudiences.includes(target)
-                  }
-                  onChange={(event) => {
-                    toggleAudience(target, event.target.checked);
-                  }}
-                  type="checkbox"
-                />
-                {target}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        {audience.targetAudiences.includes("Members") ? (
+        {stage === "audience" ? (
           <>
-            <fieldset>
-              <legend>Profile status</legend>
-              {(["Active", "Idle", "Inactive"] as const).map((status) => (
-                <label key={status}>
-                  <input
-                    checked={audience.globalStatuses.includes(status)}
-                    onChange={(event) => {
-                      toggleStatus(status, event.target.checked);
-                      setReach(null);
-                    }}
-                    type="checkbox"
-                  />
-                  {status === "Idle" ? "On Break" : status}
-                </label>
-              ))}
-            </fieldset>
             <div className="field">
-              <label htmlFor="communication-voice-parts">Voice parts or sections (optional)</label>
-              <input
-                id="communication-voice-parts"
+              <label htmlFor="communication-channel">Channel</label>
+              <select
+                id="communication-channel"
                 onChange={(event) => {
-                  setVoiceParts(event.target.value);
+                  setChannel(channelFromValue(event.target.value));
                   setReach(null);
                 }}
-                placeholder="S1, S2, A"
-                value={voiceParts}
-              />
+                value={channel}
+              >
+                <option>Email</option>
+                <option>SMS</option>
+                <option>Both</option>
+              </select>
+            </div>
+            <fieldset>
+              <legend>Audience</legend>
+              <p className="field-help">
+                Donors and ticket buyers include paid contacts who opted into updates. An
+                event-specific ticket audience includes all paid buyers for that event.
+              </p>
+              <div className="checkbox-grid">
+                {audienceOptions.map((target) => (
+                  <label key={target} className="checkbox-row">
+                    <input
+                      checked={audience.targetAudiences.includes(target)}
+                      disabled={
+                        audience.targetAudiences.length === 1 &&
+                        audience.targetAudiences.includes(target)
+                      }
+                      onChange={(event) => {
+                        toggleAudience(target, event.target.checked);
+                      }}
+                      type="checkbox"
+                    />
+                    {target}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {audience.targetAudiences.includes("Members") ? (
+              <>
+                <fieldset>
+                  <legend>Profile status</legend>
+                  {(["Active", "Idle", "Inactive"] as const).map((status) => (
+                    <label key={status}>
+                      <input
+                        checked={audience.globalStatuses.includes(status)}
+                        onChange={(event) => {
+                          toggleStatus(status, event.target.checked);
+                          setReach(null);
+                        }}
+                        type="checkbox"
+                      />
+                      {status === "Idle" ? "On Break" : status}
+                    </label>
+                  ))}
+                </fieldset>
+                <div className="field">
+                  <label htmlFor="communication-voice-parts">
+                    Voice parts or sections (optional)
+                  </label>
+                  <input
+                    id="communication-voice-parts"
+                    onChange={(event) => {
+                      setVoiceParts(event.target.value);
+                      setReach(null);
+                    }}
+                    placeholder="S1, S2, A"
+                    value={voiceParts}
+                  />
+                </div>
+              </>
+            ) : null}
+            {audience.targetAudiences.includes("Members") ||
+            audience.targetAudiences.includes("Ticket Buyers") ? (
+              <div className="field">
+                <label htmlFor="communication-event">Event audience (optional)</label>
+                <select
+                  id="communication-event"
+                  onChange={(event) => {
+                    const eventId = event.target.value || null;
+                    setAudience((current) => ({
+                      ...current,
+                      eventId,
+                      rsvp: eventId ? current.rsvp : "All",
+                    }));
+                    setReach(null);
+                  }}
+                  value={audience.eventId ?? ""}
+                >
+                  <option value="">All matching contacts</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {eventLabel(event)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {audience.eventId && audience.targetAudiences.includes("Members") ? (
+              <div className="field">
+                <label htmlFor="communication-rsvp">Member RSVP response</label>
+                <select
+                  id="communication-rsvp"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setAudience((current) => ({
+                      ...current,
+                      rsvp:
+                        value === "Yes" || value === "No" || value === "Pending" ? value : "All",
+                    }));
+                    setReach(null);
+                  }}
+                  value={audience.rsvp}
+                >
+                  <option value="All">Any response</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                  <option value="Pending">Pending</option>
+                </select>
+              </div>
+            ) : null}
+            <div className="form-actions form-actions--end">
+              <button className="button button--primary" type="submit">
+                Continue to compose
+              </button>
             </div>
           </>
-        ) : null}
-        {audience.targetAudiences.includes("Members") ||
-        audience.targetAudiences.includes("Ticket Buyers") ? (
-          <div className="field">
-            <label htmlFor="communication-event">Event audience (optional)</label>
-            <select
-              id="communication-event"
-              onChange={(event) => {
-                const eventId = event.target.value || null;
-                setAudience((current) => ({
-                  ...current,
-                  eventId,
-                  rsvp: eventId ? current.rsvp : "All",
-                }));
+        ) : (
+          <>
+            <TemplateLibrary
+              audience={audience}
+              channel={channel}
+              contentMarkdown={contentMarkdown}
+              onApply={(template) => {
+                setChannel(template.channel);
+                setContentMarkdown(template.contentMarkdown);
+                setSubject(template.subject);
                 setReach(null);
               }}
-              value={audience.eventId ?? ""}
-            >
-              <option value="">All matching contacts</option>
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {eventLabel(event)}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-        {audience.eventId && audience.targetAudiences.includes("Members") ? (
-          <div className="field">
-            <label htmlFor="communication-rsvp">Member RSVP response</label>
-            <select
-              id="communication-rsvp"
-              onChange={(event) => {
-                const value = event.target.value;
-                setAudience((current) => ({
-                  ...current,
-                  rsvp: value === "Yes" || value === "No" || value === "Pending" ? value : "All",
-                }));
-                setReach(null);
-              }}
-              value={audience.rsvp}
-            >
-              <option value="All">Any response</option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-              <option value="Pending">Pending</option>
-            </select>
-          </div>
-        ) : null}
-        {channel !== "SMS" ? (
-          <div className="field">
-            <label htmlFor="communication-subject">Subject</label>
-            <input
-              id="communication-subject"
-              maxLength={300}
-              onChange={(event) => {
-                setSubject(event.target.value);
-              }}
-              required
-              value={subject}
+              subject={subject}
             />
-          </div>
-        ) : null}
-        <div className="field">
-          <label htmlFor="communication-content">Message</label>
-          <textarea
-            id="communication-content"
-            maxLength={100_000}
-            onChange={(event) => {
-              setContentMarkdown(event.target.value);
-            }}
-            required
-            rows={8}
-            value={contentMarkdown}
-          />
-        </div>
-        <fieldset className="communication-test-send">
-          <legend>Test email delivery</legend>
-          <p className="field-help">
-            Send this subject and message to one address before you contact the full audience. This
-            tests email delivery only.
-          </p>
-          <div className="form-actions form-actions--start">
-            <div className="field communication-test-send__address">
-              <label htmlFor="communication-test-email">Test recipient</label>
-              <input
-                id="communication-test-email"
-                onChange={(event) => {
-                  setTestEmail(event.target.value);
+            {channel !== "SMS" ? (
+              <div className="field">
+                <label htmlFor="communication-subject">Subject</label>
+                <input
+                  id="communication-subject"
+                  maxLength={300}
+                  onChange={(event) => {
+                    setSubject(event.target.value);
+                  }}
+                  required
+                  value={subject}
+                />
+              </div>
+            ) : null}
+            <div className="field">
+              <label htmlFor="communication-content">Message</label>
+              <CommunicationComposer
+                audience={audience}
+                channel={channel}
+                contentMarkdown={contentMarkdown}
+                onContentChange={(value) => {
+                  setContentMarkdown(value);
                 }}
-                placeholder="you@example.com"
-                type="email"
-                value={testEmail}
               />
             </div>
-            <button
-              disabled={
-                busy ||
-                channel === "SMS" ||
-                !testEmail.trim() ||
-                !contentMarkdown.trim() ||
-                !subject.trim()
-              }
-              onClick={() => void sendTestEmail()}
-              type="button"
-            >
-              Send test email
-            </button>
-          </div>
-          {channel === "SMS" ? (
-            <p className="field-help">Select Email or Both to test email.</p>
-          ) : null}
-        </fieldset>
-        {reach ? (
-          <p className="notice notice--info" role="status">
-            {reach}
-          </p>
-        ) : null}
-        <div className="form-actions">
-          <button disabled={busy} onClick={() => void previewReach()} type="button">
-            Preview reach
-          </button>
-          <button disabled={busy} onClick={() => void saveDraft()} type="button">
-            Save draft
-          </button>
-          <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Working…" : "Preview before queueing"}
-          </button>
-        </div>
+            <fieldset className="communication-test-send">
+              <legend>Test email delivery</legend>
+              <p className="field-help">
+                Send this subject and message to one address before you contact the full audience.
+                This tests email delivery only.
+              </p>
+              <div className="form-actions form-actions--start">
+                <div className="field communication-test-send__address">
+                  <label htmlFor="communication-test-email">Test recipient</label>
+                  <input
+                    id="communication-test-email"
+                    onChange={(event) => {
+                      setTestEmail(event.target.value);
+                    }}
+                    placeholder="you@example.com"
+                    type="email"
+                    value={testEmail}
+                  />
+                </div>
+                <button
+                  disabled={
+                    busy ||
+                    channel === "SMS" ||
+                    !testEmail.trim() ||
+                    !contentMarkdown.trim() ||
+                    !subject.trim()
+                  }
+                  onClick={() => void sendTestEmail()}
+                  type="button"
+                >
+                  Send test email
+                </button>
+              </div>
+              {channel === "SMS" ? (
+                <p className="field-help">Select Email or Both to test email.</p>
+              ) : null}
+            </fieldset>
+            {reach ? (
+              <p className="notice notice--info" role="status">
+                {reach}
+              </p>
+            ) : null}
+            <div className="form-actions">
+              <button
+                disabled={busy}
+                onClick={() => {
+                  setStage("audience");
+                }}
+                type="button"
+              >
+                Back to audience
+              </button>
+              <button disabled={busy} onClick={() => void previewReach()} type="button">
+                Preview reach
+              </button>
+              <button disabled={busy} onClick={() => void saveDraft()} type="button">
+                Save draft
+              </button>
+              <button className="button button--primary" disabled={busy} type="submit">
+                {busy ? "Working…" : "Preview before queueing"}
+              </button>
+            </div>
+          </>
+        )}
       </form>
 
       <Dialog
@@ -646,7 +707,12 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
               <dd>{reach ?? "Reach not calculated"}</dd>
             </div>
           </dl>
-          <div className="communication-preview__message">{contentMarkdown}</div>
+          <div
+            className="communication-preview__message communication-composer__preview"
+            dangerouslySetInnerHTML={{
+              __html: renderCommunicationMarkdownPreview(contentMarkdown),
+            }}
+          />
           <p className="field-help">
             Queueing will create delivery records for the selected audience. You can review delivery
             status afterward.
@@ -673,18 +739,6 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
           </button>
         </div>
       </Dialog>
-
-      <TemplateLibrary
-        channel={channel}
-        contentMarkdown={contentMarkdown}
-        onApply={(template) => {
-          setChannel(template.channel);
-          setContentMarkdown(template.contentMarkdown);
-          setSubject(template.subject);
-          setReach(null);
-        }}
-        subject={subject}
-      />
 
       <h3>Scheduled and automated messages</h3>
       {scheduledMessages.length === 0 ? (

@@ -190,6 +190,60 @@ function readMessage(storage: DurableObjectStorage, messageId: string) {
   return row ? parseMessage(row) : null;
 }
 
+function setListTitles(value: string): string {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return "";
+    return parsed
+      .map((item: unknown) => {
+        if (typeof item !== "object" || item === null) return "";
+        const title = (item as { readonly title?: unknown }).title;
+        return typeof title === "string" ? title.trim() : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
+function eventCommunicationContext(storage: DurableObjectStorage, eventId: string | null) {
+  if (!eventId) return null;
+  const event = storage.sql
+    .exec<{
+      readonly callTime: string;
+      readonly details: string;
+      readonly eventDate: string;
+      readonly eventLocation: string;
+      readonly eventTitle: string;
+      readonly eventType: string;
+      readonly setListJson: string;
+    }>(
+      `SELECT e.title AS eventTitle, e.type AS eventType, e.starts_at AS eventDate,
+        e.call_time AS callTime, e.details, COALESCE(v.name, e.location) AS eventLocation,
+        e.set_list_json AS setListJson
+       FROM events e LEFT JOIN venues v ON v.id = e.venue_id
+       WHERE e.id = ? AND e.is_archived = 0 LIMIT 1`,
+      eventId,
+    )
+    .toArray()
+    .at(0);
+  if (!event) return null;
+  return {
+    eventCallTime: event.callTime,
+    eventDate: new Intl.DateTimeFormat("en-US", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: "UTC",
+    }).format(new Date(event.eventDate)),
+    eventDetails: event.details,
+    eventLocation: event.eventLocation,
+    eventTitle: event.eventTitle,
+    eventType: event.eventType,
+    setlist: setListTitles(event.setListJson),
+  };
+}
+
 function audit(
   storage: DurableObjectStorage,
   actorUserId: string,
@@ -1032,9 +1086,12 @@ export function readCommunicationJobFromStore(
       recipientName,
       unsubscribeUrl,
     }));
+  const eventId = message?.audience.eventId ?? null;
+  const context = eventCommunicationContext(storage, eventId);
   return message
     ? Response.json({
         contentMarkdown: message.contentMarkdown,
+        context,
         deliveries,
         messageId,
         subject: message.subject,

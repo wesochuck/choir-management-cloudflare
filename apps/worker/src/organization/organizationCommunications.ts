@@ -38,6 +38,17 @@ const candidateResponseSchema = z.object({
 });
 const deliveryJobResponseSchema = z.object({
   contentMarkdown: z.string().max(100_000),
+  context: z
+    .object({
+      eventCallTime: z.string(),
+      eventDate: z.string(),
+      eventDetails: z.string(),
+      eventLocation: z.string(),
+      eventTitle: z.string(),
+      eventType: z.string(),
+      setlist: z.string(),
+    })
+    .nullable(),
   deliveries: z.array(
     z.object({
       channel: z.enum(["email", "sms"]),

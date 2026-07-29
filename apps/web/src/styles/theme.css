@@ -1192,6 +1192,10 @@ h2 {
   justify-content: flex-start;
 }
 
+.form-actions--end {
+  justify-content: flex-end;
+}
+
 .communication-test-send {
   margin: 0;
   padding: 1rem;
@@ -1234,6 +1238,186 @@ h2 {
   border-radius: var(--radius-control);
   background: var(--color-surface);
   white-space: pre-wrap;
+}
+
+.communication-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+}
+
+.communication-stepper li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.communication-stepper li + li::before {
+  margin-right: 0.1rem;
+  color: var(--color-text-muted);
+  content: "→";
+}
+
+.communication-stepper li span {
+  display: inline-grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.communication-stepper li.is-active,
+.communication-stepper li.is-complete {
+  color: var(--color-text);
+}
+
+.communication-stepper li.is-active span {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-background);
+}
+
+.communication-stepper li.is-complete span {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.communication-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  gap: 1rem;
+}
+
+.communication-composer__tabs {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.communication-composer__tabs button,
+.communication-composer__toolbar button {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.communication-composer__tabs button.is-active,
+.communication-composer__tabs button:hover,
+.communication-composer__toolbar button:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.communication-composer__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1;
+  gap: 0.35rem;
+}
+
+.communication-composer__textarea,
+.communication-composer__preview {
+  grid-column: 1;
+  min-height: 20rem;
+  width: 100%;
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.communication-composer__textarea {
+  resize: vertical;
+}
+
+.communication-composer__preview {
+  overflow: auto;
+}
+
+.communication-composer__preview p:first-child,
+.communication-composer__preview h3:first-child,
+.communication-composer__preview h4:first-child,
+.communication-composer__preview h5:first-child {
+  margin-top: 0;
+}
+
+.communication-composer__preview code {
+  padding: 0.1rem 0.25rem;
+  border-radius: 0.2rem;
+  background: var(--color-background);
+}
+
+.communication-placeholders {
+  grid-column: 2;
+  grid-row: 2 / span 3;
+  align-self: start;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-background);
+}
+
+.communication-placeholders__list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.communication-placeholder {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.communication-placeholder:hover {
+  border-color: var(--color-accent);
+}
+
+.communication-placeholder code {
+  color: var(--color-accent);
+  font-size: 0.8rem;
+}
+
+.communication-placeholder span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 48rem) {
+  .communication-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .communication-composer__toolbar,
+  .communication-composer__textarea,
+  .communication-composer__preview,
+  .communication-placeholders {
+    grid-column: 1;
+  }
+
+  .communication-placeholders {
+    grid-row: auto;
+  }
 }
 
 .seasons-manager-controls {

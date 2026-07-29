@@ -53,16 +53,58 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function renderMarkdownInline(value: string): string {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_]+)_/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>');
+}
+
+/** Render the deliberately small Markdown subset exposed by the message editor. */
+export function renderCommunicationMarkdown(value: string): string {
+  const lines = value.split("\n");
+  const output: string[] = [];
+  let inList = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const listItem = trimmed.startsWith("- ") || trimmed.startsWith("* ");
+    if (listItem && !inList) {
+      output.push("<ul>");
+      inList = true;
+    }
+    if (!listItem && inList) {
+      output.push("</ul>");
+      inList = false;
+    }
+    if (listItem) {
+      output.push(`<li>${renderMarkdownInline(trimmed.slice(2))}</li>`);
+    } else if (trimmed.startsWith("### ")) {
+      output.push(`<h5>${renderMarkdownInline(trimmed.slice(4))}</h5>`);
+    } else if (trimmed.startsWith("## ")) {
+      output.push(`<h4>${renderMarkdownInline(trimmed.slice(3))}</h4>`);
+    } else if (trimmed.startsWith("# ")) {
+      output.push(`<h3>${renderMarkdownInline(trimmed.slice(2))}</h3>`);
+    } else if (trimmed) {
+      output.push(`<p>${renderMarkdownInline(trimmed)}</p>`);
+    }
+  }
+  if (inList) output.push("</ul>");
+  return output.join("");
+}
+
 function emailContents(contentMarkdown: string, unsubscribeUrl: string | null) {
   const unsubscribeText = unsubscribeUrl
     ? `\n\nUnsubscribe from Organization email: ${unsubscribeUrl}`
     : "";
-  const escapedBody = escapeHtml(contentMarkdown).replace(/\n/g, "<br>");
+  const renderedBody = renderCommunicationMarkdown(contentMarkdown);
   const unsubscribeHtml = unsubscribeUrl
     ? `<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from Organization email</a></p>`
     : "";
   return {
-    htmlContent: `<div>${escapedBody}</div>${unsubscribeHtml}`,
+    htmlContent: `<div>${renderedBody}</div>${unsubscribeHtml}`,
     textContent: `${contentMarkdown}${unsubscribeText}`,
   };
 }

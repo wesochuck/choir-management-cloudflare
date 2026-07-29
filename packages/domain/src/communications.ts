@@ -58,8 +58,16 @@ export function communicationReach(
   return { both, email, sms, total: recipients.length - unreachable, unreachable };
 }
 
-export function renderCommunicationTemplate(template: string, recipientName: string): string {
-  return template.replace(/{singerName}/g, () => recipientName);
+export function renderCommunicationTemplate(
+  template: string,
+  recipientName: string,
+  values: Readonly<Record<string, string>> = {},
+): string {
+  const replacements = { singerName: recipientName, ...values };
+  return Object.entries(replacements).reduce(
+    (message, [key, value]) => message.replace(new RegExp(`\\{${key}\\}`, "g"), () => value),
+    template,
+  );
 }
 
 export function maskCommunicationDestination(
