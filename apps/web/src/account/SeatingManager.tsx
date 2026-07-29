@@ -52,6 +52,7 @@ import {
   updateOrganizationSeatingConfiguration,
   createOrganizationSeatingChart,
 } from "../auth/api";
+import { getLastName, getUniqueDisplayNames } from "./nameFormatting";
 
 interface SeatingResources {
   readonly events: readonly OrganizationEvent[];
@@ -712,10 +713,12 @@ function UnassignedTray({
 function ChartList({
   chart,
   profilesById,
+  displayNames,
   showVoiceParts,
 }: {
   readonly chart: OrganizationSeatingChartRequest;
   readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
+  readonly displayNames: ReadonlyMap<string, string>;
   readonly showVoiceParts: boolean;
 }) {
   return (
@@ -731,7 +734,14 @@ function ChartList({
               return (
                 <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
                   <span>Seat {seatIndex + 1}</span>
-                  <strong>{profile?.displayName ?? "Empty"}</strong>
+                  <strong>
+                    {profile
+                      ? (displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
+                          ", ",
+                          " ",
+                        )
+                      : "Empty"}
+                  </strong>
                   {showVoiceParts && profile ? <em>{profile.voicePart}</em> : null}
                 </li>
               );
@@ -894,6 +904,18 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const profilesById = useMemo(
     () => new Map((resources?.profiles ?? []).map((profile) => [profile.id, profile])),
     [resources?.profiles],
+  );
+  const assignedProfiles = useMemo(
+    () =>
+      [...new Set(Object.values(chart.assignments))].flatMap((profileId) => {
+        const profile = profilesById.get(profileId);
+        return profile ? [profile] : [];
+      }),
+    [chart.assignments, profilesById],
+  );
+  const seatingDisplayNames = useMemo(
+    () => getUniqueDisplayNames(assignedProfiles),
+    [assignedProfiles],
   );
   const assignedIds = useMemo(() => new Set(Object.values(chart.assignments)), [chart.assignments]);
   const unassignedProfiles = useMemo(
@@ -1809,7 +1831,12 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
             </div>
           ) : null}
           {charts.length > 0 && viewMode === "list" ? (
-            <ChartList chart={chart} profilesById={profilesById} showVoiceParts={showVoiceParts} />
+            <ChartList
+              chart={chart}
+              displayNames={seatingDisplayNames}
+              profilesById={profilesById}
+              showVoiceParts={showVoiceParts}
+            />
           ) : null}
           {charts.length > 0 && viewMode === "grid" ? (
             <>
