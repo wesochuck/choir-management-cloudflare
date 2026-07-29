@@ -1,9 +1,17 @@
 import type {
+  OrganizationEvent,
+  OrganizationEventRequest,
   OrganizationMusicPiece,
   OrganizationMusicPieceRequest,
   OrganizationRosterConfiguration,
+  OrganizationVenue,
 } from "@choir/contracts";
-import { inspectMusicCsv, selectMusicCsvColumns, type MusicCsvInspection } from "@choir/domain";
+import {
+  inspectMusicCsv,
+  selectMusicCsvColumns,
+  zonedLocalDateTimeToUtc,
+  type MusicCsvInspection,
+} from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
@@ -12,17 +20,22 @@ import {
   createOrganizationMusicPiece,
   deleteOrganizationMusicPiece,
   deletePrivateOrganizationFile,
+  createOrganizationEvent,
+  getOrganizationCalendarSettings,
   getOrganizationRosterConfiguration,
   importOrganizationMusicCsv,
   listOrganizationMusic,
+  listOrganizationEvents,
+  listOrganizationVenues,
   uploadPrivateOrganizationFile,
   updateOrganizationMusicPiece,
+  updateOrganizationEvent,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
 
 const maximumAudioBytes = 20 * 1024 * 1024;
 
-type MusicEditorTab = "details" | "tracks";
+type MusicEditorTab = "details" | "performances" | "tracks";
 
 const emptyPiece: OrganizationMusicPieceRequest = {
   arranger: "",
@@ -487,6 +500,297 @@ function trackDescription(key: string, configuration: OrganizationRosterConfigur
   );
 }
 
+function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
+  return {
+    advancePriceCents: event.advancePriceCents,
+    callTime: event.callTime,
+    dayOfPriceCents: event.dayOfPriceCents,
+    details: event.details,
+    doorsOpenTime: event.doorsOpenTime,
+    durationMinutes: event.durationMinutes,
+    isTicketingEnabled: event.isTicketingEnabled,
+    location: event.location,
+    parentPerformanceId: event.parentPerformanceId,
+    publicDetails: event.publicDetails,
+    publicGraphicFileId: event.publicGraphicFileId,
+    publishOnWebsite: event.publishOnWebsite,
+    setList: event.setList,
+    setListApproved: event.setListApproved,
+    startsAt: event.startsAt,
+    ticketCapacity: event.ticketCapacity,
+    title: event.title,
+    type: event.type,
+    venueId: event.venueId,
+  };
+}
+
+function performanceDateLabel(value: string, timezone: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
+function pieceIdsForPerformance(
+  piece: OrganizationMusicPiece,
+  allPieces: readonly OrganizationMusicPiece[],
+): ReadonlySet<string> {
+  const ids = new Set<string>([piece.id]);
+  if (piece.parentId) {
+    ids.add(piece.parentId);
+  } else {
+    allPieces.forEach((candidate) => {
+      if (candidate.parentId === piece.id) ids.add(candidate.id);
+    });
+  }
+  return ids;
+}
+
+function performanceContainsPiece(
+  event: OrganizationEvent,
+  pieceIds: ReadonlySet<string>,
+): boolean {
+  return event.setList.some((item) => item.pieceId !== undefined && pieceIds.has(item.pieceId));
+}
+
+function performanceSetListItem(
+  piece: OrganizationMusicPiece,
+): NonNullable<OrganizationEvent["setList"]>[number] {
+  return {
+    composer: piece.composer || undefined,
+    id: crypto.randomUUID(),
+    pieceId: piece.id,
+    title: piece.title,
+    type: "song",
+  };
+}
+
+function MusicPiecePerformances({
+  allEvents,
+  allPieces,
+  onEventChanged,
+  piece,
+  timezone,
+  venues,
+}: {
+  readonly allEvents: readonly OrganizationEvent[];
+  readonly allPieces: readonly OrganizationMusicPiece[];
+  readonly onEventChanged: (event: OrganizationEvent) => Promise<void>;
+  readonly piece: OrganizationMusicPiece;
+  readonly timezone: string;
+  readonly venues: readonly OrganizationVenue[];
+}) {
+  const [quickTitle, setQuickTitle] = useState("");
+  const [quickDate, setQuickDate] = useState("");
+  const [quickVenueId, setQuickVenueId] = useState("");
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pieceIds = useMemo(() => pieceIdsForPerformance(piece, allPieces), [allPieces, piece]);
+  const performances = useMemo(
+    () => allEvents.filter((event) => event.type === "Performance"),
+    [allEvents],
+  );
+  const linkedPerformances = useMemo(
+    () => performances.filter((event) => performanceContainsPiece(event, pieceIds)),
+    [performances, pieceIds],
+  );
+  const availablePerformances = useMemo(
+    () => performances.filter((event) => !performanceContainsPiece(event, pieceIds)),
+    [performances, pieceIds],
+  );
+
+  async function togglePerformance(event: OrganizationEvent): Promise<void> {
+    setBusyId(event.id);
+    setError(null);
+    try {
+      const linked = performanceContainsPiece(event, pieceIds);
+      const setList = linked
+        ? event.setList.filter((item) => item.pieceId === undefined || !pieceIds.has(item.pieceId))
+        : [...event.setList, performanceSetListItem(piece)];
+      const saved = await updateOrganizationEvent(event.id, {
+        ...eventRequestFrom(event),
+        setList,
+      });
+      await onEventChanged(saved);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The performance link could not be updated.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function quickAddPerformance(): Promise<void> {
+    const title = quickTitle.trim();
+    const startsAt = zonedLocalDateTimeToUtc(quickDate, timezone);
+    if (!title || !startsAt) {
+      setError("Enter a performance title and a valid date and time.");
+      return;
+    }
+    setBusyId("quick-add");
+    setError(null);
+    try {
+      const saved = await createOrganizationEvent({
+        advancePriceCents: 0,
+        callTime: "",
+        dayOfPriceCents: 0,
+        details: "Quick added from music library historic performance links.",
+        doorsOpenTime: "",
+        durationMinutes: null,
+        isTicketingEnabled: false,
+        location: "",
+        parentPerformanceId: null,
+        publicDetails: "",
+        publicGraphicFileId: null,
+        publishOnWebsite: false,
+        setList: [performanceSetListItem(piece)],
+        setListApproved: false,
+        startsAt,
+        ticketCapacity: null,
+        title,
+        type: "Performance",
+        venueId: quickVenueId || null,
+      });
+      await onEventChanged(saved);
+      setQuickTitle("");
+      setQuickDate("");
+      setQuickVenueId("");
+      setShowQuickAdd(false);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The historic performance could not be created.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="music-piece-performances">
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="field">
+        <span className="field-label">Linked performances</span>
+        <div className="music-piece-performance-links">
+          {linkedPerformances.length === 0 ? (
+            <span className="field-help">No performances linked.</span>
+          ) : (
+            linkedPerformances.map((event) => (
+              <span className="music-piece-performance-link" key={event.id}>
+                {event.title} ({performanceDateLabel(event.startsAt, timezone)})
+                <button
+                  aria-label={`Unlink ${event.title}`}
+                  disabled={busyId !== null}
+                  type="button"
+                  onClick={() => void togglePerformance(event)}
+                >
+                  ×
+                </button>
+              </span>
+            ))
+          )}
+        </div>
+      </div>
+      <div className="music-piece-performance-actions">
+        <label className="field">
+          Add a performance
+          <select
+            disabled={busyId !== null}
+            value=""
+            onChange={(event) => {
+              const selected = availablePerformances.find(({ id }) => id === event.target.value);
+              if (selected) void togglePerformance(selected);
+            }}
+          >
+            <option value="">Choose a performance…</option>
+            {availablePerformances.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.title} ({performanceDateLabel(event.startsAt, timezone)})
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="button button--secondary"
+          disabled={busyId !== null}
+          type="button"
+          onClick={() => {
+            setError(null);
+            setShowQuickAdd((current) => !current);
+          }}
+        >
+          {showQuickAdd ? "Cancel quick add" : "Quick add performance"}
+        </button>
+      </div>
+      {showQuickAdd ? (
+        <div className="music-piece-quick-performance">
+          <h3>Quick add historic performance</h3>
+          <p className="field-help">Times are entered in {timezone}.</p>
+          <label className="field">
+            Performance title
+            <input
+              autoFocus
+              placeholder="e.g. Spring Concert 2018"
+              value={quickTitle}
+              onChange={(event) => {
+                setQuickTitle(event.target.value);
+              }}
+            />
+          </label>
+          <div className="music-fields-grid">
+            <label className="field">
+              Date and time
+              <input
+                type="datetime-local"
+                value={quickDate}
+                onChange={(event) => {
+                  setQuickDate(event.target.value);
+                }}
+              />
+            </label>
+            <label className="field">
+              Venue (optional)
+              <select
+                value={quickVenueId}
+                onChange={(event) => {
+                  setQuickVenueId(event.target.value);
+                }}
+              >
+                <option value="">No venue</option>
+                {venues.map((venue) => (
+                  <option key={venue.id} value={venue.id}>
+                    {venue.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="dialog__actions">
+            <button
+              className="button button--primary"
+              disabled={busyId !== null}
+              type="button"
+              onClick={() => void quickAddPerformance()}
+            >
+              {busyId === "quick-add" ? "Creating…" : "Create and link"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MusicAudioTracks({
   configuration,
   onSaved,
@@ -712,6 +1016,9 @@ function MusicDeleteControls({
 export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
   const [roster, setRoster] = useState<OrganizationRosterConfiguration | null>(null);
+  const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
+  const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
+  const [timezone, setTimezone] = useState("UTC");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -745,10 +1052,16 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     Promise.all([
       listOrganizationMusic(controller.signal),
       getOrganizationRosterConfiguration(controller.signal),
+      listOrganizationEvents(controller.signal),
+      listOrganizationVenues(controller.signal),
+      getOrganizationCalendarSettings(controller.signal),
     ])
-      .then(([catalog, configuration]) => {
+      .then(([catalog, configuration, nextEvents, nextVenues, calendarSettings]) => {
         setPieces(catalog);
         setRoster(configuration);
+        setEvents(nextEvents);
+        setVenues(nextVenues);
+        setTimezone(calendarSettings.timezone);
       })
       .catch((caught: unknown) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
@@ -859,6 +1172,22 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   function selectPiece(selected: OrganizationMusicPiece): void {
     setEditorPiece(selected);
     setDialogOpen(true);
+  }
+
+  async function handlePerformanceChanged(event: OrganizationEvent): Promise<void> {
+    setEvents((current) => {
+      const exists = current.some((candidate) => candidate.id === event.id);
+      return exists
+        ? current.map((candidate) => (candidate.id === event.id ? event : candidate))
+        : [...current, event].toSorted((left, right) =>
+            left.startsAt.localeCompare(right.startsAt),
+          );
+    });
+    try {
+      setPieces(await listOrganizationMusic());
+    } catch {
+      // The event link is already saved; a later catalog refresh can recalculate its summary.
+    }
   }
 
   function beginNew(parentId: string | null = null): void {
@@ -1060,7 +1389,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
             />
           </div>
           <Dialog
-            description="Catalog metadata, sections, movements, and learning tracks."
+            description="Catalog metadata, sections, movements, learning tracks, and linked performances."
             onClose={closeDialog}
             open={dialogOpen}
             title={
@@ -1106,6 +1435,22 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                   Practice tracks
                   {selectedPiece && Object.values(selectedPiece.trackFileIds).some(Boolean)
                     ? ` (${String(Object.values(selectedPiece.trackFileIds).filter(Boolean).length)})`
+                    : ""}
+                </button>
+                <button
+                  aria-controls="music-piece-performances"
+                  aria-selected={editorTab === "performances"}
+                  className={editorTab === "performances" ? "is-active" : undefined}
+                  disabled={!selectedPiece}
+                  onClick={() => {
+                    setEditorTab("performances");
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  Linked performances
+                  {selectedPiece
+                    ? ` (${String(events.filter((event) => event.type === "Performance" && performanceContainsPiece(event, pieceIdsForPerformance(selectedPiece, pieces))).length)})`
                     : ""}
                 </button>
               </div>
@@ -1245,22 +1590,39 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                     }}
                   />
                 </div>
+              ) : editorTab === "tracks" ? (
+                selectedPiece ? (
+                  <div id="music-piece-tracks" role="tabpanel">
+                    <MusicAudioTracks
+                      configuration={roster}
+                      piece={selectedPiece}
+                      onSaved={(saved, successMessage) => {
+                        setPieces((current) =>
+                          current.map((candidate) =>
+                            candidate.id === saved.id ? saved : candidate,
+                          ),
+                        );
+                        setEditorPiece(saved, "tracks");
+                        setMessage(successMessage);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p className="notice">Save the piece first, then add practice tracks.</p>
+                )
               ) : selectedPiece ? (
-                <div id="music-piece-tracks" role="tabpanel">
-                  <MusicAudioTracks
-                    configuration={roster}
+                <div id="music-piece-performances" role="tabpanel">
+                  <MusicPiecePerformances
+                    allEvents={events}
+                    allPieces={pieces}
+                    onEventChanged={handlePerformanceChanged}
                     piece={selectedPiece}
-                    onSaved={(saved, successMessage) => {
-                      setPieces((current) =>
-                        current.map((candidate) => (candidate.id === saved.id ? saved : candidate)),
-                      );
-                      setEditorPiece(saved, "tracks");
-                      setMessage(successMessage);
-                    }}
+                    timezone={timezone}
+                    venues={venues}
                   />
                 </div>
               ) : (
-                <p className="notice">Save the piece first, then add practice tracks.</p>
+                <p className="notice">Save the piece first, then link performances.</p>
               )}
               {editingId ? (
                 <p className="field-help">

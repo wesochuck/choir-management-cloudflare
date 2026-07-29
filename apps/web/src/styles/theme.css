@@ -1340,6 +1340,76 @@ button.music-genre-chip.is-selected {
   border-radius: var(--radius-control);
 }
 
+.music-piece-performances {
+  display: grid;
+  gap: 1rem;
+}
+
+.music-piece-performance-links {
+  display: flex;
+  min-height: 2.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.35rem;
+}
+
+.music-piece-performance-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.music-piece-performance-link button {
+  display: inline-grid;
+  width: 1.2rem;
+  height: 1.2rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.music-piece-performance-link button:hover,
+.music-piece-performance-link button:focus-visible {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.music-piece-performance-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.music-piece-quick-performance {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px dashed color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.music-piece-quick-performance h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
 .music-audio-tracks legend {
   padding: 0 0.35rem;
   font-weight: 700;
@@ -4231,6 +4301,10 @@ footer {
 
   .calendar-event-form {
     grid-column: auto;
+  }
+
+  .music-piece-performance-actions {
+    grid-template-columns: 1fr;
   }
 
   .roster-configuration-row {
