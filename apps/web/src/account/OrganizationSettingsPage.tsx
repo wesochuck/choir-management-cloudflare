@@ -11,7 +11,7 @@ import {
 } from "../auth/api";
 import type { OrganizationExportStatusResponse, TransactionFeeSettings } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
-import { useFloatingSaveAction } from "./FloatingSaveBar";
+import { useFloatingSaveAction } from "./useFloatingSaveAction";
 import { OrganizationProviderStatus } from "./OrganizationProviderStatus";
 import { RosterConfiguration } from "./RosterConfiguration";
 

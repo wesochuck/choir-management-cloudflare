@@ -254,6 +254,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     [resources.events],
   );
   const selectedEvent = performances.find(({ id }) => id === selectedEventId) ?? null;
+  const selectedEventIdForAutosave = selectedEvent?.id ?? null;
   const songsDuration = items
     .filter((item) => item.type !== "intermission")
     .reduce(
@@ -438,7 +439,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    if (!dirty || !selectedEvent) return;
+    if (!dirty || selectedEventIdForAutosave === null) return;
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null;
       void saveRef.current();
@@ -449,7 +450,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
         saveTimerRef.current = null;
       }
     };
-  }, [dirty, items, approved, selectedEvent?.id]);
+  }, [dirty, items, approved, selectedEventIdForAutosave]);
 
   async function copyListText(): Promise<void> {
     if (!selectedEvent) return;
@@ -524,7 +525,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
         <div className="set-list-layout">
           <div className="set-list-toolbar">
             <label className="field">
-              Select event
+              <span className="set-list-field-label">Select event</span>
               <select
                 value={selectedEventId}
                 onChange={(event) => {
@@ -548,7 +549,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
             </label>
             <div className="set-list-copy-row">
               <label className="field">
-                Copy from previous
+                <span className="set-list-field-label">Copy from previous</span>
                 <select
                   value={copyEventId}
                   onChange={(event) => {
@@ -566,7 +567,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                 </select>
               </label>
               <button
-                className="button button--secondary"
+                className="button button--secondary button--small"
                 disabled={!copyEventId}
                 type="button"
                 onClick={copyMissingItems}
@@ -673,7 +674,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                 />
               </label>
               <button
-                className="button button--primary"
+                className="button button--primary button--small"
                 type="button"
                 onClick={() => {
                   openCustomItem(musicQuery.trim(), customDuration.trim());

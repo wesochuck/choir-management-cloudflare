@@ -8,7 +8,7 @@ import {
   updateOrganizationProfile,
   updateOrganizationRosterConfiguration,
 } from "../auth/api";
-import { useFloatingSaveAction } from "./FloatingSaveBar";
+import { useFloatingSaveAction } from "./useFloatingSaveAction";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 interface Props {
