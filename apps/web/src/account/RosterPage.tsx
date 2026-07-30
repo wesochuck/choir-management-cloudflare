@@ -5,6 +5,7 @@ import type {
   OrganizationProfilePerformanceHistoryResponse,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
+  OrganizationRsvp,
   Season,
 } from "@choir/contracts";
 import { organizationInvitationRequestSchema } from "@choir/contracts";
@@ -32,9 +33,11 @@ import {
   listOrganizationSeasons,
   markOrganizationDuesPaidInCash,
   requestPasswordReset,
+  setOrganizationEventRsvp,
   updateOrganizationProfile,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
+import { ProfilePhotoEditor } from "./MemberProfileDirectory";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 const emptyProfile: OrganizationProfileRequest = {
@@ -286,11 +289,41 @@ function attendanceLabel(value: "Absent" | "Pending" | "Present"): string {
   return value === "Present" ? "Attended" : value;
 }
 
-function rsvpLabel(value: "No" | "Pending" | "Yes"): string {
-  return value === "Yes" ? "Yes (Attending)" : value === "No" ? "Declined" : "Pending";
+type RsvpStatus = "No" | "Pending" | "Yes";
+
+function parseRsvpStatus(value: string): RsvpStatus {
+  return value === "Yes" || value === "No" ? value : "Pending";
 }
 
-function PerformanceHistory({ state }: { readonly state: PerformanceHistoryState }) {
+function PerformanceHistory({
+  onRsvpChanged,
+  profileId,
+  state,
+}: {
+  readonly onRsvpChanged: (rsvp: OrganizationRsvp) => void;
+  readonly profileId: string;
+  readonly state: PerformanceHistoryState;
+}) {
+  const [rsvpUpdateError, setRsvpUpdateError] = useState<string | null>(null);
+  const [savingEventId, setSavingEventId] = useState<string | null>(null);
+
+  async function updateRsvp(eventId: string, rsvp: RsvpStatus): Promise<void> {
+    setSavingEventId(eventId);
+    setRsvpUpdateError(null);
+    try {
+      const updated = await setOrganizationEventRsvp(eventId, profileId, rsvp);
+      onRsvpChanged(updated);
+    } catch (error: unknown) {
+      setRsvpUpdateError(
+        error instanceof AuthApiError
+          ? error.message
+          : "The performer's RSVP could not be updated.",
+      );
+    } finally {
+      setSavingEventId(null);
+    }
+  }
+
   if (state.status === "loading") {
     return <p className="notice notice--info">Loading performance history…</p>;
   }
@@ -309,6 +342,11 @@ function PerformanceHistory({ state }: { readonly state: PerformanceHistoryState
   ] as const;
   return (
     <div className="profile-performance-history">
+      {rsvpUpdateError ? (
+        <p className="notice notice--error" role="alert">
+          {rsvpUpdateError}
+        </p>
+      ) : null}
       {sections.map(({ id, label, rows }) => (
         <section aria-labelledby={`profile-performance-${id}`} key={id}>
           <div className="profile-performance-history__heading">
@@ -341,8 +379,26 @@ function PerformanceHistory({ state }: { readonly state: PerformanceHistoryState
                       <span className="status-pill">{attendanceLabel(performance.attendance)}</span>
                     </div>
                     <div className="profile-performance-card__status">
-                      <span className="profile-performance-card__label">RSVP</span>
-                      <span className="status-pill">{rsvpLabel(performance.rsvp)}</span>
+                      <label
+                        className="profile-performance-card__label"
+                        htmlFor={`profile-rsvp-${performance.id}`}
+                      >
+                        RSVP
+                      </label>
+                      <select
+                        aria-label={`RSVP for ${performance.title}`}
+                        className="profile-performance-rsvp-select"
+                        disabled={savingEventId !== null}
+                        id={`profile-rsvp-${performance.id}`}
+                        onChange={(event) => {
+                          void updateRsvp(performance.id, parseRsvpStatus(event.target.value));
+                        }}
+                        value={performance.rsvp}
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="Yes">Yes (Attending)</option>
+                        <option value="No">Declined</option>
+                      </select>
                     </div>
                   </article>
                 );
@@ -505,6 +561,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [rosterImportInspecting, setRosterImportInspecting] = useState(false);
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [profileEmail, setProfileEmail] = useState("");
+  const [profilePhotoFileId, setProfilePhotoFileId] = useState<string | null>(null);
   const [profileTab, setProfileTab] = useState<"info" | "performance" | "dues">("info");
   const [performanceHistory, setPerformanceHistory] = useState<PerformanceHistoryState>({
     status: "idle",
@@ -629,6 +686,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setEditingId(null);
     setProfile(emptyProfile);
     setProfileEmail("");
+    setProfilePhotoFileId(null);
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
@@ -697,6 +755,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setProfileDues({ status: "idle" });
     setProfile(emptyProfile);
     setProfileEmail("");
+    setProfilePhotoFileId(null);
     setResetFeedback(null);
     setError(null);
     setSuccess(null);
@@ -709,6 +768,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
     setPerformanceHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
+    setProfilePhotoFileId(candidate.photoFileId);
     setProfileEmail(
       roster.status === "ready"
         ? (roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "")
@@ -772,6 +832,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       setEditingId(null);
       setProfile(emptyProfile);
       setProfileEmail("");
+      setProfilePhotoFileId(null);
       setResetFeedback(null);
     } catch (saveError: unknown) {
       setError(
@@ -1042,7 +1103,29 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
           </div>
         ) : null}
         {editingId && profileTab === "performance" ? (
-          <PerformanceHistory state={performanceHistory} />
+          <PerformanceHistory
+            onRsvpChanged={(updated) => {
+              setPerformanceHistory((current) => {
+                if (current.status !== "ready") return current;
+                const updateRows = (rows: typeof current.data.upcoming) =>
+                  rows.map((performance) =>
+                    performance.id === updated.eventId
+                      ? { ...performance, rsvp: updated.rsvp }
+                      : performance,
+                  );
+                return {
+                  ...current,
+                  data: {
+                    ...current.data,
+                    past: updateRows(current.data.past),
+                    upcoming: updateRows(current.data.upcoming),
+                  },
+                };
+              });
+            }}
+            profileId={editingId}
+            state={performanceHistory}
+          />
         ) : editingId && profileTab === "dues" ? (
           <ProfileDues
             onCashPaymentMarked={(record) => {
@@ -1075,6 +1158,32 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
                 {error}
               </p>
             ) : null}
+            {editingId ? (
+              <ProfilePhotoEditor
+                onChanged={(fileId) => {
+                  setProfilePhotoFileId(fileId);
+                  setRoster((current) =>
+                    current.status === "ready"
+                      ? {
+                          ...current,
+                          profiles: current.profiles.map((candidate) =>
+                            candidate.id === editingId
+                              ? { ...candidate, photoFileId: fileId }
+                              : candidate,
+                          ),
+                        }
+                      : current,
+                  );
+                }}
+                profile={{
+                  displayName: profile.displayName,
+                  id: editingId,
+                  photoFileId: profilePhotoFileId,
+                }}
+              />
+            ) : (
+              <p className="field-help">Save the Profile before adding a profile photo.</p>
+            )}
             <div className="field">
               <label htmlFor="roster-profile-name">Display name</label>
               <input

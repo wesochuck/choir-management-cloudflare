@@ -4,6 +4,7 @@ export type DataTableSortDirection = "asc" | "desc";
 
 export interface DataTableColumn<T> {
   readonly header: string;
+  readonly headerContent?: ReactNode;
   readonly id: string;
   readonly mobileLabel?: string;
   readonly render: (row: T) => ReactNode;
@@ -130,7 +131,7 @@ export function DataTable<T>({
                       </span>
                     </button>
                   ) : (
-                    column.header
+                    (column.headerContent ?? column.header)
                   )}
                 </th>
               );

@@ -10,6 +10,7 @@ import type {
   OrganizationProfile,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
+import { zonedLocalDateTimeToUtc } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 
 import {
@@ -17,6 +18,7 @@ import {
   createOrganizationAudition,
   deleteOrganizationAudition,
   generateAuditionTokens,
+  getOrganizationCalendarSettings,
   getOrganizationAuditionSettings,
   listOrganizationEvents,
   listOrganizationAuditions,
@@ -393,12 +395,14 @@ function SettingsForm({
   onCancel,
   onSave,
   performances,
+  timezone,
 }: {
   readonly administratorRecipients: readonly AdministratorRecipient[];
   readonly initial: OrganizationAuditionSettings;
   readonly onCancel: () => void;
   readonly onSave: (settings: OrganizationAuditionSettings) => Promise<void>;
   readonly performances: readonly OrganizationEvent[];
+  readonly timezone: string;
 }) {
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -407,12 +411,22 @@ function SettingsForm({
   const [slotEnd, setSlotEnd] = useState("");
   const [slotDate, setSlotDate] = useState("");
   const [slotInterval, setSlotInterval] = useState("15");
+  const [slotError, setSlotError] = useState<string | null>(null);
   const [recipientEmail, setRecipientEmail] = useState("");
+
+  function timePart(value: string): string {
+    const separatorIndex = value.indexOf("T");
+    return separatorIndex >= 0 ? value.slice(separatorIndex + 1, separatorIndex + 6) : value;
+  }
+
   function addSlot() {
-    if (!slotStart || !slotEnd) return;
-    const startsAt = new Date(slotStart).toISOString();
-    const endsAt = new Date(slotEnd).toISOString();
-    if (startsAt >= endsAt) return;
+    setSlotError(null);
+    const startsAt = zonedLocalDateTimeToUtc(slotStart, timezone);
+    const endsAt = zonedLocalDateTimeToUtc(slotEnd, timezone);
+    if (!startsAt || !endsAt || startsAt >= endsAt) {
+      setSlotError(`Enter a valid start and end time in ${timezone}.`);
+      return;
+    }
     setDraft((current) => ({
       ...current,
       slots: [...current.slots, { endsAt, id: crypto.randomUUID(), startsAt }].toSorted((a, b) =>
@@ -423,11 +437,17 @@ function SettingsForm({
     setSlotEnd("");
   }
   function generateSlots() {
-    if (!slotDate || !slotStart || !slotEnd) return;
-    const start = new Date(`${slotDate}T${slotStart}`);
-    const end = new Date(`${slotDate}T${slotEnd}`);
+    setSlotError(null);
+    const startTime = timePart(slotStart);
+    const endTime = timePart(slotEnd);
+    const startsAt = zonedLocalDateTimeToUtc(`${slotDate}T${startTime}`, timezone);
+    const endsAt = zonedLocalDateTimeToUtc(`${slotDate}T${endTime}`, timezone);
     const intervalMinutes = Number(slotInterval);
+    const start = startsAt ? new Date(startsAt) : null;
+    const end = endsAt ? new Date(endsAt) : null;
     if (
+      !start ||
+      !end ||
       Number.isNaN(start.getTime()) ||
       Number.isNaN(end.getTime()) ||
       start >= end ||
@@ -435,6 +455,7 @@ function SettingsForm({
       intervalMinutes < 5 ||
       intervalMinutes > 240
     ) {
+      setSlotError(`Enter a valid date, time range, and interval in ${timezone}.`);
       return;
     }
     const slots: { endsAt: string; id: string; startsAt: string }[] = [];
@@ -546,6 +567,7 @@ function SettingsForm({
               type="date"
               value={slotDate}
               onChange={(event) => {
+                setSlotError(null);
                 setSlotDate(event.target.value);
               }}
             />
@@ -559,6 +581,7 @@ function SettingsForm({
               type="number"
               value={slotInterval}
               onChange={(event) => {
+                setSlotError(null);
                 setSlotInterval(event.target.value);
               }}
             />
@@ -571,6 +594,7 @@ function SettingsForm({
               type="datetime-local"
               value={slotStart}
               onChange={(event) => {
+                setSlotError(null);
                 setSlotStart(event.target.value);
               }}
             />
@@ -581,11 +605,18 @@ function SettingsForm({
               type="datetime-local"
               value={slotEnd}
               onChange={(event) => {
+                setSlotError(null);
                 setSlotEnd(event.target.value);
               }}
             />
           </label>
         </div>
+        <p className="field-help">Times are entered in {timezone}.</p>
+        {slotError ? (
+          <p className="notice notice--error" role="alert">
+            {slotError}
+          </p>
+        ) : null}
         <button className="button button--secondary" onClick={generateSlots} type="button">
           Generate slots
         </button>
@@ -1001,6 +1032,7 @@ export function AuditionManager({ enabled }: Props) {
   const [state, setState] = useState<ManagerState>({ status: "loading" });
   const [settings, setSettings] = useState<OrganizationAuditionSettings>(fallbackSettings);
   const [performances, setPerformances] = useState<readonly OrganizationEvent[]>([]);
+  const [timezone, setTimezone] = useState("UTC");
   const [activeTab, setActiveTab] = useState<AuditionTab>("inquiries");
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationAudition | null>(null);
@@ -1034,6 +1066,13 @@ export function AuditionManager({ enabled }: Props) {
       .then(setSettings)
       .catch(() => {
         setSettings(fallbackSettings);
+      });
+    getOrganizationCalendarSettings(controller.signal)
+      .then(({ timezone: nextTimezone }) => {
+        setTimezone(nextTimezone);
+      })
+      .catch(() => {
+        setTimezone("UTC");
       });
     listOrganizationEvents(controller.signal)
       .then(setPerformances)
@@ -1267,6 +1306,7 @@ export function AuditionManager({ enabled }: Props) {
             }}
             onSave={saveSettings}
             performances={performances}
+            timezone={timezone}
           />
         </div>
       ) : (
