@@ -758,6 +758,60 @@ footer {
   padding-block: 1rem;
 }
 
+.profile-photo-controls__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.profile-photo-controls__heading .field-help {
+  margin: 0.25rem 0 0;
+}
+
+.profile-photo-camera {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 68%);
+}
+
+.profile-photo-camera__panel {
+  display: grid;
+  width: min(32rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  gap: 1rem;
+  overflow-y: auto;
+  padding: clamp(1rem, 4vw, 1.5rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: 0 1rem 2.5rem var(--color-shadow);
+}
+
+.profile-photo-camera__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.profile-photo-camera__header h2 {
+  margin: 0.2rem 0 0;
+}
+
+.profile-photo-camera__preview {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-background);
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
 .profile-facts p {
   margin: 0;
   padding: 0.75rem;
@@ -873,6 +927,11 @@ footer {
 .profile-performance-card__status .status-pill {
   justify-self: start;
   white-space: nowrap;
+}
+
+.profile-performance-rsvp-select {
+  width: 100%;
+  min-width: 0;
 }
 
 .profile-dues-history {
@@ -1271,28 +1330,19 @@ button.music-genre-chip.is-selected {
   margin-top: 1rem;
 }
 
-.music-selection-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-info-surface);
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
-}
-
-.music-selection-toolbar .button-row {
-  gap: 0.5rem;
-}
-
 .music-catalog-table .data-table th:first-child,
 .music-catalog-table .data-table td:first-child {
   width: 1%;
   white-space: nowrap;
+}
+
+.signed-in-main input[type="checkbox"].music-catalog-select-checkbox {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
 }
 
 .music-bulk-edit-fields {
@@ -5779,19 +5829,6 @@ footer {
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.5rem;
-  }
-
-  .music-selection-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .music-selection-toolbar .button-row {
-    justify-content: stretch;
-  }
-
-  .music-selection-toolbar .button {
-    flex: 1;
   }
 
   .music-bulk-edit-field {

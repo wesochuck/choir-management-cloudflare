@@ -390,51 +390,49 @@ function MusicCatalogTable({
   });
   const sortParent = (piece: OrganizationMusicPiece): OrganizationMusicPiece =>
     piece.parentId ? (parents.get(piece.parentId) ?? piece) : piece;
+  const selectedIdSet = new Set(selectedIds);
+  const selectedVisibleCount = visiblePieces.reduce(
+    (count, piece) => count + (selectedIdSet.has(piece.id) ? 1 : 0),
+    0,
+  );
+  const allVisibleSelected =
+    visiblePieces.length > 0 && selectedVisibleCount === visiblePieces.length;
+  const someVisibleSelected = selectedVisibleCount > 0;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [allVisibleSelected, someVisibleSelected]);
 
   return (
     <div className="music-catalog-table">
-      <div className="music-selection-toolbar" role="group" aria-label="Music selection">
-        <span>
-          {selectedIds.length > 0
-            ? `${String(selectedIds.length)} piece${selectedIds.length === 1 ? "" : "s"} selected`
-            : "Select pieces to edit them together."}
-        </span>
-        <div className="button-row">
-          <button
-            className="button button--secondary button--small"
-            disabled={
-              visiblePieces.length === 0 ||
-              visiblePieces.every(({ id }) => selectedIds.includes(id))
-            }
-            type="button"
-            onClick={() => {
-              onSelectMany(visiblePieces.map(({ id }) => id));
-            }}
-          >
-            Select all shown
-          </button>
-          <button
-            className="button button--secondary button--small"
-            disabled={selectedIds.length === 0}
-            type="button"
-            onClick={() => {
-              onSelectMany([]);
-            }}
-          >
-            Clear selection
-          </button>
-        </div>
-      </div>
       <DataTable
         columns={[
           {
             header: "Select",
+            headerContent: (
+              <input
+                ref={selectAllRef}
+                aria-label="Select all shown music pieces"
+                aria-checked={allVisibleSelected ? "true" : someVisibleSelected ? "mixed" : "false"}
+                checked={allVisibleSelected}
+                className="music-catalog-select-checkbox"
+                disabled={visiblePieces.length === 0}
+                type="checkbox"
+                onChange={(event) => {
+                  onSelectMany(event.target.checked ? visiblePieces.map(({ id }) => id) : []);
+                }}
+              />
+            ),
             id: "select",
             mobileLabel: "Select",
             render: (piece) => (
               <input
                 aria-label={`Select ${piece.title}`}
-                checked={selectedIds.includes(piece.id)}
+                checked={selectedIdSet.has(piece.id)}
+                className="music-catalog-select-checkbox"
                 type="checkbox"
                 onChange={() => {
                   onToggleSelection(piece.id);

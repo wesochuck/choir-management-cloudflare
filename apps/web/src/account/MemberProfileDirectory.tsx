@@ -1,5 +1,5 @@
 import type { MemberProfile, OrganizationDirectoryProfile } from "@choir/contracts";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -11,6 +11,8 @@ import {
   uploadPrivateOrganizationFile,
 } from "../auth/api";
 
+type ProfilePhotoTarget = Pick<MemberProfile, "displayName" | "id" | "photoFileId">;
+
 type ProfileState =
   | { readonly status: "error" | "loading" | "missing" }
   | { readonly profile: MemberProfile; readonly status: "ready" };
@@ -19,16 +21,130 @@ type DirectoryState =
   | { readonly status: "error" | "loading" }
   | { readonly profiles: readonly OrganizationDirectoryProfile[]; readonly status: "ready" };
 
-function ProfilePhotoEditor({
+// eslint-disable-next-line complexity -- this editor coordinates upload, camera, preview, and removal states.
+export function ProfilePhotoEditor({
   onChanged,
   profile,
 }: {
   readonly onChanged: (fileId: string | null) => void;
-  readonly profile: MemberProfile;
+  readonly profile: ProfilePhotoTarget;
 }) {
   const [busy, setBusy] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState<readonly MediaDeviceInfo[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const cameraCloseRef = useRef<HTMLButtonElement>(null);
+  const cameraTriggerRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingPreviewRef = useRef<string | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const stopCamera = useCallback((): void => {
+    streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
+    streamRef.current = null;
+  }, []);
+
+  const setPendingFile = useCallback((nextFile: File | null): void => {
+    if (pendingPreviewRef.current) URL.revokeObjectURL(pendingPreviewRef.current);
+    const nextPreview = nextFile ? URL.createObjectURL(nextFile) : null;
+    pendingPreviewRef.current = nextPreview;
+    setFile(nextFile);
+    setPendingPreview(nextPreview);
+  }, []);
+
+  useEffect(() => {
+    if (!cameraOpen) {
+      stopCamera();
+      return;
+    }
+
+    const lifecycle: { active: boolean } = { active: true };
+    const isActive = (): boolean => lifecycle.active;
+
+    // eslint-disable-next-line complexity -- camera startup handles permission, device discovery, and stream cleanup.
+    async function startCamera(): Promise<void> {
+      setCameraLoading(true);
+      setCameraError(null);
+      try {
+        const mediaDevices = "mediaDevices" in navigator ? navigator.mediaDevices : undefined;
+        if (!mediaDevices) {
+          throw new Error("camera_unsupported");
+        }
+
+        let devices = await mediaDevices.enumerateDevices();
+        let videoInputs = devices.filter(({ kind }) => kind === "videoinput");
+        if (videoInputs.length === 0 || !videoInputs.some(({ label }) => label)) {
+          const permissionStream = await mediaDevices.getUserMedia({ video: true });
+          permissionStream.getTracks().forEach((track) => {
+            track.stop();
+          });
+          devices = await mediaDevices.enumerateDevices();
+          videoInputs = devices.filter(({ kind }) => kind === "videoinput");
+        }
+        if (!isActive()) return;
+
+        setCameraDevices(videoInputs);
+        const defaultCameraId = videoInputs[0]?.deviceId ?? "";
+        const cameraId = selectedCameraId || defaultCameraId;
+        if (!selectedCameraId && defaultCameraId) setSelectedCameraId(defaultCameraId);
+
+        const stream = await mediaDevices.getUserMedia({
+          video: cameraId
+            ? { deviceId: { exact: cameraId }, height: { ideal: 640 }, width: { ideal: 640 } }
+            : { facingMode: "user", height: { ideal: 640 }, width: { ideal: 640 } },
+        });
+        if (!isActive()) {
+          stream.getTracks().forEach((track) => {
+            track.stop();
+          });
+          return;
+        }
+
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      } catch (error: unknown) {
+        if (!isActive()) return;
+        setCameraError(
+          error instanceof DOMException && error.name === "NotAllowedError"
+            ? "Camera access was denied. Check your browser or system permissions."
+            : "The camera could not be opened. You can choose a photo file instead.",
+        );
+      } finally {
+        if (isActive()) setCameraLoading(false);
+      }
+    }
+
+    void startCamera();
+    return () => {
+      lifecycle.active = false;
+      stopCamera();
+    };
+  }, [cameraOpen, selectedCameraId, stopCamera]);
+
+  useEffect(() => stopCamera, [stopCamera]);
+
+  useEffect(() => {
+    if (!cameraOpen) return;
+    const trigger = cameraTriggerRef.current;
+    cameraCloseRef.current?.focus();
+    return () => {
+      trigger?.focus();
+    };
+  }, [cameraOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingPreviewRef.current) URL.revokeObjectURL(pendingPreviewRef.current);
+    };
+  }, []);
 
   async function savePhoto(): Promise<void> {
     if (!file) return;
@@ -46,8 +162,9 @@ function ProfilePhotoEditor({
     try {
       uploadedFileId = (await uploadPrivateOrganizationFile(file)).id;
       await setOrganizationProfilePhoto(profile.id, uploadedFileId);
-      setFile(null);
-      setMessage("Your Profile photo was updated.");
+      setPendingFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setMessage("Profile photo was updated.");
       onChanged(uploadedFileId);
     } catch (error: unknown) {
       if (uploadedFileId) {
@@ -56,24 +173,75 @@ function ProfilePhotoEditor({
         }).catch(() => undefined);
       }
       setMessage(
-        error instanceof AuthApiError ? error.message : "Your photo could not be updated.",
+        error instanceof AuthApiError ? error.message : "The Profile photo could not be updated.",
       );
     } finally {
       setBusy(false);
     }
   }
 
+  async function capturePhoto(): Promise<void> {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      setCameraError("The camera preview is not ready yet. Try again in a moment.");
+      return;
+    }
+    const side = Math.min(video.videoWidth, video.videoHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = side;
+    canvas.height = side;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("The camera photo could not be prepared. Choose a photo file instead.");
+      return;
+    }
+    context.translate(side, 0);
+    context.scale(-1, 1);
+    context.drawImage(
+      video,
+      (video.videoWidth - side) / 2,
+      (video.videoHeight - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      side,
+      side,
+    );
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.92);
+    });
+    if (!blob) {
+      setCameraError("The camera photo could not be prepared. Choose a photo file instead.");
+      return;
+    }
+    setPendingFile(
+      new File([blob], `profile-photo-${String(Date.now())}.jpg`, { type: "image/jpeg" }),
+    );
+    stopCamera();
+    setCameraOpen(false);
+    setCameraError(null);
+    setMessage("Photo captured. Upload it to save the Profile photo.");
+  }
+
+  function closeCamera(): void {
+    stopCamera();
+    setCameraOpen(false);
+    setCameraError(null);
+    setCameraLoading(false);
+  }
+
   async function removePhoto(): Promise<void> {
-    if (!profile.photoFileId || !window.confirm("Remove your Profile photo?")) return;
+    if (!profile.photoFileId || !window.confirm("Remove this Profile photo?")) return;
     setBusy(true);
     setMessage(null);
     try {
       await deleteOrganizationProfilePhoto(profile.id);
-      setMessage("Your Profile photo was removed.");
+      setMessage("Profile photo was removed.");
       onChanged(null);
     } catch (error: unknown) {
       setMessage(
-        error instanceof AuthApiError ? error.message : "Your photo could not be removed.",
+        error instanceof AuthApiError ? error.message : "The Profile photo could not be removed.",
       );
     } finally {
       setBusy(false);
@@ -81,40 +249,166 @@ function ProfilePhotoEditor({
   }
 
   return (
-    <div className="form-stack profile-photo-controls">
-      <div className="profile-photo">
-        {profile.photoFileId ? (
-          <img
-            alt={`${profile.displayName} Profile`}
-            src={`/api/organization/files/${encodeURIComponent(profile.photoFileId)}`}
-          />
-        ) : (
-          <span aria-hidden="true">{profile.displayName.slice(0, 1).toUpperCase()}</span>
-        )}
-      </div>
-      <label className="field">
-        Profile photo
+    <>
+      <div className="form-stack profile-photo-controls">
+        <div className="profile-photo-controls__heading">
+          <div className="profile-photo">
+            {pendingPreview || profile.photoFileId ? (
+              <img
+                alt={`${profile.displayName} Profile photo`}
+                src={
+                  pendingPreview ??
+                  `/api/organization/files/${encodeURIComponent(profile.photoFileId ?? "")}`
+                }
+              />
+            ) : (
+              <span aria-hidden="true">{profile.displayName.slice(0, 1).toUpperCase()}</span>
+            )}
+          </div>
+          <div>
+            <strong>Profile photo</strong>
+            <p className="field-help">Add a photo for this Profile using a file or camera.</p>
+          </div>
+        </div>
         <input
+          ref={fileInputRef}
           accept="image/jpeg,image/png,image/webp"
+          className="sr-only"
+          id={`profile-photo-file-${profile.id}`}
           type="file"
           onChange={(event) => {
-            setFile(event.target.files?.[0] ?? null);
+            setPendingFile(event.target.files?.[0] ?? null);
           }}
         />
-      </label>
-      <div className="button-row">
-        <button disabled={busy || !file} onClick={() => void savePhoto()} type="button">
-          Upload photo
-        </button>
-        {profile.photoFileId ? (
-          <button disabled={busy} onClick={() => void removePhoto()} type="button">
-            Remove photo
+        <div className="button-row">
+          <label
+            className="button button--secondary button--small"
+            htmlFor={`profile-photo-file-${profile.id}`}
+          >
+            Choose photo
+          </label>
+          <button
+            className="button button--secondary button--small"
+            disabled={busy || cameraLoading}
+            onClick={() => {
+              setCameraError(null);
+              setCameraOpen(true);
+            }}
+            ref={cameraTriggerRef}
+            type="button"
+          >
+            Take photo
           </button>
-        ) : null}
+          <button
+            className="button button--primary button--small"
+            disabled={busy || !file}
+            onClick={() => void savePhoto()}
+            type="button"
+          >
+            Upload photo
+          </button>
+          {profile.photoFileId ? (
+            <button
+              className="button button--secondary button--small"
+              disabled={busy}
+              onClick={() => void removePhoto()}
+              type="button"
+            >
+              Remove photo
+            </button>
+          ) : null}
+        </div>
+        {file ? <p className="field-help">Ready to upload: {file.name}</p> : null}
+        <p className="field-help">JPEG, PNG, or WebP; up to 5 MB.</p>
+        {message ? <p role="status">{message}</p> : null}
       </div>
-      <p className="field-help">JPEG, PNG, or WebP; up to 5 MB.</p>
-      {message ? <p role="status">{message}</p> : null}
-    </div>
+      {cameraOpen ? (
+        <div
+          aria-labelledby={`profile-photo-camera-title-${profile.id}`}
+          aria-modal="true"
+          className="profile-photo-camera"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeCamera();
+          }}
+          role="dialog"
+        >
+          <div className="profile-photo-camera__panel">
+            <div className="profile-photo-camera__header">
+              <div>
+                <p className="eyebrow">Profile photo</p>
+                <h2 id={`profile-photo-camera-title-${profile.id}`}>Take a photo</h2>
+              </div>
+              <button
+                aria-label="Close camera"
+                className="dialog__close"
+                onClick={closeCamera}
+                ref={cameraCloseRef}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            {cameraError ? (
+              <div className="notice notice--error" role="alert">
+                <p>{cameraError}</p>
+                <button
+                  className="button button--secondary button--small"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    closeCamera();
+                  }}
+                  type="button"
+                >
+                  Choose a photo file
+                </button>
+              </div>
+            ) : cameraLoading ? (
+              <p className="notice notice--info">Opening the camera…</p>
+            ) : (
+              <video
+                aria-label="Camera preview"
+                autoPlay
+                className="profile-photo-camera__preview"
+                muted
+                playsInline
+                ref={videoRef}
+              />
+            )}
+            {cameraDevices.length > 1 && !cameraError && !cameraLoading ? (
+              <label className="field">
+                Camera
+                <select
+                  value={selectedCameraId}
+                  onChange={(event) => {
+                    setSelectedCameraId(event.target.value);
+                  }}
+                >
+                  {cameraDevices.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Camera ${String(index + 1)}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <div className="dialog__actions">
+              <button className="button button--secondary" onClick={closeCamera} type="button">
+                Cancel
+              </button>
+              {!cameraError && !cameraLoading ? (
+                <button
+                  className="button button--primary"
+                  onClick={() => void capturePhoto()}
+                  type="button"
+                >
+                  Capture photo
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
