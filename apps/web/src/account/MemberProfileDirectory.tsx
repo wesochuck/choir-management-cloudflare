@@ -32,6 +32,7 @@ export function ProfilePhotoEditor({
   const [busy, setBusy] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraDevices, setCameraDevices] = useState<readonly MediaDeviceInfo[]>([]);
   const [file, setFile] = useState<File | null>(null);
@@ -72,6 +73,7 @@ export function ProfilePhotoEditor({
     // eslint-disable-next-line complexity -- camera startup handles permission, device discovery, and stream cleanup.
     async function startCamera(): Promise<void> {
       setCameraLoading(true);
+      setCameraReady(false);
       setCameraError(null);
       try {
         const mediaDevices = "mediaDevices" in navigator ? navigator.mediaDevices : undefined;
@@ -109,7 +111,6 @@ export function ProfilePhotoEditor({
         }
 
         streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (error: unknown) {
         if (!isActive()) return;
         setCameraError(
@@ -128,6 +129,37 @@ export function ProfilePhotoEditor({
       stopCamera();
     };
   }, [cameraOpen, selectedCameraId, stopCamera]);
+
+  useEffect(() => {
+    if (!cameraOpen || cameraLoading || cameraError || !streamRef.current) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video) return;
+    let cancelled = false;
+    const markReady = (): void => {
+      if (!cancelled && video.videoWidth > 0 && video.videoHeight > 0) {
+        setCameraReady(true);
+      }
+    };
+    video.addEventListener("loadedmetadata", markReady);
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    void video
+      .play()
+      .then(() => {
+        markReady();
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCameraError("The camera preview could not start. Choose a photo file instead.");
+        }
+      });
+    return () => {
+      cancelled = true;
+      video.removeEventListener("loadedmetadata", markReady);
+    };
+  }, [cameraError, cameraLoading, cameraOpen]);
 
   useEffect(() => stopCamera, [stopCamera]);
 
@@ -219,6 +251,7 @@ export function ProfilePhotoEditor({
       new File([blob], `profile-photo-${String(Date.now())}.jpg`, { type: "image/jpeg" }),
     );
     stopCamera();
+    setCameraReady(false);
     setCameraOpen(false);
     setCameraError(null);
     setMessage("Photo captured. Upload it to save the Profile photo.");
@@ -226,6 +259,7 @@ export function ProfilePhotoEditor({
 
   function closeCamera(): void {
     stopCamera();
+    setCameraReady(false);
     setCameraOpen(false);
     setCameraError(null);
     setCameraLoading(false);
@@ -292,6 +326,7 @@ export function ProfilePhotoEditor({
             disabled={busy || cameraLoading}
             onClick={() => {
               setCameraError(null);
+              setCameraReady(false);
               setCameraOpen(true);
             }}
             ref={cameraTriggerRef}
@@ -362,17 +397,18 @@ export function ProfilePhotoEditor({
                   Choose a photo file
                 </button>
               </div>
-            ) : cameraLoading ? (
-              <p className="notice notice--info">Opening the camera…</p>
             ) : (
-              <video
-                aria-label="Camera preview"
-                autoPlay
-                className="profile-photo-camera__preview"
-                muted
-                playsInline
-                ref={videoRef}
-              />
+              <>
+                <video
+                  aria-label="Camera preview"
+                  autoPlay
+                  className="profile-photo-camera__preview"
+                  muted
+                  playsInline
+                  ref={videoRef}
+                />
+                {cameraLoading ? <p className="notice notice--info">Opening the camera…</p> : null}
+              </>
             )}
             {cameraDevices.length > 1 && !cameraError && !cameraLoading ? (
               <label className="field">
@@ -398,6 +434,7 @@ export function ProfilePhotoEditor({
               {!cameraError && !cameraLoading ? (
                 <button
                   className="button button--primary"
+                  disabled={!cameraReady}
                   onClick={() => void capturePhoto()}
                   type="button"
                 >

@@ -18,6 +18,7 @@ export default defineConfig(async () => ({
   ],
   test: {
     exclude: ["**/node_modules/**", "**/dist/**"],
+    fileParallelism: false,
     include: ["apps/**/*.integration.test.ts"],
     provide: {
       controlMigrations: await readD1Migrations("apps/worker/src/control/migrations"),
