@@ -314,7 +314,18 @@ describe("Organization communications", () => {
         )
       ).json(),
     );
-    expect(templates.templates.map(({ title }) => title)).toEqual(["Welcome"]);
+    expect(templates.templates.map(({ title }) => title).sort()).toEqual([
+      "Dues Payment Notice",
+      "General Announcement",
+      "Weather / Schedule Delay Alert",
+      "Welcome",
+    ]);
+    expect(
+      templates.templates
+        .filter(({ isSystem }) => isSystem)
+        .map(({ title }) => title)
+        .sort(),
+    ).toEqual(["Dues Payment Notice", "General Announcement", "Weather / Schedule Delay Alert"]);
     expect(
       communicationDeleteResponseSchema.parse(
         await (

@@ -226,7 +226,10 @@ function TemplateLibrary({
             <li key={template.id}>
               <div>
                 <strong>{template.title}</strong>
-                <p>{template.channel}</p>
+                <p>
+                  {template.channel}
+                  {template.isSystem ? " · System template" : ""}
+                </p>
               </div>
               <span className="button-row">
                 <button

@@ -6,6 +6,60 @@ export interface OrganizationSchemaMigration {
   readonly version: number;
 }
 
+/**
+ * These are the legacy system templates whose placeholders are supported by the
+ * current Communication Center renderer. Templates that need RSVP/player links,
+ * ticket or donation fields, auditions, or attendance-report data remain listed
+ * in docs/communications-system-template-parity.md until those delivery paths
+ * expose the corresponding context.
+ */
+const supportedSystemCommunicationTemplates = [
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hello everyone,\n\nI have an important announcement regarding our upcoming schedule.\n\n[Your message here]\n\nBest regards,\nChoir Management",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000001",
+    subject: "Choir Announcement",
+    title: "General Announcement",
+  },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hello {singerName},\n\nOur seasonal dues for the current term are now being collected. If you haven't had a chance to pay yet, please do so at your earliest convenience.\n\nIf you've already paid, please ignore this message.\n\nThank you for your support!",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000002",
+    subject: "Choir Dues Payment Reminder",
+    title: "Dues Payment Notice",
+  },
+  {
+    channel: "Both",
+    contentMarkdown:
+      "Attention Choir Members,\n\nDue to inclement weather, today's rehearsal/performance for {eventTitle} has been delayed or cancelled.\n\nNew Time/Status: [Details here]\n\nPlease stay safe!",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000003",
+    subject: "IMPORTANT: Schedule Change for {eventTitle}",
+    title: "Weather / Schedule Delay Alert",
+  },
+] as const;
+
+function seedSupportedSystemCommunicationTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of supportedSystemCommunicationTemplates) {
+    sql.exec(
+      `INSERT INTO communication_templates
+        (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, 1, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM communication_templates WHERE id = ?)`,
+      template.id,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      now,
+      template.id,
+    );
+  }
+}
+
 export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[] = [
   {
     version: 1,
@@ -764,6 +818,11 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         updated_at TEXT NOT NULL
       ) STRICT`,
     ],
+  },
+  {
+    version: 41,
+    apply: seedSupportedSystemCommunicationTemplates,
+    statements: [],
   },
 ] as const;
 
