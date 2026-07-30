@@ -127,7 +127,7 @@ describe("fleet Organization schema preparation", () => {
     }
   });
 
-  it("marks the run failed when a registry row cannot prove its Durable Object identity", async () => {
+  it("records a terminal failure when a registry row cannot prove its Durable Object identity", async () => {
     const timestamp = "2026-07-21T18:00:00.000Z";
     await controlDatabase
       .prepare(
@@ -149,8 +149,9 @@ describe("fleet Organization schema preparation", () => {
           requestId: "55555555-5555-4555-8555-555555555555",
         },
       );
-      const instances = await introspector.get();
-      await instances[0]?.waitForStatus("errored");
+      const [instance] = await introspector.get();
+      if (!instance) throw new Error("The fleet schema workflow instance was not created.");
+      await instance.waitForStatus("complete");
       await expect(
         controlDatabase
           .prepare(

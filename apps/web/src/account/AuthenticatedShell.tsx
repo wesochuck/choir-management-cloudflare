@@ -7,7 +7,7 @@ import {
   type OrganizationDashboardSummaryResponse,
 } from "@choir/contracts";
 import { Sheet } from "@choir/ui";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   AuthApiError,
@@ -17,44 +17,131 @@ import {
   getPlatformMfaStatus,
   signOut,
 } from "../auth/api";
-import { AccountSecurity } from "./AccountSecurity";
-import { AccountView } from "./AccountView";
-import { AttendanceManager } from "./AttendanceManager";
-import { AuditionManager } from "./AuditionManager";
-import { CalendarSubscription } from "./CalendarSubscription";
-import { CommunicationCenter } from "./CommunicationCenter";
-import { DonationsManager } from "./DonationsManager";
-import { EventsPage } from "./EventsPage";
 import { FloatingSaveBarProvider } from "./FloatingSaveBar";
-import { LearningTrackPlayer } from "./LearningTrackPlayer";
-import { MemberProfileDirectory } from "./MemberProfileDirectory";
-import { MemberDuesPage } from "./MemberDuesPage";
-import { ModuleSettingsView } from "./ModuleSettingsView";
-import { MusicCatalog } from "./MusicCatalog";
-import { MySchedule } from "./MySchedule";
-import { OrganizationAccess } from "./OrganizationAccess";
-import { OrganizationResources } from "./OrganizationResources";
-import { OrganizationSettingsPage } from "./OrganizationSettingsPage";
 import { OrganizationTerminologyProvider } from "./organizationTerminology";
-import { PlatformAccess } from "./PlatformAccess";
-import { PlatformSetupMonitor } from "./PlatformSetupMonitor";
-import { PollsPage } from "./PollsPage";
-import { PublicWebsiteManager } from "./PublicWebsiteManager";
-import { ReportsView } from "./ReportsView";
-import { RosterPage } from "./RosterPage";
-import { RsvpManagerPage } from "./RsvpManagerPage";
-import { SeasonsManager } from "./SeasonsManager";
-import { SeatingFinder } from "./SeatingFinder";
-import { SeatingManager } from "./SeatingManager";
-import { SetListManager } from "./SetListManager";
-import { SetupChecklistView } from "./SetupChecklistView";
-import { TicketingManager } from "./TicketingManager";
-import { VenuesPage } from "./VenuesPage";
 
 type Workspace = "account" | "member" | "organization" | "platform";
 type ThemePreference = "dark" | "light";
 
 const themeStoragePrefix = "choir-theme:";
+
+const AccountSecurity = lazy(() =>
+  import("./AccountSecurity").then(({ AccountSecurity: component }) => ({ default: component })),
+);
+const AccountView = lazy(() =>
+  import("./AccountView").then(({ AccountView: component }) => ({ default: component })),
+);
+const AttendanceManager = lazy(() =>
+  import("./AttendanceManager").then(({ AttendanceManager: component }) => ({
+    default: component,
+  })),
+);
+const AuditionManager = lazy(() =>
+  import("./AuditionManager").then(({ AuditionManager: component }) => ({ default: component })),
+);
+const CalendarSubscription = lazy(() =>
+  import("./CalendarSubscription").then(({ CalendarSubscription: component }) => ({
+    default: component,
+  })),
+);
+const CommunicationCenter = lazy(() =>
+  import("./CommunicationCenter").then(({ CommunicationCenter: component }) => ({
+    default: component,
+  })),
+);
+const DonationsManager = lazy(() =>
+  import("./DonationsManager").then(({ DonationsManager: component }) => ({ default: component })),
+);
+const EventsPage = lazy(() =>
+  import("./EventsPage").then(({ EventsPage: component }) => ({ default: component })),
+);
+const LearningTrackPlayer = lazy(() =>
+  import("./LearningTrackPlayer").then(({ LearningTrackPlayer: component }) => ({
+    default: component,
+  })),
+);
+const MemberProfileDirectory = lazy(() =>
+  import("./MemberProfileDirectory").then(({ MemberProfileDirectory: component }) => ({
+    default: component,
+  })),
+);
+const MemberDuesPage = lazy(() =>
+  import("./MemberDuesPage").then(({ MemberDuesPage: component }) => ({ default: component })),
+);
+const ModuleSettingsView = lazy(() =>
+  import("./ModuleSettingsView").then(({ ModuleSettingsView: component }) => ({
+    default: component,
+  })),
+);
+const MusicCatalog = lazy(() =>
+  import("./MusicCatalog").then(({ MusicCatalog: component }) => ({ default: component })),
+);
+const MySchedule = lazy(() =>
+  import("./MySchedule").then(({ MySchedule: component }) => ({ default: component })),
+);
+const OrganizationAccess = lazy(() =>
+  import("./OrganizationAccess").then(({ OrganizationAccess: component }) => ({
+    default: component,
+  })),
+);
+const OrganizationResources = lazy(() =>
+  import("./OrganizationResources").then(({ OrganizationResources: component }) => ({
+    default: component,
+  })),
+);
+const OrganizationSettingsPage = lazy(() =>
+  import("./OrganizationSettingsPage").then(({ OrganizationSettingsPage: component }) => ({
+    default: component,
+  })),
+);
+const PlatformAccess = lazy(() =>
+  import("./PlatformAccess").then(({ PlatformAccess: component }) => ({ default: component })),
+);
+const PlatformSetupMonitor = lazy(() =>
+  import("./PlatformSetupMonitor").then(({ PlatformSetupMonitor: component }) => ({
+    default: component,
+  })),
+);
+const PollsPage = lazy(() =>
+  import("./PollsPage").then(({ PollsPage: component }) => ({ default: component })),
+);
+const PublicWebsiteManager = lazy(() =>
+  import("./PublicWebsiteManager").then(({ PublicWebsiteManager: component }) => ({
+    default: component,
+  })),
+);
+const ReportsView = lazy(() =>
+  import("./ReportsView").then(({ ReportsView: component }) => ({ default: component })),
+);
+const RosterPage = lazy(() =>
+  import("./RosterPage").then(({ RosterPage: component }) => ({ default: component })),
+);
+const RsvpManagerPage = lazy(() =>
+  import("./RsvpManagerPage").then(({ RsvpManagerPage: component }) => ({ default: component })),
+);
+const SeasonsManager = lazy(() =>
+  import("./SeasonsManager").then(({ SeasonsManager: component }) => ({ default: component })),
+);
+const SeatingFinder = lazy(() =>
+  import("./SeatingFinder").then(({ SeatingFinder: component }) => ({ default: component })),
+);
+const SeatingManager = lazy(() =>
+  import("./SeatingManager").then(({ SeatingManager: component }) => ({ default: component })),
+);
+const SetListManager = lazy(() =>
+  import("./SetListManager").then(({ SetListManager: component }) => ({ default: component })),
+);
+const SetupChecklistView = lazy(() =>
+  import("./SetupChecklistView").then(({ SetupChecklistView: component }) => ({
+    default: component,
+  })),
+);
+const TicketingManager = lazy(() =>
+  import("./TicketingManager").then(({ TicketingManager: component }) => ({ default: component })),
+);
+const VenuesPage = lazy(() =>
+  import("./VenuesPage").then(({ VenuesPage: component }) => ({ default: component })),
+);
 
 function themeStorageKey(): string {
   return `${themeStoragePrefix}${window.location.hostname}`;
@@ -652,6 +739,14 @@ function NotFoundPage({ navigate }: { readonly navigate: (href: string) => void 
   );
 }
 
+function WorkspacePageLoading() {
+  return (
+    <p className="notice notice--info" role="status">
+      Loading workspace page…
+    </p>
+  );
+}
+
 function renderAccountPage(
   pathname: string,
   session: NonNullable<CurrentAuthSession>,
@@ -1101,18 +1196,20 @@ export function AuthenticatedShell({
             onLabelChange={setOrganizationPerformerLabel}
             performerLabel={organizationPerformerLabel}
           >
-            <FloatingSaveBarProvider>
-              <WorkspacePage
-                access={access}
-                currentSession={currentSession}
-                memberEnabled={memberEnabled}
-                navigate={navigate}
-                onSignedOut={onSignedOut}
-                platformAvailable={platformAvailable}
-                route={route}
-                workspace={workspace}
-              />
-            </FloatingSaveBarProvider>
+            <Suspense fallback={<WorkspacePageLoading />}>
+              <FloatingSaveBarProvider>
+                <WorkspacePage
+                  access={access}
+                  currentSession={currentSession}
+                  memberEnabled={memberEnabled}
+                  navigate={navigate}
+                  onSignedOut={onSignedOut}
+                  platformAvailable={platformAvailable}
+                  route={route}
+                  workspace={workspace}
+                />
+              </FloatingSaveBarProvider>
+            </Suspense>
           </OrganizationTerminologyProvider>
         </main>
       </div>

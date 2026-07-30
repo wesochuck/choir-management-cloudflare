@@ -33,6 +33,13 @@ const completedRunSchema = z.object({
   targetVersion: z.number().int().positive(),
 });
 
+class OrganizationRegistryIdentityError extends Error {
+  constructor() {
+    super("An Organization store rejected its registry identity.");
+    this.name = "OrganizationRegistryIdentityError";
+  }
+}
+
 function continuationId(runId: string, segment: number): string {
   return `fleet-schema-${runId}-${String(segment)}`;
 }
@@ -55,6 +62,7 @@ export class FleetSchemaWorkflow extends WorkflowEntrypoint<Env, FleetSchemaPara
           .run();
         return { failed: true };
       });
+      if (error instanceof OrganizationRegistryIdentityError) return;
       throw error;
     }
   }
@@ -128,7 +136,7 @@ export class FleetSchemaWorkflow extends WorkflowEntrypoint<Env, FleetSchemaPara
       };
     });
     if (preparation.identityFailure) {
-      throw new Error("An Organization store rejected its registry identity.");
+      throw new OrganizationRegistryIdentityError();
     }
     const prepared = preparation.preparedOrganizations;
 
