@@ -18,7 +18,7 @@ import {
   type RosterCsvInspection,
 } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -66,6 +66,7 @@ type RosterState =
     };
 
 type RosterStatusFilter = "all" | OrganizationProfile["globalStatus"];
+type ProfileTab = "dues" | "info" | "performance";
 
 const UNASSIGNED_VOICE_FILTER = "unassigned";
 
@@ -543,7 +544,15 @@ function ProfileDues({
 }
 
 // eslint-disable-next-line complexity -- the roster page coordinates search, membership, dialogs, and profile actions.
-export function RosterPage({ enabled }: { readonly enabled: boolean }) {
+export function RosterPage({
+  enabled,
+  initialProfileId,
+  initialProfileTab = "info",
+}: {
+  readonly enabled: boolean;
+  readonly initialProfileId?: string | null;
+  readonly initialProfileTab?: ProfileTab;
+}) {
   const { performerLabel } = useOrganizationTerminology();
   const [busy, setBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -562,7 +571,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhotoFileId, setProfilePhotoFileId] = useState<string | null>(null);
-  const [profileTab, setProfileTab] = useState<"info" | "performance" | "dues">("info");
+  const [profileTab, setProfileTab] = useState<ProfileTab>("info");
   const [performanceHistory, setPerformanceHistory] = useState<PerformanceHistoryState>({
     status: "idle",
   });
@@ -574,6 +583,7 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
   const [selectedVoiceFilters, setSelectedVoiceFilters] = useState<readonly string[]>([]);
   const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
   const [success, setSuccess] = useState<string | null>(null);
+  const openedProfileFromRoute = useRef<string | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -600,6 +610,28 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       controller.abort();
     };
   }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled || roster.status !== "ready" || !initialProfileId) return;
+    const candidate = roster.profiles.find((profile) => profile.id === initialProfileId);
+    if (!candidate) return;
+    const routeKey = `${initialProfileId}:${initialProfileTab}`;
+    if (openedProfileFromRoute.current === routeKey) return;
+    openedProfileFromRoute.current = routeKey;
+    setEditingId(candidate.id);
+    setProfile(profileRequestFrom(candidate));
+    setProfilePhotoFileId(candidate.photoFileId);
+    setProfileEmail(
+      roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "",
+    );
+    setProfileTab(initialProfileTab);
+    setPerformanceHistory({ status: initialProfileTab === "performance" ? "loading" : "idle" });
+    setProfileDues({ status: initialProfileTab === "dues" ? "loading" : "idle" });
+    setResetFeedback(null);
+    setError(null);
+    setSuccess(null);
+    setDialogOpen(true);
+  }, [enabled, initialProfileId, initialProfileTab, roster]);
 
   useEffect(() => {
     if (!dialogOpen || !editingId || profileTab !== "performance") return;

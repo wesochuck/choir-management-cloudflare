@@ -12,7 +12,6 @@ import {
 import type { OrganizationExportStatusResponse, TransactionFeeSettings } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
-import { OrganizationProviderStatus } from "./OrganizationProviderStatus";
 import { RosterConfiguration } from "./RosterConfiguration";
 
 const fallbackTimeZones = [
@@ -278,7 +277,6 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
 
   return (
     <div className="settings-stack">
-      <OrganizationProviderStatus />
       <section className="surface-card" aria-labelledby="calendar-settings-title">
         <div className="section-heading section-heading--compact">
           <p className="eyebrow">Events</p>

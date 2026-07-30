@@ -414,15 +414,10 @@ function SettingsForm({
   const [slotError, setSlotError] = useState<string | null>(null);
   const [recipientEmail, setRecipientEmail] = useState("");
 
-  function timePart(value: string): string {
-    const separatorIndex = value.indexOf("T");
-    return separatorIndex >= 0 ? value.slice(separatorIndex + 1, separatorIndex + 6) : value;
-  }
-
   function addSlot() {
     setSlotError(null);
-    const startsAt = zonedLocalDateTimeToUtc(slotStart, timezone);
-    const endsAt = zonedLocalDateTimeToUtc(slotEnd, timezone);
+    const startsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotStart}`, timezone);
+    const endsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotEnd}`, timezone);
     if (!startsAt || !endsAt || startsAt >= endsAt) {
       setSlotError(`Enter a valid start and end time in ${timezone}.`);
       return;
@@ -438,10 +433,8 @@ function SettingsForm({
   }
   function generateSlots() {
     setSlotError(null);
-    const startTime = timePart(slotStart);
-    const endTime = timePart(slotEnd);
-    const startsAt = zonedLocalDateTimeToUtc(`${slotDate}T${startTime}`, timezone);
-    const endsAt = zonedLocalDateTimeToUtc(`${slotDate}T${endTime}`, timezone);
+    const startsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotStart}`, timezone);
+    const endsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotEnd}`, timezone);
     const intervalMinutes = Number(slotInterval);
     const start = startsAt ? new Date(startsAt) : null;
     const end = endsAt ? new Date(endsAt) : null;
@@ -562,7 +555,7 @@ function SettingsForm({
         <legend>Audition time slots</legend>
         <div className="form-grid form-grid--compact">
           <label className="field">
-            Generate date
+            Date for time slots
             <input
               type="date"
               value={slotDate}
@@ -589,9 +582,9 @@ function SettingsForm({
         </div>
         <div className="form-grid form-grid--compact">
           <label className="field">
-            Start
+            Start time
             <input
-              type="datetime-local"
+              type="time"
               value={slotStart}
               onChange={(event) => {
                 setSlotError(null);
@@ -600,9 +593,9 @@ function SettingsForm({
             />
           </label>
           <label className="field">
-            End
+            End time
             <input
-              type="datetime-local"
+              type="time"
               value={slotEnd}
               onChange={(event) => {
                 setSlotError(null);

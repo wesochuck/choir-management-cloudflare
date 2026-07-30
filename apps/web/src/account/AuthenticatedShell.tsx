@@ -163,6 +163,12 @@ interface RouteState {
   readonly pathname: string;
   readonly search: string;
 }
+type RosterProfileTab = "dues" | "info" | "performance";
+
+function rosterProfileTabFromSearch(search: string): RosterProfileTab {
+  const tab = new URLSearchParams(search).get("tab");
+  return tab === "dues" || tab === "performance" ? tab : "info";
+}
 type AccessState =
   | { readonly status: "loading" }
   | { readonly status: "none" }
@@ -765,12 +771,14 @@ function renderAccountPage(
 }
 
 function renderOrganizationPage(
-  pathname: string,
+  routeState: RouteState,
   enabled: boolean,
   manager: boolean,
   navigate: (href: string) => void,
 ) {
   const focusedEnabled = enabled && manager;
+  const { pathname } = routeState;
+  const rosterProfileId = new URLSearchParams(routeState.search).get("profileId");
   const route =
     pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
       ? "event-roster"
@@ -785,7 +793,15 @@ function renderOrganizationPage(
     "/admin/polls": <PollsPage enabled={focusedEnabled} />,
     "/admin/reports": <ReportsView />,
     "/admin/resources": <OrganizationResources enabled={enabled} manager={manager} />,
-    "/admin/seasons": <SeasonsManager enabled={focusedEnabled} />,
+    "/admin/seasons": (
+      <SeasonsManager
+        enabled={focusedEnabled}
+        onOpenProfile={(profileId) => {
+          const search = new URLSearchParams({ profileId, tab: "dues" });
+          navigate(`/admin/roster?${search.toString()}`);
+        }}
+      />
+    ),
     "/admin/seating": <SeatingManager enabled={focusedEnabled} />,
     "/admin/setlists": <SetListManager enabled={focusedEnabled} />,
     "/admin/tickets": <TicketingManager enabled={focusedEnabled} />,
@@ -793,7 +809,13 @@ function renderOrganizationPage(
     "/admin/venues": <VenuesPage enabled={focusedEnabled} />,
     "/admin/website": <PublicWebsiteManager enabled={focusedEnabled} />,
     "/admin/events": <EventsPage enabled={focusedEnabled} />,
-    "/admin/roster": <RosterPage enabled={focusedEnabled} />,
+    "/admin/roster": (
+      <RosterPage
+        enabled={focusedEnabled}
+        initialProfileId={rosterProfileId}
+        initialProfileTab={rosterProfileTabFromSearch(routeState.search)}
+      />
+    ),
     "/admin/rsvp": <RsvpManagerPage enabled={focusedEnabled} />,
     "/admin/settings": <OrganizationSettingsPage enabled={focusedEnabled} />,
     "/admin/settings/invitations": <OrganizationInvitationsRoute />,
@@ -896,7 +918,7 @@ function OrganizationWorkspacePage({
   ) {
     return <AccessDeniedPage workspace={`${requiredModule} module`} />;
   }
-  const page = renderOrganizationPage(route.pathname, enabled, manager, navigate);
+  const page = renderOrganizationPage(route, enabled, manager, navigate);
   return (
     page ?? (
       <OverviewPage

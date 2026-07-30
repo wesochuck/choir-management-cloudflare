@@ -1,6 +1,8 @@
 import { setupStatusSchema, type SetupStatus } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
+import { OrganizationProviderStatus } from "./OrganizationProviderStatus";
+
 type CheckState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
@@ -91,42 +93,45 @@ export function SetupChecklistView() {
   const completedCount = allSteps.filter((step) => setup.completedSteps.includes(step)).length;
 
   return (
-    <section className="panel" aria-label="Setup progress">
-      <p>
-        {completedCount} of {allSteps.length} steps completed.
-      </p>
-      {setup.launched && completedCount === allSteps.length ? (
-        <p className="notice notice--success" role="status">
-          Setup is complete. Your Organization is live.
+    <div className="settings-stack">
+      <section className="panel" aria-label="Setup progress">
+        <p>
+          {completedCount} of {allSteps.length} steps completed.
         </p>
-      ) : (
-        <p className="notice notice--warning" role="status">
-          {setup.launched
-            ? "Your Organization is live, but one or more setup steps still need attention."
-            : "Setup is not yet complete. Use the action beside each incomplete step to finish it."}
-        </p>
-      )}
-      <ul className="account-list">
-        {allSteps.map((step) => {
-          const done = setup.completedSteps.includes(step);
-          const guidance = stepGuidance[step];
-          return (
-            <li className="setup-checklist__item" key={step}>
-              <div className="setup-checklist__details">
-                <strong className={done ? "status-done" : "status-pending"}>
-                  {done ? "✓" : "○"} {stepLabel(step)}
-                </strong>
-                <p>{done ? "This step is complete." : guidance.description}</p>
-              </div>
-              {!done ? (
-                <a className="button button--secondary" href={guidance.href}>
-                  {guidance.action}
-                </a>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+        {setup.launched && completedCount === allSteps.length ? (
+          <p className="notice notice--success" role="status">
+            Setup is complete. Your Organization is live.
+          </p>
+        ) : (
+          <p className="notice notice--warning" role="status">
+            {setup.launched
+              ? "Your Organization is live, but one or more setup steps still need attention."
+              : "Setup is not yet complete. Use the action beside each incomplete step to finish it."}
+          </p>
+        )}
+        <ul className="account-list">
+          {allSteps.map((step) => {
+            const done = setup.completedSteps.includes(step);
+            const guidance = stepGuidance[step];
+            return (
+              <li className="setup-checklist__item" key={step}>
+                <div className="setup-checklist__details">
+                  <strong className={done ? "status-done" : "status-pending"}>
+                    {done ? "✓" : "○"} {stepLabel(step)}
+                  </strong>
+                  <p>{done ? "This step is complete." : guidance.description}</p>
+                </div>
+                {!done ? (
+                  <a className="button button--secondary" href={guidance.href}>
+                    {guidance.action}
+                  </a>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+      <OrganizationProviderStatus />
+    </div>
   );
 }

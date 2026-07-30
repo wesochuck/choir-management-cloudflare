@@ -1,6 +1,11 @@
-import type { DuesRecord, Season, SeasonCreateRequest } from "@choir/contracts";
+import type {
+  DuesRecord,
+  OrganizationProfile,
+  Season,
+  SeasonCreateRequest,
+} from "@choir/contracts";
 import { DataTable, Dialog } from "@choir/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   activateOrganizationSeason,
@@ -8,6 +13,7 @@ import {
   createOrganizationSeason,
   deleteOrganizationSeason,
   listOrganizationDues,
+  listOrganizationProfiles,
   listOrganizationSeasons,
   refundOrganizationDues,
   updateOrganizationSeason,
@@ -22,6 +28,11 @@ type DuesState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly dues: readonly DuesRecord[]; readonly status: "ready" };
+
+type ProfilesState =
+  | { readonly status: "error" }
+  | { readonly status: "loading" }
+  | { readonly profiles: readonly OrganizationProfile[]; readonly status: "ready" };
 
 interface SeasonForm {
   readonly duesAmount: string;
@@ -85,9 +96,16 @@ function apiError(error: unknown, fallback: string): string {
 }
 
 // eslint-disable-next-line complexity -- this coordinator owns the two related season and dues workflows.
-export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
+export function SeasonsManager({
+  enabled,
+  onOpenProfile,
+}: {
+  readonly enabled: boolean;
+  readonly onOpenProfile: (profileId: string) => void;
+}) {
   const [seasonState, setSeasonState] = useState<SeasonState>({ status: "loading" });
   const [duesState, setDuesState] = useState<DuesState>({ status: "loading" });
+  const [profilesState, setProfilesState] = useState<ProfilesState>({ status: "loading" });
   const [confirmSeason, setConfirmSeason] = useState<Season | null>(null);
   const [editingSeason, setEditingSeason] = useState<Season | null>(null);
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
@@ -120,10 +138,29 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
           setDuesState({ status: "error" });
         }
       });
+    listOrganizationProfiles(controller.signal)
+      .then((profiles) => {
+        setProfilesState({ profiles, status: "ready" });
+      })
+      .catch((loadError: unknown) => {
+        if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
+          setProfilesState({ status: "error" });
+        }
+      });
     return () => {
       controller.abort();
     };
   }, [enabled]);
+
+  const profilesById = useMemo(
+    () =>
+      new Map(
+        profilesState.status === "ready"
+          ? profilesState.profiles.map((profile) => [profile.id, profile] as const)
+          : [],
+      ),
+    [profilesState],
+  );
 
   function openSeasonDialog(season: Season | null = null) {
     setError(null);
@@ -312,6 +349,8 @@ export function SeasonsManager({ enabled }: { readonly enabled: boolean }) {
             <DuesTab
               busy={refundBusy}
               duesState={duesState}
+              onOpenProfile={onOpenProfile}
+              profilesById={profilesById}
               refund={refund}
               refundId={refundId}
               setRefundId={setRefundId}
@@ -570,12 +609,16 @@ function SeasonsTab({
 function DuesTab({
   busy,
   duesState,
+  onOpenProfile,
+  profilesById,
   refund,
   refundId,
   setRefundId,
 }: {
   readonly busy: boolean;
   readonly duesState: DuesState;
+  readonly onOpenProfile: (profileId: string) => void;
+  readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
   readonly refund: (id: string) => Promise<void>;
   readonly refundId: string | null;
   readonly setRefundId: (id: string | null) => void;
@@ -584,14 +627,19 @@ function DuesTab({
   if (duesState.status === "error")
     return <p className="notice notice--error">Dues records could not be loaded.</p>;
   if (duesState.dues.length === 0) return <p>No dues records yet.</p>;
+  const profileName = (record: DuesRecord): string =>
+    profilesById.get(record.profileId)?.displayName ?? "Profile unavailable";
+  const openProfile = (record: DuesRecord) => {
+    if (profilesById.has(record.profileId)) onOpenProfile(record.profileId);
+  };
   return (
     <DataTable
       columns={[
         {
           header: "Profile",
           id: "profile",
-          render: (record) => record.profileId,
-          sortValue: (record) => record.profileId,
+          render: (record) => profileName(record),
+          sortValue: (record) => profileName(record),
         },
         {
           header: "Amount",
@@ -662,6 +710,8 @@ function DuesTab({
       emptyMessage="No dues records yet."
       initialSort={{ columnId: "paidAt", direction: "desc" }}
       keySelector={(record) => record.id}
+      onRowClick={openProfile}
+      rowLabel={(record) => `Open dues for ${profileName(record)}`}
       rows={duesState.dues}
     />
   );
