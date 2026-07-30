@@ -315,11 +315,14 @@ describe("Organization communications", () => {
       ).json(),
     );
     expect(templates.templates.map(({ title }) => title).sort()).toEqual([
+      "Bundle Ticket Confirmation",
       "Dues Payment Notice",
       "Event RSVP Invitation",
       "General Announcement",
       "Performance Reminder",
       "Rehearsal Reminder",
+      "Ticket Concert Reminder",
+      "Ticket Confirmation",
       "Weather / Schedule Delay Alert",
       "Welcome",
     ]);
@@ -329,13 +332,44 @@ describe("Organization communications", () => {
         .map(({ title }) => title)
         .sort(),
     ).toEqual([
+      "Bundle Ticket Confirmation",
       "Dues Payment Notice",
       "Event RSVP Invitation",
       "General Announcement",
       "Performance Reminder",
       "Rehearsal Reminder",
+      "Ticket Concert Reminder",
+      "Ticket Confirmation",
       "Weather / Schedule Delay Alert",
     ]);
+    const ticketTemplate = templates.templates.find(({ title }) => title === "Ticket Confirmation");
+    expect(ticketTemplate?.isSystem).toBe(true);
+    const updatedTicketTemplate = communicationTemplateResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/communications/templates/${ticketTemplate?.id ?? ""}`,
+            cookie,
+            {
+              body: JSON.stringify({
+                channel: "Email",
+                contentMarkdown: "Custom ticket wording for {singerName} {{TICKET_LINK}}",
+                subject: "Custom ticket subject for {eventTitle}",
+                title: "Ticket Confirmation",
+              }),
+              headers: { "content-type": "application/json" },
+              method: "PUT",
+            },
+          ),
+        )
+      ).json(),
+    );
+    expect(updatedTicketTemplate).toMatchObject({
+      contentMarkdown: "Custom ticket wording for {singerName} {{TICKET_LINK}}",
+      isSystem: true,
+      subject: "Custom ticket subject for {eventTitle}",
+    });
     expect(
       communicationDeleteResponseSchema.parse(
         await (

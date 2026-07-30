@@ -39,12 +39,19 @@ const failureResponseSchema = z.object({ failed: z.boolean() });
 const ticketNotificationJobSchema = z.object({
   buyerName: z.string().min(1).max(200),
   contentMarkdown: z.string().max(100_000),
+  currency: z.string().regex(/^[A-Za-z]{3}$/),
   destination: z.email(),
   eventStartsAt: z.iso.datetime(),
+  eventTitle: z.string().min(1).max(500),
   id: z.uuid(),
+  amountPaidCents: z.number().int().nonnegative(),
+  bundleTitle: z.string().nullable(),
+  kind: z.enum(["confirmation", "reminder"]),
   purchaseId: z.uuid(),
+  quantity: z.number().int().positive(),
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
+  timezone: z.string().min(1).max(100),
 });
 const auditionNotificationJobSchema = z.object({
   contentMarkdown: z.string().max(100_000),
@@ -194,6 +201,8 @@ const rsvpPlaceholderPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/i;
 const rsvpPlaceholderReplacementPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi;
 const playerPlaceholderPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/i;
 const playerPlaceholderReplacementPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi;
+const ticketLinkPlaceholderPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/i;
+const ticketLinkPlaceholderReplacementPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/gi;
 
 function deliveryOrigin(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN">,
@@ -249,6 +258,33 @@ export async function renderPlayerLinks(
   const playerLink = `${deliveryOrigin(env, delivery)}/player?token=${encodeURIComponent(token)}`;
   const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
   return content.replace(playerPlaceholderReplacementPattern, () => replacement);
+}
+
+async function renderTicketLinks(
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  content: string,
+  purchaseId: string,
+  eventStartsAt: string,
+): Promise<string> {
+  if (!ticketLinkPlaceholderPattern.test(content)) return content;
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  const eventEndsAt = Math.floor(new Date(eventStartsAt).getTime() / 1_000) + 86_400;
+  const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+    algorithm: "HS256",
+    expiresAt: Math.max(issuedAt + 7 * 24 * 60 * 60, eventEndsAt),
+    issuedAt,
+    nonce: crypto.randomUUID(),
+    organizationId,
+    purpose: "ticket_receipt",
+    resourceId: purchaseId,
+    version: 1,
+  });
+  const link = `${deliveryOrigin(env, { unsubscribeUrl: null })}/tickets/order/success?token=${encodeURIComponent(token)}`;
+  return content.replace(
+    ticketLinkPlaceholderReplacementPattern,
+    () => `[View ticket order](${link})`,
+  );
 }
 
 async function renderPollLinks(
@@ -309,6 +345,32 @@ async function deliverTicketNotificationJob(env: JobConsumerEnv, job: DeliveryJo
   if (!response.ok || !notification.success) {
     throw new Error("The ticket notification job is unavailable.");
   }
+  const templateValues = {
+    eventDate: new Intl.DateTimeFormat("en-US", {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone: notification.data.timezone,
+    }).format(new Date(notification.data.eventStartsAt)),
+    eventTitle: notification.data.eventTitle,
+    ticketAmount: new Intl.NumberFormat("en-US", {
+      currency: notification.data.currency.toUpperCase(),
+      style: "currency",
+    }).format(notification.data.amountPaidCents / 100),
+    ticketBundleName: notification.data.bundleTitle ?? "",
+    ticketQuantity: String(notification.data.quantity),
+  };
+  const templatedContent = renderCommunicationTemplate(
+    notification.data.contentMarkdown,
+    notification.data.buyerName,
+    templateValues,
+  );
+  const contentWithTicketLink = await renderTicketLinks(
+    env,
+    job.organizationId,
+    templatedContent,
+    notification.data.purchaseId,
+    notification.data.eventStartsAt,
+  );
   const issuedAt = Math.floor(Date.now() / 1000);
   const eventEndsAt =
     Math.floor(new Date(notification.data.eventStartsAt).getTime() / 1000) + 86_400;
@@ -324,12 +386,16 @@ async function deliverTicketNotificationJob(env: JobConsumerEnv, job: DeliveryJo
   });
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
-    contentMarkdown: `${notification.data.contentMarkdown}\n\nTicket credential: ${scanToken}`,
+    contentMarkdown: `${contentWithTicketLink}\n\nTicket credential: ${scanToken}`,
     deliveryId: notification.data.id,
     destination: notification.data.destination,
     messageId: notification.data.id,
     recipientName: notification.data.buyerName,
-    subject: notification.data.subject,
+    subject: renderCommunicationTemplate(
+      notification.data.subject,
+      notification.data.buyerName,
+      templateValues,
+    ),
     unsubscribeUrl: null,
   });
   const recordResponse = await objectStub.fetch(

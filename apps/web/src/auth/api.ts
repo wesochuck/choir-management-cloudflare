@@ -788,6 +788,17 @@ export async function saveOrganizationCommunicationTemplate(
   return communicationTemplateResponseSchema.parse(await response.json());
 }
 
+export async function updateOrganizationCommunicationTemplate(
+  templateId: string,
+  template: CommunicationTemplateRequest,
+): Promise<CommunicationTemplate> {
+  const response = await request(
+    `/api/organization/communications/templates/${encodeURIComponent(templateId)}`,
+    { body: JSON.stringify(template), method: "PUT" },
+  );
+  return communicationTemplateResponseSchema.parse(await response.json());
+}
+
 export async function deleteOrganizationCommunicationTemplate(templateId: string): Promise<void> {
   const response = await request(
     `/api/organization/communications/templates/${encodeURIComponent(templateId)}`,

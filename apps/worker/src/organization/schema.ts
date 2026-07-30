@@ -1,5 +1,7 @@
 import { defaultRosterConfiguration, defaultSeatingConfiguration } from "@choir/domain";
 
+import { ticketMessageTemplates } from "./ticketMessageTemplates";
+
 export interface OrganizationSchemaMigration {
   readonly apply?: (sql: SqlStorage) => void;
   readonly statements: readonly string[];
@@ -113,6 +115,26 @@ const playerSystemCommunicationTemplates = [
 function seedPlayerSystemCommunicationTemplates(sql: SqlStorage): void {
   const now = new Date().toISOString();
   for (const template of playerSystemCommunicationTemplates) {
+    sql.exec(
+      `INSERT INTO communication_templates
+        (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, 1, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM communication_templates WHERE id = ?)`,
+      template.id,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      now,
+      template.id,
+    );
+  }
+}
+
+function seedTicketSystemCommunicationTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of ticketMessageTemplates) {
     sql.exec(
       `INSERT INTO communication_templates
         (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
@@ -902,6 +924,11 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
   {
     version: 43,
     apply: seedPlayerSystemCommunicationTemplates,
+    statements: [],
+  },
+  {
+    version: 44,
+    apply: seedTicketSystemCommunicationTemplates,
     statements: [],
   },
 ] as const;

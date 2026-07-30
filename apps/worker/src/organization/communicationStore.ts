@@ -65,6 +65,11 @@ const saveTemplateOperationSchema = contextSchema.extend({
   template: communicationTemplateRequestSchema,
   templateId: z.uuid(),
 });
+const updateTemplateOperationSchema = contextSchema.extend({
+  action: z.literal("update-template"),
+  template: communicationTemplateRequestSchema,
+  templateId: z.uuid(),
+});
 const deleteTemplateOperationSchema = contextSchema.extend({
   action: z.literal("delete-template"),
   templateId: z.uuid(),
@@ -93,6 +98,7 @@ const operationSchema = z.discriminatedUnion("action", [
   sendOperationSchema,
   retryOperationSchema,
   saveTemplateOperationSchema,
+  updateTemplateOperationSchema,
   deleteTemplateOperationSchema,
   deleteDraftOperationSchema,
   deliveryResultOperationSchema,
@@ -631,6 +637,53 @@ function saveTemplate(
   return Response.json(communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }));
 }
 
+function updateTemplate(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof updateTemplateOperationSchema>,
+  now: string,
+): Response {
+  const found = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+      "SELECT id FROM communication_templates WHERE id = ? LIMIT 1",
+      operation.templateId,
+    )
+    .toArray()
+    .at(0);
+  if (!found) return Response.json({ code: "communication_template_not_found" }, { status: 404 });
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE communication_templates
+       SET title = ?, channel = ?, subject = ?, content_markdown = ?, updated_at = ?
+       WHERE id = ?`,
+      operation.template.title,
+      operation.template.channel,
+      operation.template.subject,
+      operation.template.contentMarkdown,
+      now,
+      operation.templateId,
+    );
+    audit(
+      storage,
+      operation.actorUserId,
+      operation.requestId,
+      "organization.communication.template.updated",
+      operation.templateId,
+      { channel: operation.template.channel, title: operation.template.title },
+      now,
+      "communication_template",
+    );
+  });
+  const row = storage.sql
+    .exec<TemplateRow>(
+      `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,
+        is_system AS isSystem, created_at AS createdAt, updated_at AS updatedAt
+       FROM communication_templates WHERE id = ? LIMIT 1`,
+      operation.templateId,
+    )
+    .one();
+  return Response.json(communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }));
+}
+
 function deleteTemplate(
   storage: DurableObjectStorage,
   operation: z.infer<typeof deleteTemplateOperationSchema>,
@@ -810,6 +863,7 @@ export async function manageCommunicationInStore(
   if (operation.action === "save-draft") return saveDraft(storage, operation, now);
   if (operation.action === "retry") return retryMessage(storage, operation, now);
   if (operation.action === "save-template") return saveTemplate(storage, operation, now);
+  if (operation.action === "update-template") return updateTemplate(storage, operation, now);
   if (operation.action === "delete-template") return deleteTemplate(storage, operation, now);
   if (operation.action === "delete-draft") return deleteDraft(storage, operation, now);
   return recordDeliveryResults(storage, operation, now);

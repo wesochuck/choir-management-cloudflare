@@ -180,6 +180,7 @@ import {
   deleteCommunicationDraft,
   deleteCommunicationTemplate,
   saveCommunicationTemplate,
+  updateCommunicationTemplate,
   saveCommunicationDraft,
   sendOrganizationCommunication,
   unsubscribeOrganizationProfile,
@@ -5576,6 +5577,57 @@ router.post("/api/organization/communications/templates", async (context) => {
       error,
       context.get("requestId"),
       "The communication template could not be saved.",
+    );
+    return context.json(result.problem, result.status);
+  }
+});
+
+router.put("/api/organization/communications/templates/:templateId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok)
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  const templateId = z.uuid().safeParse(context.req.param("templateId"));
+  if (!templateId.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid communication template is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  const body = communicationTemplateRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success)
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid communication template details are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  try {
+    const template = await updateCommunicationTemplate(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      templateId.data,
+      body.data,
+    );
+    return context.json({ ...template, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    const result = communicationProblem(
+      error,
+      context.get("requestId"),
+      "The communication template could not be updated.",
     );
     return context.json(result.problem, result.status);
   }

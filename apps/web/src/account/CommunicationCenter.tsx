@@ -25,6 +25,7 @@ import {
   retryOrganizationCommunicationDeliveries,
   saveOrganizationCommunicationDraft,
   saveOrganizationCommunicationTemplate,
+  updateOrganizationCommunicationTemplate,
   sendOrganizationCommunication,
   sendOrganizationCommunicationTestEmail,
 } from "../auth/api";
@@ -158,6 +159,10 @@ function TemplateLibrary({
 }) {
   const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
   const [title, setTitle] = useState("");
+  const [editingTemplate, setEditingTemplate] = useState<CommunicationTemplate | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [editingSubject, setEditingSubject] = useState("");
+  const [editingContent, setEditingContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -212,6 +217,38 @@ function TemplateLibrary({
     }
   }
 
+  function startEdit(template: CommunicationTemplate): void {
+    setEditingTemplate(template);
+    setEditingTitle(template.title);
+    setEditingSubject(template.subject);
+    setEditingContent(template.contentMarkdown);
+    setError(null);
+  }
+
+  async function saveEdit(): Promise<void> {
+    if (!editingTemplate) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await updateOrganizationCommunicationTemplate(editingTemplate.id, {
+        channel: editingTemplate.channel,
+        contentMarkdown: editingContent,
+        subject: editingSubject,
+        title: editingTitle,
+      });
+      setTemplates((current) =>
+        current
+          .map((template) => (template.id === updated.id ? updated : template))
+          .sort((a, b) => a.title.localeCompare(b.title)),
+      );
+      setEditingTemplate(null);
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="form-stack" aria-labelledby="communication-templates-heading">
       <h3 id="communication-templates-heading">Templates</h3>
@@ -241,6 +278,15 @@ function TemplateLibrary({
                 >
                   Use template
                 </button>
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    startEdit(template);
+                  }}
+                  type="button"
+                >
+                  Edit
+                </button>
                 {!template.isSystem ? (
                   <button disabled={busy} onClick={() => void remove(template)} type="button">
                     Delete
@@ -253,6 +299,70 @@ function TemplateLibrary({
       ) : (
         <p>No templates match this channel and audience yet.</p>
       )}
+      {editingTemplate ? (
+        <fieldset className="form-stack">
+          <legend>Edit {editingTemplate.isSystem ? "system " : ""}template</legend>
+          <div className="field">
+            <label htmlFor="communication-template-edit-title">Template name</label>
+            <input
+              id="communication-template-edit-title"
+              maxLength={200}
+              onChange={(event) => {
+                setEditingTitle(event.target.value);
+              }}
+              value={editingTitle}
+            />
+          </div>
+          {editingTemplate.channel !== "SMS" ? (
+            <div className="field">
+              <label htmlFor="communication-template-edit-subject">Subject</label>
+              <input
+                id="communication-template-edit-subject"
+                maxLength={300}
+                onChange={(event) => {
+                  setEditingSubject(event.target.value);
+                }}
+                value={editingSubject}
+              />
+            </div>
+          ) : null}
+          <div className="field">
+            <label htmlFor="communication-template-edit-content">Message</label>
+            <textarea
+              id="communication-template-edit-content"
+              maxLength={100_000}
+              onChange={(event) => {
+                setEditingContent(event.target.value);
+              }}
+              rows={10}
+              value={editingContent}
+            />
+            <p className="field-help">
+              Markdown and the placeholders shown in the composer are supported. System templates
+              cannot be deleted, but their wording can be customized for this Organization.
+            </p>
+          </div>
+          <div className="form-actions">
+            <button
+              disabled={busy}
+              onClick={() => {
+                setEditingTemplate(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="button button--primary"
+              disabled={busy || !editingTitle.trim() || !editingContent.trim()}
+              onClick={() => void saveEdit()}
+              type="button"
+            >
+              {busy ? "Saving…" : "Save template"}
+            </button>
+          </div>
+        </fieldset>
+      ) : null}
       <div className="field">
         <label htmlFor="communication-template-title">Save current message as a template</label>
         <input

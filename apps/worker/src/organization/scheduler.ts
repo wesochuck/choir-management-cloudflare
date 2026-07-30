@@ -1,4 +1,5 @@
 import type { DeliveryJob } from "../jobs/contracts";
+import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
@@ -92,6 +93,7 @@ function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): voi
       horizon,
     )
     .toArray();
+  const notificationTemplate = readTicketMessageTemplate(storage, "reminder");
   for (const candidate of candidates) {
     const dedupeKey = `ticket-reminder:${candidate.purchaseId}:${candidate.eventId}`;
     const exists = storage.sql
@@ -114,8 +116,8 @@ function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): voi
       candidate.eventId,
       dedupeKey,
       candidate.buyerEmail,
-      `Reminder: ${candidate.eventTitle}`,
-      `Hello ${candidate.buyerName},\n\nThis is your reminder for ${candidate.eventTitle}. Your order includes ${String(candidate.quantity)} ticket(s).`,
+      notificationTemplate.subject,
+      notificationTemplate.contentMarkdown,
       now.toISOString(),
       now.toISOString(),
       now.toISOString(),

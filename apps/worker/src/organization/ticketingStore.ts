@@ -8,6 +8,7 @@ import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
 import { z } from "zod";
 
 import { transactionFeeSettingsFromStore } from "./transactionFeeSettingsStore";
+import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 
 const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
@@ -397,7 +398,10 @@ function createFakeCheckout(
   const occurredAt = now.toISOString();
   const confirmationId = crypto.randomUUID();
   const confirmationJobId = crypto.randomUUID();
-  const purchaseLabel = bundleId ? bundleTitle : primaryEvent.title;
+  const notificationTemplate = readTicketMessageTemplate(
+    storage,
+    bundleId ? "bundle_confirmation" : "confirmation",
+  );
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO ticket_purchases
@@ -450,8 +454,8 @@ function createFakeCheckout(
       bundleId ? null : primaryEvent.id,
       `ticket-confirmation:${operation.purchaseId}`,
       operation.checkout.buyerEmail.toLowerCase(),
-      `Your ${purchaseLabel} tickets`,
-      `Hello ${operation.checkout.buyerName},\n\nYour order for ${String(operation.checkout.quantity)} ${bundleId ? "pass(es)" : "ticket(s)"} to ${purchaseLabel} is confirmed.`,
+      notificationTemplate.subject,
+      notificationTemplate.contentMarkdown,
       occurredAt,
       occurredAt,
       occurredAt,
@@ -614,7 +618,10 @@ function completeStripeTicketPurchase(
         operation.providerSessionId,
       );
       const confirmationId = crypto.randomUUID();
-      const label = row.bundleId ? row.bundleTitle : row.eventTitle;
+      const notificationTemplate = readTicketMessageTemplate(
+        storage,
+        row.bundleId ? "bundle_confirmation" : "confirmation",
+      );
       storage.sql.exec(
         `INSERT OR IGNORE INTO ticket_notifications
           (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
@@ -625,8 +632,8 @@ function completeStripeTicketPurchase(
         row.bundleId ? null : row.eventId,
         `ticket-confirmation:${row.id}`,
         row.buyerEmail,
-        `Your ${label} tickets`,
-        `Hello ${row.buyerName},\n\nYour order for ${String(row.quantity)} ${row.bundleId ? "pass(es)" : "ticket(s)"} to ${label} is confirmed.`,
+        notificationTemplate.subject,
+        notificationTemplate.contentMarkdown,
         occurredAt,
         occurredAt,
         occurredAt,
@@ -1002,7 +1009,10 @@ function resendTicketConfirmation(
   const notificationId = crypto.randomUUID();
   const jobId = crypto.randomUUID();
   const now = new Date().toISOString();
-  const label = row.bundleId ? row.bundleTitle : row.eventTitle;
+  const notificationTemplate = readTicketMessageTemplate(
+    storage,
+    row.bundleId ? "bundle_confirmation" : "confirmation",
+  );
   const recipientEmail = operation.recipientEmail ?? row.buyerEmail;
   if (!recipientEmail) {
     return Response.json({ code: "ticket_recipient_missing" }, { status: 400 });
@@ -1018,8 +1028,8 @@ function resendTicketConfirmation(
       row.bundleId ? null : row.eventId,
       `ticket-confirmation-resend:${row.id}:${operation.requestId}`,
       recipientEmail,
-      `Your ${label} tickets`,
-      `Hello ${row.buyerName},\n\nYour order for ${String(row.quantity)} ${row.bundleId ? "pass(es)" : "ticket(s)"} to ${label} is confirmed.`,
+      notificationTemplate.subject,
+      notificationTemplate.contentMarkdown,
       now,
       now,
       now,
@@ -1186,17 +1196,27 @@ export function readTicketNotificationJobFromStore(
   const row = storage.sql
     .exec<{
       readonly [column: string]: SqlStorageValue;
+      readonly amountPaidCents: number;
       readonly buyerName: string;
+      readonly bundleTitle: string | null;
       readonly contentMarkdown: string;
+      readonly currency: string;
       readonly destination: string;
       readonly eventStartsAt: string;
+      readonly eventTitle: string;
       readonly id: string;
+      readonly kind: "confirmation" | "reminder";
       readonly purchaseId: string;
+      readonly quantity: number;
       readonly status: string;
       readonly subject: string;
+      readonly timezone: string;
     }>(
-      `SELECT n.id, n.purchase_id AS purchaseId, n.destination, n.subject,
+      `SELECT n.id, n.purchase_id AS purchaseId, n.kind, n.destination, n.subject,
         n.content_markdown AS contentMarkdown, n.status, p.buyer_name AS buyerName,
+        COALESCE(e.title, p.event_title) AS eventTitle,
+        p.quantity, p.amount_paid_cents AS amountPaidCents,
+        p.currency, p.bundle_title AS bundleTitle, p.event_timezone AS timezone,
         COALESCE(e.starts_at,
           (SELECT MAX(bundle_event.starts_at)
            FROM ticket_bundle_allocations allocation

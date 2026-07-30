@@ -335,6 +335,21 @@ export async function saveCommunicationTemplate(
   return communicationTemplateSchema.parse(await response.json());
 }
 
+export async function updateCommunicationTemplate(
+  env: Env,
+  context: ActorContext,
+  templateId: string,
+  template: CommunicationTemplateRequest,
+): Promise<CommunicationTemplate> {
+  const response = await post(env, context.organizationId, "/internal/communications/manage", {
+    action: "update-template",
+    ...context,
+    template,
+    templateId,
+  });
+  return communicationTemplateSchema.parse(await response.json());
+}
+
 export async function deleteCommunicationTemplate(
   env: Env,
   context: ActorContext,
