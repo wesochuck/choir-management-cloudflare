@@ -931,6 +931,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     apply: seedTicketSystemCommunicationTemplates,
     statements: [],
   },
+  {
+    version: 45,
+    statements: [
+      "ALTER TABLE dues ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'online' CHECK (payment_method IN ('cash', 'online'))",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

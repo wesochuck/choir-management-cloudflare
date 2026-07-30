@@ -10,6 +10,7 @@ import {
   ticketBundlesResponseSchema,
   ticketScanResponseSchema,
   donationSettingsResponseSchema,
+  duesRecordSchema,
   transactionFeeSettingsResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
@@ -1246,5 +1247,85 @@ describe("Organization ticketing", () => {
       },
     );
     expect(crossTenant.status).toBe(409);
+  });
+
+  it("records cash dues on the selected Profile and keeps the action manager-only", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Cash Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Cash Season', ?, ?, 4000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+    });
+
+    const marked = duesRecordSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/admin/mark-dues-cash",
+          "POST",
+          { profileId, seasonId },
+          cookie,
+        )
+      ).json(),
+    );
+    expect(marked).toMatchObject({
+      amountCents: 4000,
+      feeCents: 0,
+      paymentMethod: "cash",
+      profileId,
+      seasonId,
+      status: "paid",
+    });
+
+    const replay = duesRecordSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/admin/mark-dues-cash",
+          "POST",
+          { profileId, seasonId },
+          cookie,
+        )
+      ).json(),
+    );
+    expect(replay.id).toBe(marked.id);
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM audit_events WHERE action = 'dues.cash_paid'",
+            )
+            .one().count,
+      ),
+    ).resolves.toBe(1);
+
+    const memberAttempt = await jsonWrite(
+      "bravo.localhost",
+      "/api/admin/mark-dues-cash",
+      "POST",
+      { profileId, seasonId },
+      cookie,
+    );
+    expect(memberAttempt.status).toBe(403);
   });
 });

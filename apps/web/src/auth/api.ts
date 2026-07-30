@@ -94,6 +94,7 @@ import {
   organizationExportStatusResponseSchema,
   duesRecordSchema,
   duesRecordsResponseSchema,
+  duesCashPaymentRequestSchema,
   memberDuesResponseSchema,
   duesCheckoutResponseSchema,
   seasonSchema,
@@ -924,6 +925,17 @@ export async function createMyDuesCheckout(seasonId: string): Promise<DuesChecko
 export async function refundOrganizationDues(duesId: string): Promise<DuesRecord> {
   const response = await request("/api/admin/refund-dues", {
     body: JSON.stringify({ duesId }),
+    method: "POST",
+  });
+  return duesRecordSchema.parse(await response.json());
+}
+
+export async function markOrganizationDuesPaidInCash(
+  profileId: string,
+  seasonId: string,
+): Promise<DuesRecord> {
+  const response = await request("/api/admin/mark-dues-cash", {
+    body: JSON.stringify(duesCashPaymentRequestSchema.parse({ profileId, seasonId })),
     method: "POST",
   });
   return duesRecordSchema.parse(await response.json());

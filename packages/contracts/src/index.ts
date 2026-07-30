@@ -2153,6 +2153,7 @@ export const seasonsResponseSchema = z.object({
 });
 
 export const duesStatusSchema = z.enum(["pending", "paid", "refunded"]);
+export const duesPaymentMethodSchema = z.enum(["cash", "online"]);
 
 export const duesRecordSchema = z.object({
   amountCents: z.number().int().nonnegative(),
@@ -2160,6 +2161,7 @@ export const duesRecordSchema = z.object({
   feeCents: z.number().int().nonnegative().default(0),
   id: z.uuid(),
   paidAt: z.iso.datetime().nullable(),
+  paymentMethod: duesPaymentMethodSchema.default("online"),
   profileId: z.uuid(),
   seasonId: z.uuid(),
   status: duesStatusSchema,
@@ -2173,6 +2175,11 @@ export const duesRecordsResponseSchema = z.object({
 
 export const duesCheckoutRequestSchema = z.object({
   profileIds: z.array(z.uuid()).min(1).max(500),
+  seasonId: z.uuid(),
+});
+
+export const duesCashPaymentRequestSchema = z.object({
+  profileId: z.uuid(),
   seasonId: z.uuid(),
 });
 
@@ -2201,6 +2208,7 @@ export type DuesStatus = z.infer<typeof duesStatusSchema>;
 export type DuesRecord = z.infer<typeof duesRecordSchema>;
 export type DuesRecordsResponse = z.infer<typeof duesRecordsResponseSchema>;
 export type DuesCheckoutRequest = z.infer<typeof duesCheckoutRequestSchema>;
+export type DuesCashPaymentRequest = z.infer<typeof duesCashPaymentRequestSchema>;
 export type DuesCheckoutResponse = z.infer<typeof duesCheckoutResponseSchema>;
 export type MemberDuesCheckoutRequest = z.infer<typeof memberDuesCheckoutRequestSchema>;
 export type MemberDuesResponse = z.infer<typeof memberDuesResponseSchema>;

@@ -30,6 +30,7 @@ import {
   listOrganizationMemberships,
   listOrganizationProfiles,
   listOrganizationSeasons,
+  markOrganizationDuesPaidInCash,
   requestPasswordReset,
   updateOrganizationProfile,
 } from "../auth/api";
@@ -363,10 +364,46 @@ function formatDuesAmount(cents: number): string {
 
 function duesStatusLabel(record: DuesRecord | undefined): string {
   if (!record) return "Not paid";
-  return record.status === "paid" ? "Paid" : record.status === "refunded" ? "Refunded" : "Pending";
+  if (record.status === "paid") {
+    return record.paymentMethod === "cash" ? "Paid · Cash" : "Paid";
+  }
+  return record.status === "refunded" ? "Refunded" : "Pending";
 }
 
-function ProfileDues({ state }: { readonly state: ProfileDuesState }) {
+function ProfileDues({
+  onCashPaymentMarked,
+  profileId,
+  state,
+}: {
+  readonly onCashPaymentMarked: (record: DuesRecord) => void;
+  readonly profileId: string;
+  readonly state: ProfileDuesState;
+}) {
+  const [cashPaymentSeasonId, setCashPaymentSeasonId] = useState<string | null>(null);
+  const [cashPaymentError, setCashPaymentError] = useState<string | null>(null);
+  const [cashPaymentSuccess, setCashPaymentSuccess] = useState<string | null>(null);
+
+  async function markCashPayment(season: Season, record: DuesRecord | undefined): Promise<void> {
+    if (record?.status === "paid" || record?.status === "refunded") return;
+    if (!window.confirm(`Mark ${season.name} dues as paid in cash?`)) return;
+    setCashPaymentSeasonId(season.id);
+    setCashPaymentError(null);
+    setCashPaymentSuccess(null);
+    try {
+      const updated = await markOrganizationDuesPaidInCash(profileId, season.id);
+      onCashPaymentMarked(updated);
+      setCashPaymentSuccess(`${season.name} dues were marked as paid in cash.`);
+    } catch (error: unknown) {
+      setCashPaymentError(
+        error instanceof AuthApiError
+          ? error.message
+          : "The cash dues payment could not be recorded.",
+      );
+    } finally {
+      setCashPaymentSeasonId(null);
+    }
+  }
+
   if (state.status === "loading") {
     return <p className="notice notice--info">Loading dues history…</p>;
   }
@@ -389,8 +426,20 @@ function ProfileDues({ state }: { readonly state: ProfileDuesState }) {
           <p className="eyebrow">Membership</p>
           <h3>Dues by season</h3>
         </div>
-        <span className="field-help">Payment status is updated from checkout records.</span>
+        <span className="field-help">
+          Payment status comes from checkout records or an administrator&apos;s cash entry.
+        </span>
       </div>
+      {cashPaymentError ? (
+        <p className="notice notice--error" role="alert">
+          {cashPaymentError}
+        </p>
+      ) : null}
+      {cashPaymentSuccess ? (
+        <p className="notice notice--success" role="status">
+          {cashPaymentSuccess}
+        </p>
+      ) : null}
       <div className="profile-dues-history__list" role="list">
         {state.seasons.map((season) => {
           const record = state.dues.find(({ seasonId }) => seasonId === season.id);
@@ -414,6 +463,20 @@ function ProfileDues({ state }: { readonly state: ProfileDuesState }) {
               <div className="profile-dues-row__paid">
                 <span className="profile-performance-card__label">Paid at</span>
                 <span>{record?.paidAt ? new Date(record.paidAt).toLocaleDateString() : "—"}</span>
+              </div>
+              <div className="profile-dues-row__action">
+                {!record || record.status === "pending" ? (
+                  <button
+                    className="button button--secondary button--small"
+                    disabled={cashPaymentSeasonId !== null}
+                    onClick={() => {
+                      void markCashPayment(season, record);
+                    }}
+                    type="button"
+                  >
+                    {cashPaymentSeasonId === season.id ? "Recording…" : "Mark cash paid"}
+                  </button>
+                ) : null}
               </div>
             </div>
           );
@@ -506,7 +569,11 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
       listOrganizationDues(controller.signal),
     ])
       .then(([seasons, dues]) => {
-        setProfileDues({ dues, seasons, status: "ready" });
+        setProfileDues({
+          dues: dues.filter((record) => record.profileId === editingId),
+          seasons,
+          status: "ready",
+        });
       })
       .catch((duesError: unknown) => {
         if (!(duesError instanceof DOMException && duesError.name === "AbortError")) {
@@ -977,7 +1044,24 @@ export function RosterPage({ enabled }: { readonly enabled: boolean }) {
         {editingId && profileTab === "performance" ? (
           <PerformanceHistory state={performanceHistory} />
         ) : editingId && profileTab === "dues" ? (
-          <ProfileDues state={profileDues} />
+          <ProfileDues
+            onCashPaymentMarked={(record) => {
+              setProfileDues((current) => {
+                if (current.status !== "ready") return current;
+                const existing = current.dues.some((candidate) => candidate.id === record.id);
+                return {
+                  ...current,
+                  dues: existing
+                    ? current.dues.map((candidate) =>
+                        candidate.id === record.id ? record : candidate,
+                      )
+                    : [...current.dues, record],
+                };
+              });
+            }}
+            profileId={editingId}
+            state={profileDues}
+          />
         ) : (
           <form
             className="form-stack"

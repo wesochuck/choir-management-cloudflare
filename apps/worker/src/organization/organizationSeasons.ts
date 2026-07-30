@@ -1,4 +1,5 @@
 import {
+  duesCashPaymentRequestSchema,
   duesCheckoutRequestSchema,
   duesCheckoutResponseSchema,
   duesRecordSchema,
@@ -316,6 +317,30 @@ export async function refundDues(
   if (!response.ok) {
     const code = await errorCode(response);
     throw new SeasonError(code, response.status, "The dues could not be refunded.");
+  }
+  return duesRecordSchema.parse(await response.json());
+}
+
+export async function markOrganizationDuesPaidInCash(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: ActorContext,
+  cashPayment: { readonly profileId: string; readonly seasonId: string },
+): Promise<DuesRecord> {
+  const response = await stub(env, actor.organizationId).fetch(
+    "https://organization.internal/internal/seasons/manage",
+    {
+      body: JSON.stringify({
+        action: "mark_dues_cash_paid",
+        ...actor,
+        cashPayment: duesCashPaymentRequestSchema.parse(cashPayment),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    const code = await errorCode(response);
+    throw new SeasonError(code, response.status, "The cash dues payment could not be recorded.");
   }
   return duesRecordSchema.parse(await response.json());
 }

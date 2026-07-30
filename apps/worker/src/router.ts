@@ -58,6 +58,7 @@ import {
   transactionFeeSettingsSchema,
   transactionFeeSettingsResponseSchema,
   donationRefundRequestSchema,
+  duesCashPaymentRequestSchema,
   memberDuesCheckoutRequestSchema,
   seasonCreateRequestSchema,
   seasonUpdateRequestSchema,
@@ -284,6 +285,7 @@ import {
   deleteSeason,
   listSeasons,
   listDues,
+  markOrganizationDuesPaidInCash,
   refundDues,
   SeasonError,
   updateSeason,
@@ -5057,6 +5059,56 @@ router.get("/api/organization/dues", async (context) => {
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
+    );
+  }
+});
+
+router.post("/api/admin/mark-dues-cash", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = duesCashPaymentRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Profile and season are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const duesRecord = await markOrganizationDuesPaidInCash(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...duesRecord, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof SeasonError ? error.code : "dues_cash_payment_unavailable",
+        message:
+          error instanceof SeasonError
+            ? error.message
+            : "The cash dues payment could not be recorded.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof SeasonError &&
+        (error.status === 404 || error.status === 409 || error.status === 400)
+        ? error.status
+        : 503,
     );
   }
 });
