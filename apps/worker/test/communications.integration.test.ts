@@ -318,6 +318,7 @@ describe("Organization communications", () => {
       "Dues Payment Notice",
       "Event RSVP Invitation",
       "General Announcement",
+      "Performance Reminder",
       "Rehearsal Reminder",
       "Weather / Schedule Delay Alert",
       "Welcome",
@@ -331,6 +332,7 @@ describe("Organization communications", () => {
       "Dues Payment Notice",
       "Event RSVP Invitation",
       "General Announcement",
+      "Performance Reminder",
       "Rehearsal Reminder",
       "Weather / Schedule Delay Alert",
     ]);

@@ -73,6 +73,15 @@ export const communicationPlaceholders: readonly CommunicationPlaceholder[] = [
   },
   {
     audience: ["Members"],
+    channels: ["Email"],
+    description:
+      "A personalized practice player link for the selected event. Members can listen without signing in.",
+    label: "Practice player link (no login)",
+    requiresEvent: true,
+    tag: "{{PLAYER_LINK}}",
+  },
+  {
+    audience: ["Members"],
     description: "The approved set list for the selected event.",
     label: "Set list",
     requiresEvent: true,

@@ -172,6 +172,12 @@ export function CommunicationComposer({
               signing in.
             </p>
           ) : null}
+          {contentMarkdown.includes("{{PLAYER_LINK}}") ? (
+            <p className="field-help">
+              Each member will receive a personalized practice player link for the selected event.
+              They can listen without signing in.
+            </p>
+          ) : null}
         </>
       ) : (
         <div

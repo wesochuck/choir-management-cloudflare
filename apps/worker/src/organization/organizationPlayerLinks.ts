@@ -4,6 +4,29 @@ import type { Env } from "../env";
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
   env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 
+const PLAYER_LINK_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/** Issue a recipient-scoped, no-login practice-player link token. */
+export function issuePlayerToken(
+  env: Pick<Env, "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  eventId: string,
+  profileId: string,
+  issuedAt = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  return issueSignedLink(env.SIGNED_LINK_SECRET, {
+    algorithm: "HS256",
+    expiresAt: issuedAt + PLAYER_LINK_TTL_SECONDS,
+    issuedAt,
+    nonce: crypto.randomUUID(),
+    organizationId,
+    purpose: "player",
+    resourceId: eventId,
+    subjectId: profileId,
+    version: 1,
+  });
+}
+
 export async function generatePlayerTokens(
   env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
   organizationId: string,
@@ -13,17 +36,7 @@ export async function generatePlayerTokens(
   const now = Math.floor(Date.now() / 1000);
   const signedTokens = await Promise.all(
     profileIds.map(async (profileId) => {
-      const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-        algorithm: "HS256",
-        expiresAt: now + 7 * 24 * 60 * 60,
-        issuedAt: now,
-        nonce: crypto.randomUUID(),
-        organizationId,
-        purpose: "player",
-        resourceId: eventId,
-        subjectId: profileId,
-        version: 1,
-      });
+      const token = await issuePlayerToken(env, organizationId, eventId, profileId, now);
       return [profileId, token] as const;
     }),
   );

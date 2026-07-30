@@ -8,6 +8,7 @@ import {
   recordCommunicationDeliveryResults,
 } from "../organization/organizationCommunications";
 import { buildOrganizationExportArchive } from "../organization/organizationExport";
+import { issuePlayerToken } from "../organization/organizationPlayerLinks";
 import { issueRsvpToken } from "../organization/organizationRsvpLinks";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 import { issueSignedLink } from "../security/signedLinks";
@@ -152,10 +153,17 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
       deliveryJob.context?.eventId ?? null,
       delivery,
     );
-    const renderedContent = await renderPollLinks(
+    const contentWithPlayerLinks = await renderPlayerLinks(
       env,
       job.organizationId,
       contentWithRsvpLinks,
+      deliveryJob.context?.eventId ?? null,
+      delivery,
+    );
+    const renderedContent = await renderPollLinks(
+      env,
+      job.organizationId,
+      contentWithPlayerLinks,
       delivery,
     );
     const result = await deliverOrganizationCommunication(env, {
@@ -184,6 +192,8 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
 const pollPlaceholderPattern = /\{\{POLL_LINK:([0-9a-f-]{36})\}\}/gi;
 const rsvpPlaceholderPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/i;
 const rsvpPlaceholderReplacementPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi;
+const playerPlaceholderPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/i;
+const playerPlaceholderReplacementPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi;
 
 function deliveryOrigin(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN">,
@@ -216,6 +226,29 @@ export async function renderRsvpLinks(
   const rsvpLink = `${deliveryOrigin(env, delivery)}/rsvp?token=${encodeURIComponent(token)}`;
   const replacement = `[Open RSVP page](${rsvpLink})\n\n(No login required.)`;
   return content.replace(rsvpPlaceholderReplacementPattern, () => replacement);
+}
+
+export async function renderPlayerLinks(
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  content: string,
+  eventId: string | null,
+  delivery: {
+    readonly profileId: string;
+    readonly unsubscribeUrl: string | null;
+  },
+): Promise<string> {
+  if (!playerPlaceholderPattern.test(content)) return content;
+  if (!eventId) {
+    return content.replace(
+      playerPlaceholderReplacementPattern,
+      () => "Practice player unavailable; select an event before sending this message.",
+    );
+  }
+  const token = await issuePlayerToken(env, organizationId, eventId, delivery.profileId);
+  const playerLink = `${deliveryOrigin(env, delivery)}/player?token=${encodeURIComponent(token)}`;
+  const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
+  return content.replace(playerPlaceholderReplacementPattern, () => replacement);
 }
 
 async function renderPollLinks(

@@ -5,28 +5,29 @@ current Communication Center stores templates per Organization and renders these
 when a message is delivered:
 
 `{singerName}`, `{eventTitle}`, `{eventType}`, `{eventDate}`, `{eventLocation}`, `{eventCallTime}`,
-`{eventDetails}`, `{setlist}`, and `{{RSVP_LINKS}}`.
+`{eventDetails}`, `{setlist}`, `{{RSVP_LINKS}}`, and `{{PLAYER_LINK}}`.
 
 ## Brought forward
 
-Migrations 41 and 42 seed these protected system templates for every Organization that uses the
-current schema. They appear in **Communications → Templates** and can be used as starting points,
-but cannot be deleted:
+Migrations 41–43 seed these protected system templates for every Organization that uses the current
+schema. They appear in **Communications → Templates** and can be used as starting points, but cannot
+be deleted:
 
-| Template                       | Why it is supported                                                                   |
-| ------------------------------ | ------------------------------------------------------------------------------------- |
-| General Announcement           | Static announcement text; no legacy-only token remains.                               |
-| Dues Payment Notice            | Uses the supported recipient-name token.                                              |
-| Weather / Schedule Delay Alert | Uses the supported event-title token and supports Email or SMS.                       |
-| Event RSVP Invitation          | Uses a personalized signed RSVP page link; recipients can respond without signing in. |
-| Rehearsal Reminder             | Uses the same personalized no-login RSVP page link.                                   |
+| Template                       | Why it is supported                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| General Announcement           | Static announcement text; no legacy-only token remains.                                         |
+| Dues Payment Notice            | Uses the supported recipient-name token.                                                        |
+| Weather / Schedule Delay Alert | Uses the supported event-title token and supports Email or SMS.                                 |
+| Event RSVP Invitation          | Uses a personalized signed RSVP page link; recipients can respond without signing in.           |
+| Rehearsal Reminder             | Uses the same personalized no-login RSVP page link.                                             |
+| Performance Reminder           | Uses event context, a personalized no-login practice-player link, and a personalized RSVP link. |
 
 The seed is idempotent and uses stable IDs, so existing Organizations receive the templates once
 without duplicating them on later migrations.
 
-The RSVP invitation and rehearsal reminder templates are ready for manual use from **Communications
-→ Compose**. The event-reminder scheduler is still a separate background path and does not yet
-automatically select and send these templates.
+The RSVP invitation, rehearsal reminder, and performance reminder templates are ready for manual use
+from **Communications → Compose**. The event-reminder scheduler is still a separate background path
+and does not yet automatically select and send these templates.
 
 ## Not brought forward yet
 
@@ -35,8 +36,7 @@ new delivery path does not currently provide their required context or automated
 
 | Legacy template(s)                                                       | Missing capability in the current project                                                                                                                              |
 | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Performance Reminder                                                     | The practice-player token (`{{PLAYER_LINK}}`) and its scheduled reminder delivery are not available to user-authored templates.                                        |
-| Automated RSVP / rehearsal reminders                                     | Scheduled event-reminder jobs are not yet connected to the Communication Center template renderer and provider delivery path.                                          |
+| Automated performance/rehearsal reminders                                | Scheduled event-reminder jobs are not yet connected to the Communication Center template renderer and provider delivery path.                                          |
 | RSVP Confirmation; Free Ticket RSVP Confirmation                         | Public/member RSVP confirmation workflows do not expose the buyer/event confirmation fields to the Communication Center template renderer.                             |
 | Audition Confirmation; Audition Scheduled; Audition Declined             | Audition notifications are generated by the audition-specific queue path, not by Communication Center templates, and their slot/status tokens are not available there. |
 | Ticket Confirmation; Bundle Ticket Confirmation; Ticket Concert Reminder | Ticket notifications have a separate delivery path and require buyer, quantity, amount, bundle, doors, and ticket-button context.                                      |

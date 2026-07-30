@@ -8,10 +8,10 @@ export interface OrganizationSchemaMigration {
 
 /**
  * These are the legacy system templates whose placeholders are supported by the
- * current Communication Center renderer. Templates that need player links,
- * ticket or donation fields, auditions, or attendance-report data remain listed
- * in docs/communications-system-template-parity.md until those delivery paths
- * expose the corresponding context.
+ * current Communication Center renderer. Templates that need ticket or donation
+ * fields, auditions, or attendance-report data remain listed in
+ * docs/communications-system-template-parity.md until those delivery paths expose
+ * the corresponding context.
  */
 const supportedSystemCommunicationTemplates = [
   {
@@ -82,6 +82,37 @@ const rsvpSystemCommunicationTemplates = [
 function seedRsvpSystemCommunicationTemplates(sql: SqlStorage): void {
   const now = new Date().toISOString();
   for (const template of rsvpSystemCommunicationTemplates) {
+    sql.exec(
+      `INSERT INTO communication_templates
+        (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, 1, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM communication_templates WHERE id = ?)`,
+      template.id,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      now,
+      template.id,
+    );
+  }
+}
+
+const playerSystemCommunicationTemplates = [
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {singerName},\n\nThis is a friendly reminder for our upcoming performance: {eventTitle}.\n\nDate & Time: {eventDate}\nLocation: {eventLocation}\nCall Time: {eventCallTime}\n\nSet List:\n{setlist}\n\nPractice Player:\n{{PLAYER_LINK}}\n\nRSVP:\n{{RSVP_LINKS}}\n\nThank you,\nChoir Management",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
+    subject: "Reminder: Upcoming Performance - {eventTitle}",
+    title: "Performance Reminder",
+  },
+] as const;
+
+function seedPlayerSystemCommunicationTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of playerSystemCommunicationTemplates) {
     sql.exec(
       `INSERT INTO communication_templates
         (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
@@ -866,6 +897,11 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
   {
     version: 42,
     apply: seedRsvpSystemCommunicationTemplates,
+    statements: [],
+  },
+  {
+    version: 43,
+    apply: seedPlayerSystemCommunicationTemplates,
     statements: [],
   },
 ] as const;
