@@ -290,11 +290,15 @@ export function SeasonsManager({
           </p>
         ) : null}
         <div className="seasons-manager-controls">
-          <div className="seasons-manager-tabs" role="tablist" aria-label="Seasons and dues views">
+          <nav
+            aria-label="Seasons and dues views"
+            className="ticketing-tabs seasons-manager-tabs"
+            role="tablist"
+          >
             <button
               aria-controls="seasons-manager-panel"
               aria-selected={tab === "seasons"}
-              className={`button ${tab === "seasons" ? "button--primary" : "button--secondary"}`}
+              className={tab === "seasons" ? "is-active" : undefined}
               id="seasons-manager-tab"
               onClick={() => {
                 setTab("seasons");
@@ -307,7 +311,7 @@ export function SeasonsManager({
             <button
               aria-controls="seasons-manager-panel"
               aria-selected={tab === "dues"}
-              className={`button ${tab === "dues" ? "button--primary" : "button--secondary"}`}
+              className={tab === "dues" ? "is-active" : undefined}
               id="dues-manager-tab"
               onClick={() => {
                 setTab("dues");
@@ -317,7 +321,7 @@ export function SeasonsManager({
             >
               Dues records
             </button>
-          </div>
+          </nav>
           {tab === "seasons" ? (
             <button
               className="button button--primary"

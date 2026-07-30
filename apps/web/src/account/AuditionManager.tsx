@@ -98,6 +98,62 @@ function formatDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+function normalizedDateInputValue(value: string): string | null {
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (isoMatch) return value.trim();
+  const localizedMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(value.trim());
+  if (!localizedMatch) return null;
+  const month = localizedMatch[1];
+  const day = localizedMatch[2];
+  const year = localizedMatch[3];
+  if (month === undefined || day === undefined || year === undefined) return null;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function normalizedTimeInputValue(value: string): string | null {
+  const match = /(?:^|T)(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*(AM|PM)?$/i.exec(value.trim());
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const meridiem = match[3]?.toUpperCase();
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || minute > 59) return null;
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    if (meridiem === "AM" && hour === 12) hour = 0;
+    if (meridiem === "PM" && hour < 12) hour += 12;
+  } else if (hour > 23) {
+    return null;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function dateInputStateValue(input: HTMLInputElement): string {
+  const normalized = normalizedDateInputValue(input.value);
+  if (normalized) return normalized;
+  const date = input.valueAsDate;
+  if (date) {
+    return `${String(date.getUTCFullYear()).padStart(4, "0")}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  }
+  return "";
+}
+
+function timeInputStateValue(input: HTMLInputElement): string {
+  const normalized = normalizedTimeInputValue(input.value);
+  if (normalized) return normalized;
+  const date = input.valueAsDate;
+  if (date) {
+    return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+  }
+  return "";
+}
+
+function slotUtcValue(date: string, time: string, timezone: string): string | null {
+  const normalizedDate = normalizedDateInputValue(date);
+  const normalizedTime = normalizedTimeInputValue(time);
+  if (!normalizedDate || !normalizedTime) return null;
+  return zonedLocalDateTimeToUtc(`${normalizedDate}T${normalizedTime}`, timezone);
+}
+
 function ManagerStatusPanel({
   enabled,
   status,
@@ -416,8 +472,8 @@ function SettingsForm({
 
   function addSlot() {
     setSlotError(null);
-    const startsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotStart}`, timezone);
-    const endsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotEnd}`, timezone);
+    const startsAt = slotUtcValue(slotDate, slotStart, timezone);
+    const endsAt = slotUtcValue(slotDate, slotEnd, timezone);
     if (!startsAt || !endsAt || startsAt >= endsAt) {
       setSlotError(`Enter a valid start and end time in ${timezone}.`);
       return;
@@ -433,8 +489,8 @@ function SettingsForm({
   }
   function generateSlots() {
     setSlotError(null);
-    const startsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotStart}`, timezone);
-    const endsAt = zonedLocalDateTimeToUtc(`${slotDate}T${slotEnd}`, timezone);
+    const startsAt = slotUtcValue(slotDate, slotStart, timezone);
+    const endsAt = slotUtcValue(slotDate, slotEnd, timezone);
     const intervalMinutes = Number(slotInterval);
     const start = startsAt ? new Date(startsAt) : null;
     const end = endsAt ? new Date(endsAt) : null;
@@ -561,7 +617,7 @@ function SettingsForm({
               value={slotDate}
               onChange={(event) => {
                 setSlotError(null);
-                setSlotDate(event.target.value);
+                setSlotDate(dateInputStateValue(event.currentTarget));
               }}
             />
           </label>
@@ -588,7 +644,7 @@ function SettingsForm({
               value={slotStart}
               onChange={(event) => {
                 setSlotError(null);
-                setSlotStart(event.target.value);
+                setSlotStart(timeInputStateValue(event.currentTarget));
               }}
             />
           </label>
@@ -599,7 +655,7 @@ function SettingsForm({
               value={slotEnd}
               onChange={(event) => {
                 setSlotError(null);
-                setSlotEnd(event.target.value);
+                setSlotEnd(timeInputStateValue(event.currentTarget));
               }}
             />
           </label>
