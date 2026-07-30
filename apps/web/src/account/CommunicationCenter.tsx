@@ -252,6 +252,11 @@ function TemplateLibrary({
   return (
     <div className="form-stack" aria-labelledby="communication-templates-heading">
       <h3 id="communication-templates-heading">Templates</h3>
+      <p className="communication-template-help">
+        Choose <strong>Edit wording</strong> on any template to customize its name, subject, or
+        message. System templates power automated messages for this Organization: they can be
+        edited, but not deleted.
+      </p>
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}
@@ -279,13 +284,14 @@ function TemplateLibrary({
                   Use template
                 </button>
                 <button
+                  className="button button--secondary"
                   disabled={busy}
                   onClick={() => {
                     startEdit(template);
                   }}
                   type="button"
                 >
-                  Edit
+                  Edit wording
                 </button>
                 {!template.isSystem ? (
                   <button disabled={busy} onClick={() => void remove(template)} type="button">
@@ -300,8 +306,12 @@ function TemplateLibrary({
         <p>No templates match this channel and audience yet.</p>
       )}
       {editingTemplate ? (
-        <fieldset className="form-stack">
-          <legend>Edit {editingTemplate.isSystem ? "system " : ""}template</legend>
+        <fieldset className="form-stack communication-template-editor">
+          <legend>Edit template wording</legend>
+          <p className="field-help communication-template-editor__intro">
+            Updating <strong>{editingTemplate.title}</strong> changes what appears when this
+            template is used and, for system templates, what future automated messages contain.
+          </p>
           <div className="field">
             <label htmlFor="communication-template-edit-title">Template name</label>
             <input
@@ -1099,7 +1109,7 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Message templates</h2>
-              <p>Keep reusable messages in one place, then apply them while composing.</p>
+              <p>Apply a template while composing, or edit its wording here for future messages.</p>
             </div>
           </div>
           <TemplateLibrary
