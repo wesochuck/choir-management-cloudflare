@@ -664,6 +664,15 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     }
   }
 
+  const draftMessages = messages.filter((message) => message.status === "Draft");
+  const historyMessages = messages.filter((message) => message.status !== "Draft");
+  const upcomingScheduledMessages = scheduledMessages.filter(
+    (message) => message.status === "Queued" || message.status === "Scheduled",
+  );
+  const scheduledMessageHistory = scheduledMessages.filter(
+    (message) => message.status === "Sent" || message.status === "Failed",
+  );
+
   if (!enabled) return null;
   return (
     <section className="panel" aria-label="Communication center">
@@ -1006,40 +1015,34 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
               New message
             </button>
           </div>
-          {messages.filter((message) => message.status === "Draft").length === 0 ? (
+          {draftMessages.length === 0 ? (
             <p>No communication drafts yet.</p>
           ) : (
             <ul className="account-list">
-              {messages
-                .filter((message) => message.status === "Draft")
-                .map((message) => (
-                  <li key={message.id}>
-                    <div>
-                      <strong>{message.subject || `${message.channel} message`}</strong>
-                      <p>
-                        {message.channel} · {displayDate(message.createdAt)}
-                      </p>
-                    </div>
-                    <div className="button-row">
-                      <button
-                        disabled={busy}
-                        onClick={() => {
-                          resumeDraft(message);
-                        }}
-                        type="button"
-                      >
-                        Open draft
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={() => void deleteDraft(message)}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </li>
-                ))}
+              {draftMessages.map((message) => (
+                <li key={message.id}>
+                  <div>
+                    <strong>{message.subject || `${message.channel} message`}</strong>
+                    <p>
+                      {message.channel} · {displayDate(message.createdAt)}
+                    </p>
+                  </div>
+                  <div className="button-row">
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        resumeDraft(message);
+                      }}
+                      type="button"
+                    >
+                      Open draft
+                    </button>
+                    <button disabled={busy} onClick={() => void deleteDraft(message)} type="button">
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -1053,31 +1056,58 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
               <p>Review queued and completed messages, then inspect delivery details.</p>
             </div>
           </div>
-          {messages.filter((message) => message.status !== "Draft").length === 0 ? (
+          {historyMessages.length === 0 && scheduledMessageHistory.length === 0 ? (
             <p>No communications have been sent yet.</p>
           ) : (
-            <ul className="account-list">
-              {messages
-                .filter((message) => message.status !== "Draft")
-                .map((message) => (
-                  <li key={message.id}>
-                    <div>
-                      <strong>{message.subject || `${message.channel} message`}</strong>
-                      <p>
-                        {message.status} · {message.channel} · {displayDate(message.createdAt)} ·
-                        reach {String(message.reach.total)}
-                      </p>
-                    </div>
-                    <button
-                      disabled={busy}
-                      onClick={() => void showDelivery(message)}
-                      type="button"
-                    >
-                      Delivery status
-                    </button>
-                  </li>
-                ))}
-            </ul>
+            <>
+              {historyMessages.length > 0 ? (
+                <ul className="account-list">
+                  {historyMessages.map((message) => (
+                    <li key={message.id}>
+                      <div>
+                        <strong>{message.subject || `${message.channel} message`}</strong>
+                        <p>
+                          {message.status} · {message.channel} · {displayDate(message.createdAt)} ·
+                          reach {String(message.reach.total)}
+                        </p>
+                      </div>
+                      <button
+                        disabled={busy}
+                        onClick={() => void showDelivery(message)}
+                        type="button"
+                      >
+                        Delivery status
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {scheduledMessageHistory.length > 0 ? (
+                <div className="communication-history-group">
+                  <h3>Automated message history</h3>
+                  <p className="field-help">
+                    Completed ticket reminders, ticket confirmations, and scheduled reports appear
+                    here after delivery.
+                  </p>
+                  <ul className="account-list">
+                    {scheduledMessageHistory.map((message) => (
+                      <li key={message.id}>
+                        <div>
+                          <strong>{scheduledKindLabel(message.kind)}</strong>
+                          <p>
+                            {message.eventTitle} · {message.subject}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="status-pill">{message.status}</span>
+                          <p>{displayDate(message.scheduledAt)}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
           )}
           {summary ? (
             <div className="notice notice--info" aria-live="polite">
@@ -1138,11 +1168,11 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
               <p>See automated reminders and reports that are scheduled for delivery.</p>
             </div>
           </div>
-          {scheduledMessages.length === 0 ? (
-            <p>No scheduled messages yet.</p>
+          {upcomingScheduledMessages.length === 0 ? (
+            <p>No upcoming sends. Completed sends are available in History.</p>
           ) : (
             <ul className="account-list">
-              {scheduledMessages.map((message) => (
+              {upcomingScheduledMessages.map((message) => (
                 <li key={message.id}>
                   <div>
                     <strong>{scheduledKindLabel(message.kind)}</strong>

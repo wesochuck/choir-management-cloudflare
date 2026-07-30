@@ -2563,6 +2563,20 @@ h2 {
   margin: -0.25rem 0 0;
 }
 
+.communication-history-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.communication-history-group h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.communication-history-group .account-list {
+  margin-top: 0.25rem;
+}
+
 .communication-tab-panel__heading {
   display: flex;
   align-items: start;
