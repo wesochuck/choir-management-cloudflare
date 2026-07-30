@@ -231,6 +231,7 @@ function eventCommunicationContext(storage: DurableObjectStorage, eventId: strin
     .at(0);
   if (!event) return null;
   return {
+    eventId,
     eventCallTime: event.callTime,
     eventDate: new Intl.DateTimeFormat("en-US", {
       dateStyle: "long",

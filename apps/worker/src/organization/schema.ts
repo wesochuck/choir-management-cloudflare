@@ -8,7 +8,7 @@ export interface OrganizationSchemaMigration {
 
 /**
  * These are the legacy system templates whose placeholders are supported by the
- * current Communication Center renderer. Templates that need RSVP/player links,
+ * current Communication Center renderer. Templates that need player links,
  * ticket or donation fields, auditions, or attendance-report data remain listed
  * in docs/communications-system-template-parity.md until those delivery paths
  * expose the corresponding context.
@@ -43,6 +43,45 @@ const supportedSystemCommunicationTemplates = [
 function seedSupportedSystemCommunicationTemplates(sql: SqlStorage): void {
   const now = new Date().toISOString();
   for (const template of supportedSystemCommunicationTemplates) {
+    sql.exec(
+      `INSERT INTO communication_templates
+        (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, 1, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM communication_templates WHERE id = ?)`,
+      template.id,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      now,
+      template.id,
+    );
+  }
+}
+
+const rsvpSystemCommunicationTemplates = [
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hello {singerName},\n\nRSVP is now open for our upcoming {eventType}: {eventTitle}.\n\nDate: {eventDate}\nLocation: {eventLocation}\n\nPlease let us know if you can attend using the link below:\n\n{{RSVP_LINKS}}\n\nDetails:\n{eventDetails}",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000004",
+    subject: "Invitation: {eventTitle}",
+    title: "Event RSVP Invitation",
+  },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {singerName},\n\nThis is a friendly reminder for our upcoming rehearsal: {eventTitle}.\n\nDate & Time: {eventDate}\nLocation: {eventLocation}\n\nPlease let us know if you will be attending.\n\nRSVP:\n{{RSVP_LINKS}}\n\nThank you,\nChoir Management",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
+    subject: "Reminder: Rehearsal for {eventTitle}",
+    title: "Rehearsal Reminder",
+  },
+] as const;
+
+function seedRsvpSystemCommunicationTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of rsvpSystemCommunicationTemplates) {
     sql.exec(
       `INSERT INTO communication_templates
         (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
@@ -822,6 +861,11 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
   {
     version: 41,
     apply: seedSupportedSystemCommunicationTemplates,
+    statements: [],
+  },
+  {
+    version: 42,
+    apply: seedRsvpSystemCommunicationTemplates,
     statements: [],
   },
 ] as const;

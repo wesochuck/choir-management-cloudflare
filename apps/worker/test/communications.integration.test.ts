@@ -316,7 +316,9 @@ describe("Organization communications", () => {
     );
     expect(templates.templates.map(({ title }) => title).sort()).toEqual([
       "Dues Payment Notice",
+      "Event RSVP Invitation",
       "General Announcement",
+      "Rehearsal Reminder",
       "Weather / Schedule Delay Alert",
       "Welcome",
     ]);
@@ -325,7 +327,13 @@ describe("Organization communications", () => {
         .filter(({ isSystem }) => isSystem)
         .map(({ title }) => title)
         .sort(),
-    ).toEqual(["Dues Payment Notice", "General Announcement", "Weather / Schedule Delay Alert"]);
+    ).toEqual([
+      "Dues Payment Notice",
+      "Event RSVP Invitation",
+      "General Announcement",
+      "Rehearsal Reminder",
+      "Weather / Schedule Delay Alert",
+    ]);
     expect(
       communicationDeleteResponseSchema.parse(
         await (

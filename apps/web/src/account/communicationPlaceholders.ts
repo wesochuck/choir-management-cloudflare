@@ -65,6 +65,14 @@ export const communicationPlaceholders: readonly CommunicationPlaceholder[] = [
   },
   {
     audience: ["Members"],
+    channels: ["Email"],
+    description: "A personalized RSVP page link. Members can respond without signing in.",
+    label: "RSVP link (no login)",
+    requiresEvent: true,
+    tag: "{{RSVP_LINKS}}",
+  },
+  {
+    audience: ["Members"],
     description: "The approved set list for the selected event.",
     label: "Set list",
     requiresEvent: true,

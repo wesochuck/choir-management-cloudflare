@@ -8,6 +8,7 @@ import {
   recordCommunicationDeliveryResults,
 } from "../organization/organizationCommunications";
 import { buildOrganizationExportArchive } from "../organization/organizationExport";
+import { issueRsvpToken } from "../organization/organizationRsvpLinks";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 import { issueSignedLink } from "../security/signedLinks";
 import { organizationExportKey } from "../organization/exportStore";
@@ -139,14 +140,22 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
   const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
   const results = [];
   for (const delivery of deliveryJob.deliveries) {
+    const templatedContent = renderCommunicationTemplate(
+      deliveryJob.contentMarkdown,
+      delivery.recipientName,
+      deliveryJob.context ?? undefined,
+    );
+    const contentWithRsvpLinks = await renderRsvpLinks(
+      env,
+      job.organizationId,
+      templatedContent,
+      deliveryJob.context?.eventId ?? null,
+      delivery,
+    );
     const renderedContent = await renderPollLinks(
       env,
       job.organizationId,
-      renderCommunicationTemplate(
-        deliveryJob.contentMarkdown,
-        delivery.recipientName,
-        deliveryJob.context ?? undefined,
-      ),
+      contentWithRsvpLinks,
       delivery,
     );
     const result = await deliverOrganizationCommunication(env, {
@@ -173,6 +182,41 @@ async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): P
 }
 
 const pollPlaceholderPattern = /\{\{POLL_LINK:([0-9a-f-]{36})\}\}/gi;
+const rsvpPlaceholderPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/i;
+const rsvpPlaceholderReplacementPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi;
+
+function deliveryOrigin(
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN">,
+  delivery: { readonly unsubscribeUrl: string | null },
+): string {
+  if (delivery.unsubscribeUrl) return new URL(delivery.unsubscribeUrl).origin;
+  return env.PRODUCT_BASE_DOMAIN === "localhost"
+    ? "http://localhost"
+    : `https://${env.PRODUCT_BASE_DOMAIN}`;
+}
+
+export async function renderRsvpLinks(
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  content: string,
+  eventId: string | null,
+  delivery: {
+    readonly profileId: string;
+    readonly unsubscribeUrl: string | null;
+  },
+): Promise<string> {
+  if (!rsvpPlaceholderPattern.test(content)) return content;
+  if (!eventId) {
+    return content.replace(
+      rsvpPlaceholderReplacementPattern,
+      () => "RSVP link unavailable; select an event before sending this message.",
+    );
+  }
+  const token = await issueRsvpToken(env, organizationId, eventId, delivery.profileId);
+  const rsvpLink = `${deliveryOrigin(env, delivery)}/rsvp?token=${encodeURIComponent(token)}`;
+  const replacement = `[Open RSVP page](${rsvpLink})\n\n(No login required.)`;
+  return content.replace(rsvpPlaceholderReplacementPattern, () => replacement);
+}
 
 async function renderPollLinks(
   env: JobConsumerEnv,
@@ -188,11 +232,7 @@ async function renderPollLinks(
   ];
   if (pollIds.length === 0) return content;
 
-  const origin = delivery.unsubscribeUrl
-    ? new URL(delivery.unsubscribeUrl).origin
-    : env.PRODUCT_BASE_DOMAIN === "localhost"
-      ? "http://localhost"
-      : `https://${env.PRODUCT_BASE_DOMAIN}`;
+  const origin = deliveryOrigin(env, delivery);
   const issuedAt = Math.floor(Date.now() / 1_000);
   const tokens = new Map(
     await Promise.all(

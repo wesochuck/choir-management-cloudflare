@@ -40,6 +40,7 @@ const deliveryJobResponseSchema = z.object({
   contentMarkdown: z.string().max(100_000),
   context: z
     .object({
+      eventId: z.uuid(),
       eventCallTime: z.string(),
       eventDate: z.string(),
       eventDetails: z.string(),

@@ -166,6 +166,12 @@ export function CommunicationComposer({
               when this email is sent.
             </p>
           ) : null}
+          {contentMarkdown.includes("{{RSVP_LINKS}}") ? (
+            <p className="field-help">
+              Each member will receive a personalized RSVP page link. They can respond without
+              signing in.
+            </p>
+          ) : null}
         </>
       ) : (
         <div

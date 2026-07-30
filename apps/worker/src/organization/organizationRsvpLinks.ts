@@ -4,6 +4,29 @@ import type { Env } from "../env";
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
   env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 
+const RSVP_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+/** Issue the same scoped, no-login token used by the public RSVP page. */
+export function issueRsvpToken(
+  env: Pick<Env, "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  eventId: string,
+  profileId: string,
+  issuedAt = Math.floor(Date.now() / 1000),
+): Promise<string> {
+  return issueSignedLink(env.SIGNED_LINK_SECRET, {
+    algorithm: "HS256",
+    expiresAt: issuedAt + RSVP_LINK_TTL_SECONDS,
+    issuedAt,
+    nonce: crypto.randomUUID(),
+    organizationId,
+    purpose: "rsvp",
+    resourceId: eventId,
+    subjectId: profileId,
+    version: 1,
+  });
+}
+
 interface EventRsvpDetails {
   readonly callTime: string;
   readonly details: string;
@@ -45,17 +68,7 @@ export async function generateRsvpTokens(
   const issuedAt = Math.floor(Date.now() / 1000);
   const signedTokens = await Promise.all(
     profileIds.map(async (profileId) => {
-      const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-        algorithm: "HS256",
-        expiresAt: issuedAt + 30 * 24 * 60 * 60,
-        issuedAt,
-        nonce: crypto.randomUUID(),
-        organizationId,
-        purpose: "rsvp",
-        resourceId: eventId,
-        subjectId: profileId,
-        version: 1,
-      });
+      const token = await issueRsvpToken(env, organizationId, eventId, profileId, issuedAt);
       return [profileId, token] as const;
     }),
   );
