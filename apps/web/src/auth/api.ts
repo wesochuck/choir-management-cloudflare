@@ -50,6 +50,8 @@ import {
   organizationProfileResponseSchema,
   organizationProfilesResponseSchema,
   organizationProfileImportResponseSchema,
+  organizationProfileFolderNumberSchema,
+  organizationProfileFolderNumbersResponseSchema,
   organizationProfilePerformanceHistoryResponseSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
@@ -155,6 +157,8 @@ import {
   type OrganizationMfaPolicyResponse,
   type OrganizationMfaVerificationResponse,
   type OrganizationProfile,
+  type OrganizationProfileFolderNumber,
+  type OrganizationProfileFolderNumberUpdate,
   type OrganizationProfileRequest,
   type OrganizationProfilePerformanceHistoryResponse,
   type OrganizationRsvp,
@@ -398,6 +402,29 @@ export async function getOrganizationProfilePerformanceHistory(
     { signal: signal ?? null },
   );
   return organizationProfilePerformanceHistoryResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationProfileFolderNumbers(
+  profileId: string,
+  signal?: AbortSignal,
+): Promise<readonly OrganizationProfileFolderNumber[]> {
+  const response = await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}/folder-numbers`,
+    { signal: signal ?? null },
+  );
+  return organizationProfileFolderNumbersResponseSchema.parse(await response.json()).folderNumbers;
+}
+
+export async function updateOrganizationProfileFolderNumber(
+  profileId: string,
+  eventId: string,
+  folder: OrganizationProfileFolderNumberUpdate,
+): Promise<OrganizationProfileFolderNumber> {
+  const response = await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}/folder-numbers/${encodeURIComponent(eventId)}`,
+    { body: JSON.stringify(folder), method: "PUT" },
+  );
+  return organizationProfileFolderNumberSchema.parse(await response.json());
 }
 
 export async function getMemberProfile(signal?: AbortSignal): Promise<MemberProfile> {

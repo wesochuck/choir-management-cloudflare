@@ -15,6 +15,7 @@ import {
   organizationInvitationRequestSchema,
   organizationEventRequestSchema,
   organizationCalendarSettingsRequestSchema,
+  organizationProfileFolderNumberUpdateSchema,
   organizationRosterConfigurationRequestSchema,
   organizationSeatingChartRequestSchema,
   organizationSeatingChartOrderRequestSchema,
@@ -115,6 +116,7 @@ import {
   listOrganizationVenues,
   listMemberSchedule,
   listOrganizationProfilePerformanceHistory,
+  listOrganizationProfileFolderNumbers,
   readOrganizationCalendarSettings,
   readOrganizationEventRsvpExport,
   readOrganizationRosterConfiguration,
@@ -124,6 +126,7 @@ import {
   updateOrganizationRosterConfiguration,
   updateOrganizationEvent,
   updateOrganizationEventAttendance,
+  updateOrganizationProfileFolderNumber,
 } from "./calendar/organizationCalendar";
 import { listAccountOrganizations } from "./auth/accountOrganizations";
 import {
@@ -3323,6 +3326,110 @@ router.get("/api/organization/profiles/:profileId/performance-history", async (c
       {
         code: "service_unavailable",
         message: "Profile performance history is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/profiles/:profileId/folder-numbers", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = z.uuid().safeParse(context.req.param("profileId"));
+  if (!profileId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Profile ID is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const folderNumbers = await listOrganizationProfileFolderNumbers(
+      context.env,
+      authorization.organizationId,
+      profileId.data,
+    );
+    return context.json({
+      folderNumbers,
+      profileId: profileId.data,
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Profile folder numbers are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/profiles/:profileId/folder-numbers/:eventId", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = z.uuid().safeParse(context.req.param("profileId"));
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  const folder = organizationProfileFolderNumberUpdateSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!profileId.success || !eventId.success || !folder.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Profile, event, and folder number are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const folderNumber = await updateOrganizationProfileFolderNumber(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      profileId.data,
+      eventId.data,
+      folder.data,
+    );
+    return context.json({ ...folderNumber, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    if (error instanceof CalendarMutationError) {
+      const status = error.status === 409 ? 409 : 503;
+      return context.json(
+        {
+          code: error.code,
+          message:
+            error.code === "folder_number_requires_performance"
+              ? "Folder numbers can only be assigned to Performance events."
+              : "The profile folder number could not be saved.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The profile folder number could not be saved.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

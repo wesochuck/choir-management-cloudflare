@@ -163,11 +163,11 @@ interface RouteState {
   readonly pathname: string;
   readonly search: string;
 }
-type RosterProfileTab = "dues" | "info" | "performance";
+type RosterProfileTab = "dues" | "folders" | "info" | "performance";
 
 function rosterProfileTabFromSearch(search: string): RosterProfileTab {
   const tab = new URLSearchParams(search).get("tab");
-  return tab === "dues" || tab === "performance" ? tab : "info";
+  return tab === "dues" || tab === "folders" || tab === "performance" ? tab : "info";
 }
 type AccessState =
   | { readonly status: "loading" }

@@ -503,8 +503,6 @@ export const organizationAttendanceStatusSchema = z.enum(["Present", "Absent", "
 
 export const organizationAttendanceUpdateSchema = z.object({
   attendance: organizationAttendanceStatusSchema,
-  folderNumber: z.string().trim().max(50).optional(),
-  folderReturned: z.boolean().optional(),
   profileId: z.uuid(),
 });
 
@@ -515,8 +513,6 @@ export const organizationAttendanceBulkRequestSchema = z.object({
 export const organizationAttendanceRowSchema = z.object({
   attendance: organizationAttendanceStatusSchema,
   displayName: z.string().min(1).max(200),
-  folderNumber: z.string().max(50),
-  folderReturned: z.boolean(),
   profileId: z.uuid(),
   rsvp: z.enum(["Yes", "No", "Pending"]),
   updatedAt: z.iso.datetime().nullable(),
@@ -527,6 +523,28 @@ export const organizationAttendanceResponseSchema = z.object({
   eventId: z.uuid(),
   requestId: requestIdSchema,
   rows: z.array(organizationAttendanceRowSchema).max(500),
+});
+
+export const organizationProfileFolderNumberSchema = z.object({
+  eventId: z.uuid(),
+  eventTitle: z.string().min(1).max(500),
+  eventType: z.literal("Performance"),
+  folderNumber: z.string().max(50),
+  folderReturned: z.boolean(),
+  profileId: z.uuid(),
+  startsAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime().nullable(),
+});
+
+export const organizationProfileFolderNumbersResponseSchema = z.object({
+  folderNumbers: z.array(organizationProfileFolderNumberSchema).max(500),
+  profileId: z.uuid(),
+  requestId: requestIdSchema,
+});
+
+export const organizationProfileFolderNumberUpdateSchema = z.object({
+  folderNumber: z.string().trim().max(50),
+  folderReturned: z.boolean(),
 });
 
 export const organizationProfilePerformanceSchema = z.object({
@@ -784,6 +802,10 @@ export type OrganizationRsvp = z.infer<typeof organizationRsvpSchema>;
 export type OrganizationAttendanceStatus = z.infer<typeof organizationAttendanceStatusSchema>;
 export type OrganizationAttendanceUpdate = z.infer<typeof organizationAttendanceUpdateSchema>;
 export type OrganizationAttendanceRow = z.infer<typeof organizationAttendanceRowSchema>;
+export type OrganizationProfileFolderNumber = z.infer<typeof organizationProfileFolderNumberSchema>;
+export type OrganizationProfileFolderNumberUpdate = z.infer<
+  typeof organizationProfileFolderNumberUpdateSchema
+>;
 export type OrganizationProfilePerformance = z.infer<typeof organizationProfilePerformanceSchema>;
 export type OrganizationProfilePerformanceHistoryResponse = z.infer<
   typeof organizationProfilePerformanceHistoryResponseSchema

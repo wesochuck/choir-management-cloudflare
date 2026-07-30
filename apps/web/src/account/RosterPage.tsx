@@ -2,6 +2,7 @@ import type {
   DuesRecord,
   OrganizationMembershipSummary,
   OrganizationProfile,
+  OrganizationProfileFolderNumber,
   OrganizationProfilePerformanceHistoryResponse,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
@@ -26,6 +27,7 @@ import {
   createOrganizationInvitation,
   getOrganizationRosterConfiguration,
   getOrganizationProfilePerformanceHistory,
+  getOrganizationProfileFolderNumbers,
   importOrganizationProfilesCsv,
   listOrganizationDues,
   listOrganizationMemberships,
@@ -34,6 +36,7 @@ import {
   markOrganizationDuesPaidInCash,
   requestPasswordReset,
   setOrganizationEventRsvp,
+  updateOrganizationProfileFolderNumber,
   updateOrganizationProfile,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
@@ -66,7 +69,7 @@ type RosterState =
     };
 
 type RosterStatusFilter = "all" | OrganizationProfile["globalStatus"];
-type ProfileTab = "dues" | "info" | "performance";
+type ProfileTab = "dues" | "folders" | "info" | "performance";
 
 const UNASSIGNED_VOICE_FILTER = "unassigned";
 
@@ -270,6 +273,15 @@ type ProfileDuesState =
       readonly status: "ready";
     };
 
+type ProfileFolderNumbersState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | { readonly status: "error" }
+  | {
+      readonly folderNumbers: readonly OrganizationProfileFolderNumber[];
+      readonly status: "ready";
+    };
+
 function formatPerformanceDate(value: string): { readonly date: string; readonly time: string } {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return { date: "Date unavailable", time: "" };
@@ -417,6 +429,137 @@ function formatDuesAmount(cents: number): string {
     currency: "USD",
     style: "currency",
   });
+}
+
+function ProfileFolderNumbers({
+  onFolderNumberChanged,
+  profileId,
+  state,
+}: {
+  readonly onFolderNumberChanged: (folderNumber: OrganizationProfileFolderNumber) => void;
+  readonly profileId: string;
+  readonly state: ProfileFolderNumbersState;
+}) {
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
+  const [returnedDrafts, setReturnedDrafts] = useState<Readonly<Record<string, boolean>>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [savingEventId, setSavingEventId] = useState<string | null>(null);
+
+  async function saveFolderNumber(folder: OrganizationProfileFolderNumber): Promise<void> {
+    const folderNumber = (drafts[folder.eventId] ?? folder.folderNumber).trim();
+    const folderReturned = returnedDrafts[folder.eventId] ?? folder.folderReturned;
+    setSavingEventId(folder.eventId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await updateOrganizationProfileFolderNumber(profileId, folder.eventId, {
+        folderNumber,
+        folderReturned,
+      });
+      onFolderNumberChanged(updated);
+      setSuccess(`${folder.eventTitle} folder details saved.`);
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof AuthApiError
+          ? saveError.message
+          : "The folder number could not be saved.",
+      );
+    } finally {
+      setSavingEventId(null);
+    }
+  }
+
+  if (state.status === "loading") {
+    return <p className="notice notice--info">Loading folder numbers…</p>;
+  }
+  if (state.status === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Folder numbers could not be loaded. Try again later.
+      </p>
+    );
+  }
+  if (state.status !== "ready") return null;
+  if (state.folderNumbers.length === 0) {
+    return <p className="profile-folder-numbers__empty">No events have been configured yet.</p>;
+  }
+
+  return (
+    <div className="profile-folder-numbers">
+      <div className="profile-folder-numbers__heading">
+        <div>
+          <p className="eyebrow">Music folders</p>
+          <h3>Folder numbers by event</h3>
+        </div>
+        <span className="field-help">Folder details are stored separately for each event.</span>
+      </div>
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className="notice notice--success" role="status">
+          {success}
+        </p>
+      ) : null}
+      <div className="profile-folder-numbers__list" role="list">
+        {state.folderNumbers.map((folder) => {
+          const formatted = formatPerformanceDate(folder.startsAt);
+          const isSaving = savingEventId === folder.eventId;
+          return (
+            <div className="profile-folder-row" key={folder.eventId} role="listitem">
+              <div className="profile-folder-row__event">
+                <strong>{folder.eventTitle}</strong>
+                <span>
+                  {folder.eventType} · {formatted.date} {formatted.time}
+                </span>
+              </div>
+              <label className="profile-folder-row__number">
+                <span>Folder number</span>
+                <input
+                  maxLength={50}
+                  onChange={(event) => {
+                    setDrafts((current) => ({
+                      ...current,
+                      [folder.eventId]: event.target.value,
+                    }));
+                  }}
+                  value={drafts[folder.eventId] ?? folder.folderNumber}
+                />
+              </label>
+              <label className="checkbox-row profile-folder-row__returned">
+                <input
+                  checked={returnedDrafts[folder.eventId] ?? folder.folderReturned}
+                  onChange={(event) => {
+                    setReturnedDrafts((current) => ({
+                      ...current,
+                      [folder.eventId]: event.target.checked,
+                    }));
+                  }}
+                  type="checkbox"
+                />
+                Folder returned
+              </label>
+              <div className="profile-folder-row__action">
+                <button
+                  className="button button--secondary button--small"
+                  disabled={savingEventId !== null}
+                  onClick={() => {
+                    void saveFolderNumber(folder);
+                  }}
+                  type="button"
+                >
+                  {isSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function duesStatusLabel(record: DuesRecord | undefined): string {
@@ -576,6 +719,9 @@ export function RosterPage({
     status: "idle",
   });
   const [profileDues, setProfileDues] = useState<ProfileDuesState>({ status: "idle" });
+  const [profileFolderNumbers, setProfileFolderNumbers] = useState<ProfileFolderNumbersState>({
+    status: "idle",
+  });
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const [resettingProfileId, setResettingProfileId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -627,6 +773,7 @@ export function RosterPage({
     setProfileTab(initialProfileTab);
     setPerformanceHistory({ status: initialProfileTab === "performance" ? "loading" : "idle" });
     setProfileDues({ status: initialProfileTab === "dues" ? "loading" : "idle" });
+    setProfileFolderNumbers({ status: initialProfileTab === "folders" ? "loading" : "idle" });
     setResetFeedback(null);
     setError(null);
     setSuccess(null);
@@ -643,6 +790,23 @@ export function RosterPage({
       .catch((historyError: unknown) => {
         if (!(historyError instanceof DOMException && historyError.name === "AbortError")) {
           setPerformanceHistory({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [dialogOpen, editingId, profileTab]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingId || profileTab !== "folders") return;
+    const controller = new AbortController();
+    getOrganizationProfileFolderNumbers(editingId, controller.signal)
+      .then((folderNumbers) => {
+        setProfileFolderNumbers({ folderNumbers, status: "ready" });
+      })
+      .catch((folderError: unknown) => {
+        if (!(folderError instanceof DOMException && folderError.name === "AbortError")) {
+          setProfileFolderNumbers({ status: "error" });
         }
       });
     return () => {
@@ -722,6 +886,7 @@ export function RosterPage({
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
+    setProfileFolderNumbers({ status: "idle" });
     setResetFeedback(null);
     setError(null);
   }
@@ -785,6 +950,7 @@ export function RosterPage({
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
+    setProfileFolderNumbers({ status: "idle" });
     setProfile(emptyProfile);
     setProfileEmail("");
     setProfilePhotoFileId(null);
@@ -799,6 +965,7 @@ export function RosterPage({
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
+    setProfileFolderNumbers({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
     setProfileEmail(
@@ -1132,6 +1299,18 @@ export function RosterPage({
             >
               Dues
             </button>
+            <button
+              aria-selected={profileTab === "folders"}
+              className={profileTab === "folders" ? "is-active" : ""}
+              onClick={() => {
+                setProfileFolderNumbers({ status: "loading" });
+                setProfileTab("folders");
+              }}
+              role="tab"
+              type="button"
+            >
+              Folder numbers
+            </button>
           </div>
         ) : null}
         {editingId && profileTab === "performance" ? (
@@ -1157,6 +1336,22 @@ export function RosterPage({
             }}
             profileId={editingId}
             state={performanceHistory}
+          />
+        ) : editingId && profileTab === "folders" ? (
+          <ProfileFolderNumbers
+            onFolderNumberChanged={(updated) => {
+              setProfileFolderNumbers((current) => {
+                if (current.status !== "ready") return current;
+                return {
+                  ...current,
+                  folderNumbers: current.folderNumbers.map((folder) =>
+                    folder.eventId === updated.eventId ? updated : folder,
+                  ),
+                };
+              });
+            }}
+            profileId={editingId}
+            state={profileFolderNumbers}
           />
         ) : editingId && profileTab === "dues" ? (
           <ProfileDues

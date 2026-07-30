@@ -6,6 +6,8 @@ import {
   organizationEventsResponseSchema,
   organizationCalendarSettingsResponseSchema,
   organizationDashboardSummaryResponseSchema,
+  organizationProfileFolderNumberSchema,
+  organizationProfileFolderNumbersResponseSchema,
   organizationRosterConfigurationRequestSchema,
   organizationRsvpSchema,
   organizationProfilePerformanceHistoryResponseSchema,
@@ -19,6 +21,8 @@ import {
   type OrganizationEventRequest,
   type OrganizationEventArchiveResponse,
   type OrganizationEventRsvpExportData,
+  type OrganizationProfileFolderNumber,
+  type OrganizationProfileFolderNumberUpdate,
   type OrganizationRsvp,
   type OrganizationRsvpRequest,
   type OrganizationVenue,
@@ -83,6 +87,23 @@ export async function listOrganizationEventAttendance(
     .rows;
 }
 
+export async function listOrganizationProfileFolderNumbers(
+  env: Env,
+  organizationId: string,
+  profileId: string,
+): Promise<readonly OrganizationProfileFolderNumber[]> {
+  const url = new URL("https://organization.internal/internal/calendar/profile-folder-numbers");
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("profileId", profileId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) {
+    throw new Error("The Organization store rejected the Profile folder numbers request.");
+  }
+  return organizationProfileFolderNumbersResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json()).folderNumbers;
+}
+
 export async function readOrganizationEventRsvpExport(
   env: Env,
   organizationId: string,
@@ -111,6 +132,24 @@ export async function updateOrganizationEventAttendance(
       eventId,
     }),
   ).rows;
+}
+
+export async function updateOrganizationProfileFolderNumber(
+  env: Env,
+  actor: ActorContext,
+  profileId: string,
+  eventId: string,
+  folder: OrganizationProfileFolderNumberUpdate,
+): Promise<OrganizationProfileFolderNumber> {
+  return organizationProfileFolderNumberSchema.parse(
+    await mutate(env, {
+      action: "update_profile_folder_number",
+      ...actor,
+      eventId,
+      folder,
+      profileId,
+    }),
+  );
 }
 
 async function mutate(

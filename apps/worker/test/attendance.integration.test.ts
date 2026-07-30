@@ -1,6 +1,8 @@
 import {
   organizationAttendanceResponseSchema,
   organizationEventSchema,
+  organizationProfileFolderNumberSchema,
+  organizationProfileFolderNumbersResponseSchema,
   organizationProfileResponseSchema,
   organizationRsvpSchema,
 } from "@choir/contracts";
@@ -209,14 +211,10 @@ describe("Organization attendance", () => {
             updates: [
               {
                 attendance: "Present",
-                folderNumber: "A-12",
-                folderReturned: false,
                 profileId: alphaProfile.id,
               },
               {
                 attendance: "Absent",
-                folderNumber: "B-04",
-                folderReturned: true,
                 profileId: explicitNoProfile.id,
               },
             ],
@@ -229,15 +227,6 @@ describe("Organization attendance", () => {
     expect(updated.rows.find(({ profileId }) => profileId === explicitNoProfile.id)?.rsvp).toBe(
       "No",
     );
-    expect(updated.rows.find(({ profileId }) => profileId === alphaProfile.id)).toMatchObject({
-      folderNumber: "A-12",
-      folderReturned: false,
-    });
-    expect(updated.rows.find(({ profileId }) => profileId === explicitNoProfile.id)).toMatchObject({
-      folderNumber: "B-04",
-      folderReturned: true,
-    });
-
     const attendanceOnly = organizationAttendanceResponseSchema.parse(
       await (
         await write(
@@ -253,10 +242,73 @@ describe("Organization attendance", () => {
       attendanceOnly.rows.find(({ profileId }) => profileId === alphaProfile.id),
     ).toMatchObject({
       attendance: "Absent",
-      folderNumber: "A-12",
-      folderReturned: false,
       rsvp: "Yes",
     });
+
+    const folderPerformance = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          startsAt: new Date(Date.now() + 172_800_000).toISOString(),
+          title: "Folder Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    const linkedRehearsal = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          parentPerformanceId: folderPerformance.id,
+          startsAt: new Date(Date.now() + 259_200_000).toISOString(),
+          title: "Folder Rehearsal",
+          type: "Rehearsal",
+        })
+      ).json(),
+    );
+
+    const folderNumbers = organizationProfileFolderNumbersResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/profiles/${alphaProfile.id}/folder-numbers`,
+            cookie,
+          ),
+        )
+      ).json(),
+    );
+    expect(folderNumbers.folderNumbers).toHaveLength(1);
+    expect(folderNumbers.folderNumbers[0]).toMatchObject({
+      eventId: folderPerformance.id,
+      folderNumber: "",
+      folderReturned: false,
+      profileId: alphaProfile.id,
+    });
+    const savedFolder = organizationProfileFolderNumberSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/profiles/${alphaProfile.id}/folder-numbers/${folderPerformance.id}`,
+          cookie,
+          { folderNumber: "A-12", folderReturned: false },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(savedFolder).toMatchObject({
+      eventId: folderPerformance.id,
+      folderNumber: "A-12",
+      folderReturned: false,
+      profileId: alphaProfile.id,
+    });
+    expect(
+      await write(
+        "alpha.localhost",
+        `/api/organization/profiles/${alphaProfile.id}/folder-numbers/${linkedRehearsal.id}`,
+        cookie,
+        { folderNumber: "A-13", folderReturned: false },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 409 });
 
     const auditActor = await runInDurableObject<OrganizationStore, string>(
       stores.get(stores.idFromName("organization-alpha")),
@@ -318,5 +370,87 @@ describe("Organization attendance", () => {
         api("alpha.localhost", `/api/organization/events/${event.id}/rsvp-export.csv`, cookie),
       ),
     ).toMatchObject({ status: 403 });
+  });
+
+  it("resolves rehearsal attendance from the linked performance RSVP while retaining the full roster", async () => {
+    const cookie = await signIn();
+    async function createProfile(displayName: string) {
+      return organizationProfileResponseSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/profiles", cookie, { displayName })
+        ).json(),
+      );
+    }
+
+    const inheritedYesProfile = await createProfile("Inherited Yes");
+    const inheritedNoProfile = await createProfile("Inherited No");
+    const directYesProfile = await createProfile("Direct Yes");
+    const pendingProfile = await createProfile("No RSVP");
+    const performance = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          title: "Linked Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    const rehearsal = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          parentPerformanceId: performance.id,
+          startsAt: new Date(Date.now() + 172_800_000).toISOString(),
+          title: "Linked Rehearsal",
+          type: "Rehearsal",
+        })
+      ).json(),
+    );
+
+    for (const profileId of [inheritedYesProfile.id, inheritedNoProfile.id]) {
+      const rsvp = profileId === inheritedYesProfile.id ? "Yes" : "No";
+      expect(
+        organizationRsvpSchema.parse(
+          await (
+            await write(
+              "alpha.localhost",
+              `/api/organization/events/${performance.id}/rsvp`,
+              cookie,
+              { profileId, rsvp },
+              "PUT",
+            )
+          ).json(),
+        ).rsvp,
+      ).toBe(rsvp);
+    }
+    expect(
+      organizationRsvpSchema.parse(
+        await (
+          await write(
+            "alpha.localhost",
+            `/api/organization/events/${rehearsal.id}/rsvp`,
+            cookie,
+            { profileId: directYesProfile.id, rsvp: "Yes" },
+            "PUT",
+          )
+        ).json(),
+      ).rsvp,
+    ).toBe("Yes");
+
+    const attendance = organizationAttendanceResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${rehearsal.id}/attendance`, cookie),
+        )
+      ).json(),
+    );
+    expect(attendance.rows).toHaveLength(4);
+    expect(attendance.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ profileId: inheritedYesProfile.id, rsvp: "Yes" }),
+        expect.objectContaining({ profileId: inheritedNoProfile.id, rsvp: "No" }),
+        expect.objectContaining({ profileId: directYesProfile.id, rsvp: "Yes" }),
+        expect.objectContaining({ profileId: pendingProfile.id, rsvp: "Pending" }),
+      ]),
+    );
   });
 });

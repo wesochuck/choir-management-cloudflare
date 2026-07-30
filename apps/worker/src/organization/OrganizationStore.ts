@@ -27,6 +27,7 @@ import {
   readEventRsvpExportFromStore,
   listEventAttendanceFromStore,
   listMemberEventsFromStore,
+  listProfileFolderNumbersFromStore,
   listProfilePerformanceHistoryFromStore,
   listOrganizationVenuesFromStore,
   manageOrganizationCalendarInStore,
@@ -1992,6 +1993,11 @@ function dispatchCalendarGetRequest(
         organizationId,
         profileId: url.searchParams.get("profileId"),
         readAt: url.searchParams.get("readAt"),
+      });
+    case "/internal/calendar/profile-folder-numbers":
+      return listProfileFolderNumbersFromStore(storage, {
+        organizationId,
+        profileId: url.searchParams.get("profileId"),
       });
     default:
       return null;

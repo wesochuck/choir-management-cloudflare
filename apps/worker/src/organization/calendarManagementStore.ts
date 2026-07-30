@@ -2,6 +2,7 @@ import {
   organizationAttendanceBulkRequestSchema,
   organizationEventRequestSchema,
   organizationCalendarSettingsRequestSchema,
+  organizationProfileFolderNumberUpdateSchema,
   organizationRsvpRequestSchema,
   organizationRosterConfigurationRequestSchema,
   organizationVenueRequestSchema,
@@ -21,6 +22,12 @@ const managementRequestSchema = z.discriminatedUnion("action", [
     action: z.literal("bulk_attendance"),
     attendance: organizationAttendanceBulkRequestSchema,
     eventId: z.uuid(),
+  }),
+  actorSchema.extend({
+    action: z.literal("update_profile_folder_number"),
+    eventId: z.uuid(),
+    folder: organizationProfileFolderNumberUpdateSchema,
+    profileId: z.uuid(),
   }),
   actorSchema.extend({
     action: z.literal("create_event"),
@@ -150,12 +157,22 @@ interface AttendanceRow {
   readonly [column: string]: SqlStorageValue;
   readonly attendance: "Absent" | "Pending" | "Present";
   readonly displayName: string;
-  readonly folderNumber: string;
-  readonly folderReturned: number;
   readonly profileId: string;
   readonly rsvp: "No" | "Pending" | "Yes";
   readonly updatedAt: string | null;
   readonly voicePart: string;
+}
+
+interface ProfileFolderNumberRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly eventId: string;
+  readonly eventTitle: string;
+  readonly eventType: "Performance";
+  readonly folderNumber: string;
+  readonly folderReturned: number;
+  readonly profileId: string;
+  readonly startsAt: string;
+  readonly updatedAt: string | null;
 }
 
 function identityMatches(storage: DurableObjectStorage, organizationId: string | null): boolean {
@@ -541,19 +558,129 @@ export function listEventAttendanceFromStore(
     .exec<AttendanceRow>(
       `SELECT p.id AS profileId, p.display_name AS displayName,
          COALESCE(p.voice_part, '') AS voicePart,
-         COALESCE(r.rsvp, 'Pending') AS rsvp,
+         CASE
+           WHEN e.type = 'Rehearsal'
+             AND COALESCE(r.rsvp, 'Pending') = 'Pending'
+             AND parent.rsvp IN ('Yes', 'No')
+           THEN parent.rsvp
+           ELSE COALESCE(r.rsvp, 'Pending')
+         END AS rsvp,
          COALESCE(r.attendance, 'Pending') AS attendance,
+         r.updated_at AS updatedAt
+       FROM profiles p
+       JOIN events e ON e.id = ?
+       LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+       LEFT JOIN event_rosters parent
+         ON parent.profile_id = p.id AND parent.event_id = e.parent_performance_id
+       ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC LIMIT 500`,
+      eventId.data,
+      eventId.data,
+    )
+    .toArray();
+  return Response.json({ eventId: eventId.data, rows });
+}
+
+function profileFolderNumberFromRow(row: ProfileFolderNumberRow) {
+  return { ...row, folderReturned: row.folderReturned === 1 };
+}
+
+export function listProfileFolderNumbersFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly organizationId: string | null; readonly profileId: string | null },
+): Response {
+  const profileId = z.uuid().safeParse(input.profileId);
+  if (!identityMatches(storage, input.organizationId) || !profileId.success) {
+    return Response.json({ code: "profile_folder_numbers_not_found" }, { status: 404 });
+  }
+  if (!recordExists(storage, "profiles", profileId.data)) {
+    return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  const folderNumbers = storage.sql
+    .exec<ProfileFolderNumberRow>(
+      `SELECT e.id AS eventId, e.title AS eventTitle, e.type AS eventType,
+         e.starts_at AS startsAt, p.id AS profileId,
          COALESCE(r.folder_number, '') AS folderNumber,
          COALESCE(r.folder_returned, 0) AS folderReturned,
          r.updated_at AS updatedAt
-       FROM profiles p
-       LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
-       ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC LIMIT 500`,
-      eventId.data,
+       FROM events e
+       JOIN profiles p ON p.id = ?
+       LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
+       WHERE e.type = 'Performance'
+       ORDER BY e.starts_at DESC, e.id DESC LIMIT 500`,
+      profileId.data,
     )
     .toArray()
-    .map((row) => ({ ...row, folderReturned: row.folderReturned === 1 }));
-  return Response.json({ eventId: eventId.data, rows });
+    .map(profileFolderNumberFromRow);
+  return Response.json({ folderNumbers, profileId: profileId.data });
+}
+
+function updateProfileFolderNumber(
+  storage: DurableObjectStorage,
+  operation: Extract<ManagementRequest, { readonly action: "update_profile_folder_number" }>,
+  occurredAt: string,
+): Response {
+  if (!recordExists(storage, "events", operation.eventId)) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+  const eventType = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly type: string }>(
+      "SELECT type FROM events WHERE id = ?",
+      operation.eventId,
+    )
+    .one().type;
+  if (eventType !== "Performance") {
+    return Response.json({ code: "folder_number_requires_performance" }, { status: 409 });
+  }
+  if (!recordExists(storage, "profiles", operation.profileId)) {
+    return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT INTO event_rosters
+        (event_id, profile_id, rsvp, attendance, folder_number, folder_returned, created_at, updated_at)
+       VALUES (?, ?, 'Pending', 'Pending', ?, ?, ?, ?)
+       ON CONFLICT(event_id, profile_id) DO UPDATE SET
+         folder_number = excluded.folder_number,
+         folder_returned = excluded.folder_returned,
+         updated_at = excluded.updated_at`,
+      operation.eventId,
+      operation.profileId,
+      operation.folder.folderNumber,
+      operation.folder.folderReturned ? 1 : 0,
+      occurredAt,
+      occurredAt,
+    );
+    insertAudit(
+      storage,
+      operation,
+      "event.folder_number.updated",
+      "event_roster",
+      `${operation.eventId}:${operation.profileId}`,
+      {
+        folderReturned: operation.folder.folderReturned,
+        hasFolderNumber: operation.folder.folderNumber.length > 0,
+      },
+      occurredAt,
+    );
+  });
+  const row = storage.sql
+    .exec<ProfileFolderNumberRow>(
+      `SELECT e.id AS eventId, e.title AS eventTitle, e.type AS eventType,
+         e.starts_at AS startsAt, p.id AS profileId,
+         COALESCE(r.folder_number, '') AS folderNumber,
+         COALESCE(r.folder_returned, 0) AS folderReturned,
+         r.updated_at AS updatedAt
+       FROM events e
+       JOIN profiles p ON p.id = ?
+       LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
+       WHERE e.id = ? AND e.type = 'Performance'`,
+      operation.profileId,
+      operation.eventId,
+    )
+    .toArray()[0];
+  return row
+    ? Response.json(profileFolderNumberFromRow(row))
+    : Response.json({ code: "folder_number_not_found" }, { status: 404 });
 }
 
 function updateAttendance(
@@ -591,20 +718,6 @@ function updateAttendance(
         occurredAt,
         occurredAt,
       );
-      if (update.folderNumber !== undefined || update.folderReturned !== undefined) {
-        storage.sql.exec(
-          `UPDATE event_rosters SET
-             folder_number = COALESCE(?, folder_number),
-             folder_returned = COALESCE(?, folder_returned),
-             updated_at = ?
-           WHERE event_id = ? AND profile_id = ?`,
-          update.folderNumber ?? null,
-          update.folderReturned === undefined ? null : update.folderReturned ? 1 : 0,
-          occurredAt,
-          operation.eventId,
-          update.profileId,
-        );
-      }
     }
     insertAudit(
       storage,
@@ -613,10 +726,6 @@ function updateAttendance(
       "event",
       operation.eventId,
       {
-        folderUpdateCount: operation.attendance.updates.filter(
-          ({ folderNumber, folderReturned }) =>
-            folderNumber !== undefined || folderReturned !== undefined,
-        ).length,
         profileCount: operation.attendance.updates.length,
       },
       occurredAt,
@@ -1050,6 +1159,9 @@ export async function manageOrganizationCalendarInStore(
   const occurredAt = new Date().toISOString();
   if (parsed.data.action === "bulk_attendance") {
     return updateAttendance(storage, parsed.data, occurredAt);
+  }
+  if (parsed.data.action === "update_profile_folder_number") {
+    return updateProfileFolderNumber(storage, parsed.data, occurredAt);
   }
   if (parsed.data.action === "update_roster_configuration") {
     return updateRosterConfiguration(storage, parsed.data, occurredAt);

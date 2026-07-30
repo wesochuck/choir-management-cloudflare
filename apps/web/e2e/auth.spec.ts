@@ -189,8 +189,6 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route("**/api/organization/events/*/attendance", async (route) => {
     let attendance = "Pending";
-    let folderNumber = "";
-    let folderReturned = false;
     if (route.request().method() === "PUT") {
       const body: unknown = route.request().postDataJSON();
       if (
@@ -204,15 +202,6 @@ test.beforeEach(async ({ page }) => {
         typeof body.updates[0].attendance === "string"
       ) {
         attendance = body.updates[0].attendance;
-        if ("folderNumber" in body.updates[0] && typeof body.updates[0].folderNumber === "string") {
-          folderNumber = body.updates[0].folderNumber;
-        }
-        if (
-          "folderReturned" in body.updates[0] &&
-          typeof body.updates[0].folderReturned === "boolean"
-        ) {
-          folderReturned = body.updates[0].folderReturned;
-        }
       }
     }
     await route.fulfill({
@@ -223,8 +212,6 @@ test.beforeEach(async ({ page }) => {
           {
             attendance,
             displayName: "Browser Singer",
-            folderNumber,
-            folderReturned,
             profileId: "11111111-1111-4111-8111-111111111111",
             rsvp: "Yes",
             updatedAt: "2026-07-20T20:10:00.000Z",

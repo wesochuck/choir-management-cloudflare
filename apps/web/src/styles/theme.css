@@ -1010,6 +1010,96 @@ footer {
   justify-content: flex-start;
 }
 
+.profile-folder-numbers {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.profile-folder-numbers__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.profile-folder-numbers__heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.profile-folder-numbers__heading .eyebrow {
+  margin-bottom: 0.25rem;
+}
+
+.profile-folder-numbers__empty {
+  margin: 0;
+  padding: 0.9rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--control-radius);
+  color: var(--color-text-muted);
+}
+
+.profile-folder-numbers__list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.profile-folder-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.4fr) minmax(8rem, 0.75fr) minmax(8rem, 0.8fr) minmax(
+      4.5rem,
+      0.45fr
+    );
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--control-radius);
+  background: var(--color-surface-raised);
+}
+
+.profile-folder-row__event,
+.profile-folder-row__number {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.profile-folder-row__event strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-folder-row__event span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-folder-row__number > span {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-folder-row__number input {
+  min-width: 0;
+}
+
+.profile-folder-row__returned {
+  min-height: 2.5rem;
+}
+
+.profile-folder-row__action {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
 .directory-filters {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
@@ -4550,7 +4640,7 @@ h2 {
 
 .attendance-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   border-bottom: 1px solid var(--color-border);
 }
@@ -4629,48 +4719,6 @@ h2 {
   font-size: 0.7rem;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.attendance-row__details-button {
-  min-width: 4.7rem;
-  min-height: var(--attendance-row-min-height);
-  padding: 0.7rem 0.8rem;
-  border: 0;
-  border-left: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-primary);
-  cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 750;
-}
-
-.attendance-row__details-button:hover,
-.attendance-row__details-button:focus-visible {
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-}
-
-.attendance-row__details {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: end;
-  gap: 0.75rem;
-  padding: 0.75rem 0.9rem;
-  border-top: 1px dashed var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
-}
-
-.attendance-row__details .field {
-  flex: 0 1 12rem;
-}
-
-.attendance-row__details .checkbox-row {
-  min-height: 2.5rem;
-}
-
-.attendance-row__details .button {
-  min-height: 2.5rem;
-  padding: 0.55rem 0.8rem;
-  font-size: 0.78rem;
 }
 
 .password-form {
@@ -5393,6 +5441,10 @@ footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .profile-folder-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .calendar-event-form {
     grid-column: auto;
   }
@@ -5596,6 +5648,15 @@ footer {
   }
 
   .profile-dues-row {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-folder-numbers__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-folder-row {
     grid-template-columns: 1fr;
   }
 
@@ -8387,24 +8448,6 @@ footer {
   .attendance-row__toggle {
     gap: 0.6rem;
     padding: 0.65rem 0.7rem;
-  }
-
-  .attendance-row__details-button {
-    min-width: 4.4rem;
-    padding-inline: 0.5rem;
-  }
-
-  .attendance-row__details {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .attendance-row__details .field {
-    flex-basis: auto;
-  }
-
-  .attendance-row__details .button {
-    width: 100%;
   }
 }
 

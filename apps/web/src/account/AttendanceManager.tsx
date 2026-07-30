@@ -47,7 +47,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const [query, setQuery] = useState("");
   const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [detailsId, setDetailsId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const pendingIdsRef = useRef(new Set<string>());
@@ -126,8 +125,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
       const saved = await updateOrganizationEventAttendance(eventId, [
         {
           attendance: updates.attendance ?? row.attendance,
-          folderNumber: updates.folderNumber ?? row.folderNumber,
-          folderReturned: updates.folderReturned ?? row.folderReturned,
           profileId: row.profileId,
         },
       ]);
@@ -171,20 +168,9 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
-  async function saveDetails(profileId: string) {
-    const row = rows.find((candidate) => candidate.profileId === profileId);
-    if (!row || savingIds.has(profileId) || bulkBusy) return;
-    try {
-      await saveRow(row, {});
-      setMessage("Details saved.");
-    } catch {
-      // saveRow provides the user-facing error.
-    }
-  }
-
   async function markRemainingPresent() {
     const targetRows = rows.filter(
-      (row) => row.rsvp !== "No" && row.attendance !== "Present" && !savingIds.has(row.profileId),
+      (row) => row.rsvp === "Yes" && row.attendance !== "Present" && !savingIds.has(row.profileId),
     );
     if (!eventId || targetRows.length === 0 || bulkBusy) return;
     setBulkBusy(true);
@@ -202,8 +188,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
         eventId,
         targetRows.map((row) => ({
           attendance: "Present" as const,
-          folderNumber: row.folderNumber,
-          folderReturned: row.folderReturned,
           profileId: row.profileId,
         })),
       );
@@ -221,7 +205,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
 
   const selectedEvent = events.find((event) => event.id === eventId);
   const counts = useMemo(() => {
-    const expected = rows.filter((row) => row.rsvp !== "No");
+    const expected = rows.filter((row) => row.rsvp === "Yes");
     return {
       absent: expected.filter((row) => row.attendance === "Absent").length,
       expected: expected.length,
@@ -232,7 +216,8 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
 
   const groupedRows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    const filtered = rows.filter((row) => {
+    const searchableRows = normalizedQuery ? rows : rows.filter((row) => row.rsvp === "Yes");
+    const filtered = searchableRows.filter((row) => {
       const matchesFilter =
         filter === "All" ||
         (filter === "Pending" && row.attendance === "Pending") ||
@@ -283,7 +268,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             onChange={(event) => {
               pendingIdsRef.current.clear();
               setRows([]);
-              setDetailsId(null);
               setEventId(event.target.value);
             }}
           >
@@ -383,7 +367,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             <h3>{voicePart}</h3>
             {group.map((row) => {
               const isSaving = savingIds.has(row.profileId) || bulkBusy;
-              const isOpen = detailsId === row.profileId;
               return (
                 <div
                   className={`attendance-row attendance-row--${row.attendance.toLowerCase()}`}
@@ -411,64 +394,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
                       <span className="attendance-row__rsvp">Declined</span>
                     ) : null}
                   </button>
-                  <button
-                    aria-expanded={isOpen}
-                    aria-label={`${isOpen ? "Hide" : "Show"} details for ${row.displayName}`}
-                    className="attendance-row__details-button"
-                    disabled={isSaving}
-                    onClick={() => {
-                      setDetailsId(isOpen ? null : row.profileId);
-                    }}
-                    type="button"
-                  >
-                    {isOpen ? "Done" : "Details"}
-                  </button>
-                  {isOpen ? (
-                    <div className="attendance-row__details">
-                      <label className="field">
-                        <span>Folder number</span>
-                        <input
-                          maxLength={50}
-                          onChange={(event) => {
-                            setRows((current) =>
-                              current.map((candidate) =>
-                                candidate.profileId === row.profileId
-                                  ? { ...candidate, folderNumber: event.target.value }
-                                  : candidate,
-                              ),
-                            );
-                          }}
-                          value={row.folderNumber}
-                        />
-                      </label>
-                      <label className="checkbox-row">
-                        <input
-                          checked={row.folderReturned}
-                          onChange={(event) => {
-                            setRows((current) =>
-                              current.map((candidate) =>
-                                candidate.profileId === row.profileId
-                                  ? { ...candidate, folderReturned: event.target.checked }
-                                  : candidate,
-                              ),
-                            );
-                          }}
-                          type="checkbox"
-                        />
-                        Folder returned
-                      </label>
-                      <button
-                        className="button button--secondary"
-                        disabled={isSaving}
-                        onClick={() => {
-                          void saveDetails(row.profileId);
-                        }}
-                        type="button"
-                      >
-                        Save details
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
               );
             })}
