@@ -17,7 +17,15 @@ import {
   type MusicCsvInspection,
 } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from "react";
 
 import {
   AuthApiError,
@@ -572,15 +580,49 @@ function SectionBuckets({
 function trackKeys(
   piece: OrganizationMusicPiece,
   configuration: OrganizationRosterConfiguration,
+  addedVoicePartLabels: readonly string[] = [],
 ): string[] {
-  return [
-    ...new Set([
-      "tutti",
-      ...configuration.sections.map(({ code }) => code),
-      ...configuration.voiceParts.map(({ label }) => label),
-      ...Object.keys(piece.trackFileIds),
-    ]),
-  ];
+  const keys = new Set([
+    "tutti",
+    ...configuration.sections.map(({ code }) => code),
+    ...Object.keys(piece.trackFileIds),
+    ...addedVoicePartLabels,
+  ]);
+  const sectionOrder = new Map(configuration.sections.map(({ code }, index) => [code, index]));
+  const voicePartOrder = new Map(
+    configuration.voiceParts.map(({ label }, index) => [label, index]),
+  );
+  const voicePartByLabel = new Map(
+    configuration.voiceParts.map((voicePart) => [voicePart.label, voicePart]),
+  );
+  const voicePartStride = configuration.voiceParts.length + 2;
+
+  return [...keys].toSorted((left, right) => {
+    if (left === "tutti") return -1;
+    if (right === "tutti") return 1;
+    const leftSectionIndex = sectionOrder.get(left);
+    const rightSectionIndex = sectionOrder.get(right);
+    if (leftSectionIndex !== undefined && rightSectionIndex !== undefined) {
+      return leftSectionIndex - rightSectionIndex;
+    }
+    if (leftSectionIndex !== undefined) return -1;
+    if (rightSectionIndex !== undefined) return 1;
+    const leftVoicePart = voicePartByLabel.get(left);
+    const rightVoicePart = voicePartByLabel.get(right);
+    if (leftVoicePart && rightVoicePart) {
+      const sectionDifference =
+        (sectionOrder.get(leftVoicePart.sectionCode) ?? Number.MAX_SAFE_INTEGER) -
+        (sectionOrder.get(rightVoicePart.sectionCode) ?? Number.MAX_SAFE_INTEGER);
+      return (
+        sectionDifference * voicePartStride +
+        (voicePartOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
+        (voicePartOrder.get(right) ?? Number.MAX_SAFE_INTEGER)
+      );
+    }
+    if (leftVoicePart) return -1;
+    if (rightVoicePart) return 1;
+    return left.localeCompare(right);
+  });
 }
 
 function trackDescription(key: string, configuration: OrganizationRosterConfiguration): string {
@@ -1149,6 +1191,8 @@ function MusicAudioTracks({
 }) {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draggedKey, setDraggedKey] = useState<string | null>(null);
+  const [addedVoicePartLabels, setAddedVoicePartLabels] = useState<readonly string[]>([]);
 
   async function saveMapping(key: string, fileId: string | null): Promise<void> {
     const previousFileId = piece.trackFileIds[key];
@@ -1201,6 +1245,26 @@ function MusicAudioTracks({
     }
   }
 
+  function handleDrop(key: string, event: DragEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    event.stopPropagation();
+    setDraggedKey(null);
+    const file = event.dataTransfer.files.item(0);
+    if (file) void upload(key, file);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>): void {
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) return;
+    setDraggedKey(null);
+  }
+
+  function handleFileSelection(key: string, event: ChangeEvent<HTMLInputElement>): void {
+    const file = event.target.files?.item(0);
+    if (file) void upload(key, file);
+    event.target.value = "";
+  }
+
   async function remove(key: string): Promise<void> {
     setActiveKey(key);
     setError(null);
@@ -1218,6 +1282,11 @@ function MusicAudioTracks({
     }
   }
 
+  const visibleKeys = trackKeys(piece, configuration, addedVoicePartLabels);
+  const addableVoiceParts = configuration.voiceParts.filter(
+    ({ label }) => !visibleKeys.includes(label),
+  );
+
   return (
     <fieldset className="music-audio-tracks">
       <legend>Learning tracks</legend>
@@ -1231,11 +1300,29 @@ function MusicAudioTracks({
         </p>
       ) : null}
       <div className="music-audio-track-list">
-        {trackKeys(piece, configuration).map((key) => {
+        {visibleKeys.map((key) => {
           const fileId = piece.trackFileIds[key];
           const busy = activeKey === key;
           return (
-            <div className="music-audio-track" key={key}>
+            <div
+              className={`music-audio-track${draggedKey === key ? " is-dragging" : ""}`}
+              key={key}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setDraggedKey(key);
+              }}
+              onDragLeave={handleDragLeave}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = "copy";
+                setDraggedKey(key);
+              }}
+              onDrop={(event) => {
+                handleDrop(key, event);
+              }}
+            >
               <span>
                 <strong>{key === "tutti" ? "Tutti" : key}</strong>
                 <small>{trackDescription(key, configuration)}</small>
@@ -1266,17 +1353,43 @@ function MusicAudioTracks({
                     disabled={busy}
                     type="file"
                     onChange={(event) => {
-                      const file = event.target.files?.item(0);
-                      if (file) void upload(key, file);
-                      event.target.value = "";
+                      handleFileSelection(key, event);
                     }}
                   />
                 </label>
               )}
+              {!fileId && !busy ? (
+                <small className="music-audio-track__drop-hint">
+                  Drop an audio file anywhere on this row
+                </small>
+              ) : null}
             </div>
           );
         })}
       </div>
+      {addableVoiceParts.length > 0 ? (
+        <div className="music-audio-track-add">
+          <label htmlFor="music-add-voice-part">
+            Add voice-part track slot
+            <select
+              id="music-add-voice-part"
+              value=""
+              onChange={(event) => {
+                const label = event.target.value;
+                if (!label) return;
+                setAddedVoicePartLabels((current) => [...current, label]);
+              }}
+            >
+              <option value="">Select voice part…</option>
+              {addableVoiceParts.map(({ fullName, label }) => (
+                <option key={label} value={label}>
+                  {label} ({fullName})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
     </fieldset>
   );
 }
@@ -2384,6 +2497,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                   <div id="music-piece-tracks" role="tabpanel">
                     <MusicAudioTracks
                       configuration={roster}
+                      key={selectedPiece.id}
                       piece={selectedPiece}
                       onTrackDurationDetected={handleTrackDurationDetected}
                       onSaved={(saved, successMessage) => {

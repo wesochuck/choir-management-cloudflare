@@ -158,6 +158,19 @@ function applyTheme(preference: ThemePreference): void {
   document.documentElement.dataset.theme = preference;
 }
 
+function ThemeIcon({ preference }: { readonly preference: ThemePreference }) {
+  return preference === "dark" ? (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" />
+    </svg>
+  ) : (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
+    </svg>
+  );
+}
+
 interface RouteState {
   readonly pathname: string;
   readonly search: string;
@@ -1098,20 +1111,22 @@ export function AuthenticatedShell({
               ))}
             </select>
           </label>
-          <label className="theme-switcher">
-            <span className="sr-only">Color theme</span>
-            <select
-              aria-label="Color theme"
-              value={themePreference}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (next === "light" || next === "dark") setThemePreference(next);
-              }}
-            >
-              <option value="dark">Dark theme</option>
-              <option value="light">Light theme</option>
-            </select>
-          </label>
+          <button
+            aria-label={
+              themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"
+            }
+            className="theme-switcher"
+            title={themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            type="button"
+            onClick={() => {
+              setThemePreference((current) => (current === "dark" ? "light" : "dark"));
+            }}
+          >
+            <ThemeIcon preference={themePreference} />
+            <span className="sr-only">
+              {themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            </span>
+          </button>
           <button
             className="button button--secondary button--small"
             onClick={() => {
