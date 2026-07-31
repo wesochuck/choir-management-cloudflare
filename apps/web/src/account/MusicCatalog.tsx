@@ -165,14 +165,36 @@ function genreChipColor(label: string): GenreChipColor {
 function GenreChip({
   genre,
   onClick,
+  onRemove,
   selected = false,
 }: {
   readonly genre: string;
   readonly onClick?: () => void;
+  readonly onRemove?: () => void;
   readonly selected?: boolean;
 }) {
   const className = `music-genre-chip music-genre-chip--${genreChipColor(genre)}${selected ? " is-selected" : ""}`;
-  if (!onClick) return <span className={className}>{genre}</span>;
+  if (!onClick) {
+    return (
+      <span className={className}>
+        {genre}
+        {onRemove ? (
+          <button
+            aria-label={`Remove ${genre} genre`}
+            className="music-genre-chip__remove"
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onRemove();
+            }}
+          >
+            ×
+          </button>
+        ) : null}
+      </span>
+    );
+  }
   return (
     <button aria-pressed={selected} className={className} type="button" onClick={onClick}>
       {genre}
@@ -187,6 +209,157 @@ function GenreChips({ genres }: { readonly genres: readonly string[] }) {
         <GenreChip genre={genre} key={genreKey(genre)} />
       ))}
     </span>
+  );
+}
+
+function MusicGenrePicker({
+  availableGenres,
+  onChange,
+  selected,
+}: {
+  readonly availableGenres: readonly string[];
+  readonly onChange: (genres: string[]) => void;
+  readonly selected: readonly string[];
+}) {
+  const pickerRef = useRef<HTMLDetailsElement>(null);
+  const [search, setSearch] = useState("");
+  const [newGenre, setNewGenre] = useState("");
+  const options = uniqueGenreLabels([...availableGenres, ...selected]);
+  const visibleGenres = options.filter((genre) => genreKey(genre).includes(genreKey(search)));
+
+  useEffect(() => {
+    function closeWhenClickedAway(event: PointerEvent): void {
+      const picker = pickerRef.current;
+      if (!picker?.open || !(event.target instanceof Node) || picker.contains(event.target)) return;
+      picker.open = false;
+    }
+
+    document.addEventListener("pointerdown", closeWhenClickedAway);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenClickedAway);
+    };
+  }, []);
+
+  function toggleGenre(genre: string): void {
+    const selectedKey = genreKey(genre);
+    onChange(
+      selected.some((item) => genreKey(item) === selectedKey)
+        ? selected.filter((item) => genreKey(item) !== selectedKey)
+        : [...selected, genre],
+    );
+  }
+
+  function addNewGenre(): void {
+    const trimmed = newGenre.trim();
+    if (!trimmed) return;
+    const existing = options.find((genre) => genreKey(genre) === genreKey(trimmed));
+    const nextGenre = existing ?? trimmed;
+    if (!selected.some((genre) => genreKey(genre) === genreKey(nextGenre))) {
+      onChange([...selected, nextGenre]);
+    }
+    setNewGenre("");
+    setSearch("");
+  }
+
+  return (
+    <details className="music-genre-picker" ref={pickerRef}>
+      <summary aria-label="Select genres">
+        <span className="music-genre-picker__summary-value">
+          {selected.length > 0 ? (
+            selected.map((genre) => (
+              <GenreChip
+                genre={genre}
+                key={genreKey(genre)}
+                onRemove={() => {
+                  toggleGenre(genre);
+                }}
+              />
+            ))
+          ) : (
+            <span className="music-genre-picker__placeholder">Select genres…</span>
+          )}
+        </span>
+        <span aria-hidden="true" className="music-genre-picker__caret">
+          ⌃
+        </span>
+      </summary>
+      <div
+        className="music-genre-picker__panel"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <div className="music-genre-picker__header">
+          <span>{selected.length} selected</span>
+          <button
+            className="text-button"
+            disabled={selected.length === 0}
+            type="button"
+            onClick={() => {
+              onChange([]);
+            }}
+          >
+            Clear All
+          </button>
+        </div>
+        <input
+          aria-label="Filter genres"
+          placeholder="Filter…"
+          type="search"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+          }}
+        />
+        <div className="music-genre-picker__options">
+          {visibleGenres.length > 0 ? (
+            visibleGenres.map((genre) => (
+              <GenreChip
+                genre={genre}
+                key={genreKey(genre)}
+                selected={selected.some((item) => genreKey(item) === genreKey(genre))}
+                onClick={() => {
+                  toggleGenre(genre);
+                }}
+              />
+            ))
+          ) : (
+            <span className="music-genre-picker__empty">No matching genres.</span>
+          )}
+        </div>
+        <div className="music-genre-picker__add">
+          <input
+            aria-label="New genre"
+            placeholder="Add new…"
+            type="text"
+            value={newGenre}
+            onChange={(event) => {
+              setNewGenre(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addNewGenre();
+              }
+            }}
+          />
+          <button className="button button--secondary" type="button" onClick={addNewGenre}>
+            Add
+          </button>
+        </div>
+        <div className="music-genre-picker__footer">
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => {
+              if (pickerRef.current) pickerRef.current.open = false;
+            }}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -2434,17 +2607,14 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                       ) : null}
                     </label>
                     <label className="field music-field--wide">
-                      Genres (comma separated)
-                      <input
-                        value={genresInput}
-                        onChange={(event) => {
-                          setGenresInput(event.target.value);
+                      Genres
+                      <MusicGenrePicker
+                        availableGenres={availableGenres}
+                        selected={uniqueLabels(genresInput)}
+                        onChange={(genres) => {
+                          setGenresInput(genres.join(", "));
                         }}
                       />
-                      <small className="field-hint">Use commas to add multiple genres.</small>
-                      {uniqueLabels(genresInput).length > 0 ? (
-                        <GenreChips genres={uniqueLabels(genresInput)} />
-                      ) : null}
                     </label>
                     <label className="field music-field--wide">
                       Parent work
