@@ -53,8 +53,14 @@ const providerSetupCheckSchema = z.object({
   status: z.enum(["attention", "error", "ok"]),
 });
 
+const organizationEmailSenderSchema = z.object({
+  fromEmail: z.email().nullable(),
+  fromName: z.string().min(1).max(200).nullable(),
+});
+
 export const organizationProviderStatusResponseSchema = z.object({
   brevo: providerSetupCheckSchema,
+  emailSender: organizationEmailSenderSchema,
   environment: z.enum(["local", "preview", "staging", "production"]),
   externalEffectsMode: z.enum(["disabled", "fake", "sandbox"]),
   requestId: requestIdSchema,

@@ -6,6 +6,7 @@ import type {
   CommunicationScheduledMessage,
   CommunicationTemplate,
   OrganizationEvent,
+  OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
@@ -16,6 +17,7 @@ import {
   deleteOrganizationCommunicationDraft,
   deleteOrganizationCommunicationTemplate,
   getOrganizationCommunicationDeliverySummary,
+  getOrganizationProviderStatus,
   listOrganizationCommunications,
   getOrganizationRosterConfiguration,
   listOrganizationScheduledMessages,
@@ -407,6 +409,9 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     readonly CommunicationScheduledMessage[]
   >([]);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
+  const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
+    null,
+  );
   const [rosterConfiguration, setRosterConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
@@ -477,6 +482,21 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
     getOrganizationRosterConfiguration(controller.signal)
       .then((configuration) => {
         if (!controller.signal.aborted) setRosterConfiguration(configuration);
+      })
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted) setError(failureMessage(failure));
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    getOrganizationProviderStatus(controller.signal)
+      .then((status) => {
+        if (!controller.signal.aborted) setProviderStatus(status);
       })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted) setError(failureMessage(failure));
@@ -1203,6 +1223,27 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
             <p className="field-help">
               Send a test message to one address to verify the configured delivery service. If a
               message is already composed, its subject and content will be used.
+            </p>
+            <dl className="communication-sender-details" aria-label="Configured sender">
+              <div>
+                <dt>From name</dt>
+                <dd>
+                  {providerStatus
+                    ? (providerStatus.emailSender.fromName ?? "Not configured")
+                    : "Loading…"}
+                </dd>
+              </div>
+              <div>
+                <dt>From email</dt>
+                <dd>
+                  {providerStatus
+                    ? (providerStatus.emailSender.fromEmail ?? "Not configured")
+                    : "Loading…"}
+                </dd>
+              </div>
+            </dl>
+            <p className="field-help">
+              These sender details are configured by the platform and cannot be changed here.
             </p>
             <div className="form-actions form-actions--start">
               <div className="field communication-test-send__address">

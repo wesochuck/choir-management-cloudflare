@@ -87,6 +87,98 @@ function displayEvent(event: OrganizationEvent): string {
   return `${event.title} — ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.startsAt))}`;
 }
 
+interface SetListPrintRow {
+  readonly arranger: string;
+  readonly composer: string;
+  readonly performers: string;
+  readonly title: string;
+}
+
+function printDateLabel(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function printRowsFor(
+  items: readonly SetListItem[],
+  music: readonly OrganizationMusicPiece[],
+): SetListPrintRow[] {
+  const musicById = new Map(music.map((piece) => [piece.id, piece]));
+  return items.map((item) => {
+    const piece = item.pieceId ? musicById.get(item.pieceId) : undefined;
+    const isFeaturedNumber = item.isFeaturedNumber ?? item.soloSmallGroup ?? false;
+    return {
+      arranger: piece?.arranger ?? "",
+      composer: item.composer?.trim() ? item.composer : (piece?.composer ?? ""),
+      performers: isFeaturedNumber
+        ? (item.performerCredits ?? []).map(({ displayName }) => displayName).join(", ")
+        : "",
+      title: item.title,
+    };
+  });
+}
+
+function setListDocumentText(
+  event: OrganizationEvent,
+  items: readonly SetListItem[],
+  music: readonly OrganizationMusicPiece[],
+): string {
+  const rows = printRowsFor(items, music);
+  return [
+    event.title,
+    printDateLabel(event.startsAt),
+    "",
+    ["Title", "Composer", "Arranger", "Small group / soloists"].join(" ~ "),
+    ...rows.map(({ arranger, composer, performers, title }) =>
+      [title, composer || "—", arranger || "—", performers || "—"].join(" ~ "),
+    ),
+  ].join("\n");
+}
+
+function SetListPrintView({
+  event,
+  items,
+  music,
+}: {
+  readonly event: OrganizationEvent;
+  readonly items: readonly SetListItem[];
+  readonly music: readonly OrganizationMusicPiece[];
+}) {
+  const rows = printRowsFor(items, music);
+  return (
+    <div aria-hidden="true" className="set-list-print-view">
+      <header className="set-list-print-view__header">
+        <p className="set-list-print-view__eyebrow">Set list</p>
+        <h1>{event.title}</h1>
+        <p>{printDateLabel(event.startsAt)}</p>
+      </header>
+      <table>
+        <caption className="sr-only">Set list for {event.title}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Title</th>
+            <th scope="col">Composer</th>
+            <th scope="col">Arranger</th>
+            <th scope="col">Small group / soloists</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ arranger, composer, performers, title }, index) => (
+            <tr key={`${title}-${String(index)}`}>
+              <td>{title}</td>
+              <td>{composer || "—"}</td>
+              <td>{arranger || "—"}</td>
+              <td>{performers || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function SetListCreditEditor({
   item,
   onChange,
@@ -454,13 +546,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
 
   async function copyListText(): Promise<void> {
     if (!selectedEvent) return;
-    const text = items
-      .map((item, index) => {
-        const duration = item.duration ? ` (${item.duration})` : "";
-        const composer = item.composer ? ` — ${item.composer}` : "";
-        return `${String(index + 1)}. ${item.title}${composer}${duration}`;
-      })
-      .join("\n");
+    const text = setListDocumentText(selectedEvent, items, resources.music);
     try {
       await navigator.clipboard.writeText(text);
       setMessage("Set list copied as text.");
@@ -1056,6 +1142,9 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
             </button>
           </div>
         </div>
+      ) : null}
+      {selectedEvent ? (
+        <SetListPrintView event={selectedEvent} items={items} music={resources.music} />
       ) : null}
     </section>
   );

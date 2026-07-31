@@ -29,6 +29,25 @@ export interface CommunicationProviderResult {
   readonly status: "failed" | "sent" | "suppressed";
 }
 
+export interface ConfiguredEmailSender {
+  readonly fromEmail: string | null;
+  readonly fromName: string | null;
+}
+
+const DEFAULT_BREVO_EMAIL_FROM_NAME = "MusicSite Organization";
+
+export function configuredBrevoEmailSender(
+  config: Pick<CommunicationProviderConfig, "BREVO_EMAIL_FROM" | "BREVO_EMAIL_FROM_NAME">,
+): ConfiguredEmailSender {
+  const parsedEmail = z.string().trim().min(1).pipe(z.email()).safeParse(config.BREVO_EMAIL_FROM);
+  if (!parsedEmail.success) return { fromEmail: null, fromName: null };
+  const parsedName = z.string().trim().min(1).max(200).safeParse(config.BREVO_EMAIL_FROM_NAME);
+  return {
+    fromEmail: parsedEmail.data,
+    fromName: parsedName.success ? parsedName.data : DEFAULT_BREVO_EMAIL_FROM_NAME,
+  };
+}
+
 function required(value: string | undefined, name: string): string {
   const parsed = z.string().trim().min(1).safeParse(value);
   if (!parsed.success) throw new Error(`The ${name} sandbox setting is not configured.`);
@@ -166,9 +185,9 @@ export function deliverOrganizationCommunication(
     throw new Error("The Organization communications provider mode is invalid.");
   const apiKey = required(config.BREVO_API_KEY, "Brevo API key");
   if (delivery.channel === "email") {
-    const senderEmail = z.email().parse(required(config.BREVO_EMAIL_FROM, "Brevo email sender"));
-    const parsedSenderName = z.string().trim().min(1).safeParse(config.BREVO_EMAIL_FROM_NAME);
-    const senderName = parsedSenderName.success ? parsedSenderName.data : "MusicSite Organization";
+    const sender = configuredBrevoEmailSender(config);
+    const senderEmail = sender.fromEmail ?? required(config.BREVO_EMAIL_FROM, "Brevo email sender");
+    const senderName = sender.fromName ?? DEFAULT_BREVO_EMAIL_FROM_NAME;
     return brevoRequest(
       apiKey,
       "smtp/email",

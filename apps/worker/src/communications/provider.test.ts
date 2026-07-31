@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { deliverOrganizationCommunication } from "./provider";
+import { configuredBrevoEmailSender, deliverOrganizationCommunication } from "./provider";
 
 const delivery = {
   channel: "email" as const,
@@ -15,6 +15,19 @@ const delivery = {
 };
 
 describe("Organization communication provider", () => {
+  it("reports the effective configured email sender without exposing provider credentials", () => {
+    expect(
+      configuredBrevoEmailSender({
+        BREVO_EMAIL_FROM: " communications@mail.staging.example.com ",
+        BREVO_EMAIL_FROM_NAME: " Example Choir ",
+      }),
+    ).toEqual({
+      fromEmail: "communications@mail.staging.example.com",
+      fromName: "Example Choir",
+    });
+    expect(configuredBrevoEmailSender({})).toEqual({ fromEmail: null, fromName: null });
+  });
+
   it("uses Brevo email sandbox-drop mode and includes the signed unsubscribe link", async () => {
     const fetcher = vi.fn((input: string, request: RequestInit) => {
       void input;

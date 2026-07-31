@@ -264,6 +264,45 @@ describe("Organization calendar management", () => {
         .confirmationMessage,
     ).toBe("We received your inquiry.");
 
+    const invalidPerformanceSettings = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify({
+          ...settings,
+          defaultPerformanceId: "00000000-0000-4000-8000-000000000999",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(invalidPerformanceSettings.status).toBe(400);
+    expect(await invalidPerformanceSettings.json()).toMatchObject({
+      code: "performance_not_found",
+      message:
+        "The selected target Performance is no longer available. Choose another Performance.",
+    });
+
+    const invalidSlotSettings = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify({
+          ...settings,
+          slots: [
+            {
+              endsAt: "2026-07-30T17:45:00.000Z",
+              id: "invalid-slot",
+              startsAt: "2026-07-30T18:00:00.000Z",
+            },
+          ],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(invalidSlotSettings.status).toBe(400);
+    expect(await invalidSlotSettings.json()).toMatchObject({
+      code: "validation_failed",
+      message: "Check audition time slot 1: An audition slot must end after it starts.",
+    });
+
     const created = await post("alpha.localhost", "/api/organization/auditions", cookie, {
       availabilityNotes: "Weekends",
       email: "admin-created@example.com",

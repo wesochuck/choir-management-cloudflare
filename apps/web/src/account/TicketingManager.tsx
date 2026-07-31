@@ -44,6 +44,8 @@ const DEFAULT_TICKET_CONFIRMATION_SETTINGS: TicketConfirmationSettings = {
     "A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.",
 };
 
+const WILL_CALL_REFRESH_INTERVAL_MS = 5_000;
+
 // This component coordinates three intentionally co-located manager tools and their shared state.
 // eslint-disable-next-line complexity
 export function TicketingManager({
@@ -138,7 +140,7 @@ export function TicketingManager({
     };
     const interval = window.setInterval(() => {
       void refreshOrders();
-    }, 10_000);
+    }, WILL_CALL_REFRESH_INTERVAL_MS);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -534,9 +536,7 @@ export function TicketingManager({
                 <p>Search ticket buyers, confirm payment status, and process refunds.</p>
               </div>
               <span className="field-help" role="status">
-                {lastOrderRefreshAt
-                  ? "Updates automatically every 10 seconds."
-                  : "Loading updates…"}
+                {lastOrderRefreshAt ? "Updates automatically every 5 seconds." : "Loading updates…"}
               </span>
             </div>
             <div className="ticket-dashboard__filters">

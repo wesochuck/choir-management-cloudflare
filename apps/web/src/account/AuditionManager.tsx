@@ -14,6 +14,7 @@ import { zonedLocalDateTimeToUtc } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 
 import {
+  AuthApiError,
   convertOrganizationAudition,
   createOrganizationAudition,
   deleteOrganizationAudition,
@@ -553,8 +554,12 @@ function SettingsForm({
         setBusy(true);
         setError(null);
         onSave(draft)
-          .catch(() => {
-            setError("Audition settings could not be saved.");
+          .catch((caught: unknown) => {
+            setError(
+              caught instanceof AuthApiError
+                ? caught.message
+                : "Audition settings could not be saved. Check the target Performance and time slots, then try again.",
+            );
           })
           .finally(() => {
             setBusy(false);

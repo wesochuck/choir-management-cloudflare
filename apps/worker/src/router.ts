@@ -102,7 +102,10 @@ import {
 } from "@choir/domain";
 
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "./auth/config";
-import { deliverOrganizationCommunication } from "./communications/provider";
+import {
+  configuredBrevoEmailSender,
+  deliverOrganizationCommunication,
+} from "./communications/provider";
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
 import {
   CalendarMutationError,
@@ -529,6 +532,34 @@ function calendarMutationMessage(code: string): string {
   }
   if (code === "event_not_found") return "The event was not found in this Organization.";
   return "The Organization rejected an invalid event reference.";
+}
+
+function auditionSettingsValidationMessage(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Review the audition settings and try again.";
+  const slotIndex =
+    issue.path[0] === "slots" && typeof issue.path[1] === "number" ? issue.path[1] + 1 : null;
+  if (slotIndex !== null) return `Check audition time slot ${String(slotIndex)}: ${issue.message}`;
+  if (issue.path[0] === "defaultPerformanceId") {
+    return "Choose an available target Performance for the audition settings.";
+  }
+  return `Review the audition settings: ${issue.message}`;
+}
+
+function auditionSettingsStoreMessage(code: string, status: number): string {
+  if (code === "performance_not_found") {
+    return "The selected target Performance is no longer available. Choose another Performance.";
+  }
+  if (code === "organization_identity_conflict") {
+    return "The audition settings belong to a different Organization. Refresh and try again.";
+  }
+  if (code === "validation_failed") {
+    return "The Organization rejected the audition settings. Check the target Performance and time slots.";
+  }
+  if (status >= 500) {
+    return "The Organization service could not save the audition settings. Try again shortly.";
+  }
+  return "The audition settings were rejected. Check the target Performance and time slots.";
 }
 
 async function authorizeCalendarRoute(
@@ -6635,6 +6666,7 @@ router.get("/api/organization/provider-status", async (context) => {
   const providerChecks = providerSetupChecks(context.env, config.EXTERNAL_EFFECTS_MODE);
   return context.json({
     ...providerChecks,
+    emailSender: configuredBrevoEmailSender(context.env),
     environment: config.APP_ENV,
     externalEffectsMode: config.EXTERNAL_EFFECTS_MODE,
     requestId: context.get("requestId"),
@@ -8029,7 +8061,7 @@ router.put("/api/organization/audition-settings", async (context) => {
     return context.json(
       {
         code: "validation_failed",
-        message: "Valid audition settings are required.",
+        message: auditionSettingsValidationMessage(body.error),
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       400,
@@ -8050,16 +8082,22 @@ router.put("/api/organization/audition-settings", async (context) => {
       method: "POST",
     });
     if (!response.ok) {
+      const payload: unknown = await response.json().catch(() => null);
+      const code =
+        typeof payload === "object" &&
+        payload !== null &&
+        "code" in payload &&
+        typeof payload.code === "string"
+          ? payload.code
+          : "audition_settings_update_failed";
+      const status = response.status === 400 || response.status === 409 ? response.status : 503;
       return context.json(
         {
-          code: response.status === 400 ? "validation_failed" : "audition_settings_update_failed",
-          message:
-            response.status === 400
-              ? "Valid audition settings are required."
-              : "Audition settings could not be saved.",
+          code,
+          message: auditionSettingsStoreMessage(code, response.status),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        response.status === 400 || response.status === 409 ? response.status : 503,
+        status,
       );
     }
     const settings = organizationAuditionSettingsSchema.safeParse(await response.json());
@@ -8069,7 +8107,8 @@ router.put("/api/organization/audition-settings", async (context) => {
     return context.json(
       {
         code: "service_unavailable",
-        message: "Audition settings could not be saved.",
+        message:
+          "The Organization could not confirm the saved audition settings. Refresh and try again.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
