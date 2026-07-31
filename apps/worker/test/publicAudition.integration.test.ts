@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+import { auditionSystemCommunicationTemplateIds } from "../src/organization/schema";
+import { updateAuditionInStore } from "../src/organization/auditionStore";
 import { generateAuditionTokens } from "../src/organization/organizationAuditions";
 
 const ALPHA_ORG = "organization-alpha";
@@ -220,6 +222,126 @@ describe("public audition signed flow", () => {
           .at(0)?.count ?? 0,
     }));
     expect(counts).toEqual({ jobs: 1, notifications: 1 });
+  });
+
+  it("renders the Organization's edited audition submission template", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `UPDATE communication_templates
+           SET subject = ?, content_markdown = ?
+           WHERE id = ?`,
+          "Custom audition thanks",
+          "Hello {singerName},\n\nYour custom audition acknowledgement.",
+          auditionSystemCommunicationTemplateIds.submission,
+        );
+        return null;
+      },
+    );
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-inquiry", {
+        body: JSON.stringify({ email: "templated@example.com", name: "Template Singer" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(201);
+    const notification = await runInDurableObject<
+      OrganizationStore,
+      { readonly contentMarkdown: string; readonly kind: string; readonly subject: string } | null
+    >(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{
+            readonly contentMarkdown: string;
+            readonly kind: string;
+            readonly subject: string;
+          }>(
+            `SELECT kind, subject, content_markdown AS contentMarkdown
+           FROM audition_notifications WHERE destination = ? LIMIT 1`,
+            "templated@example.com",
+          )
+          .toArray()
+          .at(0) ?? null,
+    );
+    expect(notification).toEqual({
+      contentMarkdown: "Hello Template Singer,\n\nYour custom audition acknowledgement.",
+      kind: "inquiry_confirmation",
+      subject: "Custom audition thanks",
+    });
+  });
+
+  it("queues editable confirmation and 24-hour reminder templates when scheduled", async () => {
+    const auditionId = await createAuditionInOrg(
+      ALPHA_ORG,
+      "Scheduled Template Singer",
+      "scheduled-templated@example.com",
+    );
+    const scheduledTimeSlot = new Date(Date.now() + 48 * 60 * 60 * 1_000).toISOString();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `UPDATE communication_templates
+           SET subject = ?, content_markdown = ?
+           WHERE id = ?`,
+          "Confirmed for {auditionDate}",
+          "Confirmed: {singerName} at {auditionTime} in {auditionLocation}.",
+          auditionSystemCommunicationTemplateIds.confirmation,
+        );
+        state.storage.sql.exec(
+          `UPDATE communication_templates
+           SET subject = ?, content_markdown = ?
+           WHERE id = ?`,
+          "Reminder for {auditionDate}",
+          "Reminder: {singerName} at {auditionTime} in {auditionLocation}.",
+          auditionSystemCommunicationTemplateIds.reminder,
+        );
+        updateAuditionInStore(state.storage, auditionId, {
+          scheduledTimeSlot,
+          status: "scheduled",
+        });
+        return null;
+      },
+    );
+    const notifications = await runInDurableObject<
+      OrganizationStore,
+      readonly {
+        readonly contentMarkdown: string;
+        readonly kind: string;
+        readonly scheduledFor: string;
+        readonly subject: string;
+      }[]
+    >(stores.get(stores.idFromName(ALPHA_ORG)), (_instance, state) =>
+      state.storage.sql
+        .exec<{
+          readonly contentMarkdown: string;
+          readonly kind: string;
+          readonly scheduledFor: string;
+          readonly subject: string;
+        }>(
+          `SELECT kind, subject, content_markdown AS contentMarkdown,
+                  scheduled_for AS scheduledFor
+           FROM audition_notifications WHERE audition_id = ? ORDER BY kind`,
+          auditionId,
+        )
+        .toArray(),
+    );
+    const confirmation = notifications.find(({ kind }) => kind === "scheduled_confirmation");
+    const reminder = notifications.find(({ kind }) => kind === "audition_reminder");
+    expect(confirmation).toMatchObject({
+      contentMarkdown: expect.stringContaining("Scheduled Template Singer"),
+      subject: expect.stringContaining("Confirmed for"),
+    });
+    expect(reminder).toMatchObject({
+      contentMarkdown: expect.stringContaining("Scheduled Template Singer"),
+      subject: expect.stringContaining("Reminder for"),
+    });
+    expect(reminder?.scheduledFor).toBe(
+      new Date(Date.parse(scheduledTimeSlot) - 24 * 60 * 60 * 1_000).toISOString(),
+    );
   });
 
   it("rejects inquiry without a name", async () => {

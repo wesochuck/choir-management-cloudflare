@@ -1,10 +1,17 @@
 import type { DurableObjectStorage } from "@cloudflare/workers-types";
 import {
   organizationAuditionSettingsSchema,
+  organizationRosterConfigurationRequestSchema,
   publicAuditionSettingsSchema,
   type OrganizationAuditionSettings,
 } from "@choir/contracts";
+import { defaultRosterConfiguration, renderCommunicationTemplate } from "@choir/domain";
 import { z } from "zod";
+
+import {
+  auditionSystemCommunicationTemplateIds,
+  auditionSystemCommunicationTemplates,
+} from "./schema";
 
 const defaultAuditionSettings: OrganizationAuditionSettings = {
   adminNotifyEnabled: false,
@@ -84,6 +91,14 @@ interface AuditionNotificationResult {
   readonly status: "failed" | "sent" | "suppressed";
 }
 
+interface AuditionSystemCommunicationTemplate {
+  readonly [column: string]: SqlStorageValue;
+  readonly contentMarkdown: string;
+  readonly subject: string;
+}
+
+const AUDITION_REMINDER_LEAD_MS = 24 * 60 * 60 * 1_000;
+
 function parseRequestedSlots(value: string): string[] {
   try {
     const parsed: unknown = JSON.parse(value);
@@ -113,6 +128,125 @@ function storedAuditionSettings(storage: DurableObjectStorage): OrganizationAudi
   return defaultAuditionSettings;
 }
 
+function publicAuditionRosterOptions(storage: DurableObjectStorage): {
+  readonly sections: readonly { readonly code: string; readonly name: string }[];
+  readonly voiceParts: readonly {
+    readonly fullName: string;
+    readonly label: string;
+    readonly sectionCode: string;
+  }[];
+} {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(
+      storage.sql
+        .exec<{ readonly configuration: string }>(
+          "SELECT roster_configuration_json AS configuration FROM organization_metadata LIMIT 1",
+        )
+        .one().configuration,
+    ) as unknown;
+  } catch {
+    raw = defaultRosterConfiguration;
+  }
+  const parsed = organizationRosterConfigurationRequestSchema.safeParse(raw);
+  const configuration = parsed.success
+    ? parsed.data
+    : organizationRosterConfigurationRequestSchema.parse(defaultRosterConfiguration);
+  const sections = configuration.sections
+    .filter(({ trackOnly }) => !trackOnly)
+    .map(({ code, name }) => ({ code, name }));
+  const sectionCodes = new Set(sections.map(({ code }) => code));
+  const voiceParts = configuration.voiceParts
+    .filter(({ sectionCode }) => sectionCodes.has(sectionCode))
+    .map(({ fullName, label, sectionCode }) => ({ fullName, label, sectionCode }));
+  return { sections, voiceParts };
+}
+
+function readAuditionSystemCommunicationTemplate(
+  storage: DurableObjectStorage,
+  templateId: string,
+): AuditionSystemCommunicationTemplate {
+  const stored = storage.sql
+    .exec<AuditionSystemCommunicationTemplate>(
+      `SELECT content_markdown AS contentMarkdown, subject
+       FROM communication_templates
+       WHERE id = ? AND is_system = 1 AND channel = 'Email'
+       LIMIT 1`,
+      templateId,
+    )
+    .toArray()
+    .at(0);
+  if (stored) return stored;
+  const fallback = auditionSystemCommunicationTemplates.find(({ id }) => id === templateId);
+  return fallback ?? auditionSystemCommunicationTemplates[0];
+}
+
+function auditionTemplateValues(
+  storage: DurableObjectStorage,
+  scheduledAt: string,
+): Readonly<Record<string, string>> {
+  const organization = storage.sql
+    .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
+    .toArray()
+    .at(0);
+  const settings = storedAuditionSettings(storage);
+  const venue = settings.venueId
+    ? storage.sql
+        .exec<{ readonly address: string; readonly name: string }>(
+          "SELECT address, name FROM venues WHERE id = ? LIMIT 1",
+          settings.venueId,
+        )
+        .toArray()
+        .at(0)
+    : undefined;
+  const date = new Date(scheduledAt);
+  const validDate = !Number.isNaN(date.getTime());
+  let timezone = "UTC";
+  if (organization?.timezone) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: organization.timezone }).format(date);
+      timezone = organization.timezone;
+    } catch {
+      // Fall back to UTC if an older Organization contains an invalid timezone value.
+    }
+  }
+  const auditionDate = validDate
+    ? new Intl.DateTimeFormat("en-US", { dateStyle: "full", timeZone: timezone }).format(date)
+    : scheduledAt;
+  const auditionTime = validDate
+    ? new Intl.DateTimeFormat("en-US", { timeStyle: "short", timeZone: timezone }).format(date)
+    : scheduledAt;
+  const auditionLocation = venue
+    ? [venue.name, venue.address].filter((value) => value.trim().length > 0).join(", ")
+    : "the audition venue";
+  return {
+    auditionDate,
+    auditionDateTime: `${auditionDate} at ${auditionTime}`,
+    auditionLocation,
+    auditionTime,
+  };
+}
+
+function renderAuditionSystemCommunication(
+  storage: DurableObjectStorage,
+  templateId: string,
+  recipientName: string,
+  values: Readonly<Record<string, string>> = {},
+): AuditionSystemCommunicationTemplate {
+  const template = readAuditionSystemCommunicationTemplate(storage, templateId);
+  return {
+    contentMarkdown: renderCommunicationTemplate(template.contentMarkdown, recipientName, values),
+    subject: renderCommunicationTemplate(template.subject, recipientName, values),
+  };
+}
+
+function auditionReminderDueAt(scheduledAt: string, now: string): string {
+  const scheduledAtMs = new Date(scheduledAt).getTime();
+  const nowMs = new Date(now).getTime();
+  if (Number.isNaN(scheduledAtMs) || Number.isNaN(nowMs)) return now;
+  return new Date(Math.max(nowMs, scheduledAtMs - AUDITION_REMINDER_LEAD_MS)).toISOString();
+}
+
 export function auditionSlotsAreConfigured(
   storage: DurableObjectStorage,
   requestedSlots: readonly string[] | undefined,
@@ -129,7 +263,8 @@ function queueAuditionNotification(
     readonly contentMarkdown: string;
     readonly dedupeKey: string;
     readonly destination: string;
-    readonly kind: "inquiry_confirmation" | "scheduled_confirmation" | "admin_alert";
+    readonly kind:
+      "inquiry_confirmation" | "scheduled_confirmation" | "audition_reminder" | "admin_alert";
     readonly recipientName: string;
     readonly subject: string;
     readonly scheduledFor: string;
@@ -181,15 +316,20 @@ function queueCreateNotifications(
 ): void {
   const settings = storedAuditionSettings(storage);
   const now = new Date().toISOString();
+  const message = renderAuditionSystemCommunication(
+    storage,
+    auditionSystemCommunicationTemplateIds.submission,
+    name,
+  );
   queueAuditionNotification(storage, {
     auditionId,
-    contentMarkdown: settings.confirmationMessage,
+    contentMarkdown: message.contentMarkdown,
     dedupeKey: `audition-confirmation:${auditionId}`,
     destination: email,
     kind: "inquiry_confirmation",
     recipientName: name,
     scheduledFor: now,
-    subject: "Audition inquiry received",
+    subject: message.subject,
   });
   if (settings.adminNotifyEnabled) {
     for (const destination of settings.adminNotifyUsers) {
@@ -486,15 +626,38 @@ function recordAuditionUpdateSideEffects(
     (previous.status !== "scheduled" || input.scheduledTimeSlot !== undefined);
   if (!shouldNotify) return;
   const scheduledFor = input.scheduledTimeSlot ?? previous.scheduledTimeSlot ?? now;
+  const values = auditionTemplateValues(storage, scheduledFor);
+  const confirmation = renderAuditionSystemCommunication(
+    storage,
+    auditionSystemCommunicationTemplateIds.confirmation,
+    input.name ?? previous.name,
+    values,
+  );
   queueAuditionNotification(storage, {
     auditionId,
-    contentMarkdown: `Your audition has been scheduled for ${scheduledFor}.`,
+    contentMarkdown: confirmation.contentMarkdown,
     dedupeKey: `audition-scheduled:${auditionId}:${scheduledFor}`,
     destination: input.email ?? previous.email,
     kind: "scheduled_confirmation",
     recipientName: input.name ?? previous.name,
     scheduledFor: now,
-    subject: "Your audition is scheduled",
+    subject: confirmation.subject,
+  });
+  const reminder = renderAuditionSystemCommunication(
+    storage,
+    auditionSystemCommunicationTemplateIds.reminder,
+    input.name ?? previous.name,
+    values,
+  );
+  queueAuditionNotification(storage, {
+    auditionId,
+    contentMarkdown: reminder.contentMarkdown,
+    dedupeKey: `audition-reminder:${auditionId}:${scheduledFor}`,
+    destination: input.email ?? previous.email,
+    kind: "audition_reminder",
+    recipientName: input.name ?? previous.name,
+    scheduledFor: auditionReminderDueAt(scheduledFor, now),
+    subject: reminder.subject,
   });
 }
 
@@ -573,14 +736,17 @@ export function readPublicAuditionSettingsFromStore(
         .toArray()
         .at(0)
     : undefined;
+  const rosterOptions = publicAuditionRosterOptions(storage);
   const publicSettings = publicAuditionSettingsSchema.parse({
     confirmationMessage: settings.confirmationMessage,
     defaultPerformanceId: settings.defaultPerformanceId,
     enabled: settings.enabled,
     performance: performance ?? null,
+    sections: rosterOptions.sections,
     slots: settings.slots,
     timezone: row.timezone,
     venue: venue ?? null,
+    voiceParts: rosterOptions.voiceParts,
   });
   return Response.json(publicSettings);
 }

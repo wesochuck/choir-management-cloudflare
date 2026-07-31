@@ -17,7 +17,7 @@ import {
   type MusicCsvInspection,
 } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 
 import {
   AuthApiError,
@@ -37,6 +37,14 @@ import {
   updateOrganizationEvent,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
+import { extractAudioDuration, extractAudioDurationFromUrl } from "./audioDuration";
+import {
+  computeDurationAutoFillDecision,
+  computeExpectedTrackDuration,
+  formatDetectedDuration,
+  initialDurationAutoFillState,
+  type DurationAutoFillState,
+} from "./durationAutoFill";
 
 const maximumAudioBytes = 20 * 1024 * 1024;
 
@@ -584,6 +592,16 @@ function trackDescription(key: string, configuration: OrganizationRosterConfigur
   );
 }
 
+function validateAudioFile(file: File): string | null {
+  if (!file.type.startsWith("audio/")) {
+    return "Learning tracks must be valid audio files.";
+  }
+  if (file.size <= 0 || file.size > maximumAudioBytes) {
+    return "Learning tracks must be larger than 0 bytes and no more than 20 MB.";
+  }
+  return null;
+}
+
 function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
   return {
     advancePriceCents: event.advancePriceCents,
@@ -1017,13 +1035,116 @@ function MusicTableTuttiPlayer({ piece }: { readonly piece: OrganizationMusicPie
   );
 }
 
+function MusicTuttiTrackDropzone({
+  disabled,
+  file,
+  onChange,
+}: {
+  readonly disabled: boolean;
+  readonly file: File | null;
+  readonly onChange: (file: File | null) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleFile(nextFile: File | null): void {
+    if (!nextFile || disabled) return;
+    const validationError = validateAudioFile(nextFile);
+    if (validationError) {
+      setError(validationError);
+      onChange(null);
+      return;
+    }
+    setError(null);
+    onChange(nextFile);
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>): void {
+    event.preventDefault();
+    setDragging(false);
+    handleFile(event.dataTransfer.files.item(0));
+  }
+
+  return (
+    <fieldset className="music-tutti-track-field">
+      <legend>Tutti Practice Track (Optional)</legend>
+      <p className="field-help">Add the full-mix practice track now, or attach it later.</p>
+      <label
+        className={`music-tutti-dropzone${dragging ? " is-dragging" : ""}`}
+        onDragEnter={(event) => {
+          if (disabled) return;
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => {
+          if (disabled) return;
+          setDragging(false);
+        }}
+        onDragOver={(event) => {
+          if (disabled) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+          setDragging(true);
+        }}
+        onDrop={handleDrop}
+      >
+        <span className="music-tutti-dropzone__label">
+          {file ? (
+            <>
+              Selected: <strong>{file.name}</strong>
+            </>
+          ) : (
+            <>
+              Drag and drop a Tutti MP3 track here, or{" "}
+              <span className="music-tutti-dropzone__browse">browse</span>
+            </>
+          )}
+        </span>
+        <input
+          accept="audio/*"
+          className="sr-only"
+          disabled={disabled}
+          type="file"
+          onChange={(event) => {
+            handleFile(event.target.files?.item(0) ?? null);
+            event.target.value = "";
+          }}
+        />
+      </label>
+      {file ? (
+        <div className="music-tutti-dropzone__selected">
+          <span className="field-help">This track will be attached when you save the piece.</span>
+          <button
+            className="text-button"
+            disabled={disabled}
+            type="button"
+            onClick={() => {
+              setError(null);
+              onChange(null);
+            }}
+          >
+            Remove
+          </button>
+        </div>
+      ) : null}
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function MusicAudioTracks({
   configuration,
   onSaved,
+  onTrackDurationDetected,
   piece,
 }: {
   readonly configuration: OrganizationRosterConfiguration;
   readonly onSaved: (piece: OrganizationMusicPiece, message: string) => void;
+  readonly onTrackDurationDetected: (trackKey: string, durationSeconds: number | null) => void;
   readonly piece: OrganizationMusicPiece;
 }) {
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -1052,12 +1173,9 @@ function MusicAudioTracks({
   }
 
   async function upload(key: string, file: File): Promise<void> {
-    if (!file.type.startsWith("audio/")) {
-      setError("Learning tracks must be valid audio files.");
-      return;
-    }
-    if (file.size <= 0 || file.size > maximumAudioBytes) {
-      setError("Learning tracks must be larger than 0 bytes and no more than 20 MB.");
+    const validationError = validateAudioFile(file);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setActiveKey(key);
@@ -1065,7 +1183,9 @@ function MusicAudioTracks({
     try {
       const uploaded = await uploadPrivateOrganizationFile(file);
       try {
+        const durationSeconds = await extractAudioDuration(file);
         await saveMapping(key, uploaded.id);
+        onTrackDurationDetected(key, durationSeconds);
       } catch (caught: unknown) {
         await deletePrivateOrganizationFile(uploaded.id).catch(() => undefined);
         throw caught;
@@ -1086,6 +1206,7 @@ function MusicAudioTracks({
     setError(null);
     try {
       await saveMapping(key, null);
+      onTrackDurationDetected(key, null);
     } catch (caught: unknown) {
       setError(
         caught instanceof AuthApiError
@@ -1438,7 +1559,11 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [piece, setPiece] = useState<OrganizationMusicPieceRequest>(emptyPiece);
+  const [pendingTuttiFile, setPendingTuttiFile] = useState<File | null>(null);
   const [durationInput, setDurationInput] = useState("");
+  const [durationAutoFillLabel, setDurationAutoFillLabel] = useState<string | null>(null);
+  const [durationDetectionNotice, setDurationDetectionNotice] = useState<string | null>(null);
+  const [trackDurationCache, setTrackDurationCache] = useState<Record<string, number | null>>({});
   const [genresInput, setGenresInput] = useState("");
   const [copiesInput, setCopiesInput] = useState("");
   const [search, setSearch] = useState("");
@@ -1463,6 +1588,9 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editorTab, setEditorTab] = useState<MusicEditorTab>("details");
+  const durationAutoFillStateRef = useRef<DurationAutoFillState>(initialDurationAutoFillState);
+  const durationInputRef = useRef("");
+  const durationDetectionRequestRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -1542,14 +1670,118 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setSelectedPieceIds((current) => [...new Set([...current, ...pieceIds])]);
   }
 
+  function resetDurationDetection(): void {
+    durationAutoFillStateRef.current = initialDurationAutoFillState;
+    durationInputRef.current = "";
+    durationDetectionRequestRef.current += 1;
+    setDurationAutoFillLabel(null);
+    setDurationDetectionNotice(null);
+    setTrackDurationCache({});
+  }
+
+  function setDurationValue(value: string, manuallyEdited: boolean): void {
+    durationInputRef.current = value;
+    setDurationInput(value);
+    if (manuallyEdited) {
+      durationAutoFillStateRef.current = {
+        ...durationAutoFillStateRef.current,
+        manuallyEdited: true,
+      };
+      setDurationAutoFillLabel(null);
+      setDurationDetectionNotice(null);
+    }
+  }
+
+  const handleTrackDurationDetected = useCallback(
+    (trackKey: string, durationSeconds: number | null): void => {
+      setTrackDurationCache((current) => ({ ...current, [trackKey]: durationSeconds }));
+      if (durationSeconds === null) return;
+      setDurationDetectionNotice(null);
+      const decision = computeDurationAutoFillDecision(
+        durationAutoFillStateRef.current,
+        durationInputRef.current,
+        trackKey,
+        durationSeconds,
+      );
+      if (!decision) return;
+      durationAutoFillStateRef.current = decision.newState;
+      durationInputRef.current = decision.newDuration;
+      setDurationInput(decision.newDuration);
+      setDurationAutoFillLabel(trackKey === "tutti" ? "Tutti" : trackKey);
+    },
+    [],
+  );
+
+  const handlePendingTuttiFileChange = useCallback(
+    (file: File | null): void => {
+      setPendingTuttiFile(file);
+      const requestId = ++durationDetectionRequestRef.current;
+      setDurationDetectionNotice(file ? "Reading track duration…" : null);
+      if (!file) return;
+      void extractAudioDuration(file).then((durationSeconds) => {
+        if (requestId !== durationDetectionRequestRef.current) return;
+        if (durationSeconds === null) {
+          setDurationDetectionNotice(
+            "The track duration could not be read automatically. Enter it manually.",
+          );
+          return;
+        }
+        handleTrackDurationDetected("tutti", durationSeconds);
+      });
+    },
+    [handleTrackDurationDetected],
+  );
+
+  useEffect(() => {
+    if (!dialogOpen || !editingId) return;
+    const entries = Object.entries(piece.trackFileIds).filter(
+      (entry): entry is [string, string] => entry[1].length > 0,
+    );
+    const requestId = ++durationDetectionRequestRef.current;
+    if (entries.length === 0) return;
+    let cancelled = false;
+    void Promise.all(
+      entries.map(async ([trackKey, fileId]) => {
+        const durationSeconds = await extractAudioDurationFromUrl(
+          `/api/organization/files/${encodeURIComponent(fileId)}`,
+        );
+        return [trackKey, durationSeconds] as const;
+      }),
+    ).then((durations) => {
+      if (cancelled || requestId !== durationDetectionRequestRef.current) return;
+      for (const [trackKey, durationSeconds] of durations) {
+        handleTrackDurationDetected(trackKey, durationSeconds);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen, editingId, handleTrackDurationDetected, piece.trackFileIds]);
+
+  const expectedTrackDuration = useMemo(
+    () => computeExpectedTrackDuration(trackDurationCache),
+    [trackDurationCache],
+  );
+  const durationMismatch = useMemo(() => {
+    if (expectedTrackDuration === null) return null;
+    const currentSeconds = parseDuration(durationInput);
+    if (currentSeconds === expectedTrackDuration) return null;
+    return {
+      current: durationInput.trim(),
+      suggested: formatDetectedDuration(expectedTrackDuration),
+    };
+  }, [durationInput, expectedTrackDuration]);
+
   function setEditorPiece(
     selected: OrganizationMusicPiece,
     nextTab: MusicEditorTab = "details",
   ): void {
     setEditingId(selected.id);
     setPiece(requestFrom(selected));
+    setPendingTuttiFile(null);
     setEditorTab(nextTab);
-    setDurationInput(durationText(selected.durationSeconds));
+    resetDurationDetection();
+    setDurationValue(durationText(selected.durationSeconds), false);
     setGenresInput(selected.genres.join(", "));
     setCopiesInput(selected.copies === null ? "" : String(selected.copies));
     setDeleteConfirm(false);
@@ -1563,7 +1795,8 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setDialogOpen(false);
     setEditingId(null);
     setPiece(emptyPiece);
-    setDurationInput("");
+    setPendingTuttiFile(null);
+    resetDurationDetection();
     setGenresInput("");
     setCopiesInput("");
     setDeleteConfirm(false);
@@ -1656,7 +1889,8 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   function beginNew(parentId: string | null = null): void {
     setEditingId(null);
     setPiece({ ...emptyPiece, parentId });
-    setDurationInput("");
+    setPendingTuttiFile(null);
+    resetDurationDetection();
     setGenresInput("");
     setCopiesInput("");
     setEditorTab("details");
@@ -1680,13 +1914,19 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     setBusy(true);
     setError(null);
     setMessage(null);
+    let uploadedTuttiFileId: string | null = null;
     try {
-      const request = {
+      const request: OrganizationMusicPieceRequest = {
         ...piece,
         copies,
         durationSeconds,
         genres: uniqueLabels(genresInput),
       };
+      if (!editingId && pendingTuttiFile) {
+        const uploaded = await uploadPrivateOrganizationFile(pendingTuttiFile);
+        uploadedTuttiFileId = uploaded.id;
+        request.trackFileIds = { ...request.trackFileIds, tutti: uploaded.id };
+      }
       const saved = editingId
         ? await updateOrganizationMusicPiece(editingId, request)
         : await createOrganizationMusicPiece(request);
@@ -1700,10 +1940,19 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
       setDialogOpen(false);
       setEditingId(null);
       setPiece(emptyPiece);
+      setPendingTuttiFile(null);
+      resetDurationDetection();
     } catch (caught: unknown) {
-      setError(
-        caught instanceof AuthApiError ? caught.message : "The music piece could not be saved.",
-      );
+      let nextError =
+        caught instanceof AuthApiError ? caught.message : "The music piece could not be saved.";
+      if (uploadedTuttiFileId) {
+        try {
+          await deletePrivateOrganizationFile(uploadedTuttiFileId);
+        } catch {
+          nextError += " The temporary Tutti track could not be reclaimed automatically.";
+        }
+      }
+      setError(nextError);
     } finally {
       setBusy(false);
     }
@@ -1754,7 +2003,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
       setDialogOpen(false);
       setEditingId(null);
       setPiece(emptyPiece);
-      setDurationInput("");
+      resetDurationDetection();
       setGenresInput("");
       setCopiesInput("");
       setDeleteConfirm(false);
@@ -2042,9 +2291,34 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                         placeholder="4:05"
                         value={durationInput}
                         onChange={(event) => {
-                          setDurationInput(event.target.value);
+                          setDurationValue(event.target.value, true);
                         }}
                       />
+                      {durationAutoFillLabel ? (
+                        <small className="field-hint">
+                          Auto-detected from “{durationAutoFillLabel}” track.
+                        </small>
+                      ) : null}
+                      {durationDetectionNotice ? (
+                        <small className="field-hint">{durationDetectionNotice}</small>
+                      ) : null}
+                      {durationMismatch ? (
+                        <small className="music-duration-mismatch">
+                          Tracks suggest {durationMismatch.suggested}.
+                          {durationMismatch.current
+                            ? ` Current: ${durationMismatch.current}. `
+                            : " "}
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => {
+                              setDurationValue(durationMismatch.suggested, true);
+                            }}
+                          >
+                            Update
+                          </button>
+                        </small>
+                      ) : null}
                     </label>
                     <label className="field music-field--wide">
                       Genres (comma separated)
@@ -2090,6 +2364,13 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                       />
                     </label>
                   </div>
+                  {!editingId ? (
+                    <MusicTuttiTrackDropzone
+                      disabled={busy}
+                      file={pendingTuttiFile}
+                      onChange={handlePendingTuttiFileChange}
+                    />
+                  ) : null}
                   <SectionBuckets
                     configuration={roster}
                     selected={piece.sectionBuckets}
@@ -2104,6 +2385,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
                     <MusicAudioTracks
                       configuration={roster}
                       piece={selectedPiece}
+                      onTrackDurationDetected={handleTrackDurationDetected}
                       onSaved={(saved, successMessage) => {
                         setPieces((current) =>
                           current.map((candidate) =>

@@ -10,10 +10,9 @@ export interface OrganizationSchemaMigration {
 
 /**
  * These are the legacy system templates whose placeholders are supported by the
- * current Communication Center renderer. Templates that need ticket or donation
- * fields, auditions, or attendance-report data remain listed in
- * docs/communications-system-template-parity.md until those delivery paths expose
- * the corresponding context.
+ * current Communication Center renderer. Financial and attendance-only templates
+ * remain listed in docs/communications-system-template-parity.md until their
+ * delivery paths expose the corresponding context.
  */
 const supportedSystemCommunicationTemplates = [
   {
@@ -112,9 +111,62 @@ const playerSystemCommunicationTemplates = [
   },
 ] as const;
 
+export const auditionSystemCommunicationTemplateIds = {
+  confirmation: "5f0ca4a5-7e4c-4e1a-9a1c-000000000010",
+  reminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000012",
+  submission: "5f0ca4a5-7e4c-4e1a-9a1c-000000000011",
+} as const;
+
+export const auditionSystemCommunicationTemplates = [
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {singerName},\n\nThanks for submitting your audition inquiry. We received your information and will be in touch soon.\n\nBest,\nChoir Management",
+    id: auditionSystemCommunicationTemplateIds.submission,
+    subject: "Thanks for submitting your audition inquiry",
+    title: "Audition Submission Thanks",
+  },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {singerName},\n\nYour audition is confirmed for {auditionDate} at {auditionTime}.\n\nLocation: {auditionLocation}\n\nWe look forward to meeting you!\n\nBest,\nChoir Management",
+    id: auditionSystemCommunicationTemplateIds.confirmation,
+    subject: "Your audition is confirmed",
+    title: "Audition Confirmed",
+  },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {singerName},\n\nThis is a reminder that your audition is scheduled for {auditionDate} at {auditionTime}.\n\nLocation: {auditionLocation}\n\nSee you soon!\n\nBest,\nChoir Management",
+    id: auditionSystemCommunicationTemplateIds.reminder,
+    subject: "Reminder: your audition is tomorrow",
+    title: "Audition Reminder",
+  },
+] as const;
+
 function seedPlayerSystemCommunicationTemplates(sql: SqlStorage): void {
   const now = new Date().toISOString();
   for (const template of playerSystemCommunicationTemplates) {
+    sql.exec(
+      `INSERT INTO communication_templates
+        (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, 1, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM communication_templates WHERE id = ?)`,
+      template.id,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      now,
+      template.id,
+    );
+  }
+}
+
+function seedAuditionSystemCommunicationTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of auditionSystemCommunicationTemplates) {
     sql.exec(
       `INSERT INTO communication_templates
         (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
@@ -936,6 +988,60 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [
       "ALTER TABLE dues ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'online' CHECK (payment_method IN ('cash', 'online'))",
     ],
+  },
+  {
+    version: 46,
+    apply: seedAuditionSystemCommunicationTemplates,
+    statements: [],
+  },
+  {
+    version: 47,
+    statements: [
+      "DROP INDEX IF EXISTS idx_audition_notifications_status",
+      "DROP INDEX IF EXISTS idx_audition_notifications_audition",
+      "ALTER TABLE audition_notifications RENAME TO audition_notifications_before_reminders",
+      `CREATE TABLE audition_notifications (
+        id TEXT PRIMARY KEY,
+        audition_id TEXT NOT NULL REFERENCES auditions(id) ON DELETE CASCADE,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK (kind IN ('inquiry_confirmation', 'scheduled_confirmation', 'audition_reminder', 'admin_alert')),
+        destination TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        content_markdown TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'sent', 'failed', 'suppressed')),
+        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        provider_message_id TEXT,
+        failure_detail TEXT NOT NULL DEFAULT '',
+        scheduled_for TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sent_at TEXT
+      ) STRICT`,
+      `INSERT INTO audition_notifications
+        (id, audition_id, dedupe_key, kind, destination, recipient_name, subject,
+         content_markdown, status, attempts, provider_message_id, failure_detail,
+         scheduled_for, created_at, updated_at, sent_at)
+       SELECT id, audition_id, dedupe_key, kind, destination, recipient_name, subject,
+         content_markdown, status, attempts, provider_message_id, failure_detail,
+         scheduled_for, created_at, updated_at, sent_at
+       FROM audition_notifications_before_reminders`,
+      "DROP TABLE audition_notifications_before_reminders",
+      `CREATE INDEX idx_audition_notifications_status
+       ON audition_notifications(status, scheduled_for, id)`,
+      `CREATE INDEX idx_audition_notifications_audition
+       ON audition_notifications(audition_id, kind, destination)`,
+    ],
+  },
+  {
+    version: 48,
+    apply: seedAuditionSystemCommunicationTemplates,
+    statements: [],
+  },
+  {
+    version: 49,
+    apply: seedAuditionSystemCommunicationTemplates,
+    statements: [],
   },
 ] as const;
 

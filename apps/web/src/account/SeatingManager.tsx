@@ -714,17 +714,22 @@ function ChartList({
   chart,
   profilesById,
   displayNames,
+  showSeatNumbers,
   showVoiceParts,
 }: {
   readonly chart: OrganizationSeatingChartRequest;
   readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
   readonly displayNames: ReadonlyMap<string, string>;
+  readonly showSeatNumbers: boolean;
   readonly showVoiceParts: boolean;
 }) {
   return (
     <div className="seating-list-view" aria-label="Text seating list">
       {[...chart.rowCounts.keys()].reverse().map((rowIndex) => (
-        <section className="seating-list-row" key={rowIndex}>
+        <section
+          className={`seating-list-row${showSeatNumbers ? "" : " seating-list-row--numbers-hidden"}`}
+          key={rowIndex}
+        >
           <h3>Row {rowIndex + 1}</h3>
           <ol>
             {Array.from({ length: chart.rowCounts[rowIndex] ?? 0 }, (_, seatIndex) => {
@@ -733,7 +738,9 @@ function ChartList({
               );
               return (
                 <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
-                  <span>Seat {seatIndex + 1}</span>
+                  {showSeatNumbers ? (
+                    <span className="seating-list-seat-number">Seat {seatIndex + 1}</span>
+                  ) : null}
                   <strong>
                     {profile
                       ? (displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
@@ -778,6 +785,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [showSeatNumbers, setShowSeatNumbers] = useState(true);
   const [showVoiceParts, setShowVoiceParts] = useState(true);
   const [mobileEditing, setMobileEditing] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
@@ -1769,16 +1777,28 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
                 List
               </button>
               {viewMode === "list" ? (
-                <label className="checkbox-row checkbox-row--compact">
-                  <input
-                    checked={showVoiceParts}
-                    onChange={(event) => {
-                      setShowVoiceParts(event.target.checked);
-                    }}
-                    type="checkbox"
-                  />{" "}
-                  Voice parts
-                </label>
+                <>
+                  <label className="checkbox-row checkbox-row--compact">
+                    <input
+                      checked={showSeatNumbers}
+                      onChange={(event) => {
+                        setShowSeatNumbers(event.target.checked);
+                      }}
+                      type="checkbox"
+                    />{" "}
+                    Seat numbers
+                  </label>
+                  <label className="checkbox-row checkbox-row--compact">
+                    <input
+                      checked={showVoiceParts}
+                      onChange={(event) => {
+                        setShowVoiceParts(event.target.checked);
+                      }}
+                      type="checkbox"
+                    />{" "}
+                    Voice parts
+                  </label>
+                </>
               ) : null}
               <span
                 className={`seating-save-status seating-save-status--${saveState}`}
@@ -1835,6 +1855,7 @@ export function SeatingManager({ enabled }: { readonly enabled: boolean }) {
               chart={chart}
               displayNames={seatingDisplayNames}
               profilesById={profilesById}
+              showSeatNumbers={showSeatNumbers}
               showVoiceParts={showVoiceParts}
             />
           ) : null}

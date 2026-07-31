@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
+  generatePublicPlayerToken,
   listOrganizationEvents,
   listOrganizationMusic,
   listOrganizationProfiles,
@@ -302,6 +303,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<SetListItem | null>(null);
   const [busy, setBusy] = useState(false);
+  const [playerBusy, setPlayerBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -555,6 +557,24 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function openPracticePlayer(): Promise<void> {
+    if (!selectedEvent || busy || playerBusy) return;
+    setPlayerBusy(true);
+    setError(null);
+    try {
+      const token = await generatePublicPlayerToken(selectedEvent.id);
+      window.location.assign(`/player?mode=set-list&token=${encodeURIComponent(token)}`);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The no-login practice player could not be opened.",
+      );
+    } finally {
+      setPlayerBusy(false);
+    }
+  }
+
   function moveDraggedItem(toIndex: number): void {
     if (dragIndex === null || dragIndex === toIndex) return;
     const moved = items[dragIndex];
@@ -568,18 +588,18 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
   return (
     <section className="account-section set-list-section" aria-label="Set list editor">
       <div className="section-heading section-heading--compact set-list-page-intro">
-        <p className="section-description">
-          Manage performance set lists, timings, and {performerLabelPlural.toLowerCase()}{" "}
-          visibility.
-        </p>
         {selectedEvent ? (
           <div className="button-row" aria-label="Set-list tools">
-            <a
+            <button
               className="button button--secondary"
-              href={`/practice?eventId=${encodeURIComponent(selectedEvent.id)}`}
+              disabled={busy || playerBusy}
+              onClick={() => {
+                void openPracticePlayer();
+              }}
+              type="button"
             >
-              Practice Player
-            </a>
+              {playerBusy ? "Opening player…" : "Practice Player"}
+            </button>
             <button
               className="button button--secondary"
               onClick={() => {
@@ -681,6 +701,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
             <div className="set-list-add-bar">
               <div className="set-list-add-type" aria-label="Set-list item type" role="group">
                 <button
+                  aria-pressed={customType === "song"}
                   className={`button button--small${customType === "song" ? " is-active" : ""}`}
                   type="button"
                   onClick={() => {
@@ -690,6 +711,7 @@ export function SetListManager({ enabled }: { readonly enabled: boolean }) {
                   Song
                 </button>
                 <button
+                  aria-pressed={customType === "intermission"}
                   className={`button button--small${customType === "intermission" ? " is-active" : ""}`}
                   type="button"
                   onClick={() => {

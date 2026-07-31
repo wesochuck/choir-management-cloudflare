@@ -139,6 +139,18 @@ const audienceOptions = ["Members", "Ticket Buyers", "Donors"] as const;
 type CommunicationStage = "audience" | "compose";
 type CommunicationTab = "compose" | "drafts" | "history" | "templates" | "upcoming" | "settings";
 
+function communicationTabFromSearch(search: string): CommunicationTab | null {
+  const tab = new URLSearchParams(search).get("tab");
+  return tab === "compose" ||
+    tab === "drafts" ||
+    tab === "history" ||
+    tab === "templates" ||
+    tab === "upcoming" ||
+    tab === "settings"
+    ? tab
+    : null;
+}
+
 const defaultTestEmailSubject = "Choir Management connection test";
 const defaultTestEmailContent =
   "This is a test email from Choir Management. Your organization email delivery is configured.";
@@ -352,6 +364,13 @@ function TemplateLibrary({
               Markdown and the placeholders shown in the composer are supported. System templates
               cannot be deleted, but their wording can be customized for this Organization.
             </p>
+            {editingTemplate.title.toLowerCase().includes("audition") ? (
+              <p className="field-help">
+                Audition templates also support {"{auditionDate}"}, {"{auditionTime}"},{" "}
+                {"{auditionDateTime}"}, and {"{auditionLocation}"} when the message is sent
+                automatically.
+              </p>
+            ) : null}
           </div>
           <div className="form-actions">
             <button
@@ -399,6 +418,7 @@ function TemplateLibrary({
 // eslint-disable-next-line complexity -- this coordinator owns compose, audience, scheduled-message, and delivery workflows.
 export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) {
   const draftId = new URLSearchParams(window.location.search).get("draftId");
+  const requestedTab = communicationTabFromSearch(window.location.search);
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
   const [contentMarkdown, setContentMarkdown] = useState("");
@@ -417,7 +437,9 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
   const [reach, setReach] = useState<string | null>(null);
   const [testEmail, setTestEmail] = useState("");
-  const [activeTab, setActiveTab] = useState<CommunicationTab>(draftId ? "compose" : "compose");
+  const [activeTab, setActiveTab] = useState<CommunicationTab>(
+    draftId ? "compose" : (requestedTab ?? "compose"),
+  );
   const [stage, setStage] = useState<CommunicationStage>("audience");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);

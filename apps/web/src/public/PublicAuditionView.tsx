@@ -19,6 +19,17 @@ interface PublicAuditionVenue {
   readonly name: string;
 }
 
+interface PublicAuditionSection {
+  readonly code: string;
+  readonly name: string;
+}
+
+interface PublicAuditionVoicePart {
+  readonly fullName: string;
+  readonly label: string;
+  readonly sectionCode: string;
+}
+
 interface AuditionDetails {
   readonly id: string;
   readonly createdAt: string;
@@ -39,9 +50,11 @@ interface PublicAuditionSettings {
   readonly defaultPerformanceId: string | null;
   readonly enabled: boolean;
   readonly performance: PublicAuditionPerformance | null;
+  readonly sections: readonly PublicAuditionSection[];
   readonly slots: readonly AuditionSlot[];
   readonly timezone: string;
   readonly venue: PublicAuditionVenue | null;
+  readonly voiceParts: readonly PublicAuditionVoicePart[];
 }
 
 const fallbackPublicAuditionSettings: PublicAuditionSettings = {
@@ -49,9 +62,11 @@ const fallbackPublicAuditionSettings: PublicAuditionSettings = {
   defaultPerformanceId: null,
   enabled: true,
   performance: null,
+  sections: [],
   slots: [],
   timezone: "UTC",
   venue: null,
+  voiceParts: [],
 };
 
 type PageStatus =
@@ -228,6 +243,12 @@ function AuditionForm({
   const [voicePart, setVoicePart] = useState("");
   const [experience, setExperience] = useState("");
   const [requestedSlots, setRequestedSlots] = useState<readonly string[]>([]);
+  const voicePartsBySection = new Map<string, PublicAuditionVoicePart[]>();
+  settings.voiceParts.forEach((part) => {
+    const parts = voicePartsBySection.get(part.sectionCode) ?? [];
+    parts.push(part);
+    voicePartsBySection.set(part.sectionCode, parts);
+  });
 
   return (
     <div className="form-stack audition-form">
@@ -268,15 +289,29 @@ function AuditionForm({
       </label>
       <label className="field" htmlFor="audition-voice-part">
         Voice part
-        <input
+        <select
           id="audition-voice-part"
           onChange={(e) => {
             setVoicePart(e.target.value);
           }}
-          placeholder="e.g. Soprano, Alto, Tenor, Bass"
-          type="text"
           value={voicePart}
-        />
+        >
+          <option value="">Unsure</option>
+          {settings.sections.map((section) => {
+            const parts = voicePartsBySection.get(section.code) ?? [];
+            if (parts.length === 0) return null;
+            return (
+              <optgroup key={section.code} label={section.name}>
+                {parts.map((part) => (
+                  <option key={part.label} value={part.label}>
+                    {part.fullName}
+                  </option>
+                ))}
+              </optgroup>
+            );
+          })}
+        </select>
+        <span className="field-help">Choose a voice part, or select Unsure if you need help.</span>
       </label>
       <label className="field" htmlFor="audition-experience">
         Musical experience

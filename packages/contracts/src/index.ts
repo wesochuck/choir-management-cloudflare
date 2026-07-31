@@ -2154,6 +2154,15 @@ export const publicAuditionSettingsSchema = z.object({
     })
     .nullable()
     .default(null),
+  sections: z
+    .array(
+      z.object({
+        code: z.string().min(1).max(20),
+        name: z.string().min(1).max(100),
+      }),
+    )
+    .max(50)
+    .default([]),
   slots: z.array(auditionSlotInputSchema).max(200),
   timezone: z.string().min(1).max(128).default("UTC"),
   venue: z
@@ -2163,6 +2172,16 @@ export const publicAuditionSettingsSchema = z.object({
     })
     .nullable()
     .default(null),
+  voiceParts: z
+    .array(
+      z.object({
+        fullName: z.string().min(1).max(100),
+        label: z.string().min(1).max(50),
+        sectionCode: z.string().min(1).max(20),
+      }),
+    )
+    .max(100)
+    .default([]),
 });
 
 export type PublicAuditionSettings = z.infer<typeof publicAuditionSettingsSchema>;

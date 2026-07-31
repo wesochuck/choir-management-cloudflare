@@ -33,6 +33,21 @@ function displayEventDate(value: string): string {
   }).format(new Date(value));
 }
 
+function closestFutureEvent(
+  events: readonly OrganizationEvent[],
+  now = Date.now(),
+): OrganizationEvent | undefined {
+  let closest: OrganizationEvent | undefined;
+  let closestStartsAt = Number.POSITIVE_INFINITY;
+  for (const event of events) {
+    const startsAt = Date.parse(event.startsAt);
+    if (!Number.isFinite(startsAt) || startsAt <= now || startsAt >= closestStartsAt) continue;
+    closest = event;
+    closestStartsAt = startsAt;
+  }
+  return closest;
+}
+
 function formatSyncTime(value: Date | null): string {
   if (!value) return "Waiting for updates";
   return `Updated ${value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
@@ -57,7 +72,10 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     listOrganizationEvents(controller.signal)
       .then((loaded) => {
         setEvents(loaded);
-        setEventId((current) => (current ? current : (loaded[0]?.id ?? "")));
+        setEventId((current) => {
+          if (current) return current;
+          return closestFutureEvent(loaded)?.id ?? loaded[0]?.id ?? "";
+        });
       })
       .catch(() => {
         if (!controller.signal.aborted) setMessage("Attendance events could not be loaded.");

@@ -315,6 +315,9 @@ describe("Organization communications", () => {
       ).json(),
     );
     expect(templates.templates.map(({ title }) => title).sort()).toEqual([
+      "Audition Confirmed",
+      "Audition Reminder",
+      "Audition Submission Thanks",
       "Bundle Ticket Confirmation",
       "Dues Payment Notice",
       "Event RSVP Invitation",
@@ -332,6 +335,9 @@ describe("Organization communications", () => {
         .map(({ title }) => title)
         .sort(),
     ).toEqual([
+      "Audition Confirmed",
+      "Audition Reminder",
+      "Audition Submission Thanks",
       "Bundle Ticket Confirmation",
       "Dues Payment Notice",
       "Event RSVP Invitation",
@@ -342,6 +348,9 @@ describe("Organization communications", () => {
       "Ticket Confirmation",
       "Weather / Schedule Delay Alert",
     ]);
+    expect(
+      templates.templates.find(({ title }) => title === "Audition Submission Thanks"),
+    ).toMatchObject({ channel: "Email", isSystem: true });
     const ticketTemplate = templates.templates.find(({ title }) => title === "Ticket Confirmation");
     expect(ticketTemplate?.isSystem).toBe(true);
     const updatedTicketTemplate = communicationTemplateResponseSchema.parse(

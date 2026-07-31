@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface PlayerPlaylistItem {
   readonly arranger?: string;
@@ -16,45 +16,97 @@ interface PlayerDetails {
   readonly eventTitle: string;
   readonly eventStartsAt: string;
   readonly items: PlayerPlaylistItem[];
-  readonly profileId: string;
-  readonly profileName: string;
+  readonly profileName?: string;
+}
+
+interface ResolvedTrack {
+  readonly fallback: boolean;
+  readonly fileId: string;
+  readonly key: string;
 }
 
 type PageStatus =
-  | { type: "loading" }
-  | { type: "no_token" }
-  | { type: "not_found" }
-  | { type: "ready"; details: PlayerDetails }
-  | { type: "error" };
+  | { readonly type: "loading" }
+  | { readonly type: "no_token" }
+  | { readonly type: "not_found" }
+  | { readonly type: "ready"; readonly details: PlayerDetails }
+  | { readonly type: "error" };
 
-function isPlayerDetails(value: unknown): value is PlayerDetails {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
+}
+
+function isPlayerPlaylistItem(value: unknown): value is PlayerPlaylistItem {
+  if (!isRecord(value) || typeof value.title !== "string" || !isStringRecord(value.trackFileIds)) {
+    return false;
+  }
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "eventTitle" in value &&
-    "items" in value &&
-    "profileName" in value &&
-    "eventId" in value
+    (value.arranger === undefined || typeof value.arranger === "string") &&
+    (value.composer === undefined || typeof value.composer === "string") &&
+    (value.durationSeconds === undefined || typeof value.durationSeconds === "number") &&
+    (value.isFeaturedNumber === undefined || typeof value.isFeaturedNumber === "boolean") &&
+    (value.notes === undefined || typeof value.notes === "string") &&
+    (value.pieceId === undefined || typeof value.pieceId === "string")
   );
 }
 
-function fetchPlayerDetails(token: string): Promise<PlayerDetails> {
-  return fetch("/api/public/player-details", {
+function isPlayerDetails(value: unknown): value is PlayerDetails {
+  return (
+    isRecord(value) &&
+    typeof value.eventId === "string" &&
+    typeof value.eventTitle === "string" &&
+    typeof value.eventStartsAt === "string" &&
+    Array.isArray(value.items) &&
+    value.items.every(isPlayerPlaylistItem) &&
+    (value.profileName === undefined || typeof value.profileName === "string")
+  );
+}
+
+function isPublicPlaylist(value: unknown): value is {
+  readonly event: { readonly date: string; readonly id: string; readonly title: string };
+  readonly items: PlayerPlaylistItem[];
+} {
+  if (!isRecord(value) || !isRecord(value.event) || !Array.isArray(value.items)) return false;
+  return (
+    typeof value.event.date === "string" &&
+    typeof value.event.id === "string" &&
+    typeof value.event.title === "string" &&
+    value.items.every(isPlayerPlaylistItem)
+  );
+}
+
+async function fetchPlayerDetails(token: string): Promise<PlayerDetails> {
+  const response = await fetch("/api/public/player-details", {
     body: JSON.stringify({ token }),
     headers: { "content-type": "application/json" },
     method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("not_found");
-    return response.json().then((data: unknown) => {
-      if (isPlayerDetails(data)) return data;
-      throw new Error("invalid_response");
-    });
   });
+  if (!response.ok) throw new Error("not_found");
+  const data: unknown = await response.json();
+  if (!isPlayerDetails(data)) throw new Error("invalid_response");
+  return data;
+}
+
+async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> {
+  const response = await fetch(`/api/player-playlist?token=${encodeURIComponent(token)}`);
+  if (!response.ok) throw new Error("not_found");
+  const data: unknown = await response.json();
+  if (!isPublicPlaylist(data)) throw new Error("invalid_response");
+  return {
+    eventId: data.event.id,
+    eventStartsAt: data.event.date,
+    eventTitle: data.event.title,
+    items: data.items,
+  };
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
+  const date = new Date(iso);
+  return date.toLocaleDateString(undefined, {
     day: "numeric",
     month: "long",
     timeZone: "UTC",
@@ -63,115 +115,489 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const wholeSeconds = Math.floor(seconds);
+  return `${String(Math.floor(wholeSeconds / 60))}:${String(wholeSeconds % 60).padStart(2, "0")}`;
 }
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m)}:${s.toString().padStart(2, "0")}`;
+function formatTrackKey(key: string): string {
+  return key === "tutti" ? "Tutti" : key.toUpperCase();
 }
 
-function TrackPlayer({
-  fileId,
+function availableTrackKeys(items: readonly PlayerPlaylistItem[]): string[] {
+  const keys = new Set(items.flatMap((item) => Object.keys(item.trackFileIds)));
+  return [...keys].sort((left, right) => {
+    if (left === "tutti") return -1;
+    if (right === "tutti") return 1;
+    return left.localeCompare(right);
+  });
+}
+
+function resolveTrack(item: PlayerPlaylistItem, requestedKey: string): ResolvedTrack | null {
+  const requestedFileId = item.trackFileIds[requestedKey];
+  if (requestedFileId) {
+    return { fallback: false, fileId: requestedFileId, key: requestedKey };
+  }
+  const tuttiFileId = item.trackFileIds.tutti;
+  if (tuttiFileId) {
+    return { fallback: requestedKey !== "tutti", fileId: tuttiFileId, key: "tutti" };
+  }
+  return null;
+}
+
+function playerMediaUrl(fileId: string, token: string): string {
+  return `/api/public/player/media/${encodeURIComponent(fileId)}?token=${encodeURIComponent(token)}`;
+}
+
+// eslint-disable-next-line complexity -- this player keeps transport and rehearsal controls together.
+function PublicPracticePlayer({
+  details,
   token,
-  trackLabel,
 }: {
-  readonly fileId: string;
+  readonly details: PlayerDetails;
   readonly token: string;
-  readonly trackLabel: string;
 }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const autoplayRef = useRef(false);
+  const gapTimerRef = useRef<number | null>(null);
+  const [selectedTrackKey, setSelectedTrackKey] = useState("tutti");
+  const [selectedItemIndex, setSelectedItemIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const audioUrl = `/api/public/player/media/${encodeURIComponent(fileId)}?token=${encodeURIComponent(token)}`;
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [startAt, setStartAt] = useState(0);
+  const [volume, setVolume] = useState(100);
+  const [gapSeconds, setGapSeconds] = useState(0);
+  const [loopMode, setLoopMode] = useState<"none" | "all" | "one">("none");
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [showGuide, setShowGuide] = useState(true);
 
-  return (
-    <div className="flex items-center gap-2">
-      <audio
-        className="flex-1"
-        controls
-        onPlay={() => {
-          setPlaying(true);
-        }}
-        onPause={() => {
-          setPlaying(false);
-        }}
-        preload="none"
-        src={audioUrl}
-      >
-        <track kind="captions" label={trackLabel} src="" />
-      </audio>
-      {playing && <span className="text-xs text-muted-foreground">Playing</span>}
-    </div>
+  const trackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
+  const activeTrackKey = trackKeys.includes(selectedTrackKey)
+    ? selectedTrackKey
+    : (trackKeys[0] ?? "tutti");
+  const playableItems = useMemo(
+    () => details.items.filter((item) => resolveTrack(item, activeTrackKey) !== null),
+    [activeTrackKey, details.items],
   );
-}
+  const safeSelectedItemIndex = Math.min(selectedItemIndex, Math.max(playableItems.length - 1, 0));
+  const currentItem = playableItems[safeSelectedItemIndex] ?? null;
+  const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
+  const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
+  const source = currentTrack ? playerMediaUrl(currentTrack.fileId, token) : "";
 
-function PlaylistItemHeader({ item }: { readonly item: PlayerPlaylistItem }) {
-  return (
-    <div className="min-w-0 flex-1">
-      <h3 className="font-semibold">{item.title}</h3>
-      {(item.composer ?? item.arranger) && (
-        <p className="text-sm text-muted-foreground">
-          {item.composer && <span>{item.composer}</span>}
-          {item.composer && item.arranger && <span> &middot; </span>}
-          {item.arranger && <span>arr. {item.arranger}</span>}
-        </p>
-      )}
-      {item.durationSeconds !== undefined && (
-        <p className="text-xs text-muted-foreground">{formatDuration(item.durationSeconds)}</p>
-      )}
-      {item.isFeaturedNumber && (
-        <p className="mt-1 text-xs font-medium text-primary">Featured Number</p>
-      )}
-    </div>
-  );
-}
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.load();
+    setCurrentTime(0);
+    setDuration(0);
+  }, [source]);
 
-function PlaylistItem({
-  item,
-  token,
-}: {
-  readonly item: PlayerPlaylistItem;
-  readonly token: string;
-}) {
-  const trackEntries = Object.entries(item.trackFileIds);
-  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume / 100;
+  }, [volume]);
 
-  return (
-    <div className="rounded border p-4">
-      <div className="flex items-start justify-between gap-4">
-        <PlaylistItemHeader item={item} />
-        {trackEntries.length > 0 && (
-          <button
-            className="button button--secondary button--small shrink-0"
-            onClick={() => {
-              setExpanded(!expanded);
-            }}
-            type="button"
-          >
-            {expanded
-              ? "Hide tracks"
-              : `${String(trackEntries.length)} track${trackEntries.length > 1 ? "s" : ""}`}
-          </button>
-        )}
-      </div>
+  useEffect(() => {
+    return () => {
+      if (gapTimerRef.current !== null) window.clearInterval(gapTimerRef.current);
+    };
+  }, []);
 
-      {item.notes && <p className="mt-2 whitespace-pre-wrap text-sm">{item.notes}</p>}
+  function playCurrent(): void {
+    void audioRef.current?.play().then(
+      () => {
+        setPlaying(true);
+      },
+      () => {
+        setPlaying(false);
+      },
+    );
+  }
 
-      {expanded && trackEntries.length > 0 && (
-        <div className="mt-3 space-y-2 border-t pt-3">
-          {trackEntries.map(([trackLabel, fileId]) => (
-            <TrackPlayer fileId={fileId} key={fileId} token={token} trackLabel={trackLabel} />
+  function selectItem(index: number, autoplay = true): void {
+    if (index < 0 || index >= playableItems.length) return;
+    if (gapTimerRef.current !== null) {
+      window.clearInterval(gapTimerRef.current);
+      gapTimerRef.current = null;
+    }
+    autoplayRef.current = autoplay;
+    setSelectedItemIndex(index);
+    setPlaying(autoplay);
+    setCountdown(null);
+  }
+
+  function selectTrackKey(key: string): void {
+    if (key === selectedTrackKey) return;
+    autoplayRef.current = playing;
+    setSelectedTrackKey(key);
+    setSelectedItemIndex(0);
+    setCountdown(null);
+  }
+
+  function nextTrack(): void {
+    if (currentIndex < playableItems.length - 1) {
+      selectItem(currentIndex + 1);
+    } else if (loopMode === "all" && playableItems.length > 0) {
+      selectItem(0);
+    }
+  }
+
+  function startNextTrack(): void {
+    if (gapSeconds === 0) {
+      nextTrack();
+      return;
+    }
+    setPlaying(false);
+    setCountdown(gapSeconds);
+    let remaining = gapSeconds;
+    gapTimerRef.current = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        if (gapTimerRef.current !== null) window.clearInterval(gapTimerRef.current);
+        gapTimerRef.current = null;
+        setCountdown(null);
+        nextTrack();
+      } else {
+        setCountdown(remaining);
+      }
+    }, 1_000);
+  }
+
+  function handleEnded(): void {
+    if (loopMode === "one") {
+      if (audioRef.current) {
+        audioRef.current.currentTime = startAt;
+        playCurrent();
+      }
+      return;
+    }
+    if (currentIndex >= playableItems.length - 1 && loopMode !== "all") {
+      setPlaying(false);
+      return;
+    }
+    startNextTrack();
+  }
+
+  function togglePlay(): void {
+    if (!audioRef.current) return;
+    if (playing) {
+      audioRef.current.pause();
+      setPlaying(false);
+      return;
+    }
+    playCurrent();
+  }
+
+  function updateStartAt(value: string): void {
+    const next = Math.max(0, Number(value) || 0);
+    setStartAt(next);
+    if (audioRef.current && duration > 0) {
+      audioRef.current.currentTime = Math.min(next, duration);
+      setCurrentTime(Math.min(next, duration));
+    }
+  }
+
+  if (!currentItem || !currentTrack) {
+    return (
+      <>
+        <div className="public-player__track-pills" aria-label="Track selection">
+          {trackKeys.map((key) => (
+            <button
+              aria-pressed={activeTrackKey === key}
+              className={activeTrackKey === key ? "is-active" : undefined}
+              key={key}
+              type="button"
+              onClick={() => {
+                selectTrackKey(key);
+              }}
+            >
+              {formatTrackKey(key)}
+            </button>
           ))}
         </div>
-      )}
-    </div>
+        <p className="public-player__empty" role="status">
+          No practice tracks are available for this set list yet.
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <nav className="public-player__track-pills" aria-label="Track selection">
+        {trackKeys.map((key) => (
+          <button
+            aria-pressed={activeTrackKey === key}
+            className={activeTrackKey === key ? "is-active" : undefined}
+            key={key}
+            type="button"
+            onClick={() => {
+              selectTrackKey(key);
+            }}
+          >
+            {formatTrackKey(key)}
+          </button>
+        ))}
+      </nav>
+
+      <section className="public-player__now-playing" aria-labelledby="public-player-now-playing">
+        <div className="public-player__track-heading">
+          <div>
+            <p className="eyebrow">Now playing</p>
+            <h2 id="public-player-now-playing">{currentItem.title}</h2>
+            <p>
+              {currentTrack.fallback
+                ? `Tutti fallback${currentItem.composer ? ` · ${currentItem.composer}` : ""}`
+                : `${formatTrackKey(currentTrack.key)}${currentItem.composer ? ` · ${currentItem.composer}` : ""}`}
+            </p>
+          </div>
+          <span className="public-player__track-badge">
+            {formatTrackKey(currentTrack.key).toUpperCase()}
+          </span>
+        </div>
+
+        <audio
+          aria-label={`${currentItem.title} ${formatTrackKey(currentTrack.key)} track`}
+          className="public-player__audio"
+          preload="metadata"
+          ref={audioRef}
+          src={source}
+          onEnded={handleEnded}
+          onLoadedMetadata={(event) => {
+            const nextDuration = Number.isFinite(event.currentTarget.duration)
+              ? event.currentTarget.duration
+              : 0;
+            const initialTime = Math.min(startAt, nextDuration);
+            setDuration(nextDuration);
+            setCurrentTime(initialTime);
+            event.currentTarget.currentTime = initialTime;
+            if (autoplayRef.current || playing) {
+              autoplayRef.current = false;
+              playCurrent();
+            }
+          }}
+          onPause={() => {
+            setPlaying(false);
+          }}
+          onPlay={() => {
+            setPlaying(true);
+          }}
+          onTimeUpdate={(event) => {
+            setCurrentTime(event.currentTarget.currentTime);
+          }}
+        >
+          <track kind="captions" />
+        </audio>
+
+        <div className="public-player__progress">
+          <input
+            aria-label={`Seek ${currentItem.title}`}
+            max={duration || 1}
+            min={0}
+            step={0.1}
+            type="range"
+            value={Math.min(currentTime, duration || 0)}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setCurrentTime(next);
+              if (audioRef.current) audioRef.current.currentTime = next;
+            }}
+          />
+          <div>
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
+        </div>
+
+        <div className="public-player__transport">
+          <button
+            aria-label="Previous track"
+            className="button button--secondary button--small"
+            disabled={currentIndex <= 0}
+            type="button"
+            onClick={() => {
+              selectItem(currentIndex - 1, false);
+            }}
+          >
+            Previous
+          </button>
+          <button
+            className="button button--primary public-player__play"
+            type="button"
+            onClick={togglePlay}
+          >
+            {playing ? "Pause" : "Play"}
+          </button>
+          <button
+            aria-label="Next track"
+            className="button button--secondary button--small"
+            disabled={currentIndex >= playableItems.length - 1 && loopMode !== "all"}
+            type="button"
+            onClick={nextTrack}
+          >
+            Next
+          </button>
+          <button
+            aria-pressed={loopMode !== "none"}
+            className="public-player__repeat"
+            type="button"
+            onClick={() => {
+              setLoopMode((mode) => (mode === "none" ? "all" : mode === "all" ? "one" : "none"));
+            }}
+          >
+            {loopMode === "none" ? "No repeat" : loopMode === "all" ? "Repeat all" : "Repeat one"}
+          </button>
+        </div>
+
+        <div className="public-player__options">
+          <label className="public-player__option">
+            <span>Start track at</span>
+            <span className="public-player__inline-input">
+              <input
+                inputMode="decimal"
+                min={0}
+                step={1}
+                type="number"
+                value={startAt}
+                onChange={(event) => {
+                  updateStartAt(event.target.value);
+                }}
+              />
+              <small>seconds</small>
+            </span>
+            <small>Skips the beginning of this track every time you play it.</small>
+          </label>
+          <label className="public-player__option">
+            <span className="public-player__option-heading">
+              <span>Volume</span>
+              <small>{String(volume)}%</small>
+            </span>
+            <input
+              aria-label="Volume"
+              max={100}
+              min={0}
+              type="range"
+              value={volume}
+              onChange={(event) => {
+                setVolume(Number(event.target.value));
+              }}
+            />
+          </label>
+          <label className="public-player__option">
+            <span>Gap between tracks</span>
+            <select
+              value={gapSeconds}
+              onChange={(event) => {
+                setGapSeconds(Number(event.target.value));
+              }}
+            >
+              <option value={0}>None</option>
+              <option value={2}>2 seconds</option>
+              <option value={5}>5 seconds</option>
+              <option value={10}>10 seconds</option>
+            </select>
+          </label>
+        </div>
+        {countdown !== null ? (
+          <p className="notice notice--info" role="status">
+            Next track starts in {countdown} seconds.
+          </p>
+        ) : null}
+        <button
+          aria-expanded={showGuide}
+          className="public-player__guide-toggle"
+          type="button"
+          onClick={() => {
+            setShowGuide((current) => !current);
+          }}
+        >
+          {showGuide ? "Hide control guide" : "Show control guide"}
+        </button>
+        {showGuide ? (
+          <div className="public-player__guide">
+            <div>
+              <strong>Start track at</strong>
+              <span>Skips the beginning of this track every time you play it.</span>
+            </div>
+            <div>
+              <strong>Gap between tracks</strong>
+              <span>Adds silence before the next track starts.</span>
+            </div>
+            <div>
+              <strong>Repeat</strong>
+              <span>Choose whether to stop, repeat the set list, or repeat one track.</span>
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="public-player__set-list" aria-labelledby="public-player-set-list">
+        <div className="public-player__set-list-heading">
+          <div>
+            <h2 id="public-player-set-list">Set List</h2>
+            <p>{String(details.items.length)} tracks</p>
+          </div>
+          <span className="public-player__no-login">No login required</span>
+        </div>
+        <p className="public-player__set-list-help">
+          Choose a track to start practicing. Part and section tracks fall back to Tutti when a
+          specific recording is not available.
+        </p>
+        <ol>
+          {details.items.map((item, index) => {
+            const track = resolveTrack(item, activeTrackKey);
+            const itemIndex = playableItems.indexOf(item);
+            const active = itemIndex === currentIndex;
+            return (
+              <li
+                className={active ? "is-active" : undefined}
+                key={item.pieceId ?? `${item.title}-${String(index)}`}
+              >
+                <button
+                  className="public-player__set-list-item"
+                  disabled={track === null}
+                  type="button"
+                  onClick={() => {
+                    selectItem(itemIndex);
+                  }}
+                >
+                  <span>
+                    <strong>{item.title}</strong>
+                    {item.composer ? <small>{item.composer}</small> : null}
+                  </span>
+                  {track ? (
+                    <span className="public-player__item-track">
+                      {track.fallback ? "Tutti" : formatTrackKey(track.key)}
+                    </span>
+                  ) : (
+                    <span className="public-player__item-track">Unavailable</span>
+                  )}
+                </button>
+                {track ? (
+                  <a
+                    className="button button--secondary button--small"
+                    download
+                    href={playerMediaUrl(track.fileId, token)}
+                  >
+                    Download file
+                  </a>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    </>
   );
 }
 
 export function PublicPlayerView() {
-  const token = new URLSearchParams(window.location.search).get("token");
+  const location = useMemo(() => new URLSearchParams(window.location.search), []);
+  const token = location.get("token");
+  const isSetListPlayer = location.get("mode") === "set-list";
   const [pageStatus, setPageStatus] = useState<PageStatus>({
     type: token ? "loading" : "no_token",
   });
@@ -179,14 +605,15 @@ export function PublicPlayerView() {
   useEffect(() => {
     window.history.replaceState(null, "", "/player");
     if (!token) return;
-    fetchPlayerDetails(token)
+    const load = isSetListPlayer ? fetchPublicPlayerPlaylist(token) : fetchPlayerDetails(token);
+    void load
       .then((details) => {
-        setPageStatus({ type: "ready", details });
+        setPageStatus({ details, type: "ready" });
       })
       .catch(() => {
         setPageStatus({ type: "not_found" });
       });
-  }, [token]);
+  }, [isSetListPlayer, token]);
 
   if (pageStatus.type === "no_token") {
     return (
@@ -194,7 +621,7 @@ export function PublicPlayerView() {
         <section className="auth-card" aria-labelledby="player-title">
           <h1 id="player-title">Player Link Required</h1>
           <p className="notice notice--info" role="status">
-            Please use the link from your email to access the player.
+            Please use the practice-player link from your Organization.
           </p>
           <a className="button button--secondary" href="/">
             Return to the Organization site
@@ -208,7 +635,7 @@ export function PublicPlayerView() {
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="player-title">
-          <h1 id="player-title">Loading Player...</h1>
+          <h1 id="player-title">Loading practice player…</h1>
         </section>
       </main>
     );
@@ -220,7 +647,8 @@ export function PublicPlayerView() {
         <section className="auth-card" aria-labelledby="player-title">
           <h1 id="player-title">Link Not Found</h1>
           <p className="notice notice--error" role="alert">
-            This player link is invalid or expired. Contact an Organization manager for a new link.
+            This practice-player link is invalid or expired. Ask an Organization manager for a new
+            link.
           </p>
           <a className="button button--secondary" href="/">
             Return to the Organization site
@@ -230,36 +658,19 @@ export function PublicPlayerView() {
     );
   }
 
-  if (pageStatus.type !== "ready") {
-    return null;
-  }
+  if (pageStatus.type !== "ready") return null;
   const details = pageStatus.details;
 
   return (
-    <main className="auth-layout">
-      <section className="auth-card" aria-labelledby="player-title">
-        <p className="eyebrow">Player</p>
-        <h1 id="player-title">{details.eventTitle}</h1>
-        <p className="text-sm text-muted-foreground">
-          {formatDate(details.eventStartsAt)} at {formatTime(details.eventStartsAt)}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Welcome, <strong>{details.profileName}</strong>.
-        </p>
-
-        <hr className="my-4" />
-
-        {details.items.length === 0 ? (
-          <p className="notice notice--info" role="status">
-            No music has been assigned to this event yet.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {details.items.map((item, index) => (
-              <PlaylistItem item={item} key={index} token={token ?? ""} />
-            ))}
-          </div>
-        )}
+    <main className="public-player-layout">
+      <section className="public-player" aria-labelledby="player-title">
+        <header className="public-player__header">
+          <p className="eyebrow">Practice player</p>
+          <h1 id="player-title">{details.eventTitle}</h1>
+          <p>{formatDate(details.eventStartsAt)}</p>
+          {details.profileName ? <p>Welcome, {details.profileName}.</p> : null}
+        </header>
+        <PublicPracticePlayer details={details} token={token ?? ""} />
       </section>
     </main>
   );

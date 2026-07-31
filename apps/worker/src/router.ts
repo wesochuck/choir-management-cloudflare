@@ -2052,10 +2052,26 @@ router.get("/api/public/player/media/:fileId", async (context) => {
       404,
     );
   }
-  const envelope = await verifySignedLinkScope(context.env.SIGNED_LINK_SECRET, token, {
-    expectedOrganizationId: resolved.value.organizationId,
-    expectedPurpose: "player",
-  });
+  const fileId = privateFileIdSchema.safeParse(context.req.param("fileId"));
+  if (!fileId.success) {
+    return context.json(
+      {
+        code: "file_not_found",
+        message: "The requested file was not found.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  const envelope =
+    (await verifySignedLinkScope(context.env.SIGNED_LINK_SECRET, token, {
+      expectedOrganizationId: resolved.value.organizationId,
+      expectedPurpose: "player",
+    })) ??
+    (await verifySignedLinkScope(context.env.SIGNED_LINK_SECRET, token, {
+      expectedOrganizationId: resolved.value.organizationId,
+      expectedPurpose: "player_public",
+    }));
   if (!envelope?.resourceId) {
     return context.json(
       {
@@ -2066,22 +2082,39 @@ router.get("/api/public/player/media/:fileId", async (context) => {
       404,
     );
   }
-  const fileId = context.req.param("fileId");
-  if (!fileId) {
+  const playerDetails =
+    envelope.purpose === "player_public"
+      ? await resolvePublicPlayerPlaylist(context.env, resolved.value.organizationId, token)
+      : await resolvePlayerDetails(context.env, resolved.value.organizationId, token);
+  const mediaScope = z
+    .object({
+      items: z.array(
+        z.object({
+          trackFileIds: z.record(z.string(), z.string()),
+        }),
+      ),
+    })
+    .safeParse(playerDetails);
+  if (
+    !mediaScope.success ||
+    !mediaScope.data.items.some(({ trackFileIds }) =>
+      Object.values(trackFileIds).includes(fileId.data),
+    )
+  ) {
     return context.json(
       {
-        code: "validation_failed",
-        message: "A valid file is required.",
+        code: "file_not_found",
+        message: "The requested file was not found.",
         requestId: requestIdValue,
       } satisfies ProblemDetails,
-      400,
+      404,
     );
   }
   try {
     const file = await readPrivateOrganizationFile(
       context.env,
       resolved.value.organizationId,
-      fileId,
+      fileId.data,
     );
     if (!file) {
       return context.json(

@@ -373,11 +373,15 @@ describe("Organization calendar management", () => {
         startsAt: auditionPerformance.startsAt,
         title: "Audition Performance",
       },
+      sections: expect.arrayContaining([{ code: "S", name: "Sopranos" }]),
       timezone: "UTC",
       venue: {
         address: "123 Audition Lane",
         name: "Audition Hall",
       },
+      voiceParts: expect.arrayContaining([
+        { fullName: "Soprano 1", label: "S1", sectionCode: "S" },
+      ]),
     });
 
     const created = await post("alpha.localhost", "/api/organization/auditions", cookie, {

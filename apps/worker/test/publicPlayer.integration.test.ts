@@ -3,6 +3,7 @@ import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { issueSignedLink } from "../src/security/signedLinks";
+import { uploadPrivateOrganizationFile } from "../src/storage/privateFiles";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
 const ALPHA_PROFILE = "11111111-1111-4111-8111-111111111111";
@@ -11,6 +12,7 @@ const ALPHA_EVENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BRAVO_EVENT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const ALPHA_PIECE = "p0000000-0000-4000-8000-000000000001";
 const ALPHA_PIECE_FILE = "f0000000-0000-4000-8000-000000000001";
+const ALPHA_OUT_OF_SCOPE_FILE = "f0000000-0000-4000-8000-000000000003";
 const BRAVO_PIECE = "p0000000-0000-4000-8000-000000000002";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
@@ -20,6 +22,7 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 
 const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const organizationFiles = requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 const signedLinkSecret = requireBinding(env.SIGNED_LINK_SECRET, "SIGNED_LINK_SECRET");
 
 function api(host: string, path: string, init?: RequestInit): Request {
@@ -387,5 +390,39 @@ describe("public player signed flow", () => {
       ),
     );
     expect(response.status).toBe(404);
+  });
+
+  it("limits media access to files in the signed event playlist", async () => {
+    const body = new TextEncoder().encode("practice-track").buffer;
+    const fileInput = {
+      actorUserId: "bootstrap",
+      contentType: "audio/mpeg",
+      fileName: "practice-track.mp3",
+      organizationId: "organization-alpha",
+      requestId: crypto.randomUUID(),
+      sizeBytes: body.byteLength,
+    } as const;
+    await uploadPrivateOrganizationFile(
+      { ORGANIZATION_FILES: organizationFiles, ORGANIZATION_STORE: stores },
+      { ...fileInput, body, fileId: ALPHA_PIECE_FILE },
+    );
+    await uploadPrivateOrganizationFile(
+      { ORGANIZATION_FILES: organizationFiles, ORGANIZATION_STORE: stores },
+      { ...fileInput, body, fileId: ALPHA_OUT_OF_SCOPE_FILE, requestId: crypto.randomUUID() },
+    );
+
+    const token = await issuePublicPlayerToken("organization-alpha", ALPHA_EVENT);
+    const allowedResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/media/${ALPHA_PIECE_FILE}?token=${token}`),
+    );
+    expect(allowedResponse.status).toBe(200);
+    expect(new Uint8Array(await allowedResponse.arrayBuffer())).toEqual(
+      new TextEncoder().encode("practice-track"),
+    );
+
+    const blockedResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/media/${ALPHA_OUT_OF_SCOPE_FILE}?token=${token}`),
+    );
+    expect(blockedResponse.status).toBe(404);
   });
 });

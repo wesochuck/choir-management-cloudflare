@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   AuditionStatus,
@@ -100,6 +100,13 @@ function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function requestedScheduleValue(
+  scheduleTime: string,
+  requestedSlots: readonly string[] | undefined,
+): string {
+  return requestedSlots?.some((slot) => slot.slice(0, 16) === scheduleTime) ? scheduleTime : "";
 }
 
 function normalizedDateInputValue(value: string): string | null {
@@ -633,16 +640,26 @@ function SettingsForm({
         </select>
         <span className="field-help">Choose where these audition time slots will take place.</span>
       </label>
-      <label className="field">
-        Confirmation message
+      <div className="field">
+        <label htmlFor="audition-public-confirmation-message">
+          Public form confirmation message
+        </label>
         <textarea
+          id="audition-public-confirmation-message"
           rows={3}
           value={draft.confirmationMessage}
           onChange={(event) => {
             setDraft((current) => ({ ...current, confirmationMessage: event.target.value }));
           }}
         />
-      </label>
+        <span className="field-help">
+          This is the message shown on the public form after someone submits. Automated audition
+          emails are managed as system templates in Communications.
+        </span>
+        <a className="text-button" href="/admin/communications?tab=templates">
+          Edit audition email templates
+        </a>
+      </div>
       <fieldset className="form-stack">
         <legend>Audition time slots</legend>
         <div className="form-grid form-grid--compact">
@@ -854,6 +871,7 @@ function AuditionTable({
   onEdit,
   onSchedule,
   onToggle,
+  onToggleAll,
   selectedIds,
 }: {
   readonly auditions: readonly OrganizationAudition[];
@@ -862,12 +880,36 @@ function AuditionTable({
   readonly onEdit: (audition: OrganizationAudition) => void;
   readonly onSchedule: (audition: OrganizationAudition) => void;
   readonly onToggle: (id: string) => void;
+  readonly onToggleAll: () => void;
   readonly selectedIds: readonly string[];
 }) {
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const selectedIdSet = new Set(selectedIds);
+  const allVisibleSelected =
+    auditions.length > 0 && auditions.every(({ id }) => selectedIdSet.has(id));
+  const someVisibleSelected = auditions.some(({ id }) => selectedIdSet.has(id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [allVisibleSelected, someVisibleSelected]);
+
   return (
     <div className="audition-table" role="table">
       <div className="audition-table__header" role="row">
-        <span role="columnheader"> </span>
+        <span role="columnheader">
+          <input
+            aria-label={
+              allVisibleSelected ? "Clear all visible auditions" : "Select all visible auditions"
+            }
+            checked={allVisibleSelected}
+            className="audition-selection-checkbox"
+            onChange={onToggleAll}
+            ref={selectAllRef}
+            type="checkbox"
+          />
+        </span>
         <span role="columnheader">Name / contact</span>
         <span role="columnheader">Preferred times</span>
         <span role="columnheader">Status</span>
@@ -879,7 +921,8 @@ function AuditionTable({
           <span role="cell">
             <input
               aria-label={`Select ${audition.name} for token generation`}
-              checked={selectedIds.includes(audition.id)}
+              checked={selectedIdSet.has(audition.id)}
+              className="audition-selection-checkbox"
               onChange={() => {
                 onToggle(audition.id);
               }}
@@ -959,6 +1002,7 @@ function AuditionTable({
 
 function AuditionDialogs({
   confirm,
+  customScheduleTime,
   createAudition,
   createOpen,
   editing,
@@ -967,6 +1011,7 @@ function AuditionDialogs({
   onCancelCreate,
   onCancelEdit,
   onCancelSchedule,
+  onCustomScheduleTimeChange,
   onScheduleTimeChange,
   saveEdit,
   schedule,
@@ -986,6 +1031,7 @@ function AuditionDialogs({
   readonly onCancelCreate: () => void;
   readonly onCancelEdit: () => void;
   readonly onCancelSchedule: () => void;
+  readonly onCustomScheduleTimeChange: (value: string) => void;
   readonly onScheduleTimeChange: (value: string) => void;
   readonly saveEdit: (update: {
     readonly adminNotes: string;
@@ -1001,6 +1047,7 @@ function AuditionDialogs({
   readonly scheduleAudition: () => Promise<void>;
   readonly scheduleOpen: boolean;
   readonly scheduleTime: string;
+  readonly customScheduleTime: string;
 }) {
   return (
     <>
@@ -1031,43 +1078,68 @@ function AuditionDialogs({
         title="Schedule audition"
       >
         <form
-          className="form-stack"
+          className="form-stack audition-schedule-form"
           onSubmit={(event) => {
             event.preventDefault();
             void scheduleAudition();
           }}
         >
           {schedule?.requestedSlots && schedule.requestedSlots.length > 0 ? (
+            <>
+              <fieldset className="schedule-time-section">
+                <legend>Applicant's requested times</legend>
+                <p className="schedule-time-section__hint">
+                  Choose one of the times the applicant requested.
+                </p>
+                <label className="field">
+                  Requested time
+                  <select
+                    value={requestedScheduleValue(scheduleTime, schedule.requestedSlots)}
+                    onChange={(event) => {
+                      onScheduleTimeChange(event.target.value);
+                    }}
+                  >
+                    <option value="">Choose a requested time…</option>
+                    {schedule.requestedSlots.map((slot) => (
+                      <option key={slot} value={slot.slice(0, 16)}>
+                        {formatDate(slot)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </fieldset>
+              <div className="schedule-time-custom">
+                <strong className="schedule-time-custom__title">Need a different time?</strong>
+                <p className="schedule-time-custom__hint">
+                  Use this only when none of the requested times work.
+                </p>
+                <label className="field">
+                  Custom confirmed time
+                  <input
+                    required={!requestedScheduleValue(scheduleTime, schedule.requestedSlots)}
+                    type="datetime-local"
+                    value={customScheduleTime}
+                    onChange={(event) => {
+                      onCustomScheduleTimeChange(event.target.value);
+                    }}
+                  />
+                </label>
+              </div>
+            </>
+          ) : null}
+          {!schedule?.requestedSlots || schedule.requestedSlots.length === 0 ? (
             <label className="field">
-              Requested time
-              <select
+              Confirmed time
+              <input
+                required
+                type="datetime-local"
                 value={scheduleTime}
                 onChange={(event) => {
                   onScheduleTimeChange(event.target.value);
                 }}
-              >
-                <option value="">Choose a requested time…</option>
-                {schedule.requestedSlots.map((slot) => (
-                  <option key={slot} value={slot.slice(0, 16)}>
-                    {formatDate(slot)}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
           ) : null}
-          <label className="field">
-            {schedule?.requestedSlots && schedule.requestedSlots.length > 0
-              ? "Or choose a different time"
-              : "Confirmed time"}
-            <input
-              required
-              type="datetime-local"
-              value={scheduleTime}
-              onChange={(event) => {
-                onScheduleTimeChange(event.target.value);
-              }}
-            />
-          </label>
           <div className="form-actions">
             <button className="button button--secondary" onClick={onCancelSchedule} type="button">
               Cancel
@@ -1125,6 +1197,7 @@ export function AuditionManager({ enabled }: Props) {
   const [editing, setEditing] = useState<OrganizationAudition | null>(null);
   const [schedule, setSchedule] = useState<OrganizationAudition | null>(null);
   const [scheduleTime, setScheduleTime] = useState("");
+  const [customScheduleTime, setCustomScheduleTime] = useState("");
   const [confirm, setConfirm] = useState<{
     readonly action: "convert" | "delete";
     readonly audition: OrganizationAudition;
@@ -1304,6 +1377,7 @@ export function AuditionManager({ enabled }: Props) {
       replaceAudition(updated);
       setSchedule(null);
       setScheduleTime("");
+      setCustomScheduleTime("");
       setNotice("Audition scheduled.");
     } catch {
       setActionError("The audition could not be scheduled. Choose a valid time and try again.");
@@ -1468,15 +1542,6 @@ export function AuditionManager({ enabled }: Props) {
               Generate {String(selectedIds.length)} follow-up link(s)
             </button>
             <button
-              className="button button--secondary"
-              onClick={() => {
-                setSelectedIds(filteredAuditions.map(({ id }) => id));
-              }}
-              type="button"
-            >
-              Select visible
-            </button>
-            <button
               className="text-button"
               onClick={() => {
                 setSelectedIds([]);
@@ -1504,17 +1569,28 @@ export function AuditionManager({ enabled }: Props) {
               onEdit={setEditing}
               onSchedule={(audition) => {
                 setSchedule(audition);
-                setScheduleTime(
-                  audition.scheduledTimeSlot
-                    ? new Date(audition.scheduledTimeSlot).toISOString().slice(0, 16)
-                    : "",
-                );
+                const initialScheduleTime = audition.scheduledTimeSlot
+                  ? new Date(audition.scheduledTimeSlot).toISOString().slice(0, 16)
+                  : "";
+                setScheduleTime(initialScheduleTime);
+                setCustomScheduleTime(initialScheduleTime);
               }}
               onToggle={(id) => {
                 setSelectedIds((current) =>
                   current.includes(id)
                     ? current.filter((candidate) => candidate !== id)
                     : [...current, id],
+                );
+              }}
+              onToggleAll={() => {
+                const visibleIds = filteredAuditions.map(({ id }) => id);
+                const visibleIdSet = new Set(visibleIds);
+                const selectedIdSet = new Set(selectedIds);
+                const allVisibleSelected = visibleIds.every((id) => selectedIdSet.has(id));
+                setSelectedIds((current) =>
+                  allVisibleSelected
+                    ? current.filter((id) => !visibleIdSet.has(id))
+                    : [...new Set([...current, ...visibleIds])],
                 );
               }}
               selectedIds={selectedIds}
@@ -1576,13 +1652,23 @@ export function AuditionManager({ enabled }: Props) {
         }}
         onCancelSchedule={() => {
           setSchedule(null);
+          setScheduleTime("");
+          setCustomScheduleTime("");
         }}
-        onScheduleTimeChange={setScheduleTime}
+        onCustomScheduleTimeChange={(value) => {
+          setCustomScheduleTime(value);
+          setScheduleTime(value);
+        }}
+        onScheduleTimeChange={(value) => {
+          setCustomScheduleTime("");
+          setScheduleTime(value);
+        }}
         saveEdit={saveEdit}
         schedule={schedule}
         scheduleAudition={scheduleAudition}
         scheduleOpen={schedule !== null}
         scheduleTime={scheduleTime}
+        customScheduleTime={customScheduleTime}
       />
     </section>
   );

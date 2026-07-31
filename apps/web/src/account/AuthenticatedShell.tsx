@@ -4,20 +4,19 @@ import {
   type CurrentAuthSession,
   type ModuleState,
   type OrganizationAuthStatusResponse,
-  type OrganizationDashboardSummaryResponse,
 } from "@choir/contracts";
 import { Sheet } from "@choir/ui";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   AuthApiError,
-  getOrganizationDashboardSummary,
   getOrganizationAuthStatus,
   getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
   signOut,
 } from "../auth/api";
 import { FloatingSaveBarProvider } from "./FloatingSaveBar";
+import { OrganizationAdminOverview } from "./OrganizationAdminOverview";
 import { OrganizationTerminologyProvider } from "./organizationTerminology";
 
 type Workspace = "account" | "member" | "organization" | "platform";
@@ -522,80 +521,69 @@ function Navigation({
 
 function OverviewPage({
   context,
+  displayName,
+  modules,
   navigate,
   workspace,
 }: {
   readonly context: OrganizationAuthStatusResponse | null;
+  readonly displayName?: string;
+  readonly modules?: readonly ModuleState[];
   readonly navigate: (href: string) => void;
   readonly workspace: Workspace;
 }) {
-  const admin = workspace === "organization";
   const platform = workspace === "platform";
-  const cards = admin
+  if (workspace === "organization") {
+    return (
+      <OrganizationAdminOverview
+        context={context}
+        displayName={displayName ?? "Admin"}
+        modules={modules ?? []}
+        navigate={navigate}
+      />
+    );
+  }
+  const cards = platform
     ? [
         {
-          href: "/admin/roster",
-          label: "Manage roster",
-          text: "Add Profiles and keep membership details current.",
+          href: "/platform/organizations",
+          label: "Organizations",
+          text: "Provision, monitor, and manage scoped access.",
         },
         {
-          href: "/admin/events",
-          label: "Plan events",
-          text: "Schedule rehearsals and performances.",
-        },
-        {
-          href: "/admin/communications",
-          label: "Send a message",
-          text: "Reach the right people with a clear announcement.",
-        },
-        {
-          href: "/admin/reports",
-          label: "View reports",
-          text: "Review attendance and Organization activity.",
+          href: "/platform/security",
+          label: "Platform security",
+          text: "Verify Platform Administrator MFA.",
         },
       ]
-    : platform
-      ? [
-          {
-            href: "/platform/organizations",
-            label: "Organizations",
-            text: "Provision, monitor, and manage scoped access.",
-          },
-          {
-            href: "/platform/security",
-            label: "Platform security",
-            text: "Verify Platform Administrator MFA.",
-          },
-        ]
-      : [
-          {
-            href: "/schedule",
-            label: "My schedule",
-            text: "See upcoming rehearsals and performances.",
-          },
-          {
-            href: "/profile",
-            label: "My Profile",
-            text: "Keep your Organization Profile current.",
-          },
-          { href: "/practice", label: "Practice", text: "Open your approved learning tracks." },
-          {
-            href: "/member/resources",
-            label: "Resources",
-            text: "Find Organization documents and links.",
-          },
-        ];
+    : [
+        {
+          href: "/schedule",
+          label: "My schedule",
+          text: "See upcoming rehearsals and performances.",
+        },
+        {
+          href: "/profile",
+          label: "My Profile",
+          text: "Keep your Organization Profile current.",
+        },
+        { href: "/practice", label: "Practice", text: "Open your approved learning tracks." },
+        {
+          href: "/member/resources",
+          label: "Resources",
+          text: "Find Organization documents and links.",
+        },
+      ];
 
   return (
     <>
-      {!admin && !platform ? (
+      {!platform ? (
         <div className="workspace-hero">
           <p className="eyebrow">{workspaceLabel(workspace)}</p>
           <h1>Your choir at a glance</h1>
           <p>Everything you need for the next rehearsal, performance, and practice session.</p>
         </div>
       ) : null}
-      {admin ? <OrganizationOverviewSummary navigate={navigate} /> : null}
       {platform ? <PlatformSetupMonitor /> : null}
       <section className="overview-section" aria-labelledby="quick-actions-title">
         <div className="section-heading section-heading--compact">
@@ -623,94 +611,6 @@ function OverviewPage({
         </p>
       ) : null}
     </>
-  );
-}
-
-function OrganizationOverviewSummary({ navigate }: { readonly navigate: (href: string) => void }) {
-  const [state, setState] = useState<
-    | { readonly status: "loading" }
-    | { readonly status: "error" }
-    | { readonly data: OrganizationDashboardSummaryResponse; readonly status: "ready" }
-  >({ status: "loading" });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    getOrganizationDashboardSummary(controller.signal)
-      .then((data) => {
-        setState({ data, status: "ready" });
-      })
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setState({ status: "error" });
-        }
-      });
-    return () => {
-      controller.abort();
-    };
-  }, []);
-
-  if (state.status === "loading") return <p className="notice">Loading Organization summary…</p>;
-  if (state.status === "error") {
-    return (
-      <p className="notice notice--warning" role="status">
-        Organization summary is temporarily unavailable. The focused management pages are still
-        available.
-      </p>
-    );
-  }
-  return (
-    <section className="overview-section" aria-labelledby="organization-summary-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Organization at a glance</p>
-        <h2 id="organization-summary-title">Keep the next move visible</h2>
-      </div>
-      <div className="summary-grid">
-        <div className="summary-card">
-          <span className="summary-card__label">Active Profiles</span>
-          <strong>{state.data.activeProfileCount}</strong>
-          <small>
-            <AppLink href="/admin/roster" onNavigate={navigate}>
-              Open roster
-            </AppLink>
-          </small>
-        </div>
-        <div className="summary-card">
-          <span className="summary-card__label">Upcoming events</span>
-          <strong>{state.data.upcomingEventCount}</strong>
-          <small>
-            <AppLink href="/admin/events" onNavigate={navigate}>
-              View events
-            </AppLink>
-          </small>
-        </div>
-      </div>
-      <div className="summary-events">
-        <div className="section-heading section-heading--compact">
-          <p className="eyebrow">Next on the calendar</p>
-          <h3>Upcoming events</h3>
-        </div>
-        {state.data.nextEvents.length === 0 ? (
-          <p className="empty-state">No upcoming events yet. Create the first event from Events.</p>
-        ) : (
-          <ul className="summary-events__list">
-            {state.data.nextEvents.map((event) => (
-              <li key={event.id}>
-                <span>
-                  <strong>{event.title}</strong>
-                  <small>{event.type}</small>
-                </span>
-                <time dateTime={event.startsAt}>
-                  {new Intl.DateTimeFormat(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(new Date(event.startsAt))}
-                </time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
   );
 }
 
@@ -877,6 +777,11 @@ function organizationDisplayName(
     : session.user.name || session.user.email;
 }
 
+function sessionDisplayName(session: NonNullable<CurrentAuthSession>): string {
+  const name = session.user.name.trim();
+  return name || (session.user.email.split("@")[0] ?? "Admin");
+}
+
 function renderMemberPage(pathname: string, enabled: boolean): ReactNode {
   const pages: Record<string, ReactNode> = {
     "/calendar": <CalendarSubscription enabled={enabled} />,
@@ -893,10 +798,12 @@ function renderMemberPage(pathname: string, enabled: boolean): ReactNode {
 
 function OrganizationWorkspacePage({
   access,
+  displayName,
   navigate,
   route,
 }: {
   readonly access: AccessState;
+  readonly displayName: string;
   readonly navigate: (href: string) => void;
   readonly route: RouteState;
 }) {
@@ -923,11 +830,35 @@ function OrganizationWorkspacePage({
     page ?? (
       <OverviewPage
         context={access.status === "ready" ? access.context : null}
+        displayName={displayName}
+        modules={access.status === "ready" ? access.modules : []}
         navigate={navigate}
         workspace="organization"
       />
     )
   );
+}
+
+function PlatformWorkspacePage({
+  navigate,
+  platformAvailable,
+  pathname,
+}: {
+  readonly navigate: (href: string) => void;
+  readonly platformAvailable: boolean;
+  readonly pathname: string;
+}) {
+  if (!platformAvailable) return <AccessDeniedPage workspace="Platform Admin" />;
+  if (pathname === "/platform") {
+    return <OverviewPage context={null} navigate={navigate} workspace="platform" />;
+  }
+  if (pathname === "/platform/organizations") {
+    return <PlatformAccess view="organizations" />;
+  }
+  if (pathname === "/platform/access") {
+    return <PlatformAccess view="access" />;
+  }
+  return <PlatformAccess view="security" />;
 }
 
 function WorkspacePage({
@@ -952,20 +883,23 @@ function WorkspacePage({
   if (workspace === "account")
     return renderAccountPage(route.pathname, currentSession, onSignedOut);
   if (workspace === "platform") {
-    if (!platformAvailable) return <AccessDeniedPage workspace="Platform Admin" />;
-    if (route.pathname === "/platform") {
-      return <OverviewPage context={null} navigate={navigate} workspace="platform" />;
-    }
-    if (route.pathname === "/platform/organizations") {
-      return <PlatformAccess view="organizations" />;
-    }
-    if (route.pathname === "/platform/access") {
-      return <PlatformAccess view="access" />;
-    }
-    return <PlatformAccess view="security" />;
+    return (
+      <PlatformWorkspacePage
+        navigate={navigate}
+        platformAvailable={platformAvailable}
+        pathname={route.pathname}
+      />
+    );
   }
   if (workspace === "organization") {
-    return <OrganizationWorkspacePage access={access} navigate={navigate} route={route} />;
+    return (
+      <OrganizationWorkspacePage
+        access={access}
+        displayName={sessionDisplayName(currentSession)}
+        navigate={navigate}
+        route={route}
+      />
+    );
   }
   const requiredModule = routeModule(route.pathname);
   if (
@@ -1197,8 +1131,15 @@ export function AuthenticatedShell({
           </div>
           <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
         </aside>
-        <main className="signed-in-main" id="signed-in-main">
-          {route.pathname === "/admin/seating" ? null : (
+        <main
+          className={
+            route.pathname === "/admin"
+              ? "signed-in-main signed-in-main--admin-overview"
+              : "signed-in-main"
+          }
+          id="signed-in-main"
+        >
+          {route.pathname === "/admin" || route.pathname === "/admin/seating" ? null : (
             <div className="page-heading">
               <div>
                 <p className="eyebrow">{workspaceLabel(workspace)}</p>
