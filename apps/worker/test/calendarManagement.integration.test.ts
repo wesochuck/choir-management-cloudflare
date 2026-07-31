@@ -15,6 +15,7 @@ import {
   organizationExportStatusResponseSchema,
   organizationAuditionListResponseSchema,
   organizationAuditionResponseSchema,
+  organizationAuditionSettingsSchema,
   organizationAuditionSettingsResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
@@ -353,7 +354,10 @@ describe("Organization calendar management", () => {
       }),
     );
     expect(validSettings.status).toBe(200);
-    expect(await validSettings.json()).toMatchObject({
+    const savedSettings = organizationAuditionSettingsResponseSchema.parse(
+      await validSettings.json(),
+    );
+    expect(organizationAuditionSettingsSchema.parse(savedSettings)).toMatchObject({
       defaultPerformanceId: auditionPerformance.id,
       venueId: auditionVenue.id,
     });

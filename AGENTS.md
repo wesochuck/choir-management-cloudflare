@@ -58,6 +58,12 @@ npm audit --audit-level=high
 Run focused checks while iterating and the complete milestone gate before declaring a milestone
 complete. Run `npm ci`, not `npm install`, in CI after the lockfile exists.
 
+- Build the deployable web and Worker artifact before running prepared Workerd integration tests in
+  CI. Use `npm run test:integration:prepared` only after the build it exercises has completed;
+  convenience scripts may build first for local use.
+- Treat bundle-size and build-output warnings as actionable. Preserve route-level code splitting,
+  inspect the generated output, and do not weaken a size or build gate to make it pass.
+
 Before finishing any material change, report:
 
 - what changed and which plan/parity entries it satisfies;
@@ -106,6 +112,9 @@ Before finishing any material change, report:
 - Use versioned D1 and Organization-store migrations with explicit schema registries.
 - Durable Object transactions must remain short; provider calls never occur inside them.
 - Organization alarms transactionally create stable jobs and advance the next alarm.
+- Do not broadly swallow Worker, Workflow, Durable Object, alarm, or queue errors. Handle only
+  explicitly typed terminal conditions; preserve unexpected failures and test both successful and
+  terminal/error paths.
 - Queue delivery is at-least-once. Record a stable idempotency key before any repeated delivery can
   create another external effect.
 - Use bounded concurrency, exponential backoff, jitter, attempt records, terminal states, and
@@ -115,6 +124,13 @@ Before finishing any material change, report:
 - Private R2 downloads require authorization. Public assets use immutable versioned URLs.
 - Validate every untrusted HTTP, queue, webhook, provider, import, and export boundary with Zod and
   explicit size limits.
+- Enforce cross-field and referential business rules at the UI, shared contract, and Organization
+  Durable Object/store layers as appropriate. The UI is an affordance, not an authorization or
+  integrity boundary; add integration coverage for both valid operations and direct invalid API
+  requests.
+- Define reusable unrefined Zod object schemas before applying `superRefine` or other checks. Do not
+  call composition methods such as `.omit()` on refined objects unless the runtime supports it; test
+  the browser client’s request/response parsing as well as the server endpoint.
 
 ## 7. TypeScript, React, and Tests
 
@@ -125,6 +141,16 @@ Before finishing any material change, report:
   impure functions directly during render.
 - Do not blindly synchronize query data into local state; background refetches must not erase
   unsaved input.
+- Do not render an editable form from fallback query values while its initial data is loading. Show
+  an explicit loading state, initialize the local draft from confirmed data, and avoid later
+  synchronization that could erase unsaved edits.
+- Preserve typed mutation errors from the API through the browser client to the UI. Prefer a stable
+  error code plus an actionable user message over a generic fallback that hides the reason a save
+  failed; test success, validation, authorization, and operational failure paths.
+- Normalize browser date/time input before timezone conversion. Keep localized display values,
+  control values, and ISO timestamps distinct; use deterministic timezone tests for conversions.
+- For camera features, wait for `loadedmetadata` and successful `video.play()` before enabling
+  capture, and always stop media tracks when the camera closes or the component unmounts.
 - Shared query keys belong in one typed registry.
 - Tests must cover success, authorization failure, validation failure, retry/replay, rollback
   compatibility, and tenant isolation where applicable.

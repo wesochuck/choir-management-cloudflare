@@ -84,6 +84,7 @@ import {
   ticketScanResponseSchema,
   organizationAuditionSchema,
   organizationAuditionListResponseSchema,
+  organizationAuditionSettingsSchema,
   generateAuditionTokensResponseSchema,
   organizationAuditionSettingsResponseSchema,
   organizationAuditionCreateRequestSchema,
@@ -1564,9 +1565,7 @@ export async function getOrganizationAuditionSettings(
 export async function updateOrganizationAuditionSettings(
   settings: OrganizationAuditionSettings,
 ): Promise<OrganizationAuditionSettings> {
-  const parsed = organizationAuditionSettingsResponseSchema
-    .omit({ requestId: true })
-    .parse(settings);
+  const parsed = organizationAuditionSettingsSchema.parse(settings);
   const response = await request("/api/organization/audition-settings", {
     body: JSON.stringify(parsed),
     method: "PUT",
