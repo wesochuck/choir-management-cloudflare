@@ -41,6 +41,8 @@ describe("organization audition settings API", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const requestInit = fetchMock.mock.calls[0]?.[1];
     expect(requestInit?.method).toBe("PUT");
-    expect(JSON.parse(String(requestInit?.body))).toEqual(settings);
+    const requestBody = requestInit?.body;
+    if (typeof requestBody !== "string") throw new Error("The audition settings body was missing.");
+    expect(JSON.parse(requestBody)).toEqual(settings);
   });
 });
