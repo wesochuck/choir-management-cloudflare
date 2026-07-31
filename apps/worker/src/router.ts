@@ -530,6 +530,9 @@ function calendarMutationMessage(code: string): string {
   if (code === "parent_performance_not_found") {
     return "The selected parent performance was not found in this Organization.";
   }
+  if (code === "parent_performance_requires_rehearsal") {
+    return "A parent performance can only be selected for a rehearsal.";
+  }
   if (code === "event_not_found") return "The event was not found in this Organization.";
   return "The Organization rejected an invalid event reference.";
 }
@@ -543,10 +546,19 @@ function auditionSettingsValidationMessage(error: z.ZodError): string {
   if (issue.path[0] === "defaultPerformanceId") {
     return "Choose an available target Performance for the audition settings.";
   }
+  if (issue.path[0] === "venueId") {
+    return "Choose an Organization venue for the auditions.";
+  }
   return `Review the audition settings: ${issue.message}`;
 }
 
 function auditionSettingsStoreMessage(code: string, status: number): string {
+  if (code === "venue_required") {
+    return "Choose an Organization venue for the auditions before saving.";
+  }
+  if (code === "venue_not_found") {
+    return "The selected audition venue is no longer available. Choose another venue.";
+  }
   if (code === "performance_not_found") {
     return "The selected target Performance is no longer available. Choose another Performance.";
   }

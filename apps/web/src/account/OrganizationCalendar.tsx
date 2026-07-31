@@ -123,7 +123,7 @@ function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
     durationMinutes: event.durationMinutes,
     isTicketingEnabled: event.isTicketingEnabled,
     location: event.location,
-    parentPerformanceId: event.parentPerformanceId,
+    parentPerformanceId: event.type === "Rehearsal" ? event.parentPerformanceId : null,
     publicDetails: event.publicDetails,
     publicGraphicFileId: event.publicGraphicFileId,
     publishOnWebsite: event.publishOnWebsite,
@@ -1029,9 +1029,12 @@ export function OrganizationCalendar({
                   <select
                     id="event-type"
                     onChange={(change) => {
+                      const type = readEventType(change.target.value);
                       setEvent((current) => ({
                         ...current,
-                        type: readEventType(change.target.value),
+                        parentPerformanceId:
+                          type === "Rehearsal" ? current.parentPerformanceId : null,
+                        type,
                       }));
                     }}
                     value={event.type}
@@ -1080,28 +1083,30 @@ export function OrganizationCalendar({
                     ))}
                   </select>
                 </div>
-                <div className="field">
-                  <label htmlFor="event-parent">Parent performance</label>
-                  <select
-                    id="event-parent"
-                    onChange={(change) => {
-                      setEvent((current) => ({
-                        ...current,
-                        parentPerformanceId: change.target.value || null,
-                      }));
-                    }}
-                    value={event.parentPerformanceId ?? ""}
-                  >
-                    <option value="">None</option>
-                    {resources.events
-                      .filter((item) => item.type === "Performance")
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.title}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                {event.type === "Rehearsal" ? (
+                  <div className="field">
+                    <label htmlFor="event-parent">Parent performance</label>
+                    <select
+                      id="event-parent"
+                      onChange={(change) => {
+                        setEvent((current) => ({
+                          ...current,
+                          parentPerformanceId: change.target.value || null,
+                        }));
+                      }}
+                      value={event.parentPerformanceId ?? ""}
+                    >
+                      <option value="">None</option>
+                      {resources.events
+                        .filter((item) => item.type === "Performance")
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
                 <div className="field">
                   <label htmlFor="event-details">Details</label>
                   <textarea

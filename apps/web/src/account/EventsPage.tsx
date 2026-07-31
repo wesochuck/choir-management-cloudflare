@@ -74,7 +74,7 @@ function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
     durationMinutes: event.durationMinutes,
     isTicketingEnabled: event.isTicketingEnabled,
     location: event.location,
-    parentPerformanceId: event.parentPerformanceId,
+    parentPerformanceId: event.type === "Rehearsal" ? event.parentPerformanceId : null,
     publicDetails: event.publicDetails,
     publicGraphicFileId: event.publicGraphicFileId,
     publishOnWebsite: event.publishOnWebsite,
@@ -314,9 +314,12 @@ function EventEditorDialog({
             <select
               id="events-page-type"
               onChange={(change) => {
+                const type: OrganizationEventRequest["type"] =
+                  change.target.value === "Performance" ? "Performance" : "Rehearsal";
                 setEvent((current) => ({
                   ...current,
-                  type: change.target.value === "Performance" ? "Performance" : "Rehearsal",
+                  parentPerformanceId: type === "Rehearsal" ? current.parentPerformanceId : null,
+                  type,
                 }));
               }}
               value={event.type}
@@ -382,30 +385,32 @@ function EventEditorDialog({
                 : null}
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="events-page-parent">Parent performance</label>
-            <select
-              id="events-page-parent"
-              onChange={(change) => {
-                setEvent((current) => ({
-                  ...current,
-                  parentPerformanceId: change.target.value || null,
-                }));
-              }}
-              value={event.parentPerformanceId ?? ""}
-            >
-              <option value="">None</option>
-              {state.status === "ready"
-                ? state.events
-                    .filter((candidate) => candidate.type === "Performance")
-                    .map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.title}
-                      </option>
-                    ))
-                : null}
-            </select>
-          </div>
+          {event.type === "Rehearsal" ? (
+            <div className="field">
+              <label htmlFor="events-page-parent">Parent performance</label>
+              <select
+                id="events-page-parent"
+                onChange={(change) => {
+                  setEvent((current) => ({
+                    ...current,
+                    parentPerformanceId: change.target.value || null,
+                  }));
+                }}
+                value={event.parentPerformanceId ?? ""}
+              >
+                <option value="">None</option>
+                {state.status === "ready"
+                  ? state.events
+                      .filter((candidate) => candidate.type === "Performance")
+                      .map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.title}
+                        </option>
+                      ))
+                  : null}
+              </select>
+            </div>
+          ) : null}
           <div className="field form-grid__wide">
             <label htmlFor="events-page-details">Internal details</label>
             <textarea

@@ -12,6 +12,7 @@ const defaultAuditionSettings: OrganizationAuditionSettings = {
   defaultPerformanceId: null,
   enabled: true,
   slots: [],
+  venueId: null,
 };
 
 interface AuditionCreateInput {
@@ -537,6 +538,15 @@ export function updateAuditionSettingsInStore(
   if (row?.organizationId !== organizationId) {
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
+  if (!settings.venueId) {
+    return Response.json({ code: "venue_required" }, { status: 400 });
+  }
+  const venueExists =
+    storage.sql.exec("SELECT 1 FROM venues WHERE id = ? LIMIT 1", settings.venueId).toArray()
+      .length > 0;
+  if (!venueExists) {
+    return Response.json({ code: "venue_not_found" }, { status: 400 });
+  }
   if (settings.defaultPerformanceId) {
     const performanceExists =
       storage.sql
@@ -565,6 +575,7 @@ export function updateAuditionSettingsInStore(
         enabled: settings.enabled,
         defaultPerformanceId: settings.defaultPerformanceId,
         slotCount: settings.slots.length,
+        venueId: settings.venueId,
       },
       now,
     );

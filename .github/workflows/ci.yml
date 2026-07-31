@@ -47,11 +47,11 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Workerd integration tests
-        run: npm run test:integration
-
       - name: Build deployable artifact
         run: npm run build
+
+      - name: Workerd integration tests against the built artifact
+        run: npm run test:integration:prepared
 
       - name: Audit high-severity dependencies
         run: npm audit --audit-level=high

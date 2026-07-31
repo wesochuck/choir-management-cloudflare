@@ -8,6 +8,7 @@ import type {
   OrganizationAuditionSettings,
   OrganizationMembershipSummary,
   OrganizationProfile,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
 import { zonedLocalDateTimeToUtc } from "@choir/domain";
@@ -25,6 +26,7 @@ import {
   listOrganizationAuditions,
   listOrganizationMemberships,
   listOrganizationProfiles,
+  listOrganizationVenues,
   updateOrganizationAudition,
   updateOrganizationAuditionSettings,
 } from "../auth/api";
@@ -78,6 +80,7 @@ const fallbackSettings: OrganizationAuditionSettings = {
   defaultPerformanceId: null,
   enabled: true,
   slots: [],
+  venueId: null,
 };
 
 const emptyCreate: OrganizationAuditionCreateRequest = {
@@ -453,6 +456,7 @@ function SettingsForm({
   onSave,
   performances,
   timezone,
+  venues,
 }: {
   readonly administratorRecipients: readonly AdministratorRecipient[];
   readonly initial: OrganizationAuditionSettings;
@@ -460,6 +464,7 @@ function SettingsForm({
   readonly onSave: (settings: OrganizationAuditionSettings) => Promise<void>;
   readonly performances: readonly OrganizationEvent[];
   readonly timezone: string;
+  readonly venues: readonly OrganizationVenue[];
 }) {
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -551,6 +556,10 @@ function SettingsForm({
       className="form-stack"
       onSubmit={(event) => {
         event.preventDefault();
+        if (!draft.venueId) {
+          setError("Choose an Organization venue for the auditions before saving.");
+          return;
+        }
         setBusy(true);
         setError(null);
         onSave(draft)
@@ -601,6 +610,28 @@ function SettingsForm({
               </option>
             ))}
         </select>
+      </label>
+      <label className="field">
+        Audition venue
+        <select
+          aria-required="true"
+          value={draft.venueId ?? ""}
+          onChange={(event) => {
+            setError(null);
+            setDraft((current) => ({
+              ...current,
+              venueId: event.target.value || null,
+            }));
+          }}
+        >
+          <option value="">Choose a venue</option>
+          {venues.map((venue) => (
+            <option key={venue.id} value={venue.id}>
+              {venue.name}
+            </option>
+          ))}
+        </select>
+        <span className="field-help">Choose where these audition time slots will take place.</span>
       </label>
       <label className="field">
         Confirmation message
@@ -1085,7 +1116,9 @@ export function AuditionManager({ enabled }: Props) {
   const { performerLabelPlural } = useOrganizationTerminology();
   const [state, setState] = useState<ManagerState>({ status: "loading" });
   const [settings, setSettings] = useState<OrganizationAuditionSettings>(fallbackSettings);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [performances, setPerformances] = useState<readonly OrganizationEvent[]>([]);
+  const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
   const [timezone, setTimezone] = useState("UTC");
   const [activeTab, setActiveTab] = useState<AuditionTab>("inquiries");
   const [createOpen, setCreateOpen] = useState(false);
@@ -1117,9 +1150,13 @@ export function AuditionManager({ enabled }: Props) {
         if (!controller.signal.aborted) setState({ status: "error" });
       });
     getOrganizationAuditionSettings(controller.signal)
-      .then(setSettings)
+      .then((nextSettings) => {
+        setSettings(nextSettings);
+        setSettingsLoaded(true);
+      })
       .catch(() => {
         setSettings(fallbackSettings);
+        setSettingsLoaded(true);
       });
     getOrganizationCalendarSettings(controller.signal)
       .then(({ timezone: nextTimezone }) => {
@@ -1132,6 +1169,11 @@ export function AuditionManager({ enabled }: Props) {
       .then(setPerformances)
       .catch(() => {
         setPerformances([]);
+      });
+    listOrganizationVenues(controller.signal)
+      .then(setVenues)
+      .catch(() => {
+        setVenues([]);
       });
     Promise.all([
       listOrganizationProfiles(controller.signal),
@@ -1352,16 +1394,23 @@ export function AuditionManager({ enabled }: Props) {
             Configure the public audition form, available time slots, and administrator
             notifications.
           </p>
-          <SettingsForm
-            administratorRecipients={administratorRecipients}
-            initial={settings}
-            onCancel={() => {
-              setActiveTab("inquiries");
-            }}
-            onSave={saveSettings}
-            performances={performances}
-            timezone={timezone}
-          />
+          {settingsLoaded ? (
+            <SettingsForm
+              administratorRecipients={administratorRecipients}
+              initial={settings}
+              onCancel={() => {
+                setActiveTab("inquiries");
+              }}
+              onSave={saveSettings}
+              performances={performances}
+              timezone={timezone}
+              venues={venues}
+            />
+          ) : (
+            <p className="notice" role="status">
+              Loading audition settings…
+            </p>
+          )}
         </div>
       ) : (
         <div aria-labelledby="audition-inquiries-tab" id="audition-inquiries-panel" role="tabpanel">

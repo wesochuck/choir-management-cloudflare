@@ -14,7 +14,7 @@
     "audit": "npm audit --audit-level=high",
     "bootstrap:staging-platform-admin": "node scripts/bootstrap-staging-platform-admin.mjs",
     "build": "npm run build --workspaces --if-present",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run test:integration:prepared",
     "check:parity:implementation": "node scripts/audit-parity-implementation.mjs",
     "check:parity": "node scripts/check-parity-matrix.mjs",
     "qualify:staging": "node scripts/qualify-staging.mjs",
@@ -27,7 +27,8 @@
     "lint": "eslint .",
     "test": "vitest run --config vitest.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
-    "test:integration": "npm run build -w @choir/web && WRANGLER_LOG_PATH=.wrangler/logs vitest run --config vitest.integration.config.ts",
+    "test:integration": "npm run build -w @choir/web && npm run test:integration:prepared",
+    "test:integration:prepared": "WRANGLER_LOG_PATH=.wrangler/logs vitest run --config vitest.integration.config.ts",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "wrangler": "WRANGLER_LOG_PATH=.wrangler/logs wrangler"
   },

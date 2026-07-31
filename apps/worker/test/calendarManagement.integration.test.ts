@@ -252,9 +252,33 @@ describe("Organization calendar management", () => {
       await settingsResponse.json(),
     );
     expect(settings.enabled).toBe(true);
+    const auditionVenue = organizationVenueSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "123 Audition Lane",
+          name: "Audition Hall",
+        })
+      ).json(),
+    );
+    const settingsWithVenue = { ...settings, venueId: auditionVenue.id };
+    const missingVenueSettings = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify(settings),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(missingVenueSettings.status).toBe(400);
+    expect(await missingVenueSettings.json()).toMatchObject({
+      code: "venue_required",
+      message: "Choose an Organization venue for the auditions before saving.",
+    });
     const settingsUpdate = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/audition-settings", cookie, {
-        body: JSON.stringify({ ...settings, confirmationMessage: "We received your inquiry." }),
+        body: JSON.stringify({
+          ...settingsWithVenue,
+          confirmationMessage: "We received your inquiry.",
+        }),
         headers: { "content-type": "application/json" },
         method: "PUT",
       }),
@@ -267,7 +291,7 @@ describe("Organization calendar management", () => {
     const invalidPerformanceSettings = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/audition-settings", cookie, {
         body: JSON.stringify({
-          ...settings,
+          ...settingsWithVenue,
           defaultPerformanceId: "00000000-0000-4000-8000-000000000999",
         }),
         headers: { "content-type": "application/json" },
@@ -284,7 +308,7 @@ describe("Organization calendar management", () => {
     const invalidSlotSettings = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/audition-settings", cookie, {
         body: JSON.stringify({
-          ...settings,
+          ...settingsWithVenue,
           slots: [
             {
               endsAt: "2026-07-30T17:45:00.000Z",
@@ -301,6 +325,37 @@ describe("Organization calendar management", () => {
     expect(await invalidSlotSettings.json()).toMatchObject({
       code: "validation_failed",
       message: "Check audition time slot 1: An audition slot must end after it starts.",
+    });
+    const auditionPerformance = organizationEventSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/events", cookie, {
+          startsAt: "2026-09-30T17:00:00.000Z",
+          title: "Audition Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    const validSettings = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify({
+          ...settingsWithVenue,
+          defaultPerformanceId: auditionPerformance.id,
+          slots: [
+            {
+              endsAt: "2026-08-26T14:15:00.000Z",
+              id: "valid-slot",
+              startsAt: "2026-08-26T14:00:00.000Z",
+            },
+          ],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(validSettings.status).toBe(200);
+    expect(await validSettings.json()).toMatchObject({
+      defaultPerformanceId: auditionPerformance.id,
+      venueId: auditionVenue.id,
     });
 
     const created = await post("alpha.localhost", "/api/organization/auditions", cookie, {
@@ -550,6 +605,19 @@ describe("Organization calendar management", () => {
         })
       ).json(),
     );
+    const invalidPerformanceParent = await post(
+      "alpha.localhost",
+      "/api/organization/events",
+      cookie,
+      {
+        parentPerformanceId: performance.id,
+        startsAt: new Date(new Date(startsAt).getTime() + 12 * 60 * 60 * 1_000).toISOString(),
+        title: "Invalid Performance Parent",
+        type: "Performance",
+      },
+    );
+    expect(invalidPerformanceParent.status).toBe(400);
+    expect(await invalidPerformanceParent.json()).toMatchObject({ code: "validation_failed" });
     const rehearsal = organizationEventSchema.parse(
       await (
         await post("alpha.localhost", "/api/organization/events", cookie, {

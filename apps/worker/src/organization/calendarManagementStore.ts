@@ -888,6 +888,9 @@ function eventReferenceError(
   if (event.venueId && !recordExists(storage, "venues", event.venueId)) {
     return Response.json({ code: "venue_not_found" }, { status: 404 });
   }
+  if (event.parentPerformanceId && event.type !== "Rehearsal") {
+    return Response.json({ code: "parent_performance_requires_rehearsal" }, { status: 409 });
+  }
   if (event.parentPerformanceId) {
     const parent = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly type: string }>(

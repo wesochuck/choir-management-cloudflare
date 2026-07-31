@@ -241,7 +241,7 @@ export const organizationSetListItemSchema = z.object({
   type: z.enum(["intermission", "song"]).optional(),
 });
 
-export const organizationEventRequestSchema = z.object({
+const organizationEventFieldsSchema = z.object({
   advancePriceCents: z.number().int().nonnegative().max(10_000_000).default(0),
   callTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
   dayOfPriceCents: z.number().int().nonnegative().max(10_000_000).default(0),
@@ -264,6 +264,18 @@ export const organizationEventRequestSchema = z.object({
   type: z.enum(["Performance", "Rehearsal"]),
   venueId: z.uuid().nullable().default(null),
 });
+
+export const organizationEventRequestSchema = organizationEventFieldsSchema.superRefine(
+  (event, context) => {
+    if (event.type !== "Rehearsal" && event.parentPerformanceId !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "A parent performance can only be selected for a rehearsal.",
+        path: ["parentPerformanceId"],
+      });
+    }
+  },
+);
 
 export const publicWebsiteFontSchema = z.enum([
   "system",
@@ -463,11 +475,13 @@ export const publicWebsitePublishResponseSchema = z.object({
   version: z.number().int().positive(),
 });
 
-export const organizationEventSchema = organizationEventRequestSchema.extend({
-  createdAt: z.iso.datetime(),
-  id: z.uuid(),
-  updatedAt: z.iso.datetime(),
-});
+export const organizationEventSchema = organizationEventRequestSchema.and(
+  z.object({
+    createdAt: z.iso.datetime(),
+    id: z.uuid(),
+    updatedAt: z.iso.datetime(),
+  }),
+);
 
 export const organizationEventsResponseSchema = z.object({
   events: z.array(organizationEventSchema).max(500),
@@ -2086,6 +2100,7 @@ export const organizationAuditionSettingsSchema = z
     defaultPerformanceId: z.uuid().nullable(),
     enabled: z.boolean(),
     slots: z.array(auditionSlotInputSchema).max(200),
+    venueId: z.uuid().nullable().default(null),
   })
   .superRefine((settings, context) => {
     const starts = new Set<string>();
