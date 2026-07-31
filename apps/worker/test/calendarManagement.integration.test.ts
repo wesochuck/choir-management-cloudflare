@@ -17,6 +17,7 @@ import {
   organizationAuditionResponseSchema,
   organizationAuditionSettingsSchema,
   organizationAuditionSettingsResponseSchema,
+  publicAuditionSettingsSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -360,6 +361,23 @@ describe("Organization calendar management", () => {
     expect(organizationAuditionSettingsSchema.parse(savedSettings)).toMatchObject({
       defaultPerformanceId: auditionPerformance.id,
       venueId: auditionVenue.id,
+    });
+    const publicSettingsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-settings"),
+    );
+    expect(publicSettingsResponse.status).toBe(200);
+    expect(publicAuditionSettingsSchema.parse(await publicSettingsResponse.json())).toMatchObject({
+      defaultPerformanceId: auditionPerformance.id,
+      performance: {
+        id: auditionPerformance.id,
+        startsAt: auditionPerformance.startsAt,
+        title: "Audition Performance",
+      },
+      timezone: "UTC",
+      venue: {
+        address: "123 Audition Lane",
+        name: "Audition Hall",
+      },
     });
 
     const created = await post("alpha.localhost", "/api/organization/auditions", cookie, {

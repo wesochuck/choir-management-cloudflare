@@ -2142,6 +2142,31 @@ export const organizationAuditionSettingsResponseSchema = organizationAuditionSe
 
 export type OrganizationAuditionSettings = z.infer<typeof organizationAuditionSettingsSchema>;
 
+export const publicAuditionSettingsSchema = z.object({
+  confirmationMessage: z.string().max(5_000),
+  defaultPerformanceId: z.uuid().nullable(),
+  enabled: z.boolean(),
+  performance: z
+    .object({
+      id: z.uuid(),
+      startsAt: z.iso.datetime(),
+      title: z.string().min(1).max(500),
+    })
+    .nullable()
+    .default(null),
+  slots: z.array(auditionSlotInputSchema).max(200),
+  timezone: z.string().min(1).max(128).default("UTC"),
+  venue: z
+    .object({
+      address: z.string().max(2_000),
+      name: z.string().min(1).max(500),
+    })
+    .nullable()
+    .default(null),
+});
+
+export type PublicAuditionSettings = z.infer<typeof publicAuditionSettingsSchema>;
+
 export const organizationAuditionCreateRequestSchema = auditionInquirySchema.extend({
   performanceId: z.uuid().nullable().optional(),
   scheduledTimeSlot: z.iso.datetime().nullable().optional(),

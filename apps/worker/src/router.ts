@@ -48,6 +48,7 @@ import {
   organizationAuditionListResponseSchema,
   organizationAuditionSchema,
   organizationAuditionSettingsSchema,
+  publicAuditionSettingsSchema,
   organizationAuditionUpdateRequestSchema,
   organizationExportRequestSchema,
   organizationExportStartResponseSchema,
@@ -2224,12 +2225,12 @@ router.get("/api/public/audition-settings", async (context) => {
     );
   }
   try {
-    const url = new URL("https://organization.internal/internal/audition/settings");
+    const url = new URL("https://organization.internal/internal/audition/public-settings");
     url.searchParams.set("organizationId", resolved.value.organizationId);
     const response = await context.env.ORGANIZATION_STORE.get(
       context.env.ORGANIZATION_STORE.idFromName(resolved.value.organizationId),
     ).fetch(url);
-    const settings = organizationAuditionSettingsSchema.safeParse(await response.json());
+    const settings = publicAuditionSettingsSchema.safeParse(await response.json());
     if (!response.ok || !settings.success) throw new Error("invalid_settings");
     return context.json({ ...settings.data, requestId: requestIdValue });
   } catch {

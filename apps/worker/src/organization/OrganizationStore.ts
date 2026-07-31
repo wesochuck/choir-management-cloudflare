@@ -41,6 +41,7 @@ import {
   createAuditionInStore,
   deleteAuditionInStore,
   readAuditionFromStore,
+  readPublicAuditionSettingsFromStore,
   readAuditionSettingsFromStore,
   listAuditionsFromStore,
   readAuditionNotificationJobFromStore,
@@ -2019,6 +2020,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return listAuditionsFromStore(storage);
     case "/internal/audition/settings":
       return readAuditionSettingsFromStore(storage, organizationId);
+    case "/internal/audition/public-settings":
+      return readPublicAuditionSettingsFromStore(storage, organizationId);
     case "/internal/donations/settings":
       return readDonationSettingsFromStore(storage, organizationId);
     case "/internal/transaction-fee-settings":

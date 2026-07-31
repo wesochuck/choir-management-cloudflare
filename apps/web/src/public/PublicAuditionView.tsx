@@ -1,9 +1,22 @@
 import { useEffect, useState } from "react";
 
+import { publicAuditionSettingsSchema } from "@choir/contracts";
+
 interface AuditionSlot {
   readonly id: string;
   readonly startsAt: string;
   readonly endsAt: string;
+}
+
+interface PublicAuditionPerformance {
+  readonly id: string;
+  readonly startsAt: string;
+  readonly title: string;
+}
+
+interface PublicAuditionVenue {
+  readonly address: string;
+  readonly name: string;
 }
 
 interface AuditionDetails {
@@ -25,8 +38,21 @@ interface PublicAuditionSettings {
   readonly confirmationMessage: string;
   readonly defaultPerformanceId: string | null;
   readonly enabled: boolean;
+  readonly performance: PublicAuditionPerformance | null;
   readonly slots: readonly AuditionSlot[];
+  readonly timezone: string;
+  readonly venue: PublicAuditionVenue | null;
 }
+
+const fallbackPublicAuditionSettings: PublicAuditionSettings = {
+  confirmationMessage: "Thank you for your interest. We will be in touch soon.",
+  defaultPerformanceId: null,
+  enabled: true,
+  performance: null,
+  slots: [],
+  timezone: "UTC",
+  venue: null,
+};
 
 type PageStatus =
   | { type: "loading" }
@@ -52,13 +78,24 @@ function isAuditionDetails(value: unknown): value is AuditionDetails {
   );
 }
 
-function isAuditionSlotValue(
-  value: unknown,
-): value is Omit<AuditionSlot, "id"> & { readonly id?: unknown } {
-  if (typeof value !== "object" || value === null) return false;
-  if (!("startsAt" in value) || typeof value.startsAt !== "string") return false;
-  if (!("endsAt" in value) || typeof value.endsAt !== "string") return false;
-  return true;
+function formatAuditionDate(value: string, timezone: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const options: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "long",
+    timeZone: timezone,
+    timeZoneName: "short",
+    weekday: "long",
+    year: "numeric",
+  };
+  try {
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  } catch {
+    return new Intl.DateTimeFormat(undefined, { ...options, timeZone: undefined }).format(date);
+  }
 }
 
 function fetchAuditionDetails(token: string): Promise<AuditionDetails> {
@@ -79,32 +116,46 @@ function fetchAuditionSettings(): Promise<PublicAuditionSettings> {
   return fetch("/api/public/audition-settings").then((response) => {
     if (!response.ok) throw new Error("settings_failed");
     return response.json().then((data: unknown) => {
-      if (typeof data !== "object" || data === null) throw new Error("invalid_settings");
-      if (!("enabled" in data) || typeof data.enabled !== "boolean")
-        throw new Error("invalid_settings");
-      if (
-        !("defaultPerformanceId" in data) ||
-        (data.defaultPerformanceId !== null && typeof data.defaultPerformanceId !== "string")
-      ) {
-        throw new Error("invalid_settings");
-      }
-      const slots = "slots" in data && Array.isArray(data.slots) ? data.slots : [];
-      const parsedSlots = slots.filter(isAuditionSlotValue);
-      const normalizedSlots = parsedSlots.map((slot) => ({
+      const parsed = publicAuditionSettingsSchema.safeParse(data);
+      if (!parsed.success) throw new Error("invalid_settings");
+      const normalizedSlots = parsed.data.slots.map((slot) => ({
         ...slot,
-        id: "id" in slot && typeof slot.id === "string" ? slot.id : slot.startsAt,
+        id: slot.id ?? slot.startsAt,
       }));
       return {
-        confirmationMessage:
-          "confirmationMessage" in data && typeof data.confirmationMessage === "string"
-            ? data.confirmationMessage
-            : "Thank you for your interest. We will be in touch soon.",
-        defaultPerformanceId: data.defaultPerformanceId,
-        enabled: data.enabled,
+        ...parsed.data,
         slots: normalizedSlots,
       };
     });
   });
+}
+
+function AuditionEventDetails({ settings }: { readonly settings: PublicAuditionSettings }) {
+  if (!settings.performance && !settings.venue) return null;
+  return (
+    <section aria-label="Audition details" className="audition-event-details">
+      <div className="audition-event-details__item">
+        <span className="audition-event-details__label">Audition location</span>
+        <strong className="audition-event-details__value">
+          {settings.venue?.name ?? "Location to be confirmed"}
+        </strong>
+        {settings.venue?.address ? (
+          <span className="audition-event-details__secondary">{settings.venue.address}</span>
+        ) : null}
+      </div>
+      <div className="audition-event-details__item">
+        <span className="audition-event-details__label">Concert</span>
+        <strong className="audition-event-details__value">
+          {settings.performance?.title ?? "Performance to be confirmed"}
+        </strong>
+        {settings.performance ? (
+          <span className="audition-event-details__secondary">
+            {formatAuditionDate(settings.performance.startsAt, settings.timezone)}
+          </span>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
 function submitInquiry(
@@ -179,13 +230,10 @@ function AuditionForm({
   const [requestedSlots, setRequestedSlots] = useState<readonly string[]>([]);
 
   return (
-    <div className="mt-4 space-y-4">
-      <div>
-        <label className="block text-sm font-medium" htmlFor="audition-name">
-          Name *
-        </label>
+    <div className="form-stack audition-form">
+      <label className="field" htmlFor="audition-name">
+        Name *
         <input
-          className="mt-1 w-full rounded border p-2"
           id="audition-name"
           onChange={(e) => {
             setName(e.target.value);
@@ -194,13 +242,10 @@ function AuditionForm({
           type="text"
           value={name}
         />
-      </div>
-      <div>
-        <label className="block text-sm font-medium" htmlFor="audition-email">
-          Email *
-        </label>
+      </label>
+      <label className="field" htmlFor="audition-email">
+        Email *
         <input
-          className="mt-1 w-full rounded border p-2"
           id="audition-email"
           onChange={(e) => {
             setEmail(e.target.value);
@@ -209,13 +254,10 @@ function AuditionForm({
           type="email"
           value={email}
         />
-      </div>
-      <div>
-        <label className="block text-sm font-medium" htmlFor="audition-phone">
-          Phone
-        </label>
+      </label>
+      <label className="field" htmlFor="audition-phone">
+        Phone
         <input
-          className="mt-1 w-full rounded border p-2"
           id="audition-phone"
           onChange={(e) => {
             setPhone(e.target.value);
@@ -223,13 +265,10 @@ function AuditionForm({
           type="tel"
           value={phone}
         />
-      </div>
-      <div>
-        <label className="block text-sm font-medium" htmlFor="audition-voice-part">
-          Voice Part
-        </label>
+      </label>
+      <label className="field" htmlFor="audition-voice-part">
+        Voice part
         <input
-          className="mt-1 w-full rounded border p-2"
           id="audition-voice-part"
           onChange={(e) => {
             setVoicePart(e.target.value);
@@ -238,13 +277,10 @@ function AuditionForm({
           type="text"
           value={voicePart}
         />
-      </div>
-      <div>
-        <label className="block text-sm font-medium" htmlFor="audition-experience">
-          Musical Experience
-        </label>
+      </label>
+      <label className="field" htmlFor="audition-experience">
+        Musical experience
         <textarea
-          className="mt-1 w-full rounded border p-2 text-sm"
           id="audition-experience"
           maxLength={5000}
           onChange={(e) => {
@@ -254,16 +290,16 @@ function AuditionForm({
           rows={4}
           value={experience}
         />
-      </div>
+      </label>
       {settings.slots.length > 0 && (
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Preferred audition times</legend>
-          <p className="text-sm text-muted-foreground">Select any times that work for you.</p>
-          <div className="space-y-2">
+        <fieldset className="audition-slot-picker">
+          <legend>Preferred audition times</legend>
+          <p className="audition-slot-picker__hint">Select any times that work for you.</p>
+          <div className="audition-slot-options">
             {settings.slots.map((slot) => {
               const selected = requestedSlots.includes(slot.startsAt);
               return (
-                <label className="flex items-center gap-2 text-sm" key={slot.id}>
+                <label className="audition-slot-option" key={slot.id}>
                   <input
                     checked={selected}
                     onChange={() => {
@@ -275,10 +311,7 @@ function AuditionForm({
                     }}
                     type="checkbox"
                   />
-                  {new Date(slot.startsAt).toLocaleString([], {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  <span>{formatAuditionDate(slot.startsAt, settings.timezone)}</span>
                 </label>
               );
             })}
@@ -286,7 +319,7 @@ function AuditionForm({
         </fieldset>
       )}
       <button
-        className={`button w-full ${busy || !name || !email ? "button--disabled" : ""}`}
+        className={`button audition-form__submit ${busy || !name || !email ? "button--disabled" : ""}`}
         disabled={busy || !name || !email}
         onClick={() => {
           onSubmit({
@@ -433,10 +466,8 @@ export function PublicAuditionView() {
         .catch(() => {
           setPageStatus({
             settings: {
-              confirmationMessage: "Thank you for your interest. We will be in touch soon.",
+              ...fallbackPublicAuditionSettings,
               defaultPerformanceId: "legacy-fallback",
-              enabled: true,
-              slots: [],
             },
             type: "ready_form",
           });
@@ -464,12 +495,7 @@ export function PublicAuditionView() {
     const settings =
       pageStatus.type === "ready_form" || pageStatus.type === "submitting_inquiry"
         ? pageStatus.settings
-        : {
-            confirmationMessage: "",
-            defaultPerformanceId: null,
-            enabled: true,
-            slots: [],
-          };
+        : fallbackPublicAuditionSettings;
     setPageStatus({ settings, type: "submitting_inquiry" });
     submitInquiry(
       data.name,
@@ -590,20 +616,17 @@ export function PublicAuditionView() {
   const formSettings =
     pageStatus.type === "ready_form" || pageStatus.type === "submitting_inquiry"
       ? pageStatus.settings
-      : {
-          confirmationMessage: "",
-          defaultPerformanceId: null,
-          enabled: true,
-          slots: [],
-        };
+      : fallbackPublicAuditionSettings;
   return (
     <main className="auth-layout">
-      <section className="auth-card" aria-labelledby="audition-title">
+      <section className="auth-card public-audition-card" aria-labelledby="audition-title">
         <p className="eyebrow">Audition</p>
         <h1 id="audition-title">Audition Inquiry</h1>
-        <p>Interested in joining? Fill out the form below and we will be in touch.</p>
+        <p className="auth-card__intro">
+          Interested in joining? Fill out the form below and we will be in touch.
+        </p>
+        <AuditionEventDetails settings={formSettings} />
         <p className="notice">{formSettings.confirmationMessage}</p>
-        <hr className="my-4" />
         <AuditionForm
           busy={pageStatus.type === "submitting_inquiry"}
           settings={formSettings}

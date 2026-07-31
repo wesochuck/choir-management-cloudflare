@@ -1,6 +1,7 @@
 import type { DurableObjectStorage } from "@cloudflare/workers-types";
 import {
   organizationAuditionSettingsSchema,
+  publicAuditionSettingsSchema,
   type OrganizationAuditionSettings,
 } from "@choir/contracts";
 import { z } from "zod";
@@ -521,6 +522,67 @@ export function readAuditionSettingsFromStore(
   }
   const parsed = organizationAuditionSettingsSchema.safeParse(raw);
   return Response.json(parsed.success ? parsed.data : defaultAuditionSettings);
+}
+
+export function readPublicAuditionSettingsFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!organizationId)
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  const row = storage.sql
+    .exec<{
+      readonly organizationId: string;
+      readonly settings: string;
+      readonly timezone: string;
+    }>(
+      `SELECT organization_id AS organizationId, audition_settings_json AS settings, timezone
+       FROM organization_metadata LIMIT 1`,
+    )
+    .toArray()
+    .at(0);
+  if (row?.organizationId !== organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(row.settings) as unknown;
+  } catch {
+    raw = defaultAuditionSettings;
+  }
+  const settingsResult = organizationAuditionSettingsSchema.safeParse(raw);
+  const settings = settingsResult.success ? settingsResult.data : defaultAuditionSettings;
+  const performance = settings.defaultPerformanceId
+    ? storage.sql
+        .exec<{ readonly id: string; readonly startsAt: string; readonly title: string }>(
+          `SELECT id, starts_at AS startsAt, title
+           FROM events
+           WHERE id = ? AND type = 'Performance' AND is_archived = 0
+           LIMIT 1`,
+          settings.defaultPerformanceId,
+        )
+        .toArray()
+        .at(0)
+    : undefined;
+  const venue = settings.venueId
+    ? storage.sql
+        .exec<{ readonly address: string; readonly name: string }>(
+          "SELECT address, name FROM venues WHERE id = ? LIMIT 1",
+          settings.venueId,
+        )
+        .toArray()
+        .at(0)
+    : undefined;
+  const publicSettings = publicAuditionSettingsSchema.parse({
+    confirmationMessage: settings.confirmationMessage,
+    defaultPerformanceId: settings.defaultPerformanceId,
+    enabled: settings.enabled,
+    performance: performance ?? null,
+    slots: settings.slots,
+    timezone: row.timezone,
+    venue: venue ?? null,
+  });
+  return Response.json(publicSettings);
 }
 
 export function updateAuditionSettingsInStore(
