@@ -56,6 +56,7 @@ import {
   initialDurationAutoFillState,
   type DurationAutoFillState,
 } from "./durationAutoFill";
+import { learningTrackFileName, trackDescription } from "./learningTrackFilename";
 import { buildMusicPublisherSearchUrl } from "./musicPublisherSearch";
 
 const maximumAudioBytes = 20 * 1024 * 1024;
@@ -825,15 +826,6 @@ function trackKeys(
   });
 }
 
-function trackDescription(key: string, configuration: OrganizationRosterConfiguration): string {
-  if (key === "tutti") return "Full mix";
-  return (
-    configuration.sections.find(({ code }) => code === key)?.name ??
-    configuration.voiceParts.find(({ label }) => label === key)?.fullName ??
-    "Custom learning track"
-  );
-}
-
 function validateAudioFile(file: File): string | null {
   if (!file.type.startsWith("audio/")) {
     return "Learning tracks must be valid audio files.";
@@ -1425,7 +1417,10 @@ function MusicAudioTracks({
     setActiveKey(key);
     setError(null);
     try {
-      const uploaded = await uploadPrivateOrganizationFile(file);
+      const uploaded = await uploadPrivateOrganizationFile(
+        file,
+        learningTrackFileName(piece.title, key, configuration),
+      );
       try {
         const durationSeconds = await extractAudioDuration(file);
         await saveMapping(key, uploaded.id);

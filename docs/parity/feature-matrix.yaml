@@ -2791,7 +2791,8 @@
       {
         "id": "file.r2-isolation",
         "behavior":
-          "all object keys are Organization-scoped and private substitutions are rejected",
+          "all object keys are Organization-scoped; new MP3 learning tracks use readable unique
+          names; legacy keys remain valid; private substitutions are rejected",
         "owner": "apps/worker",
         "milestone": 3,
         "status": "implemented",
@@ -2801,6 +2802,7 @@
             "apps/worker/src/publication/publishOrganization.ts",
             "apps/worker/src/storage/privateFiles.ts",
             "apps/worker/test/files.integration.test.ts",
+            "apps/worker/test/music.integration.test.ts",
             "apps/worker/test/publication.integration.test.ts",
           ],
       },

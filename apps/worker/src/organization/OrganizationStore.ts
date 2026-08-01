@@ -17,9 +17,10 @@ import type { Env } from "../env";
 import { deliveryJobSchema, type DeliveryJob } from "../jobs/contracts";
 import {
   privateFileIdSchema,
+  privateFileReclamationSchema,
   privateFileReservationSchema,
   privateFileTransitionSchema,
-  privateOrganizationFileKey,
+  privateOrganizationUploadKey,
 } from "../storage/privateFiles";
 import { migrateOrganization } from "./migrations";
 import {
@@ -1305,7 +1306,12 @@ async function reservePrivateFile(
   if (organization?.organizationId !== parsed.data.organizationId) {
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
-  const storageKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+  const storageKey = privateOrganizationUploadKey(
+    parsed.data.organizationId,
+    parsed.data.fileId,
+    parsed.data.fileName,
+    parsed.data.contentType,
+  );
   try {
     storage.sql.exec(
       `INSERT INTO private_files
@@ -1335,10 +1341,6 @@ async function finalizePrivateFile(
   if (!parsed.success) {
     return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
   }
-  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
-  if (parsed.data.storageKey !== expectedKey) {
-    return Response.json({ code: "private_file_scope_conflict" }, { status: 409 });
-  }
   const uploadedAt = new Date().toISOString();
   const ready = storage.transactionSync(() => {
     const result = storage.sql.exec(
@@ -1347,7 +1349,7 @@ async function finalizePrivateFile(
          AND status = 'pending'`,
       uploadedAt,
       parsed.data.fileId,
-      expectedKey,
+      parsed.data.storageKey,
       parsed.data.actorUserId,
       parsed.data.requestId,
     );
@@ -1364,7 +1366,7 @@ async function finalizePrivateFile(
       parsed.data.actorUserId,
       parsed.data.fileId,
       parsed.data.requestId,
-      JSON.stringify({ fileId: parsed.data.fileId, storageKey: expectedKey }),
+      JSON.stringify({ fileId: parsed.data.fileId, storageKey: parsed.data.storageKey }),
       uploadedAt,
     );
     return true;
@@ -1382,13 +1384,12 @@ async function abortPrivateFile(
   if (!parsed.success) {
     return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
   }
-  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
   storage.sql.exec(
     `DELETE FROM private_files
      WHERE id = ? AND storage_key = ? AND uploaded_by = ? AND request_id = ?
        AND status = 'pending'`,
     parsed.data.fileId,
-    expectedKey,
+    parsed.data.storageKey,
     parsed.data.actorUserId,
     parsed.data.requestId,
   );
@@ -1447,10 +1448,23 @@ async function claimPrivateFileReclamation(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
-  const parsed = privateFileTransitionSchema.safeParse(await request.json());
+  const parsed = privateFileReclamationSchema.safeParse(await request.json());
   if (!parsed.success)
-    return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
-  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
+    return Response.json({ code: "invalid_private_file_reclamation" }, { status: 400 });
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const storageKey = storage.sql
+    .exec<{ readonly storageKey: string }>(
+      `SELECT storage_key AS storageKey FROM private_files
+       WHERE id = ? AND status = 'ready' LIMIT 1`,
+      parsed.data.fileId,
+    )
+    .toArray()
+    .at(0)?.storageKey;
+  if (!storageKey) {
+    return Response.json({ code: "private_file_in_use_or_missing" }, { status: 409 });
+  }
   const claimed = storage.transactionSync(() => {
     if (privateFileIsReferenced(storage, parsed.data.fileId)) return false;
     return (
@@ -1460,12 +1474,12 @@ async function claimPrivateFileReclamation(
         parsed.data.actorUserId,
         parsed.data.requestId,
         parsed.data.fileId,
-        expectedKey,
+        storageKey,
       ).rowsWritten === 1
     );
   });
   return claimed
-    ? Response.json({ claimed: true, storageKey: expectedKey })
+    ? Response.json({ claimed: true, storageKey })
     : Response.json({ code: "private_file_in_use_or_missing" }, { status: 409 });
 }
 
@@ -1476,14 +1490,13 @@ async function finishPrivateFileReclamation(
   const parsed = privateFileTransitionSchema.safeParse(await request.json());
   if (!parsed.success)
     return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
-  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
   const reclaimed = storage.transactionSync(() => {
     const deleted =
       storage.sql.exec(
         `DELETE FROM private_files WHERE id = ? AND storage_key = ? AND uploaded_by = ?
        AND request_id = ? AND status = 'pending'`,
         parsed.data.fileId,
-        expectedKey,
+        parsed.data.storageKey,
         parsed.data.actorUserId,
         parsed.data.requestId,
       ).rowsWritten === 1;
@@ -1498,7 +1511,7 @@ async function finishPrivateFileReclamation(
       parsed.data.actorUserId,
       parsed.data.fileId,
       parsed.data.requestId,
-      JSON.stringify({ fileId: parsed.data.fileId, storageKey: expectedKey }),
+      JSON.stringify({ fileId: parsed.data.fileId, storageKey: parsed.data.storageKey }),
       new Date().toISOString(),
     );
     return true;
@@ -1516,13 +1529,12 @@ async function abortPrivateFileReclamation(
   if (!parsed.success) {
     return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
   }
-  const expectedKey = privateOrganizationFileKey(parsed.data.organizationId, parsed.data.fileId);
   storage.sql.exec(
     `UPDATE private_files SET status = 'ready'
      WHERE id = ? AND storage_key = ? AND uploaded_by = ? AND request_id = ?
        AND status = 'pending'`,
     parsed.data.fileId,
-    expectedKey,
+    parsed.data.storageKey,
     parsed.data.actorUserId,
     parsed.data.requestId,
   );

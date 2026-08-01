@@ -253,7 +253,6 @@ import {
   privateFileContentTypeSchema,
   privateFileIdSchema,
   privateFileNameSchema,
-  privateOrganizationFileKey,
   readPrivateOrganizationFile,
   reclaimPrivateOrganizationFile,
   uploadPrivateOrganizationFile,
@@ -2881,7 +2880,6 @@ router.delete("/api/organization/files/:fileId", async (context) => {
       fileId: fileId.data,
       organizationId: authorization.organizationId,
       requestId: context.get("requestId"),
-      storageKey: privateOrganizationFileKey(authorization.organizationId, fileId.data),
     });
     return reclaimed
       ? context.json({
@@ -4395,7 +4393,6 @@ async function updateProfilePhotoRoute(
         fileId: result.previousFileId,
         organizationId: authorization.organizationId,
         requestId: crypto.randomUUID(),
-        storageKey: privateOrganizationFileKey(authorization.organizationId, result.previousFileId),
       });
     }
     return context.json({
@@ -5780,7 +5777,6 @@ router.delete("/api/organization/resources/:resourceId", async (context) => {
         fileId: deleted.fileId,
         organizationId: authorization.organizationId,
         requestId: context.get("requestId"),
-        storageKey: privateOrganizationFileKey(authorization.organizationId, deleted.fileId),
       });
     return context.json({
       requestId: context.get("requestId"),
