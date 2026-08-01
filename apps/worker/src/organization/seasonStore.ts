@@ -84,6 +84,7 @@ const cashPaymentOperationSchema = organizationContextSchema.extend({
 });
 
 const stripeDuesOperationSchema = organizationContextSchema.extend({
+  checkoutRequestId: z.uuid().optional(),
   providerPaymentId: z.string().trim().max(256),
   providerSessionId: z.string().trim().min(1).max(256),
   stripeEventId: z.string().trim().min(1).max(256),
@@ -168,6 +169,34 @@ const duesSelect = `SELECT d.id, d.season_id AS seasonId, d.profile_id AS profil
   FROM dues d
   LEFT JOIN profiles p ON p.id = d.profile_id
   LEFT JOIN dues_expirations de ON de.dues_id = d.id`;
+
+function duesByStripeOperation(
+  storage: DurableObjectStorage,
+  providerSessionId: string,
+  checkoutRequestId?: string,
+): DuesRow[] {
+  return storage.sql
+    .exec<DuesRow>(
+      `${duesSelect}
+       WHERE d.provider_session_id = ?
+          OR (
+            ? IS NOT NULL AND EXISTS (
+              SELECT 1 FROM payment_attempts pa
+              WHERE pa.payment_type = 'dues'
+                AND pa.checkout_request_id = ?
+                AND (
+                  pa.provider_session_id = d.provider_session_id
+                  OR pa.resource_id = d.id
+                )
+            )
+          )
+       ORDER BY d.id`,
+      providerSessionId,
+      checkoutRequestId ?? null,
+      checkoutRequestId ?? null,
+    )
+    .toArray();
+}
 
 function identity(storage: DurableObjectStorage): { readonly organizationId: string } | undefined {
   return storage.sql
@@ -584,7 +613,18 @@ function attachDuesSession(
       `pending_${operation.requestId}`,
     )
     .toArray();
-  if (rows.length === 0) return Response.json({ code: "dues_not_found" }, { status: 404 });
+  if (rows.length === 0) {
+    const alreadyAttached = storage.sql
+      .exec<DuesRow>(`${duesSelect} WHERE d.provider_session_id = ?`, operation.providerSessionId)
+      .toArray();
+    return alreadyAttached.length > 0
+      ? Response.json({
+          checkoutMode: "stripe",
+          sessionId: operation.providerSessionId,
+          url: "https://checkout.stripe.com/attached",
+        })
+      : Response.json({ code: "dues_not_found" }, { status: 404 });
+  }
   const now = new Date().toISOString();
   storage.transactionSync(() => {
     storage.sql.exec(
@@ -749,12 +789,11 @@ function completeStripeDues(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeDuesCompletedOperationSchema>,
 ): Response {
-  const rows = storage.sql
-    .exec<DuesRow>(
-      `${duesSelect} WHERE d.provider_session_id = ? ORDER BY d.id`,
-      operation.providerSessionId,
-    )
-    .toArray();
+  const rows = duesByStripeOperation(
+    storage,
+    operation.providerSessionId,
+    operation.checkoutRequestId,
+  );
   if (rows.length === 0) return Response.json({ code: "dues_not_found" }, { status: 404 });
   if (stripeDuesEventWasProcessed(storage, operation.stripeEventId)) {
     return Response.json({ dues: rows.map(duesResult), duplicate: true });
@@ -764,8 +803,10 @@ function completeStripeDues(
     for (const row of rows) {
       if (row.status !== "pending" && row.status !== "expired") continue;
       storage.sql.exec(
-        `UPDATE dues SET status = 'paid', provider_payment_id = ?, paid_at = ?, updated_at = ?
+        `UPDATE dues
+         SET provider_session_id = ?, status = 'paid', provider_payment_id = ?, paid_at = ?, updated_at = ?
          WHERE id = ? AND status = 'pending'`,
+        operation.providerSessionId,
         operation.providerPaymentId,
         occurredAt,
         occurredAt,
@@ -774,11 +815,19 @@ function completeStripeDues(
       storage.sql.exec("DELETE FROM dues_expirations WHERE dues_id = ?", row.id);
     }
     storage.sql.exec(
-      `UPDATE payment_attempts SET provider_payment_id = ?, status = 'paid', updated_at = ?
-       WHERE provider_session_id = ?`,
+      `UPDATE payment_attempts
+       SET provider_session_id = ?, provider_payment_id = ?, status = 'paid', updated_at = ?
+       WHERE status IN ('pending', 'expired')
+         AND (
+           provider_session_id = ?
+           OR (? IS NOT NULL AND checkout_request_id = ?)
+         )`,
+      operation.providerSessionId,
       operation.providerPaymentId,
       occurredAt,
       operation.providerSessionId,
+      operation.checkoutRequestId ?? null,
+      operation.checkoutRequestId ?? null,
     );
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -797,12 +846,11 @@ function completeStripeDues(
     );
   });
   const transitioned = rows.filter((row) => row.status === "pending" || row.status === "expired");
-  const updated = storage.sql
-    .exec<DuesRow>(
-      `${duesSelect} WHERE d.provider_session_id = ? ORDER BY d.id`,
-      operation.providerSessionId,
-    )
-    .toArray();
+  const updated = duesByStripeOperation(
+    storage,
+    operation.providerSessionId,
+    operation.checkoutRequestId,
+  );
   for (const row of updated) {
     if (transitioned.some((candidate) => candidate.id === row.id))
       queueDuesConfirmation(storage, row);
@@ -814,12 +862,11 @@ function expireStripeDues(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeDuesExpiredOperationSchema>,
 ): Response {
-  const rows = storage.sql
-    .exec<DuesRow>(
-      `${duesSelect} WHERE d.provider_session_id = ? ORDER BY d.id`,
-      operation.providerSessionId,
-    )
-    .toArray();
+  const rows = duesByStripeOperation(
+    storage,
+    operation.providerSessionId,
+    operation.checkoutRequestId,
+  );
   if (rows.length === 0) return Response.json({ code: "dues_not_found" }, { status: 404 });
   if (stripeDuesEventWasProcessed(storage, operation.stripeEventId)) {
     return Response.json({ dues: rows.map(duesResult), duplicate: true });
@@ -835,14 +882,29 @@ function expireStripeDues(
           operation.stripeEventId,
           occurredAt,
         );
+        storage.sql.exec(
+          `UPDATE dues SET provider_session_id = ?, updated_at = ?
+           WHERE id = ? AND status = 'pending'`,
+          operation.providerSessionId,
+          occurredAt,
+          row.id,
+        );
       }
     }
     storage.sql.exec(
-      `UPDATE payment_attempts SET status = 'expired', expired_at = ?, updated_at = ?
-       WHERE provider_session_id = ?`,
+      `UPDATE payment_attempts
+       SET provider_session_id = ?, status = 'expired', expired_at = ?, updated_at = ?
+       WHERE status = 'pending'
+         AND (
+           provider_session_id = ?
+           OR (? IS NOT NULL AND checkout_request_id = ?)
+         )`,
+      operation.providerSessionId,
       occurredAt,
       occurredAt,
       operation.providerSessionId,
+      operation.checkoutRequestId ?? null,
+      operation.checkoutRequestId ?? null,
     );
     storage.sql.exec(
       `INSERT INTO audit_events

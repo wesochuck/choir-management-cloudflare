@@ -52,6 +52,7 @@ async function expirePendingDonationCheckout(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
   donationId: string,
+  checkoutRequestId: string,
   providerSessionId: string,
 ): Promise<void> {
   const response = await stub(env, organizationId).fetch(
@@ -59,6 +60,7 @@ async function expirePendingDonationCheckout(
     {
       body: JSON.stringify({
         action: "stripe_donation_expired",
+        checkoutRequestId,
         organizationId,
         providerPaymentId: "",
         providerSessionId,
@@ -204,7 +206,13 @@ export async function createDonationCheckoutSession(
         successUrl: successUrl.href,
       });
     } catch (error: unknown) {
-      await expirePendingDonationCheckout(env, organizationId, donationId, pendingSessionId);
+      await expirePendingDonationCheckout(
+        env,
+        organizationId,
+        donationId,
+        validated.checkoutRequestId,
+        pendingSessionId,
+      );
       if (error instanceof StripeCheckoutError) {
         throw new DonationError(
           "stripe_checkout_unavailable",
@@ -228,7 +236,13 @@ export async function createDonationCheckoutSession(
       },
     );
     if (!attachedResponse.ok) {
-      await expirePendingDonationCheckout(env, organizationId, donationId, pendingSessionId);
+      await expirePendingDonationCheckout(
+        env,
+        organizationId,
+        donationId,
+        validated.checkoutRequestId,
+        pendingSessionId,
+      );
       throw new DonationError(
         "donation_checkout_attach_failed",
         503,

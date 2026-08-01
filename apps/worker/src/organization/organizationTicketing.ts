@@ -68,6 +68,7 @@ async function expirePendingTicketCheckout(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
   purchaseId: string,
+  checkoutRequestId: string,
   providerSessionId: string,
 ): Promise<void> {
   const response = await stub(env, organizationId).fetch(
@@ -75,6 +76,7 @@ async function expirePendingTicketCheckout(
     {
       body: JSON.stringify({
         action: "stripe_ticket_expired",
+        checkoutRequestId,
         organizationId,
         providerPaymentId: "",
         providerSessionId,
@@ -216,7 +218,13 @@ export async function createPublicTicketCheckout(
         successUrl: successUrl.href,
       });
     } catch (error: unknown) {
-      await expirePendingTicketCheckout(env, organizationId, purchaseId, pendingSessionId);
+      await expirePendingTicketCheckout(
+        env,
+        organizationId,
+        purchaseId,
+        validated.checkoutRequestId,
+        pendingSessionId,
+      );
       if (error instanceof StripeCheckoutError) {
         throw new TicketingError(
           "stripe_checkout_unavailable",
@@ -240,7 +248,13 @@ export async function createPublicTicketCheckout(
       },
     );
     if (!attachedResponse.ok) {
-      await expirePendingTicketCheckout(env, organizationId, purchaseId, pendingSessionId);
+      await expirePendingTicketCheckout(
+        env,
+        organizationId,
+        purchaseId,
+        validated.checkoutRequestId,
+        pendingSessionId,
+      );
       throw new TicketingError(
         "ticket_checkout_attach_failed",
         503,

@@ -1,12 +1,10 @@
 # Goal Readiness and Operating State
 
-**Prepared:** July 28, 2026 **Status:** The July 28 staging recheck now records 69 verified, 121
-implemented, 0 partial, and 0 planned entries across nine sections. Setup recovery and Stripe
-webhooks now have typed, tenant-scoped implementations and focused local tests; staging signed-
-provider and privileged replay evidence remains outstanding. The route-repair plan and automated
-source-route audit are recorded in [`docs/parity/completion-plan.md`](../parity/completion-plan.md).
-The previous staging deployment and quality-gate results below remain historical evidence for the
-earlier checkpoint. Production is isolated with `EXTERNAL_EFFECTS_MODE=disabled`,
+**Prepared:** August 1, 2026 **Status:** The Stripe payment lifecycle implementation is committed on
+`main`, deployed to permanent staging, and has passed the local quality gates and anonymous staging
+qualification. Provider-backed sandbox checkout, webhook, refund, dispute, and Brevo delivery
+qualification remains outstanding only because the isolated provider secrets and verified sender
+have not been provisioned. Production is isolated with `EXTERNAL_EFFECTS_MODE=disabled`,
 `PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
 outside the active goal per GOAL.md.
 
@@ -43,9 +41,9 @@ The read-only Parity Bridge remains at the immutable baseline commit
 was not used as behavioral evidence. The current staging qualification remains green for its
 anonymous shell, health, readiness, session, and registered-host GET boundaries: 3 hosts, 180 shell
 probes, 9 core probes, and 75 product/Organization API probes. The provider-secret inventory still
-contains no Stripe or Brevo credentials, and read-only remote D1 inspection reports migration
-`0009_stripe_connected_accounts` pending; no hosted migration or deployment was performed, so
-payment sandbox qualification cannot yet run.
+contains no Stripe or Brevo credentials. The post-deployment remote D1 check reports no pending
+migrations; provider sandbox qualification cannot yet run because no isolated Stripe test key,
+signed webhook secret, or Brevo sandbox sender is available.
 
 The CI-qualified commit `ecf8972` then deployed successfully to permanent staging on August 1 as
 Worker version `e13703f1-13e4-43d6-ac7f-b70e809c671a`. The automatic deployment applied migration

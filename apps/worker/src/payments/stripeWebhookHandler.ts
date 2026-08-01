@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { z } from "zod";
 
 import type { Env } from "../env";
 import { resolveOrganizationForStripeAccount } from "./stripeRouting";
@@ -92,6 +93,7 @@ async function dispatch(
   organizationId: string,
   target: { readonly action: string; readonly path: string },
   values: {
+    readonly checkoutRequestId?: string;
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
@@ -127,6 +129,7 @@ async function handleCompleted(
   organizationId: string,
   paymentType: string,
   values: {
+    readonly checkoutRequestId?: string;
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
@@ -165,6 +168,7 @@ async function handleExpired(
   organizationId: string,
   paymentType: string,
   values: {
+    readonly checkoutRequestId?: string;
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
@@ -336,6 +340,7 @@ interface PreparedWebhook {
   readonly organizationId: string;
   readonly paymentType: string;
   readonly values: {
+    readonly checkoutRequestId?: string;
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
@@ -367,6 +372,9 @@ async function prepareWebhookContext(
     );
   }
   const paymentType = metadataValue(metadata, "payment_type", "paymentType");
+  const checkoutRequestId = z
+    .uuid()
+    .safeParse(metadataValue(metadata, "checkout_request_id", "checkoutRequestId"));
   if (!paymentType && event.type.startsWith("checkout.session")) {
     return problem(
       context,
@@ -388,7 +396,12 @@ async function prepareWebhookContext(
     event,
     organizationId,
     paymentType,
-    values: { providerPaymentId, providerSessionId, stripeEventId: event.id },
+    values: {
+      ...(checkoutRequestId.success ? { checkoutRequestId: checkoutRequestId.data } : {}),
+      providerPaymentId,
+      providerSessionId,
+      stripeEventId: event.id,
+    },
   };
 }
 

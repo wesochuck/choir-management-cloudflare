@@ -1033,6 +1033,7 @@ describe("Organization ticketing", () => {
   it("applies Stripe completion, replay, and refund transitions atomically", async () => {
     const stub = stores.get(stores.idFromName("organization-alpha"));
     const purchaseId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
     const eventId = crypto.randomUUID();
     const now = new Date().toISOString();
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
@@ -1044,14 +1045,14 @@ describe("Organization ticketing", () => {
            created_at, updated_at, fulfilled_at, expired_at, refunded_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1000, 0, 1000, 'usd', ?, '', 'pending', 0, ?, ?, NULL, NULL, NULL)`,
         purchaseId,
-        crypto.randomUUID(),
+        checkoutRequestId,
         crypto.randomUUID(),
         "Stripe Test Event",
         now,
         "UTC",
         "Stripe Buyer",
         "stripe@example.test",
-        `stripe_session_${purchaseId}`,
+        `pending_${purchaseId}`,
         now,
         now,
       );
@@ -1059,6 +1060,7 @@ describe("Organization ticketing", () => {
     const completed = await stub.fetch("https://organization.internal/internal/ticketing/manage", {
       body: JSON.stringify({
         action: "stripe_ticket_completed",
+        checkoutRequestId,
         organizationId: "organization-alpha",
         providerPaymentId: `pi_${purchaseId}`,
         providerSessionId: `stripe_session_${purchaseId}`,
@@ -1072,6 +1074,7 @@ describe("Organization ticketing", () => {
     const duplicate = await stub.fetch("https://organization.internal/internal/ticketing/manage", {
       body: JSON.stringify({
         action: "stripe_ticket_completed",
+        checkoutRequestId,
         organizationId: "organization-alpha",
         providerPaymentId: `pi_${purchaseId}`,
         providerSessionId: `stripe_session_${purchaseId}`,
@@ -1102,6 +1105,8 @@ describe("Organization ticketing", () => {
     const seasonId = crypto.randomUUID();
     const duesId = crypto.randomUUID();
     const expiredDonationId = crypto.randomUUID();
+    const donationCheckoutRequestId = crypto.randomUUID();
+    const duesCheckoutRequestId = crypto.randomUUID();
     const donationSessionId = `stripe_donation_${donationId}`;
     const duesSessionId = `stripe_dues_${duesId}`;
     const expiredDonationSessionId = `stripe_donation_expired_${expiredDonationId}`;
@@ -1126,10 +1131,10 @@ describe("Organization ticketing", () => {
            patron_id, provider_session_id, provider_payment_id, created_at, updated_at, refunded_at)
          VALUES (?, ?, 'pending', 2500, 'none', '', '', 0, 0, 'Stripe Donor', ?, ?, ?, '', ?, ?, NULL)`,
         donationId,
-        crypto.randomUUID(),
+        donationCheckoutRequestId,
         `donor-${donationId}@example.test`,
         patronId,
-        donationSessionId,
+        `pending_${donationId}`,
         now,
         now,
       );
@@ -1165,7 +1170,19 @@ describe("Organization ticketing", () => {
         duesId,
         seasonId,
         crypto.randomUUID(),
-        duesSessionId,
+        `pending_${duesId}`,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at)
+         VALUES (?, 'dues', ?, ?, ?, '', 'pending', 5000, ?, ?)`,
+        crypto.randomUUID(),
+        duesId,
+        duesCheckoutRequestId,
+        `pending_${duesId}`,
         now,
         now,
       );
@@ -1175,6 +1192,7 @@ describe("Organization ticketing", () => {
       {
         body: JSON.stringify({
           action: "stripe_donation_completed",
+          checkoutRequestId: donationCheckoutRequestId,
           organizationId: "organization-alpha",
           providerPaymentId: `pi_donation_${donationId}`,
           providerSessionId: donationSessionId,
@@ -1249,6 +1267,7 @@ describe("Organization ticketing", () => {
       {
         body: JSON.stringify({
           action: "stripe_dues_completed",
+          checkoutRequestId: duesCheckoutRequestId,
           organizationId: "organization-alpha",
           providerPaymentId: `pi_dues_${duesId}`,
           providerSessionId: duesSessionId,

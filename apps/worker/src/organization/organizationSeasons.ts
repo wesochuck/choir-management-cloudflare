@@ -238,6 +238,7 @@ export async function createDuesCheckoutSession(
             ]
           : []),
       ],
+      ...(recipientEmail ? { customerEmail: recipientEmail } : {}),
       organizationName: paymentSettings.organizationName,
       successUrl: new URL("/dues?checkout=success", origin).href,
     });
@@ -245,6 +246,7 @@ export async function createDuesCheckoutSession(
     await organizationStore.fetch("https://organization.internal/internal/seasons/manage", {
       body: JSON.stringify({
         action: "stripe_dues_expired",
+        checkoutRequestId: requestId,
         organizationId,
         providerPaymentId: "",
         providerSessionId: pendingSessionId,

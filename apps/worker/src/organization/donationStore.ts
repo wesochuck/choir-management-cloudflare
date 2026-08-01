@@ -38,6 +38,7 @@ const refundOperationSchema = organizationContextSchema.extend({
 });
 
 const stripeDonationOperationSchema = organizationContextSchema.extend({
+  checkoutRequestId: z.uuid().optional(),
   providerPaymentId: z.string().trim().max(256),
   providerSessionId: z.string().trim().min(1).max(256),
   stripeEventId: z.string().trim().min(1).max(256),
@@ -118,6 +119,25 @@ const donationSelect = `SELECT d.id,
       AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
   d.created_at AS createdAt, d.updated_at AS updatedAt
   FROM donations d LEFT JOIN donation_expirations de ON de.donation_id = d.id`;
+
+function donationByStripeOperation(
+  storage: DurableObjectStorage,
+  providerSessionId: string,
+  checkoutRequestId?: string,
+): DonationRow | undefined {
+  return storage.sql
+    .exec<DonationRow>(
+      `${donationSelect}
+       WHERE d.provider_session_id = ?
+          OR (? IS NOT NULL AND d.checkout_request_id = ?)
+       LIMIT 1`,
+      providerSessionId,
+      checkoutRequestId ?? null,
+      checkoutRequestId ?? null,
+    )
+    .toArray()
+    .at(0);
+}
 
 function identity(storage: DurableObjectStorage): IdentityRow | undefined {
   return storage.sql
@@ -459,13 +479,11 @@ function completeStripeDonation(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeDonationCompletedOperationSchema>,
 ): Response {
-  const row = storage.sql
-    .exec<DonationRow>(
-      `${donationSelect} WHERE d.provider_session_id = ? LIMIT 1`,
-      operation.providerSessionId,
-    )
-    .toArray()
-    .at(0);
+  const row = donationByStripeOperation(
+    storage,
+    operation.providerSessionId,
+    operation.checkoutRequestId,
+  );
   if (!row) return Response.json({ code: "donation_not_found" }, { status: 404 });
   if (stripeDonationEventWasProcessed(storage, operation.stripeEventId)) {
     return Response.json({ ...donationResult(row), duplicate: true });
@@ -475,18 +493,20 @@ function completeStripeDonation(
     if (row.status === "pending" || row.status === "expired") {
       storage.sql.exec(
         `UPDATE donations SET status = 'paid', provider_payment_id = ?, updated_at = ?
-         WHERE provider_session_id = ? AND status = 'pending'`,
+         WHERE id = ? AND status = 'pending'`,
         operation.providerPaymentId,
         occurredAt,
-        operation.providerSessionId,
+        row.id,
       );
       storage.sql.exec("DELETE FROM donation_expirations WHERE donation_id = ?", row.id);
       storage.sql.exec(
-        `UPDATE payment_attempts SET provider_payment_id = ?, status = 'paid', updated_at = ?
-         WHERE provider_session_id = ?`,
+        `UPDATE payment_attempts
+         SET provider_session_id = ?, provider_payment_id = ?, status = 'paid', updated_at = ?
+         WHERE resource_id = ? AND status IN ('pending', 'expired')`,
+        operation.providerSessionId,
         operation.providerPaymentId,
         occurredAt,
-        operation.providerSessionId,
+        row.id,
       );
       if (row.patronId)
         upsertPatronAfterDonation(storage, row.patronId, row.amountCents, occurredAt);
@@ -520,13 +540,11 @@ function expireStripeDonation(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeDonationExpiredOperationSchema>,
 ): Response {
-  const row = storage.sql
-    .exec<DonationRow>(
-      `${donationSelect} WHERE d.provider_session_id = ? LIMIT 1`,
-      operation.providerSessionId,
-    )
-    .toArray()
-    .at(0);
+  const row = donationByStripeOperation(
+    storage,
+    operation.providerSessionId,
+    operation.checkoutRequestId,
+  );
   if (!row) return Response.json({ code: "donation_not_found" }, { status: 404 });
   if (stripeDonationEventWasProcessed(storage, operation.stripeEventId)) {
     return Response.json({ ...donationResult(row), duplicate: true });
@@ -545,11 +563,20 @@ function expireStripeDonation(
         occurredAt,
       );
       storage.sql.exec(
-        `UPDATE payment_attempts SET status = 'expired', expired_at = ?, updated_at = ?
-         WHERE provider_session_id = ?`,
-        occurredAt,
-        occurredAt,
+        `UPDATE donations SET provider_session_id = ?, updated_at = ?
+         WHERE id = ? AND status = 'pending'`,
         operation.providerSessionId,
+        occurredAt,
+        row.id,
+      );
+      storage.sql.exec(
+        `UPDATE payment_attempts
+         SET provider_session_id = ?, status = 'expired', expired_at = ?, updated_at = ?
+         WHERE resource_id = ? AND status = 'pending'`,
+        operation.providerSessionId,
+        occurredAt,
+        occurredAt,
+        row.id,
       );
     }
     storage.sql.exec(
