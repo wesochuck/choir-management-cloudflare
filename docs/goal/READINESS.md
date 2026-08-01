@@ -10,6 +10,43 @@ earlier checkpoint. Production is isolated with `EXTERNAL_EFFECTS_MODE=disabled`
 `PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
 outside the active goal per GOAL.md.
 
+## July 31 payment lifecycle implementation
+
+The shared Stripe payment slice now covers Organization-owned direct-charge checkout for tickets,
+ticket bundles, donations, and dues. Checkout reserves a pending Organization record before the
+Stripe session is created; only a verified connected-account webhook can mark it paid. The D1
+`stripe_connected_accounts` map is authoritative for webhook tenancy, payment activation settings
+are Organization-local with a platform emergency switch, stale pending records expire after seven
+days, and disputes are recorded as Organization alerts without automatic refunds or access
+revocation. Checkout completion now requires Stripe's paid status, delayed payment events are
+handled explicitly, and partial refunds do not revoke local access. Refund requests use
+connected-account idempotency and remain paid locally until the verified complete-refund webhook
+arrives. Local/preview remain fake or disabled, while staging requires isolated Stripe test
+credentials, a signed test webhook, and Organization Brevo sandbox setup. The new payment settings
+surface and donation receipt are implemented locally; staging provider qualification and live-secret
+entry remain intentionally blocked until the secure environment gate.
+
+The final local verification recheck passes formatting, lint, strict workspace typecheck, 119 unit
+tests, 132 prepared Durable Object integration tests, 58 Playwright tests, the workspace build, the
+parity matrix (191 entries), the source-route parity audit, and the high-severity dependency audit
+(0 vulnerabilities). The forward-only Organization schema now includes payment attempts, dispute
+alerts, notification outbox state, dues payer-email capture, and persistent provider-refund-request
+state. Staging qualification remains the only outstanding gate because no isolated Stripe test key,
+signed webhook secret, or Brevo sandbox sender is available in this workspace; no placeholder
+credentials were created and no hosted resource was modified.
+
+## August 1 verification checkpoint
+
+The read-only Parity Bridge remains at the immutable baseline commit
+`6874d43a3c3698ae53218a44d17649bc454ca9ac`. Its worktree contains one pre-existing user change in
+`pocketbase/pb_hooks/main.pb.js` (health fingerprint and formatting only); it was not reverted and
+was not used as behavioral evidence. The current staging qualification remains green for its
+anonymous shell, health, readiness, session, and registered-host GET boundaries: 3 hosts, 180 shell
+probes, 9 core probes, and 75 product/Organization API probes. The provider-secret inventory still
+contains no Stripe or Brevo credentials, and read-only remote D1 inspection reports migration
+`0009_stripe_connected_accounts` pending; no hosted migration or deployment was performed, so
+payment sandbox qualification cannot yet run.
+
 ## July 26 parity recheck
 
 The structural parity checker validates all 190 inventory entries and all target-evidence paths, but

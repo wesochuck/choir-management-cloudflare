@@ -19,4 +19,21 @@ describe("ticket checkout provider boundary", () => {
       ticketCheckoutMode({ APP_ENV: "local", EXTERNAL_EFFECTS_MODE: "disabled" }),
     ).toThrow(TicketCheckoutUnavailableError);
   });
+
+  it("permits explicitly enabled Stripe test/live checkout only outside local and preview", () => {
+    expect(
+      ticketCheckoutMode({
+        APP_ENV: "staging",
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        STRIPE_PAYMENTS_ENABLED: "true",
+      }),
+    ).toBe("stripe");
+    expect(
+      ticketCheckoutMode({
+        APP_ENV: "production",
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        STRIPE_PAYMENTS_ENABLED: "true",
+      }),
+    ).toBe("stripe");
+  });
 });

@@ -1,6 +1,7 @@
 import { defaultRosterConfiguration, defaultSeatingConfiguration } from "@choir/domain";
 
 import { ticketMessageTemplates } from "./ticketMessageTemplates";
+import { seedPaymentSystemCommunicationTemplates } from "./paymentMessageTemplates";
 
 export interface OrganizationSchemaMigration {
   readonly apply?: (sql: SqlStorage) => void;
@@ -1093,8 +1094,83 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [
       "ALTER TABLE events ADD COLUMN is_canceled INTEGER NOT NULL DEFAULT 0 CHECK (is_canceled IN (0, 1))",
       `CREATE INDEX idx_events_active_calendar
-       ON events(is_archived, is_canceled, starts_at)`,
+      ON events(is_archived, is_canceled, starts_at)`,
     ],
+  },
+  {
+    version: 53,
+    statements: [
+      `ALTER TABLE organization_metadata ADD COLUMN payment_activation_json TEXT NOT NULL
+       DEFAULT '{"tickets":false,"donations":false,"dues":false}'`,
+      "ALTER TABLE dues ADD COLUMN provider_payment_id TEXT NOT NULL DEFAULT ''",
+      `CREATE TABLE payment_attempts (
+        id TEXT PRIMARY KEY,
+        payment_type TEXT NOT NULL CHECK (payment_type IN ('ticket', 'bundle', 'donation', 'dues', 'unknown')),
+        resource_id TEXT NOT NULL,
+        checkout_request_id TEXT NOT NULL,
+        provider_session_id TEXT NOT NULL UNIQUE,
+        provider_payment_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'expired', 'refunded')),
+        amount_cents INTEGER NOT NULL CHECK (amount_cents >= 0),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        expired_at TEXT,
+        refunded_at TEXT
+      ) STRICT`,
+      `CREATE INDEX payment_attempts_resource
+       ON payment_attempts(payment_type, resource_id, created_at DESC)`,
+      `CREATE TABLE dues_expirations (
+        dues_id TEXT PRIMARY KEY,
+        stripe_event_id TEXT NOT NULL UNIQUE,
+        expired_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE TABLE payment_disputes (
+        id TEXT PRIMARY KEY,
+        provider_dispute_id TEXT NOT NULL UNIQUE,
+        provider_payment_id TEXT NOT NULL,
+        payment_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reason TEXT NOT NULL DEFAULT '',
+        amount_cents INTEGER NOT NULL DEFAULT 0 CHECK (amount_cents >= 0),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX payment_disputes_payment
+       ON payment_disputes(provider_payment_id, created_at DESC)`,
+      `CREATE TABLE payment_notifications (
+        id TEXT PRIMARY KEY,
+        payment_type TEXT NOT NULL CHECK (payment_type IN ('donation', 'dues')),
+        resource_id TEXT NOT NULL,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        destination TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        content_markdown TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'sent', 'failed', 'suppressed')),
+        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        provider_message_id TEXT,
+        failure_detail TEXT NOT NULL DEFAULT '',
+        scheduled_for TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sent_at TEXT
+      ) STRICT`,
+      `CREATE INDEX payment_notifications_status
+       ON payment_notifications(status, scheduled_for, created_at)`,
+    ],
+  },
+  {
+    version: 54,
+    statements: ["ALTER TABLE dues ADD COLUMN payer_email TEXT NOT NULL DEFAULT ''"],
+  },
+  {
+    version: 55,
+    apply: seedPaymentSystemCommunicationTemplates,
+    statements: [],
+  },
+  {
+    version: 56,
+    statements: ["ALTER TABLE payment_attempts ADD COLUMN refund_requested_at TEXT"],
   },
 ] as const;
 

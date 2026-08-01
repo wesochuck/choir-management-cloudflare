@@ -1,11 +1,15 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
-import { getModuleState } from "../organization/organizationSetup";
-import { isCanonicalAuthHost } from "../auth/config";
 import type { Env } from "../env";
-import { resolveOrganization } from "../tenancy/resolveOrganization";
-import { stripeEventSchema, verifyStripeWebhookSignature, type StripeEvent } from "./stripeWebhook";
+import { resolveOrganizationForStripeAccount } from "./stripeRouting";
+import {
+  stripeChargeRefundIsComplete,
+  stripeCheckoutSessionIsPaid,
+  stripeEventSchema,
+  verifyStripeWebhookSignature,
+  type StripeEvent,
+} from "./stripeWebhook";
 
 interface StripeHonoEnvironment {
   Bindings: Env;
@@ -41,6 +45,14 @@ function objectMetadata(object: StripeObject): Record<string, string> {
       .filter((entry): entry is [string, string] => typeof entry[1] === "string")
       .map(([key, entry]) => [key, entry.trim()]),
   );
+}
+
+function metadataValue(metadata: Readonly<Record<string, string>>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = metadata[key]?.trim();
+    if (value) return value;
+  }
+  return "";
 }
 
 function paymentTarget(
@@ -83,6 +95,8 @@ async function dispatch(
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paymentType?: string;
+    readonly disputeStatus?: string;
   },
 ): Promise<DispatchResult> {
   const stub = context.env.ORGANIZATION_STORE.get(
@@ -180,6 +194,7 @@ async function handleExpired(
   });
 }
 
+// eslint-disable-next-line complexity -- maps a verified Stripe refund to the typed Organization operation.
 async function handleRefunded(
   context: StripeContext,
   organizationId: string,
@@ -193,13 +208,20 @@ async function handleRefunded(
   const paths =
     paymentType === "donation"
       ? ["donations"]
-      : paymentType === "ticket" || paymentType === "bundle"
-        ? ["ticketing"]
-        : ["ticketing", "donations"];
+      : paymentType === "dues"
+        ? ["seasons"]
+        : paymentType === "ticket" || paymentType === "bundle"
+          ? ["ticketing"]
+          : ["ticketing", "donations", "seasons"];
   let matched = false;
   for (const path of paths) {
     const target = {
-      action: path === "donations" ? "stripe_donation_refunded" : "stripe_ticket_refunded",
+      action:
+        path === "donations"
+          ? "stripe_donation_refunded"
+          : path === "seasons"
+            ? "stripe_dues_refunded"
+            : "stripe_ticket_refunded",
       path,
     };
     const result = await dispatch(context, organizationId, target, values);
@@ -228,6 +250,47 @@ async function handleRefunded(
         success: true,
       })
     : problem(context, "payment_not_found", "No matching payment was found.", 404);
+}
+
+async function handleDispute(
+  context: StripeContext,
+  organizationId: string,
+  paymentType: string,
+  values: {
+    readonly providerDisputeId: string;
+    readonly providerPaymentId: string;
+    readonly stripeEventId: string;
+  },
+  status: string,
+): Promise<Response> {
+  const result = await dispatch(
+    context,
+    organizationId,
+    {
+      action: "record_payment_dispute",
+      path: "payments",
+    },
+    {
+      disputeStatus: status,
+      paymentType,
+      providerPaymentId: values.providerPaymentId,
+      providerSessionId: values.providerDisputeId,
+      stripeEventId: values.stripeEventId,
+    },
+  );
+  if (!result.response.ok) {
+    return problem(
+      context,
+      bodyCode(result.body),
+      "The payment dispute could not be recorded.",
+      result.response.status === 404 ? 404 : 503,
+    );
+  }
+  return context.json({
+    eventId: values.stripeEventId,
+    requestId: context.get("requestId"),
+    success: true,
+  });
 }
 
 async function readRawBody(context: StripeContext): Promise<string | Response> {
@@ -283,52 +346,33 @@ async function prepareWebhookContext(
   context: StripeContext,
   event: StripeEvent,
 ): Promise<PreparedWebhook | Response> {
-  const requestUrl = new URL(context.req.url);
-  if (!isCanonicalAuthHost(requestUrl.hostname, context.env.PRODUCT_BASE_DOMAIN)) {
+  const mapped = await resolveOrganizationForStripeAccount(context.env.CONTROL_DB, event.account);
+  if (!mapped || mapped.status === "disabled")
     return problem(
       context,
       "organization_not_found",
-      "The webhook host is not a canonical Organization host.",
+      "The Stripe connected account is not registered for an Organization.",
       404,
     );
-  }
-  const resolved = await resolveOrganization(requestUrl, context.env);
-  if (!resolved.ok)
-    return problem(
-      context,
-      "organization_not_found",
-      "The webhook host is not a registered Organization host.",
-      404,
-    );
-  const organizationId = resolved.value.organizationId;
+  const organizationId = mapped.organizationId;
   const object = event.data.object;
   const metadata = objectMetadata(object);
-  if (metadata.organizationId && metadata.organizationId !== organizationId) {
+  const metadataOrganizationId = metadataValue(metadata, "organization_id", "organizationId");
+  if (metadataOrganizationId && metadataOrganizationId !== organizationId) {
     return problem(
       context,
       "organization_mismatch",
-      "Webhook Organization metadata does not match its host.",
+      "Webhook Organization metadata does not match the connected account.",
       409,
     );
   }
-  const paymentType = metadata.paymentType ?? "";
-  const moduleId = paymentType === "dues" ? "people" : "programs";
-  try {
-    const modules = await getModuleState(context.env, organizationId);
-    if (!(modules.find((module) => module.id === moduleId)?.enabled ?? false)) {
-      return problem(
-        context,
-        "module_disabled",
-        "The payment module is disabled for this Organization.",
-        404,
-      );
-    }
-  } catch {
+  const paymentType = metadataValue(metadata, "payment_type", "paymentType");
+  if (!paymentType && event.type.startsWith("checkout.session")) {
     return problem(
       context,
-      "module_state_unavailable",
-      "Organization module state is temporarily unavailable.",
-      503,
+      "invalid_payment_type",
+      "Webhook metadata does not identify a supported payment.",
+      400,
     );
   }
   const providerSessionId = objectString(object, "id");
@@ -348,6 +392,72 @@ async function prepareWebhookContext(
   };
 }
 
+async function dispatchPreparedWebhook(
+  context: StripeContext,
+  prepared: PreparedWebhook,
+): Promise<Response> {
+  if (prepared.event.type === "checkout.session.completed") {
+    if (!stripeCheckoutSessionIsPaid(prepared.event.data.object)) {
+      return context.json({
+        eventId: prepared.event.id,
+        ignored: true,
+        reason: "payment_pending",
+        requestId: context.get("requestId"),
+        success: true,
+      });
+    }
+    return handleCompleted(context, prepared.organizationId, prepared.paymentType, prepared.values);
+  }
+  if (prepared.event.type === "checkout.session.async_payment_succeeded") {
+    return handleCompleted(context, prepared.organizationId, prepared.paymentType, prepared.values);
+  }
+  if (
+    prepared.event.type === "checkout.session.async_payment_failed" ||
+    prepared.event.type === "checkout.session.expired"
+  ) {
+    return handleExpired(context, prepared.organizationId, prepared.paymentType, prepared.values);
+  }
+  if (prepared.event.type.startsWith("charge.dispute.")) {
+    if (!prepared.values.providerPaymentId) {
+      return problem(
+        context,
+        "invalid_webhook_event",
+        "Dispute event is missing its payment identifier.",
+        400,
+      );
+    }
+    return handleDispute(
+      context,
+      prepared.organizationId,
+      prepared.paymentType || "unknown",
+      {
+        providerDisputeId: prepared.values.providerSessionId,
+        providerPaymentId: prepared.values.providerPaymentId,
+        stripeEventId: prepared.values.stripeEventId,
+      },
+      prepared.event.type,
+    );
+  }
+  if (!prepared.values.providerPaymentId) {
+    return problem(
+      context,
+      "invalid_webhook_event",
+      "Refund event is missing its payment identifier.",
+      400,
+    );
+  }
+  if (!stripeChargeRefundIsComplete(prepared.event.data.object)) {
+    return context.json({
+      eventId: prepared.event.id,
+      ignored: true,
+      reason: "partial_or_unverified_refund",
+      requestId: context.get("requestId"),
+      success: true,
+    });
+  }
+  return handleRefunded(context, prepared.organizationId, prepared.paymentType, prepared.values);
+}
+
 export async function handleStripeWebhook(context: StripeContext): Promise<Response> {
   const secret = context.env.STRIPE_WEBHOOK_SECRET?.trim() ?? "";
   if (!secret && context.env.APP_ENV === "local" && context.env.EXTERNAL_EFFECTS_MODE === "fake") {
@@ -364,19 +474,5 @@ export async function handleStripeWebhook(context: StripeContext): Promise<Respo
   if (event instanceof Response) return event;
   const prepared = await prepareWebhookContext(context, event);
   if (prepared instanceof Response) return prepared;
-  if (prepared.event.type === "checkout.session.completed") {
-    return handleCompleted(context, prepared.organizationId, prepared.paymentType, prepared.values);
-  }
-  if (prepared.event.type === "checkout.session.expired") {
-    return handleExpired(context, prepared.organizationId, prepared.paymentType, prepared.values);
-  }
-  if (!prepared.values.providerPaymentId) {
-    return problem(
-      context,
-      "invalid_webhook_event",
-      "Refund event is missing its payment identifier.",
-      400,
-    );
-  }
-  return handleRefunded(context, prepared.organizationId, prepared.paymentType, prepared.values);
+  return dispatchPreparedWebhook(context, prepared);
 }

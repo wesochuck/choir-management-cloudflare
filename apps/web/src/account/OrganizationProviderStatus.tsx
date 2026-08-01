@@ -203,8 +203,9 @@ export function OrganizationProviderStatus() {
             <li>Have each Organization owner complete the Stripe Connect onboarding card above.</li>
           </ol>
           <p className="field-help">
-            This release records connected-account readiness but keeps checkout in fake mode until
-            live direct-charge activation and webhook routing are verified.
+            Connected-account readiness is recorded here. Use Organization Settings → Payments to
+            review the checklist and enable each direct-charge payment type separately after the
+            staging test-mode checkout and webhook verification pass.
           </p>
           <h3>Brevo</h3>
           <ol>

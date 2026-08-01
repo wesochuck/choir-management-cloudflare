@@ -4,12 +4,18 @@ import {
   AuthApiError,
   getOrganizationCalendarSettings,
   getOrganizationExportStatus,
+  getOrganizationPaymentSettings,
   getOrganizationTransactionFeeSettings,
   startOrganizationExport,
   updateOrganizationCalendarSettings,
+  updateOrganizationPaymentActivation,
   updateOrganizationTransactionFeeSettings,
 } from "../auth/api";
-import type { OrganizationExportStatusResponse, TransactionFeeSettings } from "@choir/contracts";
+import type {
+  OrganizationExportStatusResponse,
+  OrganizationPaymentSettingsResponse,
+  TransactionFeeSettings,
+} from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
 import { RosterConfiguration } from "./RosterConfiguration";
@@ -48,6 +54,151 @@ function transactionFeeSettingsEqual(left: TransactionFeeSettings, right: Transa
     left.fixedCents === right.fixedCents &&
     left.passFeeToDonor === right.passFeeToDonor &&
     left.percentage === right.percentage
+  );
+}
+
+const paymentModules = [
+  { id: "tickets", label: "Tickets", description: "Sell tickets and ticket bundles online." },
+  { id: "donations", label: "Donations", description: "Accept one-time donations online." },
+  { id: "dues", label: "Dues", description: "Collect seasonal dues online." },
+] as const;
+
+function OrganizationPaymentSettingsPanel() {
+  const [settings, setSettings] = useState<OrganizationPaymentSettingsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busyModule, setBusyModule] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getOrganizationPaymentSettings(controller.signal)
+      .then((loaded) => {
+        setSettings(loaded);
+        setLoading(false);
+      })
+      .catch((loadError: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(
+            loadError instanceof AuthApiError
+              ? loadError.message
+              : "Online payment settings could not be loaded.",
+          );
+          setLoading(false);
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  async function toggle(moduleId: (typeof paymentModules)[number]["id"], enabled: boolean) {
+    if (
+      enabled &&
+      !window.confirm("Enable this online payment type after reviewing the readiness checklist?")
+    ) {
+      return;
+    }
+    setBusyModule(moduleId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const activations = await updateOrganizationPaymentActivation(moduleId, enabled);
+      setSettings((current) => (current ? { ...current, activations } : current));
+      setSuccess(
+        `${moduleId[0]?.toUpperCase() ?? ""}${moduleId.slice(1)} online payments ${enabled ? "enabled" : "disabled"}.`,
+      );
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof AuthApiError
+          ? saveError.message
+          : "The online payment setting could not be updated.",
+      );
+    } finally {
+      setBusyModule(null);
+    }
+  }
+
+  return (
+    <section
+      className="surface-card"
+      id="payments-settings"
+      aria-labelledby="payments-settings-title"
+    >
+      <div className="section-heading section-heading--compact">
+        <p className="eyebrow">Payments</p>
+        <h2 id="payments-settings-title">Online payment settings</h2>
+        <p className="section-description">
+          Connect one Stripe account for this Organization, then turn on only the payment types you
+          are ready to support. A payment is shown as processing until Stripe confirms it.
+        </p>
+      </div>
+      {loading ? <p role="status">Checking payment readiness…</p> : null}
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className="notice notice--success" role="status">
+          {success}
+        </p>
+      ) : null}
+      {settings ? (
+        <>
+          <div className="settings-grid">
+            <p className="notice notice--info">
+              Stripe account: <strong>{settings.stripe.status}</strong>
+              {settings.stripe.accountId ? ` · ${settings.stripe.accountId}` : ""}
+            </p>
+            <p className="notice notice--info">
+              Webhook:{" "}
+              <strong>{settings.readiness.webhookConfigured ? "Ready" : "Needs setup"}</strong>
+            </p>
+            <p className="notice notice--info">
+              Organization email:{" "}
+              <strong>{settings.readiness.brevoConfigured ? "Ready" : "Needs setup"}</strong>
+            </p>
+          </div>
+          {!settings.globalPaymentsEnabled ? (
+            <p className="notice notice--warning">
+              Online payments are paused by the platform emergency switch or environment settings.
+              You can prepare this page, but checkouts will remain unavailable until the platform
+              enables them.
+            </p>
+          ) : null}
+          <div className="form-stack">
+            {paymentModules.map((module) => (
+              <label className="checkbox-row" key={module.id}>
+                <input
+                  checked={settings.activations[module.id]}
+                  disabled={busyModule !== null}
+                  onChange={(event) => {
+                    void toggle(module.id, event.target.checked);
+                  }}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>{module.label}</strong>
+                  <span className="field-help">{module.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <details>
+            <summary>Before enabling a payment type</summary>
+            <ul>
+              <li>
+                Complete Stripe Connect onboarding and confirm charges and payouts are enabled.
+              </li>
+              <li>Verify the signed Stripe webhook is pointed at the shared platform endpoint.</li>
+              <li>Verify the Organization Brevo sender so paid confirmations can be delivered.</li>
+              <li>Use a Stripe test-mode checkout in staging before requesting live activation.</li>
+            </ul>
+          </details>
+        </>
+      ) : null}
+    </section>
   );
 }
 
@@ -278,6 +429,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
 
   return (
     <div className="settings-stack">
+      <OrganizationPaymentSettingsPanel />
       <section className="surface-card" aria-labelledby="calendar-settings-title">
         <div className="section-heading section-heading--compact">
           <p className="eyebrow">Events</p>

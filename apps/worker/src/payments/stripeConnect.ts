@@ -83,10 +83,16 @@ export interface StripeCheckoutSessionInput {
   readonly currency: "usd";
   readonly metadata: Readonly<Record<string, string>>;
   readonly organizationName: string;
-  readonly productName: string;
-  readonly quantity: number;
+  readonly productName?: string;
+  readonly quantity?: number;
   readonly successUrl: string;
-  readonly unitAmountCents: number;
+  readonly unitAmountCents?: number;
+  readonly lineItems?: readonly {
+    readonly productName: string;
+    readonly quantity: number;
+    readonly unitAmountCents: number;
+  }[];
+  readonly customerEmail?: string;
 }
 
 export async function createStripeCheckoutSession(
@@ -94,28 +100,64 @@ export async function createStripeCheckoutSession(
   connectedAccountId: string,
   input: StripeCheckoutSessionInput,
 ): Promise<{ readonly id: string; readonly url: string }> {
+  const lineItems = input.lineItems ?? [
+    {
+      productName: input.productName ?? "Organization payment",
+      quantity: input.quantity ?? 1,
+      unitAmountCents: input.unitAmountCents ?? 0,
+    },
+  ];
   const body = new URLSearchParams({
     cancel_url: input.cancelUrl,
     mode: "payment",
     success_url: input.successUrl,
-    "line_items[0][price_data][currency]": input.currency,
-    "line_items[0][price_data][product_data][name]": input.productName,
-    "line_items[0][price_data][product_data][description]": `Payment to ${input.organizationName}`,
-    "line_items[0][price_data][unit_amount]": String(input.unitAmountCents),
-    "line_items[0][quantity]": String(input.quantity),
   });
+  lineItems.forEach((lineItem, index) => {
+    body.set(`line_items[${String(index)}][price_data][currency]`, input.currency);
+    body.set(`line_items[${String(index)}][price_data][product_data][name]`, lineItem.productName);
+    body.set(
+      `line_items[${String(index)}][price_data][product_data][description]`,
+      `Payment to ${input.organizationName}`,
+    );
+    body.set(
+      `line_items[${String(index)}][price_data][unit_amount]`,
+      String(lineItem.unitAmountCents),
+    );
+    body.set(`line_items[${String(index)}][quantity]`, String(lineItem.quantity));
+  });
+  if (input.customerEmail) body.set("customer_email", input.customerEmail);
   for (const [key, value] of Object.entries(input.metadata)) {
     body.set(`metadata[${key}]`, value);
   }
   return stripeCheckoutSessionSchema.parse(
     await stripeRequest(secretKey, "/v1/checkout/sessions", {
       body,
-      idempotencyKey: `dues-checkout-${input.metadata.checkout_request_id ?? crypto.randomUUID()}`,
+      idempotencyKey: `payment-checkout-${input.metadata.checkout_request_id ?? crypto.randomUUID()}`,
       method: "POST",
       errorType: "checkout",
       stripeAccount: connectedAccountId,
     }),
   );
+}
+
+export async function createStripeRefund(
+  secretKey: string,
+  connectedAccountId: string,
+  providerPaymentId: string,
+  idempotencyKey: string,
+): Promise<{ readonly id: string; readonly status: string }> {
+  const body = new URLSearchParams({ payment_intent: providerPaymentId });
+  const result: unknown = await stripeRequest(secretKey, "/v1/refunds", {
+    body,
+    errorType: "connect",
+    idempotencyKey,
+    method: "POST",
+    stripeAccount: connectedAccountId,
+  });
+  const parsed = z
+    .object({ id: z.string().min(1).max(256), status: z.string().min(1).max(64) })
+    .parse(result);
+  return parsed;
 }
 
 export async function createStripeConnectedAccount(

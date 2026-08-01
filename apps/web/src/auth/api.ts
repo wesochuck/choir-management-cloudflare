@@ -33,6 +33,7 @@ import {
   organizationInvitationsResponseSchema,
   organizationMembershipsResponseSchema,
   organizationProviderStatusResponseSchema,
+  organizationPaymentSettingsResponseSchema,
   organizationStripeConnectOnboardingResponseSchema,
   organizationStripeConnectStatusResponseSchema,
   organizationEventSchema,
@@ -96,6 +97,7 @@ import {
   organizationAuditionResponseSchema,
   organizationAuditionUpdateRequestSchema,
   donationSettingsResponseSchema,
+  publicDonationReceiptResponseSchema,
   ticketConfirmationSettingsResponseSchema,
   transactionFeeSettingsResponseSchema,
   organizationExportStartResponseSchema,
@@ -150,6 +152,8 @@ import {
   type OrganizationInvitationsResponse,
   type OrganizationMembershipsResponse,
   type OrganizationProviderStatusResponse,
+  type OrganizationPaymentSettingsResponse,
+  type PublicDonationReceiptResponse,
   type OrganizationStripeConnectOnboardingResponse,
   type OrganizationStripeConnectStatusResponse,
   type OrganizationEvent,
@@ -1185,6 +1189,19 @@ export async function getPublicDonationSettings(signal?: AbortSignal): Promise<D
   return donationSettingsResponseSchema.parse(await response.json());
 }
 
+export async function getPublicDonationReceipt(
+  token: string,
+  signal?: AbortSignal,
+): Promise<PublicDonationReceiptResponse> {
+  const response = await request(
+    `/api/public/donation-receipt?token=${encodeURIComponent(token)}`,
+    {
+      signal: signal ?? null,
+    },
+  );
+  return publicDonationReceiptResponseSchema.parse(await response.json());
+}
+
 export async function getOrganizationDonationSettings(
   signal?: AbortSignal,
 ): Promise<DonationSettings> {
@@ -1390,6 +1407,31 @@ export async function getOrganizationProviderStatus(
     signal: signal ?? null,
   });
   return organizationProviderStatusResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationPaymentSettings(
+  signal?: AbortSignal,
+): Promise<OrganizationPaymentSettingsResponse> {
+  const response = await request("/api/organization/payment-settings", {
+    signal: signal ?? null,
+  });
+  return organizationPaymentSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationPaymentActivation(
+  moduleId: "tickets" | "donations" | "dues",
+  enabled: boolean,
+): Promise<OrganizationPaymentSettingsResponse["activations"]> {
+  const response = await request("/api/organization/payment-settings/activation", {
+    body: JSON.stringify({ confirm: true, enabled, moduleId }),
+    method: "POST",
+  });
+  const value: unknown = await response.json();
+  return organizationPaymentSettingsResponseSchema.shape.activations.parse(
+    typeof value === "object" && value !== null && "activations" in value
+      ? value.activations
+      : value,
+  );
 }
 
 export async function getOrganizationStripeConnectStatus(

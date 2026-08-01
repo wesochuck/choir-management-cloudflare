@@ -3,14 +3,29 @@ import { transactionProcessingFeeCents } from "@choir/domain";
 import { z } from "zod";
 
 import { transactionFeeSettingsFromStore } from "./transactionFeeSettingsStore";
+import { queuePaymentNotificationInStore } from "./paymentNotificationStore";
+import { renderPaymentMessageTemplate } from "./paymentMessageTemplates";
 
 const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
 });
 
-const createCheckoutOperationSchema = organizationContextSchema.extend({
+const createFakeCheckoutOperationSchema = organizationContextSchema.extend({
   action: z.literal("create_donation_checkout"),
   checkout: donationCheckoutRequestSchema,
+  donationId: z.uuid(),
+  providerSessionId: z.string().min(1).max(256),
+});
+
+const createPendingCheckoutOperationSchema = organizationContextSchema.extend({
+  action: z.literal("create_stripe_pending_donation"),
+  checkout: donationCheckoutRequestSchema,
+  donationId: z.uuid(),
+  providerSessionId: z.string().min(1).max(256),
+});
+
+const attachStripeSessionOperationSchema = organizationContextSchema.extend({
+  action: z.literal("attach_stripe_donation_session"),
   donationId: z.uuid(),
   providerSessionId: z.string().min(1).max(256),
 });
@@ -40,7 +55,9 @@ const stripeDonationRefundedOperationSchema = organizationContextSchema.extend({
 });
 
 const operationSchema = z.discriminatedUnion("action", [
-  createCheckoutOperationSchema,
+  createFakeCheckoutOperationSchema,
+  createPendingCheckoutOperationSchema,
+  attachStripeSessionOperationSchema,
   refundOperationSchema,
   stripeDonationCompletedOperationSchema,
   stripeDonationExpiredOperationSchema,
@@ -66,6 +83,7 @@ interface DonationRow {
   readonly patronId: string | null;
   readonly providerPaymentId: string;
   readonly providerSessionId: string;
+  readonly refundRequested: number;
   readonly status: "expired" | "paid" | "pending" | "refunded";
   readonly tributeName: string;
   readonly tributeNotifyEmail: string;
@@ -94,6 +112,10 @@ const donationSelect = `SELECT d.id,
   d.buyer_name AS buyerName, d.buyer_email AS buyerEmail,
   d.patron_id AS patronId, d.provider_session_id AS providerSessionId,
   d.provider_payment_id AS providerPaymentId,
+  EXISTS (SELECT 1 FROM payment_attempts pa
+    WHERE pa.payment_type = 'donation'
+      AND pa.resource_id = d.id
+      AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
   d.created_at AS createdAt, d.updated_at AS updatedAt
   FROM donations d LEFT JOIN donation_expirations de ON de.donation_id = d.id`;
 
@@ -120,6 +142,7 @@ function donationResult(row: DonationRow) {
     id: row.id,
     marketingConsent: row.marketingConsent === 1,
     patronId: row.patronId,
+    refundRequested: row.refundRequested === 1,
     status: row.status,
     tributeName: row.tributeName,
     tributeNotifyEmail: row.tributeNotifyEmail,
@@ -150,7 +173,7 @@ function donationByCheckoutRequest(
 
 function sameCheckoutRequest(
   existing: DonationRow,
-  checkout: z.infer<typeof createCheckoutOperationSchema>["checkout"],
+  checkout: z.infer<typeof createFakeCheckoutOperationSchema>["checkout"],
 ): boolean {
   return (
     existing.buyerName === checkout.buyerName &&
@@ -215,9 +238,41 @@ function upsertPatronAfterDonation(
   );
 }
 
+function queueDonationConfirmation(storage: DurableObjectStorage, donation: DonationRow): void {
+  if (donation.status !== "paid") return;
+  const organizationName =
+    storage.sql
+      .exec<{ readonly name: string }>("SELECT name FROM organization_metadata LIMIT 1")
+      .toArray()
+      .at(0)?.name ?? "the Organization";
+  const message = renderPaymentMessageTemplate(
+    storage,
+    "donation_confirmation",
+    donation.buyerName,
+    {
+      organizationName,
+      paymentAmount: `$${(donation.amountCents / 100).toFixed(2)}`,
+      paymentStatus: "Paid",
+    },
+  );
+  queuePaymentNotificationInStore(storage, {
+    action: "queue_payment_notification",
+    contentMarkdown: message.contentMarkdown,
+    dedupeKey: `donation-confirmation:${donation.id}`,
+    destination: donation.buyerEmail,
+    organizationId: identity(storage)?.organizationId ?? "",
+    paymentType: "donation",
+    recipientName: donation.buyerName,
+    resourceId: donation.id,
+    subject: message.subject,
+  });
+}
+
 function createDonationCheckout(
   storage: DurableObjectStorage,
-  operation: z.infer<typeof createCheckoutOperationSchema>,
+  operation:
+    | z.infer<typeof createFakeCheckoutOperationSchema>
+    | z.infer<typeof createPendingCheckoutOperationSchema>,
 ): Response {
   const existing = donationByCheckoutRequest(storage, operation.checkout.checkoutRequestId);
   if (existing) {
@@ -226,6 +281,7 @@ function createDonationCheckout(
       : Response.json({ code: "donation_checkout_conflict" }, { status: 409 });
   }
   const now = new Date().toISOString();
+  const pending = operation.action === "create_stripe_pending_donation";
   const transactionFeeSettings = transactionFeeSettingsFromStore(storage);
   const feeCents = transactionFeeSettings.passFeeToDonor
     ? transactionProcessingFeeCents(operation.checkout.amountCents, transactionFeeSettings)
@@ -246,9 +302,10 @@ function createDonationCheckout(
          buyer_name, buyer_email, patron_id,
          provider_session_id, provider_payment_id,
          created_at, updated_at)
-       VALUES (?, ?, 'paid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       operation.donationId,
       operation.checkout.checkoutRequestId,
+      pending ? "pending" : "paid",
       operation.checkout.amountCents,
       feeCents,
       operation.checkout.tributeType,
@@ -260,18 +317,34 @@ function createDonationCheckout(
       operation.checkout.buyerEmail.toLowerCase(),
       patronId,
       operation.providerSessionId,
-      `fake_payment_${operation.donationId}`,
+      pending ? "" : `fake_payment_${operation.donationId}`,
       now,
       now,
     );
-    upsertPatronAfterDonation(storage, patronId, operation.checkout.amountCents, now);
+    storage.sql.exec(
+      `INSERT INTO payment_attempts
+        (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+         provider_payment_id, status, amount_cents, created_at, updated_at)
+       VALUES (?, 'donation', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `payment-attempt:${operation.donationId}`,
+      operation.donationId,
+      operation.checkout.checkoutRequestId,
+      operation.providerSessionId,
+      pending ? "" : `fake_payment_${operation.donationId}`,
+      pending ? "pending" : "paid",
+      operation.checkout.amountCents + feeCents,
+      now,
+      now,
+    );
+    if (!pending) upsertPatronAfterDonation(storage, patronId, operation.checkout.amountCents, now);
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
-       VALUES (?, 'public_visitor', 'anonymous', 'donation.created',
+       VALUES (?, 'public_visitor', 'anonymous', ?,
         'donation', ?, ?, ?, ?)`,
       `donation:${operation.checkout.checkoutRequestId}`,
+      pending ? "donation.pending" : "donation.created",
       operation.donationId,
       operation.checkout.checkoutRequestId,
       JSON.stringify({
@@ -284,9 +357,44 @@ function createDonationCheckout(
     );
   });
   const created = donationById(storage, operation.donationId);
+  if (created && !pending) queueDonationConfirmation(storage, created);
   return created
     ? Response.json(donationResult(created), { status: 201 })
     : Response.json({ code: "donation_not_created" }, { status: 503 });
+}
+
+function attachStripeDonationSession(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof attachStripeSessionOperationSchema>,
+): Response {
+  const donation = donationById(storage, operation.donationId);
+  if (!donation) return Response.json({ code: "donation_not_found" }, { status: 404 });
+  if (donation.status !== "pending") return Response.json(donationResult(donation));
+  try {
+    storage.transactionSync(() => {
+      const now = new Date().toISOString();
+      storage.sql.exec(
+        `UPDATE donations SET provider_session_id = ?, updated_at = ?
+         WHERE id = ? AND status = 'pending'`,
+        operation.providerSessionId,
+        now,
+        operation.donationId,
+      );
+      storage.sql.exec(
+        `UPDATE payment_attempts SET provider_session_id = ?, updated_at = ?
+         WHERE resource_id = ? AND status = 'pending'`,
+        operation.providerSessionId,
+        now,
+        operation.donationId,
+      );
+    });
+  } catch {
+    return Response.json({ code: "donation_checkout_attach_failed" }, { status: 409 });
+  }
+  const updated = donationById(storage, operation.donationId);
+  return updated
+    ? Response.json(donationResult(updated))
+    : Response.json({ code: "donation_not_found" }, { status: 404 });
 }
 
 function refundDonation(
@@ -373,6 +481,13 @@ function completeStripeDonation(
         operation.providerSessionId,
       );
       storage.sql.exec("DELETE FROM donation_expirations WHERE donation_id = ?", row.id);
+      storage.sql.exec(
+        `UPDATE payment_attempts SET provider_payment_id = ?, status = 'paid', updated_at = ?
+         WHERE provider_session_id = ?`,
+        operation.providerPaymentId,
+        occurredAt,
+        operation.providerSessionId,
+      );
       if (row.patronId)
         upsertPatronAfterDonation(storage, row.patronId, row.amountCents, occurredAt);
     }
@@ -393,6 +508,9 @@ function completeStripeDonation(
     );
   });
   const updated = donationById(storage, row.id);
+  if (updated && (row.status === "pending" || row.status === "expired")) {
+    queueDonationConfirmation(storage, updated);
+  }
   return updated
     ? Response.json(donationResult(updated))
     : Response.json({ code: "donation_not_found" }, { status: 404 });
@@ -425,6 +543,13 @@ function expireStripeDonation(
         row.id,
         operation.stripeEventId,
         occurredAt,
+      );
+      storage.sql.exec(
+        `UPDATE payment_attempts SET status = 'expired', expired_at = ?, updated_at = ?
+         WHERE provider_session_id = ?`,
+        occurredAt,
+        occurredAt,
+        operation.providerSessionId,
       );
     }
     storage.sql.exec(
@@ -478,6 +603,13 @@ function refundStripeDonation(
           row.patronId,
         );
       }
+      storage.sql.exec(
+        `UPDATE payment_attempts SET status = 'refunded', refunded_at = ?, updated_at = ?
+         WHERE provider_payment_id = ?`,
+        occurredAt,
+        occurredAt,
+        operation.providerPaymentId,
+      );
       refunded += 1;
     }
     storage.sql.exec(
@@ -513,6 +645,21 @@ export function listDonationsFromStore(
       .toArray()
       .map(donationResult),
   });
+}
+
+export function readDonationFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  donationId: string | null,
+): Response {
+  const parsedId = z.uuid().safeParse(donationId);
+  if (identity(storage)?.organizationId !== organizationId || !parsedId.success) {
+    return Response.json({ code: "donation_not_found" }, { status: 404 });
+  }
+  const donation = donationById(storage, parsedId.data);
+  return donation
+    ? Response.json(donationResult(donation))
+    : Response.json({ code: "donation_not_found" }, { status: 404 });
 }
 
 export function listPatronsFromStore(
@@ -551,6 +698,10 @@ export async function manageDonationsInStore(
   switch (operation.data.action) {
     case "create_donation_checkout":
       return createDonationCheckout(storage, operation.data);
+    case "create_stripe_pending_donation":
+      return createDonationCheckout(storage, operation.data);
+    case "attach_stripe_donation_session":
+      return attachStripeDonationSession(storage, operation.data);
     case "refund_donation":
       return refundDonation(storage, operation.data);
     case "stripe_donation_completed":

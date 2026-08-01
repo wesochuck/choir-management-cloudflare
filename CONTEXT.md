@@ -162,7 +162,34 @@ Impersonation log, private platform operations log
 The Organization-owned payment-processing account that receives its ticket, donation, dues, and
 bundle revenue. The Organization is the merchant of record and owns processing fees, refunds,
 disputes, reporting, and negative-balance liability; the platform never receives or commingles this
-revenue. _Avoid_: Platform payment account, shared Stripe account
+revenue. One Connected Payment Account is shared by the Organization's enabled payment modules.
+Stripe webhook events identify this account and resolve to exactly one Organization before any
+operational transition. _Avoid_: Platform payment account, shared Stripe account
+
+## Payment Attempt
+
+A single provider Checkout Session and its tenant-local payment state for one ticket order,
+donation, or dues obligation. A Payment Attempt starts as `pending`, becomes `paid` only from a
+verified provider event, may become `expired`, and may become `refunded` only through the refund
+workflow. Retries create a new Payment Attempt and preserve the old attempt for audit; they never
+reuse an expired provider session. _Avoid_: Browser success, payment redirect, reusable checkout
+session
+
+## Payment Activation
+
+The explicit Organization-level decision to accept live online payments for one enabled module:
+Tickets, Donations, or Dues. It is separate from Connected Payment Account onboarding, defaults off,
+is available only to Organization Owners and Administrators (or a scoped Platform Administrator),
+and is blocked unless the platform, webhook, connected account, and communications readiness checks
+pass. _Avoid_: Stripe onboarding, automatic payment enablement
+
+## Payment Lifecycle
+
+The shared payment state machine: `pending` means a Checkout Session exists but payment is not
+verified; `paid` means a verified completion was applied; `expired` means the Checkout Session
+closed without payment; and `refunded` means a verified provider refund was applied. A browser
+return page is informational and never changes lifecycle state. _Avoid_: Client-confirmed payment,
+success URL
 
 ## Platform Access
 

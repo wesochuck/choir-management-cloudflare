@@ -14,11 +14,24 @@ const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
 });
 
-const createCheckoutOperationSchema = organizationContextSchema.extend({
+const createFakeCheckoutOperationSchema = organizationContextSchema.extend({
   action: z.literal("create_fake_checkout"),
   checkout: ticketCheckoutRequestSchema,
   purchaseId: z.uuid(),
   providerSessionId: z.string().min(1).max(256),
+});
+
+const createPendingCheckoutOperationSchema = organizationContextSchema.extend({
+  action: z.literal("create_stripe_pending"),
+  checkout: ticketCheckoutRequestSchema,
+  purchaseId: z.uuid(),
+  providerSessionId: z.string().min(1).max(256),
+});
+
+const attachStripeSessionOperationSchema = organizationContextSchema.extend({
+  action: z.literal("attach_stripe_session"),
+  providerSessionId: z.string().min(1).max(256),
+  purchaseId: z.uuid(),
 });
 
 const refundOperationSchema = organizationContextSchema.extend({
@@ -92,7 +105,9 @@ const stripeTicketRefundedOperationSchema = organizationContextSchema.extend({
 });
 
 const operationSchema = z.discriminatedUnion("action", [
-  createCheckoutOperationSchema,
+  createFakeCheckoutOperationSchema,
+  createPendingCheckoutOperationSchema,
+  attachStripeSessionOperationSchema,
   refundOperationSchema,
   refundProviderPurchaseOperationSchema,
   validateScanOperationSchema,
@@ -144,6 +159,7 @@ interface TicketPurchaseRow {
   readonly providerPaymentId: string;
   readonly providerSessionId: string;
   readonly quantity: number;
+  readonly refundRequested: number;
   readonly status: "expired" | "paid" | "pending" | "refunded";
   readonly timezone: string;
   readonly unitPriceCents: number;
@@ -170,7 +186,12 @@ const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS eventTitl
   quantity, unit_price_cents AS unitPriceCents, fee_cents AS feeCents,
   amount_paid_cents AS amountPaidCents, currency,
   provider_session_id AS providerSessionId, provider_payment_id AS providerPaymentId,
-  status, marketing_opt_in AS marketingOptIn, created_at AS createdAt, updated_at AS updatedAt
+  status, marketing_opt_in AS marketingOptIn,
+  EXISTS (SELECT 1 FROM payment_attempts pa
+    WHERE pa.payment_type IN ('ticket', 'bundle')
+      AND pa.resource_id = ticket_purchases.id
+      AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
+  created_at AS createdAt, updated_at AS updatedAt
   FROM ticket_purchases`;
 
 function identity(storage: DurableObjectStorage): IdentityRow | undefined {
@@ -205,6 +226,7 @@ function purchaseResult(row: TicketPurchaseRow) {
     includedEvents,
     checkoutMode: row.providerSessionId.startsWith("fake_session_") ? "fake" : "stripe",
     marketingOptIn: row.marketingOptIn === 1,
+    refundRequested: row.refundRequested === 1,
   };
 }
 
@@ -242,7 +264,7 @@ function purchaseByRequest(
 
 function sameCheckoutRequest(
   existing: TicketPurchaseRow,
-  checkout: z.infer<typeof createCheckoutOperationSchema>["checkout"],
+  checkout: z.infer<typeof createFakeCheckoutOperationSchema>["checkout"],
 ): boolean {
   return (
     existing.eventId === ("eventId" in checkout ? checkout.eventId : existing.eventId) &&
@@ -301,7 +323,9 @@ function readTicketEvent(
 // eslint-disable-next-line complexity
 function createFakeCheckout(
   storage: DurableObjectStorage,
-  operation: z.infer<typeof createCheckoutOperationSchema>,
+  operation:
+    | z.infer<typeof createFakeCheckoutOperationSchema>
+    | z.infer<typeof createPendingCheckoutOperationSchema>,
   organization: IdentityRow,
 ): Response {
   const existing = purchaseByRequest(storage, operation.checkout.checkoutRequestId);
@@ -311,6 +335,7 @@ function createFakeCheckout(
       : Response.json({ code: "checkout_request_conflict" }, { status: 409 });
   }
   const now = new Date();
+  const pending = operation.action === "create_stripe_pending";
   let bundleId: string | null = null;
   let bundleTitle = "";
   let events: readonly (TicketEventRow & { readonly id: string })[];
@@ -413,7 +438,7 @@ function createFakeCheckout(
          buyer_name, buyer_email, quantity, unit_price_cents, fee_cents,
          amount_paid_cents, currency, provider_session_id, provider_payment_id,
          status, marketing_opt_in, created_at, updated_at, fulfilled_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, 'paid', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, ?, ?, ?, ?, ?)`,
       operation.purchaseId,
       operation.checkout.checkoutRequestId,
       primaryEvent.id,
@@ -430,9 +455,26 @@ function createFakeCheckout(
       feeCents,
       amountPaidCents,
       operation.providerSessionId,
-      `fake_payment_${operation.purchaseId}`,
+      pending ? "" : `fake_payment_${operation.purchaseId}`,
+      pending ? "pending" : "paid",
       operation.checkout.marketingOptIn ? 1 : 0,
       occurredAt,
+      occurredAt,
+      pending ? null : occurredAt,
+    );
+    storage.sql.exec(
+      `INSERT INTO payment_attempts
+        (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+         provider_payment_id, status, amount_cents, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `payment-attempt:${operation.purchaseId}`,
+      bundleId ? "bundle" : "ticket",
+      operation.purchaseId,
+      operation.checkout.checkoutRequestId,
+      operation.providerSessionId,
+      pending ? "" : `fake_payment_${operation.purchaseId}`,
+      pending ? "pending" : "paid",
+      amountPaidCents,
       occurredAt,
       occurredAt,
     );
@@ -447,37 +489,40 @@ function createFakeCheckout(
         );
       }
     }
-    storage.sql.exec(
-      `INSERT INTO ticket_notifications
-        (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
-         content_markdown, status, scheduled_for, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'confirmation', ?, ?, ?, 'queued', ?, ?, ?)`,
-      confirmationId,
-      operation.purchaseId,
-      bundleId ? null : primaryEvent.id,
-      `ticket-confirmation:${operation.purchaseId}`,
-      operation.checkout.buyerEmail.toLowerCase(),
-      notificationTemplate.subject,
-      notificationTemplate.contentMarkdown,
-      occurredAt,
-      occurredAt,
-      occurredAt,
-    );
-    storage.sql.exec(
-      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
-       VALUES (?, 'ticket_notification', ?, ?, ?)`,
-      confirmationJobId,
-      `ticket-notification:${confirmationId}`,
-      occurredAt,
-      occurredAt,
-    );
+    if (!pending) {
+      storage.sql.exec(
+        `INSERT INTO ticket_notifications
+          (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+           content_markdown, status, scheduled_for, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'confirmation', ?, ?, ?, 'queued', ?, ?, ?)`,
+        confirmationId,
+        operation.purchaseId,
+        bundleId ? null : primaryEvent.id,
+        `ticket-confirmation:${operation.purchaseId}`,
+        operation.checkout.buyerEmail.toLowerCase(),
+        notificationTemplate.subject,
+        notificationTemplate.contentMarkdown,
+        occurredAt,
+        occurredAt,
+        occurredAt,
+      );
+      storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES (?, 'ticket_notification', ?, ?, ?)`,
+        confirmationJobId,
+        `ticket-notification:${confirmationId}`,
+        occurredAt,
+        occurredAt,
+      );
+    }
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
-       VALUES (?, 'public_visitor', 'anonymous', 'ticket.purchase.fulfilled',
+       VALUES (?, 'public_visitor', 'anonymous', ?,
         'ticket_purchase', ?, ?, ?, ?)`,
       `ticket-purchase:${operation.checkout.checkoutRequestId}`,
+      pending ? "ticket.purchase.pending" : "ticket.purchase.fulfilled",
       operation.purchaseId,
       operation.checkout.checkoutRequestId,
       JSON.stringify({
@@ -493,6 +538,45 @@ function createFakeCheckout(
   return created
     ? Response.json(purchaseResult(created), { status: 201 })
     : Response.json({ code: "ticket_purchase_not_created" }, { status: 503 });
+}
+
+function attachStripeSession(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof attachStripeSessionOperationSchema>,
+): Response {
+  const purchase = storage.sql
+    .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, operation.purchaseId)
+    .toArray()
+    .at(0);
+  if (!purchase) return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  if (purchase.status !== "pending") return Response.json(purchaseResult(purchase));
+  try {
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        `UPDATE ticket_purchases SET provider_session_id = ?, updated_at = ?
+         WHERE id = ? AND status = 'pending'`,
+        operation.providerSessionId,
+        new Date().toISOString(),
+        operation.purchaseId,
+      );
+      storage.sql.exec(
+        `UPDATE payment_attempts SET provider_session_id = ?, updated_at = ?
+         WHERE resource_id = ? AND status = 'pending'`,
+        operation.providerSessionId,
+        new Date().toISOString(),
+        operation.purchaseId,
+      );
+    });
+  } catch {
+    return Response.json({ code: "ticket_checkout_attach_failed" }, { status: 409 });
+  }
+  const updated = storage.sql
+    .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, operation.purchaseId)
+    .toArray()
+    .at(0);
+  return updated
+    ? Response.json(purchaseResult(updated))
+    : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
 }
 
 function refundFakePurchase(
@@ -605,18 +689,22 @@ function completeStripeTicketPurchase(
   if (stripeEventWasProcessed(storage, operation.stripeEventId)) {
     return Response.json({ ...purchaseResult(row), duplicate: true });
   }
-  if (row.status === "expired") {
-    return Response.json({ code: "ticket_purchase_expired" }, { status: 409 });
-  }
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
-    if (row.status === "pending") {
+    if (row.status === "pending" || row.status === "expired") {
       storage.sql.exec(
         `UPDATE ticket_purchases
          SET status = 'paid', provider_payment_id = ?, fulfilled_at = ?, expired_at = NULL, updated_at = ?
-         WHERE provider_session_id = ? AND status = 'pending'`,
+         WHERE provider_session_id = ? AND status IN ('pending', 'expired')`,
         operation.providerPaymentId,
         occurredAt,
+        occurredAt,
+        operation.providerSessionId,
+      );
+      storage.sql.exec(
+        `UPDATE payment_attempts SET provider_payment_id = ?, status = 'paid', updated_at = ?
+         WHERE provider_session_id = ?`,
+        operation.providerPaymentId,
         occurredAt,
         operation.providerSessionId,
       );
@@ -661,11 +749,11 @@ function completeStripeTicketPurchase(
         paymentType: row.bundleId ? "bundle" : "ticket",
         providerPaymentId: operation.providerPaymentId,
         providerSessionId: operation.providerSessionId,
-        status: row.status === "pending" ? "paid" : row.status,
+        status: row.status === "pending" || row.status === "expired" ? "paid" : row.status,
       }),
       occurredAt,
     );
-    if (row.status === "pending") {
+    if (row.status === "pending" || row.status === "expired") {
       storage.sql.exec(
         `INSERT OR IGNORE INTO audit_events
           (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
@@ -711,6 +799,13 @@ function expireStripeTicketPurchase(
       storage.sql.exec(
         `UPDATE ticket_purchases SET status = 'expired', expired_at = ?, updated_at = ?
          WHERE provider_session_id = ? AND status = 'pending'`,
+        occurredAt,
+        occurredAt,
+        operation.providerSessionId,
+      );
+      storage.sql.exec(
+        `UPDATE payment_attempts SET status = 'expired', expired_at = ?, updated_at = ?
+         WHERE provider_session_id = ?`,
         occurredAt,
         occurredAt,
         operation.providerSessionId,
@@ -765,6 +860,13 @@ function refundStripeTicketPurchases(
         occurredAt,
         occurredAt,
         row.id,
+      );
+      storage.sql.exec(
+        `UPDATE payment_attempts SET status = 'refunded', refunded_at = ?, updated_at = ?
+         WHERE provider_payment_id = ?`,
+        occurredAt,
+        occurredAt,
+        operation.providerPaymentId,
       );
       refunded += 1;
     }
@@ -1264,6 +1366,7 @@ function dispatchStripeTicketOperation(
   }
 }
 
+// eslint-disable-next-line complexity -- dispatches the typed ticket/payment operations.
 export async function manageTicketingInStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -1284,6 +1387,13 @@ export async function manageTicketingInStore(
       if (response.ok) await storage.setAlarm(Date.now() + 1);
       return response;
     }
+    case "create_stripe_pending": {
+      const response = createFakeCheckout(storage, operation.data, organization);
+      if (response.ok) await storage.setAlarm(Date.now() + 1);
+      return response;
+    }
+    case "attach_stripe_session":
+      return attachStripeSession(storage, operation.data);
     case "refund_fake_purchase":
       return refundFakePurchase(storage, operation.data);
     case "refund_provider_purchase":

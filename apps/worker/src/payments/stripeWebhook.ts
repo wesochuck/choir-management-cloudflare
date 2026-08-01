@@ -1,18 +1,42 @@
 import { z } from "zod";
 
 const stripeEventTypeSchema = z.enum([
+  "charge.dispute.created",
+  "charge.dispute.closed",
+  "charge.dispute.funds_reinstated",
+  "charge.dispute.funds_withdrawn",
   "charge.refunded",
   "checkout.session.completed",
+  "checkout.session.async_payment_failed",
+  "checkout.session.async_payment_succeeded",
   "checkout.session.expired",
 ]);
 
 export const stripeEventSchema = z.object({
+  account: z.string().regex(/^acct_[A-Za-z0-9]+$/),
   data: z.object({ object: z.record(z.string(), z.unknown()) }),
   id: z.string().trim().min(1).max(256),
   type: stripeEventTypeSchema,
 });
 
 export type StripeEvent = z.infer<typeof stripeEventSchema>;
+
+export function stripeCheckoutSessionIsPaid(object: Readonly<Record<string, unknown>>): boolean {
+  return object.payment_status === "paid";
+}
+
+export function stripeChargeRefundIsComplete(object: Readonly<Record<string, unknown>>): boolean {
+  const amount = object.amount;
+  const amountRefunded = object.amount_refunded;
+  return (
+    typeof amount === "number" &&
+    Number.isSafeInteger(amount) &&
+    amount >= 0 &&
+    typeof amountRefunded === "number" &&
+    Number.isSafeInteger(amountRefunded) &&
+    amountRefunded >= amount
+  );
+}
 
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 300;
 

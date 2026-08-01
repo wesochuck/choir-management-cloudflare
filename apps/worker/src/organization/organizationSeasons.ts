@@ -20,6 +20,9 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/stripeConnect";
+import { ticketCheckoutMode } from "../payments/ticketCheckout";
+import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
+import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -84,17 +87,24 @@ export async function createDuesCheckoutSession(
     | "EXTERNAL_EFFECTS_MODE"
     | "ORGANIZATION_STORE"
     | "SIGNED_LINK_SECRET"
+    | "STRIPE_PAYMENTS_ENABLED"
     | "STRIPE_SECRET_KEY"
   >,
   organizationId: string,
   origin: string,
   checkout: DuesCheckoutRequest,
+  recipientEmail?: string,
 ) {
   const validated = duesCheckoutRequestSchema.parse(checkout);
   const requestId = crypto.randomUUID();
   const organizationStore = stub(env, organizationId);
-  const useFakeCheckout = env.EXTERNAL_EFFECTS_MODE === "fake" && env.APP_ENV !== "production";
-  if (useFakeCheckout) {
+  let checkoutMode: "fake" | "stripe";
+  try {
+    checkoutMode = ticketCheckoutMode(env);
+  } catch {
+    throw new SeasonError("dues_disabled", 501, "Online dues are disabled.");
+  }
+  if (checkoutMode === "fake") {
     const response = await organizationStore.fetch(
       "https://organization.internal/internal/seasons/manage",
       {
@@ -103,6 +113,7 @@ export async function createDuesCheckoutSession(
           checkout: validated,
           organizationId,
           origin,
+          recipientEmail,
           requestId,
         }),
         headers: { "content-type": "application/json" },
@@ -142,6 +153,14 @@ export async function createDuesCheckoutSession(
   if (!feeResponse.ok || !feeSettings.success) {
     throw new SeasonError("transaction_fees_unavailable", 503, "Transaction fees are unavailable.");
   }
+  const paymentSettings = await readOrganizationPaymentActivations(env, organizationId);
+  if (!paymentSettings.activations.dues) {
+    throw new SeasonError(
+      "payments_not_activated",
+      409,
+      "Online dues payments are not enabled for this Organization.",
+    );
+  }
   const stripeStatus = z
     .object({
       accountId: z
@@ -167,6 +186,30 @@ export async function createDuesCheckoutSession(
     );
   }
   const feeCents = transactionProcessingFeeCents(selectedSeason.duesAmountCents, feeSettings.data);
+  const pendingSessionId = `pending_${requestId}`;
+  const pendingResponse = await organizationStore.fetch(
+    "https://organization.internal/internal/seasons/manage",
+    {
+      body: JSON.stringify({
+        action: "prepare_dues_checkout",
+        checkout: validated,
+        organizationId,
+        origin,
+        recipientEmail,
+        providerSessionId: pendingSessionId,
+        requestId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!pendingResponse.ok) {
+    throw new SeasonError(
+      await errorCode(pendingResponse),
+      pendingResponse.status,
+      "The dues checkout could not be reserved.",
+    );
+  }
   let stripeSession: { readonly id: string; readonly url: string };
   try {
     stripeSession = await createStripeCheckoutSession(secretKey, stripeStatus.data.accountId, {
@@ -179,13 +222,37 @@ export async function createDuesCheckoutSession(
         profile_ids: validated.profileIds.join(","),
         season_id: validated.seasonId,
       },
-      organizationName: "Organization",
-      productName: `${selectedSeason.name} dues`,
-      quantity: validated.profileIds.length,
+      lineItems: [
+        {
+          productName: `${selectedSeason.name} dues`,
+          quantity: validated.profileIds.length,
+          unitAmountCents: selectedSeason.duesAmountCents,
+        },
+        ...(feeCents > 0
+          ? [
+              {
+                productName: "Processing fee",
+                quantity: validated.profileIds.length,
+                unitAmountCents: feeCents,
+              },
+            ]
+          : []),
+      ],
+      organizationName: paymentSettings.organizationName,
       successUrl: new URL("/dues?checkout=success", origin).href,
-      unitAmountCents: selectedSeason.duesAmountCents + feeCents,
     });
   } catch (error: unknown) {
+    await organizationStore.fetch("https://organization.internal/internal/seasons/manage", {
+      body: JSON.stringify({
+        action: "stripe_dues_expired",
+        organizationId,
+        providerPaymentId: "",
+        providerSessionId: pendingSessionId,
+        stripeEventId: `checkout-failed:${requestId}`,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
     if (error instanceof StripeCheckoutError) {
       throw new SeasonError("stripe_checkout_unavailable", 503, "Stripe checkout is unavailable.");
     }
@@ -195,10 +262,8 @@ export async function createDuesCheckoutSession(
     "https://organization.internal/internal/seasons/manage",
     {
       body: JSON.stringify({
-        action: "create_dues_checkout",
-        checkout: validated,
+        action: "attach_dues_session",
         organizationId,
-        origin,
         providerSessionId: stripeSession.id,
         requestId,
       }),
@@ -211,7 +276,7 @@ export async function createDuesCheckoutSession(
     throw new SeasonError(code, response.status, "The dues checkout could not be created.");
   }
   return duesCheckoutResponseSchema.parse({
-    checkoutMode: "stripe",
+    checkoutMode,
     sessionId: stripeSession.id,
     url: stripeSession.url,
   });
@@ -298,10 +363,28 @@ export async function deleteSeason(
 }
 
 export async function refundDues(
-  env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE">,
+  env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE" | "STRIPE_SECRET_KEY">,
   actor: ActorContext,
   duesId: string,
 ): Promise<DuesRecord> {
+  const current = (await listDues(env, actor.organizationId)).find(({ id }) => id === duesId);
+  if (!current) throw new SeasonError("dues_not_found", 404, "Dues record not found.");
+  let refundRequest: { readonly fake: boolean };
+  try {
+    refundRequest = await requestOrganizationProviderRefund(env, {
+      actorUserId: actor.actorUserId,
+      organizationId: actor.organizationId,
+      paymentType: "dues",
+      requestId: actor.requestId,
+      resourceId: z.uuid().parse(duesId),
+    });
+  } catch (error: unknown) {
+    if (error instanceof PaymentRefundError) {
+      throw new SeasonError(error.code, error.status, error.message);
+    }
+    throw error;
+  }
+  if (!refundRequest.fake) return { ...current, refundRequested: true };
   const response = await stub(env, actor.organizationId).fetch(
     "https://organization.internal/internal/seasons/manage",
     {

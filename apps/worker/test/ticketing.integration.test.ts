@@ -11,6 +11,7 @@ import {
   ticketScanResponseSchema,
   donationSettingsResponseSchema,
   duesRecordSchema,
+  organizationPaymentSettingsResponseSchema,
   transactionFeeSettingsResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
@@ -272,6 +273,33 @@ describe("Organization ticketing", () => {
       ).json(),
     );
     expect(publicSettings).toMatchObject(updated);
+  });
+
+  it("shows payment readiness to managers and keeps activation fail-closed", async () => {
+    const cookie = await signIn();
+    const settingsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/payment-settings", cookie),
+    );
+    expect(settingsResponse.status).toBe(200);
+    const settings = organizationPaymentSettingsResponseSchema.parse(await settingsResponse.json());
+    expect(settings.activations).toEqual({ donations: false, dues: false, tickets: false });
+    expect(settings.globalPaymentsEnabled).toBe(false);
+    expect(settings.stripe.status).toBe("not_started");
+
+    const notReady = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/payment-settings/activation",
+      "POST",
+      { confirm: true, enabled: true, moduleId: "tickets" },
+      cookie,
+    );
+    expect(notReady.status).toBe(409);
+    expect(await notReady.json()).toMatchObject({ code: "payments_not_ready" });
+
+    const memberResponse = await exports.default.fetch(
+      api("bravo.localhost", "/api/organization/payment-settings", cookie),
+    );
+    expect(memberResponse.status).toBe(403);
   });
 
   it("creates replay-safe isolated fake orders with capacity and signed receipt protection", async () => {
@@ -1247,6 +1275,123 @@ describe("Organization ticketing", () => {
       },
     );
     expect(crossTenant.status).toBe(409);
+  });
+
+  it("persists live refund requests and keeps cash dues out of provider lookup", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const ticketId = crypto.randomUUID();
+    const cashDuesId = crypto.randomUUID();
+    const onlineDuesId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const cashProfileId = crypto.randomUUID();
+    const onlineProfileId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at)
+         VALUES (?, 'ticket', ?, ?, ?, ?, 'paid', 1000, ?, ?)`,
+        crypto.randomUUID(),
+        ticketId,
+        crypto.randomUUID(),
+        `session_${ticketId}`,
+        `pi_${ticketId}`,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Cash Refund Test', ?, ?), (?, 'Online Refund Test', ?, ?)`,
+        cashProfileId,
+        now,
+        now,
+        onlineProfileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Refund Test Season', ?, ?, 5000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, 5000, 0, '', '', '', 'paid', 'cash', ?, ?, ?),
+           (?, ?, ?, 5000, 0, ?, ?, 'online@example.test', 'paid', 'online', ?, ?, ?)`,
+        cashDuesId,
+        seasonId,
+        cashProfileId,
+        now,
+        now,
+        now,
+        onlineDuesId,
+        seasonId,
+        onlineProfileId,
+        `session_${onlineDuesId}`,
+        `pi_${onlineDuesId}`,
+        now,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at)
+         VALUES (?, 'dues', ?, ?, ?, ?, 'paid', 5000, ?, ?)`,
+        crypto.randomUUID(),
+        onlineDuesId,
+        crypto.randomUUID(),
+        `session_${onlineDuesId}`,
+        `pi_${onlineDuesId}`,
+        now,
+        now,
+      );
+    });
+
+    const targetUrl = new URL("https://organization.internal/internal/payments/refund-target");
+    targetUrl.searchParams.set("organizationId", "organization-alpha");
+    targetUrl.searchParams.set("paymentType", "ticket");
+    targetUrl.searchParams.set("resourceId", ticketId);
+    const target = await stub.fetch(targetUrl);
+    expect(target.status).toBe(200);
+    expect(await target.json()).toMatchObject({ refundRequested: false, status: "paid" });
+
+    const requestId = crypto.randomUUID();
+    const requested = await stub.fetch(
+      "https://organization.internal/internal/payments/refund-request",
+      {
+        body: JSON.stringify({
+          action: "record_provider_refund_requested",
+          actorUserId: "ticket-manager",
+          organizationId: "organization-alpha",
+          paymentType: "ticket",
+          requestId,
+          resourceId: ticketId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(await requested.json()).toMatchObject({ requested: true });
+    const refreshedTarget = await stub.fetch(targetUrl);
+    expect(await refreshedTarget.json()).toMatchObject({
+      refundRequested: true,
+      status: "paid",
+    });
+
+    const cashTargetUrl = new URL("https://organization.internal/internal/payments/refund-target");
+    cashTargetUrl.searchParams.set("organizationId", "organization-alpha");
+    cashTargetUrl.searchParams.set("paymentType", "dues");
+    cashTargetUrl.searchParams.set("resourceId", cashDuesId);
+    expect((await stub.fetch(cashTargetUrl)).status).toBe(404);
   });
 
   it("records cash dues on the selected Profile and keeps the action manager-only", async () => {

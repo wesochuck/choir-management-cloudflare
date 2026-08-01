@@ -71,6 +71,53 @@ export type OrganizationProviderStatusResponse = z.infer<
   typeof organizationProviderStatusResponseSchema
 >;
 
+export const paymentModuleIdSchema = z.enum(["tickets", "donations", "dues"]);
+
+export const paymentActivationSettingsSchema = z.object({
+  donations: z.boolean(),
+  dues: z.boolean(),
+  tickets: z.boolean(),
+});
+
+export const paymentActivationRequestSchema = z.object({
+  enabled: z.boolean(),
+  moduleId: paymentModuleIdSchema,
+  confirm: z.literal(true),
+});
+
+export const organizationPaymentSettingsResponseSchema = z.object({
+  activations: paymentActivationSettingsSchema,
+  environment: z.enum(["local", "preview", "staging", "production"]),
+  externalEffectsMode: z.enum(["disabled", "fake", "sandbox"]),
+  globalPaymentsEnabled: z.boolean(),
+  organizationName: z.string().min(1).max(120),
+  readiness: z.object({
+    brevoConfigured: z.boolean(),
+    stripeAccountReady: z.boolean(),
+    stripeConfigured: z.boolean(),
+    webhookConfigured: z.boolean(),
+  }),
+  requestId: requestIdSchema,
+  stripe: z.object({
+    accountId: z
+      .string()
+      .regex(/^acct_[A-Za-z0-9]+$/)
+      .nullable(),
+    chargesEnabled: z.boolean(),
+    detailsSubmitted: z.boolean(),
+    payoutsEnabled: z.boolean(),
+    requirementsDue: z.array(z.string().min(1).max(200)).max(100),
+    status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+  }),
+});
+
+export type PaymentModuleId = z.infer<typeof paymentModuleIdSchema>;
+export type PaymentActivationSettings = z.infer<typeof paymentActivationSettingsSchema>;
+export type PaymentActivationRequest = z.infer<typeof paymentActivationRequestSchema>;
+export type OrganizationPaymentSettingsResponse = z.infer<
+  typeof organizationPaymentSettingsResponseSchema
+>;
+
 const stripeConnectStatusSchema = z.object({
   accountId: z
     .string()
@@ -416,6 +463,7 @@ export const organizationTicketOrderSchema = publicTicketPurchaseSchema.extend({
   marketingOptIn: z.boolean(),
   providerPaymentId: z.string().max(256),
   providerSessionId: z.string().max(256),
+  refundRequested: z.boolean().default(false),
   updatedAt: z.iso.datetime(),
 });
 
@@ -1431,6 +1479,7 @@ export const donationRecordSchema = z.object({
   id: z.uuid(),
   marketingConsent: z.boolean(),
   patronId: z.uuid().nullable(),
+  refundRequested: z.boolean().default(false),
   status: donationStatusSchema,
   tributeName: z.string().max(500),
   tributeNotifyEmail: z.string().max(320),
@@ -1440,6 +1489,10 @@ export const donationRecordSchema = z.object({
 
 export const donationRecordsResponseSchema = z.object({
   donations: z.array(donationRecordSchema).max(500),
+  requestId: requestIdSchema,
+});
+
+export const publicDonationReceiptResponseSchema = donationRecordSchema.extend({
   requestId: requestIdSchema,
 });
 
@@ -1475,6 +1528,7 @@ export type DonationCheckoutRequest = z.infer<typeof donationCheckoutRequestSche
 export type DonationRecord = z.infer<typeof donationRecordSchema>;
 export type DonationRefundRequest = z.infer<typeof donationRefundRequestSchema>;
 export type DonationCheckoutResponse = z.infer<typeof donationCheckoutResponseSchema>;
+export type PublicDonationReceiptResponse = z.infer<typeof publicDonationReceiptResponseSchema>;
 export type PatronRecord = z.infer<typeof patronRecordSchema>;
 
 export const accountOrganizationSchema = z.object({
@@ -2387,7 +2441,7 @@ export const seasonsResponseSchema = z.object({
   seasons: z.array(seasonSchema).max(500),
 });
 
-export const duesStatusSchema = z.enum(["pending", "paid", "refunded"]);
+export const duesStatusSchema = z.enum(["pending", "paid", "refunded", "expired"]);
 export const duesPaymentMethodSchema = z.enum(["cash", "online"]);
 
 export const duesRecordSchema = z.object({
@@ -2398,6 +2452,7 @@ export const duesRecordSchema = z.object({
   paidAt: z.iso.datetime().nullable(),
   paymentMethod: duesPaymentMethodSchema.default("online"),
   profileId: z.uuid(),
+  refundRequested: z.boolean().default(false),
   seasonId: z.uuid(),
   status: duesStatusSchema,
   updatedAt: z.iso.datetime(),

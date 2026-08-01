@@ -85,6 +85,8 @@ import {
   type PlatformOrganizationContextResponse,
   type PlatformSetupStatusResponse,
   type OrganizationProviderStatusResponse,
+  organizationPaymentSettingsResponseSchema,
+  paymentActivationRequestSchema,
   organizationStripeConnectOnboardingResponseSchema,
   organizationStripeConnectStatusResponseSchema,
   type ProblemDetails,
@@ -239,6 +241,12 @@ import {
   retrieveStripeConnectedAccount,
   StripeConnectError,
 } from "./payments/stripeConnect";
+import { upsertStripeAccountOrganization } from "./payments/stripeRouting";
+import {
+  readOrganizationPaymentActivations,
+  updateOrganizationPaymentActivation,
+  PaymentSettingsError,
+} from "./organization/organizationPaymentSettings";
 import {
   MAX_PRIVATE_FILE_BYTES,
   PrivateFileStorageError,
@@ -285,6 +293,7 @@ import {
   DonationError,
   listOrganizationDonations,
   listOrganizationPatrons,
+  readPublicDonationReceipt,
   refundOrganizationDonation,
 } from "./organization/organizationDonations";
 import {
@@ -504,7 +513,7 @@ function providerSetupChecks(
         : stripePlatformReady && stripeWebhookReady
           ? {
               detail:
-                "Stripe Connect platform credentials and webhook verification are configured. Organization onboarding is available; checkout remains simulated until activation is verified.",
+                "Stripe Connect platform credentials and webhook verification are configured. Organization onboarding is available; each payment type remains paused until its Organization activation checklist is complete.",
               status: "attention" as const,
             }
           : {
@@ -521,6 +530,7 @@ type CalendarAuthorization =
       readonly ok: true;
       readonly organizationId: string;
       readonly role: "administrator" | "member" | "owner";
+      readonly email: string;
       readonly userId: string;
     }
   | {
@@ -632,6 +642,7 @@ async function authorizeCalendarRoute(
     };
   }
   return {
+    email: session?.user.email ?? "",
     ok: true,
     organizationId,
     role: authorization.value.role,
@@ -1637,6 +1648,39 @@ router.get("/api/public/donation-settings", async (context) => {
   }
 });
 
+router.get("/api/public/donation-receipt", async (context) => {
+  const requestIdValue = context.get("requestId");
+  const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+  const token = context.req.query("token")?.trim() ?? "";
+  if (!resolved.ok || !token) {
+    return context.json(
+      {
+        code: "donation_receipt_not_found",
+        message: "Donation receipt not found.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      404,
+    );
+  }
+  try {
+    const receipt = await readPublicDonationReceipt(
+      context.env,
+      resolved.value.organizationId,
+      token,
+    );
+    return context.json({ ...receipt, requestId: requestIdValue });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof DonationError ? error.code : "donation_receipt_unavailable",
+        message: "Donation receipt not found.",
+        requestId: requestIdValue,
+      } satisfies ProblemDetails,
+      error instanceof DonationError && error.status === 404 ? 404 : 503,
+    );
+  }
+});
+
 router.post("/api/checkout/create-dues-session", async (context) => {
   const authorization = await authorizeCalendarRoute(context, false);
   const checkout = memberDuesCheckoutRequestSchema.safeParse(
@@ -1683,6 +1727,7 @@ router.post("/api/checkout/create-dues-session", async (context) => {
         authorization.organizationId,
         new URL(context.req.url).origin,
         { profileIds: [profileId], seasonId: checkout.data.seasonId },
+        authorization.email || undefined,
       ),
       201,
     );
@@ -4197,6 +4242,7 @@ router.post("/api/singer/dues/checkout", async (context) => {
         authorization.organizationId,
         new URL(context.req.url).origin,
         { profileIds: [profileId], seasonId: body.data.seasonId },
+        authorization.email || undefined,
       ),
       201,
     );
@@ -6784,6 +6830,159 @@ router.get("/api/organization/provider-status", async (context) => {
   } satisfies OrganizationProviderStatusResponse);
 });
 
+function stripePaymentsGlobalEnabled(
+  env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "STRIPE_PAYMENTS_ENABLED">,
+): boolean {
+  return (
+    env.APP_ENV !== "local" &&
+    env.APP_ENV !== "preview" &&
+    env.EXTERNAL_EFFECTS_MODE !== "disabled" &&
+    env.STRIPE_PAYMENTS_ENABLED?.trim().toLowerCase() === "true"
+  );
+}
+
+async function readOrganizationStripeStatus(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+) {
+  const url = new URL("https://organization.internal/internal/stripe-connect");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await env.ORGANIZATION_STORE.get(
+    env.ORGANIZATION_STORE.idFromName(organizationId),
+  ).fetch(url);
+  const status = z
+    .object({
+      accountId: z
+        .string()
+        .regex(/^acct_[A-Za-z0-9]+$/)
+        .nullable(),
+      chargesEnabled: z.boolean(),
+      detailsSubmitted: z.boolean(),
+      payoutsEnabled: z.boolean(),
+      requirementsDue: z.array(z.string()),
+      status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+    })
+    .safeParse(await response.json().catch(() => null));
+  if (!response.ok || !status.success) throw new Error("stripe_status_unavailable");
+  return status.data;
+}
+
+router.get("/api/organization/payment-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    const [stored, stripe] = await Promise.all([
+      readOrganizationPaymentActivations(context.env, authorization.organizationId),
+      readOrganizationStripeStatus(context.env, authorization.organizationId),
+    ]);
+    const stripeConfigured = Boolean(context.env.STRIPE_SECRET_KEY?.trim());
+    const webhookConfigured = Boolean(context.env.STRIPE_WEBHOOK_SECRET?.trim());
+    const brevoConfigured =
+      Boolean(context.env.BREVO_API_KEY?.trim()) &&
+      z.email().safeParse(context.env.BREVO_EMAIL_FROM).success;
+    return context.json(
+      organizationPaymentSettingsResponseSchema.parse({
+        activations: stored.activations,
+        environment: context.env.APP_ENV,
+        externalEffectsMode: context.env.EXTERNAL_EFFECTS_MODE,
+        globalPaymentsEnabled: stripePaymentsGlobalEnabled(context.env),
+        organizationName: stored.organizationName,
+        readiness: {
+          brevoConfigured,
+          stripeAccountReady: stripe.status === "ready",
+          stripeConfigured,
+          webhookConfigured,
+        },
+        requestId: context.get("requestId"),
+        stripe,
+      }),
+    );
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof PaymentSettingsError ? error.code : "payment_settings_unavailable",
+        message: "Payment settings could not be loaded.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+// eslint-disable-next-line complexity -- validates authorization, readiness, and the Organization mutation.
+router.post("/api/organization/payment-settings/activation", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = paymentActivationRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Confirm the payment activation change before saving it.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const stripe = await readOrganizationStripeStatus(context.env, authorization.organizationId);
+    const globalEnabled = stripePaymentsGlobalEnabled(context.env);
+    const stripeReady =
+      Boolean(context.env.STRIPE_SECRET_KEY?.trim()) &&
+      Boolean(context.env.STRIPE_WEBHOOK_SECRET?.trim()) &&
+      stripe.status === "ready";
+    const brevoReady =
+      Boolean(context.env.BREVO_API_KEY?.trim()) &&
+      z.email().safeParse(context.env.BREVO_EMAIL_FROM).success;
+    if (body.data.enabled && (!globalEnabled || !stripeReady || !brevoReady)) {
+      return context.json(
+        {
+          code: "payments_not_ready",
+          message:
+            "Finish Stripe Connect, signed webhook, and Organization email setup before enabling online payments.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    const activations = await updateOrganizationPaymentActivation(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data.moduleId,
+      body.data.enabled,
+    );
+    return context.json({ activations, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    return context.json(
+      {
+        code: error instanceof PaymentSettingsError ? error.code : "payment_activation_unavailable",
+        message: "The payment activation setting could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      error instanceof PaymentSettingsError && (error.status === 404 || error.status === 409)
+        ? error.status
+        : 503,
+    );
+  }
+});
+
+// eslint-disable-next-line complexity -- reads and synchronizes the connected-account status.
 router.get("/api/organization/stripe-connect", async (context) => {
   const authorization = await authorizeCalendarRoute(context, true);
   if (!authorization.ok) {
@@ -6835,6 +7034,16 @@ router.get("/api/organization/stripe-connect", async (context) => {
         await syncResponse.json(),
       );
       if (syncResponse.ok && synced.success) {
+        await upsertStripeAccountOrganization(context.env.CONTROL_DB, {
+          accountId: stored.accountId,
+          organizationId: authorization.organizationId,
+          status:
+            synced.data.status === "ready" &&
+            synced.data.chargesEnabled &&
+            synced.data.payoutsEnabled
+              ? "active"
+              : "pending",
+        });
         return context.json({
           platformConfigured: Boolean(secretKey),
           requestId: context.get("requestId"),
@@ -6936,6 +7145,16 @@ router.post("/api/organization/stripe-connect/onboard", async (context) => {
       },
     );
     if (!syncResponse.ok) throw new Error("stripe_connect_store_unavailable");
+    await upsertStripeAccountOrganization(context.env.CONTROL_DB, {
+      accountId: account.id,
+      organizationId: authorization.organizationId,
+      status:
+        account.charges_enabled &&
+        account.payouts_enabled &&
+        account.requirements.currently_due.length === 0
+          ? "active"
+          : "pending",
+    });
     const requestUrl = new URL(context.req.url);
     const returnUrl = new URL("/admin/settings?stripe=return", requestUrl.origin).toString();
     const refreshUrl = new URL("/admin/settings?stripe=refresh", requestUrl.origin).toString();

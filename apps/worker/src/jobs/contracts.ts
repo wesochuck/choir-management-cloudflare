@@ -7,6 +7,7 @@ export const jobKindSchema = z.enum([
   "communication_delivery",
   "event_reminder",
   "organization_export",
+  "payment_notification",
   "projection_publish",
   "stale_checkout_cleanup",
   "ticket_notification",

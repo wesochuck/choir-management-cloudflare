@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  stripeChargeRefundIsComplete,
+  stripeCheckoutSessionIsPaid,
   stripeEventSchema,
   stripeSignatureForTest,
   verifyStripeWebhookSignature,
 } from "../src/payments/stripeWebhook";
 
 describe("Stripe webhook verification", () => {
+  it("requires a paid Checkout Session before fulfillment", () => {
+    expect(stripeCheckoutSessionIsPaid({ payment_status: "paid" })).toBe(true);
+    expect(stripeCheckoutSessionIsPaid({ payment_status: "unpaid" })).toBe(false);
+    expect(stripeCheckoutSessionIsPaid({})).toBe(false);
+  });
+
+  it("requires a complete charge refund before local access is revoked", () => {
+    expect(stripeChargeRefundIsComplete({ amount: 2_500, amount_refunded: 2_500 })).toBe(true);
+    expect(stripeChargeRefundIsComplete({ amount: 2_500, amount_refunded: 1_000 })).toBe(false);
+    expect(stripeChargeRefundIsComplete({ amount: 2_500 })).toBe(false);
+  });
+
   it("accepts a current signed payload and rejects tampering", async () => {
     const secret = "whsec_test_secret";
     const body = JSON.stringify({ id: "evt_test", type: "charge.refunded" });
@@ -31,13 +45,20 @@ describe("Stripe webhook verification", () => {
   });
 
   it("requires the supported event envelope", () => {
-    expect(
-      stripeEventSchema.safeParse({
-        data: { object: {} },
-        id: "evt_test",
-        type: "checkout.session.completed",
-      }).success,
-    ).toBe(true);
+    for (const type of [
+      "checkout.session.completed",
+      "checkout.session.async_payment_succeeded",
+      "checkout.session.async_payment_failed",
+    ]) {
+      expect(
+        stripeEventSchema.safeParse({
+          account: "acct_test",
+          data: { object: {} },
+          id: "evt_test",
+          type,
+        }).success,
+      ).toBe(true);
+    }
     expect(
       stripeEventSchema.safeParse({ data: { object: {} }, id: "evt_test", type: "unknown" })
         .success,

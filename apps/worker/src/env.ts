@@ -46,6 +46,7 @@ export interface Env {
   readonly ROUTING_CACHE: KVNamespace;
   readonly SIGNED_LINK_SECRET: string;
   readonly STRIPE_SECRET_KEY?: string;
+  readonly STRIPE_PAYMENTS_ENABLED?: string;
   readonly STRIPE_WEBHOOK_SECRET?: string;
 }
 

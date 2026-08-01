@@ -53,6 +53,16 @@ const ticketNotificationJobSchema = z.object({
   subject: z.string().max(300),
   timezone: z.string().min(1).max(100),
 });
+const paymentNotificationJobSchema = z.object({
+  contentMarkdown: z.string().max(100_000),
+  destination: z.email(),
+  id: z.uuid(),
+  paymentType: z.enum(["donation", "dues"]),
+  recipientName: z.string().min(1).max(200),
+  resourceId: z.uuid(),
+  status: z.enum(["queued", "processing"]),
+  subject: z.string().max(300),
+});
 const auditionNotificationJobSchema = z.object({
   contentMarkdown: z.string().max(100_000),
   destination: z.email(),
@@ -460,6 +470,86 @@ async function deliverAuditionNotificationJob(
   if (!recordResponse.ok) throw new Error("The audition notification result was rejected.");
 }
 
+async function renderPaymentNotificationContent(
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+  organizationId: string,
+  notification: z.infer<typeof paymentNotificationJobSchema>,
+): Promise<string> {
+  if (
+    notification.paymentType !== "donation" ||
+    !notification.contentMarkdown.includes("{{DONATION_RECEIPT_LINK}}")
+  ) {
+    return notification.contentMarkdown;
+  }
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+    algorithm: "HS256",
+    expiresAt: issuedAt + 7 * 24 * 60 * 60,
+    issuedAt,
+    nonce: crypto.randomUUID(),
+    organizationId,
+    purpose: "donation_receipt",
+    resourceId: notification.resourceId,
+    version: 1,
+  });
+  const origin =
+    env.PRODUCT_BASE_DOMAIN === "localhost"
+      ? "http://localhost"
+      : `https://${env.PRODUCT_BASE_DOMAIN}`;
+  const link = `${origin}/donate/success?token=${encodeURIComponent(token)}`;
+  return notification.contentMarkdown.replaceAll(
+    "{{DONATION_RECEIPT_LINK}}",
+    `[View your donation receipt](${link})`,
+  );
+}
+
+async function deliverPaymentNotificationJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
+  const objectStub = env.ORGANIZATION_STORE.get(
+    env.ORGANIZATION_STORE.idFromName(job.organizationId),
+  );
+  const url = new URL("https://organization.internal/internal/payments/notification-job");
+  url.searchParams.set("organizationId", job.organizationId);
+  url.searchParams.set("jobId", job.jobId);
+  const response = await objectStub.fetch(url);
+  const notification = paymentNotificationJobSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (!response.ok || !notification.success) {
+    throw new Error("The payment notification job is unavailable.");
+  }
+  const contentMarkdown = await renderPaymentNotificationContent(
+    env,
+    job.organizationId,
+    notification.data,
+  );
+  const result = await deliverOrganizationCommunication(env, {
+    channel: "email",
+    contentMarkdown,
+    deliveryId: notification.data.id,
+    destination: notification.data.destination,
+    messageId: notification.data.id,
+    recipientName: notification.data.recipientName,
+    subject: notification.data.subject,
+    unsubscribeUrl: null,
+  });
+  const recordResponse = await objectStub.fetch(
+    "https://organization.internal/internal/payments/notification-result",
+    {
+      body: JSON.stringify({
+        action: "record_payment_notification_result",
+        failureDetail: result.failureDetail,
+        jobId: job.jobId,
+        organizationId: job.organizationId,
+        providerMessageId: result.providerMessageId,
+        status: result.status,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!recordResponse.ok) throw new Error("The payment notification result was rejected.");
+}
+
 async function deliverOrganizationExportJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   const objectStub = env.ORGANIZATION_STORE.get(
     env.ORGANIZATION_STORE.idFromName(job.organizationId),
@@ -563,8 +653,27 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
     await deliverAuditionNotificationJob(env, job);
     return;
   }
+  if (job.kind === "payment_notification") {
+    await deliverPaymentNotificationJob(env, job);
+    return;
+  }
   if (job.kind === "organization_export") {
     await deliverOrganizationExportJob(env, job);
+    return;
+  }
+  if (job.kind === "stale_checkout_cleanup") {
+    const objectStub = env.ORGANIZATION_STORE.get(
+      env.ORGANIZATION_STORE.idFromName(job.organizationId),
+    );
+    const response = await objectStub.fetch(
+      "https://organization.internal/internal/payments/cleanup",
+      {
+        body: JSON.stringify({ organizationId: job.organizationId }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    if (!response.ok) throw new Error("Stale payment cleanup was rejected.");
     return;
   }
   if (job.kind === "event_reminder" || job.kind === "attendance_report") {
