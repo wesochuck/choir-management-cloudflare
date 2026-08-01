@@ -38,21 +38,16 @@ credentials were created and no hosted resource was modified.
 The read-only Parity Bridge remains at the immutable baseline commit
 `6874d43a3c3698ae53218a44d17649bc454ca9ac`. Its worktree contains one pre-existing user change in
 `pocketbase/pb_hooks/main.pb.js` (health fingerprint and formatting only); it was not reverted and
-was not used as behavioral evidence. The current staging qualification remains green for its
-anonymous shell, health, readiness, session, and registered-host GET boundaries: 3 hosts, 180 shell
-probes, 9 core probes, and 75 product/Organization API probes. The provider-secret inventory still
-contains no Stripe or Brevo credentials. The post-deployment remote D1 check reports no pending
-migrations; provider sandbox qualification cannot yet run because no isolated Stripe test key,
-signed webhook secret, or Brevo sandbox sender is available.
-
-The CI-qualified commit `ecf8972` then deployed successfully to permanent staging on August 1 as
-Worker version `e13703f1-13e4-43d6-ac7f-b70e809c671a`. The automatic deployment applied migration
-`0009_stripe_connected_accounts`, and a subsequent remote check reported no migrations to apply. The
-deployed anonymous qualification passed the same 3-host, 180-shell, 9-core, and 75
-product/Organization GET boundary probes. The deployed Stripe endpoint fails closed with the typed
-HTTP 503 `stripe_webhook_unavailable` response because the secure secret inventory still contains no
-`STRIPE_WEBHOOK_SECRET`, Stripe test key, or Brevo sandbox credentials. No payment sandbox charge,
-webhook, email, or SMS effect was attempted.
+was not used as behavioral evidence. Commit `501b85a` deployed successfully to permanent staging on
+August 1 as Worker version `d2a16a4a-9a11-4570-b39b-5f8bc85c29f1`. The automatic deployment reported
+no migrations to apply, and the post-deployment remote D1 check agrees. The read-only staging
+qualification passed all anonymous shell, health, readiness, session, and registered-host GET
+boundaries: 3 hosts, 180 browser-shell probes, 9 core probes, and 75 product/Organization-host GET
+API probes. The provider-secret inventory still contains no Stripe or Brevo credentials, so provider
+sandbox qualification cannot yet run because no isolated Stripe test key, signed webhook secret, or
+Brevo sandbox sender is available. The deployed Stripe endpoint fails closed with the typed HTTP 503
+`stripe_webhook_unavailable` response. No payment sandbox charge, webhook, email, or SMS effect was
+attempted.
 
 ## July 26 parity recheck
 
