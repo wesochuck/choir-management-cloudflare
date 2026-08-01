@@ -1235,12 +1235,15 @@ export async function getOrganizationRosterConfiguration(
     onBreakTimeoutDays: parsed.onBreakTimeoutDays,
     onBreakTimeoutEnabled: parsed.onBreakTimeoutEnabled,
     performerLabel: parsed.performerLabel,
+    rsvpFollowUpEnabled: parsed.rsvpFollowUpEnabled,
+    rsvpFollowUpLeadHours: parsed.rsvpFollowUpLeadHours,
     rsvpExpiryEnabled: parsed.rsvpExpiryEnabled,
     rsvpExpiryLeadDays: parsed.rsvpExpiryLeadDays,
     sections: parsed.sections,
     statusAutomationEnabled: parsed.statusAutomationEnabled,
     statusAutomationMissThreshold: parsed.statusAutomationMissThreshold,
     statusAutomationRecoveryEnabled: parsed.statusAutomationRecoveryEnabled,
+    attendanceReportWarningThreshold: parsed.attendanceReportWarningThreshold,
     voiceParts: parsed.voiceParts,
   };
 }
@@ -1257,12 +1260,15 @@ export async function updateOrganizationRosterConfiguration(
     onBreakTimeoutDays: parsed.onBreakTimeoutDays,
     onBreakTimeoutEnabled: parsed.onBreakTimeoutEnabled,
     performerLabel: parsed.performerLabel,
+    rsvpFollowUpEnabled: parsed.rsvpFollowUpEnabled,
+    rsvpFollowUpLeadHours: parsed.rsvpFollowUpLeadHours,
     rsvpExpiryEnabled: parsed.rsvpExpiryEnabled,
     rsvpExpiryLeadDays: parsed.rsvpExpiryLeadDays,
     sections: parsed.sections,
     statusAutomationEnabled: parsed.statusAutomationEnabled,
     statusAutomationMissThreshold: parsed.statusAutomationMissThreshold,
     statusAutomationRecoveryEnabled: parsed.statusAutomationRecoveryEnabled,
+    attendanceReportWarningThreshold: parsed.attendanceReportWarningThreshold,
     voiceParts: parsed.voiceParts,
   };
 }

@@ -549,11 +549,32 @@ exclusively sent to active singers whose RSVP Status is "Yes (Attending)" for th
 roster. For Rehearsals linked to a parent Performance, the Rehearsal's own RSVP list is completely
 ignored, and reminders are instead sent to the "Yes (Attending)" roster of the parent Performance.
 
+## Pending RSVP Follow-up
+
+A one-time, email-only message sent to active Profiles whose Performance RSVP Status remains
+"Pending (No Response)" 48 hours before the Organization's RSVP deadline by default. It is distinct
+from an Automated Reminder, which is sent to confirmed attendees, and linked Rehearsals inherit the
+parent Performance's follow-up rather than generating a duplicate.
+
+## Attendance Report Warning Threshold
+
+The independent Organization setting that determines when a post-event Attendance Report names a
+Profile for missed linked Rehearsals. The default is one missed Rehearsal; it does not change
+Profile Status Automation's separate consecutive-missed-Performance threshold.
+
+## Communication Delivery Mode
+
+The environment-controlled external-effects policy for Organization communications: Fake records
+deterministic sends without contacting a provider, Disabled records suppressed deliveries without
+sending, Sandbox uses provider test restrictions, and Production may contact the configured
+provider.
+
 ## Attendance Report
 
 A post-event summary automatically generated and sent to administrators after a rehearsal or
 performance. It provides attendance rates, absentee lists, and threshold warnings based on the
-recorded roster.
+recorded roster. Normal recipients are opted-in Owners and Administrators; when none are eligible, a
+reachable, non-suppressed Organization Owner is used as the fallback.
 
 ## Communication History
 

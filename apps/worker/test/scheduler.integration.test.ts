@@ -279,4 +279,48 @@ describe("Organization scheduler", () => {
     const eventReminderJobsAgain = afterSecond.filter((j) => j.kind === "event_reminder");
     expect(eventReminderJobsAgain).toHaveLength(1);
   });
+
+  it("schedules one pending RSVP follow-up at the configured deadline lead time", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const overdueAt = new Date(now - 1_000).toISOString();
+    const eventId = "77777777-7777-4777-8777-777777777777";
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES (?, 'RSVP Follow-up Performance', 'Performance', ?, ?, ?)`,
+        eventId,
+        new Date(now + 8 * 24 * 60 * 60 * 1_000).toISOString(),
+        overdueAt,
+        overdueAt,
+      );
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+        overdueAt,
+        overdueAt,
+      );
+      return state.storage.setAlarm(now + 60_000).then(() => undefined);
+    });
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const first = (await readAllOutboxJobs(stub)).filter((job) => job.kind === "rsvp_follow_up");
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({
+      idempotencyKey: `rsvp-follow-up:organization-scheduler:${eventId}`,
+      enqueuedAt: expect.any(String),
+    });
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec("UPDATE scheduled_job_outbox SET enqueued_at = NULL");
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+        overdueAt,
+        overdueAt,
+      );
+      return state.storage.setAlarm(now + 60_000).then(() => undefined);
+    });
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    expect(
+      (await readAllOutboxJobs(stub)).filter((job) => job.kind === "rsvp_follow_up"),
+    ).toHaveLength(1);
+  });
 });

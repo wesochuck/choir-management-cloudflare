@@ -78,7 +78,7 @@ export class CommunicationRepositoryError extends Error {
   }
 }
 
-function stub(env: Env, organizationId: string): DurableObjectStub {
+function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string): DurableObjectStub {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
 
@@ -102,7 +102,7 @@ async function failure(response: Response): Promise<CommunicationRepositoryError
 }
 
 async function post(
-  env: Env,
+  env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
   path: string,
   body: Record<string, unknown>,
@@ -123,6 +123,15 @@ interface Recipient {
   readonly profileId: string;
   readonly unsubscribeUrl: string | null;
 }
+
+export interface AutomatedCommunicationRecipient {
+  readonly email: string;
+  readonly name: string;
+  readonly phone: string;
+  readonly profileId: string;
+}
+
+type AutomatedCommunicationEnv = Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">;
 
 async function resolveRecipients(
   env: Env,
@@ -239,6 +248,77 @@ export async function sendOrganizationCommunication(
     ...context,
     jobId: crypto.randomUUID(),
     message,
+    messageId: crypto.randomUUID(),
+    recipients,
+  });
+  return communicationMessageSchema.parse(await response.json());
+}
+
+export async function readOrganizationCommunicationTemplate(
+  env: AutomatedCommunicationEnv,
+  organizationId: string,
+  templateId: string,
+): Promise<CommunicationTemplate> {
+  const url = new URL("https://organization.internal/internal/communications/template");
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("templateId", templateId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) throw await failure(response);
+  return communicationTemplateSchema.parse(await response.json());
+}
+
+export async function queueAutomatedOrganizationCommunication(
+  env: AutomatedCommunicationEnv,
+  context: ActorContext & { readonly organizationOrigin: string },
+  input: {
+    readonly contentMarkdown: string;
+    readonly eventId: string | null;
+    readonly recipients: readonly AutomatedCommunicationRecipient[];
+    readonly subject: string;
+  },
+): Promise<CommunicationMessage> {
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  const recipients = await Promise.all(
+    input.recipients.map(async (recipient) => {
+      const unsubscribeToken = recipient.email
+        ? await issueSignedLink(env.SIGNED_LINK_SECRET, {
+            algorithm: "HS256",
+            expiresAt: issuedAt + 365 * 24 * 60 * 60,
+            issuedAt,
+            organizationId: context.organizationId,
+            purpose: "unsubscribe",
+            revocation: "email-v1",
+            subjectId: recipient.profileId,
+            version: 1,
+          })
+        : null;
+      return {
+        ...recipient,
+        unsubscribeUrl:
+          unsubscribeToken && recipient.email
+            ? `${context.organizationOrigin}/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`
+            : null,
+      };
+    }),
+  );
+  const response = await post(env, context.organizationId, "/internal/communications/manage", {
+    action: "send",
+    actorType: "organization_system",
+    ...context,
+    jobId: crypto.randomUUID(),
+    message: {
+      audience: {
+        eventId: input.eventId,
+        globalStatuses: ["Active"],
+        profileIds: recipients.map(({ profileId }) => profileId),
+        rsvp: "All",
+        targetAudiences: ["Members"],
+        voiceParts: [],
+      },
+      channel: "Email",
+      contentMarkdown: input.contentMarkdown,
+      subject: input.subject,
+    },
     messageId: crypto.randomUUID(),
     recipients,
   });

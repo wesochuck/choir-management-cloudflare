@@ -2,6 +2,8 @@ export const defaultRosterConfiguration = {
   onBreakTimeoutDays: 365,
   onBreakTimeoutEnabled: true,
   performerLabel: "Performer",
+  rsvpFollowUpEnabled: true,
+  rsvpFollowUpLeadHours: 48,
   rsvpExpiryEnabled: true,
   rsvpExpiryLeadDays: 7,
   sections: [
@@ -23,4 +25,5 @@ export const defaultRosterConfiguration = {
   statusAutomationEnabled: true,
   statusAutomationMissThreshold: 3,
   statusAutomationRecoveryEnabled: true,
+  attendanceReportWarningThreshold: 1,
 } as const;

@@ -84,6 +84,7 @@ import {
   listCommunicationMessagesFromStore,
   listCommunicationScheduledMessagesFromStore,
   listCommunicationTemplatesFromStore,
+  readCommunicationTemplateFromStore,
   manageCommunicationInStore,
   readCommunicationJobFromStore,
   readCommunicationSummaryFromStore,
@@ -134,7 +135,12 @@ import {
   readPaymentSettingsFromStore,
   updatePaymentActivationInStore,
 } from "./paymentSettingsStore";
-import { readAttendanceReportJobFromStore, readEventReminderJobFromStore } from "./schedulingStore";
+import {
+  prepareAttendanceReportJobFromStore,
+  readAttendanceReportJobFromStore,
+  readEventReminderJobFromStore,
+  readRsvpFollowUpJobFromStore,
+} from "./schedulingStore";
 import { recordPaymentDisputeInStore } from "./paymentDisputeStore";
 import { expireStalePaymentsInStore } from "./paymentCleanupStore";
 import {
@@ -1617,6 +1623,18 @@ async function dispatchPostRequest(
       ? readRosterAutomationPreviewFromStore(storage, parsed.data.organizationId, parsed.data)
       : Response.json({ code: "invalid_roster_automation_preview" }, { status: 400 });
   }
+  if (pathname === "/internal/scheduling/attendance-report-prepare") {
+    const body: unknown = await request.json().catch(() => null);
+    const parsed = z
+      .object({
+        jobId: z.uuid(),
+        organizationId: z.string().min(1).max(128),
+      })
+      .safeParse(body);
+    return parsed.success
+      ? prepareAttendanceReportJobFromStore(storage, parsed.data.organizationId, parsed.data.jobId)
+      : Response.json({ code: "invalid_attendance_report_request" }, { status: 400 });
+  }
   if (pathname === "/internal/scheduler/run-now") {
     const body: unknown = await request.json().catch(() => null);
     const parsed = z.object({ organizationId: z.string().min(1).max(128) }).safeParse(body);
@@ -1899,6 +1917,8 @@ const contentGetHandlers: Record<
     listCommunicationScheduledMessagesFromStore(storage, organizationId),
   "/internal/communications/templates": (storage, _url, organizationId) =>
     listCommunicationTemplatesFromStore(storage, organizationId),
+  "/internal/communications/template": (storage, url, organizationId) =>
+    readCommunicationTemplateFromStore(storage, organizationId, url.searchParams.get("templateId")),
   "/internal/communications/summary": (
     storage: DurableObjectStorage,
     url: URL,
@@ -1996,6 +2016,11 @@ const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readAttendanceReportJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/scheduling/rsvp-follow-up-job": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readRsvpFollowUpJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
   "/internal/player/details": (
     storage: DurableObjectStorage,
     url: URL,

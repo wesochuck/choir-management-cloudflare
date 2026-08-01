@@ -49,6 +49,8 @@ function eventRequestFrom(event: OrganizationEvent, setList: SetListItem[], appr
     publicDetails: event.publicDetails,
     publicGraphicFileId: event.publicGraphicFileId,
     publishOnWebsite: event.publishOnWebsite,
+    rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
+    rsvpFollowUpMode: event.rsvpFollowUpMode,
     setList,
     setListApproved: approved,
     startsAt: event.startsAt,

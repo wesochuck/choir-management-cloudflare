@@ -50,6 +50,7 @@ const saveOperationSchema = contextSchema.extend({
 });
 const sendOperationSchema = contextSchema.extend({
   action: z.literal("send"),
+  actorType: z.enum(["organization_member", "organization_system"]).default("organization_member"),
   jobId: z.uuid(),
   message: communicationSendRequestSchema,
   messageId: z.uuid(),
@@ -261,12 +262,14 @@ function audit(
   summary: unknown,
   occurredAt: string,
   targetType = "communication_message",
+  actorType: "organization_member" | "organization_system" = "organization_member",
 ): void {
   storage.sql.exec(
     `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id,
       request_id, change_summary, occurred_at)
-     VALUES (?, 'organization_member', ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     `communication:${action}:${requestId}`,
+    actorType,
     actorUserId,
     action,
     targetType,
@@ -557,6 +560,8 @@ async function sendMessage(
       operation.messageId,
       { channel: operation.message.channel, deliveryCount: deliveries.length, reach },
       now,
+      "communication_message",
+      operation.actorType,
     );
   });
   await storage.setAlarm(Date.now() + 1);
@@ -903,7 +908,7 @@ interface ScheduledOutboxMessageRow {
   readonly idempotencyKey: string;
   readonly jobId: string;
   readonly jobStatus: "claimed" | "completed" | "failed" | null;
-  readonly kind: "attendance_report" | "event_reminder";
+  readonly kind: "attendance_report" | "event_reminder" | "rsvp_follow_up";
 }
 
 function scheduledJobStatus(
@@ -957,7 +962,7 @@ export function listCommunicationScheduledMessagesFromStore(
         o.due_at AS dueAt, o.enqueued_at AS enqueuedAt, l.status AS jobStatus
        FROM scheduled_job_outbox o
        LEFT JOIN job_ledger l ON l.job_id = o.job_id
-       WHERE o.kind IN ('event_reminder', 'attendance_report')
+       WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report')
        ORDER BY o.due_at DESC, o.job_id DESC LIMIT 100`,
     )
     .toArray();
@@ -983,7 +988,9 @@ export function listCommunicationScheduledMessagesFromStore(
         subject:
           job.kind === "event_reminder"
             ? "Event reminder: " + event.title
-            : "Attendance report: " + event.title,
+            : job.kind === "rsvp_follow_up"
+              ? "RSVP follow-up: " + event.title
+              : "Attendance report: " + event.title,
       }),
     );
   }
@@ -1008,6 +1015,32 @@ export function listCommunicationTemplatesFromStore(
     .toArray()
     .map((row) => communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }));
   return Response.json({ templates });
+}
+
+export function readCommunicationTemplateFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  templateId: string | null,
+): Response {
+  if (!organizationId || !identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const parsedId = z.uuid().safeParse(templateId);
+  if (!parsedId.success) {
+    return Response.json({ code: "communication_template_not_found" }, { status: 404 });
+  }
+  const row = storage.sql
+    .exec<TemplateRow>(
+      `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,
+         is_system AS isSystem, created_at AS createdAt, updated_at AS updatedAt
+       FROM communication_templates WHERE id = ? LIMIT 1`,
+      parsedId.data,
+    )
+    .toArray()
+    .at(0);
+  return row
+    ? Response.json(communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }))
+    : Response.json({ code: "communication_template_not_found" }, { status: 404 });
 }
 
 export async function unsubscribeCommunicationProfileInStore(

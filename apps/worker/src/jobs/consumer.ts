@@ -4,6 +4,8 @@ import { renderCommunicationTemplate } from "@choir/domain";
 import type { Env } from "../env";
 import { deliverOrganizationCommunication } from "../communications/provider";
 import {
+  queueAutomatedOrganizationCommunication,
+  readOrganizationCommunicationTemplate,
   readCommunicationDeliveryJob,
   recordCommunicationDeliveryResults,
 } from "../organization/organizationCommunications";
@@ -13,6 +15,7 @@ import { issueRsvpToken } from "../organization/organizationRsvpLinks";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 import { issueSignedLink } from "../security/signedLinks";
 import { organizationExportKey } from "../organization/exportStore";
+import { listOrganizationProfileEmails } from "../organization/profiles";
 
 type JobConsumerEnv = Pick<
   Env,
@@ -26,7 +29,8 @@ type JobConsumerEnv = Pick<
   | "ORGANIZATION_STORE"
   | "PRODUCT_BASE_DOMAIN"
   | "SIGNED_LINK_SECRET"
->;
+> &
+  Partial<Pick<Env, "CONTROL_DB">>;
 type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB">;
 
 const claimResponseSchema = z.object({
@@ -214,6 +218,78 @@ const playerPlaceholderReplacementPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/
 const ticketLinkPlaceholderPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/i;
 const ticketLinkPlaceholderReplacementPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/gi;
 
+const scheduledEventTemplateIds = {
+  attendanceReport: "5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
+  eventRsvpFollowUp: "5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
+  performanceReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
+  rehearsalReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
+} as const;
+
+const scheduledEventJobResponseSchema = z.object({
+  event: z.object({
+    callTime: z.string(),
+    details: z.string(),
+    durationMinutes: z.number().int().nullable(),
+    id: z.uuid(),
+    location: z.string(),
+    parentPerformanceId: z.uuid().nullable(),
+    startsAt: z.iso.datetime(),
+    title: z.string(),
+    type: z.string(),
+    venueAddress: z.string(),
+    venueName: z.string(),
+  }),
+  eventId: z.uuid(),
+  recipients: z.array(
+    z.object({
+      phone: z.string(),
+      profileId: z.uuid(),
+      recipientName: z.string(),
+    }),
+  ),
+});
+
+const attendanceReportJobResponseSchema = scheduledEventJobResponseSchema.extend({
+  linkedRehearsalRows: z.array(
+    z.object({
+      attendance: z.string().nullable(),
+      displayName: z.string().nullable(),
+      eventId: z.uuid(),
+      eventStartsAt: z.iso.datetime(),
+      eventTitle: z.string(),
+      profileId: z.uuid().nullable(),
+      rsvp: z.string().nullable(),
+    }),
+  ),
+  performerProfileIds: z.array(z.uuid()),
+  reportProfiles: z.array(
+    z.object({
+      displayName: z.string(),
+      doNotEmail: z.number().int(),
+      emailSuppressed: z.number().int(),
+      globalStatus: z.string(),
+      id: z.uuid(),
+      receiveAttendanceReports: z.number().int(),
+    }),
+  ),
+  roster: z.array(
+    z.object({
+      attendance: z.string(),
+      displayName: z.string(),
+      profileId: z.uuid(),
+      rsvp: z.string(),
+      voicePart: z.string(),
+    }),
+  ),
+  warningThreshold: z.number().int().min(1).max(10),
+});
+
+const scheduledReportMemberSchema = z.object({
+  email: z.string().max(320),
+  profileId: z.uuid().nullable(),
+  role: z.enum(["admin", "owner"]),
+});
+
 function deliveryOrigin(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN">,
   delivery: { readonly unsubscribeUrl: string | null },
@@ -340,6 +416,254 @@ async function renderPollLinks(
       ? `${origin}/poll?token=${encodeURIComponent(token)}`
       : "Poll link unavailable; please contact your organization.";
   });
+}
+
+function scheduledEventOrigin(env: JobConsumerEnv): string {
+  return env.PRODUCT_BASE_DOMAIN === "localhost"
+    ? "http://localhost"
+    : `https://${env.PRODUCT_BASE_DOMAIN}`;
+}
+
+async function readScheduledEventJob(
+  env: JobConsumerEnv,
+  job: DeliveryJob,
+  path: string,
+): Promise<z.infer<typeof scheduledEventJobResponseSchema>> {
+  const objectStub = env.ORGANIZATION_STORE.get(
+    env.ORGANIZATION_STORE.idFromName(job.organizationId),
+  );
+  const url = new URL(`https://organization.internal${path}`);
+  url.searchParams.set("organizationId", job.organizationId);
+  url.searchParams.set("jobId", job.jobId);
+  const response = await objectStub.fetch(url);
+  const parsed = scheduledEventJobResponseSchema.safeParse(await response.json().catch(() => null));
+  if (!response.ok || !parsed.success) throw new Error("The scheduled event job is unavailable.");
+  return parsed.data;
+}
+
+async function automatedRecipients(
+  env: JobConsumerEnv,
+  organizationId: string,
+  candidates: readonly { readonly profileId: string; readonly recipientName: string }[],
+): Promise<
+  readonly {
+    readonly email: string;
+    readonly name: string;
+    readonly phone: string;
+    readonly profileId: string;
+  }[]
+> {
+  if (!env.CONTROL_DB)
+    throw new Error("The control database is unavailable for scheduled communication.");
+  const emails = await listOrganizationProfileEmails(env.CONTROL_DB, organizationId);
+  return candidates.flatMap((candidate) => {
+    const email = emails.get(candidate.profileId)?.trim() ?? "";
+    return email
+      ? [{ email, name: candidate.recipientName, phone: "", profileId: candidate.profileId }]
+      : [];
+  });
+}
+
+async function deliverScheduledEventCommunication(
+  env: JobConsumerEnv,
+  job: DeliveryJob,
+  kind: "event_reminder" | "rsvp_follow_up",
+): Promise<void> {
+  const scheduled = await readScheduledEventJob(
+    env,
+    job,
+    kind === "event_reminder"
+      ? "/internal/scheduling/event-reminder-job"
+      : "/internal/scheduling/rsvp-follow-up-job",
+  );
+  if (scheduled.recipients.length === 0) return;
+  const templateId =
+    kind === "rsvp_follow_up"
+      ? scheduledEventTemplateIds.eventRsvpFollowUp
+      : scheduled.event.type === "Rehearsal"
+        ? scheduledEventTemplateIds.rehearsalReminder
+        : scheduledEventTemplateIds.performanceReminder;
+  const template = await readOrganizationCommunicationTemplate(env, job.organizationId, templateId);
+  const recipients = await automatedRecipients(env, job.organizationId, scheduled.recipients);
+  if (recipients.length === 0) return;
+  await queueAutomatedOrganizationCommunication(
+    env,
+    {
+      actorUserId: "system:scheduler",
+      organizationId: job.organizationId,
+      organizationOrigin: scheduledEventOrigin(env),
+      requestId: job.jobId,
+    },
+    {
+      contentMarkdown: template.contentMarkdown,
+      eventId: scheduled.eventId,
+      recipients,
+      subject: template.subject,
+    },
+  );
+}
+
+async function reportMembers(
+  env: JobConsumerEnv,
+  organizationId: string,
+): Promise<readonly z.infer<typeof scheduledReportMemberSchema>[]> {
+  if (!env.CONTROL_DB)
+    throw new Error("The control database is unavailable for attendance reports.");
+  const result = await env.CONTROL_DB.prepare(
+    `SELECT u.email, m.profileId, m.role
+       FROM member m JOIN user u ON u.id = m.userId
+       WHERE m.organizationId = ? AND m.role IN ('owner', 'admin')`,
+  )
+    .bind(organizationId)
+    .all<z.infer<typeof scheduledReportMemberSchema>>();
+  return result.results.flatMap((row) => {
+    const parsed = scheduledReportMemberSchema.safeParse(row);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+function attendanceReportValues(
+  report: z.infer<typeof attendanceReportJobResponseSchema>,
+): Readonly<Record<string, string>> {
+  const presentCount = report.roster.filter(({ attendance }) => attendance === "Present").length;
+  const totalCount = report.roster.length;
+  const attendanceRate = totalCount === 0 ? 0 : Math.round((presentCount / totalCount) * 100);
+  const absenteesList =
+    report.roster
+      .filter(({ attendance }) => attendance !== "Present")
+      .map(({ displayName, voicePart }) => `- ${displayName}${voicePart ? ` (${voicePart})` : ""}`)
+      .join("\n") || "- None recorded";
+  const names = new Map(report.reportProfiles.map((profile) => [profile.id, profile.displayName]));
+  const performers = new Set(report.performerProfileIds);
+  const presentByRehearsal = new Map<string, Set<string>>();
+  for (const row of report.linkedRehearsalRows) {
+    if (!presentByRehearsal.has(row.eventId)) {
+      presentByRehearsal.set(row.eventId, new Set<string>());
+    }
+    if (row.profileId && row.attendance === "Present") {
+      const present = presentByRehearsal.get(row.eventId) ?? new Set<string>();
+      present.add(row.profileId);
+      presentByRehearsal.set(row.eventId, present);
+    }
+  }
+  const missedCounts = new Map<string, number>();
+  for (const present of presentByRehearsal.values()) {
+    for (const profileId of performers) {
+      if (!present.has(profileId))
+        missedCounts.set(profileId, (missedCounts.get(profileId) ?? 0) + 1);
+    }
+  }
+  const warningNames = [...missedCounts.entries()]
+    .filter(([, missed]) => missed >= report.warningThreshold)
+    .sort(([left], [right]) => (names.get(left) ?? "").localeCompare(names.get(right) ?? ""))
+    .map(
+      ([profileId, missed]) =>
+        `- ${names.get(profileId) ?? "Unknown Profile"} (${String(missed)} missed Rehearsal${missed === 1 ? "" : "s"})`,
+    )
+    .join("\n");
+  const thresholdWarningsSection = warningNames
+    ? `### Rehearsal follow-up warnings\nProfiles at or above the warning threshold of ${String(report.warningThreshold)}:\n${warningNames}`
+    : "### Rehearsal follow-up warnings\nNo profiles met the warning threshold.";
+  return {
+    absenteesList,
+    attendanceRate: String(attendanceRate),
+    presentCount: String(presentCount),
+    thresholdWarningsSection,
+    totalCount: String(totalCount),
+  };
+}
+
+async function deliverAttendanceReportJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
+  const objectStub = env.ORGANIZATION_STORE.get(
+    env.ORGANIZATION_STORE.idFromName(job.organizationId),
+  );
+  const response = await objectStub.fetch(
+    "https://organization.internal/internal/scheduling/attendance-report-prepare",
+    {
+      body: JSON.stringify({ jobId: job.jobId, organizationId: job.organizationId }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  const parsed = attendanceReportJobResponseSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (!response.ok || !parsed.success) throw new Error("The attendance report job is unavailable.");
+  const members = await reportMembers(env, job.organizationId);
+  const profiles = new Map(parsed.data.reportProfiles.map((profile) => [profile.id, profile]));
+  const eligible = members.filter((member) => {
+    if (!member.profileId) return false;
+    const profile = profiles.get(member.profileId);
+    return (
+      profile?.globalStatus === "Active" &&
+      profile.receiveAttendanceReports === 1 &&
+      profile.doNotEmail === 0 &&
+      profile.emailSuppressed === 0
+    );
+  });
+  const fallback = members.filter((member) => {
+    if (member.role !== "owner" || !member.profileId) return false;
+    const profile = profiles.get(member.profileId);
+    return profile?.doNotEmail === 0 && profile.emailSuppressed === 0;
+  });
+  const recipients = await automatedRecipients(
+    env,
+    job.organizationId,
+    [...(eligible.length > 0 ? eligible : fallback)].flatMap((member) =>
+      member.profileId
+        ? [
+            {
+              profileId: member.profileId,
+              recipientName:
+                profiles.get(member.profileId)?.displayName ?? "Organization Administrator",
+            },
+          ]
+        : [],
+    ),
+  );
+  if (recipients.length === 0) {
+    throw new Error(
+      "No reachable attendance-report recipient is configured; owner attention is required.",
+    );
+  }
+  const template = await readOrganizationCommunicationTemplate(
+    env,
+    job.organizationId,
+    scheduledEventTemplateIds.attendanceReport,
+  );
+  const values = attendanceReportValues(parsed.data);
+  await queueAutomatedOrganizationCommunication(
+    env,
+    {
+      actorUserId: "system:scheduler",
+      organizationId: job.organizationId,
+      organizationOrigin: scheduledEventOrigin(env),
+      requestId: job.jobId,
+    },
+    {
+      contentMarkdown: renderCommunicationTemplate(template.contentMarkdown, "{singerName}", {
+        ...values,
+        eventTitle: parsed.data.event.title,
+        eventType: parsed.data.event.type,
+        eventDate: new Intl.DateTimeFormat("en-US", {
+          dateStyle: "long",
+          timeStyle: "short",
+          timeZone: "UTC",
+        }).format(new Date(parsed.data.event.startsAt)),
+        eventLocation: parsed.data.event.location || parsed.data.event.venueName,
+      }),
+      eventId: parsed.data.eventId,
+      recipients,
+      subject: renderCommunicationTemplate(template.subject, "{singerName}", {
+        eventTitle: parsed.data.event.title,
+        eventDate: new Intl.DateTimeFormat("en-US", {
+          dateStyle: "long",
+          timeStyle: "short",
+          timeZone: "UTC",
+        }).format(new Date(parsed.data.event.startsAt)),
+      }),
+    },
+  );
 }
 
 async function deliverTicketNotificationJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
@@ -640,6 +964,7 @@ async function deliverOrganizationExportJob(env: JobConsumerEnv, job: DeliveryJo
   }
 }
 
+// eslint-disable-next-line complexity -- dispatch keeps each queue kind's terminal/error semantics explicit.
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   if (job.kind === "communication_delivery") {
     await deliverCommunicationJob(env, job);
@@ -676,14 +1001,27 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
     if (!response.ok) throw new Error("Stale payment cleanup was rejected.");
     return;
   }
-  if (job.kind === "event_reminder" || job.kind === "attendance_report") {
-    // In fake or disabled mode, these scheduled background tasks complete idempotently.
-    if (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled") {
+  if (job.kind === "event_reminder" || job.kind === "rsvp_follow_up") {
+    // Older queue fixtures do not provide the control-plane binding. Deployed scheduled jobs
+    // always do; keep those isolated fixtures focused on queue claiming semantics.
+    if (
+      !env.CONTROL_DB &&
+      (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
+    ) {
       return;
     }
+    await deliverScheduledEventCommunication(env, job, job.kind);
+    return;
   }
-  if (env.EXTERNAL_EFFECTS_MODE !== "fake" && env.EXTERNAL_EFFECTS_MODE !== "disabled") {
-    throw new Error("No sandbox provider adapter is configured for this job kind");
+  if (job.kind === "attendance_report") {
+    if (
+      !env.CONTROL_DB &&
+      (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
+    ) {
+      return;
+    }
+    await deliverAttendanceReportJob(env, job);
+    return;
   }
 }
 

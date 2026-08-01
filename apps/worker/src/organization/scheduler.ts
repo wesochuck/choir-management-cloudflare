@@ -1,6 +1,7 @@
 import type { DeliveryJob } from "../jobs/contracts";
+import { calculateRsvpDeadline } from "@choir/domain";
 import { readTicketMessageTemplate } from "./ticketMessageTemplates";
-import { runRosterAutomations } from "./statusAutomationStore";
+import { readRosterAutomationConfiguration, runRosterAutomations } from "./statusAutomationStore";
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
@@ -146,6 +147,83 @@ interface EventReminderCandidateRow {
   readonly eventType: string;
 }
 
+interface RsvpFollowUpCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly eventId: string;
+  readonly eventStartsAt: string;
+  readonly rsvpFollowUpLeadHours: number | null;
+  readonly rsvpFollowUpMode: "disabled" | "enabled" | "inherit";
+}
+
+function readOrganizationTimezone(storage: DurableObjectStorage): string {
+  return storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
+}
+
+function createRsvpFollowUpJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const configuration = readRosterAutomationConfiguration(storage);
+  if (!configuration.rsvpExpiryEnabled) return;
+  const timezone = readOrganizationTimezone(storage);
+  const candidates = storage.sql
+    .exec<RsvpFollowUpCandidateRow>(
+      `SELECT id AS eventId, starts_at AS eventStartsAt,
+         rsvp_follow_up_mode AS rsvpFollowUpMode,
+         rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours
+       FROM events
+       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+         AND starts_at > ?
+       ORDER BY starts_at, id LIMIT 500`,
+      now.toISOString(),
+    )
+    .toArray();
+  for (const candidate of candidates) {
+    if (candidate.rsvpFollowUpMode === "disabled") continue;
+    const enabled =
+      candidate.rsvpFollowUpMode === "enabled"
+        ? candidate.rsvpFollowUpLeadHours !== null
+        : configuration.rsvpFollowUpEnabled;
+    if (!enabled) continue;
+    const leadHours =
+      candidate.rsvpFollowUpMode === "enabled"
+        ? candidate.rsvpFollowUpLeadHours
+        : configuration.rsvpFollowUpLeadHours;
+    if (leadHours === null) continue;
+    const deadline = calculateRsvpDeadline(
+      { startsAt: candidate.eventStartsAt, type: "Performance" },
+      configuration.rsvpExpiryLeadDays,
+      timezone,
+    );
+    if (!deadline) continue;
+    const deadlineAt = new Date(deadline.deadlineAt).getTime();
+    const dueAt = deadlineAt - leadHours * 60 * 60 * 1_000;
+    if (deadlineAt <= now.getTime() || dueAt > now.getTime()) continue;
+    const idempotencyKey = `rsvp-follow-up:${organizationId}:${candidate.eventId}`;
+    const alreadyQueued = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly jobId: string }>(
+        "SELECT job_id AS jobId FROM scheduled_job_outbox WHERE idempotency_key = ? LIMIT 1",
+        idempotencyKey,
+      )
+      .toArray()
+      .at(0);
+    if (alreadyQueued) continue;
+    storage.sql.exec(
+      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'rsvp_follow_up', ?, ?, ?)`,
+      crypto.randomUUID(),
+      idempotencyKey,
+      now.toISOString(),
+      now.toISOString(),
+    );
+  }
+}
+
 function createEventReminderJobs(
   storage: DurableObjectStorage,
   organizationId: string,
@@ -211,7 +289,6 @@ function createPostEventReportJobs(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
        FROM events
        WHERE is_archived = 0 AND is_canceled = 0
-         AND type = 'Performance'
          AND starts_at >= ?
          AND starts_at < ?
        ORDER BY eventStartsAt, eventId LIMIT 50`,
@@ -263,6 +340,7 @@ function createDueJobs(storage: DurableObjectStorage, organizationId: string, no
     );
     createTicketReminderJobs(storage, now);
     createEventReminderJobs(storage, organizationId, now);
+    createRsvpFollowUpJobs(storage, organizationId, now);
     createPostEventReportJobs(storage, organizationId, now);
     storage.sql.exec(
       `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,

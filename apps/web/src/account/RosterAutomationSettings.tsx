@@ -117,9 +117,12 @@ export function RosterAutomationSettings({ enabled }: Props) {
         onBreakTimeoutEnabled: configuration.onBreakTimeoutEnabled,
         rsvpExpiryEnabled: configuration.rsvpExpiryEnabled,
         rsvpExpiryLeadDays: configuration.rsvpExpiryLeadDays,
+        rsvpFollowUpEnabled: configuration.rsvpFollowUpEnabled,
+        rsvpFollowUpLeadHours: configuration.rsvpFollowUpLeadHours,
         statusAutomationEnabled: configuration.statusAutomationEnabled,
         statusAutomationMissThreshold: configuration.statusAutomationMissThreshold,
         statusAutomationRecoveryEnabled: configuration.statusAutomationRecoveryEnabled,
+        attendanceReportWarningThreshold: configuration.attendanceReportWarningThreshold,
       });
       setConfiguration(nextConfiguration);
       setSavedConfiguration(nextConfiguration);
@@ -320,6 +323,72 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 />
               </label>
               <p className="field-help">Current default: 7 days before the Performance date.</p>
+            </article>
+
+            <article className="roster-automation__card">
+              <div className="section-heading section-heading--compact">
+                <p className="eyebrow">Scheduled communications</p>
+                <h3>Pending RSVP follow-up</h3>
+                <p className="section-description">
+                  Send one email to active Performers who have not responded before the RSVP
+                  deadline. Linked Rehearsals use their parent Performance.
+                </p>
+              </div>
+              <label className="checkbox-row">
+                <input
+                  checked={configuration.rsvpFollowUpEnabled}
+                  onChange={(event) => {
+                    setConfiguration({
+                      ...configuration,
+                      rsvpFollowUpEnabled: event.target.checked,
+                    });
+                  }}
+                  type="checkbox"
+                />
+                Send the pending RSVP follow-up email
+              </label>
+              <label className="field" htmlFor="rsvp-follow-up-lead-hours">
+                Hours before the RSVP deadline
+                <input
+                  id="rsvp-follow-up-lead-hours"
+                  min="1"
+                  max="720"
+                  onChange={(event) => {
+                    setConfiguration({
+                      ...configuration,
+                      rsvpFollowUpLeadHours: Math.max(
+                        1,
+                        Math.min(720, Number(event.target.value) || 1),
+                      ),
+                    });
+                  }}
+                  type="number"
+                  value={configuration.rsvpFollowUpLeadHours}
+                />
+              </label>
+              <label className="field" htmlFor="attendance-report-warning-threshold">
+                Rehearsal misses before an attendance warning
+                <input
+                  id="attendance-report-warning-threshold"
+                  min="1"
+                  max="10"
+                  onChange={(event) => {
+                    setConfiguration({
+                      ...configuration,
+                      attendanceReportWarningThreshold: Math.max(
+                        1,
+                        Math.min(10, Number(event.target.value) || 1),
+                      ),
+                    });
+                  }}
+                  type="number"
+                  value={configuration.attendanceReportWarningThreshold}
+                />
+              </label>
+              <p className="field-help">
+                Attendance reports are sent 12 hours after Performances and Rehearsals. The default
+                warning threshold is one missed linked Rehearsal.
+              </p>
             </article>
           </div>
 
