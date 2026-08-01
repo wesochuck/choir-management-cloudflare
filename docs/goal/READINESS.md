@@ -47,6 +47,15 @@ contains no Stripe or Brevo credentials, and read-only remote D1 inspection repo
 `0009_stripe_connected_accounts` pending; no hosted migration or deployment was performed, so
 payment sandbox qualification cannot yet run.
 
+The CI-qualified commit `ecf8972` then deployed successfully to permanent staging on August 1 as
+Worker version `e13703f1-13e4-43d6-ac7f-b70e809c671a`. The automatic deployment applied migration
+`0009_stripe_connected_accounts`, and a subsequent remote check reported no migrations to apply. The
+deployed anonymous qualification passed the same 3-host, 180-shell, 9-core, and 75
+product/Organization GET boundary probes. The deployed Stripe endpoint fails closed with the typed
+HTTP 503 `stripe_webhook_unavailable` response because the secure secret inventory still contains no
+`STRIPE_WEBHOOK_SECRET`, Stripe test key, or Brevo sandbox credentials. No payment sandbox charge,
+webhook, email, or SMS effect was attempted.
+
 ## July 26 parity recheck
 
 The structural parity checker validates all 190 inventory entries and all target-evidence paths, but
