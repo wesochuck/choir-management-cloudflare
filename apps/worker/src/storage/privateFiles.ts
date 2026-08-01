@@ -49,6 +49,13 @@ export const privateFileTransitionSchema = z.object({
   storageKey: z.string().min(1).max(512),
 });
 
+export const privateFileReclamationSchema = z.object({
+  actorUserId: z.string().min(1).max(128),
+  fileId: privateFileIdSchema,
+  organizationId: organizationIdSchema,
+  requestId: z.uuid(),
+});
+
 const privateFileMetadataSchema = z.object({
   contentType: privateFileContentTypeSchema,
   fileName: privateFileNameSchema,
@@ -118,6 +125,41 @@ export function privateOrganizationFileKey(organizationId: string, fileId: strin
   return `organizations/${organizationId}/private/${fileId}`;
 }
 
+function privateFileStorageName(fileName: string): string {
+  const stem = fileName.replace(/\.[^./\\]+$/, "");
+  const slug = stem
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 96);
+  return slug || "learning-track";
+}
+
+export function privateOrganizationUploadKey(
+  organizationId: string,
+  fileId: string,
+  fileName: string,
+  contentType: string,
+): string {
+  if (contentType !== "audio/mpeg") return privateOrganizationFileKey(organizationId, fileId);
+  return `organizations/${organizationId}/private/${privateFileStorageName(fileName)}-${fileId}.mp3`;
+}
+
+export function isPrivateOrganizationFileKey(
+  organizationId: string,
+  fileId: string,
+  fileName: string,
+  contentType: string,
+  storageKey: string,
+): boolean {
+  return (
+    storageKey === privateOrganizationFileKey(organizationId, fileId) ||
+    storageKey === privateOrganizationUploadKey(organizationId, fileId, fileName, contentType)
+  );
+}
+
 async function abortReservation(
   stub: DurableObjectStub,
   transition: z.infer<typeof privateFileTransitionSchema>,
@@ -156,7 +198,12 @@ export async function uploadPrivateOrganizationFile(
   if (!reservationResponse.ok || !reservation.success) {
     throw new PrivateFileStorageError("unavailable", "Private file reservation failed.");
   }
-  const expectedKey = privateOrganizationFileKey(parsed.organizationId, parsed.fileId);
+  const expectedKey = privateOrganizationUploadKey(
+    parsed.organizationId,
+    parsed.fileId,
+    parsed.fileName,
+    parsed.contentType,
+  );
   if (reservation.data.storageKey !== expectedKey) {
     throw new PrivateFileStorageError("unavailable", "Private file storage scope was rejected.");
   }
@@ -205,7 +252,6 @@ export async function readPrivateOrganizationFile(
   readonly object: R2ObjectBody;
   readonly range: { readonly length: number; readonly offset: number } | null;
 } | null> {
-  const expectedKey = privateOrganizationFileKey(organizationId, fileId);
   const objectId = env.ORGANIZATION_STORE.idFromName(organizationId);
   const metadataResponse = await env.ORGANIZATION_STORE.get(objectId).fetch(
     `https://organization.internal/internal/files/${encodeURIComponent(fileId)}`,
@@ -214,12 +260,23 @@ export async function readPrivateOrganizationFile(
     return null;
   }
   const metadata = privateFileMetadataSchema.safeParse(await metadataResponse.json());
-  if (!metadataResponse.ok || !metadata.success || metadata.data.storageKey !== expectedKey) {
+  if (
+    !metadataResponse.ok ||
+    !metadata.success ||
+    !isPrivateOrganizationFileKey(
+      organizationId,
+      fileId,
+      metadata.data.fileName,
+      metadata.data.contentType,
+      metadata.data.storageKey,
+    )
+  ) {
     throw new PrivateFileStorageError("unavailable", "Private file metadata scope was rejected.");
   }
+  const storageKey = metadata.data.storageKey;
   const range = rangeHeader ? requestedRange(rangeHeader, metadata.data.sizeBytes) : null;
   const object = await env.ORGANIZATION_FILES.get(
-    expectedKey,
+    storageKey,
     range ? { range: { length: range.length, offset: range.offset } } : undefined,
   );
   if (!object) {
@@ -237,31 +294,34 @@ export async function readPrivateOrganizationFile(
 
 export async function reclaimPrivateOrganizationFile(
   env: PrivateFileEnv,
-  input: z.infer<typeof privateFileTransitionSchema>,
+  input: z.infer<typeof privateFileReclamationSchema>,
 ): Promise<boolean> {
-  const parsed = privateFileTransitionSchema.parse(input);
-  const expectedKey = privateOrganizationFileKey(parsed.organizationId, parsed.fileId);
+  const parsed = privateFileReclamationSchema.parse(input);
   const stub = env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(parsed.organizationId));
   const claim = await stub.fetch("https://organization.internal/internal/files/reclaim", {
-    body: JSON.stringify({ ...parsed, storageKey: expectedKey }),
+    body: JSON.stringify(parsed),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
   if (claim.status === 409) return false;
-  if (!claim.ok)
+  const claimed = z
+    .object({ claimed: z.literal(true), storageKey: z.string().min(1).max(512) })
+    .safeParse(await claim.json());
+  if (!claim.ok || !claimed.success)
     throw new PrivateFileStorageError("unavailable", "Private file reclamation failed.");
+  const transition = { ...parsed, storageKey: claimed.data.storageKey };
   try {
-    await env.ORGANIZATION_FILES.delete(expectedKey);
+    await env.ORGANIZATION_FILES.delete(claimed.data.storageKey);
   } catch (error: unknown) {
     await stub.fetch("https://organization.internal/internal/files/reclaim-abort", {
-      body: JSON.stringify({ ...parsed, storageKey: expectedKey }),
+      body: JSON.stringify(transition),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
     throw error;
   }
   const finished = await stub.fetch("https://organization.internal/internal/files/reclaimed", {
-    body: JSON.stringify({ ...parsed, storageKey: expectedKey }),
+    body: JSON.stringify(transition),
     headers: { "content-type": "application/json" },
     method: "POST",
   });

@@ -93,6 +93,11 @@ Every R2 key begins `organizations/{organizationId}/`. Original files are privat
 published. Metadata and authorization remain in the Organization store. Published projections use
 immutable versioned keys and a derived pointer.
 
+New `audio/mpeg` learning tracks use a slugified human-readable upload name followed by the full
+file UUID and `.mp3`, for example `track-work-full-mix-{fileId}.mp3` at the private Organization
+prefix. The Organization store records the exact key and remains authoritative for reads and
+reclamation. Existing UUID-only private-file keys remain valid and are not migrated.
+
 KV contains only derived hostname routes and published-projection pointers. D1 and the Organization
 store remain authoritative; KV values never grant permissions.
 

@@ -558,13 +558,16 @@ export async function importOrganizationMusicCsv(csv: string): Promise<number> {
   return organizationMusicImportResponseSchema.parse(await response.json()).imported;
 }
 
-export async function uploadPrivateOrganizationFile(file: File): Promise<PrivateFileResponse> {
+export async function uploadPrivateOrganizationFile(
+  file: File,
+  fileName = file.name,
+): Promise<PrivateFileResponse> {
   const fileId = crypto.randomUUID();
   const response = await request(`/api/organization/files/${fileId}`, {
     body: file,
     headers: {
       "content-type": file.type,
-      "x-file-name": encodeURIComponent(file.name),
+      "x-file-name": encodeURIComponent(fileName),
     },
     method: "PUT",
   });

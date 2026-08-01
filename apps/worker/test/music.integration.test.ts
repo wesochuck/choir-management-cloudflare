@@ -225,14 +225,15 @@ describe("Organization music catalog", () => {
       ).json(),
     );
     const bytes = new TextEncoder().encode("audio-test-data");
-    const fileId = crypto.randomUUID();
+    const fileId = "44444444-4444-4444-8444-444444444444";
+    const storageKey = `organizations/organization-alpha/private/track-work-full-mix-${fileId}.mp3`;
     const uploadResponse = await exports.default.fetch(
       api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
         body: bytes,
         headers: {
           "content-length": String(bytes.byteLength),
           "content-type": "audio/mpeg",
-          "x-file-name": encodeURIComponent("tutti-track.mp3"),
+          "x-file-name": encodeURIComponent("Track Work - Full mix.mp3"),
         },
         method: "PUT",
       }),
@@ -240,9 +241,23 @@ describe("Organization music catalog", () => {
     expect(uploadResponse.status).toBe(201);
     expect(privateFileResponseSchema.parse(await uploadResponse.json())).toMatchObject({
       contentType: "audio/mpeg",
-      fileName: "tutti-track.mp3",
+      fileName: "Track Work - Full mix.mp3",
       id: fileId,
     });
+    expect(
+      await runInDurableObject<OrganizationStore, string | null>(
+        stores.get(stores.idFromName("organization-alpha")),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly storageKey: string }>(
+              "SELECT storage_key AS storageKey FROM private_files WHERE id = ?",
+              fileId,
+            )
+            .toArray()
+            .at(0)?.storageKey ?? null,
+      ),
+    ).toBe(storageKey);
+    await expect(organizationFiles.head(storageKey)).resolves.not.toBeNull();
 
     const attached = organizationMusicPieceResponseSchema.parse(
       await (
@@ -302,9 +317,7 @@ describe("Organization music catalog", () => {
       api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, { method: "DELETE" }),
     );
     expect(reclaimed.status).toBe(200);
-    expect(
-      await organizationFiles.head(`organizations/organization-alpha/private/${fileId}`),
-    ).toBeNull();
+    expect(await organizationFiles.head(storageKey)).toBeNull();
     expect(
       await exports.default.fetch(
         api("alpha.localhost", `/api/organization/files/${fileId}`, cookie),
