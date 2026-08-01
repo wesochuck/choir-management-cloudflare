@@ -1,0 +1,331 @@
+import { useEffect, useRef } from "react";
+import type {
+  AuditionStatus,
+  OrganizationAudition,
+  OrganizationAuditionCreateRequest,
+} from "@choir/contracts";
+import { Dialog } from "@choir/ui";
+
+import { STATUS_LABELS, formatDate, requestedScheduleValue } from "./utils";
+
+import { EditAuditionForm, CreateAuditionForm } from "./shared";
+
+export function AuditionTable({
+  auditions,
+  onConvert,
+  onDelete,
+  onEdit,
+  onSchedule,
+  onToggle,
+  onToggleAll,
+  selectedIds,
+}: {
+  readonly auditions: readonly OrganizationAudition[];
+  readonly onConvert: (audition: OrganizationAudition) => void;
+  readonly onDelete: (audition: OrganizationAudition) => void;
+  readonly onEdit: (audition: OrganizationAudition) => void;
+  readonly onSchedule: (audition: OrganizationAudition) => void;
+  readonly onToggle: (id: string) => void;
+  readonly onToggleAll: () => void;
+  readonly selectedIds: readonly string[];
+}) {
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const selectedIdSet = new Set(selectedIds);
+  const allVisibleSelected =
+    auditions.length > 0 && auditions.every(({ id }) => selectedIdSet.has(id));
+  const someVisibleSelected = auditions.some(({ id }) => selectedIdSet.has(id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [allVisibleSelected, someVisibleSelected]);
+
+  return (
+    <div className="audition-table" role="table">
+      <div className="audition-table__header" role="row">
+        <span role="columnheader">
+          <input
+            aria-label={
+              allVisibleSelected ? "Clear all visible auditions" : "Select all visible auditions"
+            }
+            checked={allVisibleSelected}
+            className="audition-selection-checkbox"
+            onChange={onToggleAll}
+            ref={selectAllRef}
+            type="checkbox"
+          />
+        </span>
+        <span role="columnheader">Name / contact</span>
+        <span role="columnheader">Preferred times</span>
+        <span role="columnheader">Status</span>
+        <span role="columnheader">Submitted</span>
+        <span role="columnheader">Actions</span>
+      </div>
+      {auditions.map((audition) => (
+        <div className="audition-table__row" key={audition.id} role="row">
+          <span role="cell">
+            <input
+              aria-label={`Select ${audition.name} for token generation`}
+              checked={selectedIdSet.has(audition.id)}
+              className="audition-selection-checkbox"
+              onChange={() => {
+                onToggle(audition.id);
+              }}
+              type="checkbox"
+            />
+          </span>
+          <span role="cell">
+            <strong>{audition.name}</strong>
+            <small className="table-secondary">
+              {audition.email}
+              {audition.phone ? ` · ${audition.phone}` : ""}
+              {audition.voicePart ? ` · ${audition.voicePart}` : ""}
+            </small>
+          </span>
+          <span role="cell">
+            {audition.scheduledTimeSlot
+              ? formatDate(audition.scheduledTimeSlot)
+              : audition.requestedSlots.length > 0
+                ? `${String(audition.requestedSlots.length)} requested`
+                : "Any time"}
+          </span>
+          <span role="cell">
+            <span className={`badge badge--${audition.status}`}>
+              {STATUS_LABELS[audition.status]}
+            </span>
+          </span>
+          <span role="cell">{formatDate(audition.createdAt)}</span>
+          <span role="cell">
+            <div className="table-actions">
+              <button
+                className="text-button"
+                onClick={() => {
+                  onEdit(audition);
+                }}
+                type="button"
+              >
+                Edit
+              </button>
+              {audition.status === "pending" ? (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    onSchedule(audition);
+                  }}
+                  type="button"
+                >
+                  Schedule
+                </button>
+              ) : null}
+              {audition.status === "scheduled" ? (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    onConvert(audition);
+                  }}
+                  type="button"
+                >
+                  Convert to Profile
+                </button>
+              ) : null}
+              <button
+                className="text-button text-button--danger"
+                onClick={() => {
+                  onDelete(audition);
+                }}
+                type="button"
+              >
+                Delete
+              </button>
+            </div>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function AuditionDialogs({
+  confirm,
+  customScheduleTime,
+  createAudition,
+  createOpen,
+  editing,
+  executeConfirm,
+  onCancelConfirm,
+  onCancelCreate,
+  onCancelEdit,
+  onCancelSchedule,
+  onCustomScheduleTimeChange,
+  onScheduleTimeChange,
+  saveEdit,
+  schedule,
+  scheduleAudition,
+  scheduleOpen,
+  scheduleTime,
+}: {
+  readonly confirm: {
+    readonly action: "convert" | "delete";
+    readonly audition: OrganizationAudition;
+  } | null;
+  readonly createAudition: (next: OrganizationAuditionCreateRequest) => Promise<void>;
+  readonly createOpen: boolean;
+  readonly editing: OrganizationAudition | null;
+  readonly executeConfirm: () => Promise<void>;
+  readonly onCancelConfirm: () => void;
+  readonly onCancelCreate: () => void;
+  readonly onCancelEdit: () => void;
+  readonly onCancelSchedule: () => void;
+  readonly onCustomScheduleTimeChange: (value: string) => void;
+  readonly onScheduleTimeChange: (value: string) => void;
+  readonly saveEdit: (update: {
+    readonly adminNotes: string;
+    readonly availabilityNotes: string;
+    readonly email: string;
+    readonly experience: string;
+    readonly name: string;
+    readonly phone: string;
+    readonly status: AuditionStatus;
+    readonly voicePart: string;
+  }) => Promise<void>;
+  readonly schedule: OrganizationAudition | null;
+  readonly scheduleAudition: () => Promise<void>;
+  readonly scheduleOpen: boolean;
+  readonly scheduleTime: string;
+  readonly customScheduleTime: string;
+}) {
+  return (
+    <>
+      <Dialog
+        description="Update contact details, status, and internal notes."
+        onClose={onCancelEdit}
+        open={editing !== null}
+        title="Edit audition"
+      >
+        {editing ? (
+          <EditAuditionForm audition={editing} onCancel={onCancelEdit} onSave={saveEdit} />
+        ) : null}
+      </Dialog>
+      <Dialog
+        description="Create an internal audition request."
+        onClose={onCancelCreate}
+        open={createOpen}
+        title="New audition"
+      >
+        {createOpen ? (
+          <CreateAuditionForm onCancel={onCancelCreate} onSave={createAudition} />
+        ) : null}
+      </Dialog>
+      <Dialog
+        description="Choose a confirmed time and send the applicant a scheduling update."
+        onClose={onCancelSchedule}
+        open={scheduleOpen}
+        title="Schedule audition"
+      >
+        <form
+          className="form-stack audition-schedule-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void scheduleAudition();
+          }}
+        >
+          {schedule?.requestedSlots && schedule.requestedSlots.length > 0 ? (
+            <>
+              <fieldset className="schedule-time-section">
+                <legend>Applicant's requested times</legend>
+                <p className="schedule-time-section__hint">
+                  Choose one of the times the applicant requested.
+                </p>
+                <label className="field">
+                  Requested time
+                  <select
+                    value={requestedScheduleValue(scheduleTime, schedule.requestedSlots)}
+                    onChange={(event) => {
+                      onScheduleTimeChange(event.target.value);
+                    }}
+                  >
+                    <option value="">Choose a requested time…</option>
+                    {schedule.requestedSlots.map((slot) => (
+                      <option key={slot} value={slot.slice(0, 16)}>
+                        {formatDate(slot)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </fieldset>
+              <div className="schedule-time-custom">
+                <strong className="schedule-time-custom__title">Need a different time?</strong>
+                <p className="schedule-time-custom__hint">
+                  Use this only when none of the requested times work.
+                </p>
+                <label className="field">
+                  Custom confirmed time
+                  <input
+                    required={!requestedScheduleValue(scheduleTime, schedule.requestedSlots)}
+                    type="datetime-local"
+                    value={customScheduleTime}
+                    onChange={(event) => {
+                      onCustomScheduleTimeChange(event.target.value);
+                    }}
+                  />
+                </label>
+              </div>
+            </>
+          ) : null}
+          {!schedule?.requestedSlots || schedule.requestedSlots.length === 0 ? (
+            <label className="field">
+              Confirmed time
+              <input
+                required
+                type="datetime-local"
+                value={scheduleTime}
+                onChange={(event) => {
+                  onScheduleTimeChange(event.target.value);
+                }}
+              />
+            </label>
+          ) : null}
+          <div className="form-actions">
+            <button className="button button--secondary" onClick={onCancelSchedule} type="button">
+              Cancel
+            </button>
+            <button className="button" type="submit">
+              Confirm schedule
+            </button>
+          </div>
+        </form>
+      </Dialog>
+      <Dialog
+        description="This action cannot be undone."
+        onClose={onCancelConfirm}
+        open={confirm !== null}
+        title={
+          confirm?.action === "convert" ? "Convert to Organization Profile?" : "Delete audition?"
+        }
+      >
+        {confirm ? (
+          <div className="form-stack">
+            <p>
+              {confirm.action === "convert"
+                ? `Create an Organization Profile for ${confirm.audition.name} and mark this audition complete?`
+                : `Delete the audition request for ${confirm.audition.name}?`}
+            </p>
+            <div className="form-actions">
+              <button className="button button--secondary" onClick={onCancelConfirm} type="button">
+                Cancel
+              </button>
+              <button
+                className="button button--danger"
+                onClick={() => void executeConfirm()}
+                type="button"
+              >
+                {confirm.action === "convert" ? "Convert" : "Delete"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
+    </>
+  );
+}

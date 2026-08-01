@@ -2,11 +2,13 @@ import { z } from "zod";
 
 const operationSchema = z.object({
   action: z.literal("record_payment_dispute"),
+  amountCents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   disputeStatus: z.string().min(1).max(80),
   organizationId: z.string().min(1).max(128),
   paymentType: z.enum(["ticket", "bundle", "donation", "dues", "unknown"]),
   providerPaymentId: z.string().min(1).max(256),
   providerSessionId: z.string().min(1).max(256),
+  reason: z.string().trim().min(1).max(256),
   stripeEventId: z.string().min(1).max(256),
 });
 
@@ -44,15 +46,19 @@ export function recordPaymentDisputeInStore(
       `INSERT INTO payment_disputes
         (id, provider_dispute_id, provider_payment_id, payment_type,
          status, reason, amount_cents, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, '', 0, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(provider_dispute_id) DO UPDATE SET
          status = excluded.status,
+         reason = excluded.reason,
+         amount_cents = excluded.amount_cents,
          updated_at = excluded.updated_at`,
       crypto.randomUUID(),
       parsedOperation.providerSessionId,
       parsedOperation.providerPaymentId,
       parsedOperation.paymentType,
       parsedOperation.disputeStatus,
+      parsedOperation.reason,
+      parsedOperation.amountCents,
       occurredAt,
       occurredAt,
     );
@@ -66,8 +72,10 @@ export function recordPaymentDisputeInStore(
       parsedOperation.providerSessionId,
       parsedOperation.stripeEventId,
       JSON.stringify({
+        amountCents: parsedOperation.amountCents,
         paymentType: parsedOperation.paymentType,
         providerPaymentId: parsedOperation.providerPaymentId,
+        reason: parsedOperation.reason,
         status: parsedOperation.disputeStatus,
       }),
       occurredAt,

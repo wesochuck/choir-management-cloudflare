@@ -73,3 +73,17 @@ requirements.
 Accepted legacy ADRs 0001 and 0002 are copied as behavioral entries in the parity matrix through
 their executable reminder-roster and performer-credit snapshot tests. Cloudflare ADRs 0003–0015
 remain normative architecture rather than historical parity claims.
+
+## August 1 refactor classification note
+
+The PocketBase-era alias inventory was verified against current callers, tests, probes, and the
+Worker route set. RSVP/quick-RSVP/unsubscribe/token aliases, legacy checkout aliases,
+player-playlist, ticket validation and scan-context aliases, singer RSVP, bulk attendance/RSVP
+aliases, legacy refund/resend/communication aliases, manual queue processing, calendar download, and
+synchronous `organization/export.json` were hard-removed with no redirects. The forwarding helpers
+and legacy buyer-email fallbacks were removed as well.
+
+Remaining behavior was normalized to canonical namespaces for module state, queue settings,
+maintenance, dues cash/refund, donation refund, health fingerprint, player tokens, public donation
+checkout, public RSVP, and public player playlist. The feature matrix and expected route set were
+updated in the same change; the resulting matrix contains 181 entries.

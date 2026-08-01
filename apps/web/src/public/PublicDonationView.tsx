@@ -115,7 +115,7 @@ export function PublicDonationView() {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/checkout/create-donation-session", {
+      const response = await fetch("/api/public/donations/checkout", {
         body: JSON.stringify({
           amountCents,
           anonymous,

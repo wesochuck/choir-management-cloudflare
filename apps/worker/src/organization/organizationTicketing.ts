@@ -54,6 +54,40 @@ function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
 
+const scanCredentialResponseSchema = z.object({
+  expiresAt: z.number().int().positive(),
+  issuedAt: z.number().int().positive(),
+  nonce: z.string().min(1).max(128),
+});
+
+export async function issueOrganizationTicketScanCredential(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  purchaseId: string,
+) {
+  const response = await stub(env, organizationId).fetch(
+    "https://organization.internal/internal/ticketing/manage",
+    {
+      body: JSON.stringify({
+        action: "issue_ticket_scan_credential",
+        organizationId,
+        purchaseId,
+        requestId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    throw new TicketingError(
+      await errorCode(response),
+      response.status,
+      "The ticket credential could not be issued.",
+    );
+  }
+  return scanCredentialResponseSchema.parse(await response.json());
+}
+
 async function errorCode(response: Response): Promise<string> {
   const value: unknown = await response.json().catch(() => null);
   return typeof value === "object" &&
@@ -323,13 +357,12 @@ export async function readPublicTicketPurchase(
   if (!response.ok)
     throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
   const purchase = publicTicketPurchaseSchema.parse(await response.json());
-  const issuedAt = Math.floor(Date.now() / 1000);
-  const eventEndsAt = Math.floor(purchaseEndsAt(purchase) / 1000) + 24 * 60 * 60;
+  const credential = await issueOrganizationTicketScanCredential(env, organizationId, purchase.id);
   const scanToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
     algorithm: "HS256",
-    expiresAt: Math.max(issuedAt + 60 * 60, eventEndsAt),
-    issuedAt,
-    nonce: crypto.randomUUID(),
+    expiresAt: credential.expiresAt,
+    issuedAt: credential.issuedAt,
+    nonce: credential.nonce,
     organizationId,
     purpose: "ticket_scan",
     resourceId: purchase.id,
@@ -452,6 +485,7 @@ export async function validateOrganizationTicketScan(
         ...actor,
         eventId,
         purchaseId: envelope.resourceId,
+        scanNonce: envelope.nonce,
       }),
       headers: { "content-type": "application/json" },
       method: "POST",

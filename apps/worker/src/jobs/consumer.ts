@@ -1,969 +1,26 @@
-import { z } from "zod";
-import { renderCommunicationTemplate } from "@choir/domain";
-
-import type { Env } from "../env";
-import { deliverOrganizationCommunication } from "../communications/provider";
-import {
-  queueAutomatedOrganizationCommunication,
-  readOrganizationCommunicationTemplate,
-  readCommunicationDeliveryJob,
-  recordCommunicationDeliveryResults,
-} from "../organization/organizationCommunications";
-import { buildOrganizationExportArchive } from "../organization/organizationExport";
-import { issuePlayerToken } from "../organization/organizationPlayerLinks";
-import { issueRsvpToken } from "../organization/organizationRsvpLinks";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
-import { issueSignedLink } from "../security/signedLinks";
-import { organizationExportKey } from "../organization/exportStore";
-import { listOrganizationProfileEmails } from "../organization/profiles";
-
-type JobConsumerEnv = Pick<
-  Env,
-  | "BREVO_API_KEY"
-  | "BREVO_EMAIL_FROM"
-  | "BREVO_EMAIL_FROM_NAME"
-  | "BREVO_SMS_ALLOWED_RECIPIENTS"
-  | "BREVO_SMS_SENDER"
-  | "EXTERNAL_EFFECTS_MODE"
-  | "ORGANIZATION_FILES"
-  | "ORGANIZATION_STORE"
-  | "PRODUCT_BASE_DOMAIN"
-  | "SIGNED_LINK_SECRET"
-> &
-  Partial<Pick<Env, "CONTROL_DB">>;
-type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB">;
-
-const claimResponseSchema = z.object({
-  claimed: z.boolean(),
-  status: z.string(),
-});
-const completionResponseSchema = z.object({ completed: z.boolean() });
-const deliveryAttemptSchema = z.number().int().min(1).max(10);
-const failureResponseSchema = z.object({ failed: z.boolean() });
-const ticketNotificationJobSchema = z.object({
-  buyerName: z.string().min(1).max(200),
-  contentMarkdown: z.string().max(100_000),
-  currency: z.string().regex(/^[A-Za-z]{3}$/),
-  destination: z.email(),
-  eventStartsAt: z.iso.datetime(),
-  eventTitle: z.string().min(1).max(500),
-  id: z.uuid(),
-  amountPaidCents: z.number().int().nonnegative(),
-  bundleTitle: z.string().nullable(),
-  kind: z.enum(["confirmation", "reminder"]),
-  purchaseId: z.uuid(),
-  quantity: z.number().int().positive(),
-  status: z.enum(["queued", "processing"]),
-  subject: z.string().max(300),
-  timezone: z.string().min(1).max(100),
-});
-const paymentNotificationJobSchema = z.object({
-  contentMarkdown: z.string().max(100_000),
-  destination: z.email(),
-  id: z.uuid(),
-  paymentType: z.enum(["donation", "dues"]),
-  recipientName: z.string().min(1).max(200),
-  resourceId: z.uuid(),
-  status: z.enum(["queued", "processing"]),
-  subject: z.string().max(300),
-});
-const auditionNotificationJobSchema = z.object({
-  contentMarkdown: z.string().max(100_000),
-  destination: z.email(),
-  id: z.uuid(),
-  recipientName: z.string().min(1).max(200),
-  status: z.enum(["queued", "processing"]),
-  subject: z.string().max(300),
-});
-const organizationExportJobSchema = z.object({
-  actorType: z.enum(["organization_member", "platform_administrator"]),
-  actorUserId: z.string().min(1).max(128),
-  archiveKey: z.string().nullable(),
-  byteCount: z.number().int().nonnegative().nullable(),
-  checksumSha256: z.string().nullable(),
-  errorCode: z.string().nullable(),
-  exportId: z.uuid(),
-  format: z.literal("json"),
-  requestId: z.uuid(),
-  status: z.enum(["queued", "processing", "completed", "failed"]),
-});
-const organizationExportSnapshotSchema = z.object({
-  files: z.array(
-    z.object({
-      checksums: z.record(z.string(), z.string()),
-      contentType: z.string(),
-      fileName: z.string(),
-      id: z.string(),
-      sizeBytes: z.number().int().nonnegative(),
-      storageKey: z.string(),
-      uploadedAt: z.string().nullable(),
-    }),
-  ),
-  metadata: z.record(z.string(), z.unknown()),
-  records: z.record(z.string(), z.array(z.record(z.string(), z.unknown()))),
-});
-const deadLetterInsertSql = `INSERT INTO job_dead_letters
-  (id, queue_name, message_id, message_valid, observed_attempt,
-   organization_id, job_id, job_kind, idempotency_key,
-   first_seen_at, last_seen_at, observation_count)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
- ON CONFLICT(id) DO UPDATE SET
-   last_seen_at = excluded.last_seen_at,
-   observed_attempt = excluded.observed_attempt,
-   observation_count = job_dead_letters.observation_count + 1`;
-
-function retryDelaySeconds(attempt: number): number {
-  const exponentialDelay = Math.min(300, 2 ** attempt);
-  const deterministicJitter = (attempt * 17) % 11;
-  return exponentialDelay + deterministicJitter;
-}
-
-async function recordJobFailure(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
-  try {
-    const objectId = env.ORGANIZATION_STORE.idFromName(job.organizationId);
-    const failureResponse = await env.ORGANIZATION_STORE.get(objectId).fetch(
-      "https://organization.internal/internal/jobs/fail",
-      {
-        body: JSON.stringify({
-          attempt: job.attempt,
-          failedAt: new Date().toISOString(),
-          idempotencyKey: job.idempotencyKey,
-          jobId: job.jobId,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      },
-    );
-    const failure = failureResponseSchema.safeParse(await failureResponse.json());
-    if (!failureResponse.ok || !failure.success || !failure.data.failed) {
-      console.error(
-        JSON.stringify({
-          event: "queue_job_failure_record_rejected",
-          jobId: job.jobId,
-          kind: job.kind,
-          organizationId: job.organizationId,
-        }),
-      );
-    }
-  } catch (error: unknown) {
-    console.error(
-      JSON.stringify({
-        errorType: error instanceof Error ? error.name : "UnknownError",
-        event: "queue_job_failure_record_failed",
-        jobId: job.jobId,
-        kind: job.kind,
-        organizationId: job.organizationId,
-      }),
-    );
-  }
-}
-
-async function deliverCommunicationJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
-  const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
-  const results = [];
-  for (const delivery of deliveryJob.deliveries) {
-    const templatedContent = renderCommunicationTemplate(
-      deliveryJob.contentMarkdown,
-      delivery.recipientName,
-      deliveryJob.context ?? undefined,
-    );
-    const contentWithRsvpLinks = await renderRsvpLinks(
-      env,
-      job.organizationId,
-      templatedContent,
-      deliveryJob.context?.eventId ?? null,
-      delivery,
-    );
-    const contentWithPlayerLinks = await renderPlayerLinks(
-      env,
-      job.organizationId,
-      contentWithRsvpLinks,
-      deliveryJob.context?.eventId ?? null,
-      delivery,
-    );
-    const renderedContent = await renderPollLinks(
-      env,
-      job.organizationId,
-      contentWithPlayerLinks,
-      delivery,
-    );
-    const result = await deliverOrganizationCommunication(env, {
-      channel: delivery.channel,
-      contentMarkdown: renderedContent,
-      deliveryId: delivery.id,
-      destination: delivery.destination,
-      messageId: deliveryJob.messageId,
-      recipientName: delivery.recipientName,
-      subject: renderCommunicationTemplate(
-        deliveryJob.subject,
-        delivery.recipientName,
-        deliveryJob.context ?? undefined,
-      ),
-      unsubscribeUrl: delivery.unsubscribeUrl,
-    });
-    results.push({ deliveryId: delivery.id, ...result });
-  }
-  await recordCommunicationDeliveryResults(env, {
-    jobId: job.jobId,
-    organizationId: job.organizationId,
-    results,
-  });
-}
-
-const pollPlaceholderPattern = /\{\{POLL_LINK:([0-9a-f-]{36})\}\}/gi;
-const rsvpPlaceholderPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/i;
-const rsvpPlaceholderReplacementPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi;
-const playerPlaceholderPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/i;
-const playerPlaceholderReplacementPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi;
-const ticketLinkPlaceholderPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/i;
-const ticketLinkPlaceholderReplacementPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/gi;
-
-const scheduledEventTemplateIds = {
-  attendanceReport: "5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
-  eventRsvpFollowUp: "5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
-  performanceReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
-  rehearsalReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
-} as const;
-
-const scheduledEventJobResponseSchema = z.object({
-  event: z.object({
-    callTime: z.string(),
-    details: z.string(),
-    durationMinutes: z.number().int().nullable(),
-    id: z.uuid(),
-    location: z.string(),
-    parentPerformanceId: z.uuid().nullable(),
-    startsAt: z.iso.datetime(),
-    title: z.string(),
-    type: z.string(),
-    venueAddress: z.string(),
-    venueName: z.string(),
-  }),
-  eventId: z.uuid(),
-  recipients: z.array(
-    z.object({
-      phone: z.string(),
-      profileId: z.uuid(),
-      recipientName: z.string(),
-    }),
-  ),
-});
-
-const attendanceReportJobResponseSchema = scheduledEventJobResponseSchema.extend({
-  linkedRehearsalRows: z.array(
-    z.object({
-      attendance: z.string().nullable(),
-      displayName: z.string().nullable(),
-      eventId: z.uuid(),
-      eventStartsAt: z.iso.datetime(),
-      eventTitle: z.string(),
-      profileId: z.uuid().nullable(),
-      rsvp: z.string().nullable(),
-    }),
-  ),
-  performerProfileIds: z.array(z.uuid()),
-  reportProfiles: z.array(
-    z.object({
-      displayName: z.string(),
-      doNotEmail: z.number().int(),
-      emailSuppressed: z.number().int(),
-      globalStatus: z.string(),
-      id: z.uuid(),
-      receiveAttendanceReports: z.number().int(),
-    }),
-  ),
-  roster: z.array(
-    z.object({
-      attendance: z.string(),
-      displayName: z.string(),
-      profileId: z.uuid(),
-      rsvp: z.string(),
-      voicePart: z.string(),
-    }),
-  ),
-  warningThreshold: z.number().int().min(1).max(10),
-});
-
-const scheduledReportMemberSchema = z.object({
-  email: z.string().max(320),
-  profileId: z.uuid().nullable(),
-  role: z.enum(["admin", "owner"]),
-});
-
-function deliveryOrigin(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN">,
-  delivery: { readonly unsubscribeUrl: string | null },
-): string {
-  if (delivery.unsubscribeUrl) return new URL(delivery.unsubscribeUrl).origin;
-  return env.PRODUCT_BASE_DOMAIN === "localhost"
-    ? "http://localhost"
-    : `https://${env.PRODUCT_BASE_DOMAIN}`;
-}
-
-export async function renderRsvpLinks(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
-  organizationId: string,
-  content: string,
-  eventId: string | null,
-  delivery: {
-    readonly profileId: string;
-    readonly unsubscribeUrl: string | null;
-  },
-): Promise<string> {
-  if (!rsvpPlaceholderPattern.test(content)) return content;
-  if (!eventId) {
-    return content.replace(
-      rsvpPlaceholderReplacementPattern,
-      () => "RSVP link unavailable; select an event before sending this message.",
-    );
-  }
-  const token = await issueRsvpToken(env, organizationId, eventId, delivery.profileId);
-  const rsvpLink = `${deliveryOrigin(env, delivery)}/rsvp?token=${encodeURIComponent(token)}`;
-  const replacement = `[Open RSVP page](${rsvpLink})\n\n(No login required.)`;
-  return content.replace(rsvpPlaceholderReplacementPattern, () => replacement);
-}
-
-export async function renderPlayerLinks(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
-  organizationId: string,
-  content: string,
-  eventId: string | null,
-  delivery: {
-    readonly profileId: string;
-    readonly unsubscribeUrl: string | null;
-  },
-): Promise<string> {
-  if (!playerPlaceholderPattern.test(content)) return content;
-  if (!eventId) {
-    return content.replace(
-      playerPlaceholderReplacementPattern,
-      () => "Practice player unavailable; select an event before sending this message.",
-    );
-  }
-  const token = await issuePlayerToken(env, organizationId, eventId, delivery.profileId);
-  const playerLink = `${deliveryOrigin(env, delivery)}/player?token=${encodeURIComponent(token)}`;
-  const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
-  return content.replace(playerPlaceholderReplacementPattern, () => replacement);
-}
-
-async function renderTicketLinks(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
-  organizationId: string,
-  content: string,
-  purchaseId: string,
-  eventStartsAt: string,
-): Promise<string> {
-  if (!ticketLinkPlaceholderPattern.test(content)) return content;
-  const issuedAt = Math.floor(Date.now() / 1_000);
-  const eventEndsAt = Math.floor(new Date(eventStartsAt).getTime() / 1_000) + 86_400;
-  const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-    algorithm: "HS256",
-    expiresAt: Math.max(issuedAt + 7 * 24 * 60 * 60, eventEndsAt),
-    issuedAt,
-    nonce: crypto.randomUUID(),
-    organizationId,
-    purpose: "ticket_receipt",
-    resourceId: purchaseId,
-    version: 1,
-  });
-  const link = `${deliveryOrigin(env, { unsubscribeUrl: null })}/tickets/order/success?token=${encodeURIComponent(token)}`;
-  return content.replace(
-    ticketLinkPlaceholderReplacementPattern,
-    () => `[View ticket order](${link})`,
-  );
-}
-
-async function renderPollLinks(
-  env: JobConsumerEnv,
-  organizationId: string,
-  content: string,
-  delivery: {
-    readonly profileId: string;
-    readonly unsubscribeUrl: string | null;
-  },
-): Promise<string> {
-  const pollIds = [
-    ...new Set([...content.matchAll(pollPlaceholderPattern)].map((match) => match[1])),
-  ];
-  if (pollIds.length === 0) return content;
-
-  const origin = deliveryOrigin(env, delivery);
-  const issuedAt = Math.floor(Date.now() / 1_000);
-  const tokens = new Map(
-    await Promise.all(
-      pollIds.map(
-        async (pollId) =>
-          [
-            pollId,
-            await issueSignedLink(env.SIGNED_LINK_SECRET, {
-              algorithm: "HS256",
-              expiresAt: issuedAt + 30 * 24 * 60 * 60,
-              issuedAt,
-              nonce: crypto.randomUUID(),
-              organizationId,
-              purpose: "poll",
-              resourceId: pollId,
-              subjectId: delivery.profileId,
-              version: 1,
-            }),
-          ] as const,
-      ),
-    ),
-  );
-  return content.replace(pollPlaceholderPattern, (_match, pollId: string) => {
-    const token = tokens.get(pollId);
-    return token
-      ? `${origin}/poll?token=${encodeURIComponent(token)}`
-      : "Poll link unavailable; please contact your organization.";
-  });
-}
-
-function scheduledEventOrigin(env: JobConsumerEnv): string {
-  return env.PRODUCT_BASE_DOMAIN === "localhost"
-    ? "http://localhost"
-    : `https://${env.PRODUCT_BASE_DOMAIN}`;
-}
-
-async function readScheduledEventJob(
-  env: JobConsumerEnv,
-  job: DeliveryJob,
-  path: string,
-): Promise<z.infer<typeof scheduledEventJobResponseSchema>> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
-  const url = new URL(`https://organization.internal${path}`);
-  url.searchParams.set("organizationId", job.organizationId);
-  url.searchParams.set("jobId", job.jobId);
-  const response = await objectStub.fetch(url);
-  const parsed = scheduledEventJobResponseSchema.safeParse(await response.json().catch(() => null));
-  if (!response.ok || !parsed.success) throw new Error("The scheduled event job is unavailable.");
-  return parsed.data;
-}
-
-async function automatedRecipients(
-  env: JobConsumerEnv,
-  organizationId: string,
-  candidates: readonly { readonly profileId: string; readonly recipientName: string }[],
-): Promise<
-  readonly {
-    readonly email: string;
-    readonly name: string;
-    readonly phone: string;
-    readonly profileId: string;
-  }[]
-> {
-  if (!env.CONTROL_DB)
-    throw new Error("The control database is unavailable for scheduled communication.");
-  const emails = await listOrganizationProfileEmails(env.CONTROL_DB, organizationId);
-  return candidates.flatMap((candidate) => {
-    const email = emails.get(candidate.profileId)?.trim() ?? "";
-    return email
-      ? [{ email, name: candidate.recipientName, phone: "", profileId: candidate.profileId }]
-      : [];
-  });
-}
-
-async function deliverScheduledEventCommunication(
-  env: JobConsumerEnv,
-  job: DeliveryJob,
-  kind: "event_reminder" | "rsvp_follow_up",
-): Promise<void> {
-  const scheduled = await readScheduledEventJob(
-    env,
-    job,
-    kind === "event_reminder"
-      ? "/internal/scheduling/event-reminder-job"
-      : "/internal/scheduling/rsvp-follow-up-job",
-  );
-  if (scheduled.recipients.length === 0) return;
-  const templateId =
-    kind === "rsvp_follow_up"
-      ? scheduledEventTemplateIds.eventRsvpFollowUp
-      : scheduled.event.type === "Rehearsal"
-        ? scheduledEventTemplateIds.rehearsalReminder
-        : scheduledEventTemplateIds.performanceReminder;
-  const template = await readOrganizationCommunicationTemplate(env, job.organizationId, templateId);
-  const recipients = await automatedRecipients(env, job.organizationId, scheduled.recipients);
-  if (recipients.length === 0) return;
-  await queueAutomatedOrganizationCommunication(
-    env,
-    {
-      actorUserId: "system:scheduler",
-      organizationId: job.organizationId,
-      organizationOrigin: scheduledEventOrigin(env),
-      requestId: job.jobId,
-    },
-    {
-      contentMarkdown: template.contentMarkdown,
-      eventId: scheduled.eventId,
-      recipients,
-      subject: template.subject,
-    },
-  );
-}
-
-async function reportMembers(
-  env: JobConsumerEnv,
-  organizationId: string,
-): Promise<readonly z.infer<typeof scheduledReportMemberSchema>[]> {
-  if (!env.CONTROL_DB)
-    throw new Error("The control database is unavailable for attendance reports.");
-  const result = await env.CONTROL_DB.prepare(
-    `SELECT u.email, m.profileId, m.role
-       FROM member m JOIN user u ON u.id = m.userId
-       WHERE m.organizationId = ? AND m.role IN ('owner', 'admin')`,
-  )
-    .bind(organizationId)
-    .all<z.infer<typeof scheduledReportMemberSchema>>();
-  return result.results.flatMap((row) => {
-    const parsed = scheduledReportMemberSchema.safeParse(row);
-    return parsed.success ? [parsed.data] : [];
-  });
-}
-
-function attendanceReportValues(
-  report: z.infer<typeof attendanceReportJobResponseSchema>,
-): Readonly<Record<string, string>> {
-  const presentCount = report.roster.filter(({ attendance }) => attendance === "Present").length;
-  const totalCount = report.roster.length;
-  const attendanceRate = totalCount === 0 ? 0 : Math.round((presentCount / totalCount) * 100);
-  const absenteesList =
-    report.roster
-      .filter(({ attendance }) => attendance !== "Present")
-      .map(({ displayName, voicePart }) => `- ${displayName}${voicePart ? ` (${voicePart})` : ""}`)
-      .join("\n") || "- None recorded";
-  const names = new Map(report.reportProfiles.map((profile) => [profile.id, profile.displayName]));
-  const performers = new Set(report.performerProfileIds);
-  const presentByRehearsal = new Map<string, Set<string>>();
-  for (const row of report.linkedRehearsalRows) {
-    if (!presentByRehearsal.has(row.eventId)) {
-      presentByRehearsal.set(row.eventId, new Set<string>());
-    }
-    if (row.profileId && row.attendance === "Present") {
-      const present = presentByRehearsal.get(row.eventId) ?? new Set<string>();
-      present.add(row.profileId);
-      presentByRehearsal.set(row.eventId, present);
-    }
-  }
-  const missedCounts = new Map<string, number>();
-  for (const present of presentByRehearsal.values()) {
-    for (const profileId of performers) {
-      if (!present.has(profileId))
-        missedCounts.set(profileId, (missedCounts.get(profileId) ?? 0) + 1);
-    }
-  }
-  const warningNames = [...missedCounts.entries()]
-    .filter(([, missed]) => missed >= report.warningThreshold)
-    .sort(([left], [right]) => (names.get(left) ?? "").localeCompare(names.get(right) ?? ""))
-    .map(
-      ([profileId, missed]) =>
-        `- ${names.get(profileId) ?? "Unknown Profile"} (${String(missed)} missed Rehearsal${missed === 1 ? "" : "s"})`,
-    )
-    .join("\n");
-  const thresholdWarningsSection = warningNames
-    ? `### Rehearsal follow-up warnings\nProfiles at or above the warning threshold of ${String(report.warningThreshold)}:\n${warningNames}`
-    : "### Rehearsal follow-up warnings\nNo profiles met the warning threshold.";
-  return {
-    absenteesList,
-    attendanceRate: String(attendanceRate),
-    presentCount: String(presentCount),
-    thresholdWarningsSection,
-    totalCount: String(totalCount),
-  };
-}
-
-async function deliverAttendanceReportJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
-  const response = await objectStub.fetch(
-    "https://organization.internal/internal/scheduling/attendance-report-prepare",
-    {
-      body: JSON.stringify({ jobId: job.jobId, organizationId: job.organizationId }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
-  const parsed = attendanceReportJobResponseSchema.safeParse(
-    await response.json().catch(() => null),
-  );
-  if (!response.ok || !parsed.success) throw new Error("The attendance report job is unavailable.");
-  const members = await reportMembers(env, job.organizationId);
-  const profiles = new Map(parsed.data.reportProfiles.map((profile) => [profile.id, profile]));
-  const eligible = members.filter((member) => {
-    if (!member.profileId) return false;
-    const profile = profiles.get(member.profileId);
-    return (
-      profile?.globalStatus === "Active" &&
-      profile.receiveAttendanceReports === 1 &&
-      profile.doNotEmail === 0 &&
-      profile.emailSuppressed === 0
-    );
-  });
-  const fallback = members.filter((member) => {
-    if (member.role !== "owner" || !member.profileId) return false;
-    const profile = profiles.get(member.profileId);
-    return profile?.doNotEmail === 0 && profile.emailSuppressed === 0;
-  });
-  const recipients = await automatedRecipients(
-    env,
-    job.organizationId,
-    [...(eligible.length > 0 ? eligible : fallback)].flatMap((member) =>
-      member.profileId
-        ? [
-            {
-              profileId: member.profileId,
-              recipientName:
-                profiles.get(member.profileId)?.displayName ?? "Organization Administrator",
-            },
-          ]
-        : [],
-    ),
-  );
-  if (recipients.length === 0) {
-    throw new Error(
-      "No reachable attendance-report recipient is configured; owner attention is required.",
-    );
-  }
-  const template = await readOrganizationCommunicationTemplate(
-    env,
-    job.organizationId,
-    scheduledEventTemplateIds.attendanceReport,
-  );
-  const values = attendanceReportValues(parsed.data);
-  await queueAutomatedOrganizationCommunication(
-    env,
-    {
-      actorUserId: "system:scheduler",
-      organizationId: job.organizationId,
-      organizationOrigin: scheduledEventOrigin(env),
-      requestId: job.jobId,
-    },
-    {
-      contentMarkdown: renderCommunicationTemplate(template.contentMarkdown, "{singerName}", {
-        ...values,
-        eventTitle: parsed.data.event.title,
-        eventType: parsed.data.event.type,
-        eventDate: new Intl.DateTimeFormat("en-US", {
-          dateStyle: "long",
-          timeStyle: "short",
-          timeZone: "UTC",
-        }).format(new Date(parsed.data.event.startsAt)),
-        eventLocation: parsed.data.event.location || parsed.data.event.venueName,
-      }),
-      eventId: parsed.data.eventId,
-      recipients,
-      subject: renderCommunicationTemplate(template.subject, "{singerName}", {
-        eventTitle: parsed.data.event.title,
-        eventDate: new Intl.DateTimeFormat("en-US", {
-          dateStyle: "long",
-          timeStyle: "short",
-          timeZone: "UTC",
-        }).format(new Date(parsed.data.event.startsAt)),
-      }),
-    },
-  );
-}
-
-async function deliverTicketNotificationJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
-  const objectId = env.ORGANIZATION_STORE.idFromName(job.organizationId);
-  const objectStub = env.ORGANIZATION_STORE.get(objectId);
-  const url = new URL("https://organization.internal/internal/ticketing/notification-job");
-  url.searchParams.set("organizationId", job.organizationId);
-  url.searchParams.set("jobId", job.jobId);
-  const response = await objectStub.fetch(url);
-  const notification = ticketNotificationJobSchema.safeParse(
-    await response.json().catch(() => null),
-  );
-  if (!response.ok || !notification.success) {
-    throw new Error("The ticket notification job is unavailable.");
-  }
-  const templateValues = {
-    eventDate: new Intl.DateTimeFormat("en-US", {
-      dateStyle: "full",
-      timeStyle: "short",
-      timeZone: notification.data.timezone,
-    }).format(new Date(notification.data.eventStartsAt)),
-    eventTitle: notification.data.eventTitle,
-    ticketAmount: new Intl.NumberFormat("en-US", {
-      currency: notification.data.currency.toUpperCase(),
-      style: "currency",
-    }).format(notification.data.amountPaidCents / 100),
-    ticketBundleName: notification.data.bundleTitle ?? "",
-    ticketQuantity: String(notification.data.quantity),
-  };
-  const templatedContent = renderCommunicationTemplate(
-    notification.data.contentMarkdown,
-    notification.data.buyerName,
-    templateValues,
-  );
-  const contentWithTicketLink = await renderTicketLinks(
-    env,
-    job.organizationId,
-    templatedContent,
-    notification.data.purchaseId,
-    notification.data.eventStartsAt,
-  );
-  const issuedAt = Math.floor(Date.now() / 1000);
-  const eventEndsAt =
-    Math.floor(new Date(notification.data.eventStartsAt).getTime() / 1000) + 86_400;
-  const scanToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-    algorithm: "HS256",
-    expiresAt: Math.max(issuedAt + 3_600, eventEndsAt),
-    issuedAt,
-    nonce: crypto.randomUUID(),
-    organizationId: job.organizationId,
-    purpose: "ticket_scan",
-    resourceId: notification.data.purchaseId,
-    version: 1,
-  });
-  const result = await deliverOrganizationCommunication(env, {
-    channel: "email",
-    contentMarkdown: `${contentWithTicketLink}\n\nTicket credential: ${scanToken}`,
-    deliveryId: notification.data.id,
-    destination: notification.data.destination,
-    messageId: notification.data.id,
-    recipientName: notification.data.buyerName,
-    subject: renderCommunicationTemplate(
-      notification.data.subject,
-      notification.data.buyerName,
-      templateValues,
-    ),
-    unsubscribeUrl: null,
-  });
-  const recordResponse = await objectStub.fetch(
-    "https://organization.internal/internal/ticketing/manage",
-    {
-      body: JSON.stringify({
-        action: "record_ticket_notification_result",
-        failureDetail: result.failureDetail,
-        jobId: job.jobId,
-        organizationId: job.organizationId,
-        providerMessageId: result.providerMessageId,
-        status: result.status,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
-  if (!recordResponse.ok) throw new Error("The ticket notification result was rejected.");
-}
-
-async function deliverAuditionNotificationJob(
-  env: JobConsumerEnv,
-  job: DeliveryJob,
-): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
-  const url = new URL("https://organization.internal/internal/audition/notification-job");
-  url.searchParams.set("organizationId", job.organizationId);
-  url.searchParams.set("jobId", job.jobId);
-  const response = await objectStub.fetch(url);
-  const notification = auditionNotificationJobSchema.safeParse(
-    await response.json().catch(() => null),
-  );
-  if (!response.ok || !notification.success) {
-    throw new Error("The audition notification job is unavailable.");
-  }
-  const result = await deliverOrganizationCommunication(env, {
-    channel: "email",
-    contentMarkdown: notification.data.contentMarkdown,
-    deliveryId: notification.data.id,
-    destination: notification.data.destination,
-    messageId: notification.data.id,
-    recipientName: notification.data.recipientName,
-    subject: notification.data.subject,
-    unsubscribeUrl: null,
-  });
-  const recordResponse = await objectStub.fetch(
-    "https://organization.internal/internal/audition/notification-result",
-    {
-      body: JSON.stringify({
-        failureDetail: result.failureDetail,
-        jobId: job.jobId,
-        organizationId: job.organizationId,
-        providerMessageId: result.providerMessageId,
-        status: result.status,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
-  if (!recordResponse.ok) throw new Error("The audition notification result was rejected.");
-}
-
-async function renderPaymentNotificationContent(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
-  organizationId: string,
-  notification: z.infer<typeof paymentNotificationJobSchema>,
-): Promise<string> {
-  if (
-    notification.paymentType !== "donation" ||
-    !notification.contentMarkdown.includes("{{DONATION_RECEIPT_LINK}}")
-  ) {
-    return notification.contentMarkdown;
-  }
-  const issuedAt = Math.floor(Date.now() / 1_000);
-  const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-    algorithm: "HS256",
-    expiresAt: issuedAt + 7 * 24 * 60 * 60,
-    issuedAt,
-    nonce: crypto.randomUUID(),
-    organizationId,
-    purpose: "donation_receipt",
-    resourceId: notification.resourceId,
-    version: 1,
-  });
-  const origin =
-    env.PRODUCT_BASE_DOMAIN === "localhost"
-      ? "http://localhost"
-      : `https://${env.PRODUCT_BASE_DOMAIN}`;
-  const link = `${origin}/donate/success?token=${encodeURIComponent(token)}`;
-  return notification.contentMarkdown.replaceAll(
-    "{{DONATION_RECEIPT_LINK}}",
-    `[View your donation receipt](${link})`,
-  );
-}
-
-async function deliverPaymentNotificationJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
-  const url = new URL("https://organization.internal/internal/payments/notification-job");
-  url.searchParams.set("organizationId", job.organizationId);
-  url.searchParams.set("jobId", job.jobId);
-  const response = await objectStub.fetch(url);
-  const notification = paymentNotificationJobSchema.safeParse(
-    await response.json().catch(() => null),
-  );
-  if (!response.ok || !notification.success) {
-    throw new Error("The payment notification job is unavailable.");
-  }
-  const contentMarkdown = await renderPaymentNotificationContent(
-    env,
-    job.organizationId,
-    notification.data,
-  );
-  const result = await deliverOrganizationCommunication(env, {
-    channel: "email",
-    contentMarkdown,
-    deliveryId: notification.data.id,
-    destination: notification.data.destination,
-    messageId: notification.data.id,
-    recipientName: notification.data.recipientName,
-    subject: notification.data.subject,
-    unsubscribeUrl: null,
-  });
-  const recordResponse = await objectStub.fetch(
-    "https://organization.internal/internal/payments/notification-result",
-    {
-      body: JSON.stringify({
-        action: "record_payment_notification_result",
-        failureDetail: result.failureDetail,
-        jobId: job.jobId,
-        organizationId: job.organizationId,
-        providerMessageId: result.providerMessageId,
-        status: result.status,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
-  if (!recordResponse.ok) throw new Error("The payment notification result was rejected.");
-}
-
-async function deliverOrganizationExportJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
-  const jobUrl = new URL("https://organization.internal/internal/export/job");
-  jobUrl.searchParams.set("organizationId", job.organizationId);
-  jobUrl.searchParams.set("exportId", job.jobId);
-  const jobResponse = await objectStub.fetch(jobUrl);
-  const exportJob = organizationExportJobSchema.safeParse(
-    await jobResponse.json().catch(() => null),
-  );
-  if (!jobResponse.ok || !exportJob.success) {
-    throw new Error("The Organization export job is unavailable.");
-  }
-  if (exportJob.data.status === "completed") return;
-
-  try {
-    const snapshotUrl = new URL("https://organization.internal/internal/export/snapshot");
-    snapshotUrl.searchParams.set("organizationId", job.organizationId);
-    const snapshotResponse = await objectStub.fetch(snapshotUrl);
-    const snapshot = organizationExportSnapshotSchema.safeParse(
-      await snapshotResponse.json().catch(() => null),
-    );
-    if (!snapshotResponse.ok || !snapshot.success) {
-      throw new Error("The Organization export snapshot is unavailable.");
-    }
-    const prefix = `organizations/${job.organizationId}/private/`;
-    const fileObjects = await env.ORGANIZATION_FILES.list({ limit: 500, prefix });
-    if (fileObjects.truncated) throw new Error("export_too_large");
-    const fileChecksums = new Map(
-      fileObjects.objects.map((object) => [
-        object.key,
-        Object.fromEntries(Object.entries(object.checksums.toJSON())),
-      ]),
-    );
-    const files = snapshot.data.files.map((file) => ({
-      ...file,
-      checksums: fileChecksums.get(file.storageKey) ?? file.checksums,
-    }));
-    const archive = await buildOrganizationExportArchive({
-      files,
-      organizationId: job.organizationId,
-      snapshot: snapshot.data,
-    });
-    const archiveKey = organizationExportKey(job.organizationId, job.jobId);
-    await env.ORGANIZATION_FILES.put(archiveKey, archive.archive, {
-      customMetadata: {
-        exportId: job.jobId,
-        organizationId: job.organizationId,
-      },
-      httpMetadata: { contentType: "application/json" },
-    });
-    const completeResponse = await objectStub.fetch(
-      "https://organization.internal/internal/export/complete",
-      {
-        body: JSON.stringify({
-          actorType: exportJob.data.actorType,
-          actorUserId: exportJob.data.actorUserId,
-          archiveKey,
-          byteCount: archive.byteCount,
-          checksumSha256: archive.checksumSha256,
-          exportId: job.jobId,
-          organizationId: job.organizationId,
-          requestId: exportJob.data.requestId,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      },
-    );
-    if (!completeResponse.ok) throw new Error("The Organization export completion was rejected.");
-  } catch (error: unknown) {
-    await objectStub.fetch("https://organization.internal/internal/export/fail", {
-      body: JSON.stringify({
-        actorType: exportJob.data.actorType,
-        actorUserId: exportJob.data.actorUserId,
-        errorCode:
-          error instanceof Error && error.message === "export_too_large"
-            ? "export_too_large"
-            : "export_generation_failed",
-        exportId: job.jobId,
-        organizationId: job.organizationId,
-        requestId: exportJob.data.requestId,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    throw error;
-  }
-}
-
+import {
+  claimResponseSchema,
+  completionResponseSchema,
+  type DeadLetterConsumerEnv,
+  deadLetterInsertSql,
+  deliveryAttemptSchema,
+  type JobConsumerEnv,
+  recordEventReminderResult,
+  recordJobFailure,
+  retryDelaySeconds,
+  terminalResponseSchema,
+} from "./deliveries/shared";
+import { deliverCommunicationJob } from "./deliveries/communication";
+import {
+  deliverScheduledEventCommunication,
+  deliverAttendanceReportJob,
+} from "./deliveries/scheduledEvents";
+import { deliverTicketNotificationJob } from "./deliveries/tickets";
+import { deliverAuditionNotificationJob } from "./deliveries/auditions";
+import { deliverPaymentNotificationJob } from "./deliveries/payments";
+import { deliverOrganizationExportJob } from "./deliveries/export";
+import { cleanupStaleCheckout } from "./deliveries/cleanup";
 // eslint-disable-next-line complexity -- dispatch keeps each queue kind's terminal/error semantics explicit.
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   if (job.kind === "communication_delivery") {
@@ -987,18 +44,7 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
     return;
   }
   if (job.kind === "stale_checkout_cleanup") {
-    const objectStub = env.ORGANIZATION_STORE.get(
-      env.ORGANIZATION_STORE.idFromName(job.organizationId),
-    );
-    const response = await objectStub.fetch(
-      "https://organization.internal/internal/payments/cleanup",
-      {
-        body: JSON.stringify({ organizationId: job.organizationId }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      },
-    );
-    if (!response.ok) throw new Error("Stale payment cleanup was rejected.");
+    await cleanupStaleCheckout(env, job);
     return;
   }
   if (job.kind === "event_reminder" || job.kind === "rsvp_follow_up") {
@@ -1024,7 +70,6 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
     return;
   }
 }
-
 async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Promise<void> {
   const parsed = deliveryJobSchema.safeParse(message.body);
   if (!parsed.success) {
@@ -1082,6 +127,10 @@ async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Pr
       throw new Error("Organization store rejected queue completion");
     }
 
+    if (job.kind === "event_reminder" && env.CONTROL_DB) {
+      await recordEventReminderResult(env, job, "sent");
+    }
+
     message.ack();
     console.info(
       JSON.stringify({
@@ -1117,19 +166,21 @@ export async function processDeliveryBatch(
   }
 }
 
-export async function processDeadLetterBatch(
+function createDeadLetterRecord(
   batch: MessageBatch,
-  env: DeadLetterConsumerEnv,
-): Promise<void> {
-  const records = batch.messages.map((message) => {
-    const parsed = deliveryJobSchema.safeParse(message.body);
-    const observedAt = new Date().toISOString();
-    const recordId = `${batch.queue}:${message.id}`;
-    const job = parsed.success ? parsed.data : null;
-    return {
-      job,
-      message,
-      statement: env.CONTROL_DB.prepare(deadLetterInsertSql).bind(
+  message: Message,
+  controlDatabase: D1Database,
+) {
+  const parsed = deliveryJobSchema.safeParse(message.body);
+  const observedAt = new Date().toISOString();
+  const recordId = `${batch.queue}:${message.id}`;
+  const job = parsed.success ? parsed.data : null;
+  return {
+    job,
+    message,
+    statement: controlDatabase
+      .prepare(deadLetterInsertSql)
+      .bind(
         recordId,
         batch.queue,
         message.id,
@@ -1142,22 +193,117 @@ export async function processDeadLetterBatch(
         observedAt,
         observedAt,
       ),
-    };
-  });
-  if (records.length > 0) {
-    await env.CONTROL_DB.batch(records.map(({ statement }) => statement));
-  }
-  for (const { job, message } of records) {
-    message.ack();
+  };
+}
+
+async function recordTerminalEventReminder(
+  env: DeadLetterConsumerEnv,
+  job: DeliveryJob | null,
+): Promise<void> {
+  if (job?.kind !== "event_reminder" || !env.ORGANIZATION_STORE) return;
+  try {
+    await recordEventReminderResult(
+      { ORGANIZATION_STORE: env.ORGANIZATION_STORE },
+      job,
+      "terminal",
+    );
+  } catch (error: unknown) {
     console.error(
       JSON.stringify({
-        event: "queue_job_dead_lettered",
-        jobId: job?.jobId ?? null,
-        kind: job?.kind ?? null,
-        messageId: message.id,
-        organizationId: job?.organizationId ?? null,
-        queue: batch.queue,
+        errorType: error instanceof Error ? error.name : "UnknownError",
+        event: "event_reminder_terminal_result_failed",
+        jobId: job.jobId,
+        organizationId: job.organizationId,
       }),
     );
   }
 }
+
+async function recordTerminalJob(
+  env: DeadLetterConsumerEnv,
+  job: DeliveryJob | null,
+): Promise<void> {
+  if (!job || !env.ORGANIZATION_STORE) return;
+  try {
+    const response = await env.ORGANIZATION_STORE.get(
+      env.ORGANIZATION_STORE.idFromName(job.organizationId),
+    ).fetch("https://organization.internal/internal/jobs/terminal", {
+      body: JSON.stringify({
+        attempt: job.attempt,
+        errorCode: "queue_dead_lettered",
+        failedAt: new Date().toISOString(),
+        idempotencyKey: job.idempotencyKey,
+        jobId: job.jobId,
+        terminalAt: new Date().toISOString(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const result = terminalResponseSchema.safeParse(await response.json());
+    if (!response.ok || !result.success || !result.data.terminal) {
+      throw new Error("The terminal queue state was rejected.");
+    }
+  } catch (error: unknown) {
+    console.error(
+      JSON.stringify({
+        errorType: error instanceof Error ? error.name : "UnknownError",
+        event: "queue_job_terminal_state_failed",
+        jobId: job.jobId,
+        kind: job.kind,
+        organizationId: job.organizationId,
+      }),
+    );
+  }
+}
+
+async function processDeadLetterRecord(
+  batchQueue: string,
+  env: DeadLetterConsumerEnv,
+  record: ReturnType<typeof createDeadLetterRecord>,
+): Promise<void> {
+  const { job, message } = record;
+  if (job && message.attempts < 2) {
+    message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
+    console.warn(
+      JSON.stringify({
+        event: "queue_job_dead_letter_retry",
+        jobId: job.jobId,
+        kind: job.kind,
+        messageId: message.id,
+        organizationId: job.organizationId,
+        queue: batchQueue,
+      }),
+    );
+    return;
+  }
+  await recordTerminalEventReminder(env, job);
+  await recordTerminalJob(env, job);
+  message.ack();
+  console.error(
+    JSON.stringify({
+      event: "queue_job_dead_lettered",
+      jobId: job?.jobId ?? null,
+      kind: job?.kind ?? null,
+      messageId: message.id,
+      organizationId: job?.organizationId ?? null,
+      queue: batchQueue,
+    }),
+  );
+}
+
+export async function processDeadLetterBatch(
+  batch: MessageBatch,
+  env: DeadLetterConsumerEnv,
+): Promise<void> {
+  const records = batch.messages.map((message) =>
+    createDeadLetterRecord(batch, message, env.CONTROL_DB),
+  );
+  if (records.length > 0) {
+    await env.CONTROL_DB.batch(records.map(({ statement }) => statement));
+  }
+  for (const record of records) {
+    await processDeadLetterRecord(batch.queue, env, record);
+  }
+}
+
+export { renderPlayerLinks, renderRsvpLinks } from "./deliveries/shared";

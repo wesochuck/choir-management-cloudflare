@@ -1,7 +1,7 @@
 import { healthResponseSchema, type CurrentAuthSession } from "@choir/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { AuthenticatedShell } from "./account/AuthenticatedShell";
+import { AuthenticatedShell } from "./account/components/AuthenticatedShell/shell";
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { getCurrentSession } from "./auth/api";

@@ -261,11 +261,6 @@ function createEventReminderJobs(
       now.toISOString(),
       now.toISOString(),
     );
-    storage.sql.exec(
-      "UPDATE events SET reminder_sent_at = ? WHERE id = ?",
-      now.toISOString(),
-      candidate.eventId,
-    );
   }
 }
 
@@ -282,18 +277,15 @@ function createPostEventReportJobs(
   organizationId: string,
   now: Date,
 ): void {
-  const windowEnd = new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString();
-  const windowStart = new Date(now.getTime() - 13 * 60 * 60 * 1000).toISOString();
+  const dueBefore = new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString();
   const candidates = storage.sql
     .exec<PostEventReportCandidateRow>(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
        FROM events
-       WHERE is_archived = 0 AND is_canceled = 0
-         AND starts_at >= ?
+       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
          AND starts_at < ?
        ORDER BY eventStartsAt, eventId LIMIT 50`,
-      windowStart,
-      windowEnd,
+      dueBefore,
     )
     .toArray();
   for (const candidate of candidates) {

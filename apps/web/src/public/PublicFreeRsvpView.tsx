@@ -9,7 +9,7 @@ export function PublicFreeRsvpView() {
   async function handleRsvp(rsvp: "Yes" | "No" | "Pending") {
     setError(null);
     try {
-      const response = await fetch("/api/checkout/rsvp", {
+      const response = await fetch("/api/public/rsvp", {
         body: JSON.stringify({ email, name, rsvp }),
         headers: { "content-type": "application/json" },
         method: "POST",

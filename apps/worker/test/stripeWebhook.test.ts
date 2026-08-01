@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { stripeRefundDispatchMatched } from "../src/payments/stripeWebhookHandler";
 import {
   stripeChargeRefundIsComplete,
   stripeCheckoutSessionIsPaid,
@@ -19,6 +20,12 @@ describe("Stripe webhook verification", () => {
     expect(stripeChargeRefundIsComplete({ amount: 2_500, amount_refunded: 2_500 })).toBe(true);
     expect(stripeChargeRefundIsComplete({ amount: 2_500, amount_refunded: 1_000 })).toBe(false);
     expect(stripeChargeRefundIsComplete({ amount: 2_500 })).toBe(false);
+  });
+
+  it("treats an already-applied refund webhook as a matched result", () => {
+    expect(stripeRefundDispatchMatched({ duplicate: true, refunded: 0 })).toBe(true);
+    expect(stripeRefundDispatchMatched({ refunded: 1 })).toBe(true);
+    expect(stripeRefundDispatchMatched({ refunded: 0 })).toBe(false);
   });
 
   it("accepts a current signed payload and rejects tampering", async () => {

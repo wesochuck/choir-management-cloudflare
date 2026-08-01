@@ -110,7 +110,7 @@ export function AccountView({
     setActionError(null);
     setBusySessionId(session.id);
     try {
-      await revokeSession(session.token);
+      await revokeSession(session.id);
       if (session.id === currentSession.session.id) {
         onSignedOut();
         return;

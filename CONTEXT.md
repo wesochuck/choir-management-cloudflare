@@ -11,7 +11,9 @@ _Avoid_: Tenant in user-facing language, Ensemble as a second hierarchy level
 
 The relationship that grants a person access to one Organization and carries that person's
 Organization-specific role and profile. One identity may have multiple Organization Memberships, and
-changing a role or profile in one Organization does not affect the others. _Avoid_: Global user role
+changing a role or profile in one Organization does not affect the others. A Membership may exist
+before it is linked to an Organization Profile; personalized member services require that link.
+_Avoid_: Global user role
 
 ## Organization Scope
 
@@ -19,6 +21,12 @@ The single Organization selected for an operational request or support action. R
 communication, payment, and other domain operations never query across Organization Scopes;
 platform-wide views are limited to account metadata such as plan, usage, and health. _Avoid_:
 Cross-Organization operational report
+
+## Organization Timezone
+
+The IANA timezone configured by an Organization for interpreting event dates, RSVP deadlines, and
+calendar behavior across member and administrative surfaces. _Avoid_: Device timezone for domain
+behavior
 
 ## Organization Scale Envelope
 
@@ -47,11 +55,25 @@ status, voice part, section leadership, and notification responsibilities are pr
 rather than Organization Membership roles, and a profile may exist without login access. _Avoid_:
 Singer as an authorization role
 
+## Organization Member Dashboard
+
+The member-facing home for an Organization Membership, combining the next relevant events with
+member actions and optional Organization offerings such as practice, resources, polls, bulletins,
+seating, and dues. It is distinct from My Schedule, which is the detailed event list and RSVP
+management surface. For signed-in Organization Members, `/dashboard` is the default post-login
+landing page and remains available from member navigation. Organization administrators retain the
+Organization Admin Overview as their administrative landing page.
+
 ## Organization Profile
 
 An Organization-owned record for a person who participates in its roster or administration. An
 Organization Profile may exist without login access and remains separate from the person's global
 identity and Organization Membership. _Avoid_: User account, global person profile
+
+## Season
+
+An Organization-defined period used to organize member dues and related participation records. The
+Active Season is the period currently open for dues, and its payment status is visible to members.
 
 ## Profile Status
 
@@ -476,17 +498,39 @@ An audio track (typically MP3) attached to a piece in the Music Library. Used by
 archive management and made available to singers for practice and learning when the piece is
 included in their set list.
 
+## Practice Player Link
+
+A signed, Organization-bound, shareable event link that lets anyone with the link open approved
+event practice tracks without a standard login. It exposes published event practice content only,
+not member-specific Profile details, and remains limited by its purpose, event, and expiry. An
+Organization reuses one link for the event until it expires or an administrator rotates it. The
+default lifetime is 180 days and is configurable per Organization in Music Library settings.
+Rotation immediately revokes the prior link and starts a fresh lifetime for the replacement. Access
+also re-checks event eligibility: a canceled or archived event, or an event whose approved Set List
+was unpublished, shows an unavailable state instead of serving practice audio.
+
 ## Set List
 
 A curated sequence of music pieces and intermissions scheduled to be performed or rehearsed at a
 specific event. It displays song titles, composers, durations, running timestamps, and linked
 practice audio, and can be approved by administrators to be visible to singers on their dashboard.
+An approved Set List may have partial practice-track coverage; one published playable track is
+enough to make Practice available while missing tracks remain unavailable. A linked Rehearsal uses
+its own approved list when present and otherwise inherits the parent Performance's approved list.
+When that inherited list is used, the Rehearsal reuses the parent Performance's stable Practice
+Player Link; a Rehearsal with its own approved list has its own link.
 
 ## Featured Number
 
 A song on an event's **Set List** that highlights an ordered set of **Performer Credits**. It is
 presented as a Solo when it has one credit, a Group when it has multiple credits, or Performers TBA
 when it has none. _Avoid_: Solo / Small Group flag
+
+## Featured Assignment
+
+The member-facing notice that an Organization Profile is explicitly credited on an approved Featured
+Number for an upcoming event. It may be shown before RSVP and may be inherited by a linked Rehearsal
+from its parent Performance; it is distinct from exposing the complete Set List.
 
 ## Performer Credit
 
@@ -558,9 +602,10 @@ parent Performance's follow-up rather than generating a duplicate.
 
 ## Attendance Report Warning Threshold
 
-The independent Organization setting that determines when a post-event Attendance Report names a
-Profile for missed linked Rehearsals. The default is one missed Rehearsal; it does not change
-Profile Status Automation's separate consecutive-missed-Performance threshold.
+The independent Organization setting that determines when a post-event Attendance Report or the
+Organization Member Dashboard warns about missed linked Rehearsals. The default is one missed
+Rehearsal; it does not change Profile Status Automation's separate consecutive-missed-Performance
+threshold.
 
 ## Communication Delivery Mode
 
@@ -580,6 +625,12 @@ reachable, non-suppressed Organization Owner is used as the fallback.
 
 A central log of all dispatched messages, including manual bulk emails/SMS and those triggered by
 automated system tasks.
+
+## Member Bulletin
+
+A recently dispatched Organization Communication addressed to a specific Organization Member and
+shown in that member's dashboard. A Member Bulletin is not a draft, an undelivered message, or a
+read/unread record.
 
 ## Message Draft
 

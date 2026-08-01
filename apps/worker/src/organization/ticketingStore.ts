@@ -61,6 +61,13 @@ const validateScanOperationSchema = organizationContextSchema.extend({
   eventId: z.uuid(),
   purchaseId: z.uuid(),
   requestId: z.uuid(),
+  scanNonce: z.string().min(1).max(128),
+});
+
+const issueScanCredentialOperationSchema = organizationContextSchema.extend({
+  action: z.literal("issue_ticket_scan_credential"),
+  purchaseId: z.uuid(),
+  requestId: z.uuid(),
 });
 
 const bundleActorSchema = organizationContextSchema.extend({
@@ -112,6 +119,7 @@ const operationSchema = z.discriminatedUnion("action", [
   refundOperationSchema,
   refundProviderPurchaseOperationSchema,
   validateScanOperationSchema,
+  issueScanCredentialOperationSchema,
   upsertBundleOperationSchema,
   deleteBundleOperationSchema,
   ticketNotificationResultOperationSchema,
@@ -161,6 +169,9 @@ interface TicketPurchaseRow {
   readonly providerSessionId: string;
   readonly quantity: number;
   readonly refundRequested: number;
+  readonly scanCredentialExpiresAt: number | null;
+  readonly scanCredentialIssuedAt: number | null;
+  readonly scanCredentialNonce: string | null;
   readonly status: "expired" | "paid" | "pending" | "refunded";
   readonly timezone: string;
   readonly unitPriceCents: number;
@@ -211,7 +222,10 @@ const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS eventTitl
     WHERE pa.payment_type IN ('ticket', 'bundle')
       AND pa.resource_id = ticket_purchases.id
       AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
-  created_at AS createdAt, updated_at AS updatedAt
+  created_at AS createdAt, updated_at AS updatedAt,
+  scan_credential_nonce AS scanCredentialNonce,
+  scan_credential_issued_at AS scanCredentialIssuedAt,
+  scan_credential_expires_at AS scanCredentialExpiresAt
   FROM ticket_purchases`;
 
 function identity(storage: DurableObjectStorage): IdentityRow | undefined {
@@ -694,6 +708,52 @@ function stripeEventWasProcessed(storage: DurableObjectStorage, eventId: string)
   );
 }
 
+function queueTicketConfirmation(
+  storage: DurableObjectStorage,
+  purchase: TicketPurchaseRow,
+  occurredAt: string,
+): void {
+  const dedupeKey = `ticket-confirmation:${purchase.id}`;
+  const existing = storage.sql
+    .exec<{ readonly id: string }>(
+      "SELECT id FROM ticket_notifications WHERE dedupe_key = ? LIMIT 1",
+      dedupeKey,
+    )
+    .toArray()
+    .at(0);
+  if (existing) return;
+
+  const notificationTemplate = readTicketMessageTemplate(
+    storage,
+    purchase.bundleId ? "bundle_confirmation" : "confirmation",
+  );
+  const notificationId = crypto.randomUUID();
+  storage.sql.exec(
+    `INSERT INTO ticket_notifications
+      (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+       content_markdown, status, scheduled_for, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'confirmation', ?, ?, ?, 'queued', ?, ?, ?)`,
+    notificationId,
+    purchase.id,
+    purchase.bundleId ? null : purchase.eventId,
+    dedupeKey,
+    purchase.buyerEmail,
+    notificationTemplate.subject,
+    notificationTemplate.contentMarkdown,
+    occurredAt,
+    occurredAt,
+    occurredAt,
+  );
+  storage.sql.exec(
+    `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+     VALUES (?, 'ticket_notification', ?, ?, ?)`,
+    crypto.randomUUID(),
+    `ticket-notification:${notificationId}`,
+    occurredAt,
+    occurredAt,
+  );
+}
+
 function completeStripeTicketPurchase(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeTicketCompletedOperationSchema>,
@@ -708,12 +768,13 @@ function completeStripeTicketPurchase(
     return Response.json({ ...purchaseResult(row), duplicate: true });
   }
   const occurredAt = new Date().toISOString();
+  const shouldFulfill = row.status === "pending" || row.status === "expired";
   storage.transactionSync(() => {
-    if (row.status === "pending") {
+    if (shouldFulfill) {
       storage.sql.exec(
         `UPDATE ticket_purchases
          SET status = 'paid', provider_payment_id = ?, fulfilled_at = ?, expired_at = NULL, updated_at = ?
-         WHERE id = ? AND status = 'pending'`,
+         WHERE id = ? AND status IN ('pending', 'expired')`,
         operation.providerPaymentId,
         occurredAt,
         occurredAt,
@@ -721,42 +782,15 @@ function completeStripeTicketPurchase(
       );
       storage.sql.exec(
         `UPDATE payment_attempts
-         SET provider_session_id = ?, provider_payment_id = ?, status = 'paid', updated_at = ?
-         WHERE resource_id = ? AND status = 'pending'`,
+         SET provider_session_id = ?, provider_payment_id = ?, status = 'paid',
+             expired_at = NULL, updated_at = ?
+         WHERE resource_id = ? AND status IN ('pending', 'expired')`,
         operation.providerSessionId,
         operation.providerPaymentId,
         occurredAt,
         row.id,
       );
-      const confirmationId = crypto.randomUUID();
-      const notificationTemplate = readTicketMessageTemplate(
-        storage,
-        row.bundleId ? "bundle_confirmation" : "confirmation",
-      );
-      storage.sql.exec(
-        `INSERT OR IGNORE INTO ticket_notifications
-          (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
-           content_markdown, status, scheduled_for, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'confirmation', ?, ?, ?, 'queued', ?, ?, ?)`,
-        confirmationId,
-        row.id,
-        row.bundleId ? null : row.eventId,
-        `ticket-confirmation:${row.id}`,
-        row.buyerEmail,
-        notificationTemplate.subject,
-        notificationTemplate.contentMarkdown,
-        occurredAt,
-        occurredAt,
-        occurredAt,
-      );
-      storage.sql.exec(
-        `INSERT OR IGNORE INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
-         VALUES (?, 'ticket_notification', ?, ?, ?)`,
-        crypto.randomUUID(),
-        `ticket-notification:${confirmationId}`,
-        occurredAt,
-        occurredAt,
-      );
+      queueTicketConfirmation(storage, row, occurredAt);
     }
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -769,11 +803,11 @@ function completeStripeTicketPurchase(
         paymentType: row.bundleId ? "bundle" : "ticket",
         providerPaymentId: operation.providerPaymentId,
         providerSessionId: operation.providerSessionId,
-        status: row.status === "pending" ? "paid" : row.status,
+        status: shouldFulfill ? "paid" : row.status,
       }),
       occurredAt,
     );
-    if (row.status === "pending") {
+    if (shouldFulfill) {
       storage.sql.exec(
         `INSERT OR IGNORE INTO audit_events
           (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
@@ -910,37 +944,115 @@ function refundStripeTicketPurchases(
   return Response.json({ refunded });
 }
 
-function validateTicketScan(
+function issueTicketScanCredential(
   storage: DurableObjectStorage,
-  operation: z.infer<typeof validateScanOperationSchema>,
+  operation: z.infer<typeof issueScanCredentialOperationSchema>,
 ): Response {
   const row = storage.sql
     .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, operation.purchaseId)
     .toArray()
     .at(0);
-  const purchase = row ? purchaseResult(row) : null;
-  const scannedEvent = purchase?.includedEvents.find(({ id }) => id === operation.eventId);
-  const result = !row
-    ? ticketScanResultSchema.parse({ reason: "not_found", valid: false })
-    : row.status !== "paid"
-      ? ticketScanResultSchema.parse({ reason: "not_paid", valid: false })
-      : !scannedEvent
-        ? ticketScanResultSchema.parse({ reason: "wrong_event", valid: false })
-        : ticketScanResultSchema.parse({
-            buyerName: row.buyerName,
-            eventId: scannedEvent.id,
-            eventStartsAt: scannedEvent.startsAt,
-            eventTitle: scannedEvent.title,
-            purchaseId: row.id,
-            quantity: row.quantity,
-            valid: true,
-          });
+  if (row?.status !== "paid") {
+    return Response.json({ code: "ticket_scan_unavailable" }, { status: 404 });
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    row.scanCredentialNonce &&
+    row.scanCredentialIssuedAt !== null &&
+    row.scanCredentialExpiresAt !== null &&
+    row.scanCredentialExpiresAt > now
+  ) {
+    return Response.json({
+      expiresAt: row.scanCredentialExpiresAt,
+      issuedAt: row.scanCredentialIssuedAt,
+      nonce: row.scanCredentialNonce,
+    });
+  }
+  if (row.scanCredentialIssuedAt !== null && now - row.scanCredentialIssuedAt < 60) {
+    return Response.json({ code: "ticket_scan_rate_limited" }, { status: 429 });
+  }
+
+  const nonce = crypto.randomUUID();
+  const expiresAt = now + 15 * 60;
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
     storage.sql.exec(
+      `UPDATE ticket_purchases
+       SET scan_credential_nonce = ?, scan_credential_issued_at = ?,
+           scan_credential_expires_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'paid'`,
+      nonce,
+      now,
+      expiresAt,
+      occurredAt,
+      operation.purchaseId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'public_visitor', 'ticket-holder', 'ticket.scan_credential.issued',
+         'ticket_purchase', ?, ?, ?, ?)`,
+      `ticket-scan-credential:${operation.purchaseId}:${String(now)}`,
+      operation.purchaseId,
+      operation.requestId,
+      JSON.stringify({ expiresAt }),
+      occurredAt,
+    );
+  });
+  return Response.json({ expiresAt, issuedAt: now, nonce });
+}
+
+function validateTicketScan(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof validateScanOperationSchema>,
+): Response {
+  const now = Math.floor(Date.now() / 1000);
+  const row = storage.sql
+    .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, operation.purchaseId)
+    .toArray()
+    .at(0);
+  const credentialMatches =
+    row?.scanCredentialNonce === operation.scanNonce &&
+    row.scanCredentialIssuedAt !== null &&
+    row.scanCredentialExpiresAt !== null &&
+    row.scanCredentialIssuedAt <= now &&
+    row.scanCredentialExpiresAt > now;
+  const purchase = row && credentialMatches ? purchaseResult(row) : null;
+  const scannedEvent = purchase?.includedEvents.find(({ id }) => id === operation.eventId);
+  const result =
+    !row || !credentialMatches
+      ? ticketScanResultSchema.parse({ reason: "not_found", valid: false })
+      : row.status !== "paid"
+        ? ticketScanResultSchema.parse({ reason: "not_paid", valid: false })
+        : !scannedEvent
+          ? ticketScanResultSchema.parse({ reason: "wrong_event", valid: false })
+          : ticketScanResultSchema.parse({
+              buyerName: row.buyerName,
+              eventId: scannedEvent.id,
+              eventStartsAt: scannedEvent.startsAt,
+              eventTitle: scannedEvent.title,
+              purchaseId: row.id,
+              quantity: row.quantity,
+              valid: true,
+            });
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    const replayed =
+      row !== undefined &&
+      credentialMatches &&
+      storage.sql
+        .exec(
+          "SELECT id FROM ticket_scan_events WHERE purchase_id = ? AND credential_nonce = ? LIMIT 1",
+          operation.purchaseId,
+          operation.scanNonce,
+        )
+        .toArray().length > 0;
+    storage.sql.exec(
       `INSERT INTO ticket_scan_events
-        (id, purchase_id, event_id, actor_user_id, result, request_id, occurred_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (id, purchase_id, event_id, actor_user_id, result, request_id, occurred_at, credential_nonce)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       crypto.randomUUID(),
       operation.purchaseId,
       operation.eventId,
@@ -948,7 +1060,23 @@ function validateTicketScan(
       result.valid ? "valid" : result.reason,
       operation.requestId,
       occurredAt,
+      operation.scanNonce,
     );
+    if (replayed) {
+      storage.sql.exec(
+        `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_member', ?, 'ticket.scan.replayed',
+           'ticket_purchase', ?, ?, ?, ?)`,
+        `ticket-scan-replay:${operation.requestId}`,
+        operation.actorUserId,
+        operation.purchaseId,
+        operation.requestId,
+        JSON.stringify({ eventId: operation.eventId, valid: result.valid }),
+        occurredAt,
+      );
+    }
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
@@ -1416,6 +1544,8 @@ export async function manageTicketingInStore(
     }
     case "attach_stripe_session":
       return attachStripeSession(storage, operation.data);
+    case "issue_ticket_scan_credential":
+      return issueTicketScanCredential(storage, operation.data);
     case "refund_fake_purchase":
       return refundFakePurchase(storage, operation.data);
     case "refund_provider_purchase":

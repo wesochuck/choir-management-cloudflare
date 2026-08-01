@@ -274,7 +274,10 @@
         "status": "verified",
         "baselineEvidence": "Signed-in account entry surface",
         "targetEvidence":
-          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
+          [
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/AccountView.tsx",
+          ],
       },
       {
         "id": "route.account.organizations",
@@ -284,7 +287,10 @@
         "status": "verified",
         "baselineEvidence": "Signed-in Organization chooser surface",
         "targetEvidence":
-          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
+          [
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/AccountView.tsx",
+          ],
       },
       {
         "id": "route.account.security",
@@ -295,7 +301,7 @@
         "baselineEvidence": "Signed-in account security surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/AccountSecurity.tsx",
           ],
       },
@@ -307,7 +313,10 @@
         "status": "verified",
         "baselineEvidence": "Signed-in active sessions surface",
         "targetEvidence":
-          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/AccountView.tsx"],
+          [
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/AccountView.tsx",
+          ],
       },
       {
         "id": "route.admin.overview",
@@ -318,7 +327,7 @@
         "baselineEvidence": "Signed-in Organization administration entry surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/auth/api.ts",
             "packages/contracts/src/index.ts",
             "apps/worker/src/router.ts",
@@ -333,7 +342,7 @@
         "baselineEvidence": "Signed-in Organization membership invitation surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/OrganizationAccess.tsx",
             "apps/web/src/account/OrganizationInvitations.tsx",
           ],
@@ -347,7 +356,7 @@
         "baselineEvidence": "Signed-in Organization security surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/OrganizationAccess.tsx",
           ],
       },
@@ -359,7 +368,10 @@
         "status": "verified",
         "baselineEvidence": "Signed-in member schedule surface",
         "targetEvidence":
-          ["apps/web/src/account/AuthenticatedShell.tsx", "apps/web/src/account/MySchedule.tsx"],
+          [
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/MySchedule.tsx",
+          ],
       },
       {
         "id": "route.member.practice",
@@ -370,7 +382,7 @@
         "baselineEvidence": "Signed-in member practice surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/LearningTrackPlayer.tsx",
           ],
       },
@@ -383,7 +395,7 @@
         "baselineEvidence": "Signed-in member resources surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/OrganizationResources.tsx",
           ],
       },
@@ -396,7 +408,7 @@
         "baselineEvidence": "Signed-in member calendar subscription surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/CalendarSubscription.tsx",
           ],
       },
@@ -409,7 +421,7 @@
         "baselineEvidence": "Signed-in Platform Administrator entry surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/PlatformAccess.tsx",
           ],
       },
@@ -422,7 +434,7 @@
         "baselineEvidence": "Signed-in Platform Administrator security surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/PlatformAccess.tsx",
           ],
       },
@@ -435,7 +447,7 @@
         "baselineEvidence": "Signed-in Platform Administrator Organization operations surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/PlatformOperations.tsx",
           ],
       },
@@ -448,7 +460,7 @@
         "baselineEvidence": "Signed-in Platform Administrator scoped access surface",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/PlatformOperations.tsx",
           ],
       },
@@ -462,7 +474,7 @@
         "targetEvidence":
           [
             "apps/web/src/App.tsx",
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/DashboardView.tsx",
           ],
       },
@@ -522,8 +534,8 @@
             "packages/domain/src/rosterCsv.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/profiles.integration.test.ts",
-            "apps/web/src/account/AuthenticatedShell.tsx",
-            "apps/web/src/account/RosterPage.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/components/RosterPage/controller.tsx",
           ],
       },
       {
@@ -535,8 +547,8 @@
         "baselineEvidence": "src/App.tsx:352; src/views/admin/EventsView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
-            "apps/web/src/account/EventsPage.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/components/EventsPage/page.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
           ],
@@ -550,7 +562,7 @@
         "baselineEvidence": "src/App.tsx:365; src/views/admin/EventRosterView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/RsvpManagerPage.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
@@ -565,7 +577,7 @@
         "baselineEvidence": "src/App.tsx:378; src/views/admin/SetListView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/SetListManager.tsx",
+            "apps/web/src/account/components/SetListManager/controller.tsx",
             "apps/web/src/account/OrganizationAccess.tsx",
             "packages/domain/src/setList.ts",
           ],
@@ -579,7 +591,7 @@
         "baselineEvidence": "src/App.tsx:391; src/views/admin/VenuesView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/VenuesPage.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
@@ -594,7 +606,7 @@
         "baselineEvidence": "src/App.tsx:404; src/views/admin/SeatingView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/SeatingManager.tsx",
+            "apps/web/src/account/components/SeatingManager/controller.tsx",
             "packages/domain/src/seatingLayout.ts",
             "packages/domain/src/seatingLayout.test.ts",
             "apps/worker/src/organization/organizationSeating.ts",
@@ -626,7 +638,7 @@
         "baselineEvidence": "src/App.tsx:430; src/views/admin/RsvpDashboardView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/RsvpManagerPage.tsx",
             "apps/worker/src/router.ts",
           ],
@@ -640,7 +652,7 @@
         "baselineEvidence": "src/App.tsx:443; src/views/admin/PollsDashboardView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/PollsPage.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/pollStore.ts",
@@ -655,8 +667,8 @@
         "baselineEvidence": "src/App.tsx:456; src/views/admin/AuditionsView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
             "apps/web/e2e/auditions.spec.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
           ],
@@ -679,7 +691,7 @@
         "baselineEvidence": "src/App.tsx:482; src/views/admin/MusicLibraryView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/src/account/components/MusicCatalog/controller.tsx",
             "apps/worker/src/organization/musicStore.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/music.integration.test.ts",
@@ -708,7 +720,7 @@
         "baselineEvidence": "src/App.tsx:508; src/views/admin/SettingsView.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/OrganizationSettingsPage.tsx",
             "apps/web/src/account/RosterConfiguration.tsx",
             "apps/web/src/account/OrganizationProviderStatus.tsx",
@@ -750,7 +762,7 @@
         "targetEvidence":
           [
             "apps/web/src/App.tsx",
-            "apps/web/src/account/CommunicationCenter.tsx",
+            "apps/web/src/account/components/CommunicationCenter/controller.tsx",
             "apps/web/src/auth/api.ts",
           ],
       },
@@ -861,7 +873,7 @@
       {
         "id": "api.refund-dues",
         "method": "POST",
-        "path": "/api/admin/refund-dues",
+        "path": "/api/organization/dues/:duesId/refund",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -870,9 +882,9 @@
           ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationSeasons.ts"],
       },
       {
-        "id": "api.hooks-health",
+        "id": "api.health",
         "method": "GET",
-        "path": "/api/hooks/health",
+        "path": "/api/health",
         "owner": "apps/worker",
         "milestone": 1,
         "status": "verified",
@@ -958,7 +970,7 @@
       {
         "id": "api.module-state",
         "method": "GET",
-        "path": "/api/modules/state",
+        "path": "/api/organization/module-state",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1044,7 +1056,7 @@
       {
         "id": "api.rsvp-details",
         "method": "POST",
-        "path": "/api/rsvp-details",
+        "path": "/api/public/rsvp-details",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1059,8 +1071,8 @@
       },
       {
         "id": "api.singer-rsvp",
-        "method": "POST",
-        "path": "/api/singer/rsvp",
+        "method": "PUT",
+        "path": "/api/singer/events/:eventId/rsvp",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1085,7 +1097,7 @@
       {
         "id": "api.quick-rsvp",
         "method": "POST",
-        "path": "/api/quick-rsvp",
+        "path": "/api/public/quick-rsvp",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1100,7 +1112,7 @@
       {
         "id": "api.unsubscribe",
         "method": "POST",
-        "path": "/api/unsubscribe",
+        "path": "/api/public/unsubscribe",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1116,7 +1128,7 @@
       {
         "id": "api.generate-rsvp-tokens",
         "method": "POST",
-        "path": "/api/generate-rsvp-tokens",
+        "path": "/api/organization/rsvp-tokens",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1129,50 +1141,9 @@
           ],
       },
       {
-        "id": "api.bulk-rsvp",
-        "method": "POST",
-        "path": "/api/admin/bulk-update-rsvps",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/bulkUpdateRsvps.ts",
-        "targetEvidence": ["apps/worker/src/router.ts"],
-      },
-      {
-        "id": "api.bulk-attendance",
-        "method": "POST",
-        "path": "/api/admin/bulk-upsert-attendance",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/bulkUpsertAttendance.ts",
-        "targetEvidence":
-          [
-            "apps/worker/src/organization/calendarManagementStore.ts",
-            "apps/worker/src/router.ts",
-            "apps/worker/test/attendance.integration.test.ts",
-            "apps/web/src/account/AttendanceManager.tsx",
-          ],
-      },
-      {
-        "id": "api.queue-process",
-        "method": "POST",
-        "path": "/api/queue/process",
-        "owner": "apps/worker",
-        "milestone": 3,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1494",
-        "targetEvidence":
-          [
-            "apps/worker/src/jobs/consumer.ts",
-            "apps/worker/src/control/migrations/0006_job_dead_letters.sql",
-            "apps/worker/test/jobs.integration.test.ts",
-          ],
-      },
-      {
         "id": "api.queue-settings",
         "method": "GET",
-        "path": "/api/admin/queue-settings",
+        "path": "/api/platform/queue-settings",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1182,12 +1153,27 @@
       {
         "id": "api.queue-settings-generate",
         "method": "POST",
-        "path": "/api/admin/queue-settings/generate",
+        "path": "/api/platform/queue-settings/generate",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1498",
         "targetEvidence": ["apps/worker/src/router.ts"],
+      },
+      {
+        "id": "api.platform.reconciliation-report",
+        "method": "GET",
+        "path": "/api/platform/reconciliation-report",
+        "owner": "apps/worker",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent legacy read-only reconciliation report existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/platformOperations.ts",
+            "apps/worker/src/organization/reconciliationStore.ts",
+            "apps/worker/test/reconciliation.integration.test.ts",
+          ],
       },
       {
         "id": "api.test-email",
@@ -1212,7 +1198,7 @@
       {
         "id": "api.player-token",
         "method": "POST",
-        "path": "/api/generate-player-token",
+        "path": "/api/organization/player-tokens",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1227,7 +1213,7 @@
       {
         "id": "api.checkout-ticket",
         "method": "POST",
-        "path": "/api/checkout/create-tickets-session",
+        "path": "/api/public/tickets/checkout",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1241,25 +1227,9 @@
           ],
       },
       {
-        "id": "api.checkout-bundle",
-        "method": "POST",
-        "path": "/api/checkout/create-bundle-session",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1507",
-        "targetEvidence":
-          [
-            "apps/worker/src/organization/organizationTicketing.ts",
-            "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
-            "apps/web/e2e/ticketing.spec.ts",
-          ],
-      },
-      {
         "id": "api.checkout-dues",
         "method": "POST",
-        "path": "/api/checkout/create-dues-session",
+        "path": "/api/singer/dues/checkout",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1274,7 +1244,7 @@
       {
         "id": "api.checkout-rsvp",
         "method": "POST",
-        "path": "/api/checkout/rsvp",
+        "path": "/api/public/rsvp",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1285,7 +1255,7 @@
       {
         "id": "api.checkout-donation",
         "method": "POST",
-        "path": "/api/checkout/create-donation-session",
+        "path": "/api/public/donations/checkout",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1330,7 +1300,7 @@
       {
         "id": "api.refund-ticket",
         "method": "POST",
-        "path": "/api/admin/refund-ticket",
+        "path": "/api/organization/tickets/:purchaseId/refund",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1343,24 +1313,9 @@
           ],
       },
       {
-        "id": "api.refund-bundle",
-        "method": "POST",
-        "path": "/api/admin/refund-bundle",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1519",
-        "targetEvidence":
-          [
-            "apps/worker/src/organization/organizationTicketing.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
-            "apps/web/e2e/ticketing.spec.ts",
-          ],
-      },
-      {
         "id": "api.refund-donation",
         "method": "POST",
-        "path": "/api/admin/refund-donation",
+        "path": "/api/organization/donations/:donationId/refund",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1375,7 +1330,7 @@
       {
         "id": "api.resend-ticket",
         "method": "POST",
-        "path": "/api/admin/resend-ticket-confirmation",
+        "path": "/api/organization/tickets/:purchaseId/confirmation",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1391,7 +1346,7 @@
       {
         "id": "api.ticket-validate",
         "method": "POST",
-        "path": "/api/tickets/validate",
+        "path": "/api/organization/tickets/scan",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1404,24 +1359,9 @@
           ],
       },
       {
-        "id": "api.ticket-scan-context",
-        "method": "GET",
-        "path": "/api/tickets/scan-context",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1526",
-        "targetEvidence":
-          [
-            "apps/web/src/account/TicketingManager.tsx",
-            "apps/worker/test/ticketing.integration.test.ts",
-            "apps/web/e2e/ticketing.spec.ts",
-          ],
-      },
-      {
         "id": "api.player-playlist",
         "method": "GET",
-        "path": "/api/player-playlist",
+        "path": "/api/public/player/playlist",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "implemented",
@@ -1432,21 +1372,6 @@
             "apps/worker/src/organization/organizationPlayerLinks.ts",
             "apps/worker/src/organization/playerStore.ts",
             "apps/worker/test/publicPlayer.integration.test.ts",
-          ],
-      },
-      {
-        "id": "api.calendar-download",
-        "method": "GET",
-        "path": "/api/calendar/download",
-        "owner": "apps/worker",
-        "milestone": 3,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1530",
-        "targetEvidence":
-          [
-            "apps/worker/src/calendar/calendarIcs.ts",
-            "apps/worker/src/calendar/calendarFeed.ts",
-            "apps/worker/src/router.ts",
           ],
       },
       {
@@ -1528,7 +1453,7 @@
       {
         "id": "api.maintenance",
         "method": "GET",
-        "path": "/api/maintenance/run",
+        "path": "/api/platform/maintenance/run",
         "owner": "apps/worker",
         "milestone": 3,
         "status": "implemented",
@@ -1539,36 +1464,6 @@
             "apps/worker/src/organization/OrganizationStore.ts",
             "apps/worker/src/organization/scheduler.ts",
             "apps/worker/test/ticketing.integration.test.ts",
-          ],
-      },
-      {
-        "id": "api.delivery-summary",
-        "method": "POST",
-        "path": "/api/admin/communications/delivery-summary",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1554",
-        "targetEvidence":
-          [
-            "apps/worker/src/router.ts",
-            "apps/worker/src/organization/communicationStore.ts",
-            "apps/worker/test/communications.integration.test.ts",
-          ],
-      },
-      {
-        "id": "api.retry-deliveries",
-        "method": "POST",
-        "path": "/api/admin/communications/retry-failed",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1556",
-        "targetEvidence":
-          [
-            "apps/worker/src/router.ts",
-            "apps/worker/src/organization/communicationStore.ts",
-            "apps/worker/test/communications.integration.test.ts",
           ],
       },
       {
@@ -1714,23 +1609,6 @@
           ],
       },
       {
-        "id": "api.organization.export",
-        "method": "GET",
-        "path": "/api/organization/export.json",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "accepted ADR 0015 portable Organization export contract",
-        "targetEvidence":
-          [
-            "apps/worker/src/router.ts",
-            "apps/worker/src/organization/exportStore.ts",
-            "apps/worker/src/organization/OrganizationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
-            "apps/web/src/account/OrganizationSettingsPage.tsx",
-          ],
-      },
-      {
         "id": "api.public.audition-settings",
         "method": "GET",
         "path": "/api/public/audition-settings",
@@ -1813,7 +1691,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
           ],
       },
       {
@@ -1829,7 +1707,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
           ],
       },
       {
@@ -1844,7 +1722,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
           ],
       },
       {
@@ -1875,7 +1753,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
           ],
       },
       {
@@ -1890,7 +1768,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
           ],
       },
       {
@@ -1984,7 +1862,7 @@
             "apps/worker/src/organization/auditionStore.ts",
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationAuditions.ts",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
             "apps/worker/src/organization/schema.ts",
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/publicAudition.integration.test.ts",
@@ -2107,7 +1985,7 @@
             "packages/domain/src/musicCsv.test.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/music.integration.test.ts",
-            "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/src/account/components/MusicCatalog/controller.tsx",
             "apps/web/e2e/setlists.spec.ts",
           ],
       },
@@ -2351,7 +2229,7 @@
             "packages/domain/src/rosterCsv.test.ts",
             "packages/domain/src/rosterConfiguration.ts",
             "apps/worker/test/rosterConfiguration.integration.test.ts",
-            "apps/web/src/account/OrganizationCalendar.tsx",
+            "apps/web/src/account/components/EventsPage/page.tsx",
             "apps/web/src/account/RosterConfiguration.tsx",
             "apps/web/src/account/MemberProfileDirectory.tsx",
             "apps/web/e2e/auth.spec.ts",
@@ -2397,8 +2275,8 @@
             "apps/worker/test/statusAutomation.integration.test.ts",
             "apps/worker/test/selfServiceRsvp.integration.test.ts",
             "apps/web/src/account/RosterAutomationSettings.tsx",
-            "apps/web/src/account/RosterPage.tsx",
-            "apps/web/src/account/EventsPage.tsx",
+            "apps/web/src/account/components/RosterPage/controller.tsx",
+            "apps/web/src/account/components/EventsPage/page.tsx",
             "apps/web/src/account/RsvpManagerPage.tsx",
             "apps/web/src/account/MySchedule.tsx",
             "docs/adr/0016-use-on-break-in-product-language.md",
@@ -2423,7 +2301,7 @@
         "baselineEvidence":
           "src/views/admin/events/useEventCloneWorkflow.ts; test/eventService.test.ts",
         "targetEvidence":
-          ["apps/web/src/account/OrganizationCalendar.tsx", "apps/web/e2e/auth.spec.ts"],
+          ["apps/web/src/account/components/EventsPage/page.tsx", "apps/web/e2e/auth.spec.ts"],
       },
       {
         "id": "workflow.rsvp-attendance",
@@ -2474,7 +2352,7 @@
             "apps/worker/src/organization/musicStore.ts",
             "apps/worker/src/organization/organizationMusic.ts",
             "apps/worker/test/music.integration.test.ts",
-            "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/src/account/components/MusicCatalog/controller.tsx",
             "apps/web/src/account/musicPublisherSearch.ts",
             "apps/web/src/account/musicPublisherSearch.test.ts",
             "apps/worker/src/organization/schema.ts",
@@ -2495,7 +2373,7 @@
             "apps/worker/src/organization/calendarManagementStore.ts",
             "apps/worker/test/music.integration.test.ts",
             "apps/worker/test/selfServiceRsvp.integration.test.ts",
-            "apps/web/src/account/SetListManager.tsx",
+            "apps/web/src/account/components/SetListManager/controller.tsx",
             "apps/web/src/account/MySchedule.tsx",
             "apps/web/e2e/setlists.spec.ts",
           ],
@@ -2533,7 +2411,7 @@
             "packages/domain/src/seatingAlgorithm.test.ts",
             "packages/domain/src/seatingConfiguration.ts",
             "apps/worker/src/organization/seatingStore.ts",
-            "apps/web/src/account/SeatingManager.tsx",
+            "apps/web/src/account/components/SeatingManager/controller.tsx",
             "apps/web/src/account/SeatingFinder.tsx",
             "apps/worker/test/seating.integration.test.ts",
           ],
@@ -2556,7 +2434,7 @@
             "apps/worker/src/organization/organizationCommunications.ts",
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/communications.integration.test.ts",
-            "apps/web/src/account/CommunicationCenter.tsx",
+            "apps/web/src/account/components/CommunicationCenter/controller.tsx",
           ],
       },
       {
@@ -2598,7 +2476,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/test/publicAudition.integration.test.ts",
             "apps/web/src/public/PublicAuditionView.tsx",
-            "apps/web/src/account/AuditionManager.tsx",
+            "apps/web/src/account/components/AuditionManager/page.tsx",
             "apps/web/e2e/auditions.spec.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
           ],
@@ -2753,7 +2631,7 @@
             "apps/worker/src/organization/musicStore.ts",
             "apps/worker/test/files.integration.test.ts",
             "apps/worker/test/music.integration.test.ts",
-            "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/src/account/components/MusicCatalog/controller.tsx",
             "apps/web/src/account/audioDuration.ts",
             "apps/web/src/account/audioDuration.test.ts",
             "apps/web/src/account/durationAutoFill.ts",
@@ -2857,7 +2735,7 @@
             "packages/ui/src/Dialog.tsx",
             "packages/ui/src/Sheet.tsx",
             "packages/ui/src/index.ts",
-            "apps/web/src/account/AuthenticatedShell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/styles/theme.css",
             "apps/web/e2e/auth.spec.ts",
           ],
@@ -2885,7 +2763,7 @@
         "baselineEvidence":
           "docs/2026-07-13-communications-phase-1-mobile-send-flow.md;
           test/CommunicationTabs.test.tsx",
-        "targetEvidence": ["apps/web/src/account/CommunicationCenter.tsx"],
+        "targetEvidence": ["apps/web/src/account/components/CommunicationCenter/controller.tsx"],
       },
       {
         "id": "responsive.seating",
@@ -2900,7 +2778,7 @@
           src/components/admin/SeatingGrid.tsx; src/components/admin/SeatingBottomDock.tsx",
         "targetEvidence":
           [
-            "apps/web/src/account/SeatingManager.tsx",
+            "apps/web/src/account/components/SeatingManager/controller.tsx",
             "apps/web/src/styles/theme.css",
             "packages/domain/src/seatingLayout.test.ts",
             "apps/worker/test/seating.integration.test.ts",

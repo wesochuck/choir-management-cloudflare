@@ -75,6 +75,20 @@ describe("renderAttendanceReportCsv", () => {
     expect(dataLines[3]).toContain('"Bob Brown"');
   });
 
+  it("honors the requested name sort", () => {
+    const csv = renderAttendanceReportCsv({
+      performerLabel: "Performer",
+      singers: [
+        { ...baseSinger, name: "Zoe Zulu", absences: 0 },
+        { ...baseSinger, name: "Alice Adams", absences: 5 },
+      ],
+      sort: "name",
+    });
+    const dataLines = csv.split("\r\n").slice(1, -1);
+    expect(dataLines[0]).toContain('"Alice Adams"');
+    expect(dataLines[1]).toContain('"Zoe Zulu"');
+  });
+
   it("escapes commas and quotes in singer name", () => {
     const singer: AttendanceReportSinger = {
       ...baseSinger,

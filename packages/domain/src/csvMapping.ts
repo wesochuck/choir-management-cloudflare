@@ -19,7 +19,7 @@ export function mapCsvColumns(
   const kept = mappings.filter(({ targetHeader }) => targetHeader !== null);
   return rows
     .map((row, rowIndex) => {
-      if (row.length === 1 && row[0]?.trim().toLocaleLowerCase() === "section leaders") {
+      if (row.length === 1 && row[0]?.trim().toLowerCase() === "section leaders") {
         return [csvField(row[0])].join(",");
       }
       if (rowIndex === 0) {

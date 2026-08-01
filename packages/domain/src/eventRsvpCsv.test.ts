@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
+import { lastNameSortKey } from "./name";
 
 describe("event RSVP CSV", () => {
   it("preserves legacy grouping, section sorting, formula safety, leaders, and filename", () => {
@@ -53,5 +54,10 @@ describe("event RSVP CSV", () => {
         voiceParts: [],
       }),
     ).toBe("Name,Section,Voice Part,Event Title,RSVP Status");
+  });
+
+  it("normalizes compound surnames and suffixes with the shared export rule", () => {
+    expect(lastNameSortKey("Mary Van Dyke")).toBe("van dyke");
+    expect(lastNameSortKey("John Smith Jr.")).toBe("smith jr.");
   });
 });

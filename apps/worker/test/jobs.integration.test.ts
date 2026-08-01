@@ -462,6 +462,7 @@ describe("Organization queue delivery", () => {
         readonly content: string;
         readonly deliveryStatus: string;
         readonly messageCount: number;
+        readonly reminderSentAt: string | null;
       }
     >(stub, (_instance, state) => ({
       attendance: state.storage.sql
@@ -488,10 +489,20 @@ describe("Organization queue delivery", () => {
           "SELECT COUNT(*) AS messageCount FROM communication_messages",
         )
         .one().messageCount,
+      reminderSentAt: state.storage.sql
+        .exec<{
+          readonly [column: string]: SqlStorageValue;
+          readonly reminderSentAt: string | null;
+        }>(
+          `SELECT reminder_sent_at AS reminderSentAt FROM events
+           WHERE id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac' LIMIT 1`,
+        )
+        .one().reminderSentAt,
     }));
     expect(stored.attendance).toBe("Absent");
     expect(stored.content).toContain("Attendance rate:");
     expect(stored.deliveryStatus).toBe("sent");
     expect(stored.messageCount).toBe(3);
+    expect(stored.reminderSentAt).toEqual(expect.any(String));
   });
 });

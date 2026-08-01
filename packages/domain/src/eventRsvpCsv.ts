@@ -1,3 +1,5 @@
+import { lastNameSortKey } from "./name";
+
 export type EventRsvpStatus = "No" | "Pending" | "Yes";
 export type EventRsvpExportSort = "lastName" | "section";
 
@@ -23,20 +25,6 @@ function quoteCsvValue(value: string): string {
   let safeValue = value.replaceAll('"', '""');
   if (/^[=+\-@]/.test(safeValue)) safeValue = `'${safeValue}`;
   return `"${safeValue}"`;
-}
-
-function lastName(displayName: string): string {
-  const trimmed = displayName.trim();
-  const parts = trimmed.split(/\s+/);
-  if (parts.length <= 1) return trimmed;
-  const suffixes = new Set(["Jr", "Sr", "II", "III", "IV", "V", "Jr.", "Sr."]);
-  const lastPart = parts.at(-1) ?? "";
-  if (suffixes.has(lastPart)) {
-    if (parts.length - 1 >= 3) return `${parts.at(-3) ?? ""} ${parts.at(-2) ?? ""} ${lastPart}`;
-    if (parts.length - 1 === 2) return `${parts.at(-2) ?? ""} ${lastPart}`;
-    return lastPart;
-  }
-  return parts.length >= 3 ? `${parts.at(-2) ?? ""} ${lastPart}` : lastPart;
 }
 
 function fallbackSectionCode(voicePart: string): string {
@@ -92,7 +80,9 @@ function sortSingers(
       const normalizedRight = rightIndex === -1 ? 999 : rightIndex;
       if (normalizedLeft !== normalizedRight) return normalizedLeft - normalizedRight;
     }
-    const comparison = lastName(left.displayName).localeCompare(lastName(right.displayName));
+    const comparison = lastNameSortKey(left.displayName).localeCompare(
+      lastNameSortKey(right.displayName),
+    );
     return comparison === 0 ? left.displayName.localeCompare(right.displayName) : comparison;
   });
 }

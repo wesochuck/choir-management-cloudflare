@@ -192,11 +192,19 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
     }
   }
 
+  function cancelGapCountdown(): void {
+    if (countdownRef.current !== null) {
+      window.clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setCountdown(null);
+  }
+
   function selectTrack(index: number, autoplay = true): void {
     if (index < 0 || index >= visibleTracks.length) return;
+    cancelGapCountdown();
     setSelectedIndex(index);
     setIsPlaying(autoplay);
-    setCountdown(null);
   }
 
   function nextTrack(): void {
@@ -315,6 +323,7 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
                 <button
                   className={`button button--small ${voiceFilter === "all" ? "button--primary" : "button--secondary"}`}
                   onClick={() => {
+                    cancelGapCountdown();
                     setVoiceFilter("all");
                   }}
                   type="button"
@@ -326,6 +335,7 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
                     className={`button button--small ${voiceFilter === part ? "button--primary" : "button--secondary"}`}
                     key={part}
                     onClick={() => {
+                      cancelGapCountdown();
                       setVoiceFilter(part);
                     }}
                     type="button"

@@ -28,10 +28,8 @@ if (unregisteredUrl) hosts.push({ label: "unregistered", url: unregisteredUrl })
 
 const placeholderId = "00000000-0000-4000-8000-000000000000";
 const expectedRegistered404 = new Set([
-  "GET /api/calendar/download",
   "GET /api/calendar/feed",
-  "GET /api/player-playlist",
-  "GET /api/tickets/scan-context",
+  "GET /api/public/player/playlist",
 ]);
 const failures = [];
 const counts = { browser: 0, api: 0, core: 0 };

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emailAddressSchema } from "@choir/contracts";
 
 import { mapRosterCsvColumns, parseRosterCsv, renderRosterCsv, RosterCsvError } from "./rosterCsv";
 
@@ -110,6 +111,12 @@ describe("roster CSV", () => {
     expect(() => parseRosterCsv("Name,Email\nSinger,invalid")).toThrow(/not valid/);
     expect(() => parseRosterCsv("Name,Status\nSinger,Unknown")).toThrow(/not recognized/);
     expect(() => parseRosterCsv("Name\nOne\nTwo", 1)).toThrow(/at most 1/);
+  });
+
+  it("uses the same email validator as the API contract", () => {
+    const email = "singer..name@example.test";
+    expect(emailAddressSchema.safeParse(email).success).toBe(false);
+    expect(() => parseRosterCsv(`Name,Email\nSinger,${email}`)).toThrow(/not valid/);
   });
 
   it("maps arbitrary source headers and preserves section leader rows", () => {

@@ -13,7 +13,10 @@ export function ModuleSettingsView() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/modules/state", { credentials: "same-origin", signal: controller.signal })
+    fetch("/api/organization/module-state", {
+      credentials: "same-origin",
+      signal: controller.signal,
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error("Failed to load");
         const body: unknown = await response.json();

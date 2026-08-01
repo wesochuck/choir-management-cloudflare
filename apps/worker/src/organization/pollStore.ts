@@ -339,6 +339,18 @@ export async function managePollInStore(
       if (!poll.multipleChoice && response.optionIds.length > 1) {
         return Response.json({ code: "single_choice_only" }, { status: 400 });
       }
+      const uniqueOptionIds = new Set(response.optionIds);
+      const placeholders = response.optionIds.map(() => "?").join(", ");
+      const ownedOptions = storage.sql
+        .exec<{ id: string }>(
+          `SELECT id FROM poll_options WHERE poll_id = ? AND id IN (${placeholders})`,
+          pollId,
+          ...response.optionIds,
+        )
+        .toArray();
+      if (ownedOptions.length !== uniqueOptionIds.size) {
+        return Response.json({ code: "poll_option_not_found" }, { status: 400 });
+      }
       storage.sql.exec(
         `INSERT OR REPLACE INTO poll_responses
           (poll_id, profile_id, option_ids, profile_name, responded_at)

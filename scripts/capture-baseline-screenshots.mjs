@@ -42,7 +42,7 @@ async function capture({ fileName, path, setupState, viewport }) {
       });
       return;
     }
-    if (pathname === "/api/modules/state") {
+    if (pathname === "/api/organization/module-state") {
       await route.fulfill({
         body: JSON.stringify({ enabled: enabledModules }),
         contentType: "application/json",

@@ -1,3 +1,4 @@
+import { emailAddressSchema } from "@choir/contracts";
 import { mapCsvColumns, type CsvColumnMapping } from "./csvMapping";
 
 export interface RosterCsvProfile {
@@ -95,7 +96,7 @@ function headerIndex(headers: readonly string[], names: readonly string[]): numb
 }
 
 export function rosterCsvColumnForHeader(headerValue: string): string | null {
-  const normalized = headerValue.trim().toLocaleLowerCase();
+  const normalized = headerValue.trim().toLowerCase();
   if (["name", "singer", "singer name", "full name"].includes(normalized)) return "Name";
   if (["email", "e-mail", "email address"].includes(normalized)) return "Email";
   if (["phone", "cell", "mobile", "telephone"].includes(normalized)) return "Phone";
@@ -111,7 +112,7 @@ function valueAt(row: readonly string[], index: number): string {
 }
 
 function parseStatus(value: string, row: number): RosterCsvImportProfile["globalStatus"] {
-  const normalized = value.toLocaleLowerCase().replaceAll(/[^a-z]/g, "");
+  const normalized = value.toLowerCase().replaceAll(/[^a-z]/g, "");
   if (!normalized || normalized === "active" || normalized === "current") return "Active";
   if (["idle", "onbreak", "future"].includes(normalized)) return "Idle";
   if (normalized === "inactive") return "Inactive";
@@ -119,14 +120,14 @@ function parseStatus(value: string, row: number): RosterCsvImportProfile["global
 }
 
 function profileKey(name: string, email: string): string {
-  return `${name.toLocaleLowerCase()}\0${email.toLocaleLowerCase()}`;
+  return `${name.toLowerCase()}\0${email.toLowerCase()}`;
 }
 
 export function parseRosterCsv(csv: string, maximumRows = 500): RosterCsvImportProfile[] {
   const rows = parseRows(csv.replace(/^\uFEFF/, ""));
   const [headerRow, ...remaining] = rows;
   if (!headerRow) throw new RosterCsvError("The CSV is empty.");
-  const headers = headerRow.map((value) => value.toLocaleLowerCase());
+  const headers = headerRow.map((value) => value.toLowerCase());
   const nameIndex = headerIndex(headers, ["name", "singer", "singer name", "full name"]);
   if (nameIndex < 0) throw new RosterCsvError("The CSV requires a Name column.");
   const emailIndex = headerIndex(headers, ["email", "e-mail", "email address"]);
@@ -136,7 +137,7 @@ export function parseRosterCsv(csv: string, maximumRows = 500): RosterCsvImportP
   const notesIndex = headerIndex(headers, ["notes", "note", "comments"]);
   const leaderIndex = headerIndex(headers, ["section leader", "is section leader"]);
   const sectionLeaderMarker = remaining.findIndex(
-    (row) => row.length === 1 && row[0]?.toLocaleLowerCase() === "section leaders",
+    (row) => row.length === 1 && row[0]?.toLowerCase() === "section leaders",
   );
   const profileRows = sectionLeaderMarker < 0 ? remaining : remaining.slice(0, sectionLeaderMarker);
   const leaderRows = sectionLeaderMarker < 0 ? [] : remaining.slice(sectionLeaderMarker + 2);
@@ -154,10 +155,10 @@ export function parseRosterCsv(csv: string, maximumRows = 500): RosterCsvImportP
     const email = valueAt(row, emailIndex);
     if (!displayName)
       throw new RosterCsvError("Every imported Profile requires a name.", rowNumber);
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+    if (email && !emailAddressSchema.safeParse(email).success) {
       throw new RosterCsvError(`Email "${email}" is not valid.`, rowNumber);
     }
-    const explicitLeader = valueAt(row, leaderIndex).toLocaleLowerCase();
+    const explicitLeader = valueAt(row, leaderIndex).toLowerCase();
     return {
       displayName,
       email,
@@ -191,7 +192,7 @@ export function inspectRosterCsv(csv: string): RosterCsvInspection {
     if (!headerRow)
       return { fatalError: "The CSV is empty.", headers: [], rowCount: 0, warnings: [] };
     const headers = headerRow.map((value) => value.trim());
-    const normalizedHeaders = headers.map((value) => value.toLocaleLowerCase());
+    const normalizedHeaders = headers.map((value) => value.toLowerCase());
     const nameIndex = headerIndex(normalizedHeaders, [
       "name",
       "singer",
@@ -199,7 +200,7 @@ export function inspectRosterCsv(csv: string): RosterCsvInspection {
       "full name",
     ]);
     const sectionLeaderMarker = remaining.findIndex(
-      (row) => row.length === 1 && row[0]?.toLocaleLowerCase() === "section leaders",
+      (row) => row.length === 1 && row[0]?.toLowerCase() === "section leaders",
     );
     const profileRows =
       sectionLeaderMarker < 0 ? remaining : remaining.slice(0, sectionLeaderMarker);

@@ -1,5 +1,5 @@
 import { transactionProcessingFeeCents } from "@choir/domain";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AuthApiError, createMyDuesCheckout, getMyDues } from "../auth/api";
 import type { DuesRecord, Season, TransactionFeeSettings } from "@choir/contracts";
@@ -34,12 +34,14 @@ function statusLabel(record: DuesRecord | undefined): string {
   if (!record) return "Not paid";
   if (record.status === "paid") return "Paid";
   if (record.status === "refunded") return "Refunded";
+  if (record.status === "expired") return "Checkout expired";
   return "Payment processing";
 }
 
 export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
   const [state, setState] = useState<DuesState>({ status: "loading" });
   const [busySeasonId, setBusySeasonId] = useState<string | null>(null);
+  const checkoutRequestIds = useRef(new Map<string, string>());
   const [message, setMessage] = useState<string | null>(() => {
     const checkout = new URLSearchParams(window.location.search).get("checkout");
     if (checkout === "success") return "Payment submitted. Your dues status will update shortly.";
@@ -79,7 +81,9 @@ export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
     setBusySeasonId(season.id);
     setMessage(null);
     try {
-      const checkout = await createMyDuesCheckout(season.id);
+      const checkoutRequestId = checkoutRequestIds.current.get(season.id) ?? crypto.randomUUID();
+      checkoutRequestIds.current.set(season.id, checkoutRequestId);
+      const checkout = await createMyDuesCheckout(season.id, checkoutRequestId);
       window.location.assign(checkout.url);
     } catch (error: unknown) {
       setMessage(
@@ -131,7 +135,7 @@ export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
               record?.feeCents ??
               transactionProcessingFeeCents(amountCents, readyState.transactionFeeSettings);
             const totalCents = amountCents + feeCents;
-            const canPay = !record;
+            const canPay = !record || record.status === "expired";
             return (
               <article className="member-dues-row" key={season.id} role="listitem">
                 <div>

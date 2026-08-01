@@ -1,4 +1,4 @@
-export type DonationStatus = "pending" | "paid" | "refunded";
+export type DonationStatus = "expired" | "paid" | "pending" | "refunded";
 export type DonationTributeType = "honor" | "memory" | "anonymous" | "none";
 
 export interface DonationInput {
@@ -40,6 +40,8 @@ export function canTransitionDonation(current: DonationStatus, next: DonationSta
   return (
     current === next ||
     (current === "pending" && next === "paid") ||
+    (current === "pending" && next === "expired") ||
+    (current === "expired" && next === "paid") ||
     (current === "paid" && next === "refunded")
   );
 }

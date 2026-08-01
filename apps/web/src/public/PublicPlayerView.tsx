@@ -66,19 +66,6 @@ function isPlayerDetails(value: unknown): value is PlayerDetails {
   );
 }
 
-function isPublicPlaylist(value: unknown): value is {
-  readonly event: { readonly date: string; readonly id: string; readonly title: string };
-  readonly items: PlayerPlaylistItem[];
-} {
-  if (!isRecord(value) || !isRecord(value.event) || !Array.isArray(value.items)) return false;
-  return (
-    typeof value.event.date === "string" &&
-    typeof value.event.id === "string" &&
-    typeof value.event.title === "string" &&
-    value.items.every(isPlayerPlaylistItem)
-  );
-}
-
 async function fetchPlayerDetails(token: string): Promise<PlayerDetails> {
   const response = await fetch("/api/public/player-details", {
     body: JSON.stringify({ token }),
@@ -92,14 +79,27 @@ async function fetchPlayerDetails(token: string): Promise<PlayerDetails> {
 }
 
 async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> {
-  const response = await fetch(`/api/player-playlist?token=${encodeURIComponent(token)}`);
+  const response = await fetch(`/api/public/player/playlist?token=${encodeURIComponent(token)}`, {
+    headers: { accept: "application/json" },
+  });
   if (!response.ok) throw new Error("not_found");
   const data: unknown = await response.json();
-  if (!isPublicPlaylist(data)) throw new Error("invalid_response");
+  if (!isRecord(data) || !isRecord(data.event) || !Array.isArray(data.items)) {
+    throw new Error("invalid_response");
+  }
+  const { event } = data;
+  if (
+    typeof event.id !== "string" ||
+    typeof event.title !== "string" ||
+    typeof event.date !== "string" ||
+    !data.items.every(isPlayerPlaylistItem)
+  ) {
+    throw new Error("invalid_response");
+  }
   return {
-    eventId: data.event.id,
-    eventStartsAt: data.event.date,
-    eventTitle: data.event.title,
+    eventId: event.id,
+    eventTitle: event.title,
+    eventStartsAt: event.date,
     items: data.items,
   };
 }

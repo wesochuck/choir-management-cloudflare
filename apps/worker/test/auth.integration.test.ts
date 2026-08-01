@@ -371,9 +371,12 @@ describe("Better Auth Worker integration", () => {
       }),
     );
     expect(sessionResponse.status).toBe(200);
-    await expect(sessionResponse.json()).resolves.toMatchObject({
-      user: { email: INVITED_EMAIL, emailVerified: true },
-    });
+    const sessionBody: {
+      readonly session?: Record<string, unknown>;
+      readonly user?: Record<string, unknown>;
+    } = await sessionResponse.json();
+    expect(sessionBody).toMatchObject({ user: { email: INVITED_EMAIL, emailVerified: true } });
+    expect(sessionBody.session).not.toHaveProperty("token");
   });
 
   it("keeps the email-and-password sign-up path disabled", async () => {
@@ -398,32 +401,34 @@ describe("Better Auth Worker integration", () => {
     await seedInvitedUser();
     const firstSessionCookie = await signInInvitedUser();
     const secondSessionCookie = await signInInvitedUser();
-    const sessionRows = await testEnv.CONTROL_DB.prepare(
-      "SELECT token FROM session WHERE userId = ?",
-    )
-      .bind("user-invited-member")
-      .all<{ token: string }>();
-    const secondSessionToken = sessionRows.results.find((row) =>
-      decodeURIComponent(secondSessionCookie).includes(row.token),
-    )?.token;
-    expect(secondSessionToken).toBeDefined();
-
-    const listResponse = await fetchWorker(
-      authRequest("/api/auth/list-sessions", {
+    const accountListResponse = await fetchWorker(
+      authRequest("/api/account/sessions", {
         headers: { cookie: firstSessionCookie },
       }),
     );
-    expect(listResponse.status).toBe(200);
-    await expect(listResponse.json()).resolves.toHaveLength(2);
+    expect(accountListResponse.status).toBe(200);
+    const accountSessions: Record<string, unknown>[] = await accountListResponse.json();
+    expect(accountSessions).toHaveLength(2);
+    expect(accountSessions.every((entry) => !("token" in entry))).toBe(true);
 
-    const revokeResponse = await fetchWorker(
-      authRequest("/api/auth/revoke-session", {
-        body: JSON.stringify({ token: secondSessionToken }),
+    const sessionIds = await testEnv.CONTROL_DB.prepare(
+      "SELECT id, token FROM session WHERE userId = ?",
+    )
+      .bind("user-invited-member")
+      .all<{ id: string; token: string }>();
+    const secondSessionId = sessionIds.results.find((row) =>
+      decodeURIComponent(secondSessionCookie).includes(row.token),
+    )?.id;
+    expect(secondSessionId).toBeDefined();
+
+    const accountRevokeResponse = await fetchWorker(
+      authRequest("/api/account/sessions/revoke", {
+        body: JSON.stringify({ sessionId: secondSessionId }),
         headers: { cookie: firstSessionCookie },
         method: "POST",
       }),
     );
-    expect(revokeResponse.status).toBe(200);
+    expect(accountRevokeResponse.status).toBe(200);
 
     const revokedSessionResponse = await fetchWorker(
       authRequest("/api/auth/get-session", {

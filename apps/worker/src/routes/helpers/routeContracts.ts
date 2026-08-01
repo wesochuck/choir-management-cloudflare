@@ -1,0 +1,529 @@
+import {
+  type PlatformOrganizationSummary,
+  type PlatformJobDeadLetterSummary,
+  type PlatformFleetSchemaPreparation,
+  type OrganizationProviderStatusResponse,
+  type ProblemDetails,
+} from "@choir/contracts";
+import { type Context } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { z } from "zod";
+import { createAuth } from "../../auth/config";
+import { authorizePlatformAdministratorSession } from "../../auth/platformAdministrator";
+import { getPlatformOrganizationContext } from "../../auth/platformElevation";
+import type { Env } from "../../env";
+import { validateStartupConfig } from "../../env";
+import { authorizeOrganizationMember } from "../../tenancy/authorizeOrganization";
+import { organizationExportKey } from "../../organization/exportStore";
+
+import { resolveCanonicalOrganizationId } from "./routeUtilities";
+
+export function setupFailureStatus(status: number): ContentfulStatusCode {
+  switch (status) {
+    case 400:
+      return 400;
+    case 401:
+      return 401;
+    case 403:
+      return 403;
+    case 404:
+      return 404;
+    case 409:
+      return 409;
+    case 422:
+      return 422;
+    case 429:
+      return 429;
+    case 500:
+      return 500;
+    case 502:
+      return 502;
+    case 504:
+      return 504;
+    default:
+      return 503;
+  }
+}
+
+export interface WorkerHonoEnvironment {
+  Bindings: Env;
+  Variables: {
+    requestId: string;
+  };
+}
+
+export async function readJsonObject(
+  context: Context<WorkerHonoEnvironment>,
+): Promise<Record<string, unknown> | null> {
+  const value: unknown = await context.req.json<unknown>().catch(() => null);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return Object.fromEntries(Object.entries(value));
+}
+
+export function isErrorResponse(
+  value: unknown,
+): value is { readonly code: string; readonly status?: number } {
+  return typeof value === "object" && value !== null && "code" in value;
+}
+
+export const PLATFORM_ORGANIZATION_PAGE_SIZE = 25;
+
+export const PLATFORM_DEAD_LETTER_PAGE_SIZE = 25;
+
+export const ORGANIZATION_INVITATION_PAGE_SIZE = 50;
+
+export const browserOrganizationAuthAllowlist = new Set([
+  "/api/auth/organization/list",
+  "/api/auth/organization/set-active",
+]);
+
+export const invitationIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[a-zA-Z0-9_-]+$/);
+
+export const platformOrganizationCursorSchema = z.tuple([
+  z.iso.datetime(),
+  z.string().min(1).max(128),
+]);
+
+export const platformDeadLetterCursorSchema = z.tuple([
+  z.iso.datetime(),
+  z.string().min(1).max(512),
+]);
+
+export type ProviderSetupChecks = Pick<OrganizationProviderStatusResponse, "brevo" | "stripe">;
+
+// eslint-disable-next-line complexity -- reports independent readiness states for the provider lanes.
+export function providerSetupChecks(
+  env: Pick<
+    Env,
+    | "BREVO_API_KEY"
+    | "BREVO_EMAIL_FROM"
+    | "BREVO_SMS_ALLOWED_RECIPIENTS"
+    | "BREVO_SMS_SENDER"
+    | "EXTERNAL_EFFECTS_MODE"
+    | "STRIPE_SECRET_KEY"
+    | "STRIPE_WEBHOOK_SECRET"
+  >,
+  mode: "disabled" | "fake" | "sandbox",
+): ProviderSetupChecks {
+  const brevoEmailReady =
+    Boolean(env.BREVO_API_KEY?.trim()) && z.email().safeParse(env.BREVO_EMAIL_FROM).success;
+  const brevoSmsReady =
+    Boolean(env.BREVO_SMS_SENDER?.trim()) &&
+    (env.BREVO_SMS_ALLOWED_RECIPIENTS ?? "")
+      .split(",")
+      .some((recipient) => recipient.trim().length > 0);
+  const stripeWebhookReady = Boolean(env.STRIPE_WEBHOOK_SECRET?.trim());
+  const stripePlatformReady = Boolean(env.STRIPE_SECRET_KEY?.trim());
+
+  const brevo =
+    mode === "fake"
+      ? {
+          detail:
+            "Fake mode is active, so no Brevo request is sent. Configure a Brevo API key and verified sender before sandbox or live delivery.",
+          status: "attention" as const,
+        }
+      : mode === "disabled"
+        ? {
+            detail:
+              "External delivery is disabled for this environment. Brevo is not sending messages.",
+            status: "attention" as const,
+          }
+        : brevoEmailReady
+          ? {
+              detail: brevoSmsReady
+                ? "Brevo email sandbox is configured; email is dropped by sandbox mode. SMS is restricted to the configured allowlist."
+                : "Brevo email sandbox is configured; email is dropped by sandbox mode. Add an SMS sender and allowlist only if SMS testing is needed.",
+              status: "ok" as const,
+            }
+          : {
+              detail:
+                "Add BREVO_API_KEY and a verified BREVO_EMAIL_FROM sender. Use sandbox mode to qualify email delivery before enabling live effects.",
+              status: "error" as const,
+            };
+
+  const stripe =
+    mode === "fake"
+      ? {
+          detail:
+            stripePlatformReady && stripeWebhookReady
+              ? "Stripe Connect platform credentials are configured, but checkout remains simulated in fake mode."
+              : "Fake mode is active. Configure STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET before enabling Stripe Connect payments.",
+          status: "attention" as const,
+        }
+      : mode === "disabled"
+        ? {
+            detail:
+              "Stripe checkout is disabled for this environment. A webhook secret alone does not enable live Organization payments.",
+            status: "attention" as const,
+          }
+        : stripePlatformReady && stripeWebhookReady
+          ? {
+              detail:
+                "Stripe Connect platform credentials and webhook verification are configured. Organization onboarding is available; each payment type remains paused until its Organization activation checklist is complete.",
+              status: "attention" as const,
+            }
+          : {
+              detail:
+                "Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET for Stripe Connect onboarding and signed webhook verification.",
+              status: "error" as const,
+            };
+
+  return { brevo, stripe };
+}
+
+export type CalendarAuthorization =
+  | {
+      readonly ok: true;
+      readonly organizationId: string;
+      readonly role: "administrator" | "member" | "owner";
+      readonly email: string;
+      readonly userId: string;
+    }
+  | {
+      readonly code: string;
+      readonly message: string;
+      readonly ok: false;
+      readonly status: 401 | 403 | 404;
+    };
+
+export function calendarMutationMessage(code: string): string {
+  if (code === "music_piece_not_found") {
+    return "Every set-list music piece must exist in this Organization.";
+  }
+  if (code === "performer_profile_not_found") {
+    return "Every credited Profile must exist in this Organization.";
+  }
+  if (code === "venue_not_found") return "The selected venue was not found in this Organization.";
+  if (code === "parent_performance_not_found") {
+    return "The selected parent performance was not found in this Organization.";
+  }
+  if (code === "parent_performance_requires_rehearsal") {
+    return "A parent performance can only be selected for a rehearsal.";
+  }
+  if (code === "event_not_found") return "The event was not found in this Organization.";
+  if (code === "event_canceled") return "Canceled events cannot accept RSVP changes.";
+  return "The Organization rejected an invalid event reference.";
+}
+
+export function auditionSettingsValidationMessage(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Review the audition settings and try again.";
+  const slotIndex =
+    issue.path[0] === "slots" && typeof issue.path[1] === "number" ? issue.path[1] + 1 : null;
+  if (slotIndex !== null) return `Check audition time slot ${String(slotIndex)}: ${issue.message}`;
+  if (issue.path[0] === "defaultPerformanceId") {
+    return "Choose an available target Performance for the audition settings.";
+  }
+  if (issue.path[0] === "venueId") {
+    return "Choose an Organization venue for the auditions.";
+  }
+  return `Review the audition settings: ${issue.message}`;
+}
+
+export function auditionSettingsStoreMessage(code: string, status: number): string {
+  if (code === "venue_required") {
+    return "Choose an Organization venue for the auditions before saving.";
+  }
+  if (code === "venue_not_found") {
+    return "The selected audition venue is no longer available. Choose another venue.";
+  }
+  if (code === "performance_not_found") {
+    return "The selected target Performance is no longer available. Choose another Performance.";
+  }
+  if (code === "organization_identity_conflict") {
+    return "The audition settings belong to a different Organization. Refresh and try again.";
+  }
+  if (code === "validation_failed") {
+    return "The Organization rejected the audition settings. Check the target Performance and time slots.";
+  }
+  if (status >= 500) {
+    return "The Organization service could not save the audition settings. Try again shortly.";
+  }
+  return "The audition settings were rejected. Check the target Performance and time slots.";
+}
+
+export async function authorizeCalendarRoute(
+  context: Context<WorkerHonoEnvironment>,
+  managerOnly: boolean,
+): Promise<CalendarAuthorization> {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return {
+      code: "not_found",
+      message: "Organization calendar management requires a registered canonical hostname.",
+      ok: false,
+      status: 404,
+    };
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (!authorization.ok) {
+    return {
+      code: authorization.error.code,
+      message: authorization.error.message,
+      ok: false,
+      status: authorization.error.code === "unauthorized" ? 401 : 403,
+    };
+  }
+  if (managerOnly && authorization.value.role === "member") {
+    return {
+      code: "forbidden",
+      message: "Only Organization Owners and Administrators may manage calendar data.",
+      ok: false,
+      status: 403,
+    };
+  }
+  return {
+    email: session?.user.email ?? "",
+    ok: true,
+    organizationId,
+    role: authorization.value.role,
+    userId: authorization.value.userId,
+  };
+}
+
+export type ExportAuthorization =
+  | {
+      readonly actorType: "owner" | "platform_administrator";
+      readonly organizationId: string;
+      readonly ok: true;
+      readonly userId: string;
+    }
+  | {
+      readonly code: string;
+      readonly message: string;
+      readonly ok: false;
+      readonly status: 401 | 403 | 404;
+    };
+
+export async function authorizeExportRoute(
+  context: Context<WorkerHonoEnvironment>,
+): Promise<ExportAuthorization> {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return {
+      code: "not_found",
+      message: "Organization exports require a registered canonical hostname.",
+      ok: false,
+      status: 404,
+    };
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const member = await authorizeOrganizationMember(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id,
+    session?.user.id,
+  );
+  if (member.ok && member.value.role === "owner") {
+    return {
+      actorType: "owner",
+      ok: true,
+      organizationId,
+      userId: member.value.userId,
+    };
+  }
+  const platform = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!session) {
+    return {
+      code: "unauthorized",
+      message: "Sign in is required.",
+      ok: false,
+      status: 401,
+    };
+  }
+  if (!platform.ok) {
+    if (member.ok) {
+      return {
+        code: "forbidden",
+        message: "Only an Organization Owner or elevated Platform Administrator may export data.",
+        ok: false,
+        status: 403,
+      };
+    }
+    return {
+      code: platform.error.code,
+      message: platform.error.message,
+      ok: false,
+      status: platform.error.code === "unauthorized" ? 401 : 403,
+    };
+  }
+  const elevation = await getPlatformOrganizationContext(
+    context.env.CONTROL_DB,
+    organizationId,
+    session.session.id,
+    platform.value.userId,
+  );
+  if (!elevation.canEdit) {
+    return {
+      code: "platform_elevation_required",
+      message:
+        "Enable a current Platform Administrator elevation before exporting this Organization.",
+      ok: false,
+      status: 403,
+    };
+  }
+  return {
+    actorType: "platform_administrator",
+    ok: true,
+    organizationId,
+    userId: platform.value.userId,
+  };
+}
+
+export const organizationExportJobResponseSchema = z.object({
+  actorType: z.enum(["organization_member", "platform_administrator"]),
+  actorUserId: z.string().min(1).max(128),
+  archiveKey: z.string().nullable(),
+  byteCount: z.number().int().nonnegative().nullable(),
+  checksumSha256: z.string().nullable(),
+  errorCode: z.string().nullable(),
+  exportId: z.uuid(),
+  format: z.literal("json"),
+  requestId: z.uuid(),
+  status: z.enum(["queued", "processing", "completed", "failed"]),
+});
+
+export async function downloadOrganizationExportFile(
+  env: Env,
+  organizationId: string,
+  exportId: string,
+  requestId: string,
+): Promise<Response> {
+  try {
+    const jobUrl = new URL("https://organization.internal/internal/export/job");
+    jobUrl.searchParams.set("organizationId", organizationId);
+    jobUrl.searchParams.set("exportId", exportId);
+    const jobResponse = await env.ORGANIZATION_STORE.get(
+      env.ORGANIZATION_STORE.idFromName(organizationId),
+    ).fetch(jobUrl);
+    const job = organizationExportJobResponseSchema.safeParse(
+      await jobResponse.json().catch(() => null),
+    );
+    if (
+      !jobResponse.ok ||
+      !job.success ||
+      job.data.status !== "completed" ||
+      !job.data.archiveKey
+    ) {
+      return Response.json(
+        {
+          code: "export_not_ready",
+          message: "The export is not ready to download.",
+          requestId,
+        } satisfies ProblemDetails,
+        { status: job.success && job.data.status === "queued" ? 409 : 404 },
+      );
+    }
+    const expectedKey = organizationExportKey(organizationId, exportId);
+    if (job.data.archiveKey !== expectedKey) {
+      return Response.json(
+        {
+          code: "export_scope_conflict",
+          message: "The export storage scope was rejected.",
+          requestId,
+        } satisfies ProblemDetails,
+        { status: 409 },
+      );
+    }
+    const object = await env.ORGANIZATION_FILES.get(expectedKey);
+    if (
+      !object ||
+      object.customMetadata?.organizationId !== organizationId ||
+      object.customMetadata.exportId !== exportId
+    ) {
+      return Response.json(
+        {
+          code: "export_not_found",
+          message: "The export file was not found.",
+          requestId,
+        } satisfies ProblemDetails,
+        { status: 404 },
+      );
+    }
+    return new Response(object.body, {
+      headers: {
+        "cache-control": "private, no-store",
+        "content-disposition": `attachment; filename="organization-export-${exportId}.json"`,
+        "content-length": String(object.size),
+        "content-type": "application/json; charset=utf-8",
+        "x-export-checksum-sha256": job.data.checksumSha256 ?? "",
+      },
+    });
+  } catch {
+    return Response.json(
+      {
+        code: "service_unavailable",
+        message: "The export download is unavailable.",
+        requestId,
+      } satisfies ProblemDetails,
+      { status: 503 },
+    );
+  }
+}
+
+export interface PlatformOrganizationRow extends PlatformOrganizationSummary {
+  readonly createdAt: string;
+}
+
+export interface PlatformDeadLetterRow {
+  readonly firstSeenAt: string;
+  readonly id: string;
+  readonly idempotencyKey: string | null;
+  readonly jobId: string | null;
+  readonly jobKind: PlatformJobDeadLetterSummary["jobKind"];
+  readonly lastSeenAt: string;
+  readonly messageId: string;
+  readonly messageValid: number;
+  readonly observationCount: number;
+  readonly observedAttempt: number;
+  readonly organizationId: string | null;
+  readonly queueName: string;
+}
+
+export interface PlatformCountRow {
+  readonly count: number;
+}
+
+export interface PlatformSchemaStatusRow {
+  readonly completedAt: string | null;
+  readonly processedCount: number;
+  readonly runId: string;
+  readonly startedAt: string;
+  readonly status: PlatformFleetSchemaPreparation["status"];
+  readonly targetVersion: number;
+  readonly updatedAt: string;
+}
+
+export type PlatformFleetSchemaPreparationRow = PlatformFleetSchemaPreparation;

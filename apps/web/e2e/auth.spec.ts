@@ -675,7 +675,7 @@ test("renders the focused seating canvas with structural controls", async ({ pag
       status: 200,
     });
   });
-  await page.route("**/api/modules/state", async (route) => {
+  await page.route("**/api/organization/module-state", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
         modules: [

@@ -2,16 +2,24 @@ import { z } from "zod";
 
 import { readRosterAutomationConfiguration } from "./statusAutomationStore";
 
-function identity(
-  storage: DurableObjectStorage,
-): { readonly organizationId: string; readonly name: string; readonly slug: string } | undefined {
+function identity(storage: DurableObjectStorage):
+  | {
+      readonly organizationId: string;
+      readonly name: string;
+      readonly slug: string;
+      readonly timezone: string;
+    }
+  | undefined {
   return storage.sql
     .exec<{
       readonly [column: string]: SqlStorageValue;
       readonly name: string;
       readonly organizationId: string;
       readonly slug: string;
-    }>("SELECT organization_id AS organizationId, name, slug FROM organization_metadata LIMIT 1")
+      readonly timezone: string;
+    }>(
+      "SELECT organization_id AS organizationId, name, slug, timezone FROM organization_metadata LIMIT 1",
+    )
     .toArray()
     .at(0);
 }
@@ -136,6 +144,7 @@ function readEventCommunicationJobFromStore(
       startsAt: event.startsAt,
       title: event.title,
       type: event.type,
+      timezone: org.timezone,
       venueAddress: event.venueAddress,
       venueName: event.venueName,
     },
@@ -228,7 +237,7 @@ export function readAttendanceReportJobFromStore(
     return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
   }
   const event = readEventSummary(storage, eventId);
-  if (!event) {
+  if (event?.type !== "Performance") {
     return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
   }
   const roster = storage.sql
@@ -256,7 +265,7 @@ export function readAttendanceReportJobFromStore(
     .toArray();
   const warningThreshold =
     readRosterAutomationConfiguration(storage).attendanceReportWarningThreshold;
-  const performanceEventId = event.type === "Performance" ? event.id : event.parentPerformanceId;
+  const performanceEventId = event.id;
   const performerProfileIds = performanceEventId
     ? storage.sql
         .exec<{ readonly [column: string]: SqlStorageValue; readonly profileId: string }>(
@@ -297,6 +306,7 @@ export function readAttendanceReportJobFromStore(
       startsAt: event.startsAt,
       title: event.title,
       type: event.type,
+      timezone: org.timezone,
       venueAddress: event.venueAddress,
       venueName: event.venueName,
     },
@@ -334,6 +344,10 @@ export function prepareAttendanceReportJobFromStore(
     ?.idempotencyKey.split(":")
     .at(-1);
   if (!eventId) {
+    return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
+  }
+  const event = readEventSummary(storage, eventId);
+  if (event?.type !== "Performance") {
     return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
   }
   const finalizedAt = new Date().toISOString();

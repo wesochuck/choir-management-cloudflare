@@ -8,9 +8,12 @@ interface ActiveSeat {
 
 function activeSeatCounts(rowCounts: readonly number[], singerCount: number): number[] {
   const totalSeats = rowCounts.reduce((sum, count) => sum + count, 0);
-  const counts = rowCounts.map((count) => Math.round(count * (singerCount / totalSeats)));
+  const targetCount = Math.min(Math.max(0, singerCount), totalSeats);
+  const counts = rowCounts.map((count) =>
+    Math.min(count, Math.round(count * (targetCount / totalSeats))),
+  );
   let activeTotal = counts.reduce((sum, count) => sum + count, 0);
-  while (activeTotal !== singerCount) {
+  while (activeTotal !== targetCount) {
     let bestIndex = -1;
     let bestCapacity = -1;
     for (const [index, rowCount] of rowCounts.entries()) {
@@ -98,8 +101,9 @@ export function calculateSeatingSuggestions(
   const singerCount = Object.values(sectionCounts).reduce((sum, count) => sum + count, 0);
   const totalSeats = rowCounts.reduce((sum, count) => sum + count, 0);
   if (singerCount === 0 || totalSeats === 0 || sectionOrder.length === 0) return {};
+  const suggestedSingerCount = Math.min(singerCount, totalSeats);
   return strategy === "vertical_column"
-    ? verticalSuggestions(rowCounts, sectionCounts, sectionOrder, singerCount)
+    ? verticalSuggestions(rowCounts, sectionCounts, sectionOrder, suggestedSingerCount)
     : horizontalSuggestions(rowCounts, sectionCounts, sectionOrder, singerCount);
 }
 

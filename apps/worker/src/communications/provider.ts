@@ -72,6 +72,15 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function renderMarkdownInline(value: string): string {
   return escapeHtml(value)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
@@ -79,7 +88,9 @@ function renderMarkdownInline(value: string): string {
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/_([^_]+)_/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label: string, url: string) =>
+      isSafeHttpUrl(url) ? `<a href="${url}">${label}</a>` : match,
+    );
 }
 
 /** Render the deliberately small Markdown subset exposed by the message editor. */

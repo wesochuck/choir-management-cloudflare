@@ -16,6 +16,7 @@
     "build": "npm run build --workspaces --if-present",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run test:integration:prepared",
     "check:parity:implementation": "node scripts/audit-parity-implementation.mjs",
+    "check:contracts:exports": "node scripts/check-contract-exports.mjs",
     "check:parity": "node scripts/check-parity-matrix.mjs",
     "qualify:staging": "node scripts/qualify-staging.mjs",
     "qualify:staging:auth": "node scripts/qualify-staging-auth.mjs",

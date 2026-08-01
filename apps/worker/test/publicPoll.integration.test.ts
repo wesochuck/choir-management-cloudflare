@@ -11,6 +11,7 @@ const ALPHA_POLL = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BRAVO_POLL = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const ALPHA_OPTION_A = "a0000000-0000-4000-8000-000000000001";
 const ALPHA_OPTION_B = "a0000000-0000-4000-8000-000000000002";
+const BRAVO_OPTION_A = "b0000000-0000-4000-8000-000000000001";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
   if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -98,6 +99,14 @@ async function provision(
       ALPHA_OPTION_B,
       pollId,
     );
+    if (slug === "bravo") {
+      state.storage.sql.exec(
+        `INSERT INTO poll_options (id, poll_id, label, sort_order)
+         VALUES (?, ?, 'Green', 0)`,
+        BRAVO_OPTION_A,
+        pollId,
+      );
+    }
     return null;
   });
 }
@@ -244,6 +253,19 @@ describe("public poll signed flow", () => {
       },
     );
     expect(row).toEqual([ALPHA_OPTION_A]);
+  });
+
+  it("rejects a poll vote containing an option from another poll", async () => {
+    const token = await issuePollToken("organization-alpha", ALPHA_POLL, ALPHA_PROFILE);
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/poll-vote", {
+        body: JSON.stringify({ optionIds: [BRAVO_OPTION_A], token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ code: "poll_option_not_found" });
   });
 
   it("rejects a poll vote with an invalid token", async () => {

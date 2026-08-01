@@ -10,7 +10,6 @@ import {
   setupStatusSchema,
   organizationVenueSchema,
   organizationVenuesResponseSchema,
-  organizationExportManifestSchema,
   organizationExportStartResponseSchema,
   organizationExportStatusResponseSchema,
   organizationAuditionListResponseSchema,
@@ -36,6 +35,8 @@ import {
 } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { processDeliveryBatch } from "../src/jobs/consumer";
+import { organizationExportSnapshotSchema } from "../src/jobs/deliveries/shared";
+import { organizationExportKey } from "../src/organization/exportStore";
 
 const USER_EMAIL = "calendar.manager@example.test";
 
@@ -238,6 +239,152 @@ describe("Organization calendar management", () => {
         ).json(),
       ).status,
     ).toBe("completed");
+  });
+
+  it("fails oversized exports with explicit safety counts before writing an archive", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      const now = new Date().toISOString();
+      state.storage.transactionSync(() => {
+        for (let index = 0; index < 5_001; index += 1) {
+          const suffix = String(index).padStart(4, "0");
+          state.storage.sql.exec(
+            `INSERT INTO audit_events
+                (id, actor_type, actor_id, action, target_type, target_id,
+                 request_id, change_summary, occurred_at)
+               VALUES (?, 'system', 'export-test', 'export.test', 'export_test', ?, ?, '{}', ?)`,
+            `export-overflow-${suffix}`,
+            `export-overflow-${suffix}`,
+            crypto.randomUUID(),
+            now,
+          );
+        }
+      });
+      return undefined;
+    });
+    const createResponse = await stub.fetch(
+      "https://organization.internal/internal/export/create",
+      {
+        body: JSON.stringify({
+          actorType: "organization_member",
+          actorUserId: "calendar-manager",
+          format: "json",
+          organizationId: "organization-alpha",
+          requestId: "99999999-9999-4999-8999-999999999999",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    const created = organizationExportStartResponseSchema
+      .pick({ exportId: true })
+      .parse(await createResponse.json());
+    expect(createResponse.status).toBe(200);
+    expect(created.exportId).toMatch(/^[0-9a-f-]{36}$/);
+
+    const snapshotResponse = await stub.fetch(
+      "https://organization.internal/internal/export/snapshot?organizationId=organization-alpha",
+    );
+    const snapshot = organizationExportSnapshotSchema.parse(await snapshotResponse.json());
+    expect(snapshotResponse.status).toBe(200);
+    expect(snapshot.safety.tooLarge).toBe(true);
+    expect(snapshot.safety.tableCounts.audit_events).toBeGreaterThan(5_000);
+    expect(snapshot.records.audit_events).toHaveLength(5_000);
+
+    const message = {
+      attempts: 1,
+      body: {
+        attempt: 1,
+        idempotencyKey: `organization-export:${created.exportId}`,
+        jobId: created.exportId,
+        kind: "organization_export",
+        organizationId: "organization-alpha",
+        version: 1,
+      },
+      id: `oversized-export-${created.exportId}`,
+      timestamp: new Date("2026-07-21T12:00:00.000Z"),
+    } as const;
+    const batch = createMessageBatch("choir-management-jobs-local", [message]);
+    const executionContext = createExecutionContext();
+    await processDeliveryBatch(batch, {
+      EXTERNAL_EFFECTS_MODE: "fake",
+      ORGANIZATION_FILES: organizationFiles,
+      ORGANIZATION_STORE: stores,
+      PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+    });
+    const queueResult = await getQueueResult(batch, executionContext);
+    expect(queueResult).toMatchObject({ retryMessages: expect.any(Array) });
+
+    const statusResponse = await stub.fetch(
+      `https://organization.internal/internal/export/job?organizationId=organization-alpha&exportId=${created.exportId}`,
+    );
+    expect(await statusResponse.json()).toMatchObject({
+      errorCode: "export_too_large",
+      status: "failed",
+    });
+    await expect(
+      organizationFiles.head(organizationExportKey("organization-alpha", created.exportId)),
+    ).resolves.toBeNull();
+  });
+
+  it("cleans up an archive when export completion is rejected after the write", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const createResponse = await stub.fetch(
+      "https://organization.internal/internal/export/create",
+      {
+        body: JSON.stringify({
+          actorType: "organization_member",
+          actorUserId: "calendar-manager",
+          format: "json",
+          organizationId: "organization-alpha",
+          requestId: "88888888-8888-4888-8888-888888888888",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    const exportId = organizationExportStartResponseSchema
+      .pick({ exportId: true })
+      .parse(await createResponse.json()).exportId;
+    const failingFiles: R2Bucket = {
+      ...organizationFiles,
+      put: async (...args: Parameters<R2Bucket["put"]>) => {
+        const result = await organizationFiles.put(...args);
+        await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+          state.storage.sql.exec("DELETE FROM organization_exports WHERE id = ?", exportId);
+          return undefined;
+        });
+        return result;
+      },
+    };
+    const message = {
+      attempts: 1,
+      body: {
+        attempt: 1,
+        idempotencyKey: `organization-export:${exportId}`,
+        jobId: exportId,
+        kind: "organization_export",
+        organizationId: "organization-alpha",
+        version: 1,
+      },
+      id: `completion-rejection-${exportId}`,
+      timestamp: new Date("2026-07-21T12:00:00.000Z"),
+    } as const;
+    const batch = createMessageBatch("choir-management-jobs-local", [message]);
+    const executionContext = createExecutionContext();
+    await processDeliveryBatch(batch, {
+      EXTERNAL_EFFECTS_MODE: "fake",
+      ORGANIZATION_FILES: failingFiles,
+      ORGANIZATION_STORE: stores,
+      PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+    });
+    const queueResult = await getQueueResult(batch, executionContext);
+    expect(queueResult).toMatchObject({ retryMessages: expect.any(Array) });
+    await expect(
+      organizationFiles.head(organizationExportKey("organization-alpha", exportId)),
+    ).resolves.toBeNull();
   });
 
   it("covers the authorized audition settings and lifecycle routes with tenant isolation", async () => {
@@ -494,38 +641,6 @@ describe("Organization calendar management", () => {
     expect(summary.upcomingEventCount).toBe(500);
     expect(summary.nextEvents).toHaveLength(5);
     expect(elapsedMs).toBeLessThan(1_000);
-  });
-
-  it("exports a bounded, checksummed Organization snapshot only for the Owner", async () => {
-    const cookie = await signIn();
-    const denied = await exports.default.fetch(
-      api("alpha.localhost", "/api/organization/export.json", cookie),
-    );
-    expect(denied.status).toBe(403);
-    await database
-      .prepare("UPDATE member SET role = 'owner' WHERE organizationId = ? AND userId = ?")
-      .bind("organization-alpha", "calendar-manager")
-      .run();
-    const exported = await exports.default.fetch(
-      api("alpha.localhost", "/api/organization/export.json", cookie),
-    );
-    expect(exported.status).toBe(200);
-    expect(exported.headers.get("content-disposition")).toContain("organization-export-");
-    const body: unknown = await exported.json();
-    expect(body).toMatchObject({
-      payload: {
-        exportVersion: 1,
-        organizationId: "organization-alpha",
-      },
-    });
-    if (typeof body !== "object" || body === null || !("manifest" in body)) {
-      throw new Error("The export manifest was missing.");
-    }
-    organizationExportManifestSchema.parse(body.manifest);
-    const crossTenant = await exports.default.fetch(
-      api("bravo.localhost", "/api/organization/export.json", cookie),
-    );
-    expect(crossTenant.status).toBe(403);
   });
 
   it("preserves a Durable Object setup identity failure instead of masking it as 503", async () => {

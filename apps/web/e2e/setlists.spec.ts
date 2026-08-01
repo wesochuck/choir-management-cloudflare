@@ -59,7 +59,7 @@ async function handleShellRoute(route: Route): Promise<boolean> {
       status: "ok",
       version: "browser-test",
     },
-    "/api/modules/state": {
+    "/api/organization/module-state": {
       modules: [
         { enabled: true, id: "events" },
         { enabled: true, id: "people" },

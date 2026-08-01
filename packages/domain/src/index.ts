@@ -59,6 +59,7 @@ export {
 } from "./statusAutomation";
 export { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
 export type { EventRsvpExportSort, EventRsvpStatus } from "./eventRsvpCsv";
+export { lastNameSortKey } from "./name";
 export type { CsvColumnMapping } from "./csvMapping";
 export {
   MusicCsvError,

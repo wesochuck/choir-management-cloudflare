@@ -213,12 +213,14 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/admin/refund-donation", {
-        body: JSON.stringify({ donationId }),
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
+      const response = await fetch(
+        `/api/organization/donations/${encodeURIComponent(donationId)}/refund`,
+        {
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
       if (!response.ok) throw new Error("Refund failed");
       const body: unknown = await response.json();
       const parsed = donationRecordSchema.safeParse(body);

@@ -145,15 +145,15 @@ describe("public RSVP signed flow", () => {
       rsvp: "Pending",
     });
 
-    const legacyResponse = await exports.default.fetch(
-      api("alpha.localhost", "/api/rsvp-details", {
+    const canonicalResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/rsvp-details", {
         body: JSON.stringify({ token }),
         headers: { "content-type": "application/json" },
         method: "POST",
       }),
     );
-    expect(legacyResponse.status).toBe(200);
-    expect(await legacyResponse.json()).toMatchObject({
+    expect(canonicalResponse.status).toBe(200);
+    expect(await canonicalResponse.json()).toMatchObject({
       event: { id: ALPHA_EVENT },
       profileId: ALPHA_PROFILE,
       rsvp: "Pending",
@@ -259,10 +259,10 @@ describe("public RSVP signed flow", () => {
     expect(row).toEqual({ rsvp: "No", rsvpNote: "Family event" });
   });
 
-  it("keeps the legacy quick-RSVP path tenant-bound", async () => {
+  it("keeps the canonical quick-RSVP path tenant-bound", async () => {
     const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
     const response = await exports.default.fetch(
-      api("alpha.localhost", "/api/quick-rsvp", {
+      api("alpha.localhost", "/api/public/quick-rsvp", {
         body: JSON.stringify({ rsvp: "Yes", rsvpNote: "", token }),
         headers: { "content-type": "application/json" },
         method: "POST",
@@ -272,7 +272,7 @@ describe("public RSVP signed flow", () => {
     expect(await response.json()).toMatchObject({ rsvp: "Yes" });
 
     const crossTenantResponse = await exports.default.fetch(
-      api("bravo.localhost", "/api/quick-rsvp", {
+      api("bravo.localhost", "/api/public/quick-rsvp", {
         body: JSON.stringify({ rsvp: "Yes", rsvpNote: "", token }),
         headers: { "content-type": "application/json" },
         method: "POST",

@@ -1,5 +1,5 @@
 import type { PublicWebsiteSettings, PublicWebsiteSettingsRequest } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -70,6 +70,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const draftRevisionRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -93,6 +94,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     key: K,
     value: PublicWebsiteSettingsRequest[K],
   ) {
+    draftRevisionRef.current += 1;
     setDraft((current) => (current ? { ...current, [key]: value } : current));
     setSuccess(null);
   }
@@ -108,17 +110,21 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     setError(null);
     setSuccess(null);
     const uploadedIds: string[] = [];
+    const saveRevision = draftRevisionRef.current;
+    const draftSnapshot = draft;
+    const heroFileSnapshot = heroFile;
+    const logoFileSnapshot = logoFile;
     try {
       const [heroUpload, logoUpload] = await Promise.all([
-        heroFile ? uploadPrivateOrganizationFile(heroFile) : null,
-        logoFile ? uploadPrivateOrganizationFile(logoFile) : null,
+        heroFileSnapshot ? uploadPrivateOrganizationFile(heroFileSnapshot) : null,
+        logoFileSnapshot ? uploadPrivateOrganizationFile(logoFileSnapshot) : null,
       ]);
       if (heroUpload) uploadedIds.push(heroUpload.id);
       if (logoUpload) uploadedIds.push(logoUpload.id);
       const next = {
-        ...draft,
-        heroFileId: heroUpload?.id ?? draft.heroFileId,
-        logoFileId: logoUpload?.id ?? draft.logoFileId,
+        ...draftSnapshot,
+        heroFileId: heroUpload?.id ?? draftSnapshot.heroFileId,
+        logoFileId: logoUpload?.id ?? draftSnapshot.logoFileId,
       };
       const saved = await updateOrganizationPublicWebsiteSettings(next);
       const oldIds = [loadState.settings.heroFileId, loadState.settings.logoFileId].filter(
@@ -129,10 +135,29 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         () => undefined,
       );
       setLoadState({ settings: saved, status: "ready" });
-      setDraft(requestFrom(saved));
-      setHeroFile(null);
-      setLogoFile(null);
-      setSuccess("Public website draft saved. Publish when it is ready for visitors.");
+      if (draftRevisionRef.current === saveRevision) {
+        setDraft(requestFrom(saved));
+        setHeroFile(null);
+        setLogoFile(null);
+        setSuccess("Public website draft saved. Publish when it is ready for visitors.");
+      } else {
+        setDraft((current) =>
+          current
+            ? {
+                ...current,
+                heroFileId:
+                  current.heroFileId === draftSnapshot.heroFileId
+                    ? saved.heroFileId
+                    : current.heroFileId,
+                logoFileId:
+                  current.logoFileId === draftSnapshot.logoFileId
+                    ? saved.logoFileId
+                    : current.logoFileId,
+              }
+            : current,
+        );
+        setSuccess("Draft saved; newer edits remain unsaved.");
+      }
     } catch (failure: unknown) {
       await Promise.all(uploadedIds.map((fileId) => deletePrivateOrganizationFile(fileId))).catch(
         () => undefined,
@@ -297,6 +322,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
               accept="image/jpeg,image/png,image/webp"
               id="website-logo"
               onChange={(event) => {
+                draftRevisionRef.current += 1;
                 setLogoFile(event.target.files?.item(0) ?? null);
               }}
               type="file"
@@ -320,6 +346,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
               accept="image/jpeg,image/png,image/webp"
               id="website-hero-image"
               onChange={(event) => {
+                draftRevisionRef.current += 1;
                 setHeroFile(event.target.files?.item(0) ?? null);
               }}
               type="file"

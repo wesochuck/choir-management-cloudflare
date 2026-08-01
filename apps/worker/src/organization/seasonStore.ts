@@ -198,6 +198,59 @@ function duesByStripeOperation(
     .toArray();
 }
 
+interface DuesPaymentAttemptRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly amountCents: number;
+  readonly providerSessionId: string;
+  readonly status: "expired" | "paid" | "pending" | "refunded";
+}
+
+function paymentAttemptByCheckoutRequest(
+  storage: DurableObjectStorage,
+  checkoutRequestId: string,
+): DuesPaymentAttemptRow | undefined {
+  return storage.sql
+    .exec<DuesPaymentAttemptRow>(
+      `SELECT amount_cents AS amountCents, provider_session_id AS providerSessionId, status
+       FROM payment_attempts
+       WHERE payment_type = 'dues' AND checkout_request_id = ?
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+      checkoutRequestId,
+    )
+    .toArray()
+    .at(0);
+}
+
+function duesForCheckoutRequest(
+  storage: DurableObjectStorage,
+  checkoutRequestId: string,
+  providerSessionId: string,
+): DuesRow[] {
+  return duesByStripeOperation(storage, providerSessionId, checkoutRequestId);
+}
+
+function sameDuesCheckout(
+  rows: readonly DuesRow[],
+  checkout: z.infer<typeof duesCheckoutRequestSchema>,
+  recipientEmail: string | undefined,
+  amountCents: number,
+  feeCents: number,
+): boolean {
+  if (rows.length !== checkout.profileIds.length) return false;
+  const expectedProfiles = new Set(checkout.profileIds);
+  return (
+    new Set(rows.map((row) => row.profileId)).size === expectedProfiles.size &&
+    rows.every(
+      (row) =>
+        row.seasonId === checkout.seasonId &&
+        expectedProfiles.has(row.profileId) &&
+        row.amountCents === amountCents &&
+        row.feeCents === feeCents &&
+        row.payerEmail === (recipientEmail ?? "").toLowerCase(),
+    )
+  );
+}
+
 function identity(storage: DurableObjectStorage): { readonly organizationId: string } | undefined {
   return storage.sql
     .exec<{ readonly organizationId: string }>(
@@ -448,6 +501,7 @@ function queueDuesConfirmation(storage: DurableObjectStorage, dues: DuesRow): vo
   });
 }
 
+// eslint-disable-next-line complexity -- coordinates idempotent multi-profile dues checkout state.
 function createDuesCheckout(
   storage: DurableObjectStorage,
   operation:
@@ -463,10 +517,38 @@ function createDuesCheckout(
   const now = new Date().toISOString();
   const sessionId = operation.providerSessionId ?? `fake_session_${crypto.randomUUID()}`;
   const pendingCheckout = operation.action === "prepare_dues_checkout";
+  const checkoutRequestId = operation.checkout.checkoutRequestId || operation.requestId;
   const feeCents = transactionProcessingFeeCents(
     season.duesAmountCents,
     transactionFeeSettingsFromStore(storage),
   );
+
+  const existingAttempt = paymentAttemptByCheckoutRequest(storage, checkoutRequestId);
+  if (existingAttempt) {
+    const existingRows = duesForCheckoutRequest(
+      storage,
+      checkoutRequestId,
+      existingAttempt.providerSessionId,
+    );
+    if (
+      !sameDuesCheckout(
+        existingRows,
+        operation.checkout,
+        operation.recipientEmail,
+        season.duesAmountCents,
+        feeCents,
+      )
+    ) {
+      return Response.json({ code: "checkout_request_conflict" }, { status: 409 });
+    }
+    return Response.json({
+      checkoutMode: existingAttempt.providerSessionId.startsWith("fake_session_")
+        ? "fake"
+        : "stripe",
+      sessionId: existingAttempt.providerSessionId,
+      url: new URL("/dues?checkout=success", operation.origin).href,
+    });
+  }
 
   const createdDuesIds: string[] = [];
   try {
@@ -558,9 +640,9 @@ function createDuesCheckout(
             (id, payment_type, resource_id, checkout_request_id, provider_session_id,
              provider_payment_id, status, amount_cents, created_at, updated_at)
            VALUES (?, 'dues', ?, ?, ?, ?, ?, ?, ?, ?)`,
-          `payment-attempt:${operation.requestId}`,
+          `payment-attempt:${checkoutRequestId}`,
           createdDuesIds[0] ?? operation.requestId,
-          operation.requestId,
+          checkoutRequestId,
           sessionId,
           pendingCheckout ? "" : `fake_payment_${operation.requestId}`,
           pendingCheckout ? "pending" : "paid",
@@ -721,6 +803,20 @@ function markDuesCashPaid(
   if (existing?.status === "refunded") {
     return Response.json({ code: "dues_refunded" }, { status: 409 });
   }
+  if (existing?.paymentMethod === "online") {
+    const pendingAttempt = storage.sql
+      .exec(
+        `SELECT id FROM payment_attempts
+         WHERE payment_type = 'dues' AND resource_id = ? AND status = 'pending'
+         LIMIT 1`,
+        existing.id,
+      )
+      .toArray()
+      .at(0);
+    if (pendingAttempt) {
+      return Response.json({ code: "dues_checkout_in_progress" }, { status: 409 });
+    }
+  }
 
   const occurredAt = new Date().toISOString();
   const duesId = existing?.id ?? crypto.randomUUID();
@@ -734,6 +830,15 @@ function markDuesCashPaid(
         occurredAt,
         existing.id,
       );
+      storage.sql.exec(
+        `UPDATE payment_attempts
+         SET status = 'expired', expired_at = ?, updated_at = ?
+         WHERE payment_type = 'dues' AND resource_id = ? AND status = 'pending'`,
+        occurredAt,
+        occurredAt,
+        existing.id,
+      );
+      storage.sql.exec("DELETE FROM dues_expirations WHERE dues_id = ?", existing.id);
     } else {
       storage.sql.exec(
         `INSERT INTO dues
@@ -799,25 +904,22 @@ function completeStripeDues(
     return Response.json({ dues: rows.map(duesResult), duplicate: true });
   }
   const occurredAt = new Date().toISOString();
+  const transitioned = rows.filter(
+    (row) =>
+      row.paymentMethod === "online" && (row.status === "pending" || row.status === "expired"),
+  );
   storage.transactionSync(() => {
-    for (const row of rows) {
-      if (row.status !== "pending" && row.status !== "expired") continue;
-      storage.sql.exec(
-        `UPDATE dues
-         SET provider_session_id = ?, status = 'paid', provider_payment_id = ?, paid_at = ?, updated_at = ?
-         WHERE id = ? AND status = 'pending'`,
-        operation.providerSessionId,
-        operation.providerPaymentId,
-        occurredAt,
-        occurredAt,
-        row.id,
-      );
-      storage.sql.exec("DELETE FROM dues_expirations WHERE dues_id = ?", row.id);
-    }
     storage.sql.exec(
       `UPDATE payment_attempts
-       SET provider_session_id = ?, provider_payment_id = ?, status = 'paid', updated_at = ?
-       WHERE status IN ('pending', 'expired')
+       SET provider_session_id = ?, provider_payment_id = ?, status = 'paid',
+           expired_at = NULL, updated_at = ?
+       WHERE payment_type = 'dues' AND status IN ('pending', 'expired')
+         AND EXISTS (
+           SELECT 1 FROM dues d
+           WHERE d.id = payment_attempts.resource_id
+             AND d.payment_method = 'online'
+             AND d.status IN ('pending', 'expired')
+         )
          AND (
            provider_session_id = ?
            OR (? IS NOT NULL AND checkout_request_id = ?)
@@ -829,6 +931,20 @@ function completeStripeDues(
       operation.checkoutRequestId ?? null,
       operation.checkoutRequestId ?? null,
     );
+    for (const row of rows) {
+      if (!transitioned.some((candidate) => candidate.id === row.id)) continue;
+      storage.sql.exec(
+        `UPDATE dues
+         SET provider_session_id = ?, status = 'paid', provider_payment_id = ?, paid_at = ?, updated_at = ?
+         WHERE id = ? AND status IN ('pending', 'expired') AND payment_method = 'online'`,
+        operation.providerSessionId,
+        operation.providerPaymentId,
+        occurredAt,
+        occurredAt,
+        row.id,
+      );
+      storage.sql.exec("DELETE FROM dues_expirations WHERE dues_id = ?", row.id);
+    }
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
@@ -845,7 +961,6 @@ function completeStripeDues(
       occurredAt,
     );
   });
-  const transitioned = rows.filter((row) => row.status === "pending" || row.status === "expired");
   const updated = duesByStripeOperation(
     storage,
     operation.providerSessionId,

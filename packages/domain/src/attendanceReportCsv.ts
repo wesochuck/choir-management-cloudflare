@@ -34,8 +34,10 @@ function attendanceRate(rate: number): string {
  */
 function sortSingers(
   singers: readonly AttendanceReportSinger[],
+  sort: AttendanceExportSort = "absences",
 ): readonly AttendanceReportSinger[] {
   return [...singers].sort((left, right) => {
+    if (sort === "name") return left.name.localeCompare(right.name);
     const absDiff = right.absences - left.absences;
     if (absDiff !== 0) return absDiff;
     return left.name.localeCompare(right.name);
@@ -63,7 +65,7 @@ export function renderAttendanceReportCsv(input: AttendanceReportInput): string 
     return `${header}\r\n`;
   }
 
-  const sorted = sortSingers(input.singers);
+  const sorted = sortSingers(input.singers, input.sort);
   const lines = [header];
   for (const singer of sorted) {
     lines.push(

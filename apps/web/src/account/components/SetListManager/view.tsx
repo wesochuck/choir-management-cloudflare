@@ -1,0 +1,659 @@
+import {
+  calculateSetListDuration,
+  formatSetListDuration,
+  moveSetListItem,
+  parseSetListDuration,
+} from "@choir/domain";
+import { Dialog } from "@choir/ui";
+import { displayEvent, itemType, normalizeItems } from "./utils";
+import { SetListCreditEditor, SetListPrintView } from "./shared";
+import type { SetListManagerModel } from "./hooks";
+
+// eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
+export function SetListManagerView({ model }: { readonly model: SetListManagerModel }) {
+  const {
+    addCustomItem,
+    addMusicPiece,
+    approved,
+    busy,
+    closeItemEditor,
+    copyEventId,
+    copyListText,
+    copyMissingItems,
+    customComposer,
+    customDialogOpen,
+    customDuration,
+    customNotes,
+    customTitle,
+    customType,
+    dirty,
+    dragIndex,
+    editingItem,
+    enabled,
+    error,
+    filteredMusic,
+    intermissionsDuration,
+    items,
+    loaded,
+    markDraftDirty,
+    message,
+    moveDraggedItem,
+    musicQuery,
+    openCustomItem,
+    openItemEditor,
+    openPracticePlayer,
+    performances,
+    performerLabelPlural,
+    playerBusy,
+    resources,
+    save,
+    saveItemEdit,
+    selectedEvent,
+    selectedEventId,
+    setApproved,
+    setCopyEventId,
+    setCustomComposer,
+    setCustomDialogOpen,
+    setCustomDuration,
+    setCustomNotes,
+    setCustomTitle,
+    setCustomType,
+    setDirty,
+    setDragIndex,
+    setEditingItem,
+    setError,
+    setItems,
+    setMessage,
+    setMusicQuery,
+    setSelectedEventId,
+    songsDuration,
+    updateDraftItems,
+  } = model;
+  if (!enabled) return null;
+  return (
+    <section className="account-section set-list-section" aria-label="Set list editor">
+      <div className="section-heading section-heading--compact set-list-page-intro">
+        {selectedEvent ? (
+          <div className="button-row" aria-label="Set-list tools">
+            <button
+              className="button button--secondary"
+              disabled={busy || playerBusy}
+              onClick={() => {
+                void openPracticePlayer();
+              }}
+              type="button"
+            >
+              {playerBusy ? "Opening player…" : "Practice Player"}
+            </button>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                void copyListText();
+                window.print();
+              }}
+              type="button"
+            >
+              Print &amp; Copy
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {message ? (
+        <p className="notice notice--success" role="status">
+          {message}
+        </p>
+      ) : null}
+      {!loaded ? <p>Loading set lists…</p> : null}
+      {loaded && performances.length === 0 ? (
+        <p className="empty-state">Create a Performance before building a set list.</p>
+      ) : null}
+      {selectedEvent ? (
+        <div className="set-list-layout">
+          <div className="set-list-toolbar">
+            <label className="field">
+              <span className="set-list-field-label">Select event</span>
+              <select
+                disabled={busy}
+                value={selectedEventId}
+                onChange={(event) => {
+                  const nextEvent = performances.find(({ id }) => id === event.target.value);
+                  setSelectedEventId(nextEvent?.id ?? "");
+                  setItems(normalizeItems(nextEvent?.setList ?? []));
+                  setApproved(nextEvent?.setListApproved ?? false);
+                  setDirty(false);
+                  setMusicQuery("");
+                  setCopyEventId("");
+                  setError(null);
+                  setMessage(null);
+                }}
+              >
+                {performances.map((performance) => (
+                  <option key={performance.id} value={performance.id}>
+                    {displayEvent(performance)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="set-list-copy-row">
+              <label className="field">
+                <span className="set-list-field-label">Copy from previous</span>
+                <select
+                  value={copyEventId}
+                  onChange={(event) => {
+                    setCopyEventId(event.target.value);
+                  }}
+                >
+                  <option value="">Choose another Performance…</option>
+                  {performances
+                    .filter(({ id }) => id !== selectedEvent.id)
+                    .map((performance) => (
+                      <option key={performance.id} value={performance.id}>
+                        {displayEvent(performance)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button
+                className="button button--secondary button--small"
+                disabled={!copyEventId}
+                type="button"
+                onClick={copyMissingItems}
+              >
+                Copy items
+              </button>
+            </div>
+            <label className="set-list-visibility checkbox-field">
+              <input
+                checked={approved}
+                type="checkbox"
+                onChange={(event) => {
+                  setApproved(event.target.checked);
+                  markDraftDirty();
+                }}
+              />
+              <span>
+                <strong>Approved for {performerLabelPlural.toLowerCase()}</strong>
+                <small>Members can see this set list.</small>
+              </span>
+            </label>
+          </div>
+
+          <div className="set-list-add-panel">
+            <div className="set-list-add-bar">
+              <div className="set-list-add-type" aria-label="Set-list item type" role="group">
+                <button
+                  aria-pressed={customType === "song"}
+                  className={`button button--small${customType === "song" ? " is-active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    setCustomType("song");
+                  }}
+                >
+                  Song
+                </button>
+                <button
+                  aria-pressed={customType === "intermission"}
+                  className={`button button--small${customType === "intermission" ? " is-active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    setCustomType("intermission");
+                  }}
+                >
+                  Intermission
+                </button>
+              </div>
+              <div className="field set-list-music-search">
+                <label className="sr-only" htmlFor="set-list-music-search">
+                  Search music library or enter a title
+                </label>
+                <input
+                  aria-controls="set-list-music-results"
+                  aria-expanded={Boolean(musicQuery.trim())}
+                  aria-autocomplete="list"
+                  id="set-list-music-search"
+                  onChange={(event) => {
+                    setMusicQuery(event.target.value);
+                  }}
+                  placeholder="Search music library or enter a title…"
+                  type="search"
+                  value={musicQuery}
+                />
+                {musicQuery.trim() ? (
+                  <div
+                    aria-label="Matching music"
+                    className="set-list-music-results"
+                    id="set-list-music-results"
+                    role="listbox"
+                  >
+                    {filteredMusic.length > 0 ? (
+                      filteredMusic.slice(0, 50).map((piece) => (
+                        <button
+                          className="set-list-music-result"
+                          key={piece.id}
+                          onClick={() => {
+                            addMusicPiece(piece);
+                          }}
+                          role="option"
+                          type="button"
+                        >
+                          <strong>{piece.title}</strong>
+                          <span>{piece.composer || "Composer not listed"}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="set-list-music-results__empty">No matching music pieces.</p>
+                    )}
+                  </div>
+                ) : null}
+                <p className="field-help" aria-live="polite">
+                  {musicQuery.trim()
+                    ? `${String(filteredMusic.length)} matching piece${filteredMusic.length === 1 ? "" : "s"}${filteredMusic.length > 50 ? " · showing first 50" : ""}. Select a result to add it.`
+                    : `${String(resources.music.length)} pieces available. Start typing to search.`}
+                </p>
+              </div>
+              <label className="field set-list-duration-input">
+                <span className="sr-only">Duration</span>
+                <input
+                  onChange={(event) => {
+                    setCustomDuration(event.target.value);
+                  }}
+                  placeholder="Duration"
+                  type="text"
+                  value={customDuration}
+                />
+              </label>
+              <button
+                className="button button--primary button--small"
+                type="button"
+                onClick={() => {
+                  openCustomItem(musicQuery.trim(), customDuration.trim());
+                }}
+              >
+                + Add
+              </button>
+            </div>
+            <p className="field-help set-list-add-tip">
+              Select an existing library item from the suggestions, or use + Add for a custom song
+              or intermission.
+            </p>
+          </div>
+
+          <div className="set-list-summary" aria-live="polite">
+            <span>
+              <strong>Songs</strong> {formatSetListDuration(songsDuration)}
+            </span>
+            <span>
+              <strong>Intermissions</strong> {formatSetListDuration(intermissionsDuration)}
+            </span>
+            <span>
+              <strong>Items</strong> {String(items.length)}
+            </span>
+            <span className="set-list-summary__total">
+              <strong>Total</strong> {formatSetListDuration(calculateSetListDuration(items))}
+            </span>
+          </div>
+
+          {items.length === 0 ? (
+            <p className="empty-state">This Performance does not have set-list items yet.</p>
+          ) : (
+            <>
+              <p className="field-help" aria-live="polite">
+                Drag an item to reorder it, or use Move up and Move down for keyboard control.
+              </p>
+              <ol className="set-list-items" aria-label="Ordered set-list items">
+                {items.map((item, index) => (
+                  <li
+                    className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}`}
+                    draggable
+                    key={item.id}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                    }}
+                    onDragStart={() => {
+                      setDragIndex(index);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      moveDraggedItem(index);
+                    }}
+                    onPointerCancel={(event) => {
+                      if (event.pointerType === "touch") setDragIndex(null);
+                    }}
+                    onPointerDown={(event) => {
+                      if (event.pointerType === "touch") setDragIndex(index);
+                    }}
+                    onPointerUp={(event) => {
+                      if (event.pointerType === "touch") moveDraggedItem(index);
+                    }}
+                  >
+                    <div className="set-list-item-heading">
+                      <div className="set-list-item-title">
+                        <span
+                          className="set-list-drag-handle"
+                          aria-hidden="true"
+                          title="Drag to reorder"
+                        />
+                        {item.type === "intermission" ? (
+                          <span className="set-list-item-type">Intermission</span>
+                        ) : null}
+                        <strong>
+                          {String(index + 1)}. {item.title}
+                        </strong>
+                      </div>
+                      <div className="button-row set-list-item-actions">
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => {
+                            openItemEditor(index);
+                          }}
+                        >
+                          Set list details
+                        </button>
+                        {item.pieceId &&
+                        resources.music.some(
+                          (piece) =>
+                            (piece.id === item.pieceId || piece.parentId === item.pieceId) &&
+                            Object.keys(piece.trackFileIds).length > 0,
+                        ) ? (
+                          <a
+                            className="text-button"
+                            href={`/practice?pieceId=${encodeURIComponent(item.pieceId)}`}
+                          >
+                            Play
+                          </a>
+                        ) : null}
+                        <button
+                          aria-label={`Move ${item.title} up`}
+                          className="text-button"
+                          disabled={index === 0}
+                          type="button"
+                          onClick={() => {
+                            updateDraftItems((current) => [...moveSetListItem(current, index, -1)]);
+                          }}
+                        >
+                          Move up
+                        </button>
+                        <button
+                          aria-label={`Move ${item.title} down`}
+                          className="text-button"
+                          disabled={index === items.length - 1}
+                          type="button"
+                          onClick={() => {
+                            updateDraftItems((current) => [...moveSetListItem(current, index, 1)]);
+                          }}
+                        >
+                          Move down
+                        </button>
+                        <button
+                          className="text-button text-button--danger"
+                          type="button"
+                          onClick={() => {
+                            updateDraftItems((current) =>
+                              current.filter((_, itemIndex) => itemIndex !== index),
+                            );
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                    <div className="set-list-item-summary">
+                      <span>
+                        {[item.composer, item.duration].filter(Boolean).join(" · ") ||
+                          (item.notes ? "Notes added" : "No additional details")}
+                      </span>
+                      {item.isFeaturedNumber ? <span className="status-pill">Featured</span> : null}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+
+          <Dialog
+            description="Add a song or intermission to this Performance without expanding the editor."
+            onClose={() => {
+              setCustomDialogOpen(false);
+            }}
+            open={customDialogOpen}
+            title="Add custom set-list item"
+          >
+            <form
+              className="form-stack set-list-item-dialog"
+              onSubmit={(event) => {
+                event.preventDefault();
+                addCustomItem();
+              }}
+            >
+              {error ? (
+                <p className="notice notice--error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <label className="field">
+                Type
+                <select
+                  value={customType}
+                  onChange={(event) => {
+                    setCustomType(event.target.value === "intermission" ? "intermission" : "song");
+                  }}
+                >
+                  <option value="song">Song</option>
+                  <option value="intermission">Intermission</option>
+                </select>
+              </label>
+              <label className="field">
+                Title
+                <input
+                  autoFocus
+                  maxLength={300}
+                  required
+                  value={customTitle}
+                  onChange={(event) => {
+                    setCustomTitle(event.target.value);
+                  }}
+                />
+              </label>
+              {customType === "song" ? (
+                <label className="field">
+                  Composer
+                  <input
+                    maxLength={300}
+                    value={customComposer}
+                    onChange={(event) => {
+                      setCustomComposer(event.target.value);
+                    }}
+                  />
+                </label>
+              ) : null}
+              <label className="field">
+                Duration
+                <input
+                  maxLength={20}
+                  placeholder="4:05"
+                  value={customDuration}
+                  onChange={(event) => {
+                    setCustomDuration(event.target.value);
+                  }}
+                />
+              </label>
+              <label className="field">
+                Notes
+                <textarea
+                  maxLength={10_000}
+                  rows={3}
+                  value={customNotes}
+                  onChange={(event) => {
+                    setCustomNotes(event.target.value);
+                  }}
+                />
+              </label>
+              <div className="dialog__actions">
+                <button
+                  className="button button--secondary"
+                  onClick={() => {
+                    setCustomDialogOpen(false);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button className="button button--primary" type="submit">
+                  Add item
+                </button>
+              </div>
+            </form>
+          </Dialog>
+
+          <Dialog
+            description={`Update the item details and ${performerLabelPlural.toLowerCase()} assignments, then close when finished.`}
+            onClose={closeItemEditor}
+            open={editingItem !== null}
+            title="Edit set-list item"
+          >
+            {editingItem ? (
+              <form
+                className="form-stack set-list-item-dialog"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  saveItemEdit();
+                }}
+              >
+                {error ? (
+                  <p className="notice notice--error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                <label className="field">
+                  Title
+                  <input
+                    autoFocus
+                    maxLength={300}
+                    required
+                    value={editingItem.title}
+                    onChange={(event) => {
+                      setEditingItem({ ...editingItem, title: event.target.value });
+                    }}
+                  />
+                </label>
+                {itemType(editingItem) === "song" ? (
+                  <label className="field">
+                    Composer
+                    <input
+                      maxLength={300}
+                      value={editingItem.composer ?? ""}
+                      onChange={(event) => {
+                        setEditingItem({ ...editingItem, composer: event.target.value });
+                      }}
+                    />
+                  </label>
+                ) : null}
+                <label className="field">
+                  Duration
+                  <input
+                    aria-invalid={
+                      Boolean(editingItem.duration) &&
+                      parseSetListDuration(editingItem.duration) === null
+                    }
+                    maxLength={20}
+                    value={editingItem.duration ?? ""}
+                    onChange={(event) => {
+                      setEditingItem({ ...editingItem, duration: event.target.value });
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Notes
+                  <textarea
+                    maxLength={10_000}
+                    rows={3}
+                    value={editingItem.notes ?? ""}
+                    onChange={(event) => {
+                      setEditingItem({ ...editingItem, notes: event.target.value });
+                    }}
+                  />
+                </label>
+                {itemType(editingItem) === "song" ? (
+                  <label className="checkbox-field">
+                    <input
+                      checked={editingItem.isFeaturedNumber ?? editingItem.soloSmallGroup ?? false}
+                      type="checkbox"
+                      onChange={(event) => {
+                        const isFeaturedNumber = event.target.checked;
+                        const updated = { ...editingItem, isFeaturedNumber };
+                        delete updated.soloSmallGroup;
+                        if (!isFeaturedNumber) updated.performerCredits = [];
+                        setEditingItem(updated);
+                      }}
+                    />
+                    Featured number
+                  </label>
+                ) : null}
+                {itemType(editingItem) === "song" && editingItem.isFeaturedNumber ? (
+                  <SetListCreditEditor
+                    item={editingItem}
+                    profiles={resources.profiles}
+                    onChange={setEditingItem}
+                  />
+                ) : null}
+                <div className="dialog__actions">
+                  <button
+                    className="button button--secondary"
+                    onClick={closeItemEditor}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button className="button button--primary" type="submit">
+                    Save item
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </Dialog>
+
+          <div className="set-list-save-row">
+            <span className="field-help" role="status">
+              {busy
+                ? "Saving automatically…"
+                : dirty
+                  ? "Changes save automatically."
+                  : "All changes saved."}
+            </span>
+            <label className="checkbox-field">
+              <input
+                checked={approved}
+                type="checkbox"
+                onChange={(event) => {
+                  setApproved(event.target.checked);
+                  markDraftDirty();
+                }}
+              />
+              Set list approved for member use
+            </label>
+            <button
+              className="button button--primary"
+              disabled={busy || items.some((item) => !item.title.trim())}
+              type="button"
+              onClick={() => void save()}
+            >
+              {busy ? "Saving…" : "Save now"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {selectedEvent ? (
+        <SetListPrintView event={selectedEvent} items={items} music={resources.music} />
+      ) : null}
+    </section>
+  );
+}

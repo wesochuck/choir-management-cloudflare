@@ -228,10 +228,10 @@ describe("public player signed flow", () => {
     });
   });
 
-  it("keeps the legacy public playlist path signed and tenant-bound", async () => {
+  it("keeps the public playlist path signed and tenant-bound", async () => {
     const token = await issuePublicPlayerToken("organization-alpha", ALPHA_EVENT);
     const response = await exports.default.fetch(
-      api("alpha.localhost", `/api/player-playlist?token=${encodeURIComponent(token)}`),
+      api("alpha.localhost", `/api/public/player/playlist?token=${encodeURIComponent(token)}`),
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
@@ -239,7 +239,7 @@ describe("public player signed flow", () => {
       setList: expect.arrayContaining([expect.objectContaining({ title: "Alleluia" })]),
     });
     const crossTenantResponse = await exports.default.fetch(
-      api("bravo.localhost", `/api/player-playlist?token=${encodeURIComponent(token)}`),
+      api("bravo.localhost", `/api/public/player/playlist?token=${encodeURIComponent(token)}`),
     );
     expect(crossTenantResponse.status).toBe(404);
   });

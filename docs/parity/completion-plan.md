@@ -82,7 +82,7 @@ actual route owner) and `auditions.spec.ts`.
 ### Phase A — Audition closure (complete)
 
 **Owners:** `apps/web/src/public/PublicAuditionView.tsx`,
-`apps/web/src/account/AuditionManager.tsx`, `apps/web/e2e/auditions.spec.ts`,
+`apps/web/src/account/components/AuditionManager/page.tsx`, `apps/web/e2e/auditions.spec.ts`,
 `apps/worker/test/publicAudition.integration.test.ts`, and the audition routes/store/consumer.
 
 - Added settings/slot/transition/notification integration cases and route status mapping.
@@ -95,8 +95,9 @@ actual route owner) and `auditions.spec.ts`.
 ### Phase B — Music and set-list closure (complete)
 
 **Owners:** `apps/worker/src/organization/musicStore.ts`, `organizationMusic.ts`, contracts,
-`apps/web/src/account/MusicCatalog.tsx`, `apps/web/src/account/SetListManager.tsx`, domain tests,
-and dedicated E2E specs.
+`apps/web/src/account/components/MusicCatalog/controller.tsx`,
+`apps/web/src/account/components/SetListManager/controller.tsx`, domain tests, and dedicated E2E
+specs.
 
 - Confirmed no separate performance relationship editor is required by the baseline and retained
   bounded recency/count projections.
@@ -122,23 +123,24 @@ private R2 storage helpers, and export integration tests.
 
 **Exit criteria:** met locally with checksum validation, file inventory, authorization failures,
 cross-tenant denial, retry/replay, bounded size handling, and audit attribution covered by
-integration tests. The legacy synchronous endpoint remains as a rollback-compatible compatibility
-route while the settings page uses the asynchronous contract.
+integration tests. The PocketBase-era synchronous compatibility endpoint is removed; the settings
+page and API use the asynchronous export contract only.
 
-### Phase D — Route-contract repair (in progress)
+### Phase D — Route-contract repair and legacy removal (completed locally)
 
 **Owners:** `apps/worker/src/router.ts`, Organization payment/queue/setup modules, contracts, and
 the API integration suite.
 
-- Restore the two baseline workflows with typed compatibility handlers that delegate to the
-  canonical Organization-scoped implementation without bypassing hostname resolution, MFA, module
-  guards, audit attribution, or request-size limits.
+- Remove PocketBase-era forwarding and dead aliases, then normalize remaining product routes to the
+  canonical public, Organization, Platform, setup, singer, account, webhook, and health namespaces
+  without bypassing hostname resolution, MFA, module guards, audit attribution, or request-size
+  limits.
 - Finish setup recovery through a documented Better Auth administrator-recovery flow, or explicitly
   retire the old superuser/password path with a versioned migration and owner-approved contract.
 - Rebuild Stripe webhook behavior from the legacy contracts, including signature verification,
   idempotency, payment/refund state transitions, and safe fake-provider behavior in staging.
-- Add contract tests for every restored path: success, malformed input, unauthorized/MFA failure,
-  cross-tenant identifiers, replay, and rollback-compatible payloads.
+- Keep contract tests on canonical paths for success, malformed input, unauthorized/MFA failure,
+  cross-tenant identifiers, and replay.
 
 **Exit criteria:** the implementation audit passes with no implemented/verified API missing from
 `router.ts`; every repaired entry is promoted to implemented with focused tests or changed to
@@ -229,7 +231,12 @@ high-severity finding remains.
 
 The rebuild plan now owns this audit artifact:
 
-| Path                                      | Responsibility                                                                                          |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `docs/parity/completion-plan.md`          | Code/test-backed parity audit, confirmed gaps, evidence debt, phased completion plan, and exit criteria |
-| `scripts/audit-parity-implementation.mjs` | Fails the gate when an implemented/verified API has no matching Worker route; reports partial API work  |
+| Path                                                  | Responsibility                                                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `docs/parity/completion-plan.md`                      | Code/test-backed parity audit, confirmed gaps, evidence debt, phased completion plan, and exit criteria |
+| `scripts/audit-parity-implementation.mjs`             | Fails the gate when an implemented/verified API has no matching Worker route; reports partial API work  |
+| `apps/worker/src/organization/reconciliationStore.ts` | Read-only Organization consistency report; no automatic historical repair                               |
+
+The August 1 decomposition pass also owns the contract, delivery, API-client, route, schema,
+OrganizationStore, and UI submodule paths listed in the rebuild plan. The post-deletion matrix has
+181 entries; removed aliases have no redirects or remaining source/test/probe references.

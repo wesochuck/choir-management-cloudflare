@@ -1,5 +1,19 @@
 function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function renderInline(value: string): string {
@@ -13,7 +27,9 @@ function renderInline(value: string): string {
       /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/gi,
       '<span class="communication-poll-link-placeholder">Personalized poll response link</span>',
     )
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label: string, url: string) =>
+      isSafeHttpUrl(url) ? `<a href="${url}">${label}</a>` : match,
+    );
 }
 
 export function renderCommunicationMarkdownPreview(value: string): string {

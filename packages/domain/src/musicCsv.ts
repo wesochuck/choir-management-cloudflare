@@ -173,7 +173,7 @@ function musicHeaderIndexes(headers: readonly string[]): MusicHeaderIndexes {
 }
 
 export function musicCsvColumnForHeader(header: string): string | null {
-  const normalized = header.trim().toLocaleLowerCase();
+  const normalized = header.trim().toLowerCase();
   if (["title"].includes(normalized)) return "Title";
   if (["composer"].includes(normalized)) return "Composer";
   if (["arranger"].includes(normalized)) return "Arranger";
@@ -226,6 +226,12 @@ function labels(value: string): string[] {
 
 function parseCopies(value: string, rowNumber: number): number | null {
   if (value === "") return null;
+  if (!/^\d+$/.test(value)) {
+    throw new MusicCsvError(
+      "Copies must use whole decimal digits from 0 through 1,000,000.",
+      rowNumber,
+    );
+  }
   const copies = Number(value);
   if (!Number.isInteger(copies) || copies < 0 || copies > 1_000_000) {
     throw new MusicCsvError("Copies must be a whole number from 0 through 1,000,000.", rowNumber);
@@ -234,7 +240,7 @@ function parseCopies(value: string, rowNumber: number): number | null {
 }
 
 function parseApplicability(value: string): string[] {
-  return !value || value.toLocaleLowerCase() === "all" ? [] : labels(value);
+  return !value || value.toLowerCase() === "all" ? [] : labels(value);
 }
 
 function parsePiece(
@@ -263,7 +269,7 @@ export function parseMusicCsv(csv: string, maximumRows = 500): MusicCsvPiece[] {
   const rows = parseRows(csv.replace(/^\uFEFF/, ""));
   const [headerRow, ...dataRows] = rows;
   if (!headerRow) throw new MusicCsvError("The CSV is empty.");
-  const headers = headerRow.map((header) => header.trim().toLocaleLowerCase());
+  const headers = headerRow.map((header) => header.trim().toLowerCase());
   const indexes = musicHeaderIndexes(headers);
   if (indexes.title < 0) throw new MusicCsvError('CSV must contain a "Title" column.');
   const imported: MusicCsvPiece[] = [];
@@ -297,7 +303,7 @@ export function inspectMusicCsv(csv: string): MusicCsvInspection {
       return { fatalError: "The CSV is empty.", headers: [], rowCount: 0, warnings: [] };
     }
     const headers = headerRow.map((header) => header.trim());
-    const normalizedHeaders = headers.map((header) => header.toLocaleLowerCase());
+    const normalizedHeaders = headers.map((header) => header.toLowerCase());
     const indexes = musicHeaderIndexes(normalizedHeaders);
     if (indexes.title < 0) {
       return {
@@ -318,6 +324,15 @@ export function inspectMusicCsv(csv: string): MusicCsvInspection {
             },
           ],
     );
+    const importedRows = dataRows.filter((cells) => cell(cells, indexes.title));
+    if (importedRows.length > 500) {
+      return {
+        fatalError: "The CSV may contain at most 500 music pieces.",
+        headers,
+        rowCount: dataRows.length,
+        warnings,
+      };
+    }
     const validators: readonly [number, string, (value: string, row: number) => unknown][] = [
       [indexes.copies, "Copies", parseCopies],
       [indexes.duration, "Duration", parseDuration],
@@ -361,9 +376,9 @@ export function selectMusicCsvColumns(csv: string, excludedHeaders: readonly str
   const rows = parseRows(csv.replace(/^\uFEFF/, ""));
   const [headerRow, ...dataRows] = rows;
   if (!headerRow) return csv;
-  const excluded = new Set(excludedHeaders.map((header) => header.trim().toLocaleLowerCase()));
+  const excluded = new Set(excludedHeaders.map((header) => header.trim().toLowerCase()));
   const mappings = headerRow.flatMap<CsvColumnMapping>((header, sourceIndex) =>
-    excluded.has(header.trim().toLocaleLowerCase()) ? [] : [{ sourceIndex, targetHeader: header }],
+    excluded.has(header.trim().toLowerCase()) ? [] : [{ sourceIndex, targetHeader: header }],
   );
   return mapCsvColumns([headerRow, ...dataRows], mappings);
 }

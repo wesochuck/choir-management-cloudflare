@@ -239,7 +239,129 @@ describe("Organization scheduler", () => {
           .at(0);
         return row?.reminderSentAt ?? null;
       }),
-    ).toEqual(expect.any(String));
+    ).toBeNull();
+  });
+
+  it("re-arms the alarm when payment, audition, and export work is enqueued", async () => {
+    const stub = await provisionScheduler();
+    const requests = [
+      {
+        body: {
+          action: "queue_payment_notification",
+          contentMarkdown: "Payment received.",
+          dedupeKey: "alarm-payment-notification",
+          destination: "member@example.test",
+          organizationId: "organization-scheduler",
+          paymentType: "dues",
+          recipientName: "Member",
+          resourceId: "88888888-8888-4888-8888-888888888888",
+          subject: "Payment received",
+        },
+        pathname: "/internal/payments/notification",
+      },
+      {
+        body: {
+          actorType: "organization_member",
+          actorUserId: "member-user",
+          format: "json",
+          organizationId: "organization-scheduler",
+          requestId: "88888888-8888-4888-8888-888888888889",
+        },
+        pathname: "/internal/export/create",
+      },
+      {
+        body: {
+          availabilityNotes: "",
+          email: "audition@example.test",
+          experience: "",
+          name: "Audition Member",
+          phone: "",
+          requestedSlots: [],
+          status: "pending",
+          voicePart: "",
+        },
+        pathname: "/internal/audition/create",
+      },
+    ] as const;
+
+    for (const request of requests) {
+      await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+        return state.storage.deleteAlarm().then(() => undefined);
+      });
+      const response = await stub.fetch(`https://organization.internal${request.pathname}`, {
+        body: JSON.stringify(request.body),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(response.ok).toBe(true);
+      await expect(
+        runInDurableObject<OrganizationStore, number | null>(stub, (_instance, state) =>
+          state.storage.getAlarm(),
+        ),
+      ).resolves.not.toBeNull();
+    }
+  });
+
+  it("makes a terminal reminder failure visible and clears its success marker", async () => {
+    const stub = await provisionScheduler();
+    const eventId = "99999999-9999-4999-8999-999999999999";
+    const jobId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab";
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, reminder_sent_at, created_at, updated_at)
+         VALUES (?, 'Terminal Reminder', 'Rehearsal', ?, ?, ?, ?)`,
+        eventId,
+        new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
+        now,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at, enqueued_at)
+         VALUES (?, 'event_reminder', ?, ?, ?, ?)`,
+        jobId,
+        `event-reminder:organization-scheduler:${eventId}`,
+        now,
+        now,
+        now,
+      );
+    });
+
+    const response = await stub.fetch(
+      "https://organization.internal/internal/scheduling/event-reminder-result",
+      {
+        body: JSON.stringify({
+          attempt: 10,
+          idempotencyKey: `event-reminder:organization-scheduler:${eventId}`,
+          jobId,
+          organizationId: "organization-scheduler",
+          status: "terminal",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(response.status).toBe(200);
+    await expect(
+      runInDurableObject<
+        OrganizationStore,
+        { readonly reminderSentAt: string | null; readonly status: string }
+      >(stub, (_instance, state) => ({
+        reminderSentAt: state.storage.sql
+          .exec<{ readonly reminderSentAt: string | null }>(
+            "SELECT reminder_sent_at AS reminderSentAt FROM events WHERE id = ?",
+            eventId,
+          )
+          .one().reminderSentAt,
+        status: state.storage.sql
+          .exec<{ readonly status: string }>(
+            "SELECT status FROM job_ledger WHERE job_id = ?",
+            jobId,
+          )
+          .one().status,
+      })),
+    ).resolves.toEqual({ reminderSentAt: null, status: "failed" });
   });
 
   it("does not duplicate event_reminder or attendance_report jobs on re-alarm when already enqueued", async () => {

@@ -63,6 +63,7 @@ export function canTransitionTicketPurchase(
   return (
     current === next ||
     (current === "pending" && (next === "paid" || next === "expired")) ||
+    (current === "expired" && next === "paid") ||
     (current === "paid" && next === "refunded")
   );
 }
@@ -86,10 +87,7 @@ function csvCell(value: string | number): string {
 
 function buyerSortKey(name: string): readonly [string, string] {
   const parts = name.trim().split(/\s+/);
-  return [
-    (parts.at(-1) ?? "").toLocaleLowerCase(),
-    parts.slice(0, -1).join(" ").toLocaleLowerCase(),
-  ];
+  return [(parts.at(-1) ?? "").toLowerCase(), parts.slice(0, -1).join(" ").toLowerCase()];
 }
 
 export function renderTicketWillCallCsv(rows: readonly TicketWillCallRow[]): string {

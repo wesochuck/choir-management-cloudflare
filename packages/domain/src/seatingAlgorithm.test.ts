@@ -21,6 +21,12 @@ describe("seating formation rules", () => {
     expect(calculateSeatingSuggestions([4], { S: 1 }, [], "vertical_column")).toEqual({});
   });
 
+  it("never suggests seats outside the configured chart when singers exceed capacity", () => {
+    const suggestions = calculateSeatingSuggestions([1, 1], { S: 3 }, ["S"], "vertical_column");
+    expect(suggestions).toEqual({ "0-0": "S", "1-0": "S" });
+    expect(Object.keys(suggestions).every((key) => /^\d+-\d+$/.test(key))).toBe(true);
+  });
+
   it("flags only known voice parts assigned against another suggested section", () => {
     const voiceParts = [
       { label: "S1", sectionCode: "S" },

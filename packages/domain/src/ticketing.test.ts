@@ -38,9 +38,9 @@ describe("ticketing rules", () => {
   it("permits only forward checkout transitions", () => {
     expect(canTransitionTicketPurchase("pending", "paid")).toBe(true);
     expect(canTransitionTicketPurchase("pending", "expired")).toBe(true);
+    expect(canTransitionTicketPurchase("expired", "paid")).toBe(true);
     expect(canTransitionTicketPurchase("paid", "refunded")).toBe(true);
     expect(canTransitionTicketPurchase("refunded", "paid")).toBe(false);
-    expect(canTransitionTicketPurchase("expired", "paid")).toBe(false);
   });
 
   it("renders stable last-name-sorted will-call CSV without spreadsheet formulas", () => {

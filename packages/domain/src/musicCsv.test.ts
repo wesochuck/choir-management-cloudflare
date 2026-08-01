@@ -74,10 +74,24 @@ describe("music CSV", () => {
 
   it("rejects the whole file on invalid bounded values", () => {
     expect(() => parseMusicCsv("Title,Copies\nBad,1.5")).toThrow(MusicCsvError);
+    expect(() => parseMusicCsv("Title,Copies\nBad,1e3")).toThrow(
+      "Copies must use whole decimal digits",
+    );
     expect(() => parseMusicCsv("Title,Duration\nBad,4:99")).toThrow(
       "Duration minutes and seconds must be below 60.",
     );
     expect(() => parseMusicCsv("Composer\nHandel")).toThrow('CSV must contain a "Title" column.');
+  });
+
+  it("enforces the import row limit during inspection", () => {
+    const csv = [
+      "Title",
+      ...Array.from({ length: 501 }, (_, index) => `Piece ${String(index + 1)}`),
+    ].join("\n");
+    expect(inspectMusicCsv(csv)).toMatchObject({
+      fatalError: "The CSV may contain at most 500 music pieces.",
+      rowCount: 501,
+    });
   });
 
   it("previews ignored columns and invalid rows for a graceful import", () => {

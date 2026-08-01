@@ -133,7 +133,13 @@ export async function submitPollResponse(
     method: "POST",
   });
   if (!response.ok) {
-    return { code: "poll_response_failed", status: response.status };
+    const body = z
+      .object({ code: z.string().min(1).max(100) })
+      .safeParse(await readJsonSafe(response));
+    return {
+      code: body.success ? body.data.code : "poll_response_failed",
+      status: response.status,
+    };
   }
   return { status: response.status };
 }

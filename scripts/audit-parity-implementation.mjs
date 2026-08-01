@@ -1,15 +1,48 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { parse } from "yaml";
 
 const matrixUrl = new URL("../docs/parity/feature-matrix.yaml", import.meta.url);
-const routerUrl = new URL("../apps/worker/src/router.ts", import.meta.url);
+const routerDirectoryUrl = new URL("../apps/worker/src/", import.meta.url);
+const routeModulesDirectoryUrl = new URL("../apps/worker/src/routes/", import.meta.url);
+
+const routeFileNames = ["router.ts"];
+try {
+  const routeModuleNames = (await readdir(routeModulesDirectoryUrl.pathname))
+    .filter((fileName) => fileName.endsWith(".ts"))
+    .toSorted();
+  routeFileNames.push(...routeModuleNames.map((fileName) => `routes/${fileName}`));
+} catch (error) {
+  if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+}
+
+const routeUrls = routeFileNames.map((fileName) => new URL(fileName, routerDirectoryUrl));
+for (const routeUrl of routeUrls) {
+  try {
+    const source = await readFile(routeUrl, "utf8");
+    if (
+      routeUrl.pathname.includes("/routes/") &&
+      !routeUrl.pathname.endsWith("/routes/helpers.ts") &&
+      !/registerRoutes\(router:\s*Hono<WorkerHonoEnvironment>\)/.test(source)
+    ) {
+      throw new Error(
+        "route module must export registerRoutes(router: Hono<WorkerHonoEnvironment>)",
+      );
+    }
+  } catch (error) {
+    throw new Error(`Parity implementation audit route file is missing: ${routeUrl.pathname}`, {
+      cause: error,
+    });
+  }
+}
 
 const matrix = parse(await readFile(matrixUrl, "utf8"));
-const routerSource = await readFile(routerUrl, "utf8");
 const routePattern = /router\.(get|post|put|patch|delete)\(\s*(["'`])([^"'`]+)\2/g;
 const sourceRoutes = new Set();
-for (const match of routerSource.matchAll(routePattern)) {
-  sourceRoutes.add(`${match[1].toUpperCase()} ${match[3]}`);
+for (const routeUrl of routeUrls) {
+  const routeSource = await readFile(routeUrl, "utf8");
+  for (const match of routeSource.matchAll(routePattern)) {
+    sourceRoutes.add(`${match[1].toUpperCase()} ${match[3]}`);
+  }
 }
 
 const missing = [];
@@ -28,7 +61,7 @@ if (missing.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `Parity implementation audit passed: ${matrix.apiRoutes.length} API entries checked against apps/worker/src/router.ts.`,
+    `Parity implementation audit passed: ${matrix.apiRoutes.length} API entries checked against ${routeUrls.length} Worker route files.`,
   );
 }
 

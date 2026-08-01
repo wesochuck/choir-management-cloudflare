@@ -8,6 +8,31 @@ have not been provisioned. Production is isolated with `EXTERNAL_EFFECTS_MODE=di
 `PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
 outside the active goal per GOAL.md.
 
+## August 1 refactor and legacy-removal checkpoint
+
+The Worker is now the only application host for the active code path. PocketBase-era forwarding,
+dead aliases, synchronous `organization/export.json`, legacy payload fallbacks, and the unused
+manual queue trigger were removed without redirects. Product routes were normalized to canonical
+public, Organization, Platform, setup, singer, account, webhook, and health namespaces; the matrix
+contains 181 entries after deletion.
+
+The contracts barrel, queue consumer, browser API client, Worker route hub, Organization schema,
+OrganizationStore, and the nine listed large UI screens now have domain submodules while preserving
+their original import paths. The final local gate is green: formatting, lint, strict workspace
+typechecking, 119 unit tests, 133 prepared Workerd integration tests, 58 Playwright tests, the
+workspace build, contract export snapshot (454 names), parity matrix (181 entries), source-route
+implementation audit (63 API entries across 59 route files), and high-severity dependency audit (0
+vulnerabilities). No hosted resource or production deployment was modified.
+
+The refactor is forward-only at the route surface: removed aliases have no redirects, so rollback
+requires promoting a commit that still contains the prior routes rather than relying on schema
+rollback. D1 and Organization Durable Object migrations remain forward-compatible; no migration was
+added by this refactor. Tenant isolation, external-effect, accessibility, and responsive behavior
+were covered by the existing Worker integration and 58-test desktop/mobile browser suite. The
+remaining readiness blocker is provider-backed staging qualification, which still requires isolated
+Stripe/Brevo credentials and a verified sender through the secure environment flow; production
+launch remains out of scope.
+
 ## July 31 payment lifecycle implementation
 
 The shared Stripe payment slice now covers Organization-owned direct-charge checkout for tickets,
@@ -71,7 +96,7 @@ router-level 404. Local integration coverage now includes legacy RSVP aliases, t
 ticket validation/refund, bundle refund, scan-context proof-of-payment, setup health, automatic
 queue acknowledgement, tenant-scoped maintenance execution, fake Stripe receipt, and public player
 playlist tenant isolation. Anonymous staging probes for `/api/health` and `/api/ready` returned 200;
-`/api/maintenance/run` correctly returned 401 without a session.
+`/api/platform/maintenance/run` correctly returned 401 without a session.
 
 The setup-status handler now preserves the Organization Durable Object's known failure code/status
 and emits only a redacted request-scoped error type for unexpected failures. The corrected staging
@@ -696,7 +721,7 @@ Verified over public HTTPS on July 20–25, 2026:
   confirming tenant isolation before host resolution.
 - D1 control-plane migration state: no pending migrations.
 - New API endpoints verified: `POST /api/test-smtp` (200), `POST /api/test-sms` (200),
-  `GET /api/admin/queue-settings` (200, returns staging queue config).
+  `GET /api/platform/queue-settings` (200, returns staging queue config).
 - Production environment is explicitly isolated: `EXTERNAL_EFFECTS_MODE=disabled`,
   `PLATFORM_EMAIL_MODE=disabled`, `workers_dev=false`, `PRODUCT_BASE_DOMAIN=invalid.example`. The
   Worker name includes `-inert` to prevent accidental activation. No D1, queues, routes, or custom

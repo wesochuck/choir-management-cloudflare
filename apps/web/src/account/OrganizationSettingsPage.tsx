@@ -49,6 +49,17 @@ function money(cents: number): string {
   );
 }
 
+function currencyDraftFromCents(cents: number): string {
+  return (Math.max(0, cents) / 100).toFixed(2);
+}
+
+function currencyCentsFromDraft(value: string): number {
+  const trimmed = value.trim();
+  if (!/^\d*(?:\.\d*)?$/.test(trimmed)) return 0;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 100) : 0;
+}
+
 function transactionFeeSettingsEqual(left: TransactionFeeSettings, right: TransactionFeeSettings) {
   return (
     left.fixedCents === right.fixedCents &&
@@ -326,6 +337,9 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   });
   const [savedTransactionFeeSettings, setSavedTransactionFeeSettings] =
     useState<TransactionFeeSettings>(transactionFeeSettings);
+  const [fixedFeeDraft, setFixedFeeDraft] = useState(
+    currencyDraftFromCents(transactionFeeSettings.fixedCents),
+  );
   const [timezone, setTimezone] = useState("UTC");
   const [savedTimezone, setSavedTimezone] = useState("UTC");
 
@@ -341,6 +355,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
         setSavedTimezone(calendarSettings.timezone);
         setTransactionFeeSettings(feeSettings);
         setSavedTransactionFeeSettings(feeSettings);
+        setFixedFeeDraft(currencyDraftFromCents(feeSettings.fixedCents));
         setLoading(false);
       })
       .catch((loadError: unknown) => {
@@ -375,13 +390,20 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   }
 
   async function saveTransactionFees() {
+    const normalizedSettings = {
+      ...transactionFeeSettings,
+      fixedCents: currencyCentsFromDraft(fixedFeeDraft),
+    };
+    setTransactionFeeSettings(normalizedSettings);
+    setFixedFeeDraft(currencyDraftFromCents(normalizedSettings.fixedCents));
     setFeeBusy(true);
     setFeeError(null);
     setFeeSuccess(null);
     try {
-      const settings = await updateOrganizationTransactionFeeSettings(transactionFeeSettings);
+      const settings = await updateOrganizationTransactionFeeSettings(normalizedSettings);
       setTransactionFeeSettings(settings);
       setSavedTransactionFeeSettings(settings);
+      setFixedFeeDraft(currencyDraftFromCents(settings.fixedCents));
       setFeeSuccess("Transaction fee settings updated.");
     } catch (saveError: unknown) {
       setFeeError(
@@ -406,10 +428,13 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   });
   useFloatingSaveAction({
     busy: feeBusy,
-    dirty: !transactionFeeSettingsEqual(transactionFeeSettings, savedTransactionFeeSettings),
+    dirty:
+      !transactionFeeSettingsEqual(transactionFeeSettings, savedTransactionFeeSettings) ||
+      currencyCentsFromDraft(fixedFeeDraft) !== savedTransactionFeeSettings.fixedCents,
     id: "organization-transaction-fees",
     onDiscard: () => {
       setTransactionFeeSettings(savedTransactionFeeSettings);
+      setFixedFeeDraft(currencyDraftFromCents(savedTransactionFeeSettings.fixedCents));
       setFeeSuccess(null);
     },
     onSave: saveTransactionFees,
@@ -513,16 +538,18 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
                 Fixed fee (USD)
                 <input
                   id="transaction-fee-fixed"
-                  min="0"
+                  inputMode="decimal"
                   onChange={(event) => {
-                    setTransactionFeeSettings((current) => ({
-                      ...current,
-                      fixedCents: Math.round((Number(event.target.value) || 0) * 100),
-                    }));
+                    setFixedFeeDraft(event.target.value);
+                  }}
+                  onBlur={() => {
+                    const cents = currencyCentsFromDraft(fixedFeeDraft);
+                    setFixedFeeDraft(currencyDraftFromCents(cents));
+                    setTransactionFeeSettings((current) => ({ ...current, fixedCents: cents }));
                   }}
                   step="0.01"
-                  type="number"
-                  value={(transactionFeeSettings.fixedCents / 100).toFixed(2)}
+                  type="text"
+                  value={fixedFeeDraft}
                 />
               </label>
             </div>

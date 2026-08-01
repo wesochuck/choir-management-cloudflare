@@ -99,6 +99,8 @@ async function dispatch(
     readonly stripeEventId: string;
     readonly paymentType?: string;
     readonly disputeStatus?: string;
+    readonly reason?: string;
+    readonly amountCents?: number;
   },
 ): Promise<DispatchResult> {
   const stub = context.env.ORGANIZATION_STORE.get(
@@ -122,6 +124,12 @@ function bodyCode(body: unknown): string {
     typeof body.code === "string"
     ? body.code
     : "stripe_webhook_rejected";
+}
+
+export function stripeRefundDispatchMatched(body: unknown): boolean {
+  if (typeof body !== "object" || body === null) return false;
+  const refunded = "refunded" in body && typeof body.refunded === "number" ? body.refunded : 0;
+  return refunded > 0 || ("duplicate" in body && body.duplicate === true);
 }
 
 async function handleCompleted(
@@ -198,7 +206,6 @@ async function handleExpired(
   });
 }
 
-// eslint-disable-next-line complexity -- maps a verified Stripe refund to the typed Organization operation.
 async function handleRefunded(
   context: StripeContext,
   organizationId: string,
@@ -230,14 +237,7 @@ async function handleRefunded(
     };
     const result = await dispatch(context, organizationId, target, values);
     if (result.response.ok) {
-      const refunded =
-        typeof result.body === "object" &&
-        result.body !== null &&
-        "refunded" in result.body &&
-        typeof result.body.refunded === "number"
-          ? result.body.refunded
-          : 0;
-      matched = matched || refunded > 0;
+      matched = matched || stripeRefundDispatchMatched(result.body);
     } else if (result.response.status !== 404) {
       return problem(
         context,
@@ -264,6 +264,8 @@ async function handleDispute(
     readonly providerDisputeId: string;
     readonly providerPaymentId: string;
     readonly stripeEventId: string;
+    readonly reason: string;
+    readonly amountCents: number;
   },
   status: string,
 ): Promise<Response> {
@@ -280,6 +282,8 @@ async function handleDispute(
       providerPaymentId: values.providerPaymentId,
       providerSessionId: values.providerDisputeId,
       stripeEventId: values.stripeEventId,
+      reason: values.reason,
+      amountCents: values.amountCents,
     },
   );
   if (!result.response.ok) {
@@ -344,9 +348,12 @@ interface PreparedWebhook {
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly disputeReason?: string;
+    readonly disputeAmountCents?: number;
   };
 }
 
+// eslint-disable-next-line complexity -- validates connected-account, metadata, and event identity.
 async function prepareWebhookContext(
   context: StripeContext,
   event: StripeEvent,
@@ -385,6 +392,11 @@ async function prepareWebhookContext(
   }
   const providerSessionId = objectString(object, "id");
   const providerPaymentId = objectString(object, "payment_intent");
+  const disputeReason = objectString(object, "reason");
+  const disputeAmountCents =
+    typeof object.amount === "number" && Number.isSafeInteger(object.amount) && object.amount >= 0
+      ? object.amount
+      : undefined;
   if (!providerSessionId)
     return problem(
       context,
@@ -401,6 +413,10 @@ async function prepareWebhookContext(
       providerPaymentId,
       providerSessionId,
       stripeEventId: event.id,
+      ...(event.type.startsWith("charge.dispute.") && disputeReason ? { disputeReason } : {}),
+      ...(event.type.startsWith("charge.dispute.") && disputeAmountCents !== undefined
+        ? { disputeAmountCents }
+        : {}),
     },
   };
 }
@@ -439,6 +455,14 @@ async function dispatchPreparedWebhook(
         400,
       );
     }
+    if (!prepared.values.disputeReason || prepared.values.disputeAmountCents === undefined) {
+      return problem(
+        context,
+        "invalid_webhook_event",
+        "Dispute event is missing its reason or amount.",
+        400,
+      );
+    }
     return handleDispute(
       context,
       prepared.organizationId,
@@ -447,6 +471,8 @@ async function dispatchPreparedWebhook(
         providerDisputeId: prepared.values.providerSessionId,
         providerPaymentId: prepared.values.providerPaymentId,
         stripeEventId: prepared.values.stripeEventId,
+        reason: prepared.values.disputeReason,
+        amountCents: prepared.values.disputeAmountCents,
       },
       prepared.event.type,
     );

@@ -1,4 +1,5 @@
 import type { DonationStatus, DonationTributeType } from "./donations";
+import { lastNameSortKey } from "./name";
 
 export interface DonationExportRow {
   readonly amountPaidCents: number;
@@ -55,18 +56,8 @@ function sortDonations(rows: readonly DonationExportRow[]): readonly DonationExp
   return [...rows].sort((left, right) => {
     const timeDiff = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
     if (timeDiff !== 0) return timeDiff;
-    return lastNameKey(left.donorName).localeCompare(lastNameKey(right.donorName));
+    return lastNameSortKey(left.donorName).localeCompare(lastNameSortKey(right.donorName));
   });
-}
-
-function lastNameKey(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const suffixes = new Set(["Jr", "Sr", "II", "III", "IV", "V", "Jr.", "Sr."]);
-  const lastPart = parts.at(-1) ?? "";
-  if (suffixes.has(lastPart)) {
-    return `${parts.at(-2) ?? ""} ${lastPart}`.trim().toLocaleLowerCase();
-  }
-  return (parts.at(-1) ?? "").toLocaleLowerCase();
 }
 
 export function donationExportFilename(date: Date): string {

@@ -38,6 +38,7 @@ const EXPORT_TABLES = [
 
 const exportOrganizationIdSchema = z.string().min(1).max(128);
 const MAX_ROWS_PER_TABLE = 5_000;
+const EXPORT_PAGE_SIZE = 1_000;
 const exportFormatSchema = z.literal("json");
 const exportContextSchema = z.object({
   actorType: z.enum(["organization_member", "platform_administrator"]),
@@ -58,6 +59,12 @@ export interface OrganizationExportSnapshot {
   }[];
   readonly metadata: Readonly<Record<string, SqlStorageValue>>;
   readonly records: Readonly<Record<string, readonly Readonly<Record<string, SqlStorageValue>>[]>>;
+  readonly safety: {
+    readonly fileCount: number;
+    readonly maxRowsPerTable: number;
+    readonly tableCounts: Readonly<Record<string, number>>;
+    readonly tooLarge: boolean;
+  };
 }
 
 interface OrganizationIdentityRow {
@@ -261,7 +268,9 @@ export function failOrganizationExportInStore(
   const row = readExportRow(storage, parsed.data.organizationId, parsed.data.exportId);
   if (!row) return Response.json({ code: "export_not_found" }, { status: 404 });
   storage.sql.exec(
-    `UPDATE organization_exports SET status = 'failed', error_code = ?, updated_at = ?
+    `UPDATE organization_exports
+     SET status = 'failed', error_code = ?, archive_key = NULL, byte_count = NULL,
+       checksum_sha256 = NULL, updated_at = ?
      WHERE id = ? AND status != 'completed'`,
     parsed.data.errorCode,
     new Date().toISOString(),
@@ -297,44 +306,98 @@ function readMetadata(
   return identity;
 }
 
-function readRecords(storage: DurableObjectStorage): OrganizationExportSnapshot["records"] {
+function readRecords(storage: DurableObjectStorage): {
+  readonly records: OrganizationExportSnapshot["records"];
+  readonly tableCounts: Readonly<Record<string, number>>;
+  readonly tooLarge: boolean;
+} {
   const records: Record<string, readonly Readonly<Record<string, SqlStorageValue>>[]> = {};
+  const tableCounts: Record<string, number> = {};
+  let tooLarge = false;
   for (const table of EXPORT_TABLES) {
-    const rows = storage.sql
-      .exec<Readonly<Record<string, SqlStorageValue>>>(
-        `SELECT * FROM ${table} LIMIT ${String(MAX_ROWS_PER_TABLE)}`,
-      )
-      .toArray();
-    records[table] = rows;
+    const count = storage.sql
+      .exec<{ readonly count: number }>(`SELECT COUNT(*) AS count FROM ${table}`)
+      .one().count;
+    tableCounts[table] = count;
+    if (count > MAX_ROWS_PER_TABLE) tooLarge = true;
+
+    const tableRows: Readonly<Record<string, SqlStorageValue>>[] = [];
+    let lastRowId = 0;
+    for (;;) {
+      const page = storage.sql
+        .exec<Readonly<Record<string, SqlStorageValue>> & { readonly __exportRowId: number }>(
+          `SELECT rowid AS __exportRowId, * FROM ${table}
+           WHERE rowid > ? ORDER BY rowid LIMIT ?`,
+          lastRowId,
+          EXPORT_PAGE_SIZE,
+        )
+        .toArray();
+      if (page.length === 0) break;
+      for (const row of page) {
+        const { __exportRowId, ...record } = row;
+        if (tableRows.length >= MAX_ROWS_PER_TABLE) break;
+        tableRows.push(record);
+        lastRowId = __exportRowId;
+      }
+      if (count > MAX_ROWS_PER_TABLE && tableRows.length >= MAX_ROWS_PER_TABLE) break;
+      if (page.length < EXPORT_PAGE_SIZE) break;
+    }
+    records[table] = tableRows;
   }
-  return records;
+  return { records, tableCounts, tooLarge };
 }
 
-function readFiles(storage: DurableObjectStorage): OrganizationExportSnapshot["files"] {
-  return storage.sql
-    .exec<{
-      readonly [column: string]: SqlStorageValue;
-      readonly contentType: string;
-      readonly fileName: string;
-      readonly id: string;
-      readonly sizeBytes: number;
-      readonly storageKey: string;
-      readonly uploadedAt: string | null;
-    }>(
-      `SELECT id, storage_key AS storageKey, file_name AS fileName,
-        content_type AS contentType, size_bytes AS sizeBytes, ready_at AS uploadedAt
-       FROM private_files WHERE status = 'ready' ORDER BY id LIMIT ${String(MAX_ROWS_PER_TABLE)}`,
+function readFiles(storage: DurableObjectStorage): {
+  readonly files: OrganizationExportSnapshot["files"];
+  readonly fileCount: number;
+  readonly tooLarge: boolean;
+} {
+  const fileCount = storage.sql
+    .exec<{ readonly count: number }>(
+      "SELECT COUNT(*) AS count FROM private_files WHERE status = 'ready'",
     )
-    .toArray()
-    .map((row) => ({
-      checksums: {},
-      contentType: row.contentType,
-      fileName: row.fileName,
-      id: row.id,
-      sizeBytes: row.sizeBytes,
-      storageKey: row.storageKey,
-      uploadedAt: row.uploadedAt,
-    }));
+    .one().count;
+  if (fileCount > MAX_ROWS_PER_TABLE) {
+    return { fileCount, files: [], tooLarge: true };
+  }
+
+  const files: OrganizationExportSnapshot["files"][number][] = [];
+  let lastId = "";
+  for (;;) {
+    const page = storage.sql
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly contentType: string;
+        readonly fileName: string;
+        readonly id: string;
+        readonly sizeBytes: number;
+        readonly storageKey: string;
+        readonly uploadedAt: string | null;
+      }>(
+        `SELECT id, storage_key AS storageKey, file_name AS fileName,
+          content_type AS contentType, size_bytes AS sizeBytes, ready_at AS uploadedAt
+         FROM private_files
+         WHERE status = 'ready' AND id > ? ORDER BY id LIMIT ?`,
+        lastId,
+        EXPORT_PAGE_SIZE,
+      )
+      .toArray();
+    if (page.length === 0) break;
+    files.push(
+      ...page.map((row) => ({
+        checksums: {},
+        contentType: row.contentType,
+        fileName: row.fileName,
+        id: row.id,
+        sizeBytes: row.sizeBytes,
+        storageKey: row.storageKey,
+        uploadedAt: row.uploadedAt,
+      })),
+    );
+    lastId = page[page.length - 1]?.id ?? lastId;
+    if (page.length < EXPORT_PAGE_SIZE) break;
+  }
+  return { fileCount, files, tooLarge: false };
 }
 
 export function readOrganizationExportSnapshot(
@@ -342,9 +405,17 @@ export function readOrganizationExportSnapshot(
   organizationId: string,
 ): OrganizationExportSnapshot {
   const parsedOrganizationId = exportOrganizationIdSchema.parse(organizationId);
+  const files = readFiles(storage);
+  const records = readRecords(storage);
   return {
-    files: readFiles(storage),
+    files: files.files,
     metadata: readMetadata(storage, parsedOrganizationId),
-    records: readRecords(storage),
+    records: records.records,
+    safety: {
+      fileCount: files.fileCount,
+      maxRowsPerTable: MAX_ROWS_PER_TABLE,
+      tableCounts: records.tableCounts,
+      tooLarge: files.tooLarge || records.tooLarge,
+    },
   };
 }

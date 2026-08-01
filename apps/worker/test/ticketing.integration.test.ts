@@ -309,17 +309,8 @@ describe("Organization ticketing", () => {
     );
     expect(setupHealth.status).toBe(200);
     expect(await setupHealth.json()).toMatchObject({ organizationId: "organization-alpha" });
-    const queueProcess = await jsonWrite(
-      "alpha.localhost",
-      "/api/queue/process",
-      "POST",
-      {},
-      cookie,
-    );
-    expect(queueProcess.status).toBe(200);
-    expect(await queueProcess.json()).toMatchObject({ mode: "automatic", success: true });
     const maintenance = await exports.default.fetch(
-      api("alpha.localhost", "/api/maintenance/run", cookie),
+      api("alpha.localhost", "/api/platform/maintenance/run", cookie),
     );
     expect(maintenance.status).toBe(200);
     expect(await maintenance.json()).toMatchObject({
@@ -465,14 +456,14 @@ describe("Organization ticketing", () => {
             .one().count,
       ),
     ).toBe(2);
-    const legacyResend = await jsonWrite(
+    const resend = await jsonWrite(
       "alpha.localhost",
-      "/api/admin/resend-ticket-confirmation",
+      `/api/organization/tickets/${encodeURIComponent(first.purchase.id)}/confirmation`,
       "POST",
-      { purchaseId: first.purchase.id, recipientEmail: "replacement@example.test" },
+      { recipientEmail: "replacement@example.test" },
       cookie,
     );
-    expect(legacyResend.status).toBe(200);
+    expect(resend.status).toBe(200);
     expect(
       await runInDurableObject<OrganizationStore, string>(
         stores.get(stores.idFromName("organization-alpha")),
@@ -563,41 +554,6 @@ describe("Organization ticketing", () => {
       purchaseId: first.purchase.id,
       quantity: 2,
       valid: true,
-    });
-    const legacyScan = ticketScanResponseSchema.parse(
-      await (
-        await jsonWrite(
-          "alpha.localhost",
-          "/api/tickets/validate",
-          "POST",
-          { eventId: event.id, token: receipt.scanToken },
-          cookie,
-        )
-      ).json(),
-    );
-    expect(legacyScan).toMatchObject({ purchaseId: first.purchase.id, valid: true });
-
-    const providerSessionId = await runInDurableObject<OrganizationStore, string>(
-      stores.get(stores.idFromName("organization-alpha")),
-      (_instance, state) =>
-        state.storage.sql
-          .exec<{ providerSessionId: string }>(
-            "SELECT provider_session_id AS providerSessionId FROM ticket_purchases WHERE id = ?",
-            first.purchase.id,
-          )
-          .one().providerSessionId,
-    );
-    const scanContext = await exports.default.fetch(
-      api(
-        "tickets.example.test",
-        `/api/tickets/scan-context?session_id=${encodeURIComponent(providerSessionId)}&purchase_id=${encodeURIComponent(first.purchase.id)}`,
-      ),
-    );
-    expect(scanContext.status).toBe(200);
-    expect(await scanContext.json()).toMatchObject({
-      buyerName: "Ticket Buyer",
-      eventTitle: "Winter Tickets",
-      isBundlePass: false,
     });
     expect(
       ticketScanResponseSchema.parse(
@@ -722,19 +678,20 @@ describe("Organization ticketing", () => {
     );
     expect(concurrentStatuses.toSorted()).toEqual([201, 409]);
 
-    const legacyCheckout = await jsonWrite(
+    const canonicalCheckout = await jsonWrite(
       "tickets.example.test",
-      "/api/checkout/create-tickets-session",
+      "/api/public/tickets/checkout",
       "POST",
       {
-        email: "legacy@example.test",
+        buyerEmail: "buyer2@example.test",
+        buyerName: "Second Buyer",
+        checkoutRequestId: crypto.randomUUID(),
         eventId: event.id,
         marketingOptIn: false,
-        name: "Legacy Buyer",
         quantity: 1,
       },
     );
-    expect(legacyCheckout.status).toBe(201);
+    expect(canonicalCheckout.status).toBe(201);
 
     const actions = await runInDurableObject<OrganizationStore, string[]>(
       stores.get(stores.idFromName("organization-alpha")),
@@ -749,12 +706,14 @@ describe("Organization ticketing", () => {
     );
     expect(actions).toEqual([
       "ticket.purchase.fulfilled",
+      "ticket.scan_credential.issued",
       "ticket.confirmation.queued",
       "ticket.confirmation.queued",
       "ticket.scan.validated",
-      "ticket.scan.validated",
+      "ticket.scan.replayed",
       "ticket.scan.validated",
       "ticket.purchase.refunded",
+      "ticket.scan.replayed",
       "ticket.scan.validated",
       "ticket.purchase.fulfilled",
       "ticket.purchase.fulfilled",
@@ -915,21 +874,11 @@ describe("Organization ticketing", () => {
       ),
     );
     expect(await winterWillCall.text()).toContain('"Season Buyer","season@example.test","2"');
-    const providerPaymentId = await runInDurableObject<OrganizationStore, string>(
-      stores.get(stores.idFromName("organization-alpha")),
-      (_instance, state) =>
-        state.storage.sql
-          .exec<{ providerPaymentId: string }>(
-            "SELECT provider_payment_id AS providerPaymentId FROM ticket_purchases WHERE id = ?",
-            checkout.purchase.id,
-          )
-          .one().providerPaymentId,
-    );
     const bundleRefund = await jsonWrite(
       "alpha.localhost",
-      "/api/admin/refund-bundle",
+      `/api/organization/tickets/${encodeURIComponent(checkout.purchase.id)}/refund`,
       "POST",
-      { paymentIntentId: providerPaymentId },
+      {},
       cookie,
     );
     expect(bundleRefund.status).toBe(200);
@@ -1043,7 +992,7 @@ describe("Organization ticketing", () => {
            buyer_name, buyer_email, quantity, unit_price_cents, fee_cents, amount_paid_cents,
            currency, provider_session_id, provider_payment_id, status, marketing_opt_in,
            created_at, updated_at, fulfilled_at, expired_at, refunded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1000, 0, 1000, 'usd', ?, '', 'pending', 0, ?, ?, NULL, NULL, NULL)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1000, 0, 1000, 'usd', ?, '', 'expired', 0, ?, ?, NULL, ?, NULL)`,
         purchaseId,
         checkoutRequestId,
         crypto.randomUUID(),
@@ -1053,6 +1002,20 @@ describe("Organization ticketing", () => {
         "Stripe Buyer",
         "stripe@example.test",
         `pending_${purchaseId}`,
+        now,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at, expired_at)
+         VALUES (?, 'ticket', ?, ?, ?, '', 'expired', 1000, ?, ?, ?)`,
+        crypto.randomUUID(),
+        purchaseId,
+        checkoutRequestId,
+        `pending_${purchaseId}`,
+        now,
         now,
         now,
       );
@@ -1071,6 +1034,66 @@ describe("Organization ticketing", () => {
     });
     expect(completed.status).toBe(200);
     expect(await completed.json()).toMatchObject({ status: "paid" });
+    const delayedCompletion = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_ticket_completed",
+          checkoutRequestId,
+          organizationId: "organization-alpha",
+          providerPaymentId: `pi_${purchaseId}`,
+          providerSessionId: `stripe_session_${purchaseId}`,
+          stripeEventId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(await delayedCompletion.json()).toMatchObject({ status: "paid" });
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              `SELECT COUNT(*) AS count
+               FROM ticket_notifications
+               WHERE purchase_id = ? AND kind = 'confirmation'`,
+              purchaseId,
+            )
+            .one().count,
+      ),
+    ).toBe(1);
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              `SELECT COUNT(*) AS count
+               FROM scheduled_job_outbox
+               WHERE idempotency_key = 'ticket-notification:' ||
+                 (SELECT id FROM ticket_notifications
+                  WHERE purchase_id = ? AND kind = 'confirmation' LIMIT 1)`,
+              purchaseId,
+            )
+            .one().count,
+      ),
+    ).toBe(1);
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              `SELECT COUNT(*) AS count
+               FROM payment_attempts
+               WHERE resource_id = ? AND status = 'paid' AND expired_at IS NULL`,
+              purchaseId,
+            )
+            .one().count,
+      ),
+    ).toBe(1);
     const duplicate = await stub.fetch("https://organization.internal/internal/ticketing/manage", {
       body: JSON.stringify({
         action: "stripe_ticket_completed",
@@ -1084,18 +1107,240 @@ describe("Organization ticketing", () => {
       method: "POST",
     });
     expect(await duplicate.json()).toMatchObject({ duplicate: true });
+    const refundEventId = crypto.randomUUID();
     const refunded = await stub.fetch("https://organization.internal/internal/ticketing/manage", {
       body: JSON.stringify({
         action: "stripe_ticket_refunded",
         organizationId: "organization-alpha",
         providerPaymentId: `pi_${purchaseId}`,
         providerSessionId: "refund",
-        stripeEventId: crypto.randomUUID(),
+        stripeEventId: refundEventId,
       }),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
     expect(await refunded.json()).toMatchObject({ refunded: 1 });
+    const duplicateRefund = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_ticket_refunded",
+          organizationId: "organization-alpha",
+          providerPaymentId: `pi_${purchaseId}`,
+          providerSessionId: "refund",
+          stripeEventId: refundEventId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(await duplicateRefund.json()).toMatchObject({ duplicate: true, refunded: 0 });
+
+    const disputeEventId = crypto.randomUUID();
+    const dispute = await stub.fetch("https://organization.internal/internal/payments/manage", {
+      body: JSON.stringify({
+        action: "record_payment_dispute",
+        amountCents: 1000,
+        disputeStatus: "charge.dispute.created",
+        organizationId: "organization-alpha",
+        paymentType: "ticket",
+        providerPaymentId: `pi_${purchaseId}`,
+        providerSessionId: `dp_${purchaseId}`,
+        reason: "fraudulent",
+        stripeEventId: disputeEventId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(await dispute.json()).toMatchObject({ recorded: true });
+    const duplicateDispute = await stub.fetch(
+      "https://organization.internal/internal/payments/manage",
+      {
+        body: JSON.stringify({
+          action: "record_payment_dispute",
+          amountCents: 1000,
+          disputeStatus: "charge.dispute.created",
+          organizationId: "organization-alpha",
+          paymentType: "ticket",
+          providerPaymentId: `pi_${purchaseId}`,
+          providerSessionId: `dp_${purchaseId}`,
+          reason: "fraudulent",
+          stripeEventId: disputeEventId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(await duplicateDispute.json()).toMatchObject({ duplicate: true, recorded: true });
+    expect(
+      await runInDurableObject<OrganizationStore, { amountCents: number; reason: string }>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ amountCents: number; reason: string }>(
+              `SELECT amount_cents AS amountCents, reason
+               FROM payment_disputes WHERE provider_dispute_id = ?`,
+              `dp_${purchaseId}`,
+            )
+            .one(),
+      ),
+    ).toMatchObject({ amountCents: 1000, reason: "fraudulent" });
+  });
+
+  it("reuses a dues checkout request and rejects a mismatched retry", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Dues Idempotency Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Dues Idempotency Season', ?, ?, 4000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+    });
+    const create = (requestId: string, profileIds: readonly string[]) =>
+      stub.fetch("https://organization.internal/internal/seasons/manage", {
+        body: JSON.stringify({
+          action: "create_dues_checkout",
+          checkout: { checkoutRequestId, profileIds, seasonId },
+          organizationId: "organization-alpha",
+          origin: "https://alpha.localhost",
+          requestId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+    const first = await create(crypto.randomUUID(), [profileId]);
+    expect(first.status).toBe(200);
+    const firstBody: { sessionId: string } = await first.json();
+    const retry = await create(crypto.randomUUID(), [profileId]);
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ sessionId: firstBody.sessionId });
+    const conflict = await create(crypto.randomUUID(), [crypto.randomUUID()]);
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toMatchObject({ code: "checkout_request_conflict" });
+  });
+
+  it("keeps a cash-paid dues record and its online attempt out of later fulfillment", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const duesId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const providerSessionId = `stripe_cash_race_${duesId}`;
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Cash Race Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Cash Race Season', ?, ?, 4000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, 4000, 146, ?, '', '', 'pending', 'online', NULL, ?, ?)`,
+        duesId,
+        seasonId,
+        profileId,
+        providerSessionId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at)
+         VALUES (?, 'dues', ?, ?, ?, '', 'pending', 4146, ?, ?)`,
+        crypto.randomUUID(),
+        duesId,
+        checkoutRequestId,
+        providerSessionId,
+        now,
+        now,
+      );
+    });
+    const cash = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/dues/cash",
+      "POST",
+      { profileId, seasonId },
+      cookie,
+    );
+    expect(cash.status).toBe(409);
+    expect(await cash.json()).toMatchObject({ code: "dues_checkout_in_progress" });
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE dues SET payment_method = 'cash', status = 'paid', paid_at = ? WHERE id = ?",
+        new Date().toISOString(),
+        duesId,
+      );
+      state.storage.sql.exec(
+        "UPDATE payment_attempts SET status = 'expired', expired_at = ?, updated_at = ? WHERE resource_id = ?",
+        new Date().toISOString(),
+        new Date().toISOString(),
+        duesId,
+      );
+    });
+
+    const completion = await stub.fetch("https://organization.internal/internal/seasons/manage", {
+      body: JSON.stringify({
+        action: "stripe_dues_completed",
+        checkoutRequestId,
+        organizationId: "organization-alpha",
+        providerPaymentId: `pi_cash_race_${duesId}`,
+        providerSessionId,
+        stripeEventId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(completion.status).toBe(200);
+    expect(await completion.json()).toMatchObject({
+      dues: [{ paymentMethod: "cash", status: "paid" }],
+    });
+    expect(
+      await runInDurableObject<
+        OrganizationStore,
+        { duesStatus: string; method: string; attemptStatus: string }
+      >(stub, (_instance, state) =>
+        state.storage.sql
+          .exec<{ duesStatus: string; method: string; attemptStatus: string }>(
+            `SELECT d.status AS duesStatus, d.payment_method AS method, pa.status AS attemptStatus
+               FROM dues d JOIN payment_attempts pa ON pa.resource_id = d.id
+               WHERE d.id = ?`,
+            duesId,
+          )
+          .one(),
+      ),
+    ).toEqual({ duesStatus: "paid", method: "cash", attemptStatus: "expired" });
   });
 
   it("keeps donation and dues provider transitions inside the Organization store", async () => {
@@ -1443,7 +1688,7 @@ describe("Organization ticketing", () => {
       await (
         await jsonWrite(
           "alpha.localhost",
-          "/api/admin/mark-dues-cash",
+          "/api/organization/dues/cash",
           "POST",
           { profileId, seasonId },
           cookie,
@@ -1463,7 +1708,7 @@ describe("Organization ticketing", () => {
       await (
         await jsonWrite(
           "alpha.localhost",
-          "/api/admin/mark-dues-cash",
+          "/api/organization/dues/cash",
           "POST",
           { profileId, seasonId },
           cookie,
@@ -1485,7 +1730,7 @@ describe("Organization ticketing", () => {
 
     const memberAttempt = await jsonWrite(
       "bravo.localhost",
-      "/api/admin/mark-dues-cash",
+      "/api/organization/dues/cash",
       "POST",
       { profileId, seasonId },
       cookie,
