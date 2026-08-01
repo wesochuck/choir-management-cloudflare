@@ -12,6 +12,7 @@ export default tseslint.config(
       "**/node_modules/**",
       ".npm-cache/**",
       ".wrangler/**",
+      "**/.wrangler/**",
       "playwright-report/**",
       "test-results/**",
     ],

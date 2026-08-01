@@ -163,6 +163,7 @@ export async function submitQuickRsvp(
         organizationId,
         requestId: crypto.randomUUID(),
         rsvp: { profileId: envelope.subjectId, rsvp, rsvpNote },
+        selfService: true,
       }),
       headers: { "content-type": "application/json" },
       method: "POST",

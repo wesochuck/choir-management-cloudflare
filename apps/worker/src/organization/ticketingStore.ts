@@ -116,6 +116,7 @@ interface TicketEventRow {
   readonly advancePriceCents: number;
   readonly dayOfPriceCents: number;
   readonly isArchived: number;
+  readonly isCanceled: number;
   readonly isTicketingEnabled: number;
   readonly publishOnWebsite: number;
   readonly startsAt: string;
@@ -272,6 +273,7 @@ function ticketEventIsOpen(event: TicketEventRow | undefined, now: Date): event 
   return (
     event?.type === "Performance" &&
     event.isArchived === 0 &&
+    event.isCanceled === 0 &&
     event.isTicketingEnabled === 1 &&
     new Date(event.startsAt).getTime() > now.getTime()
   );
@@ -284,6 +286,7 @@ function readTicketEvent(
   return storage.sql
     .exec<TicketEventRow>(
       `SELECT title, type, starts_at AS startsAt, is_archived AS isArchived,
+        is_canceled AS isCanceled,
         publish_on_website AS publishOnWebsite, is_ticketing_enabled AS isTicketingEnabled,
         advance_price_cents AS advancePriceCents, day_of_price_cents AS dayOfPriceCents,
         ticket_capacity AS ticketCapacity
@@ -849,10 +852,13 @@ function upsertTicketBundle(
   if (new Set(operation.bundle.eventIds).size !== operation.bundle.eventIds.length) {
     return Response.json({ code: "ticket_bundle_events_invalid" }, { status: 409 });
   }
-  const validEventCount = operation.bundle.eventIds.reduce(
-    (count, eventId) => count + (readTicketEvent(storage, eventId)?.type === "Performance" ? 1 : 0),
-    0,
-  );
+  const validEventCount = operation.bundle.eventIds.reduce((count, eventId) => {
+    const event = readTicketEvent(storage, eventId);
+    return (
+      count +
+      (event?.type === "Performance" && event.isArchived === 0 && event.isCanceled === 0 ? 1 : 0)
+    );
+  }, 0);
   if (validEventCount !== operation.bundle.eventIds.length) {
     return Response.json({ code: "ticket_bundle_events_invalid" }, { status: 409 });
   }

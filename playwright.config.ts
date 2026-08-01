@@ -14,7 +14,7 @@ export default defineConfig({
     { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    command: "npm run build -w @choir/web && npm run preview -w @choir/web",
+    command: "node scripts/run-e2e-servers.mjs",
     port: 4173,
     reuseExistingServer: !process.env.CI,
   },

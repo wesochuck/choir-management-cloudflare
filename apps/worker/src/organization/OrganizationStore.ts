@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
+import { calculateOnBreakInactiveAt } from "@choir/domain";
 import {
   memberProfileUpdateRequestSchema,
   organizationAuditionCreateRequestSchema,
@@ -26,6 +27,7 @@ import {
   readOrganizationDashboardSummaryFromStore,
   readEventRsvpExportFromStore,
   listEventAttendanceFromStore,
+  listEventRsvpHistoryFromStore,
   listMemberEventsFromStore,
   listProfileFolderNumbersFromStore,
   listProfilePerformanceHistoryFromStore,
@@ -35,6 +37,13 @@ import {
   readProfileEventRsvpFromStore,
   readRosterConfigurationFromStore,
 } from "./calendarManagementStore";
+import {
+  recalculateProfileStatuses,
+  recordProfileStatusChange,
+  readRosterAutomationConfiguration,
+  readRosterAutomationPreviewFromStore,
+  listProfileStatusHistoryFromStore,
+} from "./statusAutomationStore";
 import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
 import { readPlayerDetailsFromStore, readPlayerPlaylistFromStore } from "./playerStore";
 import {
@@ -64,7 +73,11 @@ import {
   readPollFromStore,
   readProfilePollFromStore,
 } from "./pollStore";
-import { listMusicPiecesFromStore, manageMusicInStore } from "./musicStore";
+import {
+  listMusicPiecesFromStore,
+  manageMusicInStore,
+  readMusicLibrarySettingsFromStore,
+} from "./musicStore";
 import { listResourcesFromStore, manageResourceInStore } from "./resourceStore";
 import {
   listCommunicationMessagesFromStore,
@@ -266,17 +279,21 @@ interface OrganizationProfileRow {
   readonly receiveFinancialAlerts: number;
   readonly receiveRsvpDeclineNotices: number;
   readonly showInDirectory: number;
+  readonly statusChangedAt: string;
+  readonly statusChangeReason: string;
+  readonly statusIsManual: number;
   readonly updatedAt: string;
   readonly voicePart: string;
 }
 
-function profileResult(row: OrganizationProfileRow) {
+function profileResult(row: OrganizationProfileRow, onBreakInactiveAt: string | null) {
   return {
     createdAt: row.createdAt,
     displayName: row.displayName,
     doNotEmail: row.doNotEmail === 1,
     globalStatus: row.globalStatus,
     id: row.id,
+    onBreakInactiveAt,
     isSectionLeader: row.isSectionLeader === 1,
     notes: row.notes,
     photoFileId: row.photoFileId,
@@ -286,6 +303,9 @@ function profileResult(row: OrganizationProfileRow) {
     receiveFinancialAlerts: row.receiveFinancialAlerts === 1,
     receiveRsvpDeclineNotices: row.receiveRsvpDeclineNotices === 1,
     showInDirectory: row.showInDirectory === 1,
+    statusChangedAt: row.statusChangedAt || row.createdAt,
+    statusChangeReason: row.statusChangeReason || "Initial status",
+    statusIsManual: row.statusIsManual === 1,
     updatedAt: row.updatedAt,
     voicePart: row.voicePart,
   };
@@ -347,6 +367,12 @@ function listProfiles(storage: DurableObjectStorage, organizationId: string | nu
   if (!organizationId || organizationIdentity(storage)?.organizationId !== organizationId) {
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
+  const configuration = readRosterAutomationConfiguration(storage);
+  const timezone = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
   const profiles = storage.sql
     .exec<OrganizationProfileRow>(
       `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
@@ -356,11 +382,26 @@ function listProfiles(storage: DurableObjectStorage, organizationId: string | nu
          receive_admin_notifications AS receiveAdminNotifications,
          receive_financial_alerts AS receiveFinancialAlerts,
          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
+         status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
+         status_change_reason AS statusChangeReason,
          created_at AS createdAt, updated_at AS updatedAt
        FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
     .toArray()
-    .map(profileResult);
+    .map((profile) => ({
+      ...profileResult(
+        profile,
+        calculateOnBreakInactiveAt({
+          enabled: configuration.onBreakTimeoutEnabled,
+          isManual: profile.statusIsManual === 1,
+          now: new Date(),
+          status: profile.globalStatus,
+          statusChangedAt: profile.statusChangedAt,
+          timeoutDays: configuration.onBreakTimeoutDays,
+          timezone,
+        }),
+      ),
+    }));
   return Response.json({ profiles });
 }
 
@@ -374,13 +415,33 @@ function readProfile(storage: DurableObjectStorage, profileId: string) {
          receive_admin_notifications AS receiveAdminNotifications,
          receive_financial_alerts AS receiveFinancialAlerts,
          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
+         status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
+         status_change_reason AS statusChangeReason,
          created_at AS createdAt, updated_at AS updatedAt
        FROM profiles WHERE id = ? LIMIT 1`,
       profileId,
     )
     .toArray()
     .at(0);
-  return row ? profileResult(row) : null;
+  if (!row) return null;
+  const configuration = readRosterAutomationConfiguration(storage);
+  const timezone = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
+  return profileResult(
+    row,
+    calculateOnBreakInactiveAt({
+      enabled: configuration.onBreakTimeoutEnabled,
+      isManual: row.statusIsManual === 1,
+      now: new Date(),
+      status: row.globalStatus,
+      statusChangedAt: row.statusChangedAt,
+      timeoutDays: configuration.onBreakTimeoutDays,
+      timezone,
+    }),
+  );
 }
 
 function readMemberProfile(
@@ -462,8 +523,8 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
         (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
          do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
          receive_admin_notifications, receive_financial_alerts, is_section_leader,
-         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         status_is_manual, status_changed_at, status_change_reason, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       parsed.data.profileId,
       profile.displayName,
       profile.phone,
@@ -477,6 +538,9 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
       profile.receiveAdminNotifications ? 1 : 0,
       profile.receiveFinancialAlerts ? 1 : 0,
       profile.isSectionLeader ? 1 : 0,
+      profile.statusIsManual ? 1 : 0,
+      occurredAt,
+      "Initial status",
       occurredAt,
       occurredAt,
     );
@@ -493,12 +557,13 @@ async function createProfile(storage: DurableObjectStorage, request: Request): P
       occurredAt,
     );
   });
-  return Response.json({
-    createdAt: occurredAt,
-    ...profile,
-    id: parsed.data.profileId,
-    updatedAt: occurredAt,
-  });
+  recalculateProfileStatuses(
+    storage,
+    parsed.data.organizationId,
+    new Date(occurredAt),
+    parsed.data.requestId,
+  );
+  return Response.json(readProfile(storage, parsed.data.profileId));
 }
 
 async function importProfiles(storage: DurableObjectStorage, request: Request): Promise<Response> {
@@ -520,8 +585,8 @@ async function importProfiles(storage: DurableObjectStorage, request: Request): 
           (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
            do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
            receive_admin_notifications, receive_financial_alerts, is_section_leader,
-           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           status_is_manual, status_changed_at, status_change_reason, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         profileId,
         profile.displayName,
         profile.phone,
@@ -535,6 +600,9 @@ async function importProfiles(storage: DurableObjectStorage, request: Request): 
         profile.receiveAdminNotifications ? 1 : 0,
         profile.receiveFinancialAlerts ? 1 : 0,
         profile.isSectionLeader ? 1 : 0,
+        profile.statusIsManual ? 1 : 0,
+        occurredAt,
+        "Initial status",
         occurredAt,
         occurredAt,
       );
@@ -570,9 +638,39 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
   if (!isConfiguredVoicePart(storage, profile.voicePart)) {
     return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
   }
+  const existing = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly globalStatus: "Active" | "Idle" | "Inactive";
+      readonly statusChangedAt: string;
+      readonly statusIsManual: number;
+    }>(
+      "SELECT global_status AS globalStatus, status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt FROM profiles WHERE id = ? LIMIT 1",
+      parsed.data.profileId,
+    )
+    .toArray()
+    .at(0);
+  if (!existing) return Response.json({ code: "profile_not_found" }, { status: 404 });
   storage.transactionSync(() => {
+    if (profile.globalStatus !== existing.globalStatus) {
+      recordProfileStatusChange(storage, {
+        actor: {
+          actorId: parsed.data.actorUserId,
+          actorType: "organization_member",
+          requestId: parsed.data.requestId,
+        },
+        newStatus: profile.globalStatus,
+        occurredAt,
+        profileId: parsed.data.profileId,
+        reason: profile.statusIsManual
+          ? "Manual status update."
+          : "Manual status selection; Profile Status Automation remains enabled.",
+        triggerId: "",
+        triggerType: "manual_status_selection",
+      });
+    }
     storage.sql.exec(
-      `UPDATE profiles SET display_name = ?, phone = ?, voice_part = ?, global_status = ?,
+      `UPDATE profiles SET display_name = ?, phone = ?, voice_part = ?, global_status = ?, status_is_manual = ?,
          notes = ?, show_in_directory = ?, do_not_email = ?, receive_attendance_reports = ?,
          receive_rsvp_decline_notices = ?, receive_admin_notifications = ?,
          receive_financial_alerts = ?, is_section_leader = ?, updated_at = ? WHERE id = ?`,
@@ -580,6 +678,7 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
       profile.phone,
       profile.voicePart,
       profile.globalStatus,
+      profile.statusIsManual ? 1 : 0,
       profile.notes,
       profile.showInDirectory ? 1 : 0,
       profile.doNotEmail ? 1 : 0,
@@ -591,6 +690,20 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
       occurredAt,
       parsed.data.profileId,
     );
+    if (
+      profile.globalStatus === existing.globalStatus &&
+      !profile.statusIsManual &&
+      existing.statusIsManual === 1 &&
+      profile.globalStatus === "Idle"
+    ) {
+      storage.sql.exec(
+        "UPDATE profiles SET status_changed_at = ?, status_change_reason = ?, updated_at = ? WHERE id = ?",
+        occurredAt,
+        "Automatic management re-enabled; On Break timeout restarted.",
+        occurredAt,
+        parsed.data.profileId,
+      );
+    }
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
@@ -604,13 +717,7 @@ async function updateProfile(storage: DurableObjectStorage, request: Request): P
       occurredAt,
     );
   });
-  const createdAt = storage.sql
-    .exec<{ readonly createdAt: string }>(
-      "SELECT created_at AS createdAt FROM profiles WHERE id = ?",
-      parsed.data.profileId,
-    )
-    .one().createdAt;
-  return Response.json({ ...profile, createdAt, id: parsed.data.profileId, updatedAt: occurredAt });
+  return Response.json(readProfile(storage, parsed.data.profileId));
 }
 
 async function deleteProfile(storage: DurableObjectStorage, request: Request): Promise<Response> {
@@ -1111,7 +1218,7 @@ async function validateCalendarFeed(
          ON direct.event_id = e.id AND direct.profile_id = ?
        LEFT JOIN event_rosters parent
          ON parent.event_id = e.parent_performance_id AND parent.profile_id = ?
-       WHERE e.is_archived = 0 AND e.starts_at >= ? AND e.starts_at <= ?
+       WHERE e.is_archived = 0 AND e.is_canceled = 0 AND e.starts_at >= ? AND e.starts_at <= ?
        ORDER BY e.starts_at ASC, e.id ASC
        LIMIT 500`,
       parsed.data.profileId,
@@ -1457,6 +1564,13 @@ async function dispatchPostRequest(
   if (pathname === "/internal/seasons/manage") return manageSeasonsInStore(storage, request);
   if (pathname === "/internal/setup/manage") return manageSetupInStore(storage, request);
   if (pathname === "/internal/polls/manage") return managePollInStore(storage, request);
+  if (pathname === "/internal/roster/automation-preview") {
+    const body: unknown = await request.json().catch(() => null);
+    const parsed = z.looseObject({ organizationId: z.string().min(1).max(128) }).safeParse(body);
+    return parsed.success
+      ? readRosterAutomationPreviewFromStore(storage, parsed.data.organizationId, parsed.data)
+      : Response.json({ code: "invalid_roster_automation_preview" }, { status: 400 });
+  }
   if (pathname === "/internal/scheduler/run-now") {
     const body: unknown = await request.json().catch(() => null);
     const parsed = z.object({ organizationId: z.string().min(1).max(128) }).safeParse(body);
@@ -1491,7 +1605,7 @@ async function auditionCreateHandler(
     parsed.data.performanceId &&
     storage.sql
       .exec(
-        "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 LIMIT 1",
+        "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0 LIMIT 1",
         parsed.data.performanceId,
       )
       .toArray().length === 0
@@ -1946,6 +2060,11 @@ function dispatchProfileGetRequest(
       return listDirectoryProfiles(storage, organizationId);
     case "/internal/profiles/member":
       return readMemberProfile(storage, organizationId, url.searchParams.get("profileId"));
+    case "/internal/profiles/status-history":
+      return listProfileStatusHistoryFromStore(storage, {
+        organizationId,
+        profileId: url.searchParams.get("profileId"),
+      });
   }
   const profileIdentityPrefix = "/internal/profiles/";
   return url.pathname.startsWith(profileIdentityPrefix)
@@ -1967,6 +2086,11 @@ function dispatchCalendarGetRequest(
       return readOrganizationDashboardSummaryFromStore(storage, organizationId);
     case "/internal/calendar/attendance":
       return listEventAttendanceFromStore(storage, {
+        eventId: url.searchParams.get("eventId"),
+        organizationId,
+      });
+    case "/internal/calendar/event-rsvp-history":
+      return listEventRsvpHistoryFromStore(storage, {
         eventId: url.searchParams.get("eventId"),
         organizationId,
       });
@@ -2038,6 +2162,8 @@ function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Response |
       return readSeatingConfigurationFromStore(storage, organizationId);
     case "/internal/music/pieces":
       return listMusicPiecesFromStore(storage, organizationId);
+    case "/internal/music/settings":
+      return readMusicLibrarySettingsFromStore(storage, organizationId);
     case "/internal/seating/charts":
       return listSeatingChartsFromStore(storage, {
         eventId: url.searchParams.get("eventId"),

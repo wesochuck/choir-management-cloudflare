@@ -6,17 +6,20 @@ import {
 } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
+import { SetupDataImportStep } from "./SetupDataImportStep";
+
 type SetupState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly setup: SetupStatus; readonly status: "ready" };
 
-type Step = "organization_info" | "modules" | "theme" | "launch";
+type Step = "organization_info" | "modules" | "theme" | "data_import" | "launch";
 
 const steps: readonly { readonly id: Step; readonly title: string }[] = [
   { id: "organization_info", title: "Organization Info" },
   { id: "modules", title: "Modules" },
   { id: "theme", title: "Theme" },
+  { id: "data_import", title: "Import Data" },
   { id: "launch", title: "Launch" },
 ];
 
@@ -65,7 +68,7 @@ export function SetupView() {
           if (next) setCurrentStep(next);
         }
         setOrgName(parsed.data.organizationName);
-        if (parsed.data.launched && parsed.data.completedSteps.length >= steps.length) {
+        if (parsed.data.launched) {
           setCompleted(true);
         }
       })
@@ -279,6 +282,8 @@ export function SetupView() {
               </div>
             </div>
           </>
+        ) : currentStep === "data_import" ? (
+          <SetupDataImportStep />
         ) : (
           <>
             <h2 id="setup-step-heading">Launch</h2>

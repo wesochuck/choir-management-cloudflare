@@ -1,6 +1,7 @@
 import {
   memberProfileUpdateRequestSchema,
   organizationMusicBulkUpdateRequestSchema,
+  organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceRequestSchema,
   organizationResourceOrderRequestSchema,
   organizationResourceRequestSchema,
@@ -14,9 +15,11 @@ import {
   accountPasswordRequestSchema,
   organizationInvitationRequestSchema,
   organizationEventRequestSchema,
+  organizationEventRsvpHistoryResponseSchema,
   organizationCalendarSettingsRequestSchema,
   organizationProfileFolderNumberUpdateSchema,
   organizationRosterConfigurationRequestSchema,
+  organizationRosterAutomationPreviewRequestSchema,
   organizationSeatingChartRequestSchema,
   organizationSeatingChartOrderRequestSchema,
   seatingConfigurationRequestSchema,
@@ -66,6 +69,7 @@ import {
   seasonUpdateRequestSchema,
   setupProgressRequestSchema,
   organizationProfilePerformanceHistoryResponseSchema,
+  organizationProfileStatusHistoryResponseSchema,
   type HealthResponse,
   type CalendarFeedUrlsResponse,
   type OrganizationContextResponse,
@@ -110,6 +114,7 @@ import {
 import { createCalendarFeedUrls, readCalendarFeed } from "./calendar/calendarFeed";
 import {
   CalendarMutationError,
+  cancelOrganizationEvent,
   createOrganizationEvent,
   createOrganizationVenue,
   deleteOrganizationVenue,
@@ -117,6 +122,7 @@ import {
   listOrganizationEvents,
   readOrganizationDashboardSummary,
   listOrganizationEventAttendance,
+  listOrganizationEventRsvpHistory,
   listOrganizationVenues,
   listMemberSchedule,
   listOrganizationProfilePerformanceHistory,
@@ -128,6 +134,7 @@ import {
   updateOrganizationCalendarSettings,
   updateOrganizationVenue,
   updateOrganizationRosterConfiguration,
+  previewOrganizationRosterAutomation,
   updateOrganizationEvent,
   updateOrganizationEventAttendance,
   updateOrganizationProfileFolderNumber,
@@ -166,7 +173,9 @@ import {
   deleteOrganizationMusicPiece,
   importOrganizationMusicPieces,
   listOrganizationMusicPieces,
+  readOrganizationMusicLibrarySettings,
   MusicRepositoryError,
+  updateOrganizationMusicLibrarySettings,
   updateOrganizationMusicPiece,
 } from "./organization/organizationMusic";
 import {
@@ -200,6 +209,7 @@ import {
   listOrganizationDirectoryProfiles,
   listOrganizationProfileEmails,
   listOrganizationProfiles,
+  listOrganizationProfileStatusHistory,
   OrganizationProfileMutationError,
   readOrganizationMemberProfile,
   updateOrganizationMemberProfile,
@@ -535,6 +545,7 @@ function calendarMutationMessage(code: string): string {
     return "A parent performance can only be selected for a rehearsal.";
   }
   if (code === "event_not_found") return "The event was not found in this Organization.";
+  if (code === "event_canceled") return "Canceled events cannot accept RSVP changes.";
   return "The Organization rejected an invalid event reference.";
 }
 
@@ -3403,6 +3414,46 @@ router.get("/api/organization/profiles/:profileId/performance-history", async (c
       {
         code: "service_unavailable",
         message: "Profile performance history is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/profiles/:profileId/status-history", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const profileId = z.uuid().safeParse(context.req.param("profileId"));
+  if (!profileId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid Profile ID is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const history = organizationProfileStatusHistoryResponseSchema.parse(
+      await listOrganizationProfileStatusHistory(
+        context.env,
+        authorization.organizationId,
+        profileId.data,
+      ),
+    );
+    return context.json({ ...history, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Profile status history is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
@@ -6661,9 +6712,23 @@ router.put("/api/singer/events/:eventId/rsvp", async (context) => {
       },
       eventId.data,
       { profileId, rsvp: body.data.rsvp, rsvpNote: body.data.rsvpNote },
+      true,
     );
     return context.json({ ...rsvp, requestId: context.get("requestId") });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof CalendarMutationError) {
+      return context.json(
+        {
+          code: error.code,
+          message:
+            error.code === "rsvp_closed"
+              ? "The RSVP deadline has passed."
+              : "The RSVP could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        setupFailureStatus(error.status),
+      );
+    }
     return context.json(
       {
         code: "service_unavailable",
@@ -6974,6 +7039,75 @@ router.put("/api/organization/calendar-settings", async (context) => {
   }
 });
 
+router.get("/api/organization/music-library-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, false);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  try {
+    return context.json({
+      ...(await readOrganizationMusicLibrarySettings(context.env, authorization.organizationId)),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Music Library settings are temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.put("/api/organization/music-library-settings", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationMusicLibrarySettingsRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Use a valid HTTPS publisher URL containing {catalogId}.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const settings = await updateOrganizationMusicLibrarySettings(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      body.data,
+    );
+    return context.json({ ...settings, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Music Library publisher search settings could not be saved.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
 router.get("/api/organization/roster-configuration", async (context) => {
   const authorization = await authorizeCalendarRoute(context, false);
   if (!authorization.ok) {
@@ -7046,6 +7180,49 @@ router.put("/api/organization/roster-configuration", async (context) => {
       {
         code: "service_unavailable",
         message: "The Organization roster configuration could not be updated.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.post("/api/organization/roster-configuration/preview", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const body = organizationRosterAutomationPreviewRequestSchema.safeParse(
+    await context.req.json<unknown>().catch(() => null),
+  );
+  if (!body.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "Valid roster automation settings are required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    return context.json({
+      ...(await previewOrganizationRosterAutomation(
+        context.env,
+        authorization.organizationId,
+        body.data.configuration,
+        body.data.profileId,
+      )),
+      requestId: context.get("requestId"),
+    });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The roster automation preview is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,
@@ -7888,6 +8065,58 @@ router.delete("/api/organization/events/:eventId", async (context) => {
   }
 });
 
+router.post("/api/organization/events/:eventId/cancel", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const result = await cancelOrganizationEvent(
+      context.env,
+      {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        requestId: context.get("requestId"),
+      },
+      eventId.data,
+    );
+    return context.json({ ...result, requestId: context.get("requestId") });
+  } catch (error: unknown) {
+    if (error instanceof CalendarMutationError && error.status === 404) {
+      return context.json(
+        {
+          code: error.code,
+          message: calendarMutationMessage(error.code),
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The Organization event could not be canceled.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
 router.put("/api/organization/events/:eventId/rsvp", async (context) => {
   const authorization = await authorizeCalendarRoute(context, true);
   if (!authorization.ok) {
@@ -7922,7 +8151,17 @@ router.put("/api/organization/events/:eventId/rsvp", async (context) => {
       body.data,
     );
     return context.json({ ...rsvp, requestId: context.get("requestId") });
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof CalendarMutationError) {
+      return context.json(
+        {
+          code: error.code,
+          message: "The Organization RSVP could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        setupFailureStatus(error.status),
+      );
+    }
     return context.json(
       {
         code: "service_unavailable",
@@ -8883,6 +9122,46 @@ router.get("/api/organization/events/:eventId/attendance", async (context) => {
       {
         code: "service_unavailable",
         message: "Organization attendance is temporarily unavailable.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
+});
+
+router.get("/api/organization/events/:eventId/rsvp-history", async (context) => {
+  const authorization = await authorizeCalendarRoute(context, true);
+  if (!authorization.ok) {
+    return context.json(
+      { ...authorization, requestId: context.get("requestId") },
+      authorization.status,
+    );
+  }
+  const eventId = z.uuid().safeParse(context.req.param("eventId"));
+  if (!eventId.success) {
+    return context.json(
+      {
+        code: "validation_failed",
+        message: "A valid event is required.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      400,
+    );
+  }
+  try {
+    const history = organizationEventRsvpHistoryResponseSchema.parse(
+      await listOrganizationEventRsvpHistory(
+        context.env,
+        authorization.organizationId,
+        eventId.data,
+      ),
+    );
+    return context.json({ ...history, requestId: context.get("requestId") });
+  } catch {
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "Event RSVP history is temporarily unavailable.",
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       503,

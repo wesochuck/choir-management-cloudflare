@@ -1,6 +1,7 @@
 import {
   organizationEventSchema,
   organizationMusicImportResponseSchema,
+  organizationMusicLibrarySettingsResponseSchema,
   organizationMusicPieceResponseSchema,
   organizationMusicPiecesResponseSchema,
   privateFileResponseSchema,
@@ -154,6 +155,66 @@ afterEach(async () => {
 });
 
 describe("Organization music catalog", () => {
+  it("stores publisher search templates per Organization and enforces HTTPS placeholders", async () => {
+    const cookie = await signIn();
+    const initial = organizationMusicLibrarySettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/music-library-settings", cookie),
+        )
+      ).json(),
+    );
+    expect(initial.publisherSearchTemplate).toBe("");
+
+    const saved = organizationMusicLibrarySettingsResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          "/api/organization/music-library-settings",
+          cookie,
+          { publisherSearchTemplate: "https://publisher.example/catalog/{catalogId}" },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(saved.publisherSearchTemplate).toBe("https://publisher.example/catalog/{catalogId}");
+
+    const bravo = organizationMusicLibrarySettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("bravo.localhost", "/api/organization/music-library-settings", cookie),
+        )
+      ).json(),
+    );
+    expect(bravo.publisherSearchTemplate).toBe("");
+    expect(
+      await write(
+        "alpha.localhost",
+        "/api/organization/music-library-settings",
+        cookie,
+        { publisherSearchTemplate: "http://publisher.example/catalog/{catalogId}" },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 400 });
+    expect(
+      await exports.default.fetch(
+        api("localhost", "/api/organization/music-library-settings", cookie),
+      ),
+    ).toMatchObject({ status: 404 });
+
+    const auditActions = await runInDurableObject<OrganizationStore, readonly string[]>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly action: string }>(
+            "SELECT action FROM audit_events WHERE action = 'music.library_settings_updated'",
+          )
+          .toArray()
+          .map(({ action }) => action),
+    );
+    expect(auditActions).toEqual(["music.library_settings_updated"]);
+  });
+
   it("uploads, attaches, plays, downloads, and removes a private learning track", async () => {
     const cookie = await signIn();
     const piece = organizationMusicPieceResponseSchema.parse(

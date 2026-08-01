@@ -1043,6 +1043,59 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     apply: seedAuditionSystemCommunicationTemplates,
     statements: [],
   },
+  {
+    version: 50,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN music_publisher_search_template TEXT NOT NULL DEFAULT ''",
+    ],
+  },
+  {
+    version: 51,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN status_is_manual INTEGER NOT NULL DEFAULT 0 CHECK (status_is_manual IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN status_changed_at TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE profiles ADD COLUMN status_change_reason TEXT NOT NULL DEFAULT ''",
+      "UPDATE profiles SET status_changed_at = created_at, status_change_reason = 'Initial status' WHERE status_changed_at = ''",
+      `CREATE TABLE profile_status_history (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        previous_status TEXT NOT NULL CHECK (previous_status IN ('Active', 'Idle', 'Inactive')),
+        new_status TEXT NOT NULL CHECK (new_status IN ('Active', 'Idle', 'Inactive')),
+        trigger_type TEXT NOT NULL,
+        trigger_id TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT NOT NULL DEFAULT '',
+        occurred_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_profile_status_history_profile
+       ON profile_status_history(profile_id, occurred_at DESC, id DESC)`,
+      `CREATE TABLE event_rsvp_history (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        previous_rsvp TEXT NOT NULL CHECK (previous_rsvp IN ('Yes', 'No', 'Pending')),
+        new_rsvp TEXT NOT NULL CHECK (new_rsvp IN ('Yes', 'No', 'Pending')),
+        reason TEXT NOT NULL,
+        automatic INTEGER NOT NULL DEFAULT 0 CHECK (automatic IN (0, 1)),
+        actor_type TEXT NOT NULL,
+        actor_id TEXT NOT NULL DEFAULT '',
+        occurred_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_event_rsvp_history_event_profile
+       ON event_rsvp_history(event_id, profile_id, occurred_at DESC, id DESC)`,
+      `CREATE INDEX idx_event_rsvp_history_profile
+       ON event_rsvp_history(profile_id, occurred_at DESC, id DESC)`,
+    ],
+  },
+  {
+    version: 52,
+    statements: [
+      "ALTER TABLE events ADD COLUMN is_canceled INTEGER NOT NULL DEFAULT 0 CHECK (is_canceled IN (0, 1))",
+      `CREATE INDEX idx_events_active_calendar
+       ON events(is_archived, is_canceled, starts_at)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

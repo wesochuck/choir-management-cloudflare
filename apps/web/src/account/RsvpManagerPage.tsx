@@ -1,6 +1,7 @@
 import type {
   OrganizationAttendanceRow,
   OrganizationEvent,
+  OrganizationEventRsvpHistoryEntry,
   OrganizationProfile,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
@@ -8,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   AuthApiError,
+  getOrganizationEventRsvpHistory,
   getOrganizationRosterConfiguration,
   listOrganizationEventAttendance,
   listOrganizationEvents,
@@ -65,6 +67,18 @@ function reportableVoiceParts(roster: OrganizationRosterConfiguration) {
   return roster.voiceParts.filter(({ sectionCode }) => !trackOnlySections.has(sectionCode));
 }
 
+function RsvpDeadlineNotice({ event }: { readonly event: OrganizationEvent | null }) {
+  if (event?.type !== "Performance" || !event.rsvpDeadlineDate) return null;
+  return (
+    <p className={event.rsvpDeadlinePassed ? "notice notice--warning" : "notice notice--info"}>
+      {event.rsvpDeadlinePassed
+        ? `Member self-service RSVP is closed. The deadline was ${event.rsvpDeadlineDate}. Administrators can still override responses.`
+        : `Member RSVP deadline: ${event.rsvpDeadlineDate} through 11:59 p.m.`}
+      <a href="/admin/settings"> Roster Settings</a>
+    </p>
+  );
+}
+
 export function RsvpManagerPage({
   enabled,
   eventId: initialEventId = null,
@@ -75,6 +89,7 @@ export function RsvpManagerPage({
   const [eventId, setEventId] = useState(initialEventId ?? "");
   const [state, setState] = useState<RsvpState>({ status: "loading" });
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
+  const [history, setHistory] = useState<readonly OrganizationEventRsvpHistoryEntry[]>([]);
   const [rowsLoading, setRowsLoading] = useState(false);
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [filter, setFilter] = useState<RsvpFilter>("active");
@@ -116,9 +131,16 @@ export function RsvpManagerPage({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mark the selected roster as loading before the request starts.
     setRowsLoading(true);
     setRowsError(null);
-    listOrganizationEventAttendance(eventId, controller.signal)
-      .then((loaded) => {
-        if (!controller.signal.aborted) setRows(loaded);
+    setHistory([]);
+    Promise.all([
+      listOrganizationEventAttendance(eventId, controller.signal),
+      getOrganizationEventRsvpHistory(eventId, controller.signal),
+    ])
+      .then(([loaded, loadedHistory]) => {
+        if (!controller.signal.aborted) {
+          setRows(loaded);
+          setHistory(loadedHistory.entries);
+        }
       })
       .catch((loadError: unknown) => {
         if (!controller.signal.aborted) {
@@ -139,7 +161,9 @@ export function RsvpManagerPage({
   }, [enabled, eventId, state.status]);
 
   const selectedEvent =
-    state.status === "ready" ? state.events.find((candidate) => candidate.id === eventId) : null;
+    state.status === "ready"
+      ? (state.events.find((candidate) => candidate.id === eventId) ?? null)
+      : null;
   const profileById = useMemo(
     () =>
       new Map(
@@ -213,6 +237,11 @@ export function RsvpManagerPage({
     try {
       await setOrganizationEventRsvp(eventId, profileId, next);
       setFeedback("RSVP updated.");
+      try {
+        setHistory((await getOrganizationEventRsvpHistory(eventId)).entries);
+      } catch {
+        setRowsError("RSVP updated, but the event history could not be refreshed.");
+      }
     } catch (saveError: unknown) {
       setRows((existing) => existing.map((row) => (row.profileId === profileId ? current : row)));
       setRowsError(
@@ -261,6 +290,7 @@ export function RsvpManagerPage({
                 ? `${selectedEvent.title} · ${displayEventDate(selectedEvent.startsAt)}`
                 : "Choose an event to view responses."}
             </p>
+            <RsvpDeadlineNotice event={selectedEvent} />
           </div>
           <div className="rsvp-manager__summary-actions">
             <span className="status-pill">Total: {counts.active} active</span>
@@ -419,6 +449,33 @@ export function RsvpManagerPage({
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="surface-card rsvp-manager__history" aria-labelledby="rsvp-history-title">
+        <div className="section-heading section-heading--compact">
+          <p className="eyebrow">Audit trail</p>
+          <h2 id="rsvp-history-title">Event RSVP History</h2>
+          <p className="section-description">
+            Actual RSVP changes are shown here separately from Profile Status History.
+          </p>
+        </div>
+        {history.length === 0 ? (
+          <p className="empty-state">No RSVP changes recorded for this event yet.</p>
+        ) : (
+          <ol className="compact-list">
+            {history.slice(0, 20).map((entry) => (
+              <li key={`${entry.occurredAt}-${entry.profileId}-${entry.newRsvp}`}>
+                <strong>{entry.displayName}</strong>: {statusText(entry.previousRsvp)} →{" "}
+                {statusText(entry.newRsvp)} · {entry.reason} ·{" "}
+                {entry.automatic ? "Automation" : "Administrator or member"} ·{" "}
+                {new Intl.DateTimeFormat(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(entry.occurredAt))}
+              </li>
+            ))}
+          </ol>
         )}
       </section>
     </div>

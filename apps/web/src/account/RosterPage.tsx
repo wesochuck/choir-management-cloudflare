@@ -4,6 +4,7 @@ import type {
   OrganizationProfile,
   OrganizationProfileFolderNumber,
   OrganizationProfilePerformanceHistoryResponse,
+  OrganizationProfileStatusHistoryResponse,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
   OrganizationRsvp,
@@ -27,6 +28,7 @@ import {
   createOrganizationInvitation,
   getOrganizationRosterConfiguration,
   getOrganizationProfilePerformanceHistory,
+  getOrganizationProfileStatusHistory,
   getOrganizationProfileFolderNumbers,
   importOrganizationProfilesCsv,
   listOrganizationDues,
@@ -55,6 +57,7 @@ const emptyProfile: OrganizationProfileRequest = {
   receiveFinancialAlerts: false,
   receiveRsvpDeclineNotices: false,
   showInDirectory: true,
+  statusIsManual: false,
   voicePart: "",
 };
 
@@ -71,10 +74,19 @@ type RosterState =
 type RosterStatusFilter = "all" | OrganizationProfile["globalStatus"];
 type ProfileTab = "dues" | "folders" | "info" | "performance";
 
+type ProfileStatusHistoryState =
+  | { readonly status: "error" | "idle" | "loading" }
+  | { readonly data: OrganizationProfileStatusHistoryResponse; readonly status: "ready" };
+
 const UNASSIGNED_VOICE_FILTER = "unassigned";
 
 function sectionFilterKey(code: string): string {
   return `section:${code}`;
+}
+
+function formatProfileTransitionDate(value: string | null): string {
+  if (!value) return "No automatic transition date is scheduled.";
+  return `Scheduled for ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value))}.`;
 }
 
 function voicePartFilterKey(label: string): string {
@@ -242,6 +254,7 @@ function profileRequestFrom(profile: OrganizationProfile): OrganizationProfileRe
     receiveFinancialAlerts: profile.receiveFinancialAlerts,
     receiveRsvpDeclineNotices: profile.receiveRsvpDeclineNotices,
     showInDirectory: profile.showInDirectory,
+    statusIsManual: profile.statusIsManual,
     voicePart: profile.voicePart,
   };
 }
@@ -718,6 +731,9 @@ export function RosterPage({
   const [performanceHistory, setPerformanceHistory] = useState<PerformanceHistoryState>({
     status: "idle",
   });
+  const [profileStatusHistory, setProfileStatusHistory] = useState<ProfileStatusHistoryState>({
+    status: "idle",
+  });
   const [profileDues, setProfileDues] = useState<ProfileDuesState>({ status: "idle" });
   const [profileFolderNumbers, setProfileFolderNumbers] = useState<ProfileFolderNumbersState>({
     status: "idle",
@@ -772,6 +788,7 @@ export function RosterPage({
     );
     setProfileTab(initialProfileTab);
     setPerformanceHistory({ status: initialProfileTab === "performance" ? "loading" : "idle" });
+    setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: initialProfileTab === "dues" ? "loading" : "idle" });
     setProfileFolderNumbers({ status: initialProfileTab === "folders" ? "loading" : "idle" });
     setResetFeedback(null);
@@ -796,6 +813,23 @@ export function RosterPage({
       controller.abort();
     };
   }, [dialogOpen, editingId, profileTab]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingId) return;
+    const controller = new AbortController();
+    getOrganizationProfileStatusHistory(editingId, controller.signal)
+      .then((data) => {
+        setProfileStatusHistory({ data, status: "ready" });
+      })
+      .catch((historyError: unknown) => {
+        if (!(historyError instanceof DOMException && historyError.name === "AbortError")) {
+          setProfileStatusHistory({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [dialogOpen, editingId]);
 
   useEffect(() => {
     if (!dialogOpen || !editingId || profileTab !== "folders") return;
@@ -885,6 +919,7 @@ export function RosterPage({
     setProfilePhotoFileId(null);
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
+    setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
     setResetFeedback(null);
@@ -949,6 +984,7 @@ export function RosterPage({
     setEditingId(null);
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
+    setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
     setProfile(emptyProfile);
@@ -964,6 +1000,7 @@ export function RosterPage({
     setEditingId(candidate.id);
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
+    setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
@@ -1090,6 +1127,11 @@ export function RosterPage({
       setBusy(false);
     }
   }
+
+  const editingProfileRecord =
+    editingId && roster.status === "ready"
+      ? (roster.profiles.find((candidate) => candidate.id === editingId) ?? null)
+      : null;
 
   if (!enabled) {
     return <p className="notice notice--warning">Verify Organization MFA to manage the roster.</p>;
@@ -1504,7 +1546,52 @@ export function RosterPage({
                 <option value="Idle">On Break</option>
                 <option value="Inactive">Inactive</option>
               </select>
+              <p className="field-help">
+                Selecting a status does not turn automation off. The Profile may be updated by the
+                roster rules until you explicitly manage status manually.
+              </p>
             </div>
+            <label className="checkbox-row">
+              <input
+                checked={profile.statusIsManual}
+                onChange={(event) => {
+                  setProfile((current) => ({ ...current, statusIsManual: event.target.checked }));
+                }}
+                type="checkbox"
+              />
+              Manage status manually (opt out of automatic status changes)
+            </label>
+            {profile.globalStatus === "Idle" ? (
+              <p className="notice notice--info">
+                {profile.statusIsManual
+                  ? "Manual status control is on, so this Profile has no automatic On Break transition date."
+                  : editingProfileRecord
+                    ? `On Break ${formatProfileTransitionDate(editingProfileRecord.onBreakInactiveAt)}`
+                    : "The On Break transition date will be calculated after this Profile is saved."}
+              </p>
+            ) : null}
+            {editingId && profileStatusHistory.status === "ready" ? (
+              <div className="profile-status-history">
+                <p className="field-label">Profile Status History</p>
+                {profileStatusHistory.data.entries.length === 0 ? (
+                  <p className="field-help">No automatic or manual status changes recorded yet.</p>
+                ) : (
+                  <ul className="compact-list">
+                    {profileStatusHistory.data.entries.slice(0, 5).map((entry) => (
+                      <li key={`${entry.occurredAt}-${entry.triggerType}`}>
+                        <strong>{statusLabel(entry.newStatus)}</strong> · {entry.reason}{" "}
+                        <span className="field-help">
+                          {new Intl.DateTimeFormat(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(new Date(entry.occurredAt))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
             <div className="field">
               <label htmlFor="roster-profile-notes">Notes</label>
               <textarea

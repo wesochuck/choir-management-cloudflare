@@ -150,7 +150,7 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
   await page.getByLabel("Name *").fill("Jane Singer");
   await page.getByLabel("Email *").fill("jane.singer@example.test");
   await page.getByLabel("Phone").fill("555-0200");
-  await page.getByLabel("Voice Part").fill("Alto");
+  await page.getByLabel("Voice Part").selectOption({ label: "Unsure" });
   await page.getByLabel("Musical Experience").fill("Five years of choir experience.");
   await page.getByRole("button", { name: "Submit Inquiry" }).click();
 
@@ -186,8 +186,10 @@ test("shows configured public audition availability and scheduled details", asyn
     await route.fulfill({
       body: JSON.stringify({
         confirmationMessage: "Choose a time",
-        defaultPerformanceId: "performance-001",
+        defaultPerformanceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         enabled: true,
+        performance: null,
+        sections: [],
         slots: [
           {
             endsAt: "2026-08-01T15:30:00.000Z",
@@ -195,6 +197,9 @@ test("shows configured public audition availability and scheduled details", asyn
             startsAt: "2026-08-01T15:00:00.000Z",
           },
         ],
+        timezone: "UTC",
+        venue: null,
+        voiceParts: [],
       }),
       contentType: "application/json",
       status: 200,
@@ -301,7 +306,7 @@ test("admin manages auditions: list, edit, and generate tokens", async ({ page }
       status: 200,
     });
   });
-  await page.route("**/api/auth/list-sessions", async (route) => {
+  await page.route("**/api/account/sessions", async (route) => {
     await route.fulfill({
       body: JSON.stringify(sessionsListResponse),
       contentType: "application/json",
@@ -385,23 +390,23 @@ test("admin manages auditions: list, edit, and generate tokens", async ({ page }
 
   await page.goto("/admin/auditions");
 
-  await expect(page.getByRole("heading", { name: "Audition Management" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Auditions" })).toBeVisible();
   await expect(page.getByText("Singer One")).toBeVisible();
   await expect(page.getByText("Singer Two")).toBeVisible();
   await expect(page.getByText("Soprano")).toBeVisible();
 
   await page.getByRole("checkbox", { name: "Select Singer One for token generation" }).check();
   await page.getByRole("checkbox", { name: "Select Singer Two for token generation" }).check();
-  await page.getByRole("button", { name: "Generate 2 token(s)" }).click();
+  await page.getByRole("button", { name: "Generate 2 follow-up link(s)" }).click();
 
   await expect(page.getByText("2 token(s) generated.")).toBeVisible();
-  await page.getByText("Generated Tokens").click();
+  await page.getByText("Generated follow-up links").click();
   await expect(page.getByText("Singer One:")).toBeVisible();
   await expect(page.getByText("signed-token-for-audition-001")).toBeVisible();
   await expect(page.getByText("Singer Two:")).toBeVisible();
   await expect(page.getByText("signed-token-for-audition-002")).toBeVisible();
   expect(tokenRequestIds).toEqual(["audition-001", "audition-002"]);
-  await page.getByText("Generated Tokens").click();
+  await page.getByText("Generated follow-up links").click();
 
   await page.getByRole("button", { name: "Edit" }).first().click({ force: true });
   await expect(page.getByText("Edit Audition")).toBeVisible();
@@ -448,7 +453,7 @@ test("admin sees empty state when no auditions exist", async ({ page }) => {
       status: 200,
     });
   });
-  await page.route("**/api/auth/list-sessions", async (route) => {
+  await page.route("**/api/account/sessions", async (route) => {
     await route.fulfill({
       body: JSON.stringify(sessionsListResponse),
       contentType: "application/json",
@@ -479,6 +484,6 @@ test("admin sees empty state when no auditions exist", async ({ page }) => {
 
   await page.goto("/admin/auditions");
 
-  await expect(page.getByRole("heading", { name: "Audition Management" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Auditions" })).toBeVisible();
   await expect(page.getByText("No audition inquiries yet.")).toBeVisible();
 });

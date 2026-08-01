@@ -8,7 +8,7 @@ type CheckState =
   | { readonly status: "loading" }
   | { readonly setup: SetupStatus; readonly status: "ready" };
 
-const allSteps = ["organization_info", "modules", "theme", "launch"] as const;
+const allSteps = ["organization_info", "modules", "theme", "data_import", "launch"] as const;
 type SetupStep = (typeof allSteps)[number];
 
 const stepGuidance: Record<
@@ -30,6 +30,11 @@ const stepGuidance: Record<
     description: "Choose the colors members and the public pages will use.",
     href: "/setup",
   },
+  data_import: {
+    action: "Import existing data",
+    description: "Optionally import Profiles and Music Library entries from CSV files.",
+    href: "/setup",
+  },
   launch: {
     action: "Launch Organization",
     description: "Review the remaining steps in the setup wizard, then make the Organization live.",
@@ -45,6 +50,8 @@ function stepLabel(step: SetupStep): string {
       return "Module Configuration";
     case "theme":
       return "Theme Setup";
+    case "data_import":
+      return "Import Existing Data";
     case "launch":
       return "Launch";
     default:
@@ -91,6 +98,11 @@ export function SetupChecklistView() {
 
   const { setup } = checkState;
   const completedCount = allSteps.filter((step) => setup.completedSteps.includes(step)).length;
+  const requiredSteps = allSteps.filter((step) => step !== "data_import");
+  const requiredCompletedCount = requiredSteps.filter((step) =>
+    setup.completedSteps.includes(step),
+  ).length;
+  const setupIsComplete = setup.launched && requiredCompletedCount === requiredSteps.length;
 
   return (
     <div className="settings-stack">
@@ -98,9 +110,9 @@ export function SetupChecklistView() {
         <p>
           {completedCount} of {allSteps.length} steps completed.
         </p>
-        {setup.launched && completedCount === allSteps.length ? (
+        {setupIsComplete ? (
           <p className="notice notice--success" role="status">
-            Setup is complete. Your Organization is live.
+            Setup is complete. Your Organization is live. Optional data imports can be added later.
           </p>
         ) : (
           <p className="notice notice--warning" role="status">

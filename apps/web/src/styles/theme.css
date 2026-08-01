@@ -1482,6 +1482,46 @@ footer {
   overflow: visible;
 }
 
+.music-publisher-settings {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.music-publisher-settings h2,
+.music-publisher-settings p {
+  margin: 0;
+}
+
+.music-publisher-settings h2 {
+  margin-top: 0.25rem;
+  font-size: 1rem;
+}
+
+.music-publisher-settings__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.music-publisher-settings__form .field {
+  min-width: 0;
+}
+
+.music-publisher-settings__form .button {
+  white-space: nowrap;
+}
+
+.music-publisher-search-link {
+  white-space: nowrap;
+  font-weight: 700;
+}
+
 .music-catalog-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -2402,6 +2442,22 @@ button.music-genre-chip.is-selected {
 
 .music-piece-form {
   padding: 0;
+}
+
+.music-piece-form__actions {
+  position: sticky;
+  z-index: 5;
+  bottom: -1.15rem;
+  margin-top: 0.25rem;
+  margin-inline: -0.35rem;
+  padding: 0.8rem 0.35rem 0.25rem;
+  border-top: 1px solid var(--color-border);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-surface) 0%, transparent),
+    var(--color-surface) 0.85rem
+  );
+  box-shadow: 0 -0.5rem 0.75rem -0.6rem var(--color-shadow);
 }
 
 .music-piece-form h3 {
@@ -3986,6 +4042,60 @@ h2 {
 
 .setup-wizard > .panel .form-actions .button {
   width: auto;
+}
+
+.setup-data-import__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.setup-data-import__heading h2,
+.setup-data-import__heading p {
+  margin: 0;
+}
+
+.setup-data-import__heading h2 {
+  margin-top: 0.25rem;
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.15;
+}
+
+.setup-data-import__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.setup-data-import__option {
+  display: grid;
+  align-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.setup-data-import__option h3,
+.setup-data-import__option p {
+  margin: 0;
+}
+
+.setup-data-import__option h3 {
+  font-size: 1rem;
+}
+
+.setup-data-import__option p:not(.notice) {
+  margin-top: 0.35rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.setup-data-import__option .notice {
+  margin-top: 0.75rem;
 }
 
 .account-grid {
@@ -7141,6 +7251,90 @@ footer {
   margin-top: 1.25rem;
 }
 
+.roster-automation__flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.roster-automation__flow span:nth-child(odd) {
+  color: var(--color-text);
+  font-weight: 650;
+}
+
+.roster-automation__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.roster-automation__card,
+.roster-automation__preview,
+.roster-automation__profile-preview {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+}
+
+.roster-automation__card h3,
+.roster-automation__preview h3 {
+  margin: 0;
+}
+
+.roster-automation__card .section-description {
+  min-height: 4.6rem;
+}
+
+.roster-automation__preview {
+  margin-top: 0.9rem;
+}
+
+.roster-automation__profile-preview {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.roster-automation__profile-preview p {
+  margin: 0;
+}
+
+.roster-automation__recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+@media (max-width: 900px) {
+  .roster-automation__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .roster-automation__card .section-description {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .roster-automation__flow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .roster-automation__flow span[aria-hidden="true"] {
+    display: none;
+  }
+}
+
 .roster-balance {
   margin: 1.25rem 0;
 }
@@ -9235,6 +9429,14 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .music-publisher-settings__form {
+    grid-template-columns: 1fr;
+  }
+
+  .music-publisher-settings__form .button {
+    justify-self: start;
+  }
+
   .signed-in-main .surface-card,
   .signed-in-main .account-section,
   .signed-in-main .panel,
@@ -9264,6 +9466,14 @@ footer {
 
   .setup-checklist__item .button {
     width: 100%;
+  }
+
+  .setup-data-import__heading {
+    display: grid;
+  }
+
+  .setup-data-import__options {
+    grid-template-columns: 1fr;
   }
 
   .communication-tabs {

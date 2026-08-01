@@ -294,4 +294,37 @@ describe("linked-Profile self-service RSVP", () => {
     );
     expect(clearedNote).toBe("");
   });
+
+  it("closes linked-member self-service RSVP after the Organization deadline", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE events SET starts_at = ? WHERE id = ?",
+          new Date(Date.now() + 3 * 86_400_000).toISOString(),
+          PERFORMANCE_ID,
+        );
+        return null;
+      },
+    );
+    const cookie = await signIn();
+    const schedule = singerEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/singer/events", cookie))
+      ).json(),
+    );
+    expect(schedule.events[0]).toMatchObject({
+      rsvpDeadlinePassed: true,
+      rsvpSelfServiceOpen: false,
+    });
+    const response = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${PERFORMANCE_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "rsvp_closed" });
+  });
 });

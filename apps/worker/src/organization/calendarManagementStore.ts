@@ -1,6 +1,7 @@
 import {
   organizationAttendanceBulkRequestSchema,
   organizationEventRequestSchema,
+  organizationEventRsvpHistoryResponseSchema,
   organizationCalendarSettingsRequestSchema,
   organizationProfileFolderNumberUpdateSchema,
   organizationRsvpRequestSchema,
@@ -10,6 +11,15 @@ import {
 } from "@choir/contracts";
 import { defaultRosterConfiguration, isValidTimeZone } from "@choir/domain";
 import { z } from "zod";
+
+import {
+  decorateEventWithRsvpDeadline,
+  recalculateProfileStatuses,
+  reconcilePresentAttendance,
+  recordEventRsvpChange,
+  readRosterAutomationConfiguration,
+  runRosterAutomations,
+} from "./statusAutomationStore";
 
 const actorSchema = z.object({
   actorUserId: z.string().min(1).max(128),
@@ -42,6 +52,10 @@ const managementRequestSchema = z.discriminatedUnion("action", [
     eventId: z.uuid(),
   }),
   actorSchema.extend({
+    action: z.literal("cancel_event"),
+    eventId: z.uuid(),
+  }),
+  actorSchema.extend({
     action: z.literal("create_venue"),
     venue: organizationVenueRequestSchema.extend({ id: z.uuid() }),
   }),
@@ -57,6 +71,7 @@ const managementRequestSchema = z.discriminatedUnion("action", [
     action: z.literal("set_rsvp"),
     eventId: z.uuid(),
     rsvp: organizationRsvpRequestSchema,
+    selfService: z.boolean().default(false),
   }),
   actorSchema.extend({
     action: z.literal("update_timezone"),
@@ -99,6 +114,7 @@ interface EventRow {
   readonly doorsOpenTime: string;
   readonly durationMinutes: number | null;
   readonly id: string;
+  readonly isCanceled: number;
   readonly isTicketingEnabled: number;
   readonly location: string;
   readonly parentPerformanceId: string | null;
@@ -130,6 +146,7 @@ interface MemberEventRow {
   readonly directRsvp: "No" | "Pending" | "Yes" | null;
   readonly durationMinutes: number | null;
   readonly id: string;
+  readonly isCanceled: number;
   readonly location: string;
   readonly parentRsvp: "No" | "Pending" | "Yes" | null;
   readonly rsvpNote: string;
@@ -161,6 +178,19 @@ interface AttendanceRow {
   readonly rsvp: "No" | "Pending" | "Yes";
   readonly updatedAt: string | null;
   readonly voicePart: string;
+}
+
+interface EventRsvpHistoryRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly actorType: string;
+  readonly automatic: number;
+  readonly displayName: string;
+  readonly eventId: string;
+  readonly newRsvp: "No" | "Pending" | "Yes";
+  readonly occurredAt: string;
+  readonly previousRsvp: "No" | "Pending" | "Yes";
+  readonly profileId: string;
+  readonly reason: string;
 }
 
 interface ProfileFolderNumberRow {
@@ -272,6 +302,13 @@ export function listOrganizationEventsFromStore(
   if (!identityMatches(storage, organizationId)) {
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
+  const configuration = readRosterAutomationConfiguration(storage);
+  const timezone = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
+  const now = new Date();
   const events = storage.sql
     .exec<EventRow>(
       `SELECT id, title, type, starts_at AS startsAt, duration_minutes AS durationMinutes,
@@ -283,11 +320,13 @@ export function listOrganizationEventsFromStore(
          public_details AS publicDetails, public_graphic_file_id AS publicGraphicFileId,
          publish_on_website AS publishOnWebsite,
          set_list_json AS setListJson, set_list_approved AS setListApproved,
-         created_at AS createdAt, updated_at AS updatedAt
+         created_at AS createdAt, updated_at AS updatedAt,
+         is_canceled AS isCanceled
        FROM events WHERE is_archived = 0 ORDER BY starts_at ASC, id ASC LIMIT 500`,
     )
     .toArray()
     .map((event) => ({
+      ...decorateEventWithRsvpDeadline(event, configuration, timezone, now),
       advancePriceCents: event.advancePriceCents,
       callTime: event.callTime,
       createdAt: event.createdAt,
@@ -296,6 +335,7 @@ export function listOrganizationEventsFromStore(
       doorsOpenTime: event.doorsOpenTime,
       durationMinutes: event.durationMinutes,
       id: event.id,
+      isCanceled: event.isCanceled === 1,
       isTicketingEnabled: event.isTicketingEnabled === 1,
       location: event.location,
       parentPerformanceId: event.parentPerformanceId,
@@ -329,7 +369,7 @@ export function readOrganizationDashboardSummaryFromStore(
     .one().count;
   const upcomingEventCount = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
-      "SELECT COUNT(*) AS count FROM events WHERE is_archived = 0 AND starts_at >= ?",
+      "SELECT COUNT(*) AS count FROM events WHERE is_archived = 0 AND is_canceled = 0 AND starts_at >= ?",
       now,
     )
     .one().count;
@@ -337,7 +377,7 @@ export function readOrganizationDashboardSummaryFromStore(
     .exec<DashboardEventRow>(
       `SELECT id, title, type, starts_at AS startsAt
        FROM events
-       WHERE is_archived = 0 AND starts_at >= ?
+       WHERE is_archived = 0 AND is_canceled = 0 AND starts_at >= ?
        ORDER BY starts_at ASC, id ASC LIMIT 5`,
       now,
     )
@@ -439,7 +479,7 @@ export function readProfileEventRsvpFromStore(
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = ?
        CROSS JOIN profiles p ON p.id = ?
-       WHERE e.id = ? LIMIT 1`,
+       WHERE e.id = ? AND e.is_canceled = 0 LIMIT 1`,
       profileId.data,
       profileId.data,
       eventId.data,
@@ -540,6 +580,12 @@ function updateRosterConfiguration(
       occurredAt,
     );
   });
+  runRosterAutomations(
+    storage,
+    operation.organizationId,
+    new Date(occurredAt),
+    operation.requestId,
+  );
   return Response.json(operation.configuration);
 }
 
@@ -580,6 +626,36 @@ export function listEventAttendanceFromStore(
   return Response.json({ eventId: eventId.data, rows });
 }
 
+export function listEventRsvpHistoryFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly eventId: string | null; readonly organizationId: string | null },
+): Response {
+  const eventId = z.uuid().safeParse(input.eventId);
+  if (!identityMatches(storage, input.organizationId) || !eventId.success) {
+    return Response.json({ code: "event_rsvp_history_not_found" }, { status: 404 });
+  }
+  if (!recordExists(storage, "events", eventId.data)) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+  const entries = storage.sql
+    .exec<EventRsvpHistoryRow>(
+      `SELECT h.event_id AS eventId, h.profile_id AS profileId,
+         COALESCE(p.display_name, 'Removed Profile') AS displayName,
+         h.previous_rsvp AS previousRsvp, h.new_rsvp AS newRsvp,
+         h.reason, h.automatic, h.actor_type AS actorType, h.occurred_at AS occurredAt
+       FROM event_rsvp_history h
+       LEFT JOIN profiles p ON p.id = h.profile_id
+       WHERE h.event_id = ?
+       ORDER BY h.occurred_at DESC, h.id DESC LIMIT 500`,
+      eventId.data,
+    )
+    .toArray()
+    .map((entry) => ({ ...entry, automatic: entry.automatic === 1 }));
+  return Response.json(
+    organizationEventRsvpHistoryResponseSchema.parse({ entries, eventId: eventId.data }),
+  );
+}
+
 function profileFolderNumberFromRow(row: ProfileFolderNumberRow) {
   return { ...row, folderReturned: row.folderReturned === 1 };
 }
@@ -605,7 +681,7 @@ export function listProfileFolderNumbersFromStore(
        FROM events e
        JOIN profiles p ON p.id = ?
        LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
-       WHERE e.type = 'Performance'
+       WHERE e.type = 'Performance' AND e.is_canceled = 0
        ORDER BY e.starts_at DESC, e.id DESC LIMIT 500`,
       profileId.data,
     )
@@ -703,21 +779,28 @@ function updateAttendance(
       storage.sql.exec(
         `INSERT INTO event_rosters
           (event_id, profile_id, rsvp, attendance, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, 'Pending', ?, ?, ?)
          ON CONFLICT(event_id, profile_id) DO UPDATE SET
            attendance = excluded.attendance,
-           rsvp = CASE
-             WHEN excluded.attendance = 'Present' AND event_rosters.rsvp = 'Pending' THEN 'Yes'
-             ELSE event_rosters.rsvp
-           END,
            updated_at = excluded.updated_at`,
         operation.eventId,
         update.profileId,
-        update.attendance === "Present" ? "Yes" : "Pending",
         update.attendance,
         occurredAt,
         occurredAt,
       );
+      if (update.attendance === "Present") {
+        reconcilePresentAttendance(storage, {
+          actor: {
+            actorId: "",
+            actorType: "system",
+            requestId: operation.requestId,
+          },
+          eventId: operation.eventId,
+          occurredAt,
+          profileId: update.profileId,
+        });
+      }
     }
     insertAudit(
       storage,
@@ -731,6 +814,12 @@ function updateAttendance(
       occurredAt,
     );
   });
+  recalculateProfileStatuses(
+    storage,
+    operation.organizationId,
+    new Date(occurredAt),
+    operation.requestId,
+  );
   return listEventAttendanceFromStore(storage, {
     eventId: operation.eventId,
     organizationId: operation.organizationId,
@@ -754,6 +843,12 @@ export function listMemberEventsFromStore(
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
   const now = new Date(readAt.data);
+  const configuration = readRosterAutomationConfiguration(storage);
+  const timezone = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
   const earliest = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString();
   const latest = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1_000).toISOString();
   const events = storage.sql
@@ -762,6 +857,7 @@ export function listMemberEventsFromStore(
          e.duration_minutes AS durationMinutes, e.call_time AS callTime,
          e.location, e.details, e.set_list_json AS setListJson,
          e.set_list_approved AS setListApproved,
+         e.is_canceled AS isCanceled,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
          direct.rsvp AS directRsvp, COALESCE(direct.rsvp_note, '') AS rsvpNote,
          parent.rsvp AS parentRsvp
@@ -771,7 +867,7 @@ export function listMemberEventsFromStore(
          ON direct.event_id = e.id AND direct.profile_id = ?
        LEFT JOIN event_rosters parent
          ON parent.event_id = e.parent_performance_id AND parent.profile_id = ?
-       WHERE e.is_archived = 0 AND e.starts_at >= ? AND e.starts_at <= ?
+       WHERE e.is_archived = 0 AND e.is_canceled = 0 AND e.starts_at >= ? AND e.starts_at <= ?
        ORDER BY e.starts_at ASC, e.id ASC LIMIT 500`,
       profileId.data,
       profileId.data,
@@ -787,11 +883,13 @@ export function listMemberEventsFromStore(
         event.parentRsvp !== null &&
         event.parentRsvp !== "Pending";
       return {
+        ...decorateEventWithRsvpDeadline(event, configuration, timezone, now),
         callTime: event.callTime,
         details: event.details,
         directRsvp,
         durationMinutes: event.durationMinutes,
         id: event.id,
+        isCanceled: event.isCanceled === 1,
         inheritedFromParent: inherits,
         location: event.location,
         resolvedRsvp: inherits ? event.parentRsvp : directRsvp,
@@ -835,7 +933,7 @@ export function listProfilePerformanceHistoryFromStore(
        FROM events e
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = ?
-       WHERE e.type = 'Performance'
+       WHERE e.type = 'Performance' AND e.is_canceled = 0
        ORDER BY e.starts_at DESC, e.id DESC LIMIT 500`,
       profileId.data,
     )
@@ -879,6 +977,18 @@ function ticketConfigurationError(
   return null;
 }
 
+function isActivePerformanceReference(
+  event:
+    | {
+        readonly isArchived: number;
+        readonly isCanceled: number;
+        readonly type: string;
+      }
+    | undefined,
+): boolean {
+  return event?.type === "Performance" && event.isArchived === 0 && event.isCanceled === 0;
+}
+
 function eventReferenceError(
   storage: DurableObjectStorage,
   event: EventOperation["event"],
@@ -893,13 +1003,18 @@ function eventReferenceError(
   }
   if (event.parentPerformanceId) {
     const parent = storage.sql
-      .exec<{ readonly [column: string]: SqlStorageValue; readonly type: string }>(
-        "SELECT type FROM events WHERE id = ? LIMIT 1",
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly isArchived: number;
+        readonly isCanceled: number;
+        readonly type: string;
+      }>(
+        "SELECT type, is_archived AS isArchived, is_canceled AS isCanceled FROM events WHERE id = ? LIMIT 1",
         event.parentPerformanceId,
       )
       .toArray()
       .at(0);
-    if (parent?.type !== "Performance") {
+    if (!isActivePerformanceReference(parent)) {
       return Response.json({ code: "parent_performance_not_found" }, { status: 404 });
     }
   }
@@ -965,8 +1080,8 @@ function writeEvent(
            parent_performance_id, details, public_details, public_graphic_file_id,
            publish_on_website, advance_price_cents, day_of_price_cents, doors_open_time,
            is_ticketing_enabled, ticket_capacity, set_list_json, set_list_approved,
-           is_archived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+           is_archived, is_canceled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
         event.id,
         event.title,
         event.type,
@@ -1047,7 +1162,33 @@ function writeEvent(
             event.id,
           )
           .one().createdAt;
-  return Response.json({ ...event, createdAt, updatedAt: occurredAt });
+  const isCanceled =
+    operation.action === "create_event"
+      ? 0
+      : storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly isCanceled: number }>(
+            "SELECT is_canceled AS isCanceled FROM events WHERE id = ?",
+            event.id,
+          )
+          .one().isCanceled;
+  const configuration = readRosterAutomationConfiguration(storage);
+  const timezone = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
+  return Response.json({
+    ...event,
+    isCanceled: isCanceled === 1,
+    ...decorateEventWithRsvpDeadline(
+      { ...event, isCanceled: isCanceled === 1 },
+      configuration,
+      timezone,
+      new Date(occurredAt),
+    ),
+    createdAt,
+    updatedAt: occurredAt,
+  });
 }
 
 function writeVenue(
@@ -1217,6 +1358,55 @@ export async function manageOrganizationCalendarInStore(
     });
     return Response.json({ eventId: operation.eventId, status: "archived" });
   }
+  if (parsed.data.action === "cancel_event") {
+    const operation = parsed.data;
+    const eventState = storage.sql
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly isArchived: number;
+        readonly isCanceled: number;
+      }>(
+        "SELECT is_archived AS isArchived, is_canceled AS isCanceled FROM events WHERE id = ? LIMIT 1",
+        operation.eventId,
+      )
+      .toArray()
+      .at(0);
+    if (!eventState || eventState.isArchived === 1) {
+      return Response.json({ code: "event_not_found" }, { status: 404 });
+    }
+    if (eventState.isCanceled === 1) {
+      return Response.json({ eventId: operation.eventId, status: "canceled" });
+    }
+    const childCount = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+        "SELECT COUNT(*) AS count FROM events WHERE parent_performance_id = ? AND is_archived = 0 AND is_canceled = 0",
+        operation.eventId,
+      )
+      .one().count;
+    storage.transactionSync(() => {
+      storage.sql.exec(
+        "UPDATE events SET is_canceled = 1, updated_at = ? WHERE id = ? AND is_archived = 0",
+        occurredAt,
+        operation.eventId,
+      );
+      storage.sql.exec(
+        `UPDATE events SET is_canceled = 1, updated_at = ?
+         WHERE parent_performance_id = ? AND is_archived = 0 AND is_canceled = 0`,
+        occurredAt,
+        operation.eventId,
+      );
+      insertAudit(
+        storage,
+        operation,
+        "event.canceled",
+        "event",
+        operation.eventId,
+        { canceled: true, childEventsCanceled: childCount },
+        occurredAt,
+      );
+    });
+    return Response.json({ eventId: operation.eventId, status: "canceled" });
+  }
   const rsvpOperation = parsed.data;
   if (!recordExists(storage, "events", rsvpOperation.eventId)) {
     return Response.json({ code: "event_not_found" }, { status: 404 });
@@ -1224,30 +1414,63 @@ export async function manageOrganizationCalendarInStore(
   if (!recordExists(storage, "profiles", rsvpOperation.rsvp.profileId)) {
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
+  const event = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly durationMinutes: number | null;
+      readonly isCanceled: number;
+      readonly startsAt: string;
+      readonly type: "Performance" | "Rehearsal";
+    }>(
+      "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled FROM events WHERE id = ? LIMIT 1",
+      rsvpOperation.eventId,
+    )
+    .toArray()
+    .at(0);
+  if (!event) return Response.json({ code: "event_not_found" }, { status: 404 });
+  if (event.isCanceled === 1) {
+    return Response.json({ code: "event_canceled" }, { status: 409 });
+  }
+  if (rsvpOperation.selfService) {
+    const configuration = readRosterAutomationConfiguration(storage);
+    const timezone = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+        "SELECT timezone FROM organization_metadata LIMIT 1",
+      )
+      .one().timezone;
+    const deadlineFields = decorateEventWithRsvpDeadline(
+      event,
+      configuration,
+      timezone,
+      new Date(occurredAt),
+    );
+    if (!deadlineFields.rsvpSelfServiceOpen) {
+      return Response.json({ code: "rsvp_closed" }, { status: 409 });
+    }
+  }
   storage.transactionSync(() => {
     const rsvpNote = rsvpOperation.rsvp.rsvp === "No" ? rsvpOperation.rsvp.rsvpNote : "";
-    storage.sql.exec(
-      `INSERT INTO event_rosters (event_id, profile_id, rsvp, rsvp_note, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(event_id, profile_id) DO UPDATE SET
-         rsvp = excluded.rsvp, rsvp_note = excluded.rsvp_note, updated_at = excluded.updated_at`,
-      rsvpOperation.eventId,
-      rsvpOperation.rsvp.profileId,
-      rsvpOperation.rsvp.rsvp,
+    recordEventRsvpChange(storage, {
+      actor: {
+        actorId: rsvpOperation.actorUserId,
+        actorType: "organization_member",
+        requestId: rsvpOperation.requestId,
+      },
+      automatic: false,
+      eventId: rsvpOperation.eventId,
+      newRsvp: rsvpOperation.rsvp.rsvp,
+      occurredAt,
+      profileId: rsvpOperation.rsvp.profileId,
+      reason: rsvpOperation.selfService ? "Member updated RSVP." : "Administrator updated RSVP.",
       rsvpNote,
-      occurredAt,
-      occurredAt,
-    );
-    insertAudit(
-      storage,
-      rsvpOperation,
-      "event.rsvp.updated",
-      "event_roster",
-      `${rsvpOperation.eventId}:${rsvpOperation.rsvp.profileId}`,
-      { hasNote: rsvpNote.length > 0, rsvp: rsvpOperation.rsvp.rsvp },
-      occurredAt,
-    );
+    });
   });
+  recalculateProfileStatuses(
+    storage,
+    rsvpOperation.organizationId,
+    new Date(occurredAt),
+    rsvpOperation.requestId,
+  );
   return Response.json({
     eventId: rsvpOperation.eventId,
     ...rsvpOperation.rsvp,

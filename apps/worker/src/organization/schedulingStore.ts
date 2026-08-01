@@ -64,7 +64,7 @@ function readEventSummary(storage: DurableObjectStorage, eventId: string): Event
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress
        FROM events e
        LEFT JOIN venues v ON v.id = e.venue_id
-       WHERE e.id = ? LIMIT 1`,
+       WHERE e.id = ? AND e.is_archived = 0 AND e.is_canceled = 0 LIMIT 1`,
         eventId,
       )
       .toArray()

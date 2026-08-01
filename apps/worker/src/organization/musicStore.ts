@@ -1,8 +1,10 @@
 import {
   organizationMusicBulkUpdateRequestSchema,
+  organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceRequestSchema,
   organizationMusicPieceSchema,
   organizationRosterConfigurationRequestSchema,
+  type OrganizationMusicLibrarySettings,
   type OrganizationMusicPiece,
   type OrganizationMusicPieceRequest,
 } from "@choir/contracts";
@@ -50,6 +52,10 @@ const musicOperationSchema = z.discriminatedUnion("action", [
       )
       .min(1)
       .max(500),
+  }),
+  operationContextSchema.extend({
+    action: z.literal("update_settings"),
+    settings: organizationMusicLibrarySettingsRequestSchema,
   }),
 ]);
 
@@ -104,6 +110,28 @@ function identityMatches(storage: DurableObjectStorage, organizationId: string):
   );
 }
 
+const defaultMusicLibrarySettings: OrganizationMusicLibrarySettings = {
+  publisherSearchTemplate: "",
+};
+
+function storedMusicLibrarySettings(
+  storage: DurableObjectStorage,
+): OrganizationMusicLibrarySettings {
+  try {
+    const raw = storage.sql
+      .exec<{ readonly template: string }>(
+        "SELECT music_publisher_search_template AS template FROM organization_metadata LIMIT 1",
+      )
+      .toArray()
+      .at(0)?.template;
+    return organizationMusicLibrarySettingsRequestSchema.parse({
+      publisherSearchTemplate: raw ?? "",
+    });
+  } catch {
+    return defaultMusicLibrarySettings;
+  }
+}
+
 function parseStoredPiece(row: MusicPieceRow): OrganizationMusicPiece {
   const genres = JSON.parse(row.genresJson) as unknown;
   const sectionBuckets = JSON.parse(row.sectionBucketsJson) as unknown;
@@ -124,7 +152,7 @@ function addPerformanceHistory(
   const events = storage.sql
     .exec<PerformanceHistoryRow>(
       `SELECT starts_at AS startsAt, set_list_json AS setListJson
-       FROM events WHERE type = 'Performance' AND is_archived = 0
+       FROM events WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
        ORDER BY starts_at ASC LIMIT 500`,
     )
     .toArray();
@@ -542,6 +570,44 @@ function deletePiece(
   return Response.json({ pieceId: operation.pieceId, status: "deleted" });
 }
 
+function updateMusicLibrarySettings(
+  storage: DurableObjectStorage,
+  operation: Extract<z.infer<typeof musicOperationSchema>, { readonly action: "update_settings" }>,
+): Response {
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET music_publisher_search_template = ?, updated_at = ?",
+      operation.settings.publisherSearchTemplate,
+      occurredAt,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'music.library_settings_updated',
+         'organization', ?, ?, ?, ?)`,
+      `music:settings:${operation.requestId}`,
+      operation.actorUserId,
+      operation.organizationId,
+      operation.requestId,
+      JSON.stringify({ publisherSearchTemplate: operation.settings.publisherSearchTemplate }),
+      occurredAt,
+    );
+  });
+  return Response.json(operation.settings);
+}
+
+export function readMusicLibrarySettingsFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!organizationId || !identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  return Response.json(storedMusicLibrarySettings(storage));
+}
+
 export function listMusicPiecesFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -577,5 +643,8 @@ export async function manageMusicInStore(
   if (operation.data.action === "delete") return deletePiece(storage, operation.data);
   if (operation.data.action === "import") return importPieces(storage, operation.data);
   if (operation.data.action === "bulk_update") return bulkUpdatePieces(storage, operation.data);
+  if (operation.data.action === "update_settings") {
+    return updateMusicLibrarySettings(storage, operation.data);
+  }
   return writePiece(storage, operation.data);
 }

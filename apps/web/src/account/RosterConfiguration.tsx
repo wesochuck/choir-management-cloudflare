@@ -42,6 +42,7 @@ function profileRequestFrom(profile: OrganizationProfile) {
     receiveFinancialAlerts: profile.receiveFinancialAlerts,
     receiveRsvpDeclineNotices: profile.receiveRsvpDeclineNotices,
     showInDirectory: profile.showInDirectory,
+    statusIsManual: profile.statusIsManual,
     voicePart: profile.voicePart,
   };
 }
@@ -88,7 +89,13 @@ export function RosterConfiguration({ enabled }: Props) {
     setError(null);
     setSaved(false);
     try {
-      const nextConfiguration = await updateOrganizationRosterConfiguration(configuration);
+      const latest = await getOrganizationRosterConfiguration();
+      const nextConfiguration = await updateOrganizationRosterConfiguration({
+        ...latest,
+        performerLabel: configuration.performerLabel,
+        sections: configuration.sections,
+        voiceParts: configuration.voiceParts,
+      });
       setConfiguration(nextConfiguration);
       setSavedConfiguration(nextConfiguration);
       setPerformerLabel(nextConfiguration.performerLabel);
@@ -561,7 +568,7 @@ export function RosterConfiguration({ enabled }: Props) {
             (profile) => (
               <li key={profile.id}>
                 <strong>{profile.displayName}</strong>
-                <span>{profile.globalStatus}</span>
+                <span>{profile.globalStatus === "Idle" ? "On Break" : profile.globalStatus}</span>
               </li>
             ),
           )}

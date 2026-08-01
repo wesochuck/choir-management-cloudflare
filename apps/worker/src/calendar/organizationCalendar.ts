@@ -1,7 +1,9 @@
 import {
   organizationAttendanceResponseSchema,
   organizationEventSchema,
+  organizationEventRsvpHistoryResponseSchema,
   organizationEventArchiveResponseSchema,
+  organizationEventCancelResponseSchema,
   organizationEventRsvpExportDataSchema,
   organizationEventsResponseSchema,
   organizationCalendarSettingsResponseSchema,
@@ -9,6 +11,7 @@ import {
   organizationProfileFolderNumberSchema,
   organizationProfileFolderNumbersResponseSchema,
   organizationRosterConfigurationRequestSchema,
+  organizationRosterAutomationPreviewResponseSchema,
   organizationRsvpSchema,
   organizationProfilePerformanceHistoryResponseSchema,
   organizationVenueSchema,
@@ -16,10 +19,12 @@ import {
   organizationVenuesResponseSchema,
   singerEventsResponseSchema,
   type OrganizationEvent,
+  type OrganizationEventRsvpHistoryResponse,
   type OrganizationAttendanceRow,
   type OrganizationAttendanceUpdate,
   type OrganizationEventRequest,
   type OrganizationEventArchiveResponse,
+  type OrganizationEventCancelResponse,
   type OrganizationEventRsvpExportData,
   type OrganizationProfileFolderNumber,
   type OrganizationProfileFolderNumberUpdate,
@@ -30,6 +35,7 @@ import {
   type OrganizationCalendarSettings,
   type OrganizationDashboardSummaryResponse,
   type OrganizationRosterConfiguration,
+  type OrganizationRosterAutomationPreviewResponse,
   type OrganizationProfilePerformanceHistoryResponse,
   type SingerEvent,
 } from "@choir/contracts";
@@ -85,6 +91,19 @@ export async function listOrganizationEventAttendance(
   if (!response.ok) throw new Error("The Organization store rejected the attendance request.");
   return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(await response.json())
     .rows;
+}
+
+export async function listOrganizationEventRsvpHistory(
+  env: Env,
+  organizationId: string,
+  eventId: string,
+): Promise<OrganizationEventRsvpHistoryResponse> {
+  const url = new URL("https://organization.internal/internal/calendar/event-rsvp-history");
+  url.searchParams.set("eventId", eventId);
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) throw new Error("The Organization store rejected the RSVP history request.");
+  return organizationEventRsvpHistoryResponseSchema.parse(await response.json());
 }
 
 export async function listOrganizationProfileFolderNumbers(
@@ -288,14 +307,25 @@ export async function archiveOrganizationEvent(
     .parse(await mutate(env, { action: "archive_event", ...actor, eventId }));
 }
 
+export async function cancelOrganizationEvent(
+  env: Env,
+  actor: ActorContext,
+  eventId: string,
+): Promise<Omit<OrganizationEventCancelResponse, "requestId">> {
+  return organizationEventCancelResponseSchema
+    .omit({ requestId: true })
+    .parse(await mutate(env, { action: "cancel_event", ...actor, eventId }));
+}
+
 export async function setOrganizationEventRsvp(
   env: Env,
   actor: ActorContext,
   eventId: string,
   rsvp: OrganizationRsvpRequest,
+  selfService = false,
 ): Promise<OrganizationRsvp> {
   return organizationRsvpSchema.parse(
-    await mutate(env, { action: "set_rsvp", ...actor, eventId, rsvp }),
+    await mutate(env, { action: "set_rsvp", ...actor, eventId, rsvp, selfService }),
   );
 }
 
@@ -354,6 +384,25 @@ export async function updateOrganizationRosterConfiguration(
     throw new Error("The Organization store rejected the roster configuration mutation.");
   }
   return organizationRosterConfigurationRequestSchema.parse(await response.json());
+}
+
+export async function previewOrganizationRosterAutomation(
+  env: Env,
+  organizationId: string,
+  configuration: OrganizationRosterConfiguration,
+  profileId: string | null,
+): Promise<OrganizationRosterAutomationPreviewResponse> {
+  const response = await stub(env, organizationId).fetch(
+    "https://organization.internal/internal/roster/automation-preview",
+    {
+      body: JSON.stringify({ configuration, organizationId, profileId }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok)
+    throw new Error("The Organization store rejected the roster automation preview.");
+  return organizationRosterAutomationPreviewResponseSchema.parse(await response.json());
 }
 
 export async function listMemberSchedule(

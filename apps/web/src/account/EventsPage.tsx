@@ -3,16 +3,23 @@ import type {
   OrganizationEventRequest,
   OrganizationVenue,
 } from "@choir/contracts";
-import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
+import {
+  calculateRsvpDeadline,
+  isRsvpDeadlinePassed,
+  utcToZonedLocalDateTime,
+  zonedLocalDateTimeToUtc,
+} from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import {
   AuthApiError,
   archiveOrganizationEvent,
+  cancelOrganizationEvent,
   createOrganizationEvent,
   deletePrivateOrganizationFile,
   getOrganizationCalendarSettings,
+  getOrganizationRosterConfiguration,
   listOrganizationEvents,
   listOrganizationVenues,
   updateOrganizationEvent,
@@ -58,6 +65,8 @@ type EventsState =
   | {
       readonly events: readonly OrganizationEvent[];
       readonly status: "ready";
+      readonly rsvpExpiryEnabled: boolean;
+      readonly rsvpExpiryLeadDays: number;
       readonly timezone: string;
       readonly venues: readonly OrganizationVenue[];
     };
@@ -96,6 +105,61 @@ function displayEventDate(value: string, timezone: string): string {
   }).format(new Date(value));
 }
 
+function displayRsvpDeadline(event: OrganizationEvent, timezone: string): string | null {
+  if (!event.rsvpDeadlineAt || !event.rsvpDeadlineDate) return null;
+  return displayRsvpDeadlineAt(event.rsvpDeadlineAt, event.rsvpDeadlinePassed, timezone);
+}
+
+function displayRsvpDeadlineAt(value: string, passed: boolean, timezone: string): string {
+  const date = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeZone: timezone,
+  }).format(new Date(value));
+  return passed ? `RSVP deadline passed · ${date}` : `RSVP by ${date}`;
+}
+
+function EventRsvpDeadlineNotice({
+  eventStart,
+  eventType,
+  state,
+}: {
+  readonly eventStart: string;
+  readonly eventType: OrganizationEventRequest["type"];
+  readonly state: EventsState;
+}) {
+  if (eventType !== "Performance" || state.status !== "ready") return null;
+  const draftStartsAt = zonedLocalDateTimeToUtc(eventStart, state.timezone);
+  const draftDeadline =
+    state.rsvpExpiryEnabled && draftStartsAt
+      ? calculateRsvpDeadline(
+          { startsAt: draftStartsAt, type: "Performance" },
+          state.rsvpExpiryLeadDays,
+          state.timezone,
+        )
+      : null;
+  const draftDeadlinePassed = draftDeadline
+    ? isRsvpDeadlinePassed(draftDeadline, new Date())
+    : false;
+  return (
+    <p
+      className={
+        draftDeadlinePassed
+          ? "notice notice--warning form-grid__wide"
+          : "notice notice--info form-grid__wide"
+      }
+    >
+      {state.rsvpExpiryEnabled
+        ? draftDeadline
+          ? draftDeadlinePassed
+            ? `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, true, state.timezone)}. Pending RSVPs will close. Change the date or adjust this in Roster Settings.`
+            : `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, false, state.timezone)} through 11:59 p.m. Link: Roster Settings.`
+          : "Choose a valid start date to calculate the RSVP deadline."
+        : "RSVP Expiry is off. You can change it in Roster Settings."}
+      {state.rsvpExpiryEnabled ? <a href="/admin/settings"> Open Roster Settings</a> : null}
+    </p>
+  );
+}
+
 function optionalInteger(value: string): number | null {
   if (!value) return null;
   const parsed = Number.parseInt(value, 10);
@@ -111,6 +175,15 @@ function eventDialogDescription(state: EventsState): string {
 function eventDialogTitle(editingId: string | null, title: string): string {
   if (editingId) return "Edit event";
   return title.endsWith(" copy") ? "Clone event" : "Create event";
+}
+
+function shouldShowPageError(
+  error: string | null,
+  dialogOpen: boolean,
+  archiveCandidate: OrganizationEvent | null,
+  cancelCandidate: OrganizationEvent | null,
+): boolean {
+  return error !== null && !dialogOpen && archiveCandidate === null && cancelCandidate === null;
 }
 
 function eventSaveLabel(busy: boolean, editingId: string | null): string {
@@ -149,6 +222,7 @@ function EventList({
   events,
   filteredEvents,
   onArchive,
+  onCancel,
   onClone,
   onEdit,
   timezone,
@@ -157,6 +231,7 @@ function EventList({
   readonly events: readonly OrganizationEvent[];
   readonly filteredEvents: readonly OrganizationEvent[];
   readonly onArchive: (event: OrganizationEvent) => void;
+  readonly onCancel: (event: OrganizationEvent) => void;
   readonly onClone: (event: OrganizationEvent) => void;
   readonly onEdit: (event: OrganizationEvent) => void;
   readonly timezone: string;
@@ -172,13 +247,23 @@ function EventList({
             <div>
               <strong>{candidate.title}</strong>
               <small className="table-secondary">{candidate.type}</small>
+              {candidate.isCanceled ? <span className="status-pill">Canceled</span> : null}
             </div>
           ),
         },
         {
           header: "Date",
           id: "date",
-          render: (candidate) => displayEventDate(candidate.startsAt, timezone),
+          render: (candidate) => (
+            <div>
+              {displayEventDate(candidate.startsAt, timezone)}
+              {candidate.type === "Performance" && displayRsvpDeadline(candidate, timezone) ? (
+                <small className="table-secondary">
+                  {displayRsvpDeadline(candidate, timezone)}
+                </small>
+              ) : null}
+            </div>
+          ),
         },
         {
           header: "Venue",
@@ -226,6 +311,16 @@ function EventList({
                 type="button"
               >
                 Clone
+              </button>
+              <button
+                className="text-button text-button--danger"
+                disabled={candidate.isCanceled}
+                onClick={() => {
+                  onCancel(candidate);
+                }}
+                type="button"
+              >
+                Cancel
               </button>
               <button
                 className="text-button text-button--danger"
@@ -340,6 +435,7 @@ function EventEditorDialog({
               value={eventStart}
             />
           </div>
+          <EventRsvpDeadlineNotice eventStart={eventStart} eventType={event.type} state={state} />
           <div className="field">
             <label htmlFor="events-page-call">Call time</label>
             <input
@@ -577,6 +673,48 @@ function ArchiveEventDialog({
   );
 }
 
+function CancelEventDialog({
+  busy,
+  cancelCandidate,
+  error,
+  onCancel,
+  onClose,
+}: {
+  readonly busy: boolean;
+  readonly cancelCandidate: OrganizationEvent | null;
+  readonly error: string | null;
+  readonly onCancel: () => void;
+  readonly onClose: () => void;
+}) {
+  return (
+    <Dialog
+      description="Canceled events stay visible for history but no longer accept RSVPs or drive roster automation."
+      onClose={onClose}
+      open={cancelCandidate !== null}
+      title="Cancel event?"
+    >
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <p>
+        {cancelCandidate
+          ? `Cancel ${cancelCandidate.title}? Linked rehearsals will also be canceled.`
+          : "Cancel this event?"}
+      </p>
+      <div className="dialog__actions">
+        <button className="button button--secondary" onClick={onClose} type="button">
+          Keep event
+        </button>
+        <button className="button button--danger" disabled={busy} onClick={onCancel} type="button">
+          {busy ? "Canceling…" : "Cancel event"}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
 function BulkRehearsalDialog({
   busy,
   count,
@@ -725,6 +863,7 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const [archiveCandidate, setArchiveCandidate] = useState<OrganizationEvent | null>(null);
   const [busy, setBusy] = useState(false);
   const [bulkRehearsalOpen, setBulkRehearsalOpen] = useState(false);
+  const [cancelCandidate, setCancelCandidate] = useState<OrganizationEvent | null>(null);
   const [bulkRehearsalCount, setBulkRehearsalCount] = useState("8");
   const [bulkRehearsalDay, setBulkRehearsalDay] = useState("2");
   const [bulkRehearsalPerformanceId, setBulkRehearsalPerformanceId] = useState("");
@@ -750,9 +889,17 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
       listOrganizationEvents(controller.signal),
       listOrganizationVenues(controller.signal),
       getOrganizationCalendarSettings(controller.signal),
+      getOrganizationRosterConfiguration(controller.signal),
     ])
-      .then(([events, venues, settings]) => {
-        setState({ events, status: "ready", timezone: settings.timezone, venues });
+      .then(([events, venues, settings, rosterConfiguration]) => {
+        setState({
+          events,
+          rsvpExpiryEnabled: rosterConfiguration.rsvpExpiryEnabled,
+          rsvpExpiryLeadDays: rosterConfiguration.rsvpExpiryLeadDays,
+          status: "ready",
+          timezone: settings.timezone,
+          venues,
+        });
       })
       .catch((loadError: unknown) => {
         if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
@@ -935,6 +1082,38 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function cancelEvent() {
+    if (!cancelCandidate) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await cancelOrganizationEvent(cancelCandidate.id);
+      setState((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              events: current.events.map((candidate) =>
+                candidate.id === cancelCandidate.id ||
+                candidate.parentPerformanceId === cancelCandidate.id
+                  ? { ...candidate, isCanceled: true }
+                  : candidate,
+              ),
+            }
+          : current,
+      );
+      setCancelCandidate(null);
+      setSuccess("Event canceled.");
+    } catch (cancelError: unknown) {
+      setError(
+        cancelError instanceof AuthApiError
+          ? cancelError.message
+          : "The event could not be canceled.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function bulkAddRehearsals() {
     if (state.status !== "ready") return;
     const target = state.events.find(({ id }) => id === bulkRehearsalPerformanceId);
@@ -1076,7 +1255,7 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
           />
         </label>
       </div>
-      {error && !dialogOpen && !archiveCandidate ? (
+      {shouldShowPageError(error, dialogOpen, archiveCandidate, cancelCandidate) ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
@@ -1100,6 +1279,11 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
             setError(null);
             setSuccess(null);
             setArchiveCandidate(candidate);
+          }}
+          onCancel={(candidate) => {
+            setError(null);
+            setSuccess(null);
+            setCancelCandidate(candidate);
           }}
           onClone={openClone}
           onEdit={openEdit}
@@ -1132,6 +1316,17 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
         }}
         onClose={() => {
           if (!busy) setArchiveCandidate(null);
+        }}
+      />
+      <CancelEventDialog
+        busy={busy}
+        cancelCandidate={cancelCandidate}
+        error={error}
+        onCancel={() => {
+          void cancelEvent();
+        }}
+        onClose={() => {
+          if (!busy) setCancelCandidate(null);
         }}
       />
       <BulkRehearsalDialog

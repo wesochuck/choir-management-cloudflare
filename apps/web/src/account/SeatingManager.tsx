@@ -87,6 +87,7 @@ const emptyProfile: OrganizationProfileRequest = {
   receiveFinancialAlerts: false,
   receiveRsvpDeclineNotices: false,
   showInDirectory: true,
+  statusIsManual: false,
   voicePart: "",
 };
 

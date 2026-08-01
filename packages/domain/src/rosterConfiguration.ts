@@ -1,5 +1,9 @@
 export const defaultRosterConfiguration = {
+  onBreakTimeoutDays: 365,
+  onBreakTimeoutEnabled: true,
   performerLabel: "Performer",
+  rsvpExpiryEnabled: true,
+  rsvpExpiryLeadDays: 7,
   sections: [
     { code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false },
     { code: "A", color: "#4a7c59", name: "Altos", trackOnly: false },
@@ -16,4 +20,7 @@ export const defaultRosterConfiguration = {
     { fullName: "Bass 1", label: "B1", sectionCode: "B" },
     { fullName: "Bass 2", label: "B2", sectionCode: "B" },
   ],
+  statusAutomationEnabled: true,
+  statusAutomationMissThreshold: 3,
+  statusAutomationRecoveryEnabled: true,
 } as const;

@@ -1,5 +1,6 @@
 import type { DeliveryJob } from "../jobs/contracts";
 import { readTicketMessageTemplate } from "./ticketMessageTemplates";
+import { runRosterAutomations } from "./statusAutomationStore";
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
@@ -78,14 +79,18 @@ function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): voi
       `SELECT p.id AS purchaseId, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
         p.quantity, e.id AS eventId, e.title AS eventTitle, e.starts_at AS eventStartsAt
        FROM ticket_purchases p JOIN events e ON e.id = p.event_id
-       WHERE p.bundle_id IS NULL AND p.status = 'paid' AND e.starts_at > ? AND e.starts_at <= ?
+       WHERE p.bundle_id IS NULL AND p.status = 'paid'
+         AND e.is_archived = 0 AND e.is_canceled = 0
+         AND e.starts_at > ? AND e.starts_at <= ?
        UNION ALL
        SELECT p.id, p.buyer_name, p.buyer_email, p.quantity,
         e.id, e.title, e.starts_at
        FROM ticket_bundle_allocations a
        JOIN ticket_purchases p ON p.id = a.purchase_id
        JOIN events e ON e.id = a.event_id
-       WHERE p.status = 'paid' AND e.starts_at > ? AND e.starts_at <= ?
+       WHERE p.status = 'paid'
+         AND e.is_archived = 0 AND e.is_canceled = 0
+         AND e.starts_at > ? AND e.starts_at <= ?
        ORDER BY eventStartsAt, purchaseId, eventId LIMIT 100`,
       now.toISOString(),
       horizon,
@@ -151,7 +156,7 @@ function createEventReminderJobs(
     .exec<EventReminderCandidateRow>(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
        FROM events
-       WHERE is_archived = 0
+       WHERE is_archived = 0 AND is_canceled = 0
          AND reminder_sent_at IS NULL
          AND starts_at > ?
          AND starts_at <= ?
@@ -205,7 +210,7 @@ function createPostEventReportJobs(
     .exec<PostEventReportCandidateRow>(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
        FROM events
-       WHERE is_archived = 0
+       WHERE is_archived = 0 AND is_canceled = 0
          AND type = 'Performance'
          AND starts_at >= ?
          AND starts_at < ?
@@ -310,6 +315,7 @@ export async function runOrganizationAlarm(
     await storage.deleteAlarm();
     return { enqueuedJobCount: 0, organizationId: null };
   }
+  runRosterAutomations(storage, organizationId, now);
   createDueJobs(storage, organizationId, now);
   const pendingJobs = readPendingJobs(storage);
   if (pendingJobs.length === 0) {

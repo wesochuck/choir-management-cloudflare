@@ -1,6 +1,8 @@
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 
+import { getOrganizationPublicWebsiteSettings } from "../auth/api";
+
 interface QRCodeShareCardProps {
   readonly description: string;
   readonly path: string;
@@ -16,6 +18,73 @@ function safeFileName(title: string): string {
   );
 }
 
+const organizationLogoUrlPromises = new Map<string, Promise<string | null>>();
+
+function getOrganizationLogoUrl(): Promise<string | null> {
+  const hostname = typeof window === "undefined" ? "localhost" : window.location.hostname;
+  const existing = organizationLogoUrlPromises.get(hostname);
+  if (existing) return existing;
+  const request = getOrganizationPublicWebsiteSettings()
+    .then(({ logoFileId }) =>
+      logoFileId ? `/api/organization/files/${encodeURIComponent(logoFileId)}` : null,
+    )
+    .catch(() => null);
+  organizationLogoUrlPromises.set(hostname, request);
+  return request;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      resolve(image);
+    };
+    image.onerror = () => {
+      reject(new Error("Image could not be loaded."));
+    };
+    image.src = src;
+  });
+}
+
+async function overlayOrganizationLogo(qrDataUrl: string, logoUrl: string): Promise<string> {
+  try {
+    const [qrImage, logoImage] = await Promise.all([loadImage(qrDataUrl), loadImage(logoUrl)]);
+    const canvas = document.createElement("canvas");
+    canvas.width = qrImage.width;
+    canvas.height = qrImage.height;
+    const context = canvas.getContext("2d");
+    if (!context) return qrDataUrl;
+
+    context.drawImage(qrImage, 0, 0);
+
+    const logoBoxSize = qrImage.width * 0.2;
+    const logoBackgroundRadius = (logoBoxSize * 1.4) / 2;
+    const centerX = qrImage.width / 2;
+    const centerY = qrImage.height / 2;
+    context.beginPath();
+    context.arc(centerX, centerY, logoBackgroundRadius, 0, Math.PI * 2);
+    context.fillStyle = "#ffffff";
+    context.fill();
+
+    const logoScale = Math.min(
+      logoBoxSize / logoImage.naturalWidth,
+      logoBoxSize / logoImage.naturalHeight,
+    );
+    const logoWidth = logoImage.naturalWidth * logoScale;
+    const logoHeight = logoImage.naturalHeight * logoScale;
+    context.drawImage(
+      logoImage,
+      centerX - logoWidth / 2,
+      centerY - logoHeight / 2,
+      logoWidth,
+      logoHeight,
+    );
+    return canvas.toDataURL("image/png");
+  } catch {
+    return qrDataUrl;
+  }
+}
+
 export function QRCodeShareCard({ description, path, title }: QRCodeShareCardProps) {
   const [qrCode, setQrCode] = useState<
     | { readonly dataUrl: string; readonly path: string }
@@ -23,10 +92,21 @@ export function QRCodeShareCard({ description, path, title }: QRCodeShareCardPro
     | null
   >(null);
   const [copied, setCopied] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const absoluteUrl = useMemo(() => {
     const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
     return new URL(path, origin).toString();
   }, [path]);
+
+  useEffect(() => {
+    let active = true;
+    void getOrganizationLogoUrl().then((nextLogoUrl) => {
+      if (active) setLogoUrl(nextLogoUrl);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -36,8 +116,11 @@ export function QRCodeShareCard({ description, path, title }: QRCodeShareCardPro
       margin: 2,
       width: 512,
     })
-      .then((dataUrl) => {
-        if (active) setQrCode({ dataUrl, path: absoluteUrl });
+      .then(async (dataUrl) => {
+        const compositedDataUrl = logoUrl
+          ? await overlayOrganizationLogo(dataUrl, logoUrl)
+          : dataUrl;
+        if (active) setQrCode({ dataUrl: compositedDataUrl, path: absoluteUrl });
       })
       .catch(() => {
         if (active) setQrCode({ error: true, path: absoluteUrl });
@@ -45,7 +128,7 @@ export function QRCodeShareCard({ description, path, title }: QRCodeShareCardPro
     return () => {
       active = false;
     };
-  }, [absoluteUrl]);
+  }, [absoluteUrl, logoUrl]);
 
   const qrCodeUrl = qrCode?.path === absoluteUrl && "dataUrl" in qrCode ? qrCode.dataUrl : null;
   const generationError = qrCode?.path === absoluteUrl && "error" in qrCode;

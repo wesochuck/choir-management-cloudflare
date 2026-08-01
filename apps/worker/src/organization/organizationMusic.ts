@@ -1,6 +1,8 @@
 import {
+  organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceSchema,
   organizationMusicPiecesResponseSchema,
+  type OrganizationMusicLibrarySettings,
   type OrganizationMusicPiece,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicPieceRequest,
@@ -71,6 +73,34 @@ export async function listOrganizationMusicPieces(
   return organizationMusicPiecesResponseSchema
     .omit({ requestId: true })
     .parse(await response.json()).pieces;
+}
+
+export async function readOrganizationMusicLibrarySettings(
+  env: Env,
+  organizationId: string,
+): Promise<OrganizationMusicLibrarySettings> {
+  const url = new URL("https://organization.internal/internal/music/settings");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await organizationStub(env, organizationId).fetch(url);
+  if (!response.ok) throw await repositoryError(response);
+  return organizationMusicLibrarySettingsRequestSchema.parse(await response.json());
+}
+
+export async function updateOrganizationMusicLibrarySettings(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  settings: OrganizationMusicLibrarySettings,
+): Promise<OrganizationMusicLibrarySettings> {
+  const response = await mutate(env, context.organizationId, {
+    action: "update_settings",
+    ...context,
+    settings,
+  });
+  return organizationMusicLibrarySettingsRequestSchema.parse(await response.json());
 }
 
 export async function createOrganizationMusicPiece(

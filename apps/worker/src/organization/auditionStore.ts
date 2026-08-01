@@ -564,7 +564,7 @@ function hasActivePerformance(storage: DurableObjectStorage, performanceId: stri
   return (
     storage.sql
       .exec(
-        "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 LIMIT 1",
+        "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0 LIMIT 1",
         performanceId,
       )
       .toArray().length > 0
@@ -720,7 +720,7 @@ export function readPublicAuditionSettingsFromStore(
         .exec<{ readonly id: string; readonly startsAt: string; readonly title: string }>(
           `SELECT id, starts_at AS startsAt, title
            FROM events
-           WHERE id = ? AND type = 'Performance' AND is_archived = 0
+           WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0
            LIMIT 1`,
           settings.defaultPerformanceId,
         )
@@ -779,7 +779,7 @@ export function updateAuditionSettingsInStore(
     const performanceExists =
       storage.sql
         .exec(
-          "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 LIMIT 1",
+          "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0 LIMIT 1",
           settings.defaultPerformanceId,
         )
         .toArray().length > 0;

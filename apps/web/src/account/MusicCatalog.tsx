@@ -2,6 +2,7 @@ import type {
   OrganizationEvent,
   OrganizationEventRequest,
   OrganizationMusicBulkUpdateRequest,
+  OrganizationMusicLibrarySettings,
   OrganizationMusicPiece,
   OrganizationMusicPieceRequest,
   OrganizationRosterConfiguration,
@@ -35,6 +36,7 @@ import {
   deletePrivateOrganizationFile,
   createOrganizationEvent,
   getOrganizationCalendarSettings,
+  getOrganizationMusicLibrarySettings,
   getOrganizationRosterConfiguration,
   importOrganizationMusicCsv,
   listOrganizationMusic,
@@ -42,6 +44,7 @@ import {
   listOrganizationVenues,
   uploadPrivateOrganizationFile,
   updateOrganizationMusicPiece,
+  updateOrganizationMusicLibrarySettings,
   updateOrganizationEvent,
 } from "../auth/api";
 import { CsvImportDialog } from "./CsvImportDialog";
@@ -53,6 +56,7 @@ import {
   initialDurationAutoFillState,
   type DurationAutoFillState,
 } from "./durationAutoFill";
+import { buildMusicPublisherSearchUrl } from "./musicPublisherSearch";
 
 const maximumAudioBytes = 20 * 1024 * 1024;
 
@@ -511,6 +515,7 @@ function MusicCatalogTable({
   onSelectMany,
   onToggleSelection,
   pieces,
+  publisherSearchTemplate,
   search,
   selectedIds,
   selectedGenres,
@@ -520,6 +525,7 @@ function MusicCatalogTable({
   readonly onSelectMany: (pieceIds: readonly string[]) => void;
   readonly onToggleSelection: (pieceId: string) => void;
   readonly pieces: readonly OrganizationMusicPiece[];
+  readonly publisherSearchTemplate: string;
   readonly search: string;
   readonly selectedIds: readonly string[];
   readonly selectedGenres: readonly string[];
@@ -653,6 +659,27 @@ function MusicCatalogTable({
             header: "Catalog ID",
             id: "catalogId",
             render: (piece) => piece.catalogId || "—",
+            sortValue: (piece) => sortParent(piece).catalogId,
+          },
+          {
+            header: "Publisher",
+            id: "publisher",
+            render: (piece) => {
+              const url = buildMusicPublisherSearchUrl(publisherSearchTemplate, piece.catalogId);
+              return url ? (
+                <a
+                  aria-label={`Search ${piece.catalogId} on the publisher website`}
+                  className="music-publisher-search-link"
+                  href={url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Search
+                </a>
+              ) : (
+                "—"
+              );
+            },
             sortValue: (piece) => sortParent(piece).catalogId,
           },
           {
@@ -1592,7 +1619,7 @@ function MusicDeleteControls({
 }) {
   return (
     <>
-      <div className="form-actions">
+      <div className="form-actions music-piece-form__actions">
         <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Saving music…" : "Save music piece"}
         </button>
@@ -1841,6 +1868,10 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
   const [timezone, setTimezone] = useState("UTC");
+  const [publisherSearchTemplate, setPublisherSearchTemplate] = useState("");
+  const [savedPublisherSearchTemplate, setSavedPublisherSearchTemplate] = useState("");
+  const [publisherSettingsBusy, setPublisherSettingsBusy] = useState(false);
+  const [publisherSettingsError, setPublisherSettingsError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1887,13 +1918,16 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
       listOrganizationEvents(controller.signal),
       listOrganizationVenues(controller.signal),
       getOrganizationCalendarSettings(controller.signal),
+      getOrganizationMusicLibrarySettings(controller.signal),
     ])
-      .then(([catalog, configuration, nextEvents, nextVenues, calendarSettings]) => {
+      .then(([catalog, configuration, nextEvents, nextVenues, calendarSettings, musicSettings]) => {
         setPieces(catalog);
         setRoster(configuration);
         setEvents(nextEvents);
         setVenues(nextVenues);
         setTimezone(calendarSettings.timezone);
+        setPublisherSearchTemplate(musicSettings.publisherSearchTemplate);
+        setSavedPublisherSearchTemplate(musicSettings.publisherSearchTemplate);
       })
       .catch((caught: unknown) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
@@ -2336,6 +2370,27 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function savePublisherSearchSettings(): Promise<void> {
+    setPublisherSettingsBusy(true);
+    setPublisherSettingsError(null);
+    try {
+      const settings: OrganizationMusicLibrarySettings = {
+        publisherSearchTemplate: publisherSearchTemplate.trim(),
+      };
+      const saved = await updateOrganizationMusicLibrarySettings(settings);
+      setPublisherSearchTemplate(saved.publisherSearchTemplate);
+      setSavedPublisherSearchTemplate(saved.publisherSearchTemplate);
+    } catch (caught: unknown) {
+      setPublisherSettingsError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The publisher search setting could not be saved.",
+      );
+    } finally {
+      setPublisherSettingsBusy(false);
+    }
+  }
+
   if (!enabled) return null;
 
   return (
@@ -2346,6 +2401,56 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
           and will appear here when linked through the track workflow.
         </p>
       </div>
+      <section
+        className="music-publisher-settings"
+        aria-labelledby="music-publisher-settings-title"
+      >
+        <div>
+          <p className="eyebrow">Music Library setting</p>
+          <h2 id="music-publisher-settings-title">Publisher catalog search</h2>
+          <p>
+            Add the publisher’s HTTPS search URL and use <code>{"{catalogId}"}</code> where the
+            catalog number belongs. Matching rows will include a direct Search link.
+          </p>
+        </div>
+        <div className="music-publisher-settings__form">
+          <label className="field">
+            Publisher search URL template
+            <input
+              aria-describedby="music-publisher-settings-help"
+              placeholder="https://publisher.example/search?catalog={catalogId}"
+              type="text"
+              value={publisherSearchTemplate}
+              onChange={(event) => {
+                setPublisherSearchTemplate(event.target.value);
+                setPublisherSettingsError(null);
+              }}
+            />
+            <small className="field-help" id="music-publisher-settings-help">
+              Leave blank to hide publisher links. HTTPS and the exact <code>{"{catalogId}"}</code>{" "}
+              placeholder are required.
+            </small>
+          </label>
+          <button
+            className="button button--secondary"
+            disabled={
+              publisherSettingsBusy ||
+              publisherSearchTemplate.trim() === savedPublisherSearchTemplate
+            }
+            type="button"
+            onClick={() => {
+              void savePublisherSearchSettings();
+            }}
+          >
+            {publisherSettingsBusy ? "Saving…" : "Save publisher search"}
+          </button>
+        </div>
+        {publisherSettingsError ? (
+          <p className="notice notice--error" role="alert">
+            {publisherSettingsError}
+          </p>
+        ) : null}
+      </section>
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}
@@ -2426,6 +2531,7 @@ export function MusicCatalog({ enabled }: { readonly enabled: boolean }) {
               onSelectMany={selectManyPieces}
               onToggleSelection={togglePieceSelection}
               pieces={pieces}
+              publisherSearchTemplate={publisherSearchTemplate}
               search={search}
               selectedIds={selectedPieceIds}
               selectedGenres={selectedGenres}

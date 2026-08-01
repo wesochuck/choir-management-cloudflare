@@ -2,11 +2,13 @@ import {
   memberProfileUpdateRequestSchema,
   organizationDirectoryProfileSchema,
   organizationProfileSchema,
+  organizationProfileStatusHistoryResponseSchema,
   organizationProfilesResponseSchema,
   type MemberProfileUpdateRequest,
   type OrganizationDirectoryProfile,
   type OrganizationProfile,
   type OrganizationProfileRequest,
+  type OrganizationProfileStatusHistoryResponse,
 } from "@choir/contracts";
 import { z } from "zod";
 
@@ -63,6 +65,20 @@ export async function listOrganizationProfiles(
   if (!response.ok) throw new Error("The Organization store rejected the Profile list request.");
   return organizationProfilesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .profiles;
+}
+
+export async function listOrganizationProfileStatusHistory(
+  env: Env,
+  organizationId: string,
+  profileId: string,
+): Promise<OrganizationProfileStatusHistoryResponse> {
+  const url = new URL("https://organization.internal/internal/profiles/status-history");
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("profileId", profileId);
+  const response = await organizationStub(env, organizationId).fetch(url);
+  if (!response.ok)
+    throw new Error("The Organization store rejected the Profile status history request.");
+  return organizationProfileStatusHistoryResponseSchema.parse(await response.json());
 }
 
 export async function listOrganizationProfileEmails(

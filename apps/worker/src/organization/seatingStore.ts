@@ -138,7 +138,7 @@ function eventAcceptsSeating(storage: DurableObjectStorage, eventId: string): bo
     storage.sql
       .exec(
         `SELECT 1 FROM events
-         WHERE id = ? AND type = 'Performance' AND is_archived = 0 LIMIT 1`,
+         WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0 LIMIT 1`,
         eventId,
       )
       .toArray().length === 1

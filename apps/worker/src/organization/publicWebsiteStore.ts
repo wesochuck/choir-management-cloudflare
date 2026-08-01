@@ -184,7 +184,7 @@ export function readPublicCommerceProjectionFromStore(
         e.public_details AS publicDetails, e.public_graphic_file_id AS graphicFileId,
         COALESCE(v.name, '') AS venueName
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
-       WHERE e.is_archived = 0 AND e.type = 'Performance' AND e.is_ticketing_enabled = 1
+       WHERE e.is_archived = 0 AND e.is_canceled = 0 AND e.type = 'Performance' AND e.is_ticketing_enabled = 1
        ORDER BY e.starts_at DESC, e.id DESC LIMIT 100`,
     )
     .toArray()
@@ -305,7 +305,7 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
         e.public_details AS publicDetails, e.public_graphic_file_id AS graphicFileId,
         COALESCE(v.name, '') AS venueName
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
-       WHERE e.is_archived = 0 AND e.type = 'Performance' AND e.publish_on_website = 1
+       WHERE e.is_archived = 0 AND e.is_canceled = 0 AND e.type = 'Performance' AND e.publish_on_website = 1
        ORDER BY e.starts_at DESC, e.id DESC LIMIT 100`,
     )
     .toArray()

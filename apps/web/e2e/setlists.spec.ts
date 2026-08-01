@@ -51,7 +51,7 @@ async function handleShellRoute(route: Route): Promise<boolean> {
       ],
     },
     "/api/auth/get-session": session,
-    "/api/auth/list-sessions": [session.session],
+    "/api/account/sessions": [session.session],
     "/api/health": {
       environment: "local",
       requestId,
@@ -224,16 +224,15 @@ test("orders, copies, prints, and saves a set list on desktop and mobile", async
   await expect(page.locator(".set-list-item").first()).toContainText("Opening Song");
   await page.getByRole("button", { name: "Move Opening Song down" }).click();
   await expect(page.locator(".set-list-item").first()).toContainText("Finale");
-  await page.getByRole("button", { name: "Copy text" }).click();
-  await expect(page.getByRole("status")).toContainText("copied as text");
-  await page.getByRole("button", { name: "Print list" }).click();
-  await page.getByRole("button", { name: "Save set list" }).click();
-  await expect(page.getByRole("status")).toContainText("Set list saved");
+  await page.getByRole("button", { name: "Print & Copy" }).click();
+  await expect(page.getByText("Set list copied as text.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save now" }).click();
+  await expect(page.getByText("Set list saved.", { exact: true })).toBeVisible();
 
   const darkSurface = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--color-surface"),
   );
-  await page.getByRole("combobox", { name: "Color theme" }).selectOption("light");
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   const lightSurface = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--color-surface"),

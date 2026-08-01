@@ -89,6 +89,7 @@ const emptyProfile: OrganizationProfileRequest = {
   receiveFinancialAlerts: false,
   receiveRsvpDeclineNotices: false,
   showInDirectory: true,
+  statusIsManual: false,
   voicePart: "",
 };
 
@@ -150,6 +151,7 @@ function profileRequestFrom(profile: OrganizationProfile): OrganizationProfileRe
     receiveFinancialAlerts: profile.receiveFinancialAlerts,
     receiveRsvpDeclineNotices: profile.receiveRsvpDeclineNotices,
     showInDirectory: profile.showInDirectory,
+    statusIsManual: profile.statusIsManual,
     voicePart: profile.voicePart,
   };
 }

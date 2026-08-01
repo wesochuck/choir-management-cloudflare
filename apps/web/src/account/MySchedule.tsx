@@ -18,6 +18,17 @@ function displayDate(value: string, timezone: string): string {
   }).format(new Date(value));
 }
 
+function displayRsvpDeadline(event: SingerEvent, timezone: string): string | null {
+  if (!event.rsvpDeadlineAt || !event.rsvpDeadlineDate) return null;
+  const date = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeZone: timezone,
+  }).format(new Date(event.rsvpDeadlineAt));
+  return event.rsvpDeadlinePassed
+    ? `RSVP deadline passed on ${date}.`
+    : `RSVP by ${date} through 11:59 p.m.`;
+}
+
 function eventLocation(event: SingerEvent): string {
   if (event.venueName) {
     return event.venueAddress ? `${event.venueName}, ${event.venueAddress}` : event.venueName;
@@ -141,6 +152,19 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                       )
                     </p>
                     {location ? <p>{location}</p> : null}
+                    {event.type === "Performance" && displayRsvpDeadline(event, state.timezone) ? (
+                      <p
+                        className={
+                          event.rsvpDeadlinePassed
+                            ? "notice notice--warning"
+                            : "notice notice--info"
+                        }
+                      >
+                        {displayRsvpDeadline(event, state.timezone)}{" "}
+                        {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}
+                        <a href="/admin/settings"> Roster Settings</a>
+                      </p>
+                    ) : null}
                     {event.inheritedFromParent ? (
                       <p>Currently inherited from the parent performance: {event.resolvedRsvp}</p>
                     ) : null}
@@ -166,7 +190,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                   <div className="field schedule-rsvp">
                     <label htmlFor={`my-rsvp-${event.id}`}>Your RSVP</label>
                     <select
-                      disabled={busyEventId !== null}
+                      disabled={busyEventId !== null || !event.rsvpSelfServiceOpen}
                       id={`my-rsvp-${event.id}`}
                       onChange={(change) => {
                         const value = change.target.value;
@@ -200,7 +224,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                       <>
                         <label htmlFor={`my-rsvp-note-${event.id}`}>Decline note</label>
                         <textarea
-                          disabled={busyEventId !== null}
+                          disabled={busyEventId !== null || !event.rsvpSelfServiceOpen}
                           id={`my-rsvp-note-${event.id}`}
                           maxLength={2000}
                           onChange={(change) => {
@@ -225,7 +249,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                     ) : null}
                     <button
                       className="button button--secondary"
-                      disabled={busyEventId !== null}
+                      disabled={busyEventId !== null || !event.rsvpSelfServiceOpen}
                       onClick={() => {
                         void changeRsvp(event.id, event.directRsvp, event.rsvpNote);
                       }}

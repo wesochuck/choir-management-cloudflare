@@ -547,6 +547,24 @@ describe("Organization calendar management", () => {
     expect(await response.json()).toMatchObject({ code: "organization_not_found" });
   });
 
+  it("tracks the optional data import setup step", async () => {
+    const cookie = await signIn();
+    const progress = await post("alpha.localhost", "/api/setup/progress", cookie, {
+      step: "data_import",
+    });
+    expect(progress.status).toBe(200);
+
+    const status = setupStatusSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/setup/status", cookie))
+      ).json(),
+    );
+    expect(status).toMatchObject({
+      completedSteps: ["data_import"],
+      currentStep: "data_import",
+    });
+  });
+
   it("creates isolated venue/event/RSVP data that populates the signed calendar feed", async () => {
     const cookie = await signIn();
     const setupStatus = await exports.default.fetch(

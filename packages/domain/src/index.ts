@@ -41,6 +41,22 @@ export {
   type RosterCsvInspection,
 } from "./rosterCsv";
 export { defaultRosterConfiguration } from "./rosterConfiguration";
+export {
+  calculateOnBreakInactiveAt,
+  calculateRsvpDeadline,
+  evaluateProfileStatus,
+  isMissedPerformance,
+  isRsvpDeadlinePassed,
+  performanceHasEnded,
+  type AttendanceStatus,
+  type AutomatedProfileStatus,
+  type PerformanceAutomationRecord,
+  type ProfileAutomationSnapshot,
+  type ProfileStatusEvaluation,
+  type RsvpDeadline,
+  type RsvpStatus,
+  type StatusAutomationConfiguration,
+} from "./statusAutomation";
 export { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
 export type { EventRsvpExportSort, EventRsvpStatus } from "./eventRsvpCsv";
 export type { CsvColumnMapping } from "./csvMapping";

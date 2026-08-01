@@ -13,6 +13,7 @@ import type { OrganizationExportStatusResponse, TransactionFeeSettings } from "@
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
 import { RosterConfiguration } from "./RosterConfiguration";
+import { RosterAutomationSettings } from "./RosterAutomationSettings";
 
 const fallbackTimeZones = [
   "UTC",
@@ -397,6 +398,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
         ) : null}
       </section>
       <RosterConfiguration enabled={enabled} />
+      <RosterAutomationSettings enabled={enabled} />
       <OrganizationExportPanel />
     </div>
   );

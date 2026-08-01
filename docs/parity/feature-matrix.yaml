@@ -259,7 +259,12 @@
         "status": "verified",
         "baselineEvidence": "src/App.tsx:206; src/views/setup/SetupView.tsx",
         "targetEvidence":
-          ["apps/web/src/App.tsx", "apps/web/src/setup/SetupView.tsx", "apps/worker/src/router.ts"],
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/setup/SetupView.tsx",
+            "apps/web/src/setup/SetupDataImportStep.tsx",
+            "apps/worker/src/router.ts",
+          ],
       },
       {
         "id": "route.account.overview",
@@ -2287,6 +2292,9 @@
             "apps/worker/src/organization/setupStore.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/web/src/setup/SetupView.tsx",
+            "apps/web/src/setup/SetupDataImportStep.tsx",
+            "apps/web/src/account/SetupChecklistView.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
             "apps/worker/src/organization/schema.ts",
             "docs/goal/READINESS.md",
           ],
@@ -2345,6 +2353,47 @@
             "apps/worker/src/organization/seasonStore.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/web/src/account/SeasonsManager.tsx",
+          ],
+      },
+      {
+        "id": "workflow.roster-status-automation",
+        "workflow":
+          "visible roster status automation, On Break timeout, RSVP expiry, attendance
+          reconciliation, recovery, and status history",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "src/components/admin/StatusAutomationSettings.tsx;
+          src/components/admin/RosterSettingsTab.tsx; pocketbase/pb_hooks/status.pb.js",
+        "targetEvidence":
+          [
+            "packages/domain/src/statusAutomation.ts",
+            "packages/domain/src/statusAutomation.test.ts",
+            "packages/contracts/src/index.ts",
+            "apps/worker/src/organization/statusAutomationStore.ts",
+            "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/src/organization/calendarManagementStore.ts",
+            "apps/worker/src/organization/schema.ts",
+            "apps/worker/src/router.ts",
+            "apps/worker/test/statusAutomation.integration.test.ts",
+            "apps/worker/test/selfServiceRsvp.integration.test.ts",
+            "apps/web/src/account/RosterAutomationSettings.tsx",
+            "apps/web/src/account/RosterPage.tsx",
+            "apps/web/src/account/EventsPage.tsx",
+            "apps/web/src/account/RsvpManagerPage.tsx",
+            "apps/web/src/account/MySchedule.tsx",
+            "docs/adr/0016-use-on-break-in-product-language.md",
+            "docs/adr/0017-linked-rehearsal-attendance-confirms-performance-rsvp.md",
+            "docs/adr/0018-future-performance-rsvp-restores-active-status.md",
+            "docs/adr/0019-use-a-time-based-on-break-timeout.md",
+            "docs/adr/0020-roll-out-rsvp-expiry-with-existing-org-review.md",
+            "docs/adr/0021-keep-manual-status-as-explicit-opt-out.md",
+            "docs/adr/0022-keep-rsvp-expiry-silent.md",
+            "docs/adr/0023-exclude-archived-and-canceled-performances.md",
+            "docs/adr/0024-evaluate-performance-misses-after-event-end.md",
+            "docs/adr/0025-separate-rsvp-and-profile-status-histories.md",
+            "docs/adr/0026-close-member-rsvp-at-expiry.md",
           ],
       },
       {
@@ -2408,6 +2457,9 @@
             "apps/worker/src/organization/organizationMusic.ts",
             "apps/worker/test/music.integration.test.ts",
             "apps/web/src/account/MusicCatalog.tsx",
+            "apps/web/src/account/musicPublisherSearch.ts",
+            "apps/web/src/account/musicPublisherSearch.test.ts",
+            "apps/worker/src/organization/schema.ts",
           ],
       },
       {
@@ -2688,6 +2740,8 @@
             "apps/web/src/account/audioDuration.test.ts",
             "apps/web/src/account/durationAutoFill.ts",
             "apps/web/src/account/durationAutoFill.test.ts",
+            "apps/web/src/account/musicPublisherSearch.ts",
+            "apps/web/src/account/musicPublisherSearch.test.ts",
             "apps/web/src/account/LearningTrackPlayer.tsx",
             "apps/web/src/offline/mediaStore.ts",
             "apps/web/src/offline/mediaStore.test.ts",
@@ -2795,7 +2849,12 @@
         "milestone": 4,
         "status": "implemented",
         "baselineEvidence": "src/views/setup/SetupView.tsx; test/components/setup",
-        "targetEvidence": ["apps/web/src/styles/theme.css"],
+        "targetEvidence":
+          [
+            "apps/web/src/styles/theme.css",
+            "apps/web/src/setup/SetupView.tsx",
+            "apps/web/src/setup/SetupDataImportStep.tsx",
+          ],
       },
       {
         "id": "responsive.communications",

@@ -12,6 +12,7 @@ import {
   communicationUnsubscribeResponseSchema,
   memberProfileResponseSchema,
   organizationMusicPiecesResponseSchema,
+  organizationMusicLibrarySettingsResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
   organizationMusicImportResponseSchema,
   organizationMusicPieceResponseSchema,
@@ -36,10 +37,13 @@ import {
   organizationStripeConnectStatusResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
+  organizationEventCancelResponseSchema,
+  organizationEventRsvpHistoryResponseSchema,
   organizationEventsResponseSchema,
   organizationDashboardSummaryResponseSchema,
   organizationCalendarSettingsResponseSchema,
   organizationRosterConfigurationResponseSchema,
+  organizationRosterAutomationPreviewResponseSchema,
   organizationSeatingChartSchema,
   organizationSeatingChartsResponseSchema,
   organizationSeatingChartOrderResponseSchema,
@@ -53,6 +57,7 @@ import {
   organizationProfileFolderNumberSchema,
   organizationProfileFolderNumbersResponseSchema,
   organizationProfilePerformanceHistoryResponseSchema,
+  organizationProfileStatusHistoryResponseSchema,
   organizationRsvpSchema,
   organizationVenueSchema,
   organizationVenueDeleteResponseSchema,
@@ -127,6 +132,7 @@ import {
   type MemberProfile,
   type MemberProfileUpdateRequest,
   type OrganizationMusicPiece,
+  type OrganizationMusicLibrarySettings,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicPieceRequest,
   type OrganizationResource,
@@ -147,10 +153,12 @@ import {
   type OrganizationStripeConnectOnboardingResponse,
   type OrganizationStripeConnectStatusResponse,
   type OrganizationEvent,
+  type OrganizationEventRsvpHistoryResponse,
   type OrganizationDashboardSummaryResponse,
   type OrganizationEventRequest,
   type OrganizationCalendarSettings,
   type OrganizationRosterConfiguration,
+  type OrganizationRosterAutomationPreviewResponse,
   type OrganizationSeatingChart,
   type OrganizationSeatingChartRequest,
   type SeatingConfiguration,
@@ -162,6 +170,7 @@ import {
   type OrganizationProfileFolderNumberUpdate,
   type OrganizationProfileRequest,
   type OrganizationProfilePerformanceHistoryResponse,
+  type OrganizationProfileStatusHistoryResponse,
   type OrganizationRsvp,
   type OrganizationVenue,
   type SingerEventsResponse,
@@ -405,6 +414,17 @@ export async function getOrganizationProfilePerformanceHistory(
   return organizationProfilePerformanceHistoryResponseSchema.parse(await response.json());
 }
 
+export async function getOrganizationProfileStatusHistory(
+  profileId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationProfileStatusHistoryResponse> {
+  const response = await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}/status-history`,
+    { signal: signal ?? null },
+  );
+  return organizationProfileStatusHistoryResponseSchema.parse(await response.json());
+}
+
 export async function getOrganizationProfileFolderNumbers(
   profileId: string,
   signal?: AbortSignal,
@@ -455,6 +475,25 @@ export async function listOrganizationMusic(
 ): Promise<readonly OrganizationMusicPiece[]> {
   const response = await request("/api/organization/music", { signal: signal ?? null });
   return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;
+}
+
+export async function getOrganizationMusicLibrarySettings(
+  signal?: AbortSignal,
+): Promise<OrganizationMusicLibrarySettings> {
+  const response = await request("/api/organization/music-library-settings", {
+    signal: signal ?? null,
+  });
+  return organizationMusicLibrarySettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateOrganizationMusicLibrarySettings(
+  settings: OrganizationMusicLibrarySettings,
+): Promise<OrganizationMusicLibrarySettings> {
+  const response = await request("/api/organization/music-library-settings", {
+    body: JSON.stringify(settings),
+    method: "PUT",
+  });
+  return organizationMusicLibrarySettingsResponseSchema.parse(await response.json());
 }
 
 export async function listSingerLearningTracks(
@@ -1013,6 +1052,13 @@ export async function archiveOrganizationEvent(eventId: string): Promise<void> {
   organizationEventArchiveResponseSchema.parse(await response.json());
 }
 
+export async function cancelOrganizationEvent(eventId: string): Promise<void> {
+  const response = await request(`/api/organization/events/${encodeURIComponent(eventId)}/cancel`, {
+    method: "POST",
+  });
+  organizationEventCancelResponseSchema.parse(await response.json());
+}
+
 export async function setOrganizationEventRsvp(
   eventId: string,
   profileId: string,
@@ -1035,6 +1081,17 @@ export async function listOrganizationEventAttendance(
     { signal: signal ?? null },
   );
   return organizationAttendanceResponseSchema.parse(await response.json()).rows;
+}
+
+export async function getOrganizationEventRsvpHistory(
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationEventRsvpHistoryResponse> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/rsvp-history`,
+    { signal: signal ?? null },
+  );
+  return organizationEventRsvpHistoryResponseSchema.parse(await response.json());
 }
 
 export async function updateOrganizationEventAttendance(
@@ -1155,8 +1212,15 @@ export async function getOrganizationRosterConfiguration(
   });
   const parsed = organizationRosterConfigurationResponseSchema.parse(await response.json());
   return {
+    onBreakTimeoutDays: parsed.onBreakTimeoutDays,
+    onBreakTimeoutEnabled: parsed.onBreakTimeoutEnabled,
     performerLabel: parsed.performerLabel,
+    rsvpExpiryEnabled: parsed.rsvpExpiryEnabled,
+    rsvpExpiryLeadDays: parsed.rsvpExpiryLeadDays,
     sections: parsed.sections,
+    statusAutomationEnabled: parsed.statusAutomationEnabled,
+    statusAutomationMissThreshold: parsed.statusAutomationMissThreshold,
+    statusAutomationRecoveryEnabled: parsed.statusAutomationRecoveryEnabled,
     voiceParts: parsed.voiceParts,
   };
 }
@@ -1170,10 +1234,28 @@ export async function updateOrganizationRosterConfiguration(
   });
   const parsed = organizationRosterConfigurationResponseSchema.parse(await response.json());
   return {
+    onBreakTimeoutDays: parsed.onBreakTimeoutDays,
+    onBreakTimeoutEnabled: parsed.onBreakTimeoutEnabled,
     performerLabel: parsed.performerLabel,
+    rsvpExpiryEnabled: parsed.rsvpExpiryEnabled,
+    rsvpExpiryLeadDays: parsed.rsvpExpiryLeadDays,
     sections: parsed.sections,
+    statusAutomationEnabled: parsed.statusAutomationEnabled,
+    statusAutomationMissThreshold: parsed.statusAutomationMissThreshold,
+    statusAutomationRecoveryEnabled: parsed.statusAutomationRecoveryEnabled,
     voiceParts: parsed.voiceParts,
   };
+}
+
+export async function previewOrganizationRosterAutomation(
+  configuration: OrganizationRosterConfiguration,
+  profileId: string | null,
+): Promise<OrganizationRosterAutomationPreviewResponse> {
+  const response = await request("/api/organization/roster-configuration/preview", {
+    body: JSON.stringify({ configuration, profileId }),
+    method: "POST",
+  });
+  return organizationRosterAutomationPreviewResponseSchema.parse(await response.json());
 }
 
 export async function getOrganizationSeatingConfiguration(

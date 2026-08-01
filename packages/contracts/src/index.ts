@@ -125,13 +125,17 @@ export const organizationProfileRequestSchema = z.object({
   receiveFinancialAlerts: z.boolean().default(false),
   receiveRsvpDeclineNotices: z.boolean().default(false),
   showInDirectory: z.boolean().default(true),
+  statusIsManual: z.boolean().default(false),
   voicePart: z.string().trim().max(100).default(""),
 });
 
 export const organizationProfileSchema = organizationProfileRequestSchema.extend({
   createdAt: z.iso.datetime(),
   id: z.uuid(),
+  onBreakInactiveAt: z.iso.datetime().nullable().default(null),
   photoFileId: z.uuid().nullable().default(null),
+  statusChangedAt: z.iso.datetime().default("1970-01-01T00:00:00.000Z"),
+  statusChangeReason: z.string().max(500).default("Initial status"),
   updatedAt: z.iso.datetime(),
 });
 
@@ -479,6 +483,11 @@ export const organizationEventSchema = organizationEventRequestSchema.and(
   z.object({
     createdAt: z.iso.datetime(),
     id: z.uuid(),
+    isCanceled: z.boolean().default(false),
+    rsvpDeadlineAt: z.iso.datetime().nullable().default(null),
+    rsvpDeadlineDate: z.string().nullable().default(null),
+    rsvpDeadlinePassed: z.boolean().default(false),
+    rsvpSelfServiceOpen: z.boolean().default(true),
     updatedAt: z.iso.datetime(),
   }),
 );
@@ -508,6 +517,12 @@ export const organizationEventArchiveResponseSchema = z.object({
   status: z.literal("archived"),
 });
 
+export const organizationEventCancelResponseSchema = z.object({
+  eventId: z.uuid(),
+  requestId: requestIdSchema,
+  status: z.literal("canceled"),
+});
+
 export const organizationRsvpRequestSchema = z.object({
   profileId: z.uuid(),
   rsvp: z.enum(["Yes", "No", "Pending"]),
@@ -517,6 +532,23 @@ export const organizationRsvpRequestSchema = z.object({
 export const organizationRsvpSchema = organizationRsvpRequestSchema.extend({
   eventId: z.uuid(),
   updatedAt: z.iso.datetime(),
+});
+
+export const organizationEventRsvpHistoryEntrySchema = z.object({
+  actorType: z.string().min(1).max(100),
+  automatic: z.boolean(),
+  displayName: z.string().min(1).max(200),
+  eventId: z.uuid(),
+  newRsvp: z.enum(["No", "Pending", "Yes"]),
+  occurredAt: z.iso.datetime(),
+  previousRsvp: z.enum(["No", "Pending", "Yes"]),
+  profileId: z.uuid(),
+  reason: z.string().max(500),
+});
+
+export const organizationEventRsvpHistoryResponseSchema = z.object({
+  entries: z.array(organizationEventRsvpHistoryEntrySchema).max(500),
+  eventId: z.uuid(),
 });
 
 export const organizationAttendanceStatusSchema = z.enum(["Present", "Absent", "Pending"]);
@@ -584,6 +616,20 @@ export const organizationProfilePerformanceHistoryResponseSchema = z.object({
   upcoming: z.array(organizationProfilePerformanceSchema).max(500),
 });
 
+export const organizationProfileStatusHistoryEntrySchema = z.object({
+  actorType: z.string().min(1).max(100),
+  occurredAt: z.iso.datetime(),
+  previousStatus: z.enum(["Active", "Idle", "Inactive"]),
+  reason: z.string().max(500),
+  triggerType: z.string().min(1).max(100),
+  newStatus: z.enum(["Active", "Idle", "Inactive"]),
+});
+
+export const organizationProfileStatusHistoryResponseSchema = z.object({
+  entries: z.array(organizationProfileStatusHistoryEntrySchema).max(500),
+  profileId: z.uuid(),
+});
+
 export const singerRsvpRequestSchema = z.object({
   rsvp: z.enum(["Yes", "No", "Pending"]),
   rsvpNote: z.string().trim().max(2_000).default(""),
@@ -598,7 +644,11 @@ export const singerEventSchema = z.object({
   inheritedFromParent: z.boolean(),
   location: z.string().max(2_000),
   resolvedRsvp: z.enum(["Yes", "No", "Pending"]),
+  rsvpDeadlineAt: z.iso.datetime().nullable(),
+  rsvpDeadlineDate: z.string().nullable(),
+  rsvpDeadlinePassed: z.boolean(),
   rsvpNote: z.string().max(2_000),
+  rsvpSelfServiceOpen: z.boolean(),
   setList: z.array(organizationSetListItemSchema).max(200).default([]),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),
@@ -639,8 +689,15 @@ export const organizationVoicePartSchema = z.object({
 
 export const organizationRosterConfigurationRequestSchema = z
   .object({
+    onBreakTimeoutDays: z.number().int().min(1).max(3_650).default(365),
+    onBreakTimeoutEnabled: z.boolean().default(true),
     performerLabel: z.string().trim().min(1).max(50).default("Performer"),
+    rsvpExpiryEnabled: z.boolean().default(true),
+    rsvpExpiryLeadDays: z.number().int().min(1).max(365).default(7),
     sections: z.array(organizationSectionSchema).min(1).max(50),
+    statusAutomationEnabled: z.boolean().default(true),
+    statusAutomationMissThreshold: z.number().int().min(1).max(10).default(3),
+    statusAutomationRecoveryEnabled: z.boolean().default(true),
     voiceParts: z.array(organizationVoicePartSchema).min(1).max(100),
   })
   .superRefine((configuration, context) => {
@@ -662,6 +719,39 @@ export const organizationRosterConfigurationRequestSchema = z
 
 export const organizationRosterConfigurationResponseSchema =
   organizationRosterConfigurationRequestSchema.and(z.object({ requestId: requestIdSchema }));
+
+export const organizationRosterAutomationPreviewRequestSchema = z.object({
+  configuration: organizationRosterConfigurationRequestSchema,
+  profileId: z.uuid().nullable().default(null),
+});
+
+export const organizationRosterAutomationPreviewProfileSchema = z.object({
+  currentStatus: z.enum(["Active", "Idle", "Inactive"]),
+  displayName: z.string().min(1).max(200),
+  id: z.uuid(),
+  nextStatus: z.enum(["Active", "Idle", "Inactive"]),
+  nextStatusReason: z.string().max(500),
+  onBreakInactiveDate: z.string().nullable(),
+  recentPerformances: z
+    .array(
+      z.object({
+        attendance: z.enum(["Absent", "Pending", "Present"]),
+        id: z.uuid(),
+        rsvp: z.enum(["Yes", "No", "Pending"]),
+        startsAt: z.iso.datetime(),
+        title: z.string().min(1).max(500),
+      }),
+    )
+    .max(10),
+});
+
+export const organizationRosterAutomationPreviewResponseSchema = z.object({
+  affectedProfileCount: z.number().int().nonnegative().max(500),
+  onBreakTimeoutCount: z.number().int().nonnegative().max(500),
+  rsvpExpiryCount: z.number().int().nonnegative().max(100_000),
+  selectedProfile: organizationRosterAutomationPreviewProfileSchema.nullable(),
+  statusChangeCount: z.number().int().nonnegative().max(500),
+});
 
 export const organizationEventRsvpExportDataSchema = z.object({
   sections: z.array(organizationSectionSchema).min(1).max(50),
@@ -817,8 +907,15 @@ export type PublishedOrganizationProjection = z.infer<typeof publishedOrganizati
 export type OrganizationEventArchiveResponse = z.infer<
   typeof organizationEventArchiveResponseSchema
 >;
+export type OrganizationEventCancelResponse = z.infer<typeof organizationEventCancelResponseSchema>;
 export type OrganizationRsvpRequest = z.infer<typeof organizationRsvpRequestSchema>;
 export type OrganizationRsvp = z.infer<typeof organizationRsvpSchema>;
+export type OrganizationEventRsvpHistoryEntry = z.infer<
+  typeof organizationEventRsvpHistoryEntrySchema
+>;
+export type OrganizationEventRsvpHistoryResponse = z.infer<
+  typeof organizationEventRsvpHistoryResponseSchema
+>;
 export type OrganizationAttendanceStatus = z.infer<typeof organizationAttendanceStatusSchema>;
 export type OrganizationAttendanceUpdate = z.infer<typeof organizationAttendanceUpdateSchema>;
 export type OrganizationAttendanceRow = z.infer<typeof organizationAttendanceRowSchema>;
@@ -830,13 +927,64 @@ export type OrganizationProfilePerformance = z.infer<typeof organizationProfileP
 export type OrganizationProfilePerformanceHistoryResponse = z.infer<
   typeof organizationProfilePerformanceHistoryResponseSchema
 >;
+export type OrganizationProfileStatusHistoryResponse = z.infer<
+  typeof organizationProfileStatusHistoryResponseSchema
+>;
 export type SingerEvent = z.infer<typeof singerEventSchema>;
 export type SingerEventsResponse = z.infer<typeof singerEventsResponseSchema>;
 export type OrganizationCalendarSettings = z.infer<
   typeof organizationCalendarSettingsRequestSchema
 >;
+const organizationMusicLibrarySettingsFieldsSchema = z.object({
+  publisherSearchTemplate: z.string().trim().max(2_000).default(""),
+});
+
+function validateMusicLibrarySettings(
+  settings: z.infer<typeof organizationMusicLibrarySettingsFieldsSchema>,
+  context: z.RefinementCtx,
+): void {
+  if (!settings.publisherSearchTemplate) return;
+  if (!settings.publisherSearchTemplate.includes("{catalogId}")) {
+    context.addIssue({
+      code: "custom",
+      message: "The publisher search URL must include the {catalogId} placeholder.",
+      path: ["publisherSearchTemplate"],
+    });
+    return;
+  }
+  try {
+    const resolved = new URL(
+      settings.publisherSearchTemplate.replaceAll("{catalogId}", "catalog-id"),
+    );
+    if (resolved.protocol !== "https:") throw new Error("https_required");
+  } catch {
+    context.addIssue({
+      code: "custom",
+      message: "The publisher search URL must be a valid HTTPS URL.",
+      path: ["publisherSearchTemplate"],
+    });
+  }
+}
+
+export const organizationMusicLibrarySettingsRequestSchema =
+  organizationMusicLibrarySettingsFieldsSchema.superRefine(validateMusicLibrarySettings);
+
+export const organizationMusicLibrarySettingsResponseSchema =
+  organizationMusicLibrarySettingsFieldsSchema
+    .extend({ requestId: requestIdSchema })
+    .superRefine(validateMusicLibrarySettings);
+
+export type OrganizationMusicLibrarySettings = z.infer<
+  typeof organizationMusicLibrarySettingsRequestSchema
+>;
 export type OrganizationRosterConfiguration = z.infer<
   typeof organizationRosterConfigurationRequestSchema
+>;
+export type OrganizationRosterAutomationPreviewRequest = z.infer<
+  typeof organizationRosterAutomationPreviewRequestSchema
+>;
+export type OrganizationRosterAutomationPreviewResponse = z.infer<
+  typeof organizationRosterAutomationPreviewResponseSchema
 >;
 export type OrganizationEventRsvpExportData = z.infer<typeof organizationEventRsvpExportDataSchema>;
 export type SeatingFormation = z.infer<typeof seatingFormationSchema>;

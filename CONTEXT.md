@@ -53,6 +53,60 @@ An Organization-owned record for a person who participates in its roster or admi
 Organization Profile may exist without login access and remains separate from the person's global
 identity and Organization Membership. _Avoid_: User account, global person profile
 
+## Profile Status
+
+The roster availability classification of an Organization Profile: Active, On Break, or Inactive.
+Profile Status is distinct from Organization Membership role and event-specific RSVP Status.
+_Avoid_: Roster status when the event-specific RSVP Status is meant
+
+## On Break
+
+The user-facing Profile Status for a person who is temporarily not participating while remaining
+part of the Organization's roster. The internal value is `Idle` for compatibility with existing
+contracts. _Avoid_: Idle in user-facing copy
+
+## Profile Status Automation
+
+A Roster Setting, enabled by default, that may mark an Organization Profile Inactive after three
+consecutive missed Performances and restore any non-Active Profile to Active after a future
+attending RSVP, unless manual status control is enabled. Automatic recovery is enabled by default.
+It automates Profile Status, not RSVP Status. Manual status control may be used for any Organization
+Profile, including a Profile used for administration. _Avoid_: RSVP automation Automatic status
+changes apply only to Performer-eligible Profiles with a non-empty voice part and a Performance
+roster entry; administrator-only Profiles are not automatically changed. Re-enabling automatic
+management immediately evaluates the Profile's existing Performance history. Corrections to past
+Performance RSVPs or attendance immediately reevaluate the Profile Status decision. Changing the
+miss threshold or related automation setting also immediately reevaluates existing Profiles and
+previews the affected transitions before saving. Selecting On Break does not itself enable manual
+status control; the separate manual control is the explicit opt-out from Profile Status Automation
+and the On Break Timeout. Directly selecting a Profile Status does not silently enable manual
+control; the Profile explains that automation may later change the status until the administrator
+explicitly opts out. Archived or canceled Performances do not count as missed Performances. An
+active Performance becomes eligible for miss evaluation only after it ends, using its scheduled
+duration when available or the end of its Organization-local calendar day otherwise.
+
+## On Break Timeout
+
+A separate Roster Setting, enabled by default, that moves an automatically managed On Break Profile
+to Inactive after a configured elapsed period, defaulting to one year (365 calendar days). It is
+time-based rather than attendance-based, and manual status control exempts the Profile from the
+timeout. The timeout has its own enable/disable control, independent of Performance-based Profile
+Status Automation. The timer uses Organization-local calendar dates and applies only to
+Performer-eligible Profiles; administrator-only Profiles are not timed out automatically. The roster
+record shows the calculated date on which the Profile would become Inactive; a manually managed
+Profile explains that no automatic transition date applies. Changing the timeout setting immediately
+recalculates existing transition dates and previews any Profiles that would become Inactive before
+saving. If manual status control is turned off while the Profile remains On Break, manual-exemption
+time is not counted and a fresh timeout period begins. For a Profile created or imported already On
+Break without a trustworthy prior status timestamp, the timer begins at creation or import.
+
+## Profile Status History
+
+The visible chronological record of actual Profile Status changes. Each entry identifies the prior
+and new status, triggering Performance or RSVP Expiry, rule, timestamp, and System automation as the
+actor; no-op evaluations are not recorded. _Avoid_: Status log when Organization Audit History is
+meant
+
 ## Organization Invitation
 
 The manual workflow for granting portal access: an authorized person enters an email address and
@@ -336,6 +390,41 @@ The attendance response provided by or assigned to a singer for a specific event
 - **Yes (Attending)**: Singer expects to perform or rehearse.
 - **No (Declined)**: Singer is unavailable.
 - **Pending (No Response)**: The default status indicating no selection has been made yet.
+
+## RSVP Expiry
+
+The Organization rule that converts a Pending RSVP for a Performance to No at a configurable number
+of calendar days before the Performance starts, defaulting to seven days. The calculated deadline is
+shown on the event, and remains open through the end of that displayed date in the Organization's
+timezone. Rehearsal RSVPs do not use RSVP Expiry. The lead time is an Organization-wide Roster
+Setting, and the event links back to that setting. _Avoid_: RSVP automation when the deadline rule
+is meant. If a Performance is created inside the lead-time window, its deadline is already passed;
+the event-creation flow warns the administrator and does not create a hidden grace period. When RSVP
+Expiry produces No, that result counts as a missed Performance for Profile Status Automation and is
+identified as automatic in Event RSVP History. RSVP Expiry has its own enable/disable control; when
+disabled, Pending RSVPs remain Pending. Changing the lead time immediately recalculates deadlines
+and previews any Pending RSVPs that would become overdue before saving. Expiry does not send a new
+notification when it converts a response; existing RSVP reminders include the calculated deadline,
+and the automatic conversion is retained in Event RSVP History. Archived or canceled Performances
+are excluded from RSVP Expiry. After the deadline, member RSVP self-service is closed;
+administrators may override the response with an audited change, and later Present attendance may
+still reconcile the RSVP to Yes.
+
+## Event RSVP History
+
+The visible chronological record of RSVP Status changes for an event roster entry, including the
+prior and new response, reason, timestamp, and whether the change was automatic. It is separate from
+Profile Status History, which records only changes to an Organization Profile's roster status.
+_Avoid_: Profile Status History for event responses
+
+## Attendance Reconciliation
+
+When an Organization Profile is recorded Present for a Performance or a Rehearsal linked to a
+Performance, the RSVP Status for that attended event is reconciled to Yes. Present attendance for a
+linked Rehearsal also reconciles the parent Performance RSVP to Yes because rehearsal attendance
+means the Profile is committed to that Performance. Attendance is the stronger evidence when it
+conflicts with an earlier RSVP response. Absent attendance does not rewrite RSVP Status; RSVP
+continues to represent the person's stated intention while attendance represents the outcome.
 
 ## RSVP Balance
 

@@ -537,14 +537,14 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
       status: 200,
     });
   });
-  await page.route("**/api/auth/list-sessions", async (route) => {
+  await page.route("**/api/account/sessions", async (route) => {
     await route.fulfill({
       body: JSON.stringify(sessions),
       contentType: "application/json",
       status: 200,
     });
   });
-  await page.route("**/api/auth/revoke-session", async (route) => {
+  await page.route("**/api/account/sessions/revoke", async (route) => {
     sessions = sessions.filter((session) => session.id !== "session-other");
     await route.fulfill({
       body: JSON.stringify({ status: true }),
@@ -795,7 +795,7 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
       status: 200,
     });
   });
-  await page.route("**/api/auth/list-sessions", async (route) => {
+  await page.route("**/api/account/sessions", async (route) => {
     await route.fulfill({
       body: JSON.stringify([currentSession]),
       contentType: "application/json",
@@ -1033,7 +1033,7 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
       status: 200,
     });
   });
-  await page.route("**/api/auth/list-sessions", async (route) => {
+  await page.route("**/api/account/sessions", async (route) => {
     await route.fulfill({
       body: JSON.stringify([currentSession]),
       contentType: "application/json",
@@ -1115,8 +1115,8 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
   });
 
   await page.goto("/platform/access");
-  const platformSection = page.getByRole("region", { name: "Platform Administrator access" });
-  await expect(platformSection.getByRole("heading", { name: "Organization access" })).toBeVisible();
+  const platformSection = page.getByRole("region", { name: "Organization access" });
+  await expect(platformSection.locator("#platform-access-title")).toBeVisible();
   await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
   await platformSection
     .getByLabel("Reason for enabling edits")
@@ -1196,7 +1196,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
       status: 200,
     });
   });
-  await page.route("**/api/auth/list-sessions", async (route) => {
+  await page.route("**/api/account/sessions", async (route) => {
     await route.fulfill({
       body: JSON.stringify([currentSession]),
       contentType: "application/json",
@@ -1371,9 +1371,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await page.goto("/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster");
-  await expect(page.getByRole("link", { name: "Download RSVP CSV" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
     "href",
-    "/api/organization/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-export.csv?sort=section",
+    "/api/organization/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-export.csv?sort=lastName",
   );
 
   await page.goto("/admin/settings/invitations");

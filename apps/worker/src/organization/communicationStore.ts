@@ -230,7 +230,7 @@ function eventCommunicationContext(storage: DurableObjectStorage, eventId: strin
         e.call_time AS callTime, e.details, COALESCE(v.name, e.location) AS eventLocation,
         e.set_list_json AS setListJson
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
-       WHERE e.id = ? AND e.is_archived = 0 LIMIT 1`,
+       WHERE e.id = ? AND e.is_archived = 0 AND e.is_canceled = 0 LIMIT 1`,
       eventId,
     )
     .toArray()
