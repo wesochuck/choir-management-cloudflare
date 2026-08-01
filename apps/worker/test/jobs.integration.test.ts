@@ -68,18 +68,187 @@ async function processBatch(
   attempts: number,
   id: string,
   externalEffectsMode = "fake",
+  includeControlDatabase = false,
 ) {
   const batch = createBatch(body, attempts, id);
   const executionContext = createExecutionContext();
-  await processDeliveryBatch(batch, {
+  const consumerEnvironment = {
     EXTERNAL_EFFECTS_MODE: externalEffectsMode,
     ORGANIZATION_FILES: organizationFiles,
     ORGANIZATION_STORE: organizationStore,
     PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
     SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
-  });
+    ...(includeControlDatabase ? { CONTROL_DB: controlDatabase } : {}),
+  };
+  await processDeliveryBatch(batch, consumerEnvironment);
   const result: unknown = await getQueueResult(batch, executionContext);
   return queueResultSchema.parse(result);
+}
+
+async function provisionScheduledCommunicationFixture(): Promise<
+  DurableObjectStub<OrganizationStore>
+> {
+  const organizationId = "organization-scheduled";
+  const profileId = "99999999-9999-4999-8999-999999999999";
+  const now = new Date();
+  const nowIso = now.toISOString();
+  await controlDatabase.batch([
+    controlDatabase
+      .prepare(
+        `INSERT INTO organizations
+          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
+           created_at, updated_at, provisioned_at)
+         VALUES (?, 'Scheduled Organization', 'scheduled', 'active', ?, 0, ?, ?, ?)`,
+      )
+      .bind(organizationId, organizationId, nowIso, nowIso, nowIso),
+    controlDatabase
+      .prepare(
+        `INSERT INTO user
+          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+         VALUES (?, 'Scheduled Owner', 'scheduled-owner@example.test', 1, ?, ?, 0)`,
+      )
+      .bind("scheduled-owner-user", now.getTime(), now.getTime()),
+    controlDatabase
+      .prepare(
+        `INSERT INTO member (id, organizationId, userId, role, profileId, createdAt)
+         VALUES (?, ?, ?, 'owner', ?, ?)`,
+      )
+      .bind(
+        "scheduled-owner-member",
+        organizationId,
+        "scheduled-owner-user",
+        profileId,
+        now.getTime(),
+      ),
+  ]);
+  const stub = organizationStore.get(organizationStore.idFromName(organizationId));
+  const provisionResponse = await stub.fetch("https://organization.internal/internal/provision", {
+    body: JSON.stringify({
+      actorUserId: "bootstrap",
+      canonicalHostname: "scheduled.localhost",
+      canonicalStatus: "active",
+      name: "Scheduled Organization",
+      organizationId,
+      requestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      slug: "scheduled",
+    }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  expect(provisionResponse.status).toBe(200);
+  await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+    const reportEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab";
+    const reminderEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac";
+    const followUpEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaf";
+    state.storage.sql.exec(
+      `INSERT INTO profiles (id, display_name, phone, voice_part, global_status,
+         show_in_directory, created_at, updated_at)
+       VALUES (?, 'Scheduled Singer', '+15550000000', 'S1', 'Active', 1, ?, ?)`,
+      profileId,
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO events (id, title, type, starts_at, duration_minutes, call_time, location,
+         details, created_at, updated_at)
+       VALUES (?, 'Scheduled RSVP Follow-up Performance', 'Performance', ?, 90, '19:00', 'Hall',
+         'Follow-up details', ?, ?)`,
+      followUpEventId,
+      new Date(now.getTime() + 10 * 24 * 60 * 60 * 1_000).toISOString(),
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO events (id, title, type, starts_at, duration_minutes, call_time, location,
+         details, created_at, updated_at)
+       VALUES (?, 'Scheduled Report Performance', 'Performance', ?, 90, '19:00', 'Main Hall',
+         'Report details', ?, ?)`,
+      reportEventId,
+      new Date(now.getTime() - 12.5 * 60 * 60 * 1_000).toISOString(),
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+       VALUES (?, ?, 'Pending', 'Pending', ?, ?)`,
+      followUpEventId,
+      profileId,
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO events (id, title, type, starts_at, duration_minutes, call_time, location,
+         details, created_at, updated_at)
+       VALUES (?, 'Scheduled Reminder Rehearsal', 'Rehearsal', ?, 90, '19:00', 'Studio',
+         'Reminder details', ?, ?)`,
+      reminderEventId,
+      new Date(now.getTime() + 24 * 60 * 60 * 1_000).toISOString(),
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'rsvp_follow_up', ?, ?, ?)`,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
+      `rsvp-follow-up:${organizationId}:${followUpEventId}`,
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+       VALUES (?, ?, 'Pending', 'Pending', ?, ?)`,
+      reportEventId,
+      profileId,
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+       VALUES (?, ?, 'Yes', 'Present', ?, ?)`,
+      reminderEventId,
+      profileId,
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'attendance_report', ?, ?, ?)`,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaad",
+      `post-event-report:${organizationId}:${reportEventId}`,
+      nowIso,
+      nowIso,
+    );
+    state.storage.sql.exec(
+      `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'event_reminder', ?, ?, ?)`,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaae",
+      `event-reminder:${organizationId}:${reminderEventId}`,
+      nowIso,
+      nowIso,
+    );
+  });
+  return stub;
+}
+
+async function readCommunicationOutboxJobs(
+  stub: DurableObjectStub<OrganizationStore>,
+): Promise<readonly { readonly idempotencyKey: string; readonly jobId: string }[]> {
+  return runInDurableObject<
+    OrganizationStore,
+    { readonly idempotencyKey: string; readonly jobId: string }[]
+  >(stub, (_instance, state) =>
+    state.storage.sql
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly idempotencyKey: string;
+        readonly jobId: string;
+      }>(
+        `SELECT job_id AS jobId, idempotency_key AS idempotencyKey
+           FROM scheduled_job_outbox WHERE kind = 'communication_delivery'
+           ORDER BY job_id`,
+      )
+      .toArray(),
+  );
 }
 
 async function readJobLedger(
@@ -225,5 +394,104 @@ describe("Organization queue delivery", () => {
       jobId: eventReminderJob.jobId,
       status: "completed",
     });
+  });
+
+  it("delivers scheduled reminders and attendance reports through the communication ledger", async () => {
+    const stub = await provisionScheduledCommunicationFixture();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec("UPDATE profiles SET receive_attendance_reports = 0");
+      return undefined;
+    });
+    const outerJobs: readonly DeliveryJob[] = [
+      {
+        attempt: 1,
+        idempotencyKey:
+          "event-reminder:organization-scheduled:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac",
+        jobId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaae",
+        kind: "event_reminder",
+        organizationId: "organization-scheduled",
+        version: 1,
+      },
+      {
+        attempt: 1,
+        idempotencyKey:
+          "rsvp-follow-up:organization-scheduled:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaf",
+        jobId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
+        kind: "rsvp_follow_up",
+        organizationId: "organization-scheduled",
+        version: 1,
+      },
+      {
+        attempt: 1,
+        idempotencyKey:
+          "post-event-report:organization-scheduled:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab",
+        jobId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaad",
+        kind: "attendance_report",
+        organizationId: "organization-scheduled",
+        version: 1,
+      },
+    ];
+    for (const [index, job] of outerJobs.entries()) {
+      const result = await processBatch(job, 1, `scheduled-outer-${String(index)}`, "fake", true);
+      expect(result.explicitAcks).toEqual([`scheduled-outer-${String(index)}`]);
+    }
+    const communicationJobs = await readCommunicationOutboxJobs(stub);
+    expect(communicationJobs).toHaveLength(3);
+    for (const [index, queuedJob] of communicationJobs.entries()) {
+      const communicationJob: DeliveryJob = {
+        attempt: 1,
+        idempotencyKey: queuedJob.idempotencyKey,
+        jobId: queuedJob.jobId,
+        kind: "communication_delivery",
+        organizationId: "organization-scheduled",
+        version: 1,
+      };
+      const result = await processBatch(
+        communicationJob,
+        1,
+        `scheduled-inner-${String(index)}`,
+        "fake",
+        true,
+      );
+      expect(result.explicitAcks).toEqual([`scheduled-inner-${String(index)}`]);
+    }
+    const stored = await runInDurableObject<
+      OrganizationStore,
+      {
+        readonly attendance: string;
+        readonly content: string;
+        readonly deliveryStatus: string;
+        readonly messageCount: number;
+      }
+    >(stub, (_instance, state) => ({
+      attendance: state.storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly attendance: string }>(
+          `SELECT attendance FROM event_rosters
+           WHERE event_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab' LIMIT 1`,
+        )
+        .one().attendance,
+      content: state.storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly content: string }>(
+          `SELECT content_markdown AS content FROM communication_messages
+           WHERE subject LIKE 'Attendance report:%' LIMIT 1`,
+        )
+        .one().content,
+      deliveryStatus: state.storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly deliveryStatus: string }>(
+          `SELECT d.status AS deliveryStatus FROM communication_deliveries d
+           JOIN communication_messages m ON m.id = d.message_id
+           WHERE m.subject LIKE 'Attendance report:%' LIMIT 1`,
+        )
+        .one().deliveryStatus,
+      messageCount: state.storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly messageCount: number }>(
+          "SELECT COUNT(*) AS messageCount FROM communication_messages",
+        )
+        .one().messageCount,
+    }));
+    expect(stored.attendance).toBe("Absent");
+    expect(stored.content).toContain("Attendance rate:");
+    expect(stored.deliveryStatus).toBe("sent");
+    expect(stored.messageCount).toBe(3);
   });
 });

@@ -81,9 +81,48 @@ const rsvpSystemCommunicationTemplates = [
   },
 ] as const;
 
+const scheduledEventSystemCommunicationTemplates = [
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {singerName},\n\nThis is a follow-up reminder to RSVP for our upcoming Performance: {eventTitle}.\n\nDate & Time: {eventDate}\nLocation: {eventLocation}\n\nPlease let us know whether you can attend:\n\n{{RSVP_LINKS}}\n\nThank you,\nChoir Management",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
+    subject: "RSVP follow-up: {eventTitle}",
+    title: "Event RSVP Follow-up",
+  },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "## Attendance Report\n\n**{eventTitle}**\n\nDate & Time: {eventDate}\nEvent type: {eventType}\n\nAttendance rate: **{attendanceRate}%**\nPresent: {presentCount} / {totalCount}\n\n### Absences\n{absenteesList}\n\n{thresholdWarningsSection}\n\nThank you,\nChoir Management",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
+    subject: "Attendance report: {eventTitle}",
+    title: "Attendance Report",
+  },
+] as const;
+
 function seedRsvpSystemCommunicationTemplates(sql: SqlStorage): void {
   const now = new Date().toISOString();
   for (const template of rsvpSystemCommunicationTemplates) {
+    sql.exec(
+      `INSERT INTO communication_templates
+        (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, 1, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM communication_templates WHERE id = ?)`,
+      template.id,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      now,
+      template.id,
+    );
+  }
+}
+
+function seedScheduledEventSystemCommunicationTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of scheduledEventSystemCommunicationTemplates) {
     sql.exec(
       `INSERT INTO communication_templates
         (id, title, channel, subject, content_markdown, is_system, created_at, updated_at)
@@ -1171,6 +1210,14 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
   {
     version: 56,
     statements: ["ALTER TABLE payment_attempts ADD COLUMN refund_requested_at TEXT"],
+  },
+  {
+    version: 57,
+    apply: seedScheduledEventSystemCommunicationTemplates,
+    statements: [
+      "ALTER TABLE events ADD COLUMN rsvp_follow_up_mode TEXT NOT NULL DEFAULT 'inherit' CHECK (rsvp_follow_up_mode IN ('inherit', 'enabled', 'disabled'))",
+      "ALTER TABLE events ADD COLUMN rsvp_follow_up_lead_hours INTEGER CHECK (rsvp_follow_up_lead_hours IS NULL OR (rsvp_follow_up_lead_hours >= 1 AND rsvp_follow_up_lead_hours <= 720))",
+    ],
   },
 ] as const;
 

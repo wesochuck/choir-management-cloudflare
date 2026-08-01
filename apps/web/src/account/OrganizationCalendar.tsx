@@ -68,6 +68,8 @@ const emptyEvent: OrganizationEventRequest = {
   publicDetails: "",
   publicGraphicFileId: null,
   publishOnWebsite: false,
+  rsvpFollowUpLeadHours: null,
+  rsvpFollowUpMode: "inherit",
   setList: [],
   setListApproved: false,
   startsAt: new Date(0).toISOString(),
@@ -105,6 +107,11 @@ function readEventType(value: string): OrganizationEventRequest["type"] {
   return value === "Performance" ? "Performance" : "Rehearsal";
 }
 
+function readRsvpFollowUpMode(value: string): OrganizationEventRequest["rsvpFollowUpMode"] {
+  if (value === "enabled" || value === "disabled") return value;
+  return "inherit";
+}
+
 function readRsvp(value: string): "No" | "Pending" | "Yes" {
   if (value === "Yes" || value === "No") return value;
   return "Pending";
@@ -128,6 +135,8 @@ function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
     publicDetails: event.publicDetails,
     publicGraphicFileId: event.publicGraphicFileId,
     publishOnWebsite: event.publishOnWebsite,
+    rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
+    rsvpFollowUpMode: event.rsvpFollowUpMode,
     setList: event.setList,
     setListApproved: event.setListApproved,
     startsAt: event.startsAt,
@@ -1057,6 +1066,66 @@ export function OrganizationCalendar({
                     value={eventStart}
                   />
                 </div>
+                {event.type === "Performance" ? (
+                  <fieldset>
+                    <legend>Pending RSVP follow-up</legend>
+                    <p className="field-help">
+                      One email goes to active Performers who are still Pending. The default is{" "}
+                      {resources.rosterConfiguration.rsvpFollowUpLeadHours} hours before the RSVP
+                      deadline.
+                    </p>
+                    <label className="field" htmlFor="event-rsvp-follow-up-mode">
+                      Event setting
+                      <select
+                        id="event-rsvp-follow-up-mode"
+                        onChange={(change) => {
+                          const mode = readRsvpFollowUpMode(change.target.value);
+                          setEvent((current) => ({
+                            ...current,
+                            rsvpFollowUpLeadHours:
+                              mode === "enabled" ? (current.rsvpFollowUpLeadHours ?? 48) : null,
+                            rsvpFollowUpMode: mode,
+                          }));
+                        }}
+                        value={event.rsvpFollowUpMode}
+                      >
+                        <option value="inherit">
+                          Use Organization default (
+                          {resources.rosterConfiguration.rsvpFollowUpEnabled
+                            ? "enabled"
+                            : "disabled"}
+                          )
+                        </option>
+                        <option value="enabled">Enable for this Performance</option>
+                        <option value="disabled">Disable for this Performance</option>
+                      </select>
+                    </label>
+                    {event.rsvpFollowUpMode === "enabled" ? (
+                      <label className="field" htmlFor="event-rsvp-follow-up-hours">
+                        Hours before deadline
+                        <input
+                          id="event-rsvp-follow-up-hours"
+                          min={1}
+                          max={720}
+                          onChange={(change) => {
+                            setEvent((current) => ({
+                              ...current,
+                              rsvpFollowUpLeadHours: Math.max(
+                                1,
+                                Math.min(720, Number(change.target.value) || 1),
+                              ),
+                            }));
+                          }}
+                          type="number"
+                          value={event.rsvpFollowUpLeadHours ?? 48}
+                        />
+                      </label>
+                    ) : null}
+                    <p className="field-help">
+                      Wording: Communications → Templates → Event RSVP Follow-up.
+                    </p>
+                  </fieldset>
+                ) : null}
                 <div className="field">
                   <label htmlFor="event-call">Call time (Organization local)</label>
                   <input

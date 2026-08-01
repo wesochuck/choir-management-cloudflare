@@ -315,6 +315,7 @@ describe("Organization communications", () => {
       ).json(),
     );
     expect(templates.templates.map(({ title }) => title).sort()).toEqual([
+      "Attendance Report",
       "Audition Confirmed",
       "Audition Reminder",
       "Audition Submission Thanks",
@@ -322,6 +323,7 @@ describe("Organization communications", () => {
       "Donation Payment Receipt",
       "Dues Payment Notice",
       "Dues Payment Receipt",
+      "Event RSVP Follow-up",
       "Event RSVP Invitation",
       "General Announcement",
       "Performance Reminder",
@@ -337,6 +339,7 @@ describe("Organization communications", () => {
         .map(({ title }) => title)
         .sort(),
     ).toEqual([
+      "Attendance Report",
       "Audition Confirmed",
       "Audition Reminder",
       "Audition Submission Thanks",
@@ -344,6 +347,7 @@ describe("Organization communications", () => {
       "Donation Payment Receipt",
       "Dues Payment Notice",
       "Dues Payment Receipt",
+      "Event RSVP Follow-up",
       "Event RSVP Invitation",
       "General Announcement",
       "Performance Reminder",

@@ -307,6 +307,8 @@ const organizationEventFieldsSchema = z.object({
   publicDetails: z.string().max(100_000).default(""),
   publicGraphicFileId: z.uuid().nullable().default(null),
   publishOnWebsite: z.boolean().default(false),
+  rsvpFollowUpLeadHours: z.number().int().min(1).max(720).nullable().default(null),
+  rsvpFollowUpMode: z.enum(["inherit", "enabled", "disabled"]).default("inherit"),
   setList: z.array(organizationSetListItemSchema).max(200).default([]),
   setListApproved: z.boolean().default(false),
   startsAt: z.iso.datetime(),
@@ -323,6 +325,27 @@ export const organizationEventRequestSchema = organizationEventFieldsSchema.supe
         code: "custom",
         message: "A parent performance can only be selected for a rehearsal.",
         path: ["parentPerformanceId"],
+      });
+    }
+    if (event.type === "Rehearsal" && event.rsvpFollowUpMode !== "inherit") {
+      context.addIssue({
+        code: "custom",
+        message: "Rehearsals inherit RSVP follow-up settings from their parent Performance.",
+        path: ["rsvpFollowUpMode"],
+      });
+    }
+    if (event.rsvpFollowUpMode === "enabled" && event.rsvpFollowUpLeadHours === null) {
+      context.addIssue({
+        code: "custom",
+        message: "An RSVP follow-up lead time is required when the event override is enabled.",
+        path: ["rsvpFollowUpLeadHours"],
+      });
+    }
+    if (event.rsvpFollowUpMode !== "enabled" && event.rsvpFollowUpLeadHours !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "A custom RSVP follow-up lead time requires an enabled event override.",
+        path: ["rsvpFollowUpLeadHours"],
       });
     }
   },
@@ -740,12 +763,15 @@ export const organizationRosterConfigurationRequestSchema = z
     onBreakTimeoutDays: z.number().int().min(1).max(3_650).default(365),
     onBreakTimeoutEnabled: z.boolean().default(true),
     performerLabel: z.string().trim().min(1).max(50).default("Performer"),
+    rsvpFollowUpEnabled: z.boolean().default(true),
+    rsvpFollowUpLeadHours: z.number().int().min(1).max(720).default(48),
     rsvpExpiryEnabled: z.boolean().default(true),
     rsvpExpiryLeadDays: z.number().int().min(1).max(365).default(7),
     sections: z.array(organizationSectionSchema).min(1).max(50),
     statusAutomationEnabled: z.boolean().default(true),
     statusAutomationMissThreshold: z.number().int().min(1).max(10).default(3),
     statusAutomationRecoveryEnabled: z.boolean().default(true),
+    attendanceReportWarningThreshold: z.number().int().min(1).max(10).default(1),
     voiceParts: z.array(organizationVoicePartSchema).min(1).max(100),
   })
   .superRefine((configuration, context) => {
@@ -1343,7 +1369,13 @@ export const communicationScheduledMessageSchema = z.object({
   eventId: z.uuid().nullable(),
   eventTitle: z.string().max(500),
   id: z.uuid(),
-  kind: z.enum(["attendance_report", "event_reminder", "ticket_confirmation", "ticket_reminder"]),
+  kind: z.enum([
+    "attendance_report",
+    "event_reminder",
+    "rsvp_follow_up",
+    "ticket_confirmation",
+    "ticket_reminder",
+  ]),
   recipientCount: z.number().int().nonnegative(),
   scheduledAt: z.iso.datetime(),
   status: z.enum(["Failed", "Queued", "Scheduled", "Sent"]),

@@ -115,6 +115,41 @@ export const communicationPlaceholders: readonly CommunicationPlaceholder[] = [
     requiresEvent: true,
     tag: "{setlist}",
   },
+  {
+    audience: ["Members"],
+    channels: ["Email"],
+    description: "The percentage of rostered people marked Present in an attendance report.",
+    label: "Attendance rate",
+    tag: "{attendanceRate}",
+  },
+  {
+    audience: ["Members"],
+    channels: ["Email"],
+    description: "The number of people marked Present.",
+    label: "Present count",
+    tag: "{presentCount}",
+  },
+  {
+    audience: ["Members"],
+    channels: ["Email"],
+    description: "The total number of rostered people in the report.",
+    label: "Total count",
+    tag: "{totalCount}",
+  },
+  {
+    audience: ["Members"],
+    channels: ["Email"],
+    description: "A Markdown list of Profiles not marked Present.",
+    label: "Absentee list",
+    tag: "{absenteesList}",
+  },
+  {
+    audience: ["Members"],
+    channels: ["Email"],
+    description: "A section naming Profiles at or above the linked-Rehearsal warning threshold.",
+    label: "Warning section",
+    tag: "{thresholdWarningsSection}",
+  },
 ];
 
 export function visibleCommunicationPlaceholders(

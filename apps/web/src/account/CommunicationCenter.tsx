@@ -698,6 +698,8 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
         return "Attendance report";
       case "event_reminder":
         return "Event reminder";
+      case "rsvp_follow_up":
+        return "RSVP follow-up";
       case "ticket_confirmation":
         return "Ticket confirmation";
       case "ticket_reminder":
@@ -721,6 +723,17 @@ export function CommunicationCenter({ enabled }: { readonly enabled: boolean }) 
         Build a message in three steps: choose the audience, write with Markdown and placeholders,
         then review it before queueing delivery.
       </p>
+      {providerStatus ? (
+        <p className="notice notice--info" role="status">
+          <strong>Delivery mode: {providerStatus.externalEffectsMode}.</strong>{" "}
+          {providerStatus.externalEffectsMode === "fake"
+            ? "Messages are recorded as sent but no external provider request is made."
+            : providerStatus.externalEffectsMode === "disabled"
+              ? "Messages are recorded as suppressed and are not sent."
+              : "Provider requests are made under sandbox restrictions."}{" "}
+          <a href="/admin/settings">View provider status details.</a>
+        </p>
+      ) : null}
       <nav className="communication-tabs" aria-label="Communication sections">
         {(
           [

@@ -2024,6 +2024,9 @@
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/scheduler.integration.test.ts",
             "apps/worker/test/jobs.integration.test.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "docs/adr/0029-deliver-scheduled-event-communications-through-system-templates.md",
           ],
       },
       {
@@ -2041,6 +2044,10 @@
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/scheduler.integration.test.ts",
             "apps/worker/test/jobs.integration.test.ts",
+            "apps/worker/src/organization/communicationStore.ts",
+            "apps/worker/src/organization/organizationCommunications.ts",
+            "apps/web/src/account/RosterAutomationSettings.tsx",
+            "docs/adr/0029-deliver-scheduled-event-communications-through-system-templates.md",
           ],
       },
       {

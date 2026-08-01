@@ -121,6 +121,8 @@ interface EventRow {
   readonly publicDetails: string;
   readonly publicGraphicFileId: string | null;
   readonly publishOnWebsite: number;
+  readonly rsvpFollowUpLeadHours: number | null;
+  readonly rsvpFollowUpMode: "disabled" | "enabled" | "inherit";
   readonly setListApproved: number;
   readonly setListJson: string;
   readonly startsAt: string;
@@ -319,6 +321,8 @@ export function listOrganizationEventsFromStore(
          parent_performance_id AS parentPerformanceId, details,
          public_details AS publicDetails, public_graphic_file_id AS publicGraphicFileId,
          publish_on_website AS publishOnWebsite,
+         rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours,
+         rsvp_follow_up_mode AS rsvpFollowUpMode,
          set_list_json AS setListJson, set_list_approved AS setListApproved,
          created_at AS createdAt, updated_at AS updatedAt,
          is_canceled AS isCanceled
@@ -342,6 +346,8 @@ export function listOrganizationEventsFromStore(
       publicDetails: event.publicDetails,
       publicGraphicFileId: event.publicGraphicFileId,
       publishOnWebsite: event.publishOnWebsite === 1,
+      rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
+      rsvpFollowUpMode: event.rsvpFollowUpMode,
       setList: parseSetList(event.setListJson),
       setListApproved: event.setListApproved === 1,
       startsAt: event.startsAt,
@@ -1078,10 +1084,11 @@ function writeEvent(
         `INSERT INTO events
           (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
            parent_performance_id, details, public_details, public_graphic_file_id,
-           publish_on_website, advance_price_cents, day_of_price_cents, doors_open_time,
+           publish_on_website, rsvp_follow_up_lead_hours, rsvp_follow_up_mode,
+           advance_price_cents, day_of_price_cents, doors_open_time,
            is_ticketing_enabled, ticket_capacity, set_list_json, set_list_approved,
            is_archived, is_canceled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
         event.id,
         event.title,
         event.type,
@@ -1095,6 +1102,8 @@ function writeEvent(
         event.publicDetails,
         event.publicGraphicFileId,
         event.publishOnWebsite ? 1 : 0,
+        event.rsvpFollowUpLeadHours,
+        event.rsvpFollowUpMode,
         event.advancePriceCents,
         event.dayOfPriceCents,
         event.doorsOpenTime,
@@ -1110,6 +1119,7 @@ function writeEvent(
         `UPDATE events SET title = ?, type = ?, starts_at = ?, duration_minutes = ?,
            call_time = ?, location = ?, venue_id = ?, parent_performance_id = ?, details = ?,
            public_details = ?, public_graphic_file_id = ?, publish_on_website = ?,
+           rsvp_follow_up_lead_hours = ?, rsvp_follow_up_mode = ?,
            advance_price_cents = ?, day_of_price_cents = ?, doors_open_time = ?,
            is_ticketing_enabled = ?, ticket_capacity = ?, set_list_json = ?,
            set_list_approved = ?, updated_at = ?
@@ -1126,6 +1136,8 @@ function writeEvent(
         event.publicDetails,
         event.publicGraphicFileId,
         event.publishOnWebsite ? 1 : 0,
+        event.rsvpFollowUpLeadHours,
+        event.rsvpFollowUpMode,
         event.advancePriceCents,
         event.dayOfPriceCents,
         event.doorsOpenTime,
@@ -1146,6 +1158,8 @@ function writeEvent(
       {
         isTicketingEnabled: event.isTicketingEnabled,
         publishOnWebsite: event.publishOnWebsite,
+        rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
+        rsvpFollowUpMode: event.rsvpFollowUpMode,
         startsAt: event.startsAt,
         title: event.title,
         type: event.type,

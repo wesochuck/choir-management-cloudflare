@@ -40,6 +40,8 @@ const emptyEvent: OrganizationEventRequest = {
   publicDetails: "",
   publicGraphicFileId: null,
   publishOnWebsite: false,
+  rsvpFollowUpLeadHours: null,
+  rsvpFollowUpMode: "inherit",
   setList: [],
   setListApproved: false,
   startsAt: new Date(0).toISOString(),
@@ -64,6 +66,8 @@ type EventsState =
   | { readonly status: "loading" }
   | {
       readonly events: readonly OrganizationEvent[];
+      readonly rsvpFollowUpEnabled: boolean;
+      readonly rsvpFollowUpLeadHours: number;
       readonly status: "ready";
       readonly rsvpExpiryEnabled: boolean;
       readonly rsvpExpiryLeadDays: number;
@@ -72,6 +76,11 @@ type EventsState =
     };
 
 type EventTab = "all" | "performances" | "rehearsals";
+
+function readRsvpFollowUpMode(value: string): OrganizationEventRequest["rsvpFollowUpMode"] {
+  if (value === "enabled" || value === "disabled") return value;
+  return "inherit";
+}
 
 function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
   return {
@@ -87,6 +96,8 @@ function eventRequestFrom(event: OrganizationEvent): OrganizationEventRequest {
     publicDetails: event.publicDetails,
     publicGraphicFileId: event.publicGraphicFileId,
     publishOnWebsite: event.publishOnWebsite,
+    rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
+    rsvpFollowUpMode: event.rsvpFollowUpMode,
     setList: event.setList,
     setListApproved: event.setListApproved,
     startsAt: event.startsAt,
@@ -344,6 +355,7 @@ function EventList({
   );
 }
 
+// eslint-disable-next-line complexity -- this dialog coordinates the complete event form and its scheduled RSVP override.
 function EventEditorDialog({
   busy,
   dialogOpen,
@@ -436,6 +448,67 @@ function EventEditorDialog({
             />
           </div>
           <EventRsvpDeadlineNotice eventStart={eventStart} eventType={event.type} state={state} />
+          {event.type === "Performance" ? (
+            <fieldset className="form-grid__wide">
+              <legend>Pending RSVP follow-up</legend>
+              <p className="field-help">
+                One email is sent only to active Performers still marked Pending. The Organization
+                default is{" "}
+                {state.status === "ready"
+                  ? `${String(state.rsvpFollowUpLeadHours)} hours`
+                  : "configured in Roster Settings"}{" "}
+                before the RSVP deadline.
+              </p>
+              <label className="field" htmlFor="events-page-rsvp-follow-up-mode">
+                Event setting
+                <select
+                  id="events-page-rsvp-follow-up-mode"
+                  onChange={(change) => {
+                    const mode = readRsvpFollowUpMode(change.target.value);
+                    setEvent((current) => ({
+                      ...current,
+                      rsvpFollowUpLeadHours:
+                        mode === "enabled" ? (current.rsvpFollowUpLeadHours ?? 48) : null,
+                      rsvpFollowUpMode: mode,
+                    }));
+                  }}
+                  value={event.rsvpFollowUpMode}
+                >
+                  <option value="inherit">
+                    Use Organization default (
+                    {state.status === "ready" && state.rsvpFollowUpEnabled ? "enabled" : "disabled"}
+                    )
+                  </option>
+                  <option value="enabled">Enable for this Performance</option>
+                  <option value="disabled">Disable for this Performance</option>
+                </select>
+              </label>
+              {event.rsvpFollowUpMode === "enabled" ? (
+                <label className="field" htmlFor="events-page-rsvp-follow-up-hours">
+                  Hours before deadline
+                  <input
+                    id="events-page-rsvp-follow-up-hours"
+                    min={1}
+                    max={720}
+                    onChange={(change) => {
+                      setEvent((current) => ({
+                        ...current,
+                        rsvpFollowUpLeadHours: Math.max(
+                          1,
+                          Math.min(720, Number(change.target.value) || 1),
+                        ),
+                      }));
+                    }}
+                    type="number"
+                    value={event.rsvpFollowUpLeadHours ?? 48}
+                  />
+                </label>
+              ) : null}
+              <p className="field-help">
+                Edit the email wording in Communications → Templates → Event RSVP Follow-up.
+              </p>
+            </fieldset>
+          ) : null}
           <div className="field">
             <label htmlFor="events-page-call">Call time</label>
             <input
@@ -894,6 +967,8 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
       .then(([events, venues, settings, rosterConfiguration]) => {
         setState({
           events,
+          rsvpFollowUpEnabled: rosterConfiguration.rsvpFollowUpEnabled,
+          rsvpFollowUpLeadHours: rosterConfiguration.rsvpFollowUpLeadHours,
           rsvpExpiryEnabled: rosterConfiguration.rsvpExpiryEnabled,
           rsvpExpiryLeadDays: rosterConfiguration.rsvpExpiryLeadDays,
           status: "ready",
