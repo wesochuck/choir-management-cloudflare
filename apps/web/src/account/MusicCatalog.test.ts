@@ -1,20 +1,23 @@
-import type { OrganizationRosterConfiguration } from "@choir/contracts";
+import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
 import { describe, expect, it } from "vitest";
 
 import { learningTrackFileName } from "./learningTrackFilename";
 
-const configuration: OrganizationRosterConfiguration = {
+const configuration = organizationRosterConfigurationRequestSchema.parse({
   onBreakTimeoutDays: 365,
   onBreakTimeoutEnabled: true,
   performerLabel: "Performer",
+  rsvpFollowUpEnabled: true,
+  rsvpFollowUpLeadHours: 48,
   rsvpExpiryEnabled: true,
   rsvpExpiryLeadDays: 7,
   sections: [{ code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false }],
   statusAutomationEnabled: true,
   statusAutomationMissThreshold: 3,
   statusAutomationRecoveryEnabled: true,
+  attendanceReportWarningThreshold: 1,
   voiceParts: [{ fullName: "Soprano 1", label: "S1", sectionCode: "S" }],
-};
+});
 
 describe("learning track filenames", () => {
   it("includes the piece and track labels while keeping upload names safe", () => {
