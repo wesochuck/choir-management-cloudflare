@@ -191,37 +191,48 @@ export function ChartList({
 }) {
   return (
     <div className="seating-list-view" aria-label="Text seating list">
-      {[...chart.rowCounts.keys()].reverse().map((rowIndex) => (
-        <section
-          className={`seating-list-row${showSeatNumbers ? "" : " seating-list-row--numbers-hidden"}`}
-          key={rowIndex}
-        >
-          <h3>Row {rowIndex + 1}</h3>
-          <ol>
-            {Array.from({ length: chart.rowCounts[rowIndex] ?? 0 }, (_, seatIndex) => {
-              const profile = profilesById.get(
-                chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`] ?? "",
-              );
-              return (
+      {[...chart.rowCounts.keys()].reverse().map((rowIndex) => {
+        const rowLabel =
+          rowIndex === chart.rowCounts.length - 1 ? " (Back)" : rowIndex === 0 ? " (Front)" : "";
+        const rowSeats = Array.from({ length: chart.rowCounts[rowIndex] ?? 0 }, (_, seatIndex) => {
+          const profile = profilesById.get(
+            chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`] ?? "",
+          );
+          return profile ? { profile, seatIndex } : null;
+        }).filter(
+          (entry): entry is { profile: OrganizationProfile; seatIndex: number } => entry !== null,
+        );
+        return (
+          <section className="seating-list-row" key={rowIndex}>
+            <h3>
+              Row {rowIndex + 1}
+              {rowLabel}{" "}
+              <span>
+                {rowSeats.length}/{chart.rowCounts[rowIndex] ?? 0}
+              </span>
+            </h3>
+            <ol>
+              {rowSeats.map(({ profile, seatIndex }) => (
                 <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
                   {showSeatNumbers ? (
-                    <span className="seating-list-seat-number">Seat {seatIndex + 1}</span>
+                    <span className="seating-list-seat-number">{seatIndex + 1}</span>
                   ) : null}
                   <strong>
-                    {profile
-                      ? (displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
-                          ", ",
-                          " ",
-                        )
-                      : "Empty"}
+                    {(displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
+                      ", ",
+                      " ",
+                    )}
                   </strong>
-                  {showVoiceParts && profile ? <em>{profile.voicePart}</em> : null}
+                  {showVoiceParts && profile.voicePart ? (
+                    <em className="seating-list-voice-part">({profile.voicePart})</em>
+                  ) : null}
                 </li>
-              );
-            })}
-          </ol>
-        </section>
-      ))}
+              ))}
+              {rowSeats.length === 0 ? <li>No Profiles assigned</li> : null}
+            </ol>
+          </section>
+        );
+      })}
     </div>
   );
 }
