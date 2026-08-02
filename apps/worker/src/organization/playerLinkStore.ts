@@ -52,6 +52,7 @@ function hasPublishedTrack(storage: DurableObjectStorage, eventId: string): bool
       .exec(
         `SELECT 1 FROM events e, json_each(e.set_list_json) setItem
          JOIN music_pieces piece ON piece.id = json_extract(setItem.value, '$.pieceId')
+           OR piece.parent_id = json_extract(setItem.value, '$.pieceId')
          WHERE e.id = ? AND EXISTS (SELECT 1 FROM json_each(piece.track_file_ids_json)) LIMIT 1`,
         eventId,
       )

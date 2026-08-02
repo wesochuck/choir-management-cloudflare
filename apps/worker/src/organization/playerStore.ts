@@ -1,4 +1,4 @@
-import type { DurableObjectStorage } from "@cloudflare/workers-types";
+import type { DurableObjectStorage, SqlStorageValue } from "@cloudflare/workers-types";
 
 import { z } from "zod";
 
@@ -23,6 +23,17 @@ const setListItemSchema = z.object({
 });
 
 type SetListItem = z.infer<typeof setListItemSchema>;
+
+interface PieceRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly arranger: string;
+  readonly composer: string;
+  readonly durationSeconds: number;
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly title: string;
+  readonly trackFileIds: string;
+}
 
 function parseSetListJson(value: string): SetListItem[] {
   try {
@@ -55,6 +66,36 @@ function parseTrackFileIds(value: string): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+/**
+ * Set lists normally reference a top-level work, while learning tracks can be
+ * attached to that work's movements. Resolve both levels so a parent item is
+ * playable without requiring the set list editor to duplicate every movement.
+ */
+function readPieceForSetListItem(
+  storage: DurableObjectStorage,
+  pieceId: string,
+): PieceRow | undefined {
+  const rows = storage.sql
+    .exec<PieceRow>(
+      `SELECT arranger, composer, duration_seconds AS durationSeconds, id,
+         parent_id AS parentId, title, track_file_ids_json AS trackFileIds
+       FROM music_pieces
+       WHERE id = ? OR parent_id = ?
+       ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, created_at ASC, id ASC`,
+      pieceId,
+      pieceId,
+      pieceId,
+    )
+    .toArray();
+  const primary = rows.find((row) => row.id === pieceId) ?? rows[0];
+  if (!primary) return undefined;
+  const trackFileIds: Record<string, string> = {};
+  for (const row of rows) {
+    Object.assign(trackFileIds, parseTrackFileIds(row.trackFileIds));
+  }
+  return { ...primary, trackFileIds: JSON.stringify(trackFileIds) };
 }
 
 export function readPlayerDetailsFromStore(
@@ -97,32 +138,10 @@ export function readPlayerDetailsFromStore(
   const pieceIds = setList
     .map((item) => item.pieceId)
     .filter((id): id is string => id !== undefined);
-  const pieceMap = new Map<
-    string,
-    {
-      arranger: string;
-      composer: string;
-      durationSeconds: number;
-      title: string;
-      trackFileIds: string;
-    }
-  >();
+  const pieceMap = new Map<string, PieceRow>();
   if (pieceIds.length > 0) {
     for (const pieceId of pieceIds) {
-      const piece = storage.sql
-        .exec<{
-          arranger: string;
-          composer: string;
-          durationSeconds: number;
-          title: string;
-          trackFileIds: string;
-        }>(
-          `SELECT arranger, composer, duration_seconds AS durationSeconds, title, track_file_ids_json AS trackFileIds
-           FROM music_pieces WHERE id = ? LIMIT 1`,
-          pieceId,
-        )
-        .toArray()
-        .at(0);
+      const piece = readPieceForSetListItem(storage, pieceId);
       if (piece) {
         pieceMap.set(pieceId, piece);
       }
@@ -177,31 +196,9 @@ export function readPlayerPlaylistFromStore(
   const pieceIds = setList
     .map((item) => item.pieceId)
     .filter((id): id is string => id !== undefined);
-  const pieceMap = new Map<
-    string,
-    {
-      arranger: string;
-      composer: string;
-      durationSeconds: number;
-      title: string;
-      trackFileIds: string;
-    }
-  >();
+  const pieceMap = new Map<string, PieceRow>();
   for (const pieceId of pieceIds) {
-    const piece = storage.sql
-      .exec<{
-        arranger: string;
-        composer: string;
-        durationSeconds: number;
-        title: string;
-        trackFileIds: string;
-      }>(
-        `SELECT arranger, composer, duration_seconds AS durationSeconds, title, track_file_ids_json AS trackFileIds
-         FROM music_pieces WHERE id = ? LIMIT 1`,
-        pieceId,
-      )
-      .toArray()
-      .at(0);
+    const piece = readPieceForSetListItem(storage, pieceId);
     if (piece) pieceMap.set(pieceId, piece);
   }
   const items = setList.map((item) => {

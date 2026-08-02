@@ -412,6 +412,47 @@ describe("member dashboard", () => {
     expect(oldResponse.status).toBe(404);
   });
 
+  it("returns a useful response when the set-list player is not publishable", async () => {
+    const cookie = await signIn();
+    await database
+      .prepare("UPDATE member SET role = 'owner' WHERE organizationId = 'organization-alpha'")
+      .run();
+
+    const published = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/player-tokens", cookie, {
+        body: JSON.stringify({ eventId: PERFORMANCE_ID }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(published.status).toBe(200);
+    expect(readToken(await published.json())).toBeTruthy();
+
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE events SET set_list_approved = 0 WHERE id = ?",
+          PERFORMANCE_ID,
+        );
+        return null;
+      },
+    );
+    const unpublished = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/player-tokens", cookie, {
+        body: JSON.stringify({ eventId: PERFORMANCE_ID }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(unpublished.status).toBe(409);
+    expect(await unpublished.json()).toMatchObject({
+      code: "practice_not_published",
+      message:
+        "The Practice Player needs an approved, active set list with at least one learning track.",
+    });
+  });
+
   it("rechecks public practice eligibility after a link is issued", async () => {
     const cookie = await signIn();
     const linkResponse = await exports.default.fetch(

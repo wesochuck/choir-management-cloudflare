@@ -5,7 +5,7 @@ import {
   parseSetListDuration,
 } from "@choir/domain";
 import { Dialog } from "@choir/ui";
-import { displayEvent, itemType, normalizeItems } from "./utils";
+import { displayEvent, itemType, normalizeItems, setListHasLearningTrack } from "./utils";
 import { SetListCreditEditor, SetListPrintView } from "./shared";
 import type { SetListManagerModel } from "./hooks";
 
@@ -71,43 +71,54 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
     updateDraftItems,
   } = model;
   if (!enabled) return null;
+  const practicePlayerUnavailableReason = !approved
+    ? "Approve this set list before opening the Practice Player."
+    : !setListHasLearningTrack(items, resources.music)
+      ? "Add at least one learning track to a set-list piece before opening the Practice Player."
+      : undefined;
   return (
     <section className="account-section set-list-section" aria-label="Set list editor">
       <div className="section-heading section-heading--compact set-list-page-intro">
         {selectedEvent ? (
-          <div className="button-row" aria-label="Set-list tools">
-            <button
-              className="button button--secondary"
-              disabled={busy || playerBusy}
-              onClick={() => {
-                void openPracticePlayer();
-              }}
-              type="button"
-            >
-              {playerBusy ? "Opening player…" : "Practice Player"}
-            </button>
-            <button
-              className="button button--secondary"
-              disabled={busy || playerBusy || !approved}
-              onClick={() => {
-                void rotatePracticePlayer();
-              }}
-              title={approved ? undefined : "Approve the set list before rotating its public link."}
-              type="button"
-            >
-              {playerBusy ? "Rotating link…" : "Rotate & copy link"}
-            </button>
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                void copyListText();
-                window.print();
-              }}
-              type="button"
-            >
-              Print &amp; Copy
-            </button>
-          </div>
+          <>
+            <div className="button-row" aria-label="Set-list tools">
+              <button
+                className="button button--secondary"
+                disabled={busy || playerBusy || practicePlayerUnavailableReason !== undefined}
+                onClick={() => {
+                  void openPracticePlayer();
+                }}
+                title={practicePlayerUnavailableReason}
+                type="button"
+              >
+                {playerBusy ? "Opening player…" : "Practice Player"}
+              </button>
+              <button
+                className="button button--secondary"
+                disabled={busy || playerBusy || practicePlayerUnavailableReason !== undefined}
+                onClick={() => {
+                  void rotatePracticePlayer();
+                }}
+                title={practicePlayerUnavailableReason}
+                type="button"
+              >
+                {playerBusy ? "Rotating link…" : "Rotate & copy link"}
+              </button>
+              <button
+                className="button button--secondary"
+                onClick={() => {
+                  void copyListText();
+                  window.print();
+                }}
+                type="button"
+              >
+                Print &amp; Copy
+              </button>
+            </div>
+            {practicePlayerUnavailableReason ? (
+              <p className="field-help set-list-player-help">{practicePlayerUnavailableReason}</p>
+            ) : null}
+          </>
         ) : null}
       </div>
       {error ? (

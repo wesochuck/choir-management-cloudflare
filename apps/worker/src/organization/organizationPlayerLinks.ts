@@ -16,6 +16,19 @@ const playerLinkRowSchema = z.object({
 
 const PLAYER_LINK_TTL_SECONDS = 7 * 24 * 60 * 60;
 
+/** A set list must be published before a public practice-player link can be issued. */
+export class PracticePlayerUnavailableError extends Error {
+  readonly code = "practice_not_published";
+  readonly status = 409;
+
+  constructor() {
+    super(
+      "The Practice Player needs an approved, active set list with at least one learning track.",
+    );
+    this.name = "PracticePlayerUnavailableError";
+  }
+}
+
 /** Issue a recipient-scoped, no-login practice-player link token. */
 export function issuePlayerToken(
   env: Pick<Env, "SIGNED_LINK_SECRET">,
@@ -86,7 +99,19 @@ export async function generatePublicPlayerToken(
       method: "POST",
     },
   );
-  if (!linkResponse.ok) throw new Error("Practice player link is unavailable.");
+  if (!linkResponse.ok) {
+    const body: unknown = await linkResponse.json().catch(() => null);
+    if (
+      linkResponse.status === 409 &&
+      typeof body === "object" &&
+      body !== null &&
+      "code" in body &&
+      body.code === "practice_not_published"
+    ) {
+      throw new PracticePlayerUnavailableError();
+    }
+    throw new Error("Practice player link is unavailable.");
+  }
   const link = playerLinkRowSchema.parse(await linkResponse.json());
   return {
     token: await issueSignedLink(env.SIGNED_LINK_SECRET, {

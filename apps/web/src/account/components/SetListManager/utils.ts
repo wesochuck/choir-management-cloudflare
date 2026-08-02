@@ -55,6 +55,21 @@ export function normalizeItems(items: readonly SetListItem[]): SetListItem[] {
   return items.map((item) => ({ ...item, id: item.id ?? crypto.randomUUID() }));
 }
 
+export function setListHasLearningTrack(
+  items: readonly SetListItem[],
+  music: readonly OrganizationMusicPiece[],
+): boolean {
+  return items.some(
+    (item) =>
+      item.pieceId !== undefined &&
+      music.some(
+        (piece) =>
+          (piece.id === item.pieceId || piece.parentId === item.pieceId) &&
+          Object.keys(piece.trackFileIds).length > 0,
+      ),
+  );
+}
+
 export function moveItemToIndex(
   items: readonly SetListItem[],
   fromIndex: number,

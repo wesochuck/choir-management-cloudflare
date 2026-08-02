@@ -11,6 +11,7 @@ import { generatePollTokens } from "../organization/organizationPollLinks";
 import {
   generatePlayerTokens,
   generatePublicPlayerToken,
+  PracticePlayerUnavailableError,
 } from "../organization/organizationPlayerLinks";
 
 import type { Hono } from "hono";
@@ -147,7 +148,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             )),
         requestId: context.get("requestId"),
       });
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof PracticePlayerUnavailableError) {
+        return context.json(
+          {
+            code: error.code,
+            message: error.message,
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          error.status,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",
@@ -188,7 +199,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         )),
         requestId: context.get("requestId"),
       });
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof PracticePlayerUnavailableError) {
+        return context.json(
+          {
+            code: error.code,
+            message: error.message,
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          error.status,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",
