@@ -6,7 +6,55 @@ import type {
 import { useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import type { PerformerCredit, SetListItem } from "./types";
-import { printDateLabel, printRowsFor } from "./utils";
+import { printDateOnly, printTimeOnly, setListPreviewRows } from "./utils";
+
+export function SetListPreview({
+  event,
+  items,
+  music,
+}: {
+  readonly event: OrganizationEvent;
+  readonly items: readonly SetListItem[];
+  readonly music: readonly OrganizationMusicPiece[];
+}) {
+  const rows = setListPreviewRows(items, music);
+  return (
+    <div className="set-list-preview">
+      <header className="set-list-preview__header">
+        <h1>{event.title}</h1>
+        <p>
+          {printDateOnly(event.startsAt)} at {printTimeOnly(event.startsAt)}
+          {event.location ? ` | ${event.location}` : ""}
+        </p>
+      </header>
+      <ol className="set-list-preview__items">
+        {rows.map(({ arranger, composer, kind, number, performers, title }, index) => {
+          if (kind === "intermission") {
+            return (
+              <li className="set-list-preview__intermission" key={`${title}-${String(index)}`}>
+                {title}
+              </li>
+            );
+          }
+          const credit = composer || arranger;
+          return (
+            <li className="set-list-preview__song" key={`${title}-${String(index)}`}>
+              <div className="set-list-preview__song-line">
+                <span>
+                  {String(number)}. {title}
+                </span>
+                {credit ? <span className="set-list-preview__composer">{credit}</span> : null}
+              </div>
+              {performers ? (
+                <div className="set-list-preview__group">Group — {performers}</div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
 
 export function SetListPrintView({
   event,
@@ -17,35 +65,9 @@ export function SetListPrintView({
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
 }) {
-  const rows = printRowsFor(items, music);
   return (
     <div aria-hidden="true" className="set-list-print-view">
-      <header className="set-list-print-view__header">
-        <p className="set-list-print-view__eyebrow">Set list</p>
-        <h1>{event.title}</h1>
-        <p>{printDateLabel(event.startsAt)}</p>
-      </header>
-      <table>
-        <caption className="sr-only">Set list for {event.title}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Title</th>
-            <th scope="col">Composer</th>
-            <th scope="col">Arranger</th>
-            <th scope="col">Small group / soloists</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ arranger, composer, performers, title }, index) => (
-            <tr key={`${title}-${String(index)}`}>
-              <td>{title}</td>
-              <td>{composer || "—"}</td>
-              <td>{arranger || "—"}</td>
-              <td>{performers || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <SetListPreview event={event} items={items} music={music} />
     </div>
   );
 }

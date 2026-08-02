@@ -1,5 +1,5 @@
 import type { OrganizationMusicPiece } from "@choir/contracts";
-import { hasSetListPiece, parseSetListDuration } from "@choir/domain";
+import { hasSetListPiece, normalizeSetListDuration, parseSetListDuration } from "@choir/domain";
 import {
   durationFromSeconds,
   emptyResources,
@@ -157,7 +157,7 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
       ...current,
       {
         composer: customType === "song" ? customComposer.trim() || undefined : undefined,
-        duration: customDuration.trim() || undefined,
+        duration: normalizeSetListDuration(customDuration),
         id: crypto.randomUUID(),
         notes: customNotes.trim() || undefined,
         title: customTitle.trim(),
@@ -172,13 +172,26 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     setCustomDialogOpen(false);
   }
 
-  function openCustomItem(title = "", duration = ""): void {
-    setCustomTitle(title);
+  function openCustomItem(title = "", duration = "", type: "intermission" | "song" = "song"): void {
+    setCustomType(type);
+    setCustomTitle(type === "intermission" && !title.trim() ? "Intermission" : title);
     setCustomComposer("");
     setCustomDuration(duration);
     setCustomNotes("");
     setError(null);
     setCustomDialogOpen(true);
+  }
+
+  function insertCustomItem(index: number): void {
+    const item: SetListItem = {
+      id: crypto.randomUUID(),
+      title: "Intermission",
+      type: "intermission",
+    };
+    updateDraftItems((current) => [...current.slice(0, index), item, ...current.slice(index)]);
+    setEditingItemIndex(index);
+    setEditingItem(item);
+    setError(null);
   }
 
   function openItemEditor(index: number): void {
@@ -213,7 +226,7 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
             ? editingItem.composer.trim()
             : undefined
           : undefined,
-      duration: editingItem.duration?.trim() ? editingItem.duration.trim() : undefined,
+      duration: normalizeSetListDuration(editingItem.duration),
       notes: editingItem.notes?.trim() ? editingItem.notes.trim() : undefined,
     });
     closeItemEditor();
@@ -389,6 +402,7 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     moveDraggedItem,
     musicQuery,
     openCustomItem,
+    insertCustomItem,
     openItemEditor,
     openPracticePlayer,
     rotatePracticePlayer,

@@ -1,4 +1,5 @@
 import type { SingerEvent, SingerEventsResponse } from "@choir/contracts";
+import { normalizeSetListDuration } from "@choir/domain";
 import { useEffect, useState } from "react";
 
 import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
@@ -174,11 +175,12 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                         <ol>
                           {event.setList.map((item, index) => {
                             const credit = performerCredit(item, performerLabelPlural);
+                            const duration = normalizeSetListDuration(item.duration);
                             return (
                               <li key={item.id ?? `${item.title}-${String(index)}`}>
                                 <strong>{item.title}</strong>
                                 {item.composer ? ` — ${item.composer}` : ""}
-                                {item.duration ? ` (${item.duration})` : ""}
+                                {duration ? ` (${duration})` : ""}
                                 {credit ? <span>{credit}</span> : null}
                               </li>
                             );

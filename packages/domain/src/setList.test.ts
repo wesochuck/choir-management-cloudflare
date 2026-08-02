@@ -5,6 +5,7 @@ import {
   formatSetListDuration,
   hasSetListPiece,
   moveSetListItem,
+  normalizeSetListDuration,
   parseSetListDuration,
 } from "./setList";
 
@@ -22,6 +23,9 @@ describe("set-list rules", () => {
     expect(calculateSetListDuration([{ duration: "3:30" }, { duration: "10 min" }, {}])).toBe(810);
     expect(formatSetListDuration(810)).toBe("13:30");
     expect(formatSetListDuration(3_723)).toBe("1:02:03");
+    expect(normalizeSetListDuration("2")).toBe("2:00");
+    expect(normalizeSetListDuration("1:02")).toBe("1:02");
+    expect(normalizeSetListDuration("later")).toBe("later");
   });
 
   it("detects linked duplicates and moves only within list bounds", () => {

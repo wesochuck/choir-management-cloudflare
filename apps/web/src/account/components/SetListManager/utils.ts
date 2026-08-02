@@ -4,7 +4,7 @@ import type {
   OrganizationMusicPiece,
 } from "@choir/contracts";
 import { formatSetListDuration, moveSetListItem } from "@choir/domain";
-import type { SetListItem, SetListPrintRow } from "./types";
+import type { SetListItem, SetListPreviewRow, SetListPrintRow } from "./types";
 import type { Resources } from "./types";
 
 export const emptyResources: Resources = {
@@ -87,10 +87,19 @@ export function displayEvent(event: OrganizationEvent): string {
   return `${event.title} — ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.startsAt))}`;
 }
 
-export function printDateLabel(value: string): string {
+export function printDateOnly(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "long",
-    timeStyle: "short",
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+export function printTimeOnly(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date(value));
 }
 
@@ -113,19 +122,42 @@ export function printRowsFor(
   });
 }
 
+export function setListPreviewRows(
+  items: readonly SetListItem[],
+  music: readonly OrganizationMusicPiece[],
+): SetListPreviewRow[] {
+  const rows = printRowsFor(items, music);
+  let songNumber = 0;
+  return items.map((item, index) => {
+    const row = rows[index] ?? { arranger: "", composer: "", performers: "", title: item.title };
+    const kind = itemType(item);
+    return {
+      ...row,
+      kind,
+      number: kind === "song" ? (songNumber += 1) : null,
+    };
+  });
+}
+
 export function setListDocumentText(
   event: OrganizationEvent,
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
 ): string {
-  const rows = printRowsFor(items, music);
+  const rows = setListPreviewRows(items, music);
   return [
-    event.title,
-    printDateLabel(event.startsAt),
+    `Set List: ${event.title}`,
+    `Date: ${printDateOnly(event.startsAt)}`,
+    `Time: ${printTimeOnly(event.startsAt)}`,
+    `Venue: ${event.location || "—"}`,
     "",
-    ["Title", "Composer", "Arranger", "Small group / soloists"].join(" ~ "),
-    ...rows.map(({ arranger, composer, performers, title }) =>
-      [title, composer || "—", arranger || "—", performers || "—"].join(" ~ "),
-    ),
+    ...rows.flatMap(({ arranger, composer, kind, number, performers, title }) => {
+      if (kind === "intermission") return [title];
+      const credit = composer || arranger;
+      return [
+        `${String(number)}. ${title}${credit ? ` ~ ${credit}` : ""}`,
+        ...(performers ? [`   Group — ${performers}`] : []),
+      ];
+    }),
   ].join("\n");
 }

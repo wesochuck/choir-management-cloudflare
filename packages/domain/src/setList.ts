@@ -40,6 +40,13 @@ export function formatSetListDuration(totalSeconds: number): string {
     : `${String(minutes)}:${trailing}`;
 }
 
+export function normalizeSetListDuration(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const parsed = parseSetListDuration(trimmed);
+  return parsed === null ? trimmed : formatSetListDuration(parsed);
+}
+
 export function calculateSetListDuration(items: readonly SetListDurationItem[]): number {
   return items.reduce((total, item) => total + (parseSetListDuration(item.duration) ?? 0), 0);
 }

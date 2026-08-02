@@ -20,3 +20,8 @@ export interface SetListPrintRow {
   readonly performers: string;
   readonly title: string;
 }
+
+export interface SetListPreviewRow extends SetListPrintRow {
+  readonly kind: "intermission" | "song";
+  readonly number: number | null;
+}

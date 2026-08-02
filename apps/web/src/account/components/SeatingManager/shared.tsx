@@ -6,7 +6,7 @@ import type {
 } from "@choir/contracts";
 import { useDraggable } from "@dnd-kit/core";
 import { Dialog } from "@choir/ui";
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
 import { normalizeFormationOrder, formationOrderOptions, moveFormationOrderItem } from "./utils";
 import type { ConfirmState } from "./types";
@@ -52,6 +52,7 @@ export function FormationOrderEditor({
   readonly roster: OrganizationRosterConfiguration;
 }) {
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const options = formationOrderOptions(formation, roster);
   const optionByValue = new Map(options.map((option) => [option.value, option]));
   const order = formation.sectionOrder;
@@ -60,11 +61,21 @@ export function FormationOrderEditor({
     onChange(moveFormationOrderItem(order, from, to));
   }
 
+  function dropIndexForPointer(event: DragEvent<HTMLDivElement>, index: number): number {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const horizontal = formation.strategy !== "horizontal_row";
+    const midpoint = horizontal ? bounds.left + bounds.width / 2 : bounds.top + bounds.height / 2;
+    const after = horizontal ? event.clientX >= midpoint : event.clientY >= midpoint;
+    return after ? index + 1 : index;
+  }
+
   return (
     <div className="formation-order-editor">
       <div className="formation-order-editor__heading">
         <span>Section or voice-part order</span>
-        <small>Drag the handles to set the order used by this formation.</small>
+        <small>
+          Drag the handles to set the order. The highlighted line shows where it will land.
+        </small>
       </div>
       <div
         aria-label={`${formation.isVoicePartLayout ? "Voice-part" : "Section"} order`}
@@ -76,26 +87,32 @@ export function FormationOrderEditor({
           return (
             <div
               aria-label={`${option?.label ?? `Unknown item ${value}`}, position ${String(index + 1)}`}
-              className={`formation-order-item${draggingIndex === index ? " formation-order-item--dragging" : ""}${option ? "" : " formation-order-item--unknown"}`}
+              className={`formation-order-item${draggingIndex === index ? " formation-order-item--dragging" : ""}${dropTargetIndex === index ? " formation-order-item--drop-before" : ""}${dropTargetIndex === index + 1 ? " formation-order-item--drop-after" : ""}${option ? "" : " formation-order-item--unknown"}`}
               draggable
               key={`${value}-${String(index)}`}
               onDragEnd={() => {
                 setDraggingIndex(null);
+                setDropTargetIndex(null);
               }}
               onDragOver={(event) => {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = "move";
+                setDropTargetIndex(dropIndexForPointer(event, index));
               }}
               onDragStart={(event) => {
                 setDraggingIndex(index);
+                setDropTargetIndex(index);
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData("text/plain", String(index));
               }}
               onDrop={(event) => {
                 event.preventDefault();
                 const from = Number(event.dataTransfer.getData("text/plain"));
-                if (Number.isInteger(from)) move(from, index);
+                const target = dropTargetIndex ?? dropIndexForPointer(event, index);
+                const destination = target > from ? target - 1 : target;
+                if (Number.isInteger(from)) move(from, destination);
                 setDraggingIndex(null);
+                setDropTargetIndex(null);
               }}
               onKeyDown={(event) => {
                 const previous = event.key === "ArrowLeft" || event.key === "ArrowUp";

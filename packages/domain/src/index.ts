@@ -94,6 +94,7 @@ export {
   formatSetListDuration,
   hasSetListPiece,
   moveSetListItem,
+  normalizeSetListDuration,
   parseSetListDuration,
   type SetListDurationItem,
 } from "./setList";
