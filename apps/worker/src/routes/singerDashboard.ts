@@ -32,37 +32,41 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
-    if (!profileId) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "A linked Organization Profile is required for practice.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-    const schedule = await listMemberSchedule(context.env, authorization.organizationId, profileId);
-    if (
-      !schedule.some(
-        (event) => singerEventSchema.parse(event).practice.sourceEventId === eventId.data,
-      )
-    ) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Practice tracks are not available for this event.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
     try {
+      const profileId = await linkedOrganizationProfileId(
+        context.env.CONTROL_DB,
+        authorization.organizationId,
+        authorization.userId,
+      );
+      if (!profileId) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "A linked Organization Profile is required for practice.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const schedule = await listMemberSchedule(
+        context.env,
+        authorization.organizationId,
+        profileId,
+      );
+      if (
+        !schedule.some(
+          (event) => singerEventSchema.parse(event).practice.sourceEventId === eventId.data,
+        )
+      ) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "Practice tracks are not available for this event.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
       return context.json({
         ...(await generatePublicPlayerToken(
           context.env,

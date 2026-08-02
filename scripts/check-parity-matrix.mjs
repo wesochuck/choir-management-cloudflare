@@ -85,6 +85,7 @@ const expectedBrowserRoutes = [
   "/admin/events",
   "/admin/events/:eventId/roster",
   "/admin/library",
+  "/admin/library/settings",
   "/admin/patrons",
   "/admin/polls",
   "/admin/reports",

@@ -5,10 +5,14 @@ import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } fro
 import { ProfileDues, ProfileFolderNumbers } from "./profileDetails";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { ProfilePhotoEditor } from "../../MemberProfileDirectory";
+import { RosterAutomationSettings } from "../../RosterAutomationSettings";
+import { RosterConfiguration } from "../../RosterConfiguration";
+import { useState } from "react";
 import type { RosterPageModel } from "./hooks";
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
 export function RosterPageView({ model }: { readonly model: RosterPageModel }) {
+  const [activeTab, setActiveTab] = useState<"roster" | "settings">("roster");
   const {
     busy,
     clearRosterFilters,
@@ -71,164 +75,208 @@ export function RosterPageView({ model }: { readonly model: RosterPageModel }) {
   }
   return (
     <>
-      <div className="page-toolbar">
-        <div className="page-toolbar__actions">
-          <a
-            className="button button--secondary"
-            download="choir_roster_export.csv"
-            href="/api/organization/profiles/export.csv"
-          >
-            Export CSV
-          </a>
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setError(null);
-              setSuccess(null);
-              setImportDialogOpen(true);
-            }}
-            type="button"
-          >
-            Import CSV
-          </button>
-          <button className="button button--primary" onClick={openCreate} type="button">
-            Add Profile
-          </button>
-        </div>
+      <nav className="ticketing-tabs roster-page-tabs" aria-label="Roster sections" role="tablist">
+        <button
+          aria-controls="roster-directory-panel"
+          aria-selected={activeTab === "roster"}
+          className={activeTab === "roster" ? "is-active" : undefined}
+          id="roster-directory-tab"
+          onClick={() => {
+            setActiveTab("roster");
+          }}
+          role="tab"
+          type="button"
+        >
+          Roster
+        </button>
+        <button
+          aria-controls="roster-settings-panel"
+          aria-selected={activeTab === "settings"}
+          className={activeTab === "settings" ? "is-active" : undefined}
+          id="roster-settings-tab"
+          onClick={() => {
+            setActiveTab("settings");
+          }}
+          role="tab"
+          type="button"
+        >
+          Settings
+        </button>
+      </nav>
+      <div
+        aria-labelledby="roster-settings-tab"
+        hidden={activeTab !== "settings"}
+        id="roster-settings-panel"
+        role="tabpanel"
+      >
+        <RosterConfiguration enabled={enabled} />
+        <RosterAutomationSettings enabled={enabled} />
       </div>
+      <div
+        aria-labelledby="roster-directory-tab"
+        hidden={activeTab !== "roster"}
+        id="roster-directory-panel"
+        role="tabpanel"
+      >
+        <div className="page-toolbar">
+          <div className="page-toolbar__actions">
+            <a
+              className="button button--secondary"
+              download="choir_roster_export.csv"
+              href="/api/organization/profiles/export.csv"
+            >
+              Export CSV
+            </a>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setError(null);
+                setSuccess(null);
+                setImportDialogOpen(true);
+              }}
+              type="button"
+            >
+              Import CSV
+            </button>
+            <button className="button button--primary" onClick={openCreate} type="button">
+              Add Profile
+            </button>
+          </div>
+        </div>
 
-      {error && !dialogOpen && !importDialogOpen ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="notice notice--success" role="status">
-          {success}
-        </p>
-      ) : null}
-      {roster.status === "loading" ? <p role="status">Loading roster…</p> : null}
-      {roster.status === "error" ? (
-        <p className="notice notice--error" role="alert">
-          The Organization roster could not be loaded.
-        </p>
-      ) : null}
-      {roster.status === "ready" ? (
-        <>
-          <VoicePartBalance
-            configuration={roster.configuration}
-            onToggle={toggleVoiceFilter}
-            profiles={roster.profiles}
-            selectedFilters={selectedVoiceFilters}
-          />
-          <div className="roster-filter-row">
-            <label className="search-field">
-              <span className="sr-only">Search Profiles</span>
-              <input
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                }}
-                placeholder="Search by name or email"
-                type="search"
-                value={query}
-              />
-            </label>
-            <label className="field roster-filter-row__status">
-              <span className="sr-only">Filter by status</span>
-              <select
-                aria-label="Filter by status"
-                onChange={(event) => {
-                  setStatusFilter(parseRosterStatusFilter(event.target.value));
-                }}
-                value={statusFilter}
-              >
-                <option value="all">All statuses</option>
-                <option value="Active">Active</option>
-                <option value="Idle">On Break</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </label>
-            {query || selectedVoiceFilters.length > 0 || statusFilter !== "all" ? (
-              <button
-                className="button button--secondary"
-                onClick={clearRosterFilters}
-                type="button"
-              >
-                Clear filters
-              </button>
-            ) : null}
-          </div>
-          <div className="table-heading">
-            <h2>Profiles</h2>
-            <span>{filteredProfiles.length} shown</span>
-          </div>
-          <DataTable
-            columns={[
-              {
-                header: "Name",
-                id: "name",
-                render: (candidate) => <strong>{candidate.displayName}</strong>,
-                sortValue: (candidate) => candidate.displayName,
-              },
-              {
-                header: "Email",
-                id: "email",
-                render: (candidate) => {
-                  const email = roster.memberships.find(
-                    ({ profileId }) => profileId === candidate.id,
-                  )?.email;
-                  return email ? <a href={`mailto:${email}`}>{email}</a> : "Not linked";
+        {error && !dialogOpen && !importDialogOpen ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {success ? (
+          <p className="notice notice--success" role="status">
+            {success}
+          </p>
+        ) : null}
+        {roster.status === "loading" ? <p role="status">Loading roster…</p> : null}
+        {roster.status === "error" ? (
+          <p className="notice notice--error" role="alert">
+            The Organization roster could not be loaded.
+          </p>
+        ) : null}
+        {roster.status === "ready" ? (
+          <>
+            <VoicePartBalance
+              configuration={roster.configuration}
+              onToggle={toggleVoiceFilter}
+              profiles={roster.profiles}
+              selectedFilters={selectedVoiceFilters}
+            />
+            <div className="roster-filter-row">
+              <label className="search-field">
+                <span className="sr-only">Search Profiles</span>
+                <input
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                  }}
+                  placeholder="Search by name or email"
+                  type="search"
+                  value={query}
+                />
+              </label>
+              <label className="field roster-filter-row__status">
+                <span className="sr-only">Filter by status</span>
+                <select
+                  aria-label="Filter by status"
+                  onChange={(event) => {
+                    setStatusFilter(parseRosterStatusFilter(event.target.value));
+                  }}
+                  value={statusFilter}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Idle">On Break</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </label>
+              {query || selectedVoiceFilters.length > 0 || statusFilter !== "all" ? (
+                <button
+                  className="button button--secondary"
+                  onClick={clearRosterFilters}
+                  type="button"
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+            <div className="table-heading">
+              <h2>Profiles</h2>
+              <span>{filteredProfiles.length} shown</span>
+            </div>
+            <DataTable
+              columns={[
+                {
+                  header: "Name",
+                  id: "name",
+                  render: (candidate) => <strong>{candidate.displayName}</strong>,
+                  sortValue: (candidate) => candidate.displayName,
                 },
-                sortValue: (candidate) =>
-                  roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ??
-                  "",
-              },
-              {
-                header: "Voice part",
-                id: "voicePart",
-                render: (candidate) => candidate.voicePart || "Not assigned",
-                sortValue: (candidate) => candidate.voicePart,
-              },
-              {
-                header: "Status",
-                id: "status",
-                render: (candidate) => (
-                  <span className="status-pill">{statusLabel(candidate.globalStatus)}</span>
-                ),
-                sortValue: (candidate) => statusLabel(candidate.globalStatus),
-              },
-              {
-                header: "Directory",
-                id: "directory",
-                render: (candidate) => (candidate.showInDirectory ? "Shown" : "Hidden"),
-                sortValue: (candidate) => candidate.showInDirectory,
-              },
-              {
-                header: "Actions",
-                id: "actions",
-                mobileLabel: "Manage",
-                render: (candidate) => (
-                  <button
-                    className="text-button"
-                    onClick={() => {
-                      openEdit(candidate);
-                    }}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                ),
-              },
-            ]}
-            emptyMessage={query ? "No Profiles match your search." : "No Profiles yet."}
-            initialSort={{ columnId: "name", direction: "asc" }}
-            keySelector={(candidate) => candidate.id}
-            onRowClick={openEdit}
-            rowLabel={(candidate) => `Edit profile ${candidate.displayName}`}
-            rows={filteredProfiles}
-          />
-        </>
-      ) : null}
+                {
+                  header: "Email",
+                  id: "email",
+                  render: (candidate) => {
+                    const email = roster.memberships.find(
+                      ({ profileId }) => profileId === candidate.id,
+                    )?.email;
+                    return email ? <a href={`mailto:${email}`}>{email}</a> : "Not linked";
+                  },
+                  sortValue: (candidate) =>
+                    roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ??
+                    "",
+                },
+                {
+                  header: "Voice part",
+                  id: "voicePart",
+                  render: (candidate) => candidate.voicePart || "Not assigned",
+                  sortValue: (candidate) => candidate.voicePart,
+                },
+                {
+                  header: "Status",
+                  id: "status",
+                  render: (candidate) => (
+                    <span className="status-pill">{statusLabel(candidate.globalStatus)}</span>
+                  ),
+                  sortValue: (candidate) => statusLabel(candidate.globalStatus),
+                },
+                {
+                  header: "Directory",
+                  id: "directory",
+                  render: (candidate) => (candidate.showInDirectory ? "Shown" : "Hidden"),
+                  sortValue: (candidate) => candidate.showInDirectory,
+                },
+                {
+                  header: "Actions",
+                  id: "actions",
+                  mobileLabel: "Manage",
+                  render: (candidate) => (
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        openEdit(candidate);
+                      }}
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                  ),
+                },
+              ]}
+              emptyMessage={query ? "No Profiles match your search." : "No Profiles yet."}
+              initialSort={{ columnId: "name", direction: "asc" }}
+              keySelector={(candidate) => candidate.id}
+              onRowClick={openEdit}
+              rowLabel={(candidate) => `Edit profile ${candidate.displayName}`}
+              rows={filteredProfiles}
+            />
+          </>
+        ) : null}
+      </div>
 
       <Dialog
         description="Profile details and roster attributes belong only to this Organization."

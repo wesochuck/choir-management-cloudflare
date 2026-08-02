@@ -18,6 +18,7 @@ interface PaymentRefundTargetRow {
   readonly providerPaymentId: string;
   readonly refundRequestedAt: string | null;
   readonly resourceId: string;
+  readonly sharedMemberCount: number;
   readonly status: string;
 }
 
@@ -30,7 +31,7 @@ function paymentAttemptForResource(
     .exec<PaymentRefundTargetRow>(
       `SELECT id AS attemptId, payment_type AS paymentType, resource_id AS resourceId,
         provider_payment_id AS providerPaymentId, amount_cents AS amountCents, status,
-        refund_requested_at AS refundRequestedAt
+        refund_requested_at AS refundRequestedAt, 1 AS sharedMemberCount
        FROM payment_attempts
        WHERE payment_type = ? AND resource_id = ?
        ORDER BY created_at DESC LIMIT 1`,
@@ -48,14 +49,25 @@ function paymentAttemptForDuesMember(
   return storage.sql
     .exec<PaymentRefundTargetRow>(
       `SELECT pa.id AS attemptId, pa.payment_type AS paymentType,
-        pa.resource_id AS resourceId, pa.provider_payment_id AS providerPaymentId,
-        pa.amount_cents AS amountCents, pa.status,
-        pa.refund_requested_at AS refundRequestedAt
+        d.id AS resourceId, pa.provider_payment_id AS providerPaymentId,
+        d.amount_cents + d.fee_cents AS amountCents, pa.status,
+        pa.refund_requested_at AS refundRequestedAt,
+        (SELECT COUNT(*) FROM dues sibling
+         WHERE sibling.payment_method = 'online'
+           AND sibling.status = 'paid'
+           AND (
+             (d.provider_payment_id <> '' AND sibling.provider_payment_id = d.provider_payment_id)
+             OR (d.provider_session_id <> '' AND sibling.provider_session_id = d.provider_session_id)
+           )) AS sharedMemberCount
        FROM dues d
        JOIN payment_attempts pa
-         ON pa.payment_type = 'dues' AND pa.provider_payment_id = d.provider_payment_id
+         ON pa.payment_type = 'dues'
+        AND (
+          (d.provider_payment_id <> '' AND pa.provider_payment_id = d.provider_payment_id)
+          OR (d.provider_session_id <> '' AND pa.provider_session_id = d.provider_session_id)
+        )
        WHERE d.id = ? AND d.status = 'paid' AND d.payment_method = 'online'
-         AND d.provider_payment_id <> '' AND pa.status = 'paid'
+         AND pa.status = 'paid'
        ORDER BY pa.created_at DESC LIMIT 1`,
       duesId,
     )
@@ -68,9 +80,11 @@ function paymentRefundTarget(
   paymentType: string,
   resourceId: string,
 ): PaymentRefundTargetRow | undefined {
+  if (paymentType === "dues") {
+    return paymentAttemptForDuesMember(storage, resourceId) ?? undefined;
+  }
   const direct = paymentAttemptForResource(storage, paymentType, resourceId);
-  if (direct || paymentType !== "dues") return direct;
-  return paymentAttemptForDuesMember(storage, resourceId);
+  return direct;
 }
 
 export function readPaymentRefundTargetFromStore(
@@ -98,6 +112,7 @@ export function readPaymentRefundTargetFromStore(
         providerPaymentId: target.providerPaymentId,
         refundRequested: target.refundRequestedAt !== null,
         resourceId: target.resourceId,
+        sharedMemberCount: target.sharedMemberCount,
         status: target.status,
       })
     : Response.json({ code: "payment_refund_target_not_found" }, { status: 404 });

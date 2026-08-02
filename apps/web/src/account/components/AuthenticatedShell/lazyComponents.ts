@@ -76,6 +76,12 @@ export const MusicCatalog = lazy(() =>
   })),
 );
 
+export const MusicLibrarySettings = lazy(() =>
+  import("../../MusicLibrarySettingsPage").then(({ MusicLibrarySettingsPage: component }) => ({
+    default: component,
+  })),
+);
+
 export const MySchedule = lazy(() =>
   import("../../MySchedule").then(({ MySchedule: component }) => ({ default: component })),
 );

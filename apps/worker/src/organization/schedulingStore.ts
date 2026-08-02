@@ -100,6 +100,11 @@ function readEventSummary(storage: DurableObjectStorage, eventId: string): Event
   );
 }
 
+function eventIdFromCommunicationJobKey(idempotencyKey: string): string | null {
+  const parts = idempotencyKey.split(":");
+  return parts.at(-2) === "retry" ? (parts.at(-3) ?? null) : (parts.at(-1) ?? null);
+}
+
 function readEventCommunicationJobFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -124,7 +129,7 @@ function readEventCommunicationJobFromStore(
     )
     .toArray()
     .at(0);
-  const eventId = job?.idempotencyKey.split(":").at(-1);
+  const eventId = job ? eventIdFromCommunicationJobKey(job.idempotencyKey) : null;
   if (!eventId) {
     return Response.json({ code: `${kind}_job_not_found` }, { status: 404 });
   }

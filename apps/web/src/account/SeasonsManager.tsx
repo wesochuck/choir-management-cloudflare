@@ -95,6 +95,18 @@ function apiError(error: unknown, fallback: string): string {
   return error instanceof AuthApiError ? error.message : fallback;
 }
 
+function defaultDuesSeasonId(seasons: readonly Season[]): string | null {
+  const active = seasons.find((season) => season.isActive);
+  if (active) return active.id;
+  return (
+    seasons.reduce<Season | null>(
+      (latest, season) =>
+        !latest || season.startsAt.localeCompare(latest.startsAt) > 0 ? season : latest,
+      null,
+    )?.id ?? null
+  );
+}
+
 // eslint-disable-next-line complexity -- this coordinator owns the two related season and dues workflows.
 export function SeasonsManager({
   enabled,
@@ -115,7 +127,8 @@ export function SeasonsManager({
   const [refundBusy, setRefundBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [tab, setTab] = useState<"seasons" | "dues">("seasons");
+  const [tab, setTab] = useState<"settings" | "dues">("dues");
+  const [selectedDuesSeasonId, setSelectedDuesSeasonId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -222,6 +235,7 @@ export function SeasonsManager({
             }
           : current,
       );
+      setSelectedDuesSeasonId(activated.id);
       setMessage(`${season.name} is now active.`);
     } catch (activateError: unknown) {
       setError(apiError(activateError, "The season could not be activated."));
@@ -243,6 +257,9 @@ export function SeasonsManager({
               status: "ready",
             }
           : current,
+      );
+      setSelectedDuesSeasonId((selectedId) =>
+        selectedId === confirmSeason.id ? null : selectedId,
       );
       setConfirmSeason(null);
       setMessage("Season deleted.");
@@ -276,6 +293,9 @@ export function SeasonsManager({
   }
 
   if (!enabled) return null;
+  const duesSeasonId =
+    selectedDuesSeasonId ??
+    (seasonState.status === "ready" ? defaultDuesSeasonId(seasonState.seasons) : null);
   return (
     <>
       <section className="panel" aria-label="Season and dues management">
@@ -296,23 +316,10 @@ export function SeasonsManager({
             role="tablist"
           >
             <button
-              aria-controls="seasons-manager-panel"
-              aria-selected={tab === "seasons"}
-              className={tab === "seasons" ? "is-active" : undefined}
-              id="seasons-manager-tab"
-              onClick={() => {
-                setTab("seasons");
-              }}
-              role="tab"
-              type="button"
-            >
-              Manage seasons
-            </button>
-            <button
-              aria-controls="seasons-manager-panel"
+              aria-controls="dues-records-panel"
               aria-selected={tab === "dues"}
               className={tab === "dues" ? "is-active" : undefined}
-              id="dues-manager-tab"
+              id="dues-records-tab"
               onClick={() => {
                 setTab("dues");
               }}
@@ -321,8 +328,21 @@ export function SeasonsManager({
             >
               Dues records
             </button>
+            <button
+              aria-controls="season-settings-panel"
+              aria-selected={tab === "settings"}
+              className={tab === "settings" ? "is-active" : undefined}
+              id="season-settings-tab"
+              onClick={() => {
+                setTab("settings");
+              }}
+              role="tab"
+              type="button"
+            >
+              Settings
+            </button>
           </nav>
-          {tab === "seasons" ? (
+          {tab === "settings" ? (
             <button
               className="button button--primary"
               onClick={() => {
@@ -334,8 +354,8 @@ export function SeasonsManager({
             </button>
           ) : null}
         </div>
-        {tab === "seasons" ? (
-          <div aria-labelledby="seasons-manager-tab" id="seasons-manager-panel" role="tabpanel">
+        {tab === "settings" ? (
+          <div aria-labelledby="season-settings-tab" id="season-settings-panel" role="tabpanel">
             <SeasonsTab
               onActivate={(season) => void activateSeason(season)}
               onDelete={(season) => {
@@ -349,14 +369,17 @@ export function SeasonsManager({
             />
           </div>
         ) : (
-          <div aria-labelledby="dues-manager-tab" id="seasons-manager-panel" role="tabpanel">
+          <div aria-labelledby="dues-records-tab" id="dues-records-panel" role="tabpanel">
             <DuesTab
               busy={refundBusy}
               duesState={duesState}
               onOpenProfile={onOpenProfile}
+              onSeasonFilterChange={setSelectedDuesSeasonId}
               profilesById={profilesById}
               refund={refund}
               refundId={refundId}
+              seasonFilterId={duesSeasonId}
+              seasonState={seasonState}
               setRefundId={setRefundId}
             />
           </div>
@@ -614,109 +637,157 @@ function DuesTab({
   busy,
   duesState,
   onOpenProfile,
+  onSeasonFilterChange,
   profilesById,
   refund,
   refundId,
+  seasonFilterId,
+  seasonState,
   setRefundId,
 }: {
   readonly busy: boolean;
   readonly duesState: DuesState;
   readonly onOpenProfile: (profileId: string) => void;
+  readonly onSeasonFilterChange: (seasonId: string | null) => void;
   readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
   readonly refund: (id: string) => Promise<void>;
   readonly refundId: string | null;
+  readonly seasonFilterId: string | null;
+  readonly seasonState: SeasonState;
   readonly setRefundId: (id: string | null) => void;
 }) {
   if (duesState.status === "loading") return <p>Loading dues records…</p>;
   if (duesState.status === "error")
     return <p className="notice notice--error">Dues records could not be loaded.</p>;
-  if (duesState.dues.length === 0) return <p>No dues records yet.</p>;
+  const seasons = seasonState.status === "ready" ? seasonState.seasons : [];
+  const seasonsById = new Map(seasons.map((season) => [season.id, season] as const));
+  const filteredDues = seasonFilterId
+    ? duesState.dues.filter((record) => record.seasonId === seasonFilterId)
+    : duesState.dues;
   const profileName = (record: DuesRecord): string =>
     profilesById.get(record.profileId)?.displayName ?? "Profile unavailable";
+  const seasonName = (record: DuesRecord): string =>
+    seasonsById.get(record.seasonId)?.name ?? "Season unavailable";
   const openProfile = (record: DuesRecord) => {
     if (profilesById.has(record.profileId)) onOpenProfile(record.profileId);
   };
   return (
-    <DataTable
-      columns={[
-        {
-          header: "Profile",
-          id: "profile",
-          render: (record) => profileName(record),
-          sortValue: (record) => profileName(record),
-        },
-        {
-          header: "Amount",
-          id: "amount",
-          render: (record) => money(record.amountCents),
-          sortValue: (record) => record.amountCents,
-        },
-        {
-          header: "Processing fee",
-          id: "fee",
-          render: (record) => (record.feeCents > 0 ? money(record.feeCents) : "Covered"),
-          sortValue: (record) => record.feeCents,
-        },
-        {
-          header: "Status",
-          id: "status",
-          render: (record) => record.status,
-          sortValue: (record) => record.status,
-        },
-        {
-          header: "Paid at",
-          id: "paidAt",
-          render: (record) => (record.paidAt ? new Date(record.paidAt).toLocaleDateString() : "—"),
-          sortValue: (record) => record.paidAt,
-        },
-        {
-          header: "Action",
-          id: "action",
-          render: (record) =>
-            refundId === record.id ? (
-              <div className="danger-confirmation">
-                <p>Refund this dues record?</p>
-                <div className="form-actions">
+    <>
+      <div className="dues-records-toolbar">
+        <label className="field">
+          Season
+          <select
+            disabled={seasonState.status !== "ready" || seasons.length === 0}
+            value={seasonFilterId ?? ""}
+            onChange={(event) => {
+              onSeasonFilterChange(event.target.value || "");
+            }}
+          >
+            {seasons.length > 0 ? null : <option value="">All seasons</option>}
+            {seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+                {season.isActive ? " (Active)" : ""}
+              </option>
+            ))}
+            {seasons.length > 0 ? <option value="">All seasons</option> : null}
+          </select>
+        </label>
+      </div>
+      {duesState.dues.length === 0 ? <p>No dues records yet.</p> : null}
+      {duesState.dues.length > 0 && filteredDues.length === 0 ? (
+        <p>No dues records for the selected season.</p>
+      ) : null}
+      {filteredDues.length > 0 ? (
+        <DataTable
+          columns={[
+            {
+              header: "Profile",
+              id: "profile",
+              render: (record) => profileName(record),
+              sortValue: (record) => profileName(record),
+            },
+            {
+              header: "Season",
+              id: "season",
+              render: (record) => seasonName(record),
+              sortValue: (record) => seasonName(record),
+            },
+            {
+              header: "Amount",
+              id: "amount",
+              render: (record) => money(record.amountCents),
+              sortValue: (record) => record.amountCents,
+            },
+            {
+              header: "Processing fee",
+              id: "fee",
+              render: (record) => (record.feeCents > 0 ? money(record.feeCents) : "Covered"),
+              sortValue: (record) => record.feeCents,
+            },
+            {
+              header: "Status",
+              id: "status",
+              render: (record) => record.status,
+              sortValue: (record) => record.status,
+            },
+            {
+              header: "Paid at",
+              id: "paidAt",
+              render: (record) =>
+                record.paidAt ? new Date(record.paidAt).toLocaleDateString() : "—",
+              sortValue: (record) => record.paidAt,
+            },
+            {
+              header: "Action",
+              id: "action",
+              render: (record) =>
+                refundId === record.id ? (
+                  <div className="danger-confirmation">
+                    <p>Refund this dues record?</p>
+                    <div className="form-actions">
+                      <button
+                        className="button button--secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setRefundId(null);
+                        }}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="button button--danger"
+                        disabled={busy}
+                        onClick={() => void refund(record.id)}
+                        type="button"
+                      >
+                        {busy ? "Refunding…" : "Confirm refund"}
+                      </button>
+                    </div>
+                  </div>
+                ) : record.status === "paid" ? (
                   <button
-                    className="button button--secondary"
+                    className="text-button"
                     disabled={busy}
                     onClick={() => {
-                      setRefundId(null);
+                      setRefundId(record.id);
                     }}
                     type="button"
                   >
-                    Cancel
+                    Refund
                   </button>
-                  <button
-                    className="button button--danger"
-                    disabled={busy}
-                    onClick={() => void refund(record.id)}
-                    type="button"
-                  >
-                    {busy ? "Refunding…" : "Confirm refund"}
-                  </button>
-                </div>
-              </div>
-            ) : record.status === "paid" ? (
-              <button
-                className="text-button"
-                disabled={busy}
-                onClick={() => {
-                  setRefundId(record.id);
-                }}
-                type="button"
-              >
-                Refund
-              </button>
-            ) : null,
-        },
-      ]}
-      emptyMessage="No dues records yet."
-      initialSort={{ columnId: "paidAt", direction: "desc" }}
-      keySelector={(record) => record.id}
-      onRowClick={openProfile}
-      rowLabel={(record) => `Open dues for ${profileName(record)}`}
-      rows={duesState.dues}
-    />
+                ) : null,
+            },
+          ]}
+          emptyMessage="No dues records yet."
+          initialSort={{ columnId: "paidAt", direction: "desc" }}
+          keySelector={(record) => record.id}
+          onRowClick={openProfile}
+          rowLabel={(record) => `Open dues for ${profileName(record)}`}
+          rows={filteredDues}
+        />
+      ) : null}
+    </>
   );
 }

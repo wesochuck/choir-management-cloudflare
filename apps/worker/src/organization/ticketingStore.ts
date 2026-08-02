@@ -891,10 +891,15 @@ function refundStripeTicketPurchases(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeTicketRefundedOperationSchema>,
 ): Response {
-  const marker = `stripe-refund:${operation.stripeEventId}`;
+  const marker = `stripe-refund:ticket:${operation.stripeEventId}`;
   if (
-    storage.sql.exec("SELECT id FROM audit_events WHERE id = ? LIMIT 1", marker).toArray().length >
-    0
+    storage.sql
+      .exec(
+        "SELECT id FROM audit_events WHERE id IN (?, ?) LIMIT 1",
+        marker,
+        `stripe-refund:${operation.stripeEventId}`,
+      )
+      .toArray().length > 0
   ) {
     return Response.json({ refunded: 0, duplicate: true });
   }
@@ -906,11 +911,13 @@ function refundStripeTicketPurchases(
     .toArray();
   if (rows.length === 0)
     return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  const refundableRows = rows.filter((row) => row.status === "paid");
+  if (refundableRows.length === 0)
+    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
   const occurredAt = new Date().toISOString();
   let refunded = 0;
   storage.transactionSync(() => {
-    for (const row of rows) {
-      if (row.status !== "paid") continue;
+    for (const row of refundableRows) {
       storage.sql.exec(
         "UPDATE ticket_purchases SET status = 'refunded', refunded_at = ?, updated_at = ? WHERE id = ?",
         occurredAt,

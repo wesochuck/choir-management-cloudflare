@@ -41,6 +41,36 @@ export class SeasonError extends Error {
   }
 }
 
+async function expirePendingDuesCheckout(
+  organizationStore: DurableObjectStub,
+  organizationId: string,
+  requestId: string,
+  pendingSessionId: string,
+): Promise<void> {
+  const response = await organizationStore.fetch(
+    "https://organization.internal/internal/seasons/manage",
+    {
+      body: JSON.stringify({
+        action: "stripe_dues_expired",
+        checkoutRequestId: requestId,
+        organizationId,
+        providerPaymentId: "",
+        providerSessionId: pendingSessionId,
+        stripeEventId: `checkout-failed:${requestId}`,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    throw new SeasonError(
+      "dues_checkout_cleanup_failed",
+      503,
+      "The failed dues checkout could not be released.",
+    );
+  }
+}
+
 function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
@@ -243,18 +273,7 @@ export async function createDuesCheckoutSession(
       successUrl: new URL("/dues?checkout=success", origin).href,
     });
   } catch (error: unknown) {
-    await organizationStore.fetch("https://organization.internal/internal/seasons/manage", {
-      body: JSON.stringify({
-        action: "stripe_dues_expired",
-        checkoutRequestId: requestId,
-        organizationId,
-        providerPaymentId: "",
-        providerSessionId: pendingSessionId,
-        stripeEventId: `checkout-failed:${requestId}`,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
+    await expirePendingDuesCheckout(organizationStore, organizationId, requestId, pendingSessionId);
     if (error instanceof StripeCheckoutError) {
       throw new SeasonError("stripe_checkout_unavailable", 503, "Stripe checkout is unavailable.");
     }
@@ -274,6 +293,7 @@ export async function createDuesCheckoutSession(
     },
   );
   if (!response.ok) {
+    await expirePendingDuesCheckout(organizationStore, organizationId, requestId, pendingSessionId);
     const code = await errorCode(response);
     throw new SeasonError(code, response.status, "The dues checkout could not be created.");
   }

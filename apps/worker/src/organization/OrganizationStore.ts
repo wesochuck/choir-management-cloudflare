@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { migrateOrganization } from "./migrations";
-import { ensureOrganizationAlarm, runOrganizationAlarm } from "./scheduler";
+import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
 import { dispatchGetRequest } from "./organizationStore/read";
 
@@ -15,12 +15,14 @@ const eventReminderResultSchema = z.object({
   status: z.enum(["failed", "sent", "terminal"]),
 });
 
-function isAlarmRearmPath(pathname: string): boolean {
+function isAlarmWakePath(pathname: string): boolean {
   return (
+    pathname === "/internal/audition/create" ||
+    pathname === "/internal/audition/update" ||
+    pathname === "/internal/donations/manage" ||
     pathname === "/internal/export/create" ||
     pathname === "/internal/payments/notification" ||
-    pathname === "/internal/audition/create" ||
-    pathname === "/internal/audition/update"
+    pathname === "/internal/seasons/manage"
   );
 }
 
@@ -68,7 +70,7 @@ function recordEventReminderResult(storage: DurableObjectStorage, input: unknown
   if (!job?.idempotencyKey.startsWith(prefix)) {
     return Response.json({ code: "event_reminder_not_found" }, { status: 404 });
   }
-  const eventId = job.idempotencyKey.slice(prefix.length);
+  const eventId = job.idempotencyKey.slice(prefix.length).split(":retry:", 1)[0];
   const event = storage.sql
     .exec<{ readonly id: string }>("SELECT id FROM events WHERE id = ? LIMIT 1", eventId)
     .toArray()
@@ -120,8 +122,8 @@ export class OrganizationStore extends DurableObject<Env> {
         request,
       );
       if (response) {
-        if (response.ok && isAlarmRearmPath(url.pathname)) {
-          await ensureOrganizationAlarm(this.ctx.storage);
+        if (response.ok && isAlarmWakePath(url.pathname)) {
+          await wakeOrganizationAlarm(this.ctx.storage);
         }
         return response;
       }

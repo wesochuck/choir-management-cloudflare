@@ -1,7 +1,6 @@
 import type {
   OrganizationEvent,
   OrganizationMusicBulkUpdateRequest,
-  OrganizationMusicLibrarySettings,
   OrganizationMusicPiece,
   OrganizationMusicPieceRequest,
   OrganizationRosterConfiguration,
@@ -40,7 +39,6 @@ import {
   listOrganizationVenues,
   uploadPrivateOrganizationFile,
   updateOrganizationMusicPiece,
-  updateOrganizationMusicLibrarySettings,
 } from "../../../auth/api";
 import { learningTrackFileName } from "../../learningTrackFilename";
 import { extractAudioDuration, extractAudioDurationFromUrl } from "../../audioDuration";
@@ -59,12 +57,6 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
   const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
   const [timezone, setTimezone] = useState("UTC");
   const [publisherSearchTemplate, setPublisherSearchTemplate] = useState("");
-  const [savedPublisherSearchTemplate, setSavedPublisherSearchTemplate] = useState("");
-  const [practicePlayerLinkLifetimeDays, setPracticePlayerLinkLifetimeDays] = useState(180);
-  const [savedPracticePlayerLinkLifetimeDays, setSavedPracticePlayerLinkLifetimeDays] =
-    useState(180);
-  const [publisherSettingsBusy, setPublisherSettingsBusy] = useState(false);
-  const [publisherSettingsError, setPublisherSettingsError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -120,9 +112,6 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
         setVenues(nextVenues);
         setTimezone(calendarSettings.timezone);
         setPublisherSearchTemplate(musicSettings.publisherSearchTemplate);
-        setSavedPublisherSearchTemplate(musicSettings.publisherSearchTemplate);
-        setPracticePlayerLinkLifetimeDays(musicSettings.practicePlayerLinkLifetimeDays);
-        setSavedPracticePlayerLinkLifetimeDays(musicSettings.practicePlayerLinkLifetimeDays);
       })
       .catch((caught: unknown) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
@@ -573,29 +562,6 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
     }
   }
 
-  async function savePublisherSearchSettings(): Promise<void> {
-    setPublisherSettingsBusy(true);
-    setPublisherSettingsError(null);
-    try {
-      const settings: OrganizationMusicLibrarySettings = {
-        practicePlayerLinkLifetimeDays,
-        publisherSearchTemplate: publisherSearchTemplate.trim(),
-      };
-      const saved = await updateOrganizationMusicLibrarySettings(settings);
-      setPublisherSearchTemplate(saved.publisherSearchTemplate);
-      setSavedPublisherSearchTemplate(saved.publisherSearchTemplate);
-      setPracticePlayerLinkLifetimeDays(saved.practicePlayerLinkLifetimeDays);
-      setSavedPracticePlayerLinkLifetimeDays(saved.practicePlayerLinkLifetimeDays);
-    } catch (caught: unknown) {
-      setPublisherSettingsError(
-        caught instanceof AuthApiError
-          ? caught.message
-          : "The publisher search setting could not be saved.",
-      );
-    } finally {
-      setPublisherSettingsBusy(false);
-    }
-  }
   return {
     applyBulkChanges,
     availableGenres,
@@ -640,15 +606,9 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
     piece,
     pieces,
     publisherSearchTemplate,
-    practicePlayerLinkLifetimeDays,
-    publisherSettingsBusy,
-    publisherSettingsError,
     remove,
     roster,
     save,
-    savePublisherSearchSettings,
-    savedPublisherSearchTemplate,
-    savedPracticePlayerLinkLifetimeDays,
     search,
     selectManyPieces,
     selectPiece,
@@ -672,9 +632,6 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
     setMusicImportConfirmed,
     setPiece,
     setPieces,
-    setPracticePlayerLinkLifetimeDays,
-    setPublisherSearchTemplate,
-    setPublisherSettingsError,
     setSearch,
     setUnlinkChildren,
     timezone,

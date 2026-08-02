@@ -33,6 +33,7 @@ import {
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { processDeliveryBatch } from "../src/jobs/consumer";
 import type { DeliveryJob } from "../src/jobs/contracts";
+import { requestOrganizationProviderRefund } from "../src/payments/refundRequest";
 
 const USER_EMAIL = "tickets.manager@example.test";
 
@@ -1539,6 +1540,205 @@ describe("Organization ticketing", () => {
       },
     );
     expect(crossTenant.status).toBe(409);
+  });
+
+  it("does not cross-claim unmatched Stripe refund events between payment modules", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const eventId = crypto.randomUUID();
+    const donationRefund = await stub.fetch(
+      "https://organization.internal/internal/donations/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_donation_refunded",
+          organizationId: "organization-alpha",
+          providerPaymentId: "pi-no-such-payment",
+          stripeEventId: eventId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(donationRefund.status).toBe(404);
+
+    const duesRefund = await stub.fetch("https://organization.internal/internal/seasons/manage", {
+      body: JSON.stringify({
+        action: "stripe_dues_refunded",
+        organizationId: "organization-alpha",
+        providerPaymentId: "pi-no-such-payment",
+        stripeEventId: eventId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(duesRefund.status).toBe(404);
+    expect(await duesRefund.json()).toMatchObject({ code: "dues_not_found" });
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM audit_events WHERE id = ?",
+              `stripe-refund:${eventId}`,
+            )
+            .one().count,
+      ),
+    ).resolves.toBe(0);
+  });
+
+  it("releases stale pending dues and blocks individual refunds for shared Stripe checkouts", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const staleProfileId = crypto.randomUUID();
+    const staleSeasonId = crypto.randomUUID();
+    const staleDuesId = crypto.randomUUID();
+    const staleAttemptId = crypto.randomUUID();
+    const sharedProfileIds = [crypto.randomUUID(), crypto.randomUUID()] as const;
+    const sharedSeasonId = crypto.randomUUID();
+    const sharedDuesIds = [crypto.randomUUID(), crypto.randomUUID()] as const;
+    const sharedSessionId = `cs_shared_${crypto.randomUUID()}`;
+    const sharedPaymentId = `pi_shared_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    const staleCreatedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1_000).toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Stale Dues Member', ?, ?), (?, 'Shared Member One', ?, ?),
+           (?, 'Shared Member Two', ?, ?)`,
+        staleProfileId,
+        now,
+        now,
+        sharedProfileIds[0],
+        now,
+        now,
+        sharedProfileIds[1],
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Stale Dues Season', ?, ?, 4000, ?, ?),
+           (?, 'Shared Dues Season', ?, ?, 5000, ?, ?)`,
+        staleSeasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+        sharedSeasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, 4000, 0, ?, '', '', 'pending', 'online', NULL, ?, ?),
+           (?, ?, ?, 5000, 0, ?, ?, 'one@example.test', 'paid', 'online', ?, ?, ?),
+           (?, ?, ?, 5000, 0, ?, ?, 'two@example.test', 'paid', 'online', ?, ?, ?)`,
+        staleDuesId,
+        staleSeasonId,
+        staleProfileId,
+        `pending_${staleDuesId}`,
+        staleCreatedAt,
+        staleCreatedAt,
+        sharedDuesIds[0],
+        sharedSeasonId,
+        sharedProfileIds[0],
+        sharedSessionId,
+        sharedPaymentId,
+        now,
+        now,
+        now,
+        sharedDuesIds[1],
+        sharedSeasonId,
+        sharedProfileIds[1],
+        sharedSessionId,
+        sharedPaymentId,
+        now,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at)
+         VALUES (?, 'dues', ?, ?, ?, '', 'pending', 4000, ?, ?),
+           (?, 'dues', ?, ?, ?, ?, 'paid', 10000, ?, ?)`,
+        staleAttemptId,
+        staleDuesId,
+        crypto.randomUUID(),
+        `pending_${staleDuesId}`,
+        staleCreatedAt,
+        staleCreatedAt,
+        crypto.randomUUID(),
+        sharedDuesIds[0],
+        crypto.randomUUID(),
+        sharedSessionId,
+        sharedPaymentId,
+        now,
+        now,
+      );
+    });
+
+    const cash = await stub.fetch("https://organization.internal/internal/seasons/manage", {
+      body: JSON.stringify({
+        action: "mark_dues_cash_paid",
+        actorUserId: "ticket-manager",
+        cashPayment: { profileId: staleProfileId, seasonId: staleSeasonId },
+        organizationId: "organization-alpha",
+        requestId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(cash.status).toBe(200);
+    expect(await cash.json()).toMatchObject({ paymentMethod: "cash", status: "paid" });
+
+    await expect(
+      runInDurableObject<OrganizationStore, { readonly status: string; readonly attempt: string }>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly status: string; readonly attempt: string }>(
+              `SELECT d.payment_method AS status, pa.status AS attempt
+               FROM dues d JOIN payment_attempts pa ON pa.id = ?
+               WHERE d.id = ?`,
+              staleAttemptId,
+              staleDuesId,
+            )
+            .one(),
+      ),
+    ).resolves.toEqual({ attempt: "expired", status: "cash" });
+
+    await expect(
+      requestOrganizationProviderRefund(
+        { ORGANIZATION_STORE: stores, STRIPE_SECRET_KEY: "sk_test_shared" },
+        {
+          actorUserId: "ticket-manager",
+          organizationId: "organization-alpha",
+          paymentType: "dues",
+          requestId: crypto.randomUUID(),
+          resourceId: sharedDuesIds[1],
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "dues_multi_member_refund_unsupported",
+      status: 409,
+    });
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM dues WHERE provider_payment_id = ? AND status = 'paid'",
+              sharedPaymentId,
+            )
+            .one().count,
+      ),
+    ).toBe(2);
   });
 
   it("persists live refund requests and keeps cash dues out of provider lookup", async () => {

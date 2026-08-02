@@ -540,6 +540,9 @@
             "apps/worker/test/profiles.integration.test.ts",
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/components/RosterPage/controller.tsx",
+            "apps/web/src/account/components/RosterPage/view.tsx",
+            "apps/web/src/account/RosterConfiguration.tsx",
+            "apps/web/src/account/RosterAutomationSettings.tsx",
           ],
       },
       {
@@ -698,6 +701,25 @@
             "apps/web/src/account/components/MusicCatalog/controller.tsx",
             "apps/worker/src/organization/musicStore.ts",
             "apps/worker/src/router.ts",
+            "apps/worker/test/music.integration.test.ts",
+          ],
+      },
+      {
+        "id": "route.admin.library.settings",
+        "path": "/admin/library/settings",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "Target-only settings tab for the publisher catalog and public practice link
+          configuration.",
+        "targetEvidence":
+          [
+            "apps/web/src/account/MusicLibrarySettingsPage.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/lazyComponents.ts",
+            "apps/web/src/account/components/AuthenticatedShell/utils.ts",
+            "apps/web/src/account/components/AuthenticatedShell/workspacesUtils.tsx",
+            "apps/web/src/auth/api/music.ts",
             "apps/worker/test/music.integration.test.ts",
           ],
       },

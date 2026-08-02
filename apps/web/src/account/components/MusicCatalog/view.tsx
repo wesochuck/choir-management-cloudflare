@@ -7,10 +7,17 @@ import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
 import { MusicAudioTracks, MusicBulkEditDialog, MusicDeleteControls } from "./tracksAndBulkEdit";
 import { CsvImportDialog } from "../../CsvImportDialog";
+import { AppLink } from "../AuthenticatedShell/navigation";
 import type { MusicCatalogModel } from "./hooks";
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
-export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel }) {
+export function MusicCatalogView({
+  model,
+  navigate,
+}: {
+  readonly model: MusicCatalogModel;
+  readonly navigate: (href: string) => void;
+}) {
   const {
     applyBulkChanges,
     availableGenres,
@@ -55,15 +62,9 @@ export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel 
     piece,
     pieces,
     publisherSearchTemplate,
-    practicePlayerLinkLifetimeDays,
-    publisherSettingsBusy,
-    publisherSettingsError,
     remove,
     roster,
     save,
-    savePublisherSearchSettings,
-    savedPublisherSearchTemplate,
-    savedPracticePlayerLinkLifetimeDays,
     search,
     selectManyPieces,
     selectPiece,
@@ -87,9 +88,6 @@ export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel 
     setMusicImportConfirmed,
     setPiece,
     setPieces,
-    setPracticePlayerLinkLifetimeDays,
-    setPublisherSearchTemplate,
-    setPublisherSettingsError,
     setSearch,
     setUnlinkChildren,
     timezone,
@@ -107,74 +105,14 @@ export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel 
           and will appear here when linked through the track workflow.
         </p>
       </div>
-      <section
-        className="music-publisher-settings"
-        aria-labelledby="music-publisher-settings-title"
-      >
-        <div>
-          <p className="eyebrow">Music Library setting</p>
-          <h2 id="music-publisher-settings-title">Publisher catalog search</h2>
-          <p>
-            Add the publisher’s HTTPS search URL and use <code>{"{catalogId}"}</code> where the
-            catalog number belongs. Matching rows will include a direct Search link.
-          </p>
-        </div>
-        <div className="music-publisher-settings__form">
-          <label className="field">
-            Publisher search URL template
-            <input
-              aria-describedby="music-publisher-settings-help"
-              placeholder="https://publisher.example/search?catalog={catalogId}"
-              type="text"
-              value={publisherSearchTemplate}
-              onChange={(event) => {
-                setPublisherSearchTemplate(event.target.value);
-                setPublisherSettingsError(null);
-              }}
-            />
-            <small className="field-help" id="music-publisher-settings-help">
-              Leave blank to hide publisher links. HTTPS and the exact <code>{"{catalogId}"}</code>{" "}
-              placeholder are required.
-            </small>
-          </label>
-          <label className="field">
-            Public practice link lifetime (days)
-            <input
-              min="1"
-              max="3650"
-              type="number"
-              value={practicePlayerLinkLifetimeDays}
-              onChange={(event) => {
-                setPracticePlayerLinkLifetimeDays(Number(event.target.value));
-                setPublisherSettingsError(null);
-              }}
-            />
-            <small className="field-help">
-              Existing links keep their expiry. New links default to 180 days and can be rotated by
-              an administrator.
-            </small>
-          </label>
-          <button
-            className="button button--secondary"
-            disabled={
-              publisherSettingsBusy ||
-              (publisherSearchTemplate.trim() === savedPublisherSearchTemplate &&
-                practicePlayerLinkLifetimeDays === savedPracticePlayerLinkLifetimeDays)
-            }
-            type="button"
-            onClick={() => {
-              void savePublisherSearchSettings();
-            }}
-          >
-            {publisherSettingsBusy ? "Saving…" : "Save publisher search"}
-          </button>
-        </div>
-        {publisherSettingsError ? (
-          <p className="notice notice--error" role="alert">
-            {publisherSettingsError}
-          </p>
-        ) : null}
-      </section>
+      <nav className="music-library-tabs" aria-label="Music library sections">
+        <AppLink ariaCurrent="page" href="/admin/library" onNavigate={navigate}>
+          Library <span className="sr-only">(current)</span>
+        </AppLink>
+        <AppLink href="/admin/library/settings" onNavigate={navigate}>
+          Settings
+        </AppLink>
+      </nav>
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}

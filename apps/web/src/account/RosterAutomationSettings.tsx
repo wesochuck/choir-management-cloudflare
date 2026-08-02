@@ -448,8 +448,8 @@ export function RosterAutomationSettings({ enabled }: Props) {
           </div>
           <p className="notice notice--info">
             Administrators can opt an individual Profile out with{" "}
-            <strong>Manage status manually</strong>
-            on the Profile. Selecting a status by itself does not turn automation off.
+            <strong>Manage status manually</strong> on the Profile. Selecting a status by itself
+            does not turn automation off.
           </p>
         </>
       ) : null}

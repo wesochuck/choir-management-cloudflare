@@ -18,8 +18,6 @@ import type {
 } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
-import { RosterConfiguration } from "./RosterConfiguration";
-import { RosterAutomationSettings } from "./RosterAutomationSettings";
 
 const fallbackTimeZones = [
   "UTC",
@@ -190,7 +188,7 @@ function OrganizationPaymentSettingsPanel() {
                   type="checkbox"
                 />
                 <span>
-                  <strong>{module.label}</strong>
+                  <strong>{module.label}</strong>{" "}
                   <span className="field-help">{module.description}</span>
                 </span>
               </label>
@@ -576,8 +574,6 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
           </div>
         ) : null}
       </section>
-      <RosterConfiguration enabled={enabled} />
-      <RosterAutomationSettings enabled={enabled} />
       <OrganizationExportPanel />
     </div>
   );

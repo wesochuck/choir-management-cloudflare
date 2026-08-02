@@ -11,6 +11,8 @@ import { transactionFeeSettingsFromStore } from "./transactionFeeSettingsStore";
 import { queuePaymentNotificationInStore } from "./paymentNotificationStore";
 import { renderPaymentMessageTemplate } from "./paymentMessageTemplates";
 
+const PENDING_DUES_EXPIRY_MS = 7 * 24 * 60 * 60 * 1_000;
+
 const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
 });
@@ -258,6 +260,42 @@ function identity(storage: DurableObjectStorage): { readonly organizationId: str
     )
     .toArray()
     .at(0);
+}
+
+function releaseStalePendingDuesAttempt(storage: DurableObjectStorage, duesId: string): boolean {
+  const pendingAttempt = storage.sql
+    .exec<{ readonly createdAt: string; readonly id: string }>(
+      `SELECT id, created_at AS createdAt FROM payment_attempts
+       WHERE payment_type = 'dues' AND resource_id = ? AND status = 'pending'
+       LIMIT 1`,
+      duesId,
+    )
+    .toArray()
+    .at(0);
+  if (!pendingAttempt) return true;
+  const createdAt = new Date(pendingAttempt.createdAt).getTime();
+  if (!Number.isFinite(createdAt) || Date.now() - createdAt < PENDING_DUES_EXPIRY_MS) {
+    return false;
+  }
+  const expiredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO dues_expirations (dues_id, stripe_event_id, expired_at)
+       VALUES (?, ?, ?)`,
+      duesId,
+      `stale-cash-release:${duesId}`,
+      expiredAt,
+    );
+    storage.sql.exec(
+      `UPDATE payment_attempts
+       SET status = 'expired', expired_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'pending'`,
+      expiredAt,
+      expiredAt,
+      pendingAttempt.id,
+    );
+  });
+  return true;
 }
 
 function seasonResult(row: SeasonRow) {
@@ -589,7 +627,7 @@ function createDuesCheckout(
             feeCents,
             operation.recipientEmail ?? "",
             sessionId,
-            pendingCheckout ? "" : `fake_payment_${duesId}`,
+            pendingCheckout ? "" : `fake_payment_${operation.requestId}`,
             pendingCheckout ? "pending" : "paid",
             pendingCheckout ? null : now,
             now,
@@ -608,7 +646,7 @@ function createDuesCheckout(
             season.duesAmountCents,
             feeCents,
             sessionId,
-            pendingCheckout ? "" : `fake_payment_${duesId}`,
+            pendingCheckout ? "" : `fake_payment_${operation.requestId}`,
             operation.recipientEmail ?? "",
             pendingCheckout ? "pending" : "paid",
             pendingCheckout ? null : now,
@@ -804,16 +842,7 @@ function markDuesCashPaid(
     return Response.json({ code: "dues_refunded" }, { status: 409 });
   }
   if (existing?.paymentMethod === "online") {
-    const pendingAttempt = storage.sql
-      .exec(
-        `SELECT id FROM payment_attempts
-         WHERE payment_type = 'dues' AND resource_id = ? AND status = 'pending'
-         LIMIT 1`,
-        existing.id,
-      )
-      .toArray()
-      .at(0);
-    if (pendingAttempt) {
+    if (!releaseStalePendingDuesAttempt(storage, existing.id)) {
       return Response.json({ code: "dues_checkout_in_progress" }, { status: 409 });
     }
   }
@@ -1043,20 +1072,32 @@ function refundStripeDues(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeDuesRefundedOperationSchema>,
 ): Response {
-  const auditId = `stripe-refund:${operation.stripeEventId}`;
+  const auditId = `stripe-refund:dues:${operation.stripeEventId}`;
   if (
-    storage.sql.exec("SELECT id FROM audit_events WHERE id = ? LIMIT 1", auditId).toArray().length
+    storage.sql
+      .exec(
+        "SELECT id FROM audit_events WHERE id IN (?, ?) LIMIT 1",
+        auditId,
+        `stripe-refund:${operation.stripeEventId}`,
+      )
+      .toArray().length > 0
   ) {
     return Response.json({ refunded: 0, duplicate: true });
   }
   const rows = storage.sql
     .exec<DuesRow>(`${duesSelect} WHERE d.provider_payment_id = ?`, operation.providerPaymentId)
     .toArray();
+  if (rows.length === 0) {
+    return Response.json({ code: "dues_not_found" }, { status: 404 });
+  }
+  const refundableRows = rows.filter((row) => row.status === "paid");
+  if (refundableRows.length === 0) {
+    return Response.json({ code: "dues_not_found" }, { status: 404 });
+  }
   const occurredAt = new Date().toISOString();
   let refunded = 0;
   storage.transactionSync(() => {
-    for (const row of rows) {
-      if (row.status !== "paid") continue;
+    for (const row of refundableRows) {
       storage.sql.exec(
         "UPDATE dues SET status = 'refunded', updated_at = ? WHERE id = ?",
         occurredAt,
@@ -1087,9 +1128,7 @@ function refundStripeDues(
       occurredAt,
     );
   });
-  return rows.length === 0
-    ? Response.json({ code: "dues_not_found" }, { status: 404 })
-    : Response.json({ refunded });
+  return Response.json({ refunded });
 }
 
 export function listSeasonsFromStore(

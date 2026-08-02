@@ -6,6 +6,7 @@ import { readRosterAutomationConfiguration, runRosterAutomations } from "./statu
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
 const RETRY_ALARM_DELAY_MS = 60_000;
+const ALARM_WAKE_DELAY_MS = 1_000;
 
 interface OrganizationIdentityRow {
   readonly [column: string]: SqlStorageValue;
@@ -60,6 +61,28 @@ export async function ensureOrganizationAlarm(
   if (scheduler) {
     await storage.setAlarm(new Date(scheduler.nextDueAt));
   }
+}
+
+/**
+ * Wake the scheduler promptly after a mutation adds work to the outbox.
+ *
+ * The normal scheduler cadence remains hourly; this only moves the next
+ * invocation forward so newly queued delivery work does not wait for that
+ * cadence. The scheduler state itself is still initialized here so this is
+ * also safe if an earlier alarm was never armed.
+ */
+export async function wakeOrganizationAlarm(
+  storage: DurableObjectStorage,
+  now = new Date(),
+): Promise<void> {
+  const nextDueAt = nextSchedulerDue(now);
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO scheduler_state (singleton, next_due_at, updated_at)
+     VALUES (1, ?, ?)`,
+    nextDueAt,
+    now.toISOString(),
+  );
+  await storage.setAlarm(now.getTime() + ALARM_WAKE_DELAY_MS);
 }
 
 interface ReminderCandidateRow {
@@ -145,6 +168,13 @@ interface EventReminderCandidateRow {
   readonly eventStartsAt: string;
   readonly eventTitle: string;
   readonly eventType: string;
+}
+
+interface ExistingEventReminderJobRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly jobId: string;
+  readonly status: string | null;
+  readonly terminalAt: string | null;
 }
 
 interface RsvpFollowUpCandidateRow {
@@ -244,15 +274,41 @@ function createEventReminderJobs(
     )
     .toArray();
   for (const candidate of candidates) {
-    const idempotencyKey = `event-reminder:${organizationId}:${candidate.eventId}`;
-    const alreadyQueued = storage.sql
-      .exec<{ readonly [column: string]: SqlStorageValue; readonly jobId: string }>(
-        "SELECT job_id AS jobId FROM scheduled_job_outbox WHERE idempotency_key = ? LIMIT 1",
-        idempotencyKey,
+    const baseIdempotencyKey = `event-reminder:${organizationId}:${candidate.eventId}`;
+    const existingJobs = storage.sql
+      .exec<ExistingEventReminderJobRow>(
+        `SELECT o.job_id AS jobId, l.status, l.terminal_at AS terminalAt
+         FROM scheduled_job_outbox o
+         LEFT JOIN job_ledger l ON l.job_id = o.job_id
+         WHERE o.kind = 'event_reminder'
+           AND (o.idempotency_key = ? OR o.idempotency_key LIKE ?)
+         ORDER BY o.created_at, o.job_id`,
+        baseIdempotencyKey,
+        `${baseIdempotencyKey}:retry:%`,
       )
-      .toArray()
-      .at(0);
-    if (alreadyQueued) continue;
+      .toArray();
+    const reminderHistoryCount = storage.sql
+      .exec<{ readonly count: number }>(
+        `SELECT COUNT(*) AS count FROM job_ledger
+         WHERE kind = 'event_reminder'
+           AND (idempotency_key = ? OR idempotency_key LIKE ?)`,
+        baseIdempotencyKey,
+        `${baseIdempotencyKey}:retry:%`,
+      )
+      .one().count;
+    if (existingJobs.length > 0) {
+      const allTerminal = existingJobs.every(
+        (job) => job.status === "failed" && job.terminalAt !== null,
+      );
+      if (!allTerminal) continue;
+      for (const job of existingJobs) {
+        storage.sql.exec("DELETE FROM scheduled_job_outbox WHERE job_id = ?", job.jobId);
+      }
+    }
+    const idempotencyKey =
+      existingJobs.length === 0
+        ? baseIdempotencyKey
+        : `${baseIdempotencyKey}:retry:${String(reminderHistoryCount)}`;
     storage.sql.exec(
       `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
        VALUES (?, 'event_reminder', ?, ?, ?)`,

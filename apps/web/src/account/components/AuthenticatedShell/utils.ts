@@ -92,6 +92,7 @@ export const organizationGroups: readonly NavigationGroup[] = [
     label: "Music & content",
     items: [
       { href: "/admin/library", label: "Music library", module: "programs" },
+      { href: "/admin/library/settings", label: "Music library settings", module: "programs" },
       { href: "/admin/setlists", label: "Set lists", module: "programs" },
       { href: "/admin/resources", label: "Resources", module: "programs" },
       { href: "/admin/website", label: "Public website", module: "programs" },
@@ -170,6 +171,7 @@ export function pageTitle(pathname: string): string {
     ["/admin/rsvp", "Event RSVPs"],
     ["/admin/attendance", "Attendance"],
     ["/admin/seating", "Seating"],
+    ["/admin/library/settings", "Music library settings"],
     ["/admin/library", "Music library"],
     ["/admin/setlists", "Set lists"],
     ["/admin/resources", "Resources"],

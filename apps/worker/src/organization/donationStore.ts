@@ -468,9 +468,16 @@ function stripeDonationEventWasProcessed(
   eventId: string,
   prefix = "stripe-event:",
 ): boolean {
+  const auditIds =
+    prefix === "stripe-refund:"
+      ? [`stripe-refund:donation:${eventId}`, `stripe-refund:${eventId}`]
+      : [`${prefix}${eventId}`];
   return (
     storage.sql
-      .exec("SELECT id FROM audit_events WHERE id = ? LIMIT 1", `${prefix}${eventId}`)
+      .exec(
+        `SELECT id FROM audit_events WHERE id IN (${auditIds.map(() => "?").join(", ")}) LIMIT 1`,
+        ...auditIds,
+      )
       .toArray().length > 0
   );
 }
@@ -612,11 +619,17 @@ function refundStripeDonation(
       operation.providerPaymentId,
     )
     .toArray();
+  if (rows.length === 0) {
+    return Response.json({ code: "donation_not_found" }, { status: 404 });
+  }
+  const refundableRows = rows.filter((row) => row.status === "paid");
+  if (refundableRows.length === 0) {
+    return Response.json({ code: "donation_not_found" }, { status: 404 });
+  }
   const occurredAt = new Date().toISOString();
   let refunded = 0;
   storage.transactionSync(() => {
-    for (const row of rows) {
-      if (row.status !== "paid") continue;
+    for (const row of refundableRows) {
       storage.sql.exec(
         "UPDATE donations SET status = 'refunded', updated_at = ? WHERE id = ?",
         occurredAt,
@@ -643,7 +656,7 @@ function refundStripeDonation(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
        VALUES (?, 'provider', 'stripe', 'stripe.webhook.processed', 'stripe_event', ?, ?, ?, ?)`,
-      `stripe-refund:${operation.stripeEventId}`,
+      `stripe-refund:donation:${operation.stripeEventId}`,
       operation.stripeEventId,
       operation.stripeEventId,
       JSON.stringify({
@@ -654,9 +667,7 @@ function refundStripeDonation(
       occurredAt,
     );
   });
-  return rows.length === 0
-    ? Response.json({ code: "donation_not_found" }, { status: 404 })
-    : Response.json({ refunded });
+  return Response.json({ refunded });
 }
 
 export function listDonationsFromStore(

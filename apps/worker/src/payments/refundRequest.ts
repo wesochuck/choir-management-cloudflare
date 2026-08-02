@@ -20,8 +20,36 @@ const targetSchema = z.object({
   providerPaymentId: z.string().max(256),
   refundRequested: z.boolean().default(false),
   resourceId: z.uuid(),
+  sharedMemberCount: z.number().int().positive().default(1),
   status: z.string(),
 });
+
+function refundExecutionForTarget(
+  target: z.infer<typeof targetSchema>,
+  input: { readonly paymentType: "ticket" | "bundle" | "donation" | "dues" },
+): "already_requested" | "fake" | "provider" {
+  if (target.status !== "paid") {
+    throw new PaymentRefundError(
+      "payment_not_refundable",
+      409,
+      "Only paid payments can be refunded.",
+    );
+  }
+  if (
+    input.paymentType === "dues" &&
+    target.sharedMemberCount > 1 &&
+    !target.providerPaymentId.startsWith("fake_payment_")
+  ) {
+    throw new PaymentRefundError(
+      "dues_multi_member_refund_unsupported",
+      409,
+      "This payment covers multiple dues records. Refund the payment as a group instead of refunding one member.",
+    );
+  }
+  if (target.refundRequested) return "already_requested";
+  if (target.providerPaymentId.startsWith("fake_payment_")) return "fake";
+  return "provider";
+}
 
 export async function requestOrganizationProviderRefund(
   env: Pick<Env, "ORGANIZATION_STORE" | "STRIPE_SECRET_KEY">,
@@ -47,15 +75,9 @@ export async function requestOrganizationProviderRefund(
       "Payment refund target not found.",
     );
   }
-  if (target.data.status !== "paid") {
-    throw new PaymentRefundError(
-      "payment_not_refundable",
-      409,
-      "Only paid payments can be refunded.",
-    );
-  }
-  if (target.data.refundRequested) return { fake: false };
-  if (target.data.providerPaymentId.startsWith("fake_payment_")) return { fake: true };
+  const execution = refundExecutionForTarget(target.data, input);
+  if (execution === "already_requested") return { fake: false };
+  if (execution === "fake") return { fake: true };
   const secretKey = env.STRIPE_SECRET_KEY?.trim() ?? "";
   if (!secretKey) {
     throw new PaymentRefundError(

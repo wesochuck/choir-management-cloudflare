@@ -16,6 +16,8 @@ import {
 } from "@choir/domain";
 import { z } from "zod";
 
+const MAX_COMMUNICATION_DELIVERIES = 1_000;
+
 const contextSchema = z.object({
   actorUserId: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
@@ -48,14 +50,37 @@ const saveOperationSchema = contextSchema.extend({
     unreachable: z.number().int().nonnegative(),
   }),
 });
-const sendOperationSchema = contextSchema.extend({
-  action: z.literal("send"),
-  actorType: z.enum(["organization_member", "organization_system"]).default("organization_member"),
-  jobId: z.uuid(),
-  message: communicationSendRequestSchema,
-  messageId: z.uuid(),
-  recipients: z.array(recipientSchema).max(500),
-});
+const sendOperationSchema = contextSchema
+  .extend({
+    action: z.literal("send"),
+    actorType: z
+      .enum(["organization_member", "organization_system"])
+      .default("organization_member"),
+    jobId: z.uuid(),
+    message: communicationSendRequestSchema,
+    messageId: z.uuid(),
+    recipients: z.array(recipientSchema).max(500),
+  })
+  .superRefine((value, refinementContext) => {
+    const deliveryCount = value.recipients.reduce(
+      (count, recipient) =>
+        count +
+        (value.message.channel !== "SMS" && recipient.email ? 1 : 0) +
+        (value.message.channel !== "Email" && recipient.phone ? 1 : 0),
+      0,
+    );
+    if (deliveryCount > MAX_COMMUNICATION_DELIVERIES) {
+      refinementContext.addIssue({
+        code: "too_big",
+        maximum: MAX_COMMUNICATION_DELIVERIES,
+        origin: "number",
+        path: ["recipients"],
+        type: "number",
+        inclusive: true,
+        message: "A communication cannot contain more than 1,000 deliveries.",
+      });
+    }
+  });
 const retryOperationSchema = contextSchema.extend({
   action: z.literal("retry"),
   jobId: z.uuid(),
@@ -486,6 +511,7 @@ function deliveryRows(
   messageId: string,
   now: string,
 ) {
+  const seen = new Set<string>();
   return recipients.flatMap((recipient) => {
     const values: { channel: "email" | "sms"; destination: string }[] = [];
     if (message.channel !== "SMS" && recipient.email) {
@@ -494,13 +520,20 @@ function deliveryRows(
     if (message.channel !== "Email" && recipient.phone) {
       values.push({ channel: "sms", destination: recipient.phone });
     }
-    return values.map((value) => ({
-      ...value,
-      id: crypto.randomUUID(),
-      messageId,
-      now,
-      recipient,
-    }));
+    return values.flatMap((value) => {
+      const key = `${recipient.profileId}:${value.channel}:${value.destination.trim().toLowerCase()}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [
+        {
+          ...value,
+          id: crypto.randomUUID(),
+          messageId,
+          now,
+          recipient,
+        },
+      ];
+    });
   });
 }
 
@@ -518,6 +551,9 @@ async function sendMessage(
     operation.messageId,
     now,
   );
+  if (deliveries.length > MAX_COMMUNICATION_DELIVERIES) {
+    return Response.json({ code: "communication_delivery_limit_exceeded" }, { status: 413 });
+  }
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO communication_messages

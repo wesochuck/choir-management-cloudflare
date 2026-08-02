@@ -16,6 +16,7 @@ import {
   MemberProfileDirectory,
   ModuleSettingsView,
   MusicCatalog,
+  MusicLibrarySettings,
   MySchedule,
   OrganizationAccess,
   OrganizationResources,
@@ -73,7 +74,10 @@ export function renderOrganizationPage(
     "/admin/communications": <CommunicationCenter enabled={focusedEnabled} />,
     "/admin/donations": <DonationsManager enabled={focusedEnabled} />,
     "/admin/patrons": <DonationsManager enabled={focusedEnabled} />,
-    "/admin/library": <MusicCatalog enabled={focusedEnabled} />,
+    "/admin/library": <MusicCatalog enabled={focusedEnabled} navigate={navigate} />,
+    "/admin/library/settings": (
+      <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />
+    ),
     "/admin/polls": <PollsPage enabled={focusedEnabled} />,
     "/admin/reports": <ReportsView />,
     "/admin/resources": <OrganizationResources enabled={enabled} manager={manager} />,

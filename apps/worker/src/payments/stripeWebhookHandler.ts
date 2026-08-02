@@ -216,6 +216,14 @@ async function handleRefunded(
     readonly stripeEventId: string;
   },
 ): Promise<Response> {
+  if (!paymentTarget(paymentType)) {
+    return problem(
+      context,
+      "invalid_payment_type",
+      "Webhook metadata does not identify a supported payment.",
+      400,
+    );
+  }
   const paths =
     paymentType === "donation"
       ? ["donations"]

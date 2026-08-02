@@ -242,8 +242,30 @@ describe("Organization scheduler", () => {
     ).toBeNull();
   });
 
-  it("re-arms the alarm when payment, audition, and export work is enqueued", async () => {
+  it("wakes the alarm promptly when delivery work is enqueued", async () => {
     const stub = await provisionScheduler();
+    const duesProfileId = "88888888-8888-4888-8888-888888888890";
+    const duesSeasonId = "88888888-8888-4888-8888-888888888891";
+    const setupAt = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Dues Member', ?, ?)`,
+        duesProfileId,
+        setupAt,
+        setupAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Dues Season', ?, ?, 4000, ?, ?)`,
+        duesSeasonId,
+        setupAt,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        setupAt,
+        setupAt,
+      );
+    });
     const requests = [
       {
         body: {
@@ -258,6 +280,40 @@ describe("Organization scheduler", () => {
           subject: "Payment received",
         },
         pathname: "/internal/payments/notification",
+      },
+      {
+        body: {
+          action: "create_donation_checkout",
+          checkout: {
+            amountCents: 1500,
+            anonymous: false,
+            buyerEmail: "donor@example.test",
+            buyerName: "Donor",
+            checkoutRequestId: "88888888-8888-4888-8888-888888888892",
+            marketingConsent: false,
+            tributeName: "",
+            tributeNotifyEmail: "",
+            tributeType: "none",
+          },
+          donationId: "88888888-8888-4888-8888-888888888893",
+          organizationId: "organization-scheduler",
+          providerSessionId: "fake_session_alarm_donation",
+        },
+        pathname: "/internal/donations/manage",
+      },
+      {
+        body: {
+          action: "create_dues_checkout",
+          checkout: {
+            checkoutRequestId: "88888888-8888-4888-8888-888888888894",
+            profileIds: [duesProfileId],
+            seasonId: duesSeasonId,
+          },
+          organizationId: "organization-scheduler",
+          origin: "https://scheduler.localhost",
+          requestId: "88888888-8888-4888-8888-888888888895",
+        },
+        pathname: "/internal/seasons/manage",
       },
       {
         body: {
@@ -288,17 +344,26 @@ describe("Organization scheduler", () => {
       await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
         return state.storage.deleteAlarm().then(() => undefined);
       });
+      const requestedAt = Date.now();
       const response = await stub.fetch(`https://organization.internal${request.pathname}`, {
         body: JSON.stringify(request.body),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
       expect(response.ok).toBe(true);
+      const alarm = await runInDurableObject<OrganizationStore, number | null>(
+        stub,
+        (_instance, state) => state.storage.getAlarm(),
+      );
+      expect(alarm).not.toBeNull();
+      if (alarm === null) throw new Error("The scheduler alarm was not re-armed.");
+      expect(alarm).toBeGreaterThanOrEqual(requestedAt);
+      expect(alarm).toBeLessThanOrEqual(requestedAt + 5_000);
       await expect(
         runInDurableObject<OrganizationStore, number | null>(stub, (_instance, state) =>
           state.storage.getAlarm(),
         ),
-      ).resolves.not.toBeNull();
+      ).resolves.toBe(alarm);
     }
   });
 
@@ -400,6 +465,82 @@ describe("Organization scheduler", () => {
     const afterSecond = await readAllOutboxJobs(stub);
     const eventReminderJobsAgain = afterSecond.filter((j) => j.kind === "event_reminder");
     expect(eventReminderJobsAgain).toHaveLength(1);
+  });
+
+  it("requeues a terminal event reminder on the next scheduler run", async () => {
+    const stub = await provisionScheduler();
+    const eventId = "88888888-8888-4888-8888-888888888888";
+    const oldJobId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const now = Date.now();
+    const terminalAt = new Date(now - 1_000).toISOString();
+    const overdueAt = new Date(now - 2_000).toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES (?, 'Retry Rehearsal', 'Rehearsal', ?, ?, ?)`,
+        eventId,
+        new Date(now + 24 * 60 * 60 * 1_000).toISOString(),
+        terminalAt,
+        terminalAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox
+          (job_id, kind, idempotency_key, due_at, created_at, enqueued_at)
+         VALUES (?, 'event_reminder', ?, ?, ?, ?)`,
+        oldJobId,
+        `event-reminder:organization-scheduler:${eventId}`,
+        overdueAt,
+        terminalAt,
+        terminalAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO job_ledger
+          (idempotency_key, job_id, kind, status, attempt, retry_count,
+           claimed_at, failed_at, terminal_at, last_error_code)
+         VALUES (?, ?, 'event_reminder', 'failed', 10, 10, ?, ?, ?, 'queue_dead_lettered')`,
+        `event-reminder:organization-scheduler:${eventId}`,
+        oldJobId,
+        terminalAt,
+        terminalAt,
+        terminalAt,
+      );
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+        overdueAt,
+        terminalAt,
+      );
+      return state.storage.setAlarm(now + 60_000).then(() => undefined);
+    });
+
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const reminderJobs = (await readAllOutboxJobs(stub)).filter(
+      (job) => job.kind === "event_reminder",
+    );
+    expect(reminderJobs).toHaveLength(1);
+    expect(reminderJobs[0]).toMatchObject({
+      enqueuedAt: expect.any(String),
+      idempotencyKey: `event-reminder:organization-scheduler:${eventId}:retry:1`,
+    });
+    const reminderJob = reminderJobs[0];
+    if (!reminderJob) throw new Error("The retry reminder job was not created.");
+    const reminderRead = await stub.fetch(
+      `https://organization.internal/internal/scheduling/event-reminder-job?organizationId=organization-scheduler&jobId=${reminderJob.jobId}`,
+    );
+    expect(reminderRead.status).toBe(200);
+    expect(await reminderRead.json()).toMatchObject({ eventId });
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM job_ledger WHERE job_id = ?",
+              oldJobId,
+            )
+            .one().count,
+      ),
+    ).resolves.toBe(1);
   });
 
   it("schedules one pending RSVP follow-up at the configured deadline lead time", async () => {

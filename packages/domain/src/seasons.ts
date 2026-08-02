@@ -1,4 +1,4 @@
-export type DuesStatus = "pending" | "paid" | "refunded";
+export type DuesStatus = "pending" | "paid" | "expired" | "refunded";
 
 export interface SeasonInput {
   readonly name: string;
@@ -22,6 +22,8 @@ export function canTransitionDues(current: DuesStatus, next: DuesStatus): boolea
   return (
     current === next ||
     (current === "pending" && next === "paid") ||
+    (current === "pending" && next === "expired") ||
+    (current === "expired" && next === "paid") ||
     (current === "paid" && next === "refunded")
   );
 }
