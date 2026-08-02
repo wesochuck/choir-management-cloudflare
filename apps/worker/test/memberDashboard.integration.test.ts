@@ -36,6 +36,18 @@ function readToken(body: unknown): string {
   return body.token;
 }
 
+function readUrl(body: unknown): string {
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("url" in body) ||
+    typeof body.url !== "string"
+  ) {
+    throw new Error("The practice-link response did not include a URL.");
+  }
+  return body.url;
+}
+
 function readPublicEventId(body: unknown): string {
   if (
     typeof body !== "object" ||
@@ -426,7 +438,16 @@ describe("member dashboard", () => {
       }),
     );
     expect(published.status).toBe(200);
-    expect(readToken(await published.json())).toBeTruthy();
+    const publishedBody = await published.json();
+    expect(readToken(publishedBody)).toBeTruthy();
+    expect(readUrl(publishedBody)).toContain("http://alpha.localhost/player?mode=set-list&token=");
+    const publicPlayerResponse = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        "/api/public/player/playlist?token=" + encodeURIComponent(readToken(publishedBody)),
+      ),
+    );
+    expect(publicPlayerResponse.status).toBe(200);
 
     await runInDurableObject<OrganizationStore, null>(
       stores.get(stores.idFromName("organization-alpha")),

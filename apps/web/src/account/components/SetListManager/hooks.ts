@@ -319,8 +319,8 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     setPlayerBusy(true);
     setError(null);
     try {
-      const token = await generatePublicPlayerToken(selectedEvent.id);
-      window.location.assign(`/player?mode=set-list&token=${encodeURIComponent(token)}`);
+      const link = await generatePublicPlayerToken(selectedEvent.id);
+      window.location.assign(link.url);
     } catch (caught: unknown) {
       setError(
         caught instanceof AuthApiError
@@ -337,10 +337,8 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     setPlayerBusy(true);
     setError(null);
     try {
-      const token = await rotatePublicPlayerToken(selectedEvent.id);
-      await navigator.clipboard.writeText(
-        `${window.location.origin}/player?mode=set-list&token=${encodeURIComponent(token)}`,
-      );
+      const link = await rotatePublicPlayerToken(selectedEvent.id);
+      await navigator.clipboard.writeText(link.url);
       setMessage("Practice player link rotated and copied. The previous link no longer works.");
     } catch (caught: unknown) {
       setError(

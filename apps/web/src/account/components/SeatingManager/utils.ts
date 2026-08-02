@@ -6,6 +6,7 @@ import type {
   OrganizationSeatingChartRequest,
   OrganizationProfileRequest,
 } from "@choir/contracts";
+import { getFirstName, getLastName } from "../../nameFormatting";
 import type { FormationOrderOption } from "./types";
 
 export const defaultRows = [8, 10, 12];
@@ -66,6 +67,94 @@ export function seatingProfileLabel(
   const displayName = profile.displayName.trim();
   const voicePart = profile.voicePart.trim();
   return voicePart ? `${displayName} (${voicePart})` : displayName;
+}
+
+export interface SeatAssignmentProfile {
+  readonly displayName: string;
+  readonly id: string;
+  readonly voicePart: string;
+}
+
+export interface SeatAssignmentProfileGroup {
+  readonly key: string;
+  readonly label: string;
+  readonly profiles: readonly SeatAssignmentProfile[];
+}
+
+function compareProfilesByLastName(
+  left: SeatAssignmentProfile,
+  right: SeatAssignmentProfile,
+): number {
+  const lastName = getLastName(left.displayName).localeCompare(
+    getLastName(right.displayName),
+    undefined,
+    {
+      sensitivity: "base",
+    },
+  );
+  if (lastName !== 0) return lastName;
+  const firstName = getFirstName(left.displayName).localeCompare(
+    getFirstName(right.displayName),
+    undefined,
+    { sensitivity: "base" },
+  );
+  if (firstName !== 0) return firstName;
+  return left.displayName.localeCompare(right.displayName, undefined, { sensitivity: "base" });
+}
+
+/**
+ * Groups seat candidates by configured section and puts the clicked seat's
+ * matching section first. For voice-part formations, an exact voice-part
+ * match leads its section before the other voice parts in that section.
+ */
+export function groupSeatAssignmentProfiles(
+  profiles: readonly SeatAssignmentProfile[],
+  suggestion: string | undefined,
+  isVoicePartLayout: boolean,
+  roster: Pick<OrganizationRosterConfiguration, "sections" | "voiceParts">,
+): readonly SeatAssignmentProfileGroup[] {
+  const normalize = (value: string | undefined): string => value?.trim().toLocaleLowerCase() ?? "";
+  const voicePartSections = new Map(
+    roster.voiceParts.map(({ label, sectionCode }) => [normalize(label), sectionCode]),
+  );
+  const sectionDetails = new Map(roster.sections.map((section) => [section.code, section]));
+  const targetVoicePart = isVoicePartLayout ? normalize(suggestion) : "";
+  const targetSection = isVoicePartLayout
+    ? (voicePartSections.get(targetVoicePart) ?? suggestion?.trim() ?? "")
+    : (suggestion?.trim() ?? "");
+  const groups = new Map<string, SeatAssignmentProfile[]>();
+
+  for (const profile of profiles) {
+    const sectionCode = voicePartSections.get(normalize(profile.voicePart)) ?? "__other";
+    const group = groups.get(sectionCode) ?? [];
+    group.push(profile);
+    groups.set(sectionCode, group);
+  }
+
+  return [...groups.entries()]
+    .map(([key, groupProfiles]) => ({
+      key,
+      label:
+        key === "__other" ? "Other sections" : `${sectionDetails.get(key)?.name ?? key} (${key})`,
+      profiles: [...groupProfiles].sort((left, right) => {
+        if (targetVoicePart) {
+          const leftExact = normalize(left.voicePart) === targetVoicePart;
+          const rightExact = normalize(right.voicePart) === targetVoicePart;
+          if (leftExact !== rightExact) return leftExact ? -1 : 1;
+        }
+        return compareProfilesByLastName(left, right);
+      }),
+    }))
+    .sort((left, right) => {
+      const leftTarget = left.key.toLocaleLowerCase() === targetSection.toLocaleLowerCase();
+      const rightTarget = right.key.toLocaleLowerCase() === targetSection.toLocaleLowerCase();
+      if (leftTarget !== rightTarget) return leftTarget ? -1 : 1;
+      if (left.key === "__other") return 1;
+      if (right.key === "__other") return -1;
+      const leftIndex = roster.sections.findIndex(({ code }) => code === left.key);
+      const rightIndex = roster.sections.findIndex(({ code }) => code === right.key);
+      return leftIndex - rightIndex;
+    });
 }
 
 export function statusLabel(status: OrganizationProfile["globalStatus"]): string {

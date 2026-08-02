@@ -1,10 +1,11 @@
 import { request } from "./client";
 
-export async function generatePublicPlayerToken(eventId: string): Promise<string> {
-  const response = await request("/api/organization/player-tokens", {
-    body: JSON.stringify({ eventId }),
-    method: "POST",
-  });
+export interface PublicPlayerLink {
+  readonly token: string;
+  readonly url: string;
+}
+
+async function readPublicPlayerLink(response: Response): Promise<PublicPlayerLink> {
   const body: unknown = await response.json();
   if (
     typeof body !== "object" ||
@@ -15,23 +16,25 @@ export async function generatePublicPlayerToken(eventId: string): Promise<string
   ) {
     throw new Error("The practice player link response was invalid.");
   }
-  return body.token;
+  const url =
+    "url" in body && typeof body.url === "string" && body.url.length > 0
+      ? body.url
+      : "/player?mode=set-list&token=" + encodeURIComponent(body.token);
+  return { token: body.token, url };
 }
 
-export async function rotatePublicPlayerToken(eventId: string): Promise<string> {
+export async function generatePublicPlayerToken(eventId: string): Promise<PublicPlayerLink> {
+  const response = await request("/api/organization/player-tokens", {
+    body: JSON.stringify({ eventId }),
+    method: "POST",
+  });
+  return readPublicPlayerLink(response);
+}
+
+export async function rotatePublicPlayerToken(eventId: string): Promise<PublicPlayerLink> {
   const response = await request(
     `/api/organization/player-tokens/${encodeURIComponent(eventId)}/rotate`,
     { method: "POST" },
   );
-  const body: unknown = await response.json();
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("token" in body) ||
-    typeof body.token !== "string" ||
-    body.token.length === 0
-  ) {
-    throw new Error("The rotated practice player link response was invalid.");
-  }
-  return body.token;
+  return readPublicPlayerLink(response);
 }

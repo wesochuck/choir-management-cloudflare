@@ -8,6 +8,7 @@ import {
   defaultRows,
   emptyProfile,
   formatEventDate,
+  groupSeatAssignmentProfiles,
   seatingProfileLabel,
   statusLabel,
 } from "./utils";
@@ -143,6 +144,15 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
   const totalSeats = chart.rowCounts.reduce((sum, count) => sum + count, 0);
   const assignedCount = Object.keys(chart.assignments).length;
   const eligibleCount = eligibleProfiles.length;
+  const selectedSeatSuggestion = selectedSeat ? chart.sectionSuggestions[selectedSeat] : undefined;
+  const assignmentGroups = selectedSeat
+    ? groupSeatAssignmentProfiles(
+        eligibleProfiles,
+        selectedSeatSuggestion,
+        currentFormation?.isVoicePartLayout ?? false,
+        resources.roster,
+      )
+    : [];
 
   return (
     <div
@@ -1012,23 +1022,39 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                 ? `Assigned to ${profilesById.get(chart.assignments[selectedSeat])?.displayName ?? "Profile"}.`
                 : "This seat is empty."}
             </p>
+            {selectedSeatSuggestion ? (
+              <p className="seating-assignment-picker__hint">
+                Candidates matching {selectedSeatSuggestion} are shown first, followed by the other
+                sections in roster order. Names are sorted by surname.
+              </p>
+            ) : null}
             <div className="seating-assignment-picker">
-              {eligibleProfiles.map((profile) => (
-                <button
-                  className="seating-lookup-row"
-                  key={profile.id}
-                  onClick={() => {
-                    applyChart({
-                      ...chart,
-                      assignments: moveAssignment(chart.assignments, "", selectedSeat, profile.id),
-                    });
-                    setSelectedSeat(null);
-                  }}
-                  type="button"
-                >
-                  <strong>{profile.displayName}</strong>
-                  <span>{profile.voicePart}</span>
-                </button>
+              {assignmentGroups.map((group) => (
+                <section className="seating-assignment-group" key={group.key}>
+                  <h3 className="seating-assignment-group__heading">{group.label}</h3>
+                  {group.profiles.map((profile) => (
+                    <button
+                      className="seating-lookup-row"
+                      key={profile.id}
+                      onClick={() => {
+                        applyChart({
+                          ...chart,
+                          assignments: moveAssignment(
+                            chart.assignments,
+                            "",
+                            selectedSeat,
+                            profile.id,
+                          ),
+                        });
+                        setSelectedSeat(null);
+                      }}
+                      type="button"
+                    >
+                      <strong>{profile.displayName}</strong>
+                      <span>{profile.voicePart || "No voice part"}</span>
+                    </button>
+                  ))}
+                </section>
               ))}
             </div>
             <div className="form-actions">

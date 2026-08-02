@@ -24,6 +24,13 @@ import {
   authorizeCalendarRoute,
 } from "./helpers";
 
+function practicePlayerUrl(requestUrl: string, token: string): string {
+  const url = new URL("/player", requestUrl);
+  url.searchParams.set("mode", "set-list");
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post("/api/organization/rsvp-tokens", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
@@ -133,19 +140,25 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      if ("profileIds" in body.data) {
+        return context.json({
+          ...(await generatePlayerTokens(
+            context.env,
+            authorization.organizationId,
+            body.data.eventId,
+            body.data.profileIds,
+          )),
+          requestId: context.get("requestId"),
+        });
+      }
+      const generated = await generatePublicPlayerToken(
+        context.env,
+        authorization.organizationId,
+        body.data.eventId,
+      );
       return context.json({
-        ...("profileIds" in body.data
-          ? await generatePlayerTokens(
-              context.env,
-              authorization.organizationId,
-              body.data.eventId,
-              body.data.profileIds,
-            )
-          : await generatePublicPlayerToken(
-              context.env,
-              authorization.organizationId,
-              body.data.eventId,
-            )),
+        ...generated,
+        url: practicePlayerUrl(context.req.url, generated.token),
         requestId: context.get("requestId"),
       });
     } catch (error: unknown) {
@@ -190,13 +203,15 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      const generated = await generatePublicPlayerToken(
+        context.env,
+        authorization.organizationId,
+        eventId.data,
+        true,
+      );
       return context.json({
-        ...(await generatePublicPlayerToken(
-          context.env,
-          authorization.organizationId,
-          eventId.data,
-          true,
-        )),
+        ...generated,
+        url: practicePlayerUrl(context.req.url, generated.token),
         requestId: context.get("requestId"),
       });
     } catch (error: unknown) {

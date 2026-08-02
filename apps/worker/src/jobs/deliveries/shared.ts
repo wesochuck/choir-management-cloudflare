@@ -275,10 +275,23 @@ export const scheduledReportMemberSchema = z.object({
   role: z.enum(["admin", "owner"]),
 });
 
-export function deliveryOrigin(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN">,
+export async function deliveryOrigin(
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN"> & Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
+  organizationId: string,
   delivery: { readonly unsubscribeUrl: string | null },
-): string {
+): Promise<string> {
+  if (env.CONTROL_DB) {
+    const row = await env.CONTROL_DB.prepare(
+      `SELECT hostname
+       FROM organization_domains
+       WHERE organization_id = ? AND kind = 'canonical' AND status = 'active'
+       ORDER BY created_at, id
+       LIMIT 1`,
+    )
+      .bind(organizationId)
+      .first<{ readonly hostname: string }>();
+    if (row?.hostname) return `https://${row.hostname}`;
+  }
   if (delivery.unsubscribeUrl) return new URL(delivery.unsubscribeUrl).origin;
   return env.PRODUCT_BASE_DOMAIN === "localhost"
     ? "http://localhost"
@@ -303,7 +316,7 @@ export async function renderRsvpLinks(
     );
   }
   const token = await issueRsvpToken(env, organizationId, eventId, delivery.profileId);
-  const rsvpLink = `${deliveryOrigin(env, delivery)}/rsvp?token=${encodeURIComponent(token)}`;
+  const rsvpLink = `${await deliveryOrigin(env, organizationId, delivery)}/rsvp?token=${encodeURIComponent(token)}`;
   const replacement = `[Open RSVP page](${rsvpLink})\n\n(No login required.)`;
   return content.replace(rsvpPlaceholderReplacementPattern, () => replacement);
 }
@@ -326,7 +339,7 @@ export async function renderPlayerLinks(
     );
   }
   const token = await issuePlayerToken(env, organizationId, eventId, delivery.profileId);
-  const playerLink = `${deliveryOrigin(env, delivery)}/player?token=${encodeURIComponent(token)}`;
+  const playerLink = `${await deliveryOrigin(env, organizationId, delivery)}/player?token=${encodeURIComponent(token)}`;
   const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
   return content.replace(playerPlaceholderReplacementPattern, () => replacement);
 }
@@ -351,7 +364,7 @@ export async function renderTicketLinks(
     resourceId: purchaseId,
     version: 1,
   });
-  const link = `${deliveryOrigin(env, { unsubscribeUrl: null })}/tickets/order/success?token=${encodeURIComponent(token)}`;
+  const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null })}/tickets/order/success?token=${encodeURIComponent(token)}`;
   return content.replace(
     ticketLinkPlaceholderReplacementPattern,
     () => `[View ticket order](${link})`,
@@ -372,7 +385,7 @@ export async function renderPollLinks(
   ];
   if (pollIds.length === 0) return content;
 
-  const origin = deliveryOrigin(env, delivery);
+  const origin = await deliveryOrigin(env, organizationId, delivery);
   const issuedAt = Math.floor(Date.now() / 1_000);
   const tokens = new Map(
     await Promise.all(
