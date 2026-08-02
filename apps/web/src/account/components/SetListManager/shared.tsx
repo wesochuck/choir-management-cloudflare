@@ -5,6 +5,7 @@ import type {
 } from "@choir/contracts";
 import { useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
+import { getLastName } from "../../nameFormatting";
 import type { PerformerCredit, SetListItem } from "./types";
 import { printDateOnly, printTimeOnly, setListPreviewRows } from "./utils";
 
@@ -84,6 +85,16 @@ export function SetListCreditEditor({
   const { performerLabel } = useOrganizationTerminology();
   const [guestName, setGuestName] = useState("");
   const credits = item.performerCredits ?? [];
+  const sortedProfiles = [...profiles].sort((left, right) => {
+    const byLastName = getLastName(left.displayName).localeCompare(
+      getLastName(right.displayName),
+      undefined,
+      { sensitivity: "base" },
+    );
+    return byLastName !== 0
+      ? byLastName
+      : left.displayName.localeCompare(right.displayName, undefined, { sensitivity: "base" });
+  });
 
   function addCredit(credit: PerformerCredit): void {
     if (
@@ -117,7 +128,7 @@ export function SetListCreditEditor({
             }}
           >
             <option value="">Choose a Profile…</option>
-            {profiles.map((profile) => (
+            {sortedProfiles.map((profile) => (
               <option key={profile.id} value={profile.id}>
                 {profile.displayName}
               </option>
