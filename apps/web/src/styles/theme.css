@@ -7369,6 +7369,17 @@ footer {
   min-height: 4.6rem;
 }
 
+.signed-in-main .roster-automation__card label.checkbox-row {
+  min-width: 0;
+  align-items: flex-start;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.signed-in-main .roster-automation__card label.checkbox-row input {
+  margin-top: 0.2rem;
+}
+
 .roster-automation__preview {
   margin-top: 0.9rem;
 }
