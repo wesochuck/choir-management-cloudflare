@@ -14,7 +14,7 @@ export interface SeatingResources {
   readonly seating: SeatingConfiguration;
 }
 
-export type ViewMode = "grid" | "list";
+export type ViewMode = "grid" | "list" | "index";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 

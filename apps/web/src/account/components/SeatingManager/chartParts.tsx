@@ -180,15 +180,99 @@ export function ChartList({
   chart,
   profilesById,
   displayNames,
+  mode,
   showSeatNumbers,
   showVoiceParts,
 }: {
   readonly chart: OrganizationSeatingChartRequest;
   readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
   readonly displayNames: ReadonlyMap<string, string>;
+  readonly mode: "list" | "index";
   readonly showSeatNumbers: boolean;
   readonly showVoiceParts: boolean;
 }) {
+  const assignedSeats = useMemo(
+    () =>
+      chart.rowCounts.flatMap((count, rowIndex) =>
+        Array.from({ length: count }, (_, seatIndex) => {
+          const profile = profilesById.get(
+            chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`] ?? "",
+          );
+          return profile ? { profile, rowIndex, seatIndex } : null;
+        }).filter(
+          (
+            entry,
+          ): entry is {
+            profile: OrganizationProfile;
+            rowIndex: number;
+            seatIndex: number;
+          } => entry !== null,
+        ),
+      ),
+    [chart.assignments, chart.rowCounts, profilesById],
+  );
+
+  if (mode === "index") {
+    const indexEntries = [...assignedSeats].sort((left, right) => {
+      const leftName = displayNames.get(left.profile.id) ?? getLastName(left.profile.displayName);
+      const rightName =
+        displayNames.get(right.profile.id) ?? getLastName(right.profile.displayName);
+      const byName = leftName.localeCompare(rightName, undefined, { sensitivity: "base" });
+      if (byName !== 0) return byName;
+      const byRow = left.rowIndex - right.rowIndex;
+      return byRow !== 0 ? byRow : left.seatIndex - right.seatIndex;
+    });
+    const indexGroups = indexEntries.reduce((groups, entry) => {
+      const rawLastName = getLastName(entry.profile.displayName);
+      const letter = rawLastName.slice(0, 1).toLocaleUpperCase() || "#";
+      const group = groups.get(letter) ?? [];
+      group.push(entry);
+      groups.set(letter, group);
+      return groups;
+    }, new Map<string, typeof indexEntries>());
+
+    return (
+      <div className="seating-name-index" aria-label="Last name seating index">
+        <div className="seating-name-index__heading">
+          <div>
+            <h2>Last name index</h2>
+            <p>Find each assigned Profile by surname and seating location.</p>
+          </div>
+          <span className="status-pill">{String(indexEntries.length)} assigned</span>
+        </div>
+        {indexEntries.length === 0 ? (
+          <p className="empty-state">No Profiles assigned.</p>
+        ) : (
+          <div className="seating-name-index__groups">
+            {[...indexGroups.entries()].map(([letter, entries]) => (
+              <section className="seating-name-index__group" key={letter}>
+                <h3>{letter}</h3>
+                <ol>
+                  {entries.map(({ profile, rowIndex, seatIndex }) => (
+                    <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
+                      <strong>
+                        {(displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
+                          ", ",
+                          " ",
+                        )}
+                      </strong>
+                      <span className="seating-name-index__location">
+                        Row {rowIndex + 1} · Seat {seatIndex + 1}
+                      </span>
+                      {profile.voicePart ? (
+                        <em className="seating-list-voice-part">({profile.voicePart})</em>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="seating-list-view" aria-label="Text seating list">
       {[...chart.rowCounts.keys()].reverse().map((rowIndex) => {

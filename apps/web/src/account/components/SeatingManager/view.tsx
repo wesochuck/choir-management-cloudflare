@@ -426,6 +426,18 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
               >
                 List
               </button>
+              <button
+                aria-label="Last name index"
+                aria-pressed={viewMode === "index"}
+                className={`button button--small ${viewMode === "index" ? "button--primary" : "button--secondary"}`}
+                onClick={() => {
+                  setViewMode("index");
+                }}
+                title="Last name index"
+                type="button"
+              >
+                Index
+              </button>
               {viewMode === "list" ? (
                 <>
                   <label className="checkbox-row checkbox-row--compact">
@@ -504,6 +516,17 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
             <ChartList
               chart={chart}
               displayNames={seatingDisplayNames}
+              mode="list"
+              profilesById={profilesById}
+              showSeatNumbers={showSeatNumbers}
+              showVoiceParts={showVoiceParts}
+            />
+          ) : null}
+          {charts.length > 0 && viewMode === "index" ? (
+            <ChartList
+              chart={chart}
+              displayNames={seatingDisplayNames}
+              mode="index"
               profilesById={profilesById}
               showSeatNumbers={showSeatNumbers}
               showVoiceParts={showVoiceParts}
