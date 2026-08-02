@@ -50,7 +50,13 @@ import {
   type DurationAutoFillState,
 } from "../../durationAutoFill";
 
-export function useMusicCatalogController({ enabled }: { readonly enabled: boolean }) {
+export function useMusicCatalogController({
+  enabled,
+  initialPieceId,
+}: {
+  readonly enabled: boolean;
+  readonly initialPieceId?: string | null | undefined;
+}) {
   const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
   const [roster, setRoster] = useState<OrganizationRosterConfiguration | null>(null);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
@@ -90,6 +96,7 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editorTab, setEditorTab] = useState<MusicEditorTab>("details");
+  const openedInitialPieceIdRef = useRef<string | null>(null);
   const durationAutoFillStateRef = useRef<DurationAutoFillState>(initialDurationAutoFillState);
   const durationInputRef = useRef("");
   const durationDetectionRequestRef = useRef(0);
@@ -134,6 +141,16 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
       uniqueGenreLabels(pieces.flatMap(({ genres }) => genres)).sort((a, b) => a.localeCompare(b)),
     [pieces],
   );
+  const genreCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const musicPiece of pieces) {
+      for (const genre of uniqueGenreLabels(musicPiece.genres)) {
+        const key = genreKey(genre);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [pieces]);
   const personNameOptions = useMemo(
     () =>
       [
@@ -174,16 +191,16 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
     setSelectedPieceIds((current) => [...new Set([...current, ...pieceIds])]);
   }
 
-  function resetDurationDetection(): void {
+  const resetDurationDetection = useCallback((): void => {
     durationAutoFillStateRef.current = initialDurationAutoFillState;
     durationInputRef.current = "";
     durationDetectionRequestRef.current += 1;
     setDurationAutoFillLabel(null);
     setDurationDetectionNotice(null);
     setTrackDurationCache({});
-  }
+  }, []);
 
-  function setDurationValue(value: string, manuallyEdited: boolean): void {
+  const setDurationValue = useCallback((value: string, manuallyEdited: boolean): void => {
     durationInputRef.current = value;
     setDurationInput(value);
     if (manuallyEdited) {
@@ -194,7 +211,7 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
       setDurationAutoFillLabel(null);
       setDurationDetectionNotice(null);
     }
-  }
+  }, []);
 
   const handleTrackDurationDetected = useCallback(
     (trackKey: string, durationSeconds: number | null): void => {
@@ -276,23 +293,23 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
     };
   }, [durationInput, expectedTrackDuration]);
 
-  function setEditorPiece(
-    selected: OrganizationMusicPiece,
-    nextTab: MusicEditorTab = "details",
-  ): void {
-    setEditingId(selected.id);
-    setPiece(requestFrom(selected));
-    setPendingTuttiFile(null);
-    setEditorTab(nextTab);
-    resetDurationDetection();
-    setDurationValue(durationText(selected.durationSeconds), false);
-    setGenresInput(selected.genres.join(", "));
-    setCopiesInput(selected.copies === null ? "" : String(selected.copies));
-    setDeleteConfirm(false);
-    setUnlinkChildren(false);
-    setMessage(null);
-    setError(null);
-  }
+  const setEditorPiece = useCallback(
+    (selected: OrganizationMusicPiece, nextTab: MusicEditorTab = "details"): void => {
+      setEditingId(selected.id);
+      setPiece(requestFrom(selected));
+      setPendingTuttiFile(null);
+      setEditorTab(nextTab);
+      resetDurationDetection();
+      setDurationValue(durationText(selected.durationSeconds), false);
+      setGenresInput(selected.genres.join(", "));
+      setCopiesInput(selected.copies === null ? "" : String(selected.copies));
+      setDeleteConfirm(false);
+      setUnlinkChildren(false);
+      setMessage(null);
+      setError(null);
+    },
+    [resetDurationDetection, setDurationValue],
+  );
 
   function closeDialog(): void {
     if (busy) return;
@@ -369,10 +386,26 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
     setMusicImportInspection(inspectMusicCsv(mapMusicCsvColumns(musicImportCsv, nextMappings)));
   }
 
-  function selectPiece(selected: OrganizationMusicPiece): void {
-    setEditorPiece(selected);
-    setDialogOpen(true);
-  }
+  const selectPiece = useCallback(
+    (selected: OrganizationMusicPiece): void => {
+      setEditorPiece(selected);
+      setDialogOpen(true);
+    },
+    [setEditorPiece],
+  );
+
+  useEffect(() => {
+    if (!enabled || !initialPieceId || openedInitialPieceIdRef.current === initialPieceId) return;
+    const initialPiece = pieces.find(({ id }) => id === initialPieceId);
+    if (!initialPiece) return;
+    openedInitialPieceIdRef.current = initialPieceId;
+    const timeoutId = window.setTimeout(() => {
+      selectPiece(initialPiece);
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [enabled, initialPieceId, pieces, selectPiece]);
 
   async function handlePerformanceChanged(event: OrganizationEvent): Promise<void> {
     setEvents((current) => {
@@ -585,6 +618,7 @@ export function useMusicCatalogController({ enabled }: { readonly enabled: boole
     error,
     events,
     genreFilterMode,
+    genreCounts,
     genreFilterSearch,
     genresInput,
     handleMusicColumnMap,

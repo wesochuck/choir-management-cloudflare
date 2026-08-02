@@ -4,7 +4,13 @@ import { Dialog } from "@choir/ui";
 import { type CSSProperties } from "react";
 import { setOrganizationEventRsvp } from "../../../auth/api";
 import { ConfirmDialog, FormationEditor } from "./shared";
-import { defaultRows, emptyProfile, formatEventDate, statusLabel } from "./utils";
+import {
+  defaultRows,
+  emptyProfile,
+  formatEventDate,
+  seatingProfileLabel,
+  statusLabel,
+} from "./utils";
 import { SeatTile, UnassignedTray, ChartList } from "./chartParts";
 import type { SeatingManagerModel } from "./hooks";
 
@@ -687,6 +693,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                       handleNativeDrop(token);
                     }}
                     profiles={unassignedProfiles}
+                    roster={resources.roster}
                     query={query}
                     setQuery={setQuery}
                   />
@@ -706,13 +713,17 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                     <div className="seating-drag-overlay">
                       <span>Moving</span>
                       <strong>
-                        {draggingProfileName ??
-                          (draggingToken.startsWith("profile:") ? "Profile" : "Assigned Profile")}
+                        {draggingProfileId
+                          ? seatingProfileLabel(profilesById.get(draggingProfileId) ?? emptyProfile)
+                          : (draggingProfileName ??
+                            (draggingToken.startsWith("profile:")
+                              ? "Profile"
+                              : "Assigned Profile"))}
                       </strong>
                       {draggingProfileId ? (
                         <small>
                           {draggingProfileVoicePart?.trim()
-                            ? draggingProfileVoicePart
+                            ? `Voice part: ${draggingProfileVoicePart}`
                             : "No voice part"}
                         </small>
                       ) : null}

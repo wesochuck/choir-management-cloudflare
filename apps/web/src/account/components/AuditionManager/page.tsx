@@ -260,7 +260,7 @@ export function AuditionManager({ enabled }: Props) {
         </p>
         <div className="table-actions">
           <button
-            className="button"
+            className="button button--primary"
             onClick={() => {
               setCreateOpen(true);
             }}

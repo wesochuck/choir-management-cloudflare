@@ -49,7 +49,12 @@ export function EventRsvpDeadlineNotice({
             : `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, false, state.timezone)} through 11:59 p.m. Link: Roster Settings.`
           : "Choose a valid start date to calculate the RSVP deadline."
         : "RSVP Expiry is off. You can change it in Roster Settings."}
-      {state.rsvpExpiryEnabled ? <a href="/admin/settings"> Open Roster Settings</a> : null}
+      {state.rsvpExpiryEnabled ? (
+        <>
+          {" "}
+          <a href="/admin/roster?section=settings">Open Roster Settings</a>
+        </>
+      ) : null}
     </p>
   );
 }

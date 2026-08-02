@@ -51,6 +51,15 @@ export function EventEditorDialog({
   const [dayOfPriceDraft, setDayOfPriceDraft] = useState(
     currencyDraftFromCents(event.dayOfPriceCents),
   );
+  const followUpEnabled =
+    event.rsvpFollowUpMode === "enabled" ||
+    (event.rsvpFollowUpMode === "inherit" && state.status === "ready" && state.rsvpFollowUpEnabled);
+  const followUpLeadHours =
+    event.rsvpFollowUpMode === "enabled"
+      ? (event.rsvpFollowUpLeadHours ?? 48)
+      : state.status === "ready"
+        ? state.rsvpFollowUpLeadHours
+        : null;
 
   return (
     <Dialog
@@ -125,14 +134,15 @@ export function EventEditorDialog({
           <EventRsvpDeadlineNotice eventStart={eventStart} eventType={event.type} state={state} />
           {event.type === "Performance" ? (
             <fieldset className="form-grid__wide">
-              <legend>Pending RSVP follow-up</legend>
+              <legend>Automated pending RSVP email</legend>
               <p className="field-help">
-                One email is sent only to active Performers still marked Pending. The Organization
-                default is{" "}
-                {state.status === "ready"
-                  ? `${String(state.rsvpFollowUpLeadHours)} hours`
-                  : "configured in Roster Settings"}{" "}
-                before the RSVP deadline.
+                This email is not launched by saving the event. When enabled, the background
+                scheduler automatically queues one message{" "}
+                {followUpLeadHours
+                  ? `${String(followUpLeadHours)} hours`
+                  : "at the configured lead time"}{" "}
+                before the RSVP deadline, only for active Performers still marked Pending. No
+                separate draft or send button is required.
               </p>
               <label className="field" htmlFor="events-page-rsvp-follow-up-mode">
                 Event setting
@@ -179,9 +189,30 @@ export function EventEditorDialog({
                   />
                 </label>
               ) : null}
-              <p className="field-help">
-                Edit the email wording in Communications → Templates → Event RSVP Follow-up.
+              <p className={followUpEnabled ? "notice notice--info" : "notice notice--warning"}>
+                <strong>
+                  {followUpEnabled ? "Automatic delivery:" : "Automatic delivery is off:"}
+                </strong>{" "}
+                {followUpEnabled
+                  ? "After the next scheduler pass, this send will appear in Communications → Upcoming sends."
+                  : "Enable this Performance or the Organization default to schedule the follow-up."}
               </p>
+              <div className="button-row">
+                <a
+                  className="button button--secondary button--small"
+                  href="/admin/communications?tab=templates"
+                >
+                  Edit RSVP email template
+                </a>
+                {followUpEnabled ? (
+                  <a
+                    className="button button--secondary button--small"
+                    href="/admin/communications?tab=upcoming"
+                  >
+                    View upcoming sends
+                  </a>
+                ) : null}
+              </div>
             </fieldset>
           ) : null}
           <div className="field">

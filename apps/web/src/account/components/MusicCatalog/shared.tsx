@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { genreChipColor, genreKey, uniqueGenreLabels } from "./utils";
 
 export function GenreChip({
+  count,
   genre,
   onClick,
   onRemove,
   selected = false,
 }: {
+  readonly count?: number;
   readonly genre: string;
   readonly onClick?: () => void;
   readonly onRemove?: () => void;
@@ -18,6 +20,11 @@ export function GenreChip({
     return (
       <span className={className}>
         {genre}
+        {count !== undefined ? (
+          <span aria-label={`${String(count)} pieces`} className="music-genre-chip__count">
+            {count}
+          </span>
+        ) : null}
         {onRemove ? (
           <button
             aria-label={`Remove ${genre} genre`}
@@ -36,8 +43,15 @@ export function GenreChip({
     );
   }
   return (
-    <button aria-pressed={selected} className={className} type="button" onClick={onClick}>
+    <button
+      aria-label={`${genre}${count !== undefined ? `, ${String(count)} pieces` : ""}`}
+      aria-pressed={selected}
+      className={className}
+      type="button"
+      onClick={onClick}
+    >
       {genre}
+      {count !== undefined ? <span className="music-genre-chip__count">{count}</span> : null}
     </button>
   );
 }
@@ -204,6 +218,7 @@ export function MusicGenrePicker({
 }
 
 export function MusicGenreFilter({
+  counts,
   genres,
   mode,
   onModeChange,
@@ -212,6 +227,7 @@ export function MusicGenreFilter({
   search,
   selected,
 }: {
+  readonly counts?: ReadonlyMap<string, number>;
   readonly genres: readonly string[];
   readonly mode: "and" | "or";
   readonly onModeChange: (mode: "and" | "or") => void;
@@ -292,6 +308,7 @@ export function MusicGenreFilter({
           {visibleGenres.length > 0 ? (
             visibleGenres.map((genre) => (
               <GenreChip
+                count={counts?.get(genreKey(genre)) ?? 0}
                 genre={genre}
                 key={genreKey(genre)}
                 selected={selected.some((item) => genreKey(item) === genreKey(genre))}

@@ -1,12 +1,15 @@
-import type { OrganizationMusicLibrarySettings } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import type { OrganizationMusicLibrarySettings, OrganizationMusicPiece } from "@choir/contracts";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   AuthApiError,
   getOrganizationMusicLibrarySettings,
+  listOrganizationMusic,
   updateOrganizationMusicLibrarySettings,
 } from "../auth/api";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
+import { GenreChip } from "./components/MusicCatalog/shared";
+import { genreKey, uniqueGenreLabels } from "./components/MusicCatalog/utils";
 
 export function MusicLibrarySettingsPage({
   enabled,
@@ -17,6 +20,7 @@ export function MusicLibrarySettingsPage({
 }) {
   const [settings, setSettings] = useState<OrganizationMusicLibrarySettings | null>(null);
   const [savedSettings, setSavedSettings] = useState<OrganizationMusicLibrarySettings | null>(null);
+  const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,10 +29,14 @@ export function MusicLibrarySettingsPage({
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    getOrganizationMusicLibrarySettings(controller.signal)
-      .then((loaded) => {
+    Promise.all([
+      getOrganizationMusicLibrarySettings(controller.signal),
+      listOrganizationMusic(controller.signal),
+    ])
+      .then(([loaded, catalog]) => {
         setSettings(loaded);
         setSavedSettings(loaded);
+        setPieces(catalog);
         setLoading(false);
       })
       .catch((caught: unknown) => {
@@ -44,6 +52,24 @@ export function MusicLibrarySettingsPage({
       controller.abort();
     };
   }, [enabled]);
+
+  const genreCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const piece of pieces) {
+      for (const genre of uniqueGenreLabels(piece.genres)) {
+        const key = genreKey(genre);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [pieces]);
+  const genres = useMemo(
+    () =>
+      uniqueGenreLabels(pieces.flatMap((piece) => piece.genres)).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    [pieces],
+  );
 
   async function save(): Promise<void> {
     if (!settings) return;
@@ -89,10 +115,10 @@ export function MusicLibrarySettingsPage({
       </div>
       <nav className="music-library-tabs" aria-label="Music library sections">
         <AppLink href="/admin/library" onNavigate={navigate}>
-          Library
+          Music Catalog
         </AppLink>
         <AppLink ariaCurrent="page" href="/admin/library/settings" onNavigate={navigate}>
-          Settings <span className="sr-only">(current)</span>
+          Library Settings <span className="sr-only">(current)</span>
         </AppLink>
       </nav>
       {loading ? <p role="status">Loading music library settings…</p> : null}
@@ -113,10 +139,11 @@ export function MusicLibrarySettingsPage({
         >
           <div>
             <p className="eyebrow">Music library setting</p>
-            <h2 id="music-library-settings-title">Publisher catalog search</h2>
+            <h2 id="music-library-settings-title">Catalog lookup link</h2>
             <p>
-              Add the publisher’s HTTPS search URL and use <code>{"{catalogId}"}</code> where the
-              catalog number belongs. Matching rows will include a direct Search link.
+              Configure the publisher’s HTTPS search URL once here. Use <code>{"{catalogId}"}</code>{" "}
+              where the catalog number belongs; matching catalog rows will include a direct search
+              link.
             </p>
           </div>
           <form
@@ -182,6 +209,34 @@ export function MusicLibrarySettingsPage({
               {busy ? "Saving…" : "Save settings"}
             </button>
           </form>
+          <section
+            className="music-library-genre-settings"
+            aria-labelledby="music-library-genres-title"
+          >
+            <div>
+              <p className="eyebrow">Catalog tags</p>
+              <h2 id="music-library-genres-title">Genres in your catalog</h2>
+              <p>
+                These tags are collected from catalog pieces. Counts include each catalog item once
+                per genre, and the same colors are used by the catalog filter.
+              </p>
+            </div>
+            {genres.length > 0 ? (
+              <div className="music-library-genre-settings__list" aria-label="Catalog genres">
+                {genres.map((genre) => (
+                  <GenreChip
+                    count={genreCounts.get(genreKey(genre)) ?? 0}
+                    genre={genre}
+                    key={genreKey(genre)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="music-library-genre-settings__empty">
+                No genres have been added to catalog pieces yet.
+              </p>
+            )}
+          </section>
         </section>
       ) : null}
     </section>

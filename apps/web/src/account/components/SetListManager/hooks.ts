@@ -4,9 +4,10 @@ import {
   durationFromSeconds,
   emptyResources,
   eventRequestFrom,
-  itemType,
   moveItemToIndex,
   normalizeItems,
+  setListItemEditError,
+  setListItemForEdit,
   setListDocumentText,
 } from "./utils";
 import type { Resources, SetListItem } from "./types";
@@ -209,26 +210,12 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
 
   function saveItemEdit(): void {
     if (editingItemIndex === null || !editingItem) return;
-    if (!editingItem.title.trim()) {
-      setError("Enter a title for the set-list item.");
+    const validationError = setListItemEditError(editingItem, resources.music);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    if (editingItem.duration && parseSetListDuration(editingItem.duration) === null) {
-      setError("Duration must be minutes, minutes:seconds, hours:minutes:seconds, or named units.");
-      return;
-    }
-    updateItem(editingItemIndex, {
-      ...editingItem,
-      title: editingItem.title.trim(),
-      composer:
-        itemType(editingItem) === "song"
-          ? editingItem.composer?.trim()
-            ? editingItem.composer.trim()
-            : undefined
-          : undefined,
-      duration: normalizeSetListDuration(editingItem.duration),
-      notes: editingItem.notes?.trim() ? editingItem.notes.trim() : undefined,
-    });
+    updateItem(editingItemIndex, setListItemForEdit(editingItem, resources.music));
     closeItemEditor();
     setError(null);
   }

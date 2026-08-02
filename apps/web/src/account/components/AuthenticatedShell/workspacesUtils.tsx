@@ -63,7 +63,10 @@ export function renderOrganizationPage(
 ) {
   const focusedEnabled = enabled && manager;
   const { pathname } = routeState;
-  const rosterProfileId = new URLSearchParams(routeState.search).get("profileId");
+  const routeParams = new URLSearchParams(routeState.search);
+  const rosterProfileId = routeParams.get("profileId");
+  const rosterSection = routeParams.get("section") === "settings" ? "settings" : "roster";
+  const musicPieceId = routeParams.get("pieceId");
   const route =
     pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
       ? "event-roster"
@@ -74,7 +77,9 @@ export function renderOrganizationPage(
     "/admin/communications": <CommunicationCenter enabled={focusedEnabled} />,
     "/admin/donations": <DonationsManager enabled={focusedEnabled} />,
     "/admin/patrons": <DonationsManager enabled={focusedEnabled} />,
-    "/admin/library": <MusicCatalog enabled={focusedEnabled} navigate={navigate} />,
+    "/admin/library": (
+      <MusicCatalog enabled={focusedEnabled} initialPieceId={musicPieceId} navigate={navigate} />
+    ),
     "/admin/library/settings": (
       <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />
     ),
@@ -100,6 +105,7 @@ export function renderOrganizationPage(
     "/admin/roster": (
       <RosterPage
         enabled={focusedEnabled}
+        initialSection={rosterSection}
         initialProfileId={rosterProfileId}
         initialProfileTab={rosterProfileTabFromSearch(routeState.search)}
       />

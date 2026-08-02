@@ -3,7 +3,12 @@ import type {
   OrganizationEventRequest,
   OrganizationMusicPiece,
 } from "@choir/contracts";
-import { formatSetListDuration, moveSetListItem } from "@choir/domain";
+import {
+  formatSetListDuration,
+  moveSetListItem,
+  normalizeSetListDuration,
+  parseSetListDuration,
+} from "@choir/domain";
 import type { SetListItem, SetListPreviewRow, SetListPrintRow } from "./types";
 import type { Resources } from "./types";
 
@@ -45,6 +50,50 @@ export function eventRequestFrom(
 
 export function itemType(item: SetListItem): "intermission" | "song" {
   return item.type === "intermission" ? "intermission" : "song";
+}
+
+export function musicPieceForSetListItem(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): OrganizationMusicPiece | undefined {
+  return item.pieceId ? music.find(({ id }) => id === item.pieceId) : undefined;
+}
+
+function trimmedOrUndefined(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  return trimmed;
+}
+
+export function setListItemEditError(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): string | undefined {
+  const linkedMusicPiece = musicPieceForSetListItem(item, music);
+  if (!linkedMusicPiece && !item.title.trim()) return "Enter a title for the set-list item.";
+  if (!linkedMusicPiece && item.duration && parseSetListDuration(item.duration) === null) {
+    return "Duration must be minutes, minutes:seconds, hours:minutes:seconds, or named units.";
+  }
+  return undefined;
+}
+
+export function setListItemForEdit(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): SetListItem {
+  const linkedMusicPiece = musicPieceForSetListItem(item, music);
+  return {
+    ...item,
+    title: linkedMusicPiece?.title ?? item.title.trim(),
+    composer:
+      itemType(item) === "song"
+        ? (trimmedOrUndefined(linkedMusicPiece?.composer) ?? trimmedOrUndefined(item.composer))
+        : undefined,
+    duration: linkedMusicPiece
+      ? durationFromSeconds(linkedMusicPiece.durationSeconds)
+      : normalizeSetListDuration(item.duration),
+    notes: trimmedOrUndefined(item.notes),
+  };
 }
 
 export function durationFromSeconds(seconds: number | null): string | undefined {

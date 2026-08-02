@@ -9,6 +9,7 @@ import { Dialog } from "@choir/ui";
 import { useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
 import { normalizeFormationOrder, formationOrderOptions, moveFormationOrderItem } from "./utils";
+import { seatingProfileLabel } from "./utils";
 import type { ConfirmState } from "./types";
 
 export function ConfirmDialog({
@@ -372,7 +373,7 @@ export function UnassignedProfileChip({
         event.dataTransfer.effectAllowed = "move";
       }}
     >
-      <span>{profile.displayName}</span>
+      <span>{seatingProfileLabel(profile)}</span>
       <button
         aria-label={`Mark ${profile.displayName} not attending`}
         onClick={() => {

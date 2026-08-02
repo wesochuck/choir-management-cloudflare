@@ -7,7 +7,14 @@ import {
 } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 import { Fragment, useState } from "react";
-import { displayEvent, itemType, normalizeItems, setListHasLearningTrack } from "./utils";
+import {
+  displayEvent,
+  durationFromSeconds,
+  itemType,
+  musicPieceForSetListItem,
+  normalizeItems,
+  setListHasLearningTrack,
+} from "./utils";
 import { SetListCreditEditor, SetListPreview, SetListPrintView } from "./shared";
 import type { SetListManagerModel } from "./hooks";
 
@@ -80,6 +87,18 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
     : !setListHasLearningTrack(items, resources.music)
       ? "Add at least one learning track to a set-list piece before opening the Practice Player."
       : undefined;
+  const linkedMusicPiece = editingItem
+    ? musicPieceForSetListItem(editingItem, resources.music)
+    : undefined;
+  const editingItemIsLinked = Boolean(editingItem?.pieceId);
+  const editingTitle = linkedMusicPiece?.title ?? editingItem?.title ?? "";
+  const editingComposer = linkedMusicPiece?.composer ?? editingItem?.composer ?? "";
+  const editingDuration = linkedMusicPiece
+    ? (durationFromSeconds(linkedMusicPiece.durationSeconds) ?? "")
+    : (editingItem?.duration ?? "");
+  const linkedMusicHref = linkedMusicPiece
+    ? `/admin/library?pieceId=${encodeURIComponent(linkedMusicPiece.id)}`
+    : null;
   return (
     <section className="account-section set-list-section" aria-label="Set list editor">
       <div className="section-heading section-heading--compact set-list-page-intro">
@@ -326,6 +345,16 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                     <li
                       className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}`}
                       draggable
+                      onClick={(event) => {
+                        const target = event.target;
+                        if (
+                          !(target instanceof HTMLElement) ||
+                          target.closest("button, a, .set-list-drag-handle")
+                        ) {
+                          return;
+                        }
+                        openItemEditor(index);
+                      }}
                       onDragEnd={() => {
                         setDragIndex(null);
                       }}
@@ -446,7 +475,7 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                       >
                         <button
                           aria-label={`Insert custom entry after ${String(index + 1)}. ${item.title}`}
-                          className="button button--secondary button--small"
+                          className="set-list-insert-zone__button"
                           type="button"
                           onClick={() => {
                             insertCustomItem(index + 1);
@@ -581,15 +610,39 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                     {error}
                   </p>
                 ) : null}
+                {editingItemIsLinked ? (
+                  <section
+                    aria-label="Linked music library piece"
+                    className={`set-list-linked-piece${linkedMusicPiece ? "" : " set-list-linked-piece--missing"}`}
+                  >
+                    <div>
+                      <p className="eyebrow">Music library piece</p>
+                      <strong>{linkedMusicPiece?.title ?? editingItem.title}</strong>
+                      <p className="field-help">
+                        {linkedMusicPiece
+                          ? "Title, composer, and duration are managed in the music library."
+                          : "This library piece is no longer available. Remove it or add a replacement from the music library."}
+                      </p>
+                    </div>
+                    {linkedMusicHref ? (
+                      <a className="button button--secondary button--small" href={linkedMusicHref}>
+                        Edit in music library
+                      </a>
+                    ) : null}
+                  </section>
+                ) : null}
                 <label className="field">
                   Title
                   <input
-                    autoFocus
+                    autoFocus={!editingItemIsLinked}
                     maxLength={300}
                     required
-                    value={editingItem.title}
+                    readOnly={editingItemIsLinked}
+                    value={editingTitle}
                     onChange={(event) => {
-                      setEditingItem({ ...editingItem, title: event.target.value });
+                      if (!editingItemIsLinked) {
+                        setEditingItem({ ...editingItem, title: event.target.value });
+                      }
                     }}
                   />
                 </label>
@@ -597,10 +650,13 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                   <label className="field">
                     Composer
                     <input
+                      readOnly={editingItemIsLinked}
                       maxLength={300}
-                      value={editingItem.composer ?? ""}
+                      value={editingComposer}
                       onChange={(event) => {
-                        setEditingItem({ ...editingItem, composer: event.target.value });
+                        if (!editingItemIsLinked) {
+                          setEditingItem({ ...editingItem, composer: event.target.value });
+                        }
                       }}
                     />
                   </label>
@@ -613,9 +669,12 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                       parseSetListDuration(editingItem.duration) === null
                     }
                     maxLength={20}
-                    value={editingItem.duration ?? ""}
+                    readOnly={editingItemIsLinked}
+                    value={editingDuration}
                     onChange={(event) => {
-                      setEditingItem({ ...editingItem, duration: event.target.value });
+                      if (!editingItemIsLinked) {
+                        setEditingItem({ ...editingItem, duration: event.target.value });
+                      }
                     }}
                   />
                 </label>

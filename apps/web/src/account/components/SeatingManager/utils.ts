@@ -59,6 +59,15 @@ export function formatEventDate(startsAt: string): string {
   }
 }
 
+/** Keep the voice-part code visible anywhere a profile can be picked up for seating. */
+export function seatingProfileLabel(
+  profile: Pick<OrganizationProfile, "displayName" | "voicePart">,
+): string {
+  const displayName = profile.displayName.trim();
+  const voicePart = profile.voicePart.trim();
+  return voicePart ? `${displayName} (${voicePart})` : displayName;
+}
+
 export function statusLabel(status: OrganizationProfile["globalStatus"]): string {
   return status === "Idle" ? "On Break" : status;
 }

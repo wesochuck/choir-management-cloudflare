@@ -11,8 +11,14 @@ import { useState } from "react";
 import type { RosterPageModel } from "./hooks";
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
-export function RosterPageView({ model }: { readonly model: RosterPageModel }) {
-  const [activeTab, setActiveTab] = useState<"roster" | "settings">("roster");
+export function RosterPageView({
+  initialSection = "roster",
+  model,
+}: {
+  readonly initialSection?: "roster" | "settings";
+  readonly model: RosterPageModel;
+}) {
+  const [activeTab, setActiveTab] = useState<"roster" | "settings">(initialSection);
   const {
     busy,
     clearRosterFilters,

@@ -57,7 +57,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
   } = model;
   if (!enabled) return null;
   return (
-    <section className="panel" aria-label="Communication center">
+    <section className="panel communication-center" aria-label="Communication center">
       <p className="section-description">
         Build a message in three steps: choose the audience, write with Markdown and placeholders,
         then review it before queueing delivery.
@@ -617,8 +617,38 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               </div>
             </dl>
             <p className="field-help">
-              These sender details are configured by the platform and cannot be changed here.
+              These values are read-only here because they identify the verified sender used by the
+              delivery provider.
             </p>
+            <section
+              aria-labelledby="communication-sender-setup-title"
+              className="communication-sender-setup"
+            >
+              <h3 id="communication-sender-setup-title">Where to configure the sender</h3>
+              <p>
+                A Platform Administrator sets these Worker environment values for the current
+                deployment. They are not entered in a message or Organization form.
+              </p>
+              <dl>
+                <div>
+                  <dt>From email</dt>
+                  <dd>
+                    <code>BREVO_EMAIL_FROM</code> — a sender address whose domain is verified in
+                    Brevo.
+                  </dd>
+                </div>
+                <div>
+                  <dt>From name</dt>
+                  <dd>
+                    <code>BREVO_EMAIL_FROM_NAME</code> — the name recipients see in their inbox.
+                  </dd>
+                </div>
+              </dl>
+              <p className="field-help">
+                After changing either value, refresh the provider status and send a test email. A
+                sender marked “Not configured” must be corrected before live delivery can work.
+              </p>
+            </section>
             <div className="form-actions form-actions--start">
               <div className="field communication-test-send__address">
                 <label htmlFor="communication-settings-test-email">Test recipient</label>
@@ -646,10 +676,6 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               email service.
             </p>
           </fieldset>
-          <p className="field-help">
-            Need to change organization-wide sender or compliance details? Open{" "}
-            <a href="/admin/settings">Organization settings</a>.
-          </p>
         </div>
       ) : null}
     </section>

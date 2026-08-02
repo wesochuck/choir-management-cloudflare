@@ -40,6 +40,7 @@ export function MusicCatalogView({
     editorTab,
     error,
     events,
+    genreCounts,
     genreFilterMode,
     genreFilterSearch,
     genresInput,
@@ -107,10 +108,10 @@ export function MusicCatalogView({
       </div>
       <nav className="music-library-tabs" aria-label="Music library sections">
         <AppLink ariaCurrent="page" href="/admin/library" onNavigate={navigate}>
-          Library <span className="sr-only">(current)</span>
+          Music Catalog <span className="sr-only">(current)</span>
         </AppLink>
         <AppLink href="/admin/library/settings" onNavigate={navigate}>
-          Settings
+          Library Settings
         </AppLink>
       </nav>
       {error ? (
@@ -140,6 +141,7 @@ export function MusicCatalogView({
                 />
               </label>
               <MusicGenreFilter
+                counts={genreCounts}
                 genres={availableGenres}
                 mode={genreFilterMode}
                 search={genreFilterSearch}

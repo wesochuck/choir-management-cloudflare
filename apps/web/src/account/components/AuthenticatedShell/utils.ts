@@ -92,7 +92,6 @@ export const organizationGroups: readonly NavigationGroup[] = [
     label: "Music & content",
     items: [
       { href: "/admin/library", label: "Music library", module: "programs" },
-      { href: "/admin/library/settings", label: "Music library settings", module: "programs" },
       { href: "/admin/setlists", label: "Set lists", module: "programs" },
       { href: "/admin/resources", label: "Resources", module: "programs" },
       { href: "/admin/website", label: "Public website", module: "programs" },

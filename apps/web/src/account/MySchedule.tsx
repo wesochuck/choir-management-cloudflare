@@ -162,8 +162,8 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                         }
                       >
                         {displayRsvpDeadline(event, state.timezone)}{" "}
-                        {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}
-                        <a href="/admin/settings"> Roster Settings</a>
+                        {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
+                        <a href="/admin/roster?section=settings">Roster Settings</a>
                       </p>
                     ) : null}
                     {event.inheritedFromParent ? (

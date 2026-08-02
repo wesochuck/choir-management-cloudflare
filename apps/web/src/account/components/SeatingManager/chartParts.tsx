@@ -1,9 +1,14 @@
-import type { OrganizationProfile, OrganizationSeatingChartRequest } from "@choir/contracts";
+import type {
+  OrganizationProfile,
+  OrganizationRosterConfiguration,
+  OrganizationSeatingChartRequest,
+} from "@choir/contracts";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useMemo } from "react";
 import { getLastName } from "../../nameFormatting";
 
 import { UnassignedProfileChip } from "./shared";
+import { seatingProfileLabel } from "./utils";
 
 import type { SeatTileProps } from "./types";
 
@@ -82,6 +87,7 @@ export function SeatTile({
 
 export function UnassignedTray({
   profiles,
+  roster,
   onAdd,
   onLookup,
   onRemoveRsvp,
@@ -94,6 +100,7 @@ export function UnassignedTray({
   readonly onRemoveRsvp: (profile: OrganizationProfile) => void;
   readonly onDrop: (token: string) => void;
   readonly profiles: readonly OrganizationProfile[];
+  readonly roster: OrganizationRosterConfiguration;
   readonly query: string;
   readonly setQuery: (value: string) => void;
 }) {
@@ -108,15 +115,35 @@ export function UnassignedTray({
           `${displayName} ${voicePart}`.toLocaleLowerCase().includes(normalized),
         )
       : profiles;
+    const voicePartSections = new Map(
+      roster.voiceParts.map(({ label, sectionCode }) => [label, sectionCode]),
+    );
+    const sectionDetails = new Map(roster.sections.map((section) => [section.code, section]));
     const grouped = new Map<string, OrganizationProfile[]>();
     filtered.forEach((profile) => {
-      const key = profile.voicePart || "Other";
+      const key = voicePartSections.get(profile.voicePart) ?? "__other";
       const list = grouped.get(key) ?? [];
       list.push(profile);
       grouped.set(key, list);
     });
-    return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right));
-  }, [profiles, query]);
+    return [...grouped.entries()]
+      .map(([code, groupProfiles]) => ({
+        code,
+        label: code === "__other" ? "Other" : `${sectionDetails.get(code)?.name ?? code} (${code})`,
+        profiles: [...groupProfiles].sort((left, right) =>
+          seatingProfileLabel(left).localeCompare(seatingProfileLabel(right), undefined, {
+            sensitivity: "base",
+          }),
+        ),
+      }))
+      .sort((left, right) => {
+        if (left.code === "__other") return 1;
+        if (right.code === "__other") return -1;
+        const leftIndex = roster.sections.findIndex(({ code }) => code === left.code);
+        const rightIndex = roster.sections.findIndex(({ code }) => code === right.code);
+        return leftIndex - rightIndex;
+      });
+  }, [profiles, query, roster]);
   return (
     <section
       className={`seating-tray${trayIsOver ? " seating-tray--drop-target" : ""}`}
@@ -156,10 +183,10 @@ export function UnassignedTray({
         </button>
       </div>
       <div className="seating-tray__groups">
-        {groups.map(([group, groupProfiles]) => (
-          <div className="seating-tray__group" key={group}>
+        {groups.map(({ code, label, profiles: groupProfiles }) => (
+          <div className="seating-tray__group" key={code}>
             <h3>
-              {group} <span>{groupProfiles.length}</span>
+              {label} <span>{groupProfiles.length}</span>
             </h3>
             <div className="seating-tray__profiles">
               {groupProfiles.map((profile) => (
