@@ -21,7 +21,6 @@ import { deliverAuditionNotificationJob } from "./deliveries/auditions";
 import { deliverPaymentNotificationJob } from "./deliveries/payments";
 import { deliverOrganizationExportJob } from "./deliveries/export";
 import { cleanupStaleCheckout } from "./deliveries/cleanup";
-// eslint-disable-next-line complexity -- dispatch keeps each queue kind's terminal/error semantics explicit.
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   if (job.kind === "communication_delivery") {
     await deliverCommunicationJob(env, job);
@@ -59,16 +58,13 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
     await deliverScheduledEventCommunication(env, job, job.kind);
     return;
   }
-  if (job.kind === "attendance_report") {
-    if (
-      !env.CONTROL_DB &&
-      (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
-    ) {
-      return;
-    }
-    await deliverAttendanceReportJob(env, job);
+  if (
+    !env.CONTROL_DB &&
+    (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
+  ) {
     return;
   }
+  await deliverAttendanceReportJob(env, job);
 }
 async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Promise<void> {
   const parsed = deliveryJobSchema.safeParse(message.body);
