@@ -222,15 +222,6 @@ export function ChartList({
       const byRow = left.rowIndex - right.rowIndex;
       return byRow !== 0 ? byRow : left.seatIndex - right.seatIndex;
     });
-    const indexGroups = indexEntries.reduce((groups, entry) => {
-      const rawLastName = getLastName(entry.profile.displayName);
-      const letter = rawLastName.slice(0, 1).toLocaleUpperCase() || "#";
-      const group = groups.get(letter) ?? [];
-      group.push(entry);
-      groups.set(letter, group);
-      return groups;
-    }, new Map<string, typeof indexEntries>());
-
     return (
       <div className="seating-name-index" aria-label="Last name seating index">
         <div className="seating-name-index__heading">
@@ -243,31 +234,24 @@ export function ChartList({
         {indexEntries.length === 0 ? (
           <p className="empty-state">No Profiles assigned.</p>
         ) : (
-          <div className="seating-name-index__groups">
-            {[...indexGroups.entries()].map(([letter, entries]) => (
-              <section className="seating-name-index__group" key={letter}>
-                <h3>{letter}</h3>
-                <ol>
-                  {entries.map(({ profile, rowIndex, seatIndex }) => (
-                    <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
-                      <strong>
-                        {(displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
-                          ", ",
-                          " ",
-                        )}
-                      </strong>
-                      <span className="seating-name-index__location">
-                        Row {rowIndex + 1} · Seat {seatIndex + 1}
-                      </span>
-                      {profile.voicePart ? (
-                        <em className="seating-list-voice-part">({profile.voicePart})</em>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
-              </section>
+          <ul className="seating-name-index__entries">
+            {indexEntries.map(({ profile, rowIndex, seatIndex }) => (
+              <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
+                <strong>
+                  {(displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
+                    ", ",
+                    " ",
+                  )}
+                </strong>
+                <span className="seating-name-index__location">
+                  Row {rowIndex + 1} · Seat {seatIndex + 1}
+                </span>
+                {profile.voicePart ? (
+                  <em className="seating-list-voice-part">({profile.voicePart})</em>
+                ) : null}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
     );
