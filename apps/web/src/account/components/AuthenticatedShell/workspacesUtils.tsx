@@ -79,7 +79,7 @@ export function renderOrganizationPage(
       <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />
     ),
     "/admin/polls": <PollsPage enabled={focusedEnabled} />,
-    "/admin/reports": <ReportsView />,
+    "/admin/reports": <ReportsView enabled={focusedEnabled} />,
     "/admin/resources": <OrganizationResources enabled={enabled} manager={manager} />,
     "/admin/seasons": (
       <SeasonsManager
