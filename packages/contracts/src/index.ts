@@ -16,3 +16,4 @@ export * from "./donations";
 export * from "./seasons";
 export * from "./exports";
 export * from "./player";
+export * from "./memberDashboard";

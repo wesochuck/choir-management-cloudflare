@@ -28,6 +28,10 @@ export const CalendarSubscription = lazy(() =>
   })),
 );
 
+export const DashboardView = lazy(() =>
+  import("../../DashboardView").then(({ DashboardView: component }) => ({ default: component })),
+);
+
 export const CommunicationCenter = lazy(() =>
   import("../CommunicationCenter/controller").then(({ CommunicationCenter: component }) => ({
     default: component,

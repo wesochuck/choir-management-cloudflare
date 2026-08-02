@@ -17,6 +17,7 @@ import {
   listOrganizationEvents,
   listOrganizationMusic,
   listOrganizationProfiles,
+  rotatePublicPlayerToken,
   updateOrganizationEvent,
 } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
@@ -331,6 +332,27 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     }
   }
 
+  async function rotatePracticePlayer(): Promise<void> {
+    if (!selectedEvent || busy || playerBusy) return;
+    setPlayerBusy(true);
+    setError(null);
+    try {
+      const token = await rotatePublicPlayerToken(selectedEvent.id);
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/player?mode=set-list&token=${encodeURIComponent(token)}`,
+      );
+      setMessage("Practice player link rotated and copied. The previous link no longer works.");
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The practice player link could not be rotated or copied.",
+      );
+    } finally {
+      setPlayerBusy(false);
+    }
+  }
+
   function moveDraggedItem(toIndex: number): void {
     if (dragIndex === null || dragIndex === toIndex) return;
     const moved = items[dragIndex];
@@ -369,6 +391,7 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     openCustomItem,
     openItemEditor,
     openPracticePlayer,
+    rotatePracticePlayer,
     performances,
     performerLabelPlural,
     playerBusy,

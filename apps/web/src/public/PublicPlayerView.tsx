@@ -134,6 +134,10 @@ function availableTrackKeys(items: readonly PlayerPlaylistItem[]): string[] {
   });
 }
 
+function isIndividualVoicePart(key: string): boolean {
+  return /^[a-z]+\d+$/i.test(key);
+}
+
 function resolveTrack(item: PlayerPlaylistItem, requestedKey: string): ResolvedTrack | null {
   const requestedFileId = item.trackFileIds[requestedKey];
   if (requestedFileId) {
@@ -173,10 +177,25 @@ function PublicPracticePlayer({
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showGuide, setShowGuide] = useState(true);
 
-  const trackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
-  const activeTrackKey = trackKeys.includes(selectedTrackKey)
+  const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
+  const voicePartKeys = useMemo(
+    () => allTrackKeys.filter((key) => isIndividualVoicePart(key)),
+    [allTrackKeys],
+  );
+  const sectionTrackKeys = useMemo(() => {
+    const sections = allTrackKeys.filter((key) => !isIndividualVoicePart(key));
+    return sections.length > 0 ? sections : allTrackKeys.slice(0, 1);
+  }, [allTrackKeys]);
+  const activeTrackKey = allTrackKeys.includes(selectedTrackKey)
     ? selectedTrackKey
-    : (trackKeys[0] ?? "tutti");
+    : (allTrackKeys[0] ?? "tutti");
+  const trackKeys = useMemo(
+    () =>
+      voicePartKeys.includes(activeTrackKey)
+        ? [...sectionTrackKeys, activeTrackKey]
+        : sectionTrackKeys,
+    [activeTrackKey, sectionTrackKeys, voicePartKeys],
+  );
   const playableItems = useMemo(
     () => details.items.filter((item) => resolveTrack(item, activeTrackKey) !== null),
     [activeTrackKey, details.items],
@@ -317,6 +336,25 @@ function PublicPracticePlayer({
               {formatTrackKey(key)}
             </button>
           ))}
+          {voicePartKeys.length > 0 ? (
+            <label className="public-player__voice-part-select">
+              <span className="sr-only">Add individual voice part</span>
+              <select
+                aria-label="Add individual voice part"
+                value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
+                onChange={(event) => {
+                  if (event.target.value) selectTrackKey(event.target.value);
+                }}
+              >
+                <option value="">Add voice part…</option>
+                {voicePartKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {formatTrackKey(key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
         <p className="public-player__empty" role="status">
           No practice tracks are available for this set list yet.
@@ -341,6 +379,25 @@ function PublicPracticePlayer({
             {formatTrackKey(key)}
           </button>
         ))}
+        {voicePartKeys.length > 0 ? (
+          <label className="public-player__voice-part-select">
+            <span className="sr-only">Add individual voice part</span>
+            <select
+              aria-label="Add individual voice part"
+              value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
+              onChange={(event) => {
+                if (event.target.value) selectTrackKey(event.target.value);
+              }}
+            >
+              <option value="">Add voice part…</option>
+              {voicePartKeys.map((key) => (
+                <option key={key} value={key}>
+                  {formatTrackKey(key)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </nav>
 
       <section className="public-player__now-playing" aria-labelledby="public-player-now-playing">

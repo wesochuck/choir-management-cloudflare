@@ -74,7 +74,8 @@ export function readPlayerDetailsFromStore(
       title: string;
     }>(
       `SELECT id, set_list_json AS setListJson, starts_at AS startsAt, title
-       FROM events WHERE id = ? AND is_archived = 0 AND is_canceled = 0 LIMIT 1`,
+       FROM events WHERE id = ? AND is_archived = 0 AND is_canceled = 0
+         AND set_list_approved = 1 LIMIT 1`,
       eventId,
     )
     .toArray()
@@ -164,7 +165,8 @@ export function readPlayerPlaylistFromStore(
       title: string;
     }>(
       `SELECT id, set_list_json AS setListJson, starts_at AS startsAt, title
-       FROM events WHERE id = ? AND is_archived = 0 AND is_canceled = 0 LIMIT 1`,
+       FROM events WHERE id = ? AND is_archived = 0 AND is_canceled = 0
+         AND set_list_approved = 1 LIMIT 1`,
       eventId,
     )
     .toArray()

@@ -41,6 +41,7 @@ import {
 import { recordProviderRefundRequestedInStore } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
 import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
+import { ensurePracticePlayerLinkInStore } from "../playerLinkStore";
 
 import {
   provisionOrganizationStore,
@@ -93,6 +94,9 @@ export async function dispatchPostRequest(
   }
   if (pathname === "/internal/payment-settings") {
     return updatePaymentActivationInStore(storage, await request.json().catch(() => null));
+  }
+  if (pathname === "/internal/player/public-link") {
+    return ensurePracticePlayerLinkInStore(storage, request);
   }
   if (pathname === "/internal/payments/manage") {
     return recordPaymentDisputeInStore(storage, await request.json().catch(() => null));

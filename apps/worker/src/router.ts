@@ -54,6 +54,7 @@ import { registerRoutes as registerOrganizationDomainsRoutes } from "./routes/or
 import { registerRoutes as registerPlatformAdministrationRoutes } from "./routes/platformAdministration";
 import { registerRoutes as registerPlatformOperationsRoutes } from "./routes/platformOperations";
 import { registerRoutes as registerSingerPlayerRoutes } from "./routes/singerPlayer";
+import { registerRoutes as registerSingerDashboardRoutes } from "./routes/singerDashboard";
 import { registerRoutes as registerSetupRoutes } from "./routes/setup";
 import { registerRoutes as registerOrganizationModulesRoutes } from "./routes/organizationModules";
 import { registerRoutes as registerSetupRecoveryRoutes } from "./routes/setupRecovery";
@@ -168,6 +169,7 @@ registerOrganizationDomainsRoutes(router);
 registerPlatformAdministrationRoutes(router);
 registerPlatformOperationsRoutes(router);
 registerSingerPlayerRoutes(router);
+registerSingerDashboardRoutes(router);
 registerSetupRoutes(router);
 registerOrganizationModulesRoutes(router);
 registerSetupRecoveryRoutes(router);

@@ -1008,6 +1008,20 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE job_ledger ADD COLUMN last_error_code TEXT NOT NULL DEFAULT ''",
     ],
   },
+  {
+    version: 60,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN practice_player_link_lifetime_days INTEGER NOT NULL DEFAULT 180 CHECK (practice_player_link_lifetime_days >= 1 AND practice_player_link_lifetime_days <= 3650)",
+      `CREATE TABLE practice_player_links (
+        event_id TEXT PRIMARY KEY,
+        nonce TEXT NOT NULL UNIQUE,
+        issued_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      "CREATE INDEX idx_practice_player_links_expiry ON practice_player_links(expires_at, event_id)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

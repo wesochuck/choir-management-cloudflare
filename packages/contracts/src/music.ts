@@ -16,6 +16,7 @@ import type {
   singerSeatingResponseSchema,
 } from "./seating";
 const organizationMusicLibrarySettingsFieldsSchema = z.object({
+  practicePlayerLinkLifetimeDays: z.number().int().min(1).max(3_650).default(180),
   publisherSearchTemplate: z.string().trim().max(2_000).default(""),
 });
 

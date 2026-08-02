@@ -115,12 +115,19 @@ export function listResourcesFromStore(
 ): Response {
   if (!organizationId || !identityMatches(storage, organizationId))
     return Response.json({ code: "organization_not_found" }, { status: 404 });
-  const resources = storage.sql
+  const rows = storage.sql
     .exec<ResourceRow>(
       `SELECT ${columns} FROM organization_resources ORDER BY sort_order, title COLLATE NOCASE, id LIMIT 500`,
     )
-    .toArray()
-    .map(parseRow);
+    .toArray();
+  const resources: OrganizationResource[] = [];
+  for (const row of rows) {
+    const parsed = organizationResourceSchema.safeParse(row);
+    if (!parsed.success) {
+      return Response.json({ code: "resource_data_invalid" }, { status: 500 });
+    }
+    resources.push(parsed.data);
+  }
   return Response.json({ resources });
 }
 

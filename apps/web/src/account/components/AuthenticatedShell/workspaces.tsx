@@ -271,7 +271,7 @@ export function WorkspacePage({
     return <AccessDeniedPage workspace={`${requiredModule} module`} />;
   }
   return (
-    renderMemberPage(route.pathname, memberEnabled) ?? (
+    renderMemberPage(route.pathname, memberEnabled, navigate) ?? (
       <OverviewPage
         context={access.status === "ready" ? access.context : null}
         navigate={navigate}

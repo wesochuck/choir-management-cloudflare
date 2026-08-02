@@ -1,11 +1,692 @@
-export function DashboardView() {
+import type { MemberDashboardResponse } from "@choir/contracts";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { getMemberDashboard, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
+import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
+import { AppLink } from "./components/AuthenticatedShell/navigation";
+
+type DashboardEvent = MemberDashboardResponse["events"][number];
+
+function formatDate(value: string, timezone: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
+function eventTypeLabel(event: DashboardEvent): string {
+  return event.type === "Performance" ? "Performance" : "Rehearsal";
+}
+
+function rsvpLabel(value: DashboardEvent["resolvedRsvp"]): string {
+  if (value === "Yes") return "Attending";
+  if (value === "No") return "Declined";
+  return "Needs response";
+}
+
+function practiceLabel(event: DashboardEvent): string {
+  if (event.practice.status === "available") return "Practice";
+  if (event.practice.status === "not_available") return "Practice tracks not available yet";
+  return "Practice tracks not published yet";
+}
+
+function seatingLabel(event: DashboardEvent): string {
+  if (event.seating.status === "available") return "Seating";
+  if (event.seating.status === "not_assigned") return "Seat not assigned yet";
+  if (event.seating.status === "declined") return "Seating unavailable after declining";
+  return "Seating not published yet";
+}
+
+function isActionDisabled(event: DashboardEvent): boolean {
+  return !event.rsvpSelfServiceOpen || event.inheritedFromParent;
+}
+
+function DashboardEventHighlights({ event }: { readonly event: DashboardEvent }) {
   return (
-    <main className="account-layout">
-      <div className="account-heading">
-        <p className="eyebrow">Overview</p>
-        <h1>Member Dashboard</h1>
+    <>
+      {event.attendanceWarning?.status === "warning" ? (
+        <p className="notice notice--warning">
+          You have missed {String(event.attendanceWarning.missedRehearsals)} of{" "}
+          {String(event.attendanceWarning.totalRehearsals)} linked rehearsals for this performance.
+        </p>
+      ) : null}
+      {event.featuredAssignments.length > 0 ? (
+        <div className="member-dashboard__featured">
+          <strong>Featured assignment</strong>
+          <span>{event.featuredAssignments.map(({ title }) => title).join(", ")}</span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function DashboardEventSetList({ event }: { readonly event: DashboardEvent }) {
+  if (event.setList.length === 0) return null;
+  return (
+    <details className="member-dashboard__set-list">
+      <summary>View set list ({String(event.setList.length)} items)</summary>
+      <ul>
+        {event.setList.map((item, index) => (
+          <li key={`${item.title}-${String(index)}`}>{item.title}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function DashboardEventActions({
+  event,
+  navigate,
+  onDeclineRehearsal,
+  onOpenPractice,
+  onRsvp,
+}: {
+  readonly event: DashboardEvent;
+  readonly navigate: (href: string) => void;
+  readonly onDeclineRehearsal: (event: DashboardEvent) => void;
+  readonly onOpenPractice: (event: DashboardEvent) => void;
+  readonly onRsvp: (event: DashboardEvent, rsvp: "No" | "Yes") => void;
+}) {
+  const practiceEnabled = event.practice.status === "available";
+  const seatingEnabled =
+    event.type === "Performance" &&
+    event.seating.status !== "not_published" &&
+    event.seating.status !== "declined";
+  const actionDisabled = isActionDisabled(event);
+  return (
+    <div className="member-dashboard__event-actions">
+      <div className="member-dashboard__rsvp-actions" aria-label={`${event.title} RSVP`}>
+        <button
+          className={
+            event.resolvedRsvp === "Yes" ? "button button--primary" : "button button--secondary"
+          }
+          disabled={actionDisabled}
+          onClick={() => {
+            onRsvp(event, "Yes");
+          }}
+          type="button"
+        >
+          Attend
+        </button>
+        <button
+          className={
+            event.resolvedRsvp === "No" ? "button button--danger" : "button button--secondary"
+          }
+          disabled={actionDisabled}
+          onClick={() => {
+            if (event.type === "Rehearsal") {
+              onDeclineRehearsal(event);
+            } else {
+              onRsvp(event, "No");
+            }
+          }}
+          type="button"
+        >
+          Decline
+        </button>
       </div>
-      <p>Dashboard features are being built.</p>
+      <div className="member-dashboard__secondary-actions">
+        <button
+          className="button button--secondary"
+          disabled={!practiceEnabled}
+          onClick={() => {
+            onOpenPractice(event);
+          }}
+          type="button"
+        >
+          {practiceLabel(event)}
+        </button>
+        {seatingEnabled ? (
+          <AppLink href={`/seating/${event.id}`} onNavigate={navigate}>
+            {seatingLabel(event)}
+          </AppLink>
+        ) : event.type === "Performance" ? (
+          <button className="button button--secondary" disabled type="button">
+            {seatingLabel(event)}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DashboardEventFooter({ event }: { readonly event: DashboardEvent }) {
+  if (event.inheritedFromParent) {
+    return (
+      <small className="field-help">
+        This rehearsal follows your RSVP for the linked performance.
+      </small>
+    );
+  }
+  if (!event.rsvpSelfServiceOpen) {
+    return <small className="field-help">RSVP changes are closed for this event.</small>;
+  }
+  return null;
+}
+
+function DashboardEventCard({
+  event,
+  onDeclineRehearsal,
+  onOpenPractice,
+  onRsvp,
+  navigate,
+  timezone,
+}: {
+  readonly event: DashboardEvent;
+  readonly navigate: (href: string) => void;
+  readonly onDeclineRehearsal: (event: DashboardEvent) => void;
+  readonly onOpenPractice: (event: DashboardEvent) => void;
+  readonly onRsvp: (event: DashboardEvent, rsvp: "No" | "Yes") => void;
+  readonly timezone: string;
+}) {
+  return (
+    <article className="member-dashboard__event-card">
+      <div className="member-dashboard__event-heading">
+        <div>
+          <p className="eyebrow">{eventTypeLabel(event)}</p>
+          <h3>{event.title}</h3>
+          <p className="member-dashboard__event-date">{formatDate(event.startsAt, timezone)}</p>
+        </div>
+        <span className={`rsvp-status-badge rsvp-status-badge--${event.resolvedRsvp}`}>
+          {rsvpLabel(event.resolvedRsvp)}
+        </span>
+      </div>
+      <div className="member-dashboard__event-details">
+        <span>{event.venueName || event.location || "Location to be announced"}</span>
+        {event.callTime ? <span>Call {event.callTime}</span> : null}
+        {event.rsvpDeadlineDate && event.resolvedRsvp === "Pending" ? (
+          <span>RSVP by {event.rsvpDeadlineDate}</span>
+        ) : null}
+      </div>
+      <DashboardEventHighlights event={event} />
+      <DashboardEventSetList event={event} />
+      <DashboardEventActions
+        event={event}
+        navigate={navigate}
+        onDeclineRehearsal={onDeclineRehearsal}
+        onOpenPractice={onOpenPractice}
+        onRsvp={onRsvp}
+      />
+      <DashboardEventFooter event={event} />
+    </article>
+  );
+}
+
+function DashboardSchedule({
+  dashboard,
+  navigate,
+  onDeclineRehearsal,
+  onOpenPractice,
+  onRsvp,
+}: {
+  readonly dashboard: MemberDashboardResponse;
+  readonly navigate: (href: string) => void;
+  readonly onDeclineRehearsal: (event: DashboardEvent) => void;
+  readonly onOpenPractice: (event: DashboardEvent) => void;
+  readonly onRsvp: (event: DashboardEvent, rsvp: "No" | "Yes") => void;
+}) {
+  const nextEvent = dashboard.events[0] ?? null;
+  const remainingEvents = dashboard.events.slice(1);
+  return (
+    <section className="member-dashboard__events" aria-labelledby="member-dashboard-events-title">
+      <div className="section-heading section-heading--compact">
+        <p className="eyebrow">Your schedule</p>
+        <h2 id="member-dashboard-events-title">Upcoming events</h2>
+      </div>
+      {dashboard.events.length === 0 ? (
+        <p className="empty-state">No upcoming events.</p>
+      ) : (
+        <div className="member-dashboard__event-list">
+          {nextEvent ? (
+            <div className="member-dashboard__next-up">
+              <p className="eyebrow">Next up</p>
+              <DashboardEventCard
+                event={nextEvent}
+                navigate={navigate}
+                onDeclineRehearsal={onDeclineRehearsal}
+                onOpenPractice={onOpenPractice}
+                onRsvp={onRsvp}
+                timezone={dashboard.timezone}
+              />
+            </div>
+          ) : null}
+          {remainingEvents.length > 0 ? (
+            <div className="member-dashboard__more-events">
+              <div className="section-heading section-heading--compact">
+                <h3>More upcoming events</h3>
+              </div>
+              {remainingEvents.map((event) => (
+                <DashboardEventCard
+                  event={event}
+                  key={event.id}
+                  navigate={navigate}
+                  onDeclineRehearsal={onDeclineRehearsal}
+                  onOpenPractice={onOpenPractice}
+                  onRsvp={onRsvp}
+                  timezone={dashboard.timezone}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DashboardWidgets({
+  activeSeasonLabel,
+  dashboard,
+  navigate,
+  onSelectBulletin,
+}: {
+  readonly activeSeasonLabel: string;
+  readonly dashboard: MemberDashboardResponse;
+  readonly navigate: (href: string) => void;
+  readonly onSelectBulletin: (id: string) => void;
+}) {
+  return (
+    <aside className="member-dashboard__widgets" aria-label="Member updates">
+      {dashboard.activeSeasonState === "unavailable" ? (
+        <section className="member-dashboard__widget">
+          <p className="eyebrow">Season dues</p>
+          <h2>Season dues</h2>
+          <p className="notice notice--warning">Season dues are temporarily unavailable.</p>
+        </section>
+      ) : dashboard.activeSeason ? (
+        <section className="member-dashboard__widget">
+          <p className="eyebrow">Season dues</p>
+          <h2>{dashboard.activeSeason.season.name}</h2>
+          <p className="member-dashboard__widget-status">{activeSeasonLabel}</p>
+          <AppLink href="/dues" onNavigate={navigate}>
+            View dues details
+          </AppLink>
+        </section>
+      ) : null}
+      {dashboard.pollsState === "unavailable" ? (
+        <section className="member-dashboard__widget">
+          <h2>Polls</h2>
+          <p className="notice notice--warning">Polls are temporarily unavailable.</p>
+        </section>
+      ) : dashboard.polls.length > 0 ? (
+        <section className="member-dashboard__widget">
+          <p className="eyebrow">Your input</p>
+          <h2>Active polls</h2>
+          <ul className="member-dashboard__link-list">
+            {dashboard.polls.map((poll) => (
+              <li key={poll.id}>
+                <a href={`/poll?token=${encodeURIComponent(poll.linkToken)}`}>{poll.title}</a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      <section className="member-dashboard__widget">
+        <p className="eyebrow">Updates</p>
+        <h2>Bulletins</h2>
+        {dashboard.bulletinsState === "unavailable" ? (
+          <p className="notice notice--warning">Updates are temporarily unavailable.</p>
+        ) : dashboard.bulletins.length === 0 ? (
+          <p className="empty-state">No recent updates.</p>
+        ) : (
+          <ul className="member-dashboard__bulletin-list">
+            {dashboard.bulletins.map((bulletin) => (
+              <li key={bulletin.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectBulletin(bulletin.id);
+                  }}
+                >
+                  <strong>{bulletin.subject || "Update"}</strong>
+                  <span>{bulletin.preview}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="member-dashboard__widget">
+        <p className="eyebrow">Shared by your Organization</p>
+        <h2>Resources</h2>
+        {dashboard.resourcesState === "unavailable" ? (
+          <p className="notice notice--warning">Resources are temporarily unavailable.</p>
+        ) : dashboard.resources.length === 0 ? (
+          <p className="empty-state">No resources available.</p>
+        ) : (
+          <ul className="member-dashboard__link-list">
+            {dashboard.resources.map((resource) => (
+              <li key={resource.id}>
+                <a
+                  href={
+                    resource.fileId
+                      ? `/api/organization/files/${encodeURIComponent(resource.fileId)}`
+                      : (resource.url ?? "#")
+                  }
+                >
+                  {resource.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        <AppLink href="/member/resources" onNavigate={navigate}>
+          View all resources
+        </AppLink>
+      </section>
+    </aside>
+  );
+}
+
+function DashboardDialogs({
+  busyEventId,
+  declineEvent,
+  declineNote,
+  onChangeDeclineNote,
+  onCloseBulletin,
+  onCloseDecline,
+  onDecline,
+  selectedBulletin,
+}: {
+  readonly busyEventId: string | null;
+  readonly declineEvent: DashboardEvent | null;
+  readonly declineNote: string;
+  readonly onChangeDeclineNote: (value: string) => void;
+  readonly onCloseBulletin: () => void;
+  readonly onCloseDecline: () => void;
+  readonly onDecline: () => void;
+  readonly selectedBulletin: MemberDashboardResponse["bulletins"][number] | null;
+}) {
+  return (
+    <>
+      {declineEvent ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="decline-rehearsal-title"
+            aria-modal="true"
+            className="dialog"
+            role="dialog"
+          >
+            <h2 id="decline-rehearsal-title">Decline rehearsal</h2>
+            <p>Please add a note so the Organization knows why you cannot attend.</p>
+            <label className="field">
+              Note
+              <textarea
+                value={declineNote}
+                onChange={(event) => {
+                  onChangeDeclineNote(event.target.value);
+                }}
+              />
+            </label>
+            <div className="dialog__actions">
+              <button className="button button--secondary" onClick={onCloseDecline} type="button">
+                Cancel
+              </button>
+              <button
+                className="button button--danger"
+                disabled={!declineNote.trim() || busyEventId === declineEvent.id}
+                onClick={onDecline}
+                type="button"
+              >
+                Decline rehearsal
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {selectedBulletin ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="bulletin-title"
+            aria-modal="true"
+            className="dialog"
+            role="dialog"
+          >
+            <button
+              aria-label="Close bulletin"
+              className="dialog__close"
+              onClick={onCloseBulletin}
+              type="button"
+            >
+              ×
+            </button>
+            <p className="eyebrow">Bulletin</p>
+            <h2 id="bulletin-title">{selectedBulletin.subject || "Update"}</h2>
+            <div
+              dangerouslySetInnerHTML={{
+                __html: renderCommunicationMarkdownPreview(selectedBulletin.contentMarkdown),
+              }}
+            />
+          </section>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function DashboardInitialState({
+  error,
+  loading,
+  onRetry,
+}: {
+  readonly error: string | null;
+  readonly loading: boolean;
+  readonly onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <p className="notice notice--info" role="status">
+        Loading your dashboard…
+      </p>
+    );
+  }
+  if (!error) return null;
+  return (
+    <section className="account-layout member-dashboard">
+      <p className="notice notice--error" role="alert">
+        {error}
+      </p>
+      <button className="button button--primary" onClick={onRetry} type="button">
+        Try again
+      </button>
+    </section>
+  );
+}
+
+export function DashboardView({
+  enabled,
+  navigate,
+}: {
+  readonly enabled: boolean;
+  readonly navigate: (href: string) => void;
+}) {
+  const [dashboard, setDashboard] = useState<MemberDashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [declineEvent, setDeclineEvent] = useState<DashboardEvent | null>(null);
+  const [declineNote, setDeclineNote] = useState("");
+  const [busyEventId, setBusyEventId] = useState<string | null>(null);
+  const [selectedBulletinId, setSelectedBulletinId] = useState<string | null>(null);
+
+  const loadDashboard = useCallback(
+    async (showLoading = false): Promise<void> => {
+      if (!enabled) return;
+      if (showLoading) setLoading(true);
+      else setRefreshing(true);
+      try {
+        const result = await getMemberDashboard();
+        setDashboard(result);
+        setError(null);
+      } catch {
+        setError("Your member dashboard could not be loaded. Try again.");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [enabled],
+  );
+
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    getMemberDashboard().then(
+      (result) => {
+        if (!active) return;
+        setDashboard(result);
+        setError(null);
+        setLoading(false);
+      },
+      () => {
+        if (!active) return;
+        setError("Your member dashboard could not be loaded. Try again.");
+        setLoading(false);
+      },
+    );
+    function refreshOnFocus(): void {
+      void loadDashboard();
+    }
+    window.addEventListener("focus", refreshOnFocus);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, [enabled, loadDashboard]);
+
+  async function updateRsvp(
+    event: DashboardEvent,
+    rsvp: "No" | "Yes",
+    rsvpNote = "",
+  ): Promise<void> {
+    setBusyEventId(event.id);
+    setActionError(null);
+    try {
+      await setMyEventRsvp(event.id, rsvp, rsvpNote);
+      await loadDashboard();
+    } catch {
+      setActionError("Your RSVP could not be updated. Please try again.");
+    } finally {
+      setBusyEventId(null);
+    }
+  }
+
+  async function openPractice(event: DashboardEvent): Promise<void> {
+    if (!event.practice.sourceEventId) return;
+    setBusyEventId(event.id);
+    setActionError(null);
+    try {
+      const href = await getMemberPracticeLink(event.practice.sourceEventId);
+      window.location.assign(href);
+    } catch {
+      setActionError("The practice player could not be opened.");
+      setBusyEventId(null);
+    }
+  }
+
+  const selectedBulletin = dashboard?.bulletins.find(({ id }) => id === selectedBulletinId) ?? null;
+  const activeSeasonLabel = useMemo(() => {
+    const status = dashboard?.activeSeason?.duesStatus;
+    if (!status) return "Not paid";
+    if (status === "paid") return "Paid";
+    if (status === "pending") return "Payment pending";
+    if (status === "refunded") return "Refunded";
+    return "Payment expired";
+  }, [dashboard?.activeSeason?.duesStatus]);
+
+  if (!enabled) return null;
+  if (!dashboard) {
+    return (
+      <DashboardInitialState
+        error={error}
+        loading={loading}
+        onRetry={() => {
+          void loadDashboard(true);
+        }}
+      />
+    );
+  }
+  return (
+    <main className="account-layout member-dashboard">
+      <div className="member-dashboard__header">
+        <div>
+          <p className="eyebrow">{dashboard.performerLabel} dashboard</p>
+          <h1>Welcome back{dashboard.profile ? `, ${dashboard.profile.displayName}` : ""}</h1>
+          <p>Here’s what’s coming up for {dashboard.organizationName}.</p>
+        </div>
+        <button
+          className="button button--secondary"
+          disabled={refreshing}
+          onClick={() => void loadDashboard()}
+          type="button"
+        >
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      {error ? (
+        <p className="notice notice--warning" role="status">
+          {error}
+        </p>
+      ) : null}
+      {dashboard.profileLinkRequired ? (
+        <section className="notice notice--info" aria-labelledby="member-dashboard-profile-title">
+          <strong id="member-dashboard-profile-title">
+            Your member profile is not linked yet.
+          </strong>
+          <p>
+            Ask an Organization Owner or Administrator to link your membership so your events,
+            RSVPs, dues, and updates can appear here.
+          </p>
+        </section>
+      ) : null}
+      {actionError ? (
+        <p className="notice notice--error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      <div className="member-dashboard__layout">
+        <DashboardSchedule
+          dashboard={dashboard}
+          navigate={navigate}
+          onDeclineRehearsal={(event) => {
+            setDeclineEvent(event);
+            setDeclineNote("");
+          }}
+          onOpenPractice={(event) => {
+            void openPractice(event);
+          }}
+          onRsvp={(event, rsvp) => {
+            void updateRsvp(event, rsvp);
+          }}
+        />
+        <DashboardWidgets
+          activeSeasonLabel={activeSeasonLabel}
+          dashboard={dashboard}
+          navigate={navigate}
+          onSelectBulletin={setSelectedBulletinId}
+        />
+      </div>
+      <DashboardDialogs
+        busyEventId={busyEventId}
+        declineEvent={declineEvent}
+        declineNote={declineNote}
+        onChangeDeclineNote={setDeclineNote}
+        onCloseBulletin={() => {
+          setSelectedBulletinId(null);
+        }}
+        onCloseDecline={() => {
+          setDeclineEvent(null);
+        }}
+        onDecline={() => {
+          if (!declineEvent) return;
+          void updateRsvp(declineEvent, "No", declineNote.trim()).then(() => {
+            setDeclineEvent(null);
+          });
+        }}
+        selectedBulletin={selectedBulletin}
+      />
     </main>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from "../calendarManagementStore";
 import { listProfileStatusHistoryFromStore } from "../statusAutomationStore";
 import { readPlayerDetailsFromStore, readPlayerPlaylistFromStore } from "../playerStore";
+import { readPracticePlayerLinkFromStore } from "../playerLinkStore";
 import {
   readAuditionFromStore,
   readPublicAuditionSettingsFromStore,
@@ -32,6 +33,7 @@ import { listMusicPiecesFromStore, readMusicLibrarySettingsFromStore } from "../
 import { listResourcesFromStore } from "../resourceStore";
 import {
   listCommunicationMessagesFromStore,
+  listMemberBulletinsFromStore,
   listCommunicationScheduledMessagesFromStore,
   listCommunicationTemplatesFromStore,
   readCommunicationTemplateFromStore,
@@ -76,7 +78,11 @@ import {
 } from "../schedulingStore";
 import { readPaymentNotificationJobFromStore } from "../paymentNotificationStore";
 import { readPaymentRefundTargetFromStore } from "../paymentRefundStore";
-import { listSeasonsFromStore, listDuesFromStore } from "../seasonStore";
+import {
+  listSeasonsFromStore,
+  listDuesFromStore,
+  readMemberActiveSeasonFromStore,
+} from "../seasonStore";
 import { readStripeConnectStatusFromStore } from "../stripeConnectStore";
 import { readOrganizationReconciliationReport } from "../reconciliationStore";
 
@@ -111,6 +117,11 @@ export const contentGetHandlers: Record<
     listResourcesFromStore(storage, organizationId),
   "/internal/communications": (storage, _url, organizationId) =>
     listCommunicationMessagesFromStore(storage, organizationId),
+  "/internal/communications/member-bulletins": (storage, url, organizationId) =>
+    listMemberBulletinsFromStore(storage, {
+      organizationId,
+      profileId: url.searchParams.get("profileId"),
+    }),
   "/internal/communications/scheduled": (storage, _url, organizationId) =>
     listCommunicationScheduledMessagesFromStore(storage, organizationId),
   "/internal/communications/templates": (storage, _url, organizationId) =>
@@ -235,6 +246,16 @@ export const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readPlayerPlaylistFromStore(storage, organizationId, url.searchParams.get("eventId")),
+  "/internal/player/public-link": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) =>
+    readPracticePlayerLinkFromStore(storage, {
+      eventId: url.searchParams.get("eventId"),
+      nonce: url.searchParams.get("nonce"),
+      organizationId,
+    }),
   "/internal/audition/details": (
     storage: DurableObjectStorage,
     url: URL,
@@ -244,6 +265,11 @@ export const contentGetHandlers: Record<
     listSeasonsFromStore(storage, organizationId),
   "/internal/seasons/dues": (storage, _url, organizationId) =>
     listDuesFromStore(storage, organizationId),
+  "/internal/seasons/member-active": (storage, url, organizationId) =>
+    readMemberActiveSeasonFromStore(storage, {
+      organizationId,
+      profileId: url.searchParams.get("profileId"),
+    }),
 };
 
 export function dispatchContentGetRequest(

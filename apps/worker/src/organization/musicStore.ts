@@ -111,6 +111,7 @@ function identityMatches(storage: DurableObjectStorage, organizationId: string):
 }
 
 const defaultMusicLibrarySettings: OrganizationMusicLibrarySettings = {
+  practicePlayerLinkLifetimeDays: 180,
   publisherSearchTemplate: "",
 };
 
@@ -119,13 +120,19 @@ function storedMusicLibrarySettings(
 ): OrganizationMusicLibrarySettings {
   try {
     const raw = storage.sql
-      .exec<{ readonly template: string }>(
-        "SELECT music_publisher_search_template AS template FROM organization_metadata LIMIT 1",
+      .exec<{
+        readonly lifetimeDays: number;
+        readonly template: string;
+      }>(
+        `SELECT music_publisher_search_template AS template,
+           practice_player_link_lifetime_days AS lifetimeDays
+         FROM organization_metadata LIMIT 1`,
       )
       .toArray()
-      .at(0)?.template;
+      .at(0);
     return organizationMusicLibrarySettingsRequestSchema.parse({
-      publisherSearchTemplate: raw ?? "",
+      practicePlayerLinkLifetimeDays: raw?.lifetimeDays ?? 180,
+      publisherSearchTemplate: raw?.template ?? "",
     });
   } catch {
     return defaultMusicLibrarySettings;
@@ -577,8 +584,10 @@ function updateMusicLibrarySettings(
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
     storage.sql.exec(
-      "UPDATE organization_metadata SET music_publisher_search_template = ?, updated_at = ?",
+      `UPDATE organization_metadata SET music_publisher_search_template = ?,
+         practice_player_link_lifetime_days = ?, updated_at = ?`,
       operation.settings.publisherSearchTemplate,
+      operation.settings.practicePlayerLinkLifetimeDays,
       occurredAt,
     );
     storage.sql.exec(
@@ -591,7 +600,10 @@ function updateMusicLibrarySettings(
       operation.actorUserId,
       operation.organizationId,
       operation.requestId,
-      JSON.stringify({ publisherSearchTemplate: operation.settings.publisherSearchTemplate }),
+      JSON.stringify({
+        practicePlayerLinkLifetimeDays: operation.settings.practicePlayerLinkLifetimeDays,
+        publisherSearchTemplate: operation.settings.publisherSearchTemplate,
+      }),
       occurredAt,
     );
   });

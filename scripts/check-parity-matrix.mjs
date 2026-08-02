@@ -20,6 +20,8 @@ const expectedApiRoutes = [
   "GET /api/setup/health",
   "POST /api/public/rsvp-details",
   "PUT /api/singer/events/:eventId/rsvp",
+  "GET /api/singer/dashboard",
+  "GET /api/singer/practice-links/:eventId",
   "POST /api/singer/resolve-placeholders",
   "POST /api/public/quick-rsvp",
   "POST /api/public/unsubscribe",

@@ -138,6 +138,14 @@ interface MessageRow {
   readonly subject: string;
   readonly updatedAt: string;
 }
+
+interface MemberBulletinRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly contentMarkdown: string;
+  readonly id: string;
+  readonly sentAt: string;
+  readonly subject: string;
+}
 interface DeliveryRow {
   readonly [column: string]: SqlStorageValue;
   readonly attempts: number;
@@ -888,6 +896,41 @@ export function listCommunicationMessagesFromStore(
     .toArray()
     .map(parseMessage);
   return Response.json({ messages });
+}
+
+function bulletinPreview(value: string): string {
+  return value
+    .replace(/[`*_#>()!-]/g, " ")
+    .replace(/[[]/g, " ")
+    .replace(/]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 320);
+}
+
+export function listMemberBulletinsFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly organizationId: string | null; readonly profileId: string | null },
+): Response {
+  if (!input.organizationId || !identityMatches(storage, input.organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const profileId = z.uuid().safeParse(input.profileId);
+  if (!profileId.success) return Response.json({ code: "profile_not_found" }, { status: 404 });
+  const bulletins = storage.sql
+    .exec<MemberBulletinRow>(
+      `SELECT m.id, m.subject, m.content_markdown AS contentMarkdown,
+         COALESCE(m.sent_at, MAX(d.updated_at)) AS sentAt
+       FROM communication_messages m
+       JOIN communication_deliveries d ON d.message_id = m.id
+       WHERE m.status = 'Sent' AND d.profile_id = ? AND d.status = 'sent'
+       GROUP BY m.id
+       ORDER BY sentAt DESC, m.id DESC LIMIT 5`,
+      profileId.data,
+    )
+    .toArray()
+    .map((bulletin) => ({ ...bulletin, preview: bulletinPreview(bulletin.contentMarkdown) }));
+  return Response.json({ bulletins });
 }
 
 interface ScheduledTicketMessageRow {

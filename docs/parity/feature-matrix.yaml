@@ -476,6 +476,10 @@
             "apps/web/src/App.tsx",
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/DashboardView.tsx",
+            "apps/web/src/auth/api/memberDashboard.ts",
+            "apps/worker/src/routes/singerDashboard.ts",
+            "apps/worker/src/organization/organizationMemberDashboard.ts",
+            "apps/worker/test/memberDashboard.integration.test.ts",
           ],
       },
       {
@@ -1082,6 +1086,38 @@
             "apps/worker/src/router.ts",
             "apps/worker/test/selfServiceRsvp.integration.test.ts",
             "apps/web/src/account/MySchedule.tsx",
+          ],
+      },
+      {
+        "id": "api.singer-dashboard",
+        "method": "GET",
+        "path": "/api/singer/dashboard",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Legacy member dashboard aggregate reads",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/routes/singerDashboard.ts",
+            "apps/worker/src/organization/organizationMemberDashboard.ts",
+            "apps/worker/test/memberDashboard.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.singer-practice-link",
+        "method": "GET",
+        "path": "/api/singer/practice-links/:eventId",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "Legacy no-login member practice-player link flow",
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/routes/singerDashboard.ts",
+            "apps/worker/src/organization/playerLinkStore.ts",
+            "apps/worker/test/memberDashboard.integration.test.ts",
           ],
       },
       {

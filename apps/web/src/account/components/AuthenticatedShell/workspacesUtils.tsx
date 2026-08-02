@@ -8,6 +8,7 @@ import {
   AuditionManager,
   CalendarSubscription,
   CommunicationCenter,
+  DashboardView,
   DonationsManager,
   EventsPage,
   LearningTrackPlayer,
@@ -164,7 +165,11 @@ export function sessionDisplayName(session: NonNullable<CurrentAuthSession>): st
   return name || (session.user.email.split("@")[0] ?? "Admin");
 }
 
-export function renderMemberPage(pathname: string, enabled: boolean): ReactNode {
+export function renderMemberPage(
+  pathname: string,
+  enabled: boolean,
+  navigate: (href: string) => void,
+): ReactNode {
   const pages: Record<string, ReactNode> = {
     "/calendar": <CalendarSubscription enabled={enabled} />,
     "/directory": <MemberProfileDirectory enabled={enabled} view="directory" />,
@@ -174,6 +179,7 @@ export function renderMemberPage(pathname: string, enabled: boolean): ReactNode 
     "/dues": <MemberDuesPage enabled={enabled} />,
     "/schedule": <MySchedule enabled={enabled} />,
   };
+  if (pathname === "/dashboard") return <DashboardView enabled={enabled} navigate={navigate} />;
   if (pathname.startsWith("/seating/")) return <SeatingFinder enabled={enabled} />;
   return pages[pathname] ?? null;
 }

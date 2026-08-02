@@ -1,8 +1,18 @@
+import { organizationMusicLibrarySettingsRequestSchema } from "@choir/contracts";
+import { z } from "zod";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
 
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
   env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+
+const playerLinkRowSchema = z.object({
+  eventId: z.uuid(),
+  expiresAt: z.number().int().positive(),
+  issuedAt: z.number().int().positive(),
+  nonce: z.string().min(16).max(128),
+  updatedAt: z.iso.datetime(),
+});
 
 const PLAYER_LINK_TTL_SECONDS = 7 * 24 * 60 * 60;
 
@@ -46,20 +56,47 @@ export async function generatePlayerTokens(
 }
 
 export async function generatePublicPlayerToken(
-  env: Pick<Env, "SIGNED_LINK_SECRET">,
+  env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
   organizationId: string,
   eventId: string,
+  rotate = false,
 ): Promise<{ token: string }> {
-  const now = Math.floor(Date.now() / 1000);
+  const settingsUrl = new URL("https://organization.internal/internal/music/settings");
+  settingsUrl.searchParams.set("organizationId", organizationId);
+  const settingsResponse = await stub(env, organizationId).fetch(settingsUrl);
+  if (!settingsResponse.ok) throw new Error("Practice player settings are unavailable.");
+  const settings = organizationMusicLibrarySettingsRequestSchema.parse(
+    await settingsResponse.json(),
+  );
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const linkResponse = await stub(env, organizationId).fetch(
+    "https://organization.internal/internal/player/public-link",
+    {
+      body: JSON.stringify({
+        action: "ensure",
+        eventId,
+        expiresAt: issuedAt + settings.practicePlayerLinkLifetimeDays * 24 * 60 * 60,
+        issuedAt,
+        nonce: crypto.randomUUID(),
+        organizationId,
+        requestId: crypto.randomUUID(),
+        rotate,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!linkResponse.ok) throw new Error("Practice player link is unavailable.");
+  const link = playerLinkRowSchema.parse(await linkResponse.json());
   return {
     token: await issueSignedLink(env.SIGNED_LINK_SECRET, {
       algorithm: "HS256",
-      expiresAt: now + 7 * 24 * 60 * 60,
-      issuedAt: now,
-      nonce: crypto.randomUUID(),
+      expiresAt: link.expiresAt,
+      issuedAt: link.issuedAt,
+      nonce: link.nonce,
       organizationId,
       purpose: "player_public",
-      resourceId: eventId,
+      resourceId: link.eventId,
       version: 1,
     }),
   };
@@ -100,6 +137,23 @@ export async function resolvePublicPlayerPlaylist(
     expectedPurpose: "player_public",
   });
   if (!envelope?.resourceId) return { code: "invalid_link", status: 404 };
+  const linkUrl = new URL("https://organization.internal/internal/player/public-link");
+  linkUrl.searchParams.set("eventId", envelope.resourceId);
+  linkUrl.searchParams.set("nonce", envelope.nonce ?? "");
+  linkUrl.searchParams.set("organizationId", organizationId);
+  const linkResponse = await stub(env, organizationId).fetch(linkUrl);
+  if (!linkResponse.ok) {
+    const linkBody: unknown = await linkResponse.json().catch(() => null);
+    if (
+      typeof linkBody !== "object" ||
+      linkBody === null ||
+      !("code" in linkBody) ||
+      linkBody.code !== "practice_link_not_found"
+    ) {
+      return { code: "invalid_link", status: 404 };
+    }
+    // Preserve compatibility with recipient-independent links issued before stable link storage.
+  }
   const url = new URL("https://organization.internal/internal/player/playlist");
   url.searchParams.set("eventId", envelope.resourceId);
   url.searchParams.set("organizationId", organizationId);

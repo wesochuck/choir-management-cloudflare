@@ -16,3 +16,4 @@ export * from "./api/files";
 export * from "./api/resources";
 export * from "./api/auditions";
 export * from "./api/player";
+export * from "./api/memberDashboard";

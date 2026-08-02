@@ -46,6 +46,7 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
     performerLabelPlural,
     playerBusy,
     resources,
+    rotatePracticePlayer,
     save,
     saveItemEdit,
     selectedEvent,
@@ -84,6 +85,17 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
               type="button"
             >
               {playerBusy ? "Opening player…" : "Practice Player"}
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={busy || playerBusy || !approved}
+              onClick={() => {
+                void rotatePracticePlayer();
+              }}
+              title={approved ? undefined : "Approve the set list before rotating its public link."}
+              type="button"
+            >
+              {playerBusy ? "Rotating link…" : "Rotate & copy link"}
             </button>
             <button
               className="button button--secondary"

@@ -158,6 +158,15 @@ export const singerRsvpRequestSchema = z.object({
 });
 
 export const singerEventSchema = z.object({
+  attendanceWarning: z
+    .object({
+      missedRehearsals: z.number().int().nonnegative(),
+      threshold: z.number().int().positive(),
+      totalRehearsals: z.number().int().nonnegative(),
+      status: z.enum(["clear", "warning"]),
+    })
+    .nullable()
+    .default(null),
   callTime: z.string().max(5),
   details: z.string().max(100_000),
   directRsvp: z.enum(["Yes", "No", "Pending"]),
@@ -165,12 +174,33 @@ export const singerEventSchema = z.object({
   id: z.uuid(),
   inheritedFromParent: z.boolean(),
   location: z.string().max(2_000),
+  featuredAssignments: z
+    .array(
+      z.object({
+        pieceId: z.uuid().nullable(),
+        title: z.string().min(1).max(500),
+      }),
+    )
+    .max(50)
+    .default([]),
+  practice: z
+    .object({
+      sourceEventId: z.uuid().nullable(),
+      status: z.enum(["available", "not_published", "not_available"]),
+      trackCount: z.number().int().nonnegative(),
+    })
+    .default({ sourceEventId: null, status: "not_published", trackCount: 0 }),
   resolvedRsvp: z.enum(["Yes", "No", "Pending"]),
   rsvpDeadlineAt: z.iso.datetime().nullable(),
   rsvpDeadlineDate: z.string().nullable(),
   rsvpDeadlinePassed: z.boolean(),
   rsvpNote: z.string().max(2_000),
   rsvpSelfServiceOpen: z.boolean(),
+  seating: z
+    .object({
+      status: z.enum(["available", "not_published", "not_assigned", "declined"]),
+    })
+    .default({ status: "not_published" }),
   setList: z.array(organizationSetListItemSchema).max(200).default([]),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),

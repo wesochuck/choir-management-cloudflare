@@ -55,6 +55,7 @@ export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel 
     piece,
     pieces,
     publisherSearchTemplate,
+    practicePlayerLinkLifetimeDays,
     publisherSettingsBusy,
     publisherSettingsError,
     remove,
@@ -62,6 +63,7 @@ export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel 
     save,
     savePublisherSearchSettings,
     savedPublisherSearchTemplate,
+    savedPracticePlayerLinkLifetimeDays,
     search,
     selectManyPieces,
     selectPiece,
@@ -85,6 +87,7 @@ export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel 
     setMusicImportConfirmed,
     setPiece,
     setPieces,
+    setPracticePlayerLinkLifetimeDays,
     setPublisherSearchTemplate,
     setPublisherSettingsError,
     setSearch,
@@ -134,11 +137,29 @@ export function MusicCatalogView({ model }: { readonly model: MusicCatalogModel 
               placeholder are required.
             </small>
           </label>
+          <label className="field">
+            Public practice link lifetime (days)
+            <input
+              min="1"
+              max="3650"
+              type="number"
+              value={practicePlayerLinkLifetimeDays}
+              onChange={(event) => {
+                setPracticePlayerLinkLifetimeDays(Number(event.target.value));
+                setPublisherSettingsError(null);
+              }}
+            />
+            <small className="field-help">
+              Existing links keep their expiry. New links default to 180 days and can be rotated by
+              an administrator.
+            </small>
+          </label>
           <button
             className="button button--secondary"
             disabled={
               publisherSettingsBusy ||
-              publisherSearchTemplate.trim() === savedPublisherSearchTemplate
+              (publisherSearchTemplate.trim() === savedPublisherSearchTemplate &&
+                practicePlayerLinkLifetimeDays === savedPracticePlayerLinkLifetimeDays)
             }
             type="button"
             onClick={() => {

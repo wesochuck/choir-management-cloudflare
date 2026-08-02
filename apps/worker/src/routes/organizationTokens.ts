@@ -5,9 +5,13 @@ import {
   organizationAuditionSettingsSchema,
   type ProblemDetails,
 } from "@choir/contracts";
+import { z } from "zod";
 import { generateRsvpTokens } from "../organization/organizationRsvpLinks";
 import { generatePollTokens } from "../organization/organizationPollLinks";
-import { generatePlayerTokens } from "../organization/organizationPlayerLinks";
+import {
+  generatePlayerTokens,
+  generatePublicPlayerToken,
+} from "../organization/organizationPlayerLinks";
 
 import type { Hono } from "hono";
 
@@ -114,9 +118,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
-    const body = generatePlayerTokensRequestSchema.safeParse(
-      await context.req.json<unknown>().catch(() => null),
-    );
+    const body = generatePlayerTokensRequestSchema
+      .or(z.object({ eventId: z.uuid() }))
+      .safeParse(await context.req.json<unknown>().catch(() => null));
     if (!body.success) {
       return context.json(
         {
@@ -129,12 +133,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     try {
       return context.json({
-        ...(await generatePlayerTokens(
-          context.env,
-          authorization.organizationId,
-          body.data.eventId,
-          body.data.profileIds,
-        )),
+        ...("profileIds" in body.data
+          ? await generatePlayerTokens(
+              context.env,
+              authorization.organizationId,
+              body.data.eventId,
+              body.data.profileIds,
+            )
+          : await generatePublicPlayerToken(
+              context.env,
+              authorization.organizationId,
+              body.data.eventId,
+            )),
         requestId: context.get("requestId"),
       });
     } catch {
@@ -142,6 +152,47 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: "service_unavailable",
           message: "Player tokens could not be generated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+  });
+
+  router.post("/api/organization/player-tokens/:eventId/rotate", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const eventId = z.uuid().safeParse(context.req.param("eventId"));
+    if (!eventId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid event ID is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      return context.json({
+        ...(await generatePublicPlayerToken(
+          context.env,
+          authorization.organizationId,
+          eventId.data,
+          true,
+        )),
+        requestId: context.get("requestId"),
+      });
+    } catch {
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "The practice player link could not be rotated.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,
