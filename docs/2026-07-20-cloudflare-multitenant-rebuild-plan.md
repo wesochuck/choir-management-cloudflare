@@ -134,7 +134,6 @@ milestone complete.
 | `apps/worker/src/organization/exportStore.ts`                            | Bounded Organization export snapshot repository with tenant identity checks                                                                             |
 | `apps/worker/src/organization/organizationExport.ts`                     | Pure bounded archive serialization, manifest, byte-count, and checksum construction                                                                     |
 | `apps/worker/src/organization/reconciliationStore.ts`                    | Read-only Organization consistency report for expired payments, payment-attempt mismatches, export archives, and terminal jobs                          |
-| `apps/worker/src/control/schema.ts`                                      | Control-plane D1 schema definitions                                                                                                                     |
 | `apps/worker/src/control/migrations/0001_initial.sql`                    | Initial control-plane schema                                                                                                                            |
 | `apps/worker/src/auth/config.ts`                                         | Better Auth configuration and adapters                                                                                                                  |
 | `apps/worker/src/auth/config.test.ts`                                    | Managed-domain cookie sharing and host-only fallback proof                                                                                              |
@@ -332,7 +331,7 @@ paths remain barrels where callers already import them.
 | `apps/web/src/account/components/RosterPage/{hooks,types,utils}.ts`                                                                                                                         | Roster controller hook, contracts, and pure helpers                                                   |
 | `apps/web/src/account/components/SeatingManager/{hooks,types,utils}.ts`                                                                                                                     | Seating controller hook, contracts, and pure helpers                                                  |
 | `apps/web/src/account/components/SetListManager/{hooks,types,utils}.ts`                                                                                                                     | Set-list controller hook, contracts, and pure helpers                                                 |
-| `scripts/check-contract-exports.mjs` and `scripts/route-order-manifest.json`                                                                                                                | Contract export and route-order decomposition evidence                                                |
+| `scripts/check-contract-exports.mjs`                                                                                                                                                        | Contract export decomposition evidence                                                                |
 
 ## Target Architecture
 

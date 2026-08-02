@@ -62,7 +62,6 @@ export const platformJobDeadLetterSummarySchema = z.object({
       "attendance_report",
       "communication_delivery",
       "organization_export",
-      "projection_publish",
       "stale_checkout_cleanup",
       "ticket_notification",
     ])

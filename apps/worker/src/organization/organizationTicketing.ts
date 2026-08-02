@@ -371,23 +371,6 @@ export async function readPublicTicketPurchase(
   return { ...purchase, scanToken };
 }
 
-export async function readPublicTicketPurchaseByProviderSession(
-  env: Pick<Env, "ORGANIZATION_STORE">,
-  organizationId: string,
-  purchaseId: string,
-  providerSessionId: string,
-) {
-  const url = new URL("https://organization.internal/internal/ticketing/purchase-by-session");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("purchaseId", purchaseId);
-  url.searchParams.set("sessionId", providerSessionId);
-  const response = await stub(env, organizationId).fetch(url);
-  if (!response.ok) {
-    throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
-  }
-  return organizationTicketOrderSchema.parse(await response.json());
-}
-
 export async function listOrganizationTicketOrders(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
@@ -445,23 +428,6 @@ export async function refundFakeTicketPurchase(
     throw new TicketingError(code, response.status, "The ticket order could not be refunded.");
   }
   return organizationTicketOrderSchema.parse(await response.json());
-}
-
-export async function refundOrganizationBundleByProviderPayment(
-  env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE" | "STRIPE_SECRET_KEY">,
-  actor: ActorContext,
-  providerPaymentId: string,
-): Promise<void> {
-  const matchingOrder = (await listOrganizationTicketOrders(env, actor.organizationId)).find(
-    (order) => order.providerPaymentId === providerPaymentId,
-  );
-  if (!matchingOrder)
-    throw new TicketingError(
-      "ticket_purchase_not_found",
-      404,
-      "The ticket bundle could not be refunded.",
-    );
-  await refundFakeTicketPurchase(env, actor, matchingOrder.id);
 }
 
 export async function validateOrganizationTicketScan(

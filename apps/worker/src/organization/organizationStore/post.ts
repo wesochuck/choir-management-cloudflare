@@ -34,10 +34,7 @@ import { updatePaymentActivationInStore } from "../paymentSettingsStore";
 import { prepareAttendanceReportJobFromStore } from "../schedulingStore";
 import { recordPaymentDisputeInStore } from "../paymentDisputeStore";
 import { expireStalePaymentsInStore } from "../paymentCleanupStore";
-import {
-  queuePaymentNotificationInStore,
-  recordPaymentNotificationResultInStore,
-} from "../paymentNotificationStore";
+import { recordPaymentNotificationResultInStore } from "../paymentNotificationStore";
 import { recordProviderRefundRequestedInStore } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
 import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
@@ -106,9 +103,6 @@ export async function dispatchPostRequest(
   }
   if (pathname === "/internal/payments/refund-request") {
     return recordProviderRefundRequestedInStore(storage, await request.json().catch(() => null));
-  }
-  if (pathname === "/internal/payments/notification") {
-    return queuePaymentNotificationInStore(storage, await request.json().catch(() => null));
   }
   if (pathname === "/internal/payments/notification-result") {
     return recordPaymentNotificationResultInStore(storage, await request.json().catch(() => null));

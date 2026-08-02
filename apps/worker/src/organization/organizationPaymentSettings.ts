@@ -1,8 +1,6 @@
 import {
-  organizationPaymentSettingsResponseSchema,
   paymentActivationSettingsSchema,
   paymentModuleIdSchema,
-  type OrganizationPaymentSettingsResponse,
   type PaymentModuleId,
 } from "@choir/contracts";
 import { z } from "zod";
@@ -108,10 +106,4 @@ export async function updateOrganizationPaymentActivation(
   return paymentActivationSettingsSchema.parse(
     z.object({ activations: paymentActivationSettingsSchema }).parse(value).activations,
   );
-}
-
-export function paymentSettingsResponse(
-  input: Omit<OrganizationPaymentSettingsResponse, "requestId"> & { readonly requestId: string },
-): OrganizationPaymentSettingsResponse {
-  return organizationPaymentSettingsResponseSchema.parse(input);
 }

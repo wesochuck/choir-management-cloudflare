@@ -9,7 +9,6 @@ export const jobKindSchema = z.enum([
   "rsvp_follow_up",
   "organization_export",
   "payment_notification",
-  "projection_publish",
   "stale_checkout_cleanup",
   "ticket_notification",
 ]);

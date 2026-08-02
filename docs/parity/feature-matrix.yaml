@@ -1344,7 +1344,6 @@
             "apps/worker/src/organization/schema.ts",
             "apps/worker/src/payments/stripeRouting.ts",
             "apps/worker/src/payments/refundRequest.ts",
-            "apps/worker/src/control/schema.ts",
             "apps/worker/src/control/migrations/0009_stripe_connected_accounts.sql",
             "apps/worker/src/organization/paymentDisputeStore.ts",
             "apps/worker/src/organization/paymentCleanupStore.ts",

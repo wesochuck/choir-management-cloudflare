@@ -5,7 +5,6 @@ import type { FleetSchemaParams } from "./workflows/FleetSchemaWorkflow";
 import type { ProvisioningParams } from "./workflows/ProvisioningWorkflow";
 
 export const appEnvironmentSchema = z.enum(["local", "preview", "staging", "production"]);
-export type AppEnvironment = z.infer<typeof appEnvironmentSchema>;
 
 const startupConfigSchema = z.object({
   APP_ENV: appEnvironmentSchema,

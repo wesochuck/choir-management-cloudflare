@@ -57,7 +57,6 @@ import {
   listTicketBundlesFromStore,
   listTicketOrdersFromStore,
   readTicketNotificationJobFromStore,
-  readTicketPurchaseByProviderSessionFromStore,
   readTicketPurchaseFromStore,
   readTicketWillCallFromStore,
 } from "../ticketingStore";
@@ -71,11 +70,7 @@ import { readTransactionFeeSettingsFromStore } from "../transactionFeeSettingsSt
 import { readTicketConfirmationSettingsFromStore } from "../ticketConfirmationSettingsStore";
 import { getSetupStateFromStore, getModuleStateFromStore } from "../setupStore";
 import { readPaymentSettingsFromStore } from "../paymentSettingsStore";
-import {
-  readAttendanceReportJobFromStore,
-  readEventReminderJobFromStore,
-  readRsvpFollowUpJobFromStore,
-} from "../schedulingStore";
+import { readEventReminderJobFromStore, readRsvpFollowUpJobFromStore } from "../schedulingStore";
 import { readPaymentNotificationJobFromStore } from "../paymentNotificationStore";
 import { readPaymentRefundTargetFromStore } from "../paymentRefundStore";
 import {
@@ -174,17 +169,6 @@ export const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readTicketPurchaseFromStore(storage, organizationId, url.searchParams.get("purchaseId")),
-  "/internal/ticketing/purchase-by-session": (
-    storage: DurableObjectStorage,
-    url: URL,
-    organizationId: string | null,
-  ) =>
-    readTicketPurchaseByProviderSessionFromStore(
-      storage,
-      organizationId,
-      url.searchParams.get("purchaseId"),
-      url.searchParams.get("sessionId"),
-    ),
   "/internal/ticketing/will-call": (
     storage: DurableObjectStorage,
     url: URL,
@@ -220,11 +204,6 @@ export const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readEventReminderJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
-  "/internal/scheduling/attendance-report-job": (
-    storage: DurableObjectStorage,
-    url: URL,
-    organizationId: string | null,
-  ) => readAttendanceReportJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
   "/internal/scheduling/rsvp-follow-up-job": (
     storage: DurableObjectStorage,
     url: URL,
@@ -462,8 +441,6 @@ export function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Res
       return readPaymentSettingsFromStore(storage, organizationId);
     case "/internal/ticket-confirmation-settings":
       return readTicketConfirmationSettingsFromStore(storage, organizationId);
-    case "/internal/health":
-      return Response.json({ status: "ok" });
     case "/internal/reconciliation-report":
       return organizationId
         ? readOrganizationReconciliationReport(storage, organizationId)

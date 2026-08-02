@@ -811,18 +811,6 @@ export function updateAuditionSettingsInStore(
   return Response.json(settings);
 }
 
-export function updateAuditionCandidateInStore(
-  storage: DurableObjectStorage,
-  auditionId: string,
-  availabilityNotes: string | undefined,
-  voicePart: string | undefined,
-): Response {
-  return updateAuditionInStore(storage, auditionId, {
-    ...(availabilityNotes === undefined ? {} : { availabilityNotes }),
-    ...(voicePart === undefined ? {} : { voicePart }),
-  });
-}
-
 export function readAuditionNotificationJobFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,

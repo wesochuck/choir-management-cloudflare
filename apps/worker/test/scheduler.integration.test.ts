@@ -269,20 +269,6 @@ describe("Organization scheduler", () => {
     const requests = [
       {
         body: {
-          action: "queue_payment_notification",
-          contentMarkdown: "Payment received.",
-          dedupeKey: "alarm-payment-notification",
-          destination: "member@example.test",
-          organizationId: "organization-scheduler",
-          paymentType: "dues",
-          recipientName: "Member",
-          resourceId: "88888888-8888-4888-8888-888888888888",
-          subject: "Payment received",
-        },
-        pathname: "/internal/payments/notification",
-      },
-      {
-        body: {
           action: "create_donation_checkout",
           checkout: {
             amountCents: 1500,

@@ -41,13 +41,6 @@ const refundOperationSchema = organizationContextSchema.extend({
   requestId: z.uuid(),
 });
 
-const refundProviderPurchaseOperationSchema = organizationContextSchema.extend({
-  action: z.literal("refund_provider_purchase"),
-  actorUserId: z.string().min(1).max(128),
-  providerPaymentId: z.string().min(1).max(256),
-  requestId: z.uuid(),
-});
-
 const stripeTicketOperationSchema = organizationContextSchema.extend({
   checkoutRequestId: z.uuid().optional(),
   providerPaymentId: z.string().trim().max(256),
@@ -117,7 +110,6 @@ const operationSchema = z.discriminatedUnion("action", [
   createPendingCheckoutOperationSchema,
   attachStripeSessionOperationSchema,
   refundOperationSchema,
-  refundProviderPurchaseOperationSchema,
   validateScanOperationSchema,
   issueScanCredentialOperationSchema,
   upsertBundleOperationSchema,
@@ -649,55 +641,6 @@ function refundFakePurchase(
     );
   });
   return Response.json({ ...purchaseResult(row), status: "refunded", updatedAt: occurredAt });
-}
-
-function refundProviderPurchase(
-  storage: DurableObjectStorage,
-  operation: z.infer<typeof refundProviderPurchaseOperationSchema>,
-): Response {
-  const rows = storage.sql
-    .exec<TicketPurchaseRow>(
-      `${purchaseSelect} WHERE provider_payment_id = ? AND bundle_id IS NOT NULL
-       ORDER BY created_at, id`,
-      operation.providerPaymentId,
-    )
-    .toArray();
-  if (rows.length === 0)
-    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
-  if (rows.some((row) => !["paid", "refunded"].includes(row.status))) {
-    return Response.json({ code: "ticket_purchase_not_refundable" }, { status: 409 });
-  }
-  const occurredAt = new Date().toISOString();
-  storage.transactionSync(() => {
-    for (const row of rows) {
-      if (row.status === "refunded") continue;
-      storage.sql.exec(
-        "UPDATE ticket_purchases SET status = 'refunded', refunded_at = ?, updated_at = ? WHERE id = ?",
-        occurredAt,
-        occurredAt,
-        row.id,
-      );
-      storage.sql.exec(
-        `INSERT INTO audit_events
-          (id, actor_type, actor_id, action, target_type, target_id,
-           request_id, change_summary, occurred_at)
-         VALUES (?, 'organization_member', ?, 'ticket.purchase.refunded',
-          'ticket_purchase', ?, ?, ?, ?)`,
-        `ticket-refund-provider:${operation.requestId}:${row.id}`,
-        operation.actorUserId,
-        row.id,
-        operation.requestId,
-        JSON.stringify({
-          amountCents: row.amountPaidCents,
-          providerPaymentId: operation.providerPaymentId,
-        }),
-        occurredAt,
-      );
-    }
-  });
-  return Response.json({
-    purchases: rows.map((row) => ({ ...purchaseResult(row), status: "refunded" })),
-  });
 }
 
 function stripeEventWasProcessed(storage: DurableObjectStorage, eventId: string): boolean {
@@ -1555,8 +1498,6 @@ export async function manageTicketingInStore(
       return issueTicketScanCredential(storage, operation.data);
     case "refund_fake_purchase":
       return refundFakePurchase(storage, operation.data);
-    case "refund_provider_purchase":
-      return refundProviderPurchase(storage, operation.data);
     case "validate_ticket_scan":
       return validateTicketScan(storage, operation.data);
     case "upsert_ticket_bundle":

@@ -1,5 +1,4 @@
 import {
-  moduleStateSchema,
   moduleStatesResponseSchema,
   setupClaimResponseSchema,
   setupProgressRequestSchema,
@@ -135,31 +134,4 @@ export async function getModuleState(
   const response = await stub(env, organizationId).fetch(url);
   if (!response.ok) throw new SetupError("modules_unavailable", 503, "Module state unavailable.");
   return moduleStatesResponseSchema.parse(await response.json()).modules;
-}
-
-export async function updateModuleState(
-  env: Pick<Env, "ORGANIZATION_STORE">,
-  actor: ActorContext,
-  moduleId: string,
-  enabled: boolean,
-): Promise<ModuleState> {
-  const validated = moduleStateSchema.parse({ id: moduleId, enabled });
-  const response = await stub(env, actor.organizationId).fetch(
-    "https://organization.internal/internal/setup/manage",
-    {
-      body: JSON.stringify({
-        action: "update_module",
-        ...actor,
-        moduleId: validated.id,
-        enabled: validated.enabled,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
-  if (!response.ok) {
-    const code = await errorCode(response);
-    throw new SetupError(code, response.status, "Module state could not be updated.");
-  }
-  return moduleStateSchema.parse(await response.json());
 }
