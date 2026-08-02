@@ -184,7 +184,9 @@ export function PublicPollView() {
   }, [token]);
 
   function handleSubmit(optionIds: string[]) {
-    if (!token || pageStatus.type !== "ready") return;
+    if (!token || (pageStatus.type !== "ready" && pageStatus.type !== "submit_error")) {
+      return;
+    }
     const details = pageStatus.details;
     setPageStatus({ type: "submitting", details });
     submitPollVote(token, optionIds)
@@ -308,7 +310,7 @@ export function PublicPollView() {
         </p>
 
         <PollForm
-          busy={pageStatus.type === "submitting" || pageStatus.type === "submit_error"}
+          busy={pageStatus.type === "submitting"}
           details={pageStatus.details}
           onSubmit={handleSubmit}
         />

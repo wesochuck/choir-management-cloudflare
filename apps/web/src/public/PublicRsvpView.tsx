@@ -99,6 +99,15 @@ function RsvpForm({
   const [rsvp, setRsvp] = useState<"Yes" | "No" | "Pending">(initialRsvp);
   const [rsvpNote, setRsvpNote] = useState(details.rsvpNote);
 
+  if (!details.canSubmit) {
+    return (
+      <p className="notice notice--warning" role="status">
+        RSVP responses are closed for this event. Contact an Organization manager if you need to
+        update your response.
+      </p>
+    );
+  }
+
   return (
     <div className="mt-4 space-y-3">
       <div className="flex gap-2">
@@ -143,7 +152,7 @@ function RsvpForm({
 
       <button
         className={`button w-full ${busy ? "button--disabled" : ""}`}
-        disabled={busy}
+        disabled={busy || !details.canSubmit}
         onClick={() => {
           onSubmit(rsvp, rsvpNote);
         }}
@@ -217,14 +226,17 @@ export function PublicRsvpView() {
   }, [token]);
 
   function handleSubmit(rsvpValue: "Yes" | "No" | "Pending", rsvpNote: string) {
-    if (!token || pageStatus.type !== "ready") return;
-    setPageStatus({ type: "submitting", details: pageStatus.details });
+    if (!token || (pageStatus.type !== "ready" && pageStatus.type !== "submit_error")) {
+      return;
+    }
+    const details = pageStatus.details;
+    setPageStatus({ type: "submitting", details });
     submitRsvp(token, rsvpValue, rsvpNote)
       .then(() => {
-        setPageStatus({ type: "submitted", details: pageStatus.details });
+        setPageStatus({ type: "submitted", details });
       })
       .catch(() => {
-        setPageStatus({ type: "submit_error", details: pageStatus.details });
+        setPageStatus({ type: "submit_error", details });
       });
   }
 
@@ -292,7 +304,7 @@ export function PublicRsvpView() {
       <section className="auth-card" aria-labelledby="rsvp-title">
         <RsvpEventBody details={pageStatus.details} />
         <RsvpForm
-          busy={pageStatus.type === "submitting" || pageStatus.type === "submit_error"}
+          busy={pageStatus.type === "submitting"}
           details={pageStatus.details}
           onSubmit={handleSubmit}
         />

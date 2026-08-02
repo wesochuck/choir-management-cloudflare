@@ -16,7 +16,6 @@ import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
 import { PublicTickets } from "./public/PublicTickets";
 import { PublicDonationView } from "./public/PublicDonationView";
 import { PublicDonationSuccessView } from "./public/PublicDonationSuccessView";
-import { PublicFreeRsvpView } from "./public/PublicFreeRsvpView";
 import { SetupView } from "./setup/SetupView";
 
 type ServiceState = "checking" | "offline" | "ready";
@@ -229,9 +228,6 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   }
   if (pathname === "/rsvp") {
     return <PublicRsvpView />;
-  }
-  if (pathname.startsWith("/rsvp/")) {
-    return <PublicFreeRsvpView />;
   }
   if (pathname === "/poll") {
     return <PublicPollView />;

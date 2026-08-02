@@ -275,25 +275,34 @@ function createEventReminderJobs(
     .toArray();
   for (const candidate of candidates) {
     const baseIdempotencyKey = `event-reminder:${organizationId}:${candidate.eventId}`;
+    const retryPrefix = `${baseIdempotencyKey}:retry:`;
     const existingJobs = storage.sql
       .exec<ExistingEventReminderJobRow>(
         `SELECT o.job_id AS jobId, l.status, l.terminal_at AS terminalAt
          FROM scheduled_job_outbox o
          LEFT JOIN job_ledger l ON l.job_id = o.job_id
          WHERE o.kind = 'event_reminder'
-           AND (o.idempotency_key = ? OR o.idempotency_key LIKE ?)
+           AND (
+             o.idempotency_key = ?
+             OR substr(o.idempotency_key, 1, length(?)) = ?
+           )
          ORDER BY o.created_at, o.job_id`,
         baseIdempotencyKey,
-        `${baseIdempotencyKey}:retry:%`,
+        retryPrefix,
+        retryPrefix,
       )
       .toArray();
     const reminderHistoryCount = storage.sql
       .exec<{ readonly count: number }>(
         `SELECT COUNT(*) AS count FROM job_ledger
          WHERE kind = 'event_reminder'
-           AND (idempotency_key = ? OR idempotency_key LIKE ?)`,
+           AND (
+             idempotency_key = ?
+             OR substr(idempotency_key, 1, length(?)) = ?
+           )`,
         baseIdempotencyKey,
-        `${baseIdempotencyKey}:retry:%`,
+        retryPrefix,
+        retryPrefix,
       )
       .one().count;
     if (existingJobs.length > 0) {

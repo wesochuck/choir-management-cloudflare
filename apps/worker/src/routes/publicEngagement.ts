@@ -6,7 +6,6 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
-import { createAuth } from "../auth/config";
 import { validateStartupConfig } from "../env";
 import { unsubscribeOrganizationProfile } from "../organization/organizationCommunications";
 import { verifySignedLinkScope } from "../security/signedLinks";
@@ -25,11 +24,7 @@ import type { Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import {
-  isErrorResponse,
-  resolveCanonicalOrganizationId,
-  submitPublicAuditionInquiry,
-} from "./helpers";
+import { isErrorResponse, submitPublicAuditionInquiry } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post("/api/public/player-details", async (context) => {
@@ -412,54 +407,6 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-  });
-
-  router.post("/api/public/rsvp", async (context) => {
-    const auth = createAuth({
-      env: context.env,
-      requestUrl: new URL(context.req.url),
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Authentication required.",
-          requestId: context.get("requestId"),
-        },
-        401,
-      );
-    }
-    const requestUrl = new URL(context.req.url);
-    const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
-    if (!organizationId) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "No Organization is registered for this hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-    let body: unknown;
-    try {
-      body = await context.req.json();
-    } catch {
-      return context.json({ error: "Invalid request body" }, 400);
-    }
-    const parsed = z
-      .object({
-        name: z.string().min(1).max(200),
-        email: z.string().min(3).max(320),
-        rsvp: z.enum(["Yes", "No", "Pending"]),
-      })
-      .safeParse(body);
-    if (!parsed.success) return context.json({ error: "Invalid RSVP request" }, 400);
-    return context.json({ rsvp: parsed.data.rsvp, requestId: context.get("requestId") });
   });
 
   router.get("/api/public/player/playlist", async (context) => {

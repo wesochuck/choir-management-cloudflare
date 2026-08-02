@@ -482,12 +482,13 @@ interface EventProfileRsvpRow {
   readonly displayName: string;
   readonly durationMinutes: number | null;
   readonly id: string;
+  readonly isCanceled: number;
   readonly location: string;
   readonly rsvp: string;
   readonly rsvpNote: string;
   readonly startsAt: string;
   readonly title: string;
-  readonly type: string;
+  readonly type: "Performance" | "Rehearsal";
   readonly venueAddress: string;
   readonly venueName: string;
 }
@@ -509,7 +510,7 @@ export function readProfileEventRsvpFromStore(
     .exec<EventProfileRsvpRow>(
       `SELECT e.id, e.title, e.type, e.starts_at AS startsAt,
          e.duration_minutes AS durationMinutes, e.call_time AS callTime,
-         e.location, e.details,
+         e.is_canceled AS isCanceled, e.location, e.details,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
          COALESCE(r.rsvp, 'Pending') AS rsvp,
          COALESCE(r.rsvp_note, '') AS rsvpNote,
@@ -528,6 +529,22 @@ export function readProfileEventRsvpFromStore(
   if (!row) {
     return Response.json({ code: "profile_event_rsvp_not_found" }, { status: 404 });
   }
+  const configuration = readRosterAutomationConfiguration(storage);
+  const timezone = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
+      "SELECT timezone FROM organization_metadata LIMIT 1",
+    )
+    .one().timezone;
+  const rsvpDeadline = decorateEventWithRsvpDeadline(
+    {
+      durationMinutes: row.durationMinutes,
+      isCanceled: row.isCanceled,
+      startsAt: row.startsAt,
+      type: row.type,
+    },
+    configuration,
+    timezone,
+  );
   return Response.json({
     callTime: row.callTime,
     details: row.details,
@@ -538,6 +555,7 @@ export function readProfileEventRsvpFromStore(
     profileId: profileId.data,
     rsvp: row.rsvp,
     rsvpNote: row.rsvpNote,
+    rsvpSelfServiceOpen: rsvpDeadline.rsvpSelfServiceOpen,
     startsAt: row.startsAt,
     title: row.title,
     type: row.type,

@@ -259,6 +259,30 @@ describe("public RSVP signed flow", () => {
     expect(row).toEqual({ rsvp: "No", rsvpNote: "Family event" });
   });
 
+  it("marks RSVP details as closed after the event starts", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE events SET starts_at = ? WHERE id = ?",
+          new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
+          ALPHA_EVENT,
+        );
+        return null;
+      },
+    );
+    const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/rsvp-details", {
+        body: JSON.stringify({ token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ canSubmit: false });
+  });
+
   it("keeps the canonical quick-RSVP path tenant-bound", async () => {
     const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
     const response = await exports.default.fetch(

@@ -37,6 +37,7 @@ interface EventRsvpDetails {
   readonly profileId: string;
   readonly rsvp: string;
   readonly rsvpNote: string;
+  readonly rsvpSelfServiceOpen: boolean;
   readonly startsAt: string;
   readonly title: string;
   readonly type: string;
@@ -100,6 +101,7 @@ export async function resolveRsvpDetails(
       readonly profileName: string;
       readonly rsvp: string;
       readonly rsvpNote: string;
+      readonly rsvpSelfServiceOpen: boolean;
     }
   | { readonly code: string; readonly status: number }
 > {
@@ -115,7 +117,7 @@ export async function resolveRsvpDetails(
     return { code: "profile_event_rsvp_not_found", status: 404 };
   }
   return {
-    canSubmit: true,
+    canSubmit: details.rsvpSelfServiceOpen,
     event: {
       callTime: details.callTime,
       details: details.details,
@@ -132,6 +134,7 @@ export async function resolveRsvpDetails(
     profileName: details.displayName,
     rsvp: details.rsvp,
     rsvpNote: details.rsvpNote,
+    rsvpSelfServiceOpen: details.rsvpSelfServiceOpen,
   };
 }
 
