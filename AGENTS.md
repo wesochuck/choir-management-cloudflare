@@ -74,6 +74,24 @@ Before finishing any material change, report:
 - any generated artifact and how it was regenerated;
 - remaining work in the milestone File Responsibility Map.
 
+### CI failure-prevention checklist
+
+- Treat route removals and parity evidence as one atomic change. When a Worker route is renamed or
+  removed, update `docs/parity/feature-matrix.yaml`, the route inventory in
+  `scripts/check-parity-matrix.mjs`, and any route-level tests in the same commit. Do not push an
+  intermediate commit that leaves an `implemented` parity entry pointing at a route that no longer
+  exists.
+- Run both `npm run check:parity` and `npm run check:parity:implementation` after every route or
+  parity-ledger edit. The first validates the ledger shape and baseline inventory; the second
+  resolves every implemented API entry against the actual Worker route source.
+- A passing focused test is not sufficient for a push. Before committing a material Worker or
+  scheduler change, run the deployable build followed by `npm run test:integration:prepared`; the
+  Workerd/SQLite runtime can reject SQL patterns (for example, an overly complex `LIKE`/`GLOB`
+  pattern) that do not fail in a narrower local test.
+- Group related fixes and their regression tests into one commit, then run the complete CI command
+  sequence locally before pushing `main`. This avoids repeated red builds caused by a fix landing
+  one commit after the change that exposed it.
+
 ## 4. Plan Execution and Parity
 
 - Expand the plan's File Responsibility Map before implementing files not already represented there.
