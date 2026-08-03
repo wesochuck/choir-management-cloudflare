@@ -1236,6 +1236,53 @@ describe("Organization ticketing", () => {
     expect(await conflict.json()).toMatchObject({ code: "checkout_request_conflict" });
   });
 
+  it("rejects a second pending dues checkout for the same profile", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const firstCheckoutRequestId = crypto.randomUUID();
+    const secondCheckoutRequestId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Concurrent Dues Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Concurrent Dues Season', ?, ?, 4000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+    });
+    const prepare = (checkoutRequestId: string) =>
+      stub.fetch("https://organization.internal/internal/seasons/manage", {
+        body: JSON.stringify({
+          action: "prepare_dues_checkout",
+          checkout: { checkoutRequestId, profileIds: [profileId], seasonId },
+          organizationId: "organization-alpha",
+          origin: "https://alpha.localhost",
+          providerSessionId: `pending_${checkoutRequestId}`,
+          requestId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+
+    const first = await prepare(firstCheckoutRequestId);
+    expect(first.status).toBe(200);
+    const second = await prepare(secondCheckoutRequestId);
+    expect(second.status).toBe(409);
+    expect(await second.json()).toMatchObject({ code: "dues_checkout_in_progress" });
+  });
+
   it("keeps a cash-paid dues record and its online attempt out of later fulfillment", async () => {
     const cookie = await signIn();
     const stub = stores.get(stores.idFromName("organization-alpha"));

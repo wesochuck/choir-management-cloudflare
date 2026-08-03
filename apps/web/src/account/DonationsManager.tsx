@@ -7,10 +7,15 @@ import {
   type DonationRecord,
   type PatronRecord,
 } from "@choir/contracts";
+import { datePartInTimeZone } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 
-import { getOrganizationDonationSettings, updateOrganizationDonationSettings } from "../auth/api";
+import {
+  getOrganizationCalendarSettings,
+  getOrganizationDonationSettings,
+  updateOrganizationDonationSettings,
+} from "../auth/api";
 import { QRCodeShareCard } from "./QRCodeShareCard";
 
 type DonationState =
@@ -98,6 +103,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   const [levelBenefit, setLevelBenefit] = useState("");
   const [portalButtonText, setPortalButtonText] = useState("");
   const [portalDescription, setPortalDescription] = useState("");
+  const [timezone, setTimezone] = useState("UTC");
 
   useEffect(() => {
     if (!enabled) return;
@@ -109,8 +115,9 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       }),
       fetch("/api/organization/patrons", { credentials: "same-origin", signal: controller.signal }),
       getOrganizationDonationSettings(controller.signal),
+      getOrganizationCalendarSettings(controller.signal).catch(() => ({ timezone: "UTC" })),
     ])
-      .then(async ([donationsRes, patronsRes, settings]) => {
+      .then(async ([donationsRes, patronsRes, settings, calendarSettings]) => {
         if (!donationsRes.ok || !patronsRes.ok) {
           if (!controller.signal.aborted) {
             setDonationState({ status: "error" });
@@ -123,6 +130,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
         setDonationState({ donations: parseDonations(donationsBody), status: "ready" });
         setPatronState({ patrons: parsePatrons(patronsBody), status: "ready" });
         setSettingsState({ settings, status: "ready" });
+        setTimezone(calendarSettings.timezone);
         setPortalButtonText(settings.buttonText);
         setPortalDescription(settings.description);
       })
@@ -320,6 +328,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           refund={refund}
           refundId={refundId}
           setRefundId={setRefundId}
+          timezone={timezone}
         />
       ) : tab === "levels" ? (
         <DonationLevelsTab
@@ -416,6 +425,7 @@ function DonationHistoryTab({
   refund,
   refundId,
   setRefundId,
+  timezone,
 }: {
   readonly busy: boolean;
   readonly donationState: DonationState;
@@ -423,6 +433,7 @@ function DonationHistoryTab({
   readonly refund: (id: string) => Promise<void>;
   readonly refundId: string | null;
   readonly setRefundId: (id: string | null) => void;
+  readonly timezone: string;
 }) {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -448,7 +459,7 @@ function DonationHistoryTab({
         ]
           .join(" ")
           .toLocaleLowerCase();
-        const donationDate = donation.createdAt.slice(0, 10);
+        const donationDate = datePartInTimeZone(new Date(donation.createdAt), timezone);
         return (
           (!normalizedQuery || donorText.includes(normalizedQuery)) &&
           (!fromDate || donationDate >= fromDate) &&
@@ -464,7 +475,7 @@ function DonationHistoryTab({
         const direction = sort === "dateDesc" ? -1 : 1;
         return direction * left.createdAt.localeCompare(right.createdAt);
       });
-  }, [donations, fromDate, query, sort, toDate]);
+  }, [donations, fromDate, query, sort, timezone, toDate]);
 
   if (donationState.status === "loading") return <p>Loading donations…</p>;
   if (donationState.status === "error")

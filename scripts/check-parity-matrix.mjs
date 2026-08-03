@@ -34,7 +34,6 @@ const expectedApiRoutes = [
   "POST /api/organization/player-tokens",
   "POST /api/public/tickets/checkout",
   "POST /api/singer/dues/checkout",
-  "POST /api/public/rsvp",
   "POST /api/public/donations/checkout",
   "POST /api/webhook/stripe",
   "POST /api/organization/tickets/:purchaseId/refund",

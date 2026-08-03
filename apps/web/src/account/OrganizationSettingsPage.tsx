@@ -324,6 +324,8 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsLoadAttempt, setSettingsLoadAttempt] = useState(0);
   const [success, setSuccess] = useState<string | null>(null);
   const [feeBusy, setFeeBusy] = useState(false);
   const [feeError, setFeeError] = useState<string | null>(null);
@@ -354,18 +356,20 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
         setTransactionFeeSettings(feeSettings);
         setSavedTransactionFeeSettings(feeSettings);
         setFixedFeeDraft(currencyDraftFromCents(feeSettings.fixedCents));
+        setSettingsLoaded(true);
         setLoading(false);
       })
       .catch((loadError: unknown) => {
         if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
           setError("Organization settings could not be loaded.");
+          setSettingsLoaded(false);
           setLoading(false);
         }
       });
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, settingsLoadAttempt]);
 
   async function saveTimezone() {
     setBusy(true);
@@ -460,16 +464,30 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
         </div>
         {loading ? <p role="status">Loading calendar settings…</p> : null}
         {error ? (
-          <p className="notice notice--error" role="alert">
-            {error}
-          </p>
+          <div className="notice notice--error" role="alert">
+            <p>{error}</p>
+            {!settingsLoaded ? (
+              <button
+                className="button button--secondary button--sm"
+                onClick={() => {
+                  setError(null);
+                  setLoading(true);
+                  setSettingsLoaded(false);
+                  setSettingsLoadAttempt((current) => current + 1);
+                }}
+                type="button"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {success ? (
           <p className="notice notice--success" role="status">
             {success}
           </p>
         ) : null}
-        {!loading ? (
+        {settingsLoaded ? (
           <div className="form-stack settings-form">
             <div className="field">
               <label htmlFor="settings-timezone">IANA timezone</label>
@@ -513,7 +531,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
             {feeSuccess}
           </p>
         ) : null}
-        {!loading ? (
+        {settingsLoaded ? (
           <div className="form-stack settings-form">
             <div className="settings-grid">
               <label className="field" htmlFor="transaction-fee-percentage">

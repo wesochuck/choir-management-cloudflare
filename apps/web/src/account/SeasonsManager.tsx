@@ -4,6 +4,11 @@ import type {
   Season,
   SeasonCreateRequest,
 } from "@choir/contracts";
+import {
+  datePartInTimeZone,
+  utcToZonedLocalDateTime,
+  zonedLocalDateTimeToUtc,
+} from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
@@ -12,6 +17,7 @@ import {
   AuthApiError,
   createOrganizationSeason,
   deleteOrganizationSeason,
+  getOrganizationCalendarSettings,
   listOrganizationDues,
   listOrganizationProfiles,
   listOrganizationSeasons,
@@ -41,22 +47,16 @@ interface SeasonForm {
   readonly startsAt: string;
 }
 
-function dateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${String(year)}-${month}-${day}`;
-}
-
-function emptySeasonForm(): SeasonForm {
-  const startsAt = new Date();
-  const endsAt = new Date(startsAt);
-  endsAt.setFullYear(endsAt.getFullYear() + 1);
+function emptySeasonForm(timezone: string): SeasonForm {
+  const startsAt = datePartInTimeZone(new Date(), timezone);
+  const endDate = new Date(`${startsAt}T12:00:00.000Z`);
+  endDate.setUTCFullYear(endDate.getUTCFullYear() + 1);
+  const endsAt = datePartInTimeZone(endDate, timezone);
   return {
     duesAmount: "0.00",
-    endsAt: dateInputValue(endsAt),
+    endsAt,
     name: "",
-    startsAt: dateInputValue(startsAt),
+    startsAt,
   };
 }
 
@@ -66,29 +66,38 @@ function money(cents: number): string {
   );
 }
 
-function dateOnly(value: string): string {
-  return value.slice(0, 10);
+function dateOnly(value: string, timezone: string): string {
+  return utcToZonedLocalDateTime(value, timezone)?.slice(0, 10) ?? value.slice(0, 10);
 }
 
-function seasonPayload(form: SeasonForm): SeasonCreateRequest {
+function seasonPayload(form: SeasonForm, timezone: string): SeasonCreateRequest {
   const amount = Number(form.duesAmount);
+  const startsAt = zonedLocalDateTimeToUtc(`${form.startsAt}T00:00`, timezone);
+  const endsAt = zonedLocalDateTimeToUtc(`${form.endsAt}T23:59`, timezone);
+  if (!startsAt || !endsAt) throw new Error("Choose valid dates for the Organization timezone.");
   return {
     duesAmountCents: Math.round(amount * 100),
-    endsAt: new Date(`${form.endsAt}T23:59:59.000Z`).toISOString(),
+    endsAt,
     name: form.name.trim(),
-    startsAt: new Date(`${form.startsAt}T00:00:00.000Z`).toISOString(),
+    startsAt,
   };
 }
 
-function seasonFormFor(season: Season | null): SeasonForm {
+function seasonFormFor(season: Season | null, timezone: string): SeasonForm {
   return season
     ? {
         duesAmount: (season.duesAmountCents / 100).toFixed(2),
-        endsAt: dateOnly(season.endsAt),
+        endsAt: dateOnly(season.endsAt, timezone),
         name: season.name,
-        startsAt: dateOnly(season.startsAt),
+        startsAt: dateOnly(season.startsAt, timezone),
       }
-    : emptySeasonForm();
+    : emptySeasonForm(timezone);
+}
+
+function seasonDateLabel(value: string, timezone: string): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeZone: timezone }).format(
+    new Date(value),
+  );
 }
 
 function apiError(error: unknown, fallback: string): string {
@@ -121,7 +130,7 @@ export function SeasonsManager({
   const [confirmSeason, setConfirmSeason] = useState<Season | null>(null);
   const [editingSeason, setEditingSeason] = useState<Season | null>(null);
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
-  const [seasonForm, setSeasonForm] = useState<SeasonForm>(emptySeasonForm);
+  const [seasonForm, setSeasonForm] = useState<SeasonForm>(() => emptySeasonForm("UTC"));
   const [refundId, setRefundId] = useState<string | null>(null);
   const [seasonBusy, setSeasonBusy] = useState(false);
   const [refundBusy, setRefundBusy] = useState(false);
@@ -129,10 +138,18 @@ export function SeasonsManager({
   const [message, setMessage] = useState<string | null>(null);
   const [tab, setTab] = useState<"settings" | "dues">("dues");
   const [selectedDuesSeasonId, setSelectedDuesSeasonId] = useState<string | null>(null);
+  const [timezone, setTimezone] = useState("UTC");
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
+    getOrganizationCalendarSettings(controller.signal)
+      .then(({ timezone: nextTimezone }) => {
+        setTimezone(nextTimezone);
+      })
+      .catch(() => {
+        // Keep UTC as a safe fallback while the rest of the manager loads.
+      });
     listOrganizationSeasons(controller.signal)
       .then((seasons) => {
         setSeasonState({ seasons, status: "ready" });
@@ -179,7 +196,7 @@ export function SeasonsManager({
     setError(null);
     setMessage(null);
     setEditingSeason(season);
-    setSeasonForm(seasonFormFor(season));
+    setSeasonForm(seasonFormFor(season, timezone));
     setSeasonDialogOpen(true);
   }
 
@@ -200,7 +217,7 @@ export function SeasonsManager({
     setSeasonBusy(true);
     setError(null);
     try {
-      const payload = seasonPayload(seasonForm);
+      const payload = seasonPayload(seasonForm, timezone);
       const saved = editingSeason
         ? await updateOrganizationSeason(editingSeason.id, payload)
         : await createOrganizationSeason(payload);
@@ -371,6 +388,7 @@ export function SeasonsManager({
               onEdit={openSeasonDialog}
               seasonState={seasonState}
               busy={seasonBusy}
+              timezone={timezone}
             />
           </div>
         ) : (
@@ -541,12 +559,14 @@ function SeasonsTab({
   onDelete,
   onEdit,
   seasonState,
+  timezone,
 }: {
   readonly busy: boolean;
   readonly onActivate: (season: Season) => void;
   readonly onDelete: (season: Season) => void;
   readonly onEdit: (season: Season) => void;
   readonly seasonState: SeasonState;
+  readonly timezone: string;
 }) {
   if (seasonState.status === "loading") return <p>Loading seasons…</p>;
   if (seasonState.status === "error")
@@ -564,13 +584,13 @@ function SeasonsTab({
         {
           header: "Starts",
           id: "startsAt",
-          render: (season) => new Date(season.startsAt).toLocaleDateString(),
+          render: (season) => seasonDateLabel(season.startsAt, timezone),
           sortValue: (season) => season.startsAt,
         },
         {
           header: "Ends",
           id: "endsAt",
-          render: (season) => new Date(season.endsAt).toLocaleDateString(),
+          render: (season) => seasonDateLabel(season.endsAt, timezone),
           sortValue: (season) => season.endsAt,
         },
         {

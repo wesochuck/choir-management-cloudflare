@@ -347,6 +347,14 @@ describe("Organization queue delivery", () => {
         },
       ]);
       await processDeadLetterBatch(batch, { CONTROL_DB: controlDatabase });
+      if (observation === 0) {
+        await expect(
+          controlDatabase
+            .prepare("SELECT id FROM job_dead_letters WHERE message_id = ?")
+            .bind("alpha-dead-letter")
+            .first(),
+        ).resolves.toBeNull();
+      }
     }
 
     const row = await controlDatabase
@@ -363,7 +371,7 @@ describe("Organization queue delivery", () => {
       jobId: alphaJob.jobId,
       jobKind: alphaJob.kind,
       messageValid: 1,
-      observationCount: 2,
+      observationCount: 1,
       organizationId: alphaJob.organizationId,
       queueName: "choir-management-jobs-dlq-local",
     });

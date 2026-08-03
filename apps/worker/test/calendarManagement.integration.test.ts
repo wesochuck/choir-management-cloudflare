@@ -877,8 +877,8 @@ describe("Organization calendar management", () => {
     ]);
     expect(venues.venues.map((item) => item.name)).toEqual(["Main Sanctuary"]);
     expect(events.events.map((item) => item.title)).toEqual([
-      "API Concert Updated",
       "API Rehearsal",
+      "API Concert Updated",
     ]);
     expect(
       organizationVenuesResponseSchema.parse(

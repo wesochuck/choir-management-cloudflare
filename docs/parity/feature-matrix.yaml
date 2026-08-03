@@ -1300,17 +1300,6 @@
           ],
       },
       {
-        "id": "api.checkout-rsvp",
-        "method": "POST",
-        "path": "/api/public/rsvp",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1511",
-        "targetEvidence":
-          ["apps/worker/src/organization/organizationRsvpLinks.ts", "apps/worker/src/router.ts"],
-      },
-      {
         "id": "api.checkout-donation",
         "method": "POST",
         "path": "/api/public/donations/checkout",
@@ -1941,6 +1930,7 @@
             "apps/worker/src/communications/provider.ts",
             "apps/worker/src/organization/communicationStore.ts",
             "apps/worker/test/communications.integration.test.ts",
+            "apps/worker/test/jobs.integration.test.ts",
             "apps/web/src/account/PlatformOperations.tsx",
           ],
       },
@@ -2305,6 +2295,7 @@
             "packages/domain/src/seasons.ts",
             "apps/worker/src/organization/seasonStore.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
             "apps/web/src/account/SeasonsManager.tsx",
           ],
       },

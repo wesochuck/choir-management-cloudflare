@@ -607,11 +607,10 @@ function createDuesCheckout(
         if (existing?.status === "refunded") {
           throw new Error("dues_refunded");
         }
-        if (
-          existing?.status === "pending" &&
-          existing.providerSessionId &&
-          !existing.providerSessionId.startsWith("pending_")
-        ) {
+        if (existing?.status === "pending" && existing.providerSessionId) {
+          // A dues row may belong to a multi-profile checkout. Repointing only
+          // its first payment_attempt resource would make late webhooks for the
+          // other profiles impossible to reconcile without a schema change.
           throw new Error("dues_checkout_in_progress");
         }
 

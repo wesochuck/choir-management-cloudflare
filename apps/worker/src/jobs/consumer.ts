@@ -162,34 +162,37 @@ export async function processDeliveryBatch(
   }
 }
 
-function createDeadLetterRecord(
-  batch: MessageBatch,
-  message: Message,
-  controlDatabase: D1Database,
-) {
+function createDeadLetterRecord(batch: MessageBatch, message: Message) {
   const parsed = deliveryJobSchema.safeParse(message.body);
-  const observedAt = new Date().toISOString();
-  const recordId = `${batch.queue}:${message.id}`;
   const job = parsed.success ? parsed.data : null;
   return {
     job,
     message,
-    statement: controlDatabase
-      .prepare(deadLetterInsertSql)
-      .bind(
-        recordId,
-        batch.queue,
-        message.id,
-        job ? 1 : 0,
-        message.attempts,
-        job?.organizationId ?? null,
-        job?.jobId ?? null,
-        job?.kind ?? null,
-        job?.idempotencyKey ?? null,
-        observedAt,
-        observedAt,
-      ),
+    queue: batch.queue,
   };
+}
+
+function createDeadLetterStatement(
+  record: ReturnType<typeof createDeadLetterRecord>,
+  controlDatabase: D1Database,
+): D1PreparedStatement {
+  const observedAt = new Date().toISOString();
+  const { job, message, queue } = record;
+  return controlDatabase
+    .prepare(deadLetterInsertSql)
+    .bind(
+      `${queue}:${message.id}`,
+      queue,
+      message.id,
+      job ? 1 : 0,
+      message.attempts,
+      job?.organizationId ?? null,
+      job?.jobId ?? null,
+      job?.kind ?? null,
+      job?.idempotencyKey ?? null,
+      observedAt,
+      observedAt,
+    );
 }
 
 async function recordTerminalEventReminder(
@@ -256,7 +259,7 @@ async function processDeadLetterRecord(
   batchQueue: string,
   env: DeadLetterConsumerEnv,
   record: ReturnType<typeof createDeadLetterRecord>,
-): Promise<boolean> {
+): Promise<D1PreparedStatement | null> {
   const { job, message } = record;
   if (job && message.attempts < 2) {
     message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
@@ -270,7 +273,7 @@ async function processDeadLetterRecord(
         queue: batchQueue,
       }),
     );
-    return false;
+    return null;
   }
   await recordTerminalEventReminder(env, job);
   await recordTerminalJob(env, job);
@@ -285,22 +288,21 @@ async function processDeadLetterRecord(
       queue: batchQueue,
     }),
   );
-  return true;
+  return createDeadLetterStatement(record, env.CONTROL_DB);
 }
 
 export async function processDeadLetterBatch(
   batch: MessageBatch,
   env: DeadLetterConsumerEnv,
 ): Promise<void> {
-  const records = batch.messages.map((message) =>
-    createDeadLetterRecord(batch, message, env.CONTROL_DB),
-  );
-  const terminalRecords: typeof records = [];
+  const records = batch.messages.map((message) => createDeadLetterRecord(batch, message));
+  const terminalStatements: D1PreparedStatement[] = [];
   for (const record of records) {
-    if (await processDeadLetterRecord(batch.queue, env, record)) terminalRecords.push(record);
+    const statement = await processDeadLetterRecord(batch.queue, env, record);
+    if (statement) terminalStatements.push(statement);
   }
-  if (terminalRecords.length > 0) {
-    await env.CONTROL_DB.batch(terminalRecords.map(({ statement }) => statement));
+  if (terminalStatements.length > 0) {
+    await env.CONTROL_DB.batch(terminalStatements);
   }
 }
 

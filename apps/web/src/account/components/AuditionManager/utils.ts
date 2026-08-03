@@ -3,7 +3,7 @@ import type {
   OrganizationAuditionCreateRequest,
   OrganizationAuditionSettings,
 } from "@choir/contracts";
-import { zonedLocalDateTimeToUtc } from "@choir/domain";
+import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
 
 export const STATUS_LABELS: Record<AuditionStatus, string> = {
   cancelled: "Cancelled",
@@ -61,8 +61,18 @@ export function formatDate(value: string | null | undefined): string {
 export function requestedScheduleValue(
   scheduleTime: string,
   requestedSlots: readonly string[] | undefined,
+  timezone: string,
 ): string {
-  return requestedSlots?.some((slot) => slot.slice(0, 16) === scheduleTime) ? scheduleTime : "";
+  return requestedSlots?.some((slot) => utcToZonedLocalDateTime(slot, timezone) === scheduleTime)
+    ? scheduleTime
+    : "";
+}
+
+export function localScheduleInputValue(
+  value: string | null | undefined,
+  timezone: string,
+): string {
+  return value ? (utcToZonedLocalDateTime(value, timezone) ?? "") : "";
 }
 
 export function normalizedDateInputValue(value: string): string | null {

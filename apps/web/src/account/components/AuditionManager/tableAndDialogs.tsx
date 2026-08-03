@@ -6,7 +6,12 @@ import type {
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 
-import { STATUS_LABELS, formatDate, requestedScheduleValue } from "./utils";
+import {
+  STATUS_LABELS,
+  formatDate,
+  localScheduleInputValue,
+  requestedScheduleValue,
+} from "./utils";
 
 import { EditAuditionForm, CreateAuditionForm } from "./shared";
 
@@ -164,6 +169,7 @@ export function AuditionDialogs({
   scheduleAudition,
   scheduleOpen,
   scheduleTime,
+  timezone,
 }: {
   readonly confirm: {
     readonly action: "convert" | "delete";
@@ -194,6 +200,7 @@ export function AuditionDialogs({
   readonly scheduleOpen: boolean;
   readonly scheduleTime: string;
   readonly customScheduleTime: string;
+  readonly timezone: string;
 }) {
   return (
     <>
@@ -240,14 +247,14 @@ export function AuditionDialogs({
                 <label className="field">
                   Requested time
                   <select
-                    value={requestedScheduleValue(scheduleTime, schedule.requestedSlots)}
+                    value={requestedScheduleValue(scheduleTime, schedule.requestedSlots, timezone)}
                     onChange={(event) => {
                       onScheduleTimeChange(event.target.value);
                     }}
                   >
                     <option value="">Choose a requested time…</option>
                     {schedule.requestedSlots.map((slot) => (
-                      <option key={slot} value={slot.slice(0, 16)}>
+                      <option key={slot} value={localScheduleInputValue(slot, timezone)}>
                         {formatDate(slot)}
                       </option>
                     ))}
@@ -262,7 +269,9 @@ export function AuditionDialogs({
                 <label className="field">
                   Custom confirmed time
                   <input
-                    required={!requestedScheduleValue(scheduleTime, schedule.requestedSlots)}
+                    required={
+                      !requestedScheduleValue(scheduleTime, schedule.requestedSlots, timezone)
+                    }
                     type="datetime-local"
                     value={customScheduleTime}
                     onChange={(event) => {

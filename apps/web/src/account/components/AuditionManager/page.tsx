@@ -26,7 +26,13 @@ import {
 import { QRCodeShareCard } from "../../QRCodeShareCard";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
-import { auditionFollowUpUrl, STATUS_OPTIONS, fallbackSettings } from "./utils";
+import {
+  auditionFollowUpUrl,
+  localScheduleInputValue,
+  slotUtcValue,
+  STATUS_OPTIONS,
+  fallbackSettings,
+} from "./utils";
 
 import { ManagerStatusPanel } from "./shared";
 
@@ -221,9 +227,18 @@ export function AuditionManager({ enabled }: Props) {
   async function scheduleAudition() {
     if (!schedule || !scheduleTime) return;
     setActionError(null);
+    const scheduledTimeSlot = slotUtcValue(
+      scheduleTime.slice(0, 10),
+      scheduleTime.slice(11, 16),
+      timezone,
+    );
+    if (!scheduledTimeSlot) {
+      setActionError("The audition time is not valid in the Organization timezone.");
+      return;
+    }
     try {
       const updated = await updateOrganizationAudition(schedule.id, {
-        scheduledTimeSlot: new Date(scheduleTime).toISOString(),
+        scheduledTimeSlot,
         status: "scheduled",
       });
       replaceAudition(updated);
@@ -422,7 +437,7 @@ export function AuditionManager({ enabled }: Props) {
               onSchedule={(audition) => {
                 setSchedule(audition);
                 const initialScheduleTime = audition.scheduledTimeSlot
-                  ? new Date(audition.scheduledTimeSlot).toISOString().slice(0, 16)
+                  ? localScheduleInputValue(audition.scheduledTimeSlot, timezone)
                   : "";
                 setScheduleTime(initialScheduleTime);
                 setCustomScheduleTime(initialScheduleTime);
@@ -521,6 +536,7 @@ export function AuditionManager({ enabled }: Props) {
         scheduleOpen={schedule !== null}
         scheduleTime={scheduleTime}
         customScheduleTime={customScheduleTime}
+        timezone={timezone}
       />
     </section>
   );
