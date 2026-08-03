@@ -410,11 +410,13 @@ export async function listMemberSchedule(
   organizationId: string,
   profileId: string,
   now = new Date(),
+  includePast = false,
 ): Promise<readonly SingerEvent[]> {
   const url = new URL("https://organization.internal/internal/calendar/member-events");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("profileId", profileId);
   url.searchParams.set("readAt", now.toISOString());
+  if (includePast) url.searchParams.set("includePast", "true");
   const response = await stub(env, organizationId).fetch(url);
   if (!response.ok) throw new Error("The Organization store rejected the member schedule request.");
   return singerEventsResponseSchema.pick({ events: true }).parse(await response.json()).events;

@@ -40,7 +40,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     try {
       const [events, settings] = await Promise.all([
-        listMemberSchedule(context.env, authorization.organizationId, profileId),
+        listMemberSchedule(
+          context.env,
+          authorization.organizationId,
+          profileId,
+          new Date(),
+          context.req.query("includePast") === "true",
+        ),
         readOrganizationCalendarSettings(context.env, authorization.organizationId),
       ]);
       return context.json({

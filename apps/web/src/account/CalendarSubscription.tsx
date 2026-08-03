@@ -12,6 +12,7 @@ type CalendarState =
 export function CalendarSubscription({ enabled }: { readonly enabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [state, setState] = useState<CalendarState>({ status: "loading" });
 
   useEffect(() => {
@@ -48,6 +49,19 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
     }
   }
 
+  async function copyCalendarAddress(): Promise<void> {
+    if (state.status !== "ready") return;
+    try {
+      await navigator.clipboard.writeText(state.urls.httpsUrl);
+      setCopyState("copied");
+      window.setTimeout(() => {
+        setCopyState("idle");
+      }, 2_000);
+    } catch {
+      setCopyState("error");
+    }
+  }
+
   return (
     <section className="account-section" aria-labelledby="calendar-subscription-title">
       <div className="section-heading section-heading--compact">
@@ -79,7 +93,28 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
               Subscribe in calendar app
             </a>
             <label htmlFor="calendar-feed-url">HTTPS calendar address</label>
-            <input id="calendar-feed-url" readOnly type="url" value={state.urls.httpsUrl} />
+            <div className="calendar-feed-url-row">
+              <input id="calendar-feed-url" readOnly type="url" value={state.urls.httpsUrl} />
+              <button
+                className="button button--secondary"
+                onClick={() => {
+                  void copyCalendarAddress();
+                }}
+                type="button"
+              >
+                {copyState === "copied" ? "Copied" : "Copy address"}
+              </button>
+            </div>
+            <p className="field-help">
+              In Google Calendar, choose <strong>Other calendars</strong> →{" "}
+              <strong>From URL</strong> and paste this address. Use the Subscribe button for
+              calendar apps that support webcal.
+            </p>
+            {copyState === "error" ? (
+              <p className="notice notice--warning" role="status">
+                Copy was blocked by the browser. Select the address and copy it manually.
+              </p>
+            ) : null}
           </div>
           {!confirmReset ? (
             <button

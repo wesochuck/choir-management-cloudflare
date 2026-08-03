@@ -22,12 +22,6 @@ export const AuditionManager = lazy(() =>
   })),
 );
 
-export const CalendarSubscription = lazy(() =>
-  import("../../CalendarSubscription").then(({ CalendarSubscription: component }) => ({
-    default: component,
-  })),
-);
-
 export const DashboardView = lazy(() =>
   import("../../DashboardView").then(({ DashboardView: component }) => ({ default: component })),
 );

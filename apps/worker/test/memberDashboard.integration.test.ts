@@ -1,4 +1,4 @@
-import { memberDashboardResponseSchema } from "@choir/contracts";
+import { memberDashboardResponseSchema, singerEventsResponseSchema } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -321,6 +321,37 @@ describe("member dashboard", () => {
       { pieceId: PIECE_ID, title: "Opening Song" },
     ]);
     expect(rehearsal?.practice.sourceEventId).toBe(PERFORMANCE_ID);
+  });
+
+  it("keeps today's events available through the Organization-local calendar day", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec("UPDATE organization_metadata SET timezone = 'America/New_York'");
+        state.storage.sql.exec(
+          "UPDATE events SET starts_at = ? WHERE id = ?",
+          "2026-08-04T03:30:00.000Z",
+          PERFORMANCE_ID,
+        );
+        return null;
+      },
+    );
+
+    async function readMemberEventsAt(readAt: string) {
+      const response = await stores
+        .get(stores.idFromName("organization-alpha"))
+        .fetch(
+          `https://organization.internal/internal/calendar/member-events?organizationId=organization-alpha&profileId=${PROFILE_ID}&readAt=${encodeURIComponent(readAt)}`,
+        );
+      expect(response.status).toBe(200);
+      return singerEventsResponseSchema.pick({ events: true }).parse(await response.json()).events;
+    }
+
+    const beforeLocalMidnight = await readMemberEventsAt("2026-08-04T03:59:59.000Z");
+    expect(beforeLocalMidnight.some((event) => event.id === PERFORMANCE_ID)).toBe(true);
+
+    const afterLocalMidnight = await readMemberEventsAt("2026-08-04T04:00:00.000Z");
+    expect(afterLocalMidnight.some((event) => event.id === PERFORMANCE_ID)).toBe(false);
   });
 
   it("keeps an unlinked member dashboard available without leaking personalized data", async () => {

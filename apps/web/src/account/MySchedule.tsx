@@ -3,6 +3,7 @@ import { normalizeSetListDuration } from "@choir/domain";
 import { useEffect, useState } from "react";
 
 import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
+import { CalendarSubscription } from "./CalendarSubscription";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type ScheduleState =
@@ -52,11 +53,12 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [state, setState] = useState<ScheduleState>({ status: "loading" });
+  const [showPastEvents, setShowPastEvents] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    getMySchedule(controller.signal)
+    getMySchedule(controller.signal, showPastEvents)
       .then((schedule) => {
         setState({ ...schedule, status: "ready" });
       })
@@ -69,7 +71,12 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, showPastEvents]);
+
+  function togglePastEvents(includePast: boolean): void {
+    setShowPastEvents(includePast);
+    setState({ status: "loading" });
+  }
 
   async function changeRsvp(eventId: string, rsvp: "No" | "Pending" | "Yes", rsvpNote: string) {
     setBusyEventId(eventId);
@@ -113,6 +120,20 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
         <p className="eyebrow">Your events</p>
         <h2 id="my-schedule-title">My schedule</h2>
       </div>
+      <div className="my-schedule__controls">
+        <label className="checkbox-row" htmlFor="my-schedule-show-past">
+          <input
+            checked={showPastEvents}
+            disabled={!enabled}
+            id="my-schedule-show-past"
+            onChange={(event) => {
+              togglePastEvents(event.target.checked);
+            }}
+            type="checkbox"
+          />
+          Show past events
+        </label>
+      </div>
       {!enabled ? (
         <p className="notice notice--warning">Verify Organization MFA to view your schedule.</p>
       ) : null}
@@ -139,7 +160,9 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
       ) : null}
       {enabled && state.status === "ready" ? (
         state.events.length === 0 ? (
-          <p className="empty-state">No upcoming or recent events are available.</p>
+          <p className="empty-state">
+            {showPastEvents ? "No upcoming or recent events are available." : "No upcoming events."}
+          </p>
         ) : (
           <ul className="account-list schedule-list">
             {state.events.map((event) => {
@@ -266,6 +289,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
           </ul>
         )
       ) : null}
+      <CalendarSubscription enabled={enabled} />
     </section>
   );
 }

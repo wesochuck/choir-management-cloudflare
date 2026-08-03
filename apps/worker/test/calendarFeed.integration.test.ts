@@ -291,6 +291,8 @@ describe("calendar feed credentials", () => {
     const feedResponse = await exports.default.fetch(new Request(credential.httpsUrl));
     expect(feedResponse.status).toBe(200);
     const feed = await feedResponse.text();
+    expect(feed).toContain("NAME:Organization Alpha");
+    expect(feed).toContain("X-WR-TIMEZONE:America/New_York");
     expect(feed).toContain("SUMMARY:Summer\\, Concert");
     expect(feed).toContain("SUMMARY:Call Time: Summer\\, Concert");
     expect(feed).toContain("LOCATION:Main Sanctuary\\, 123 Main St");
@@ -298,12 +300,28 @@ describe("calendar feed credentials", () => {
     expect(feed).toContain("Your Status: Attending");
     expect(feed).toContain("Set List:\\n1. Finale (Composer)\\n   Solo — Soloist");
     expect(feed).not.toContain("Declined Event");
+    const localCallTime = new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
+      minute: "2-digit",
+      month: "2-digit",
+      second: "2-digit",
+      timeZone: "America/New_York",
+      year: "numeric",
+    })
+      .formatToParts(new Date(eventStart.getTime() - 60 * 60 * 1_000))
+      .reduce<Record<string, string>>((values, part) => {
+        values[part.type] = part.value;
+        return values;
+      }, {});
+    const readLocalPart = (type: string): string => {
+      const value = localCallTime[type];
+      if (!value) throw new Error(`Missing ${type} in local calendar timestamp.`);
+      return value;
+    };
     expect(feed).toContain(
-      `DTSTART:${new Date(eventStart.getTime() - 60 * 60 * 1_000)
-        .toISOString()
-        .replaceAll("-", "")
-        .replaceAll(":", "")
-        .replace(/\.\d{3}Z$/, "Z")}`,
+      `DTSTART;TZID=America/New_York:${readLocalPart("year")}${readLocalPart("month")}${readLocalPart("day")}T${readLocalPart("hour") === "24" ? "00" : readLocalPart("hour")}${readLocalPart("minute")}${readLocalPart("second")}`,
     );
   });
 });

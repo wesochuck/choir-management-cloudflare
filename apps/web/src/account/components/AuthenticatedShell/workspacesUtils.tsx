@@ -6,7 +6,6 @@ import {
   AccountView,
   AttendanceManager,
   AuditionManager,
-  CalendarSubscription,
   CommunicationCenter,
   DashboardView,
   DonationsManager,
@@ -181,13 +180,14 @@ export function renderMemberPage(
   navigate: (href: string) => void,
 ): ReactNode {
   const pages: Record<string, ReactNode> = {
-    "/calendar": <CalendarSubscription enabled={enabled} />,
     "/directory": <MemberProfileDirectory enabled={enabled} view="directory" />,
     "/member/resources": <OrganizationResources enabled={enabled} manager={false} />,
     "/practice": <LearningTrackPlayer enabled={enabled} />,
     "/profile": <MemberProfileDirectory enabled={enabled} view="profile" />,
     "/dues": <MemberDuesPage enabled={enabled} />,
     "/schedule": <MySchedule enabled={enabled} />,
+    // Keep the former deep link working while the subscription controls live on My schedule.
+    "/calendar": <MySchedule enabled={enabled} />,
   };
   if (pathname === "/dashboard") return <DashboardView enabled={enabled} navigate={navigate} />;
   if (pathname.startsWith("/seating/")) return <SeatingFinder enabled={enabled} />;

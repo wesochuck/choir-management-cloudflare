@@ -51,6 +51,26 @@ function formatUtc(date: Date): string {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
+function formatZoned(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    month: "2-digit",
+    second: "2-digit",
+    timeZone: timezone,
+    year: "numeric",
+  }).formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes): number => {
+    const value = Number(parts.find((part) => part.type === type)?.value);
+    if (!Number.isInteger(value)) throw new Error(`Missing ${type} for timezone ${timezone}.`);
+    return value;
+  };
+  const hour = read("hour");
+  return `${String(read("year")).padStart(4, "0")}${String(read("month")).padStart(2, "0")}${String(read("day")).padStart(2, "0")}T${String(hour === 24 ? 0 : hour).padStart(2, "0")}${String(read("minute")).padStart(2, "0")}${String(read("second")).padStart(2, "0")}`;
+}
+
 function performerCredit(item: z.infer<typeof setListItemSchema>): string {
   const featured = item.isFeaturedNumber ?? item.soloSmallGroup === true;
   if (!featured || item.type === "intermission") return "";
@@ -99,8 +119,10 @@ export function renderCalendarIcs(input: CalendarProjection): string {
     "VERSION:2.0",
     "PRODID:-//Choir Management Tool//EN",
     "CALSCALE:GREGORIAN",
+    `NAME:${escapeIcsText(input.organizationName)}`,
     `X-WR-CALNAME:${escapeIcsText(input.organizationName)}`,
     `X-WR-CALDESC:${escapeIcsText(`Personal schedule for ${input.profileName}`)}`,
+    `X-WR-TIMEZONE:${input.timezone}`,
   ];
   for (const event of input.events) {
     const start = new Date(event.startsAt);
@@ -122,8 +144,8 @@ export function renderCalendarIcs(input: CalendarProjection): string {
           "BEGIN:VEVENT",
           `UID:call-${uid}`,
           `DTSTAMP:${formatUtc(input.generatedAt)}`,
-          `DTSTART:${formatUtc(callStart)}`,
-          `DTEND:${formatUtc(start)}`,
+          `DTSTART;TZID=${input.timezone}:${formatZoned(callStart, input.timezone)}`,
+          `DTEND;TZID=${input.timezone}:${formatZoned(start, input.timezone)}`,
           `SUMMARY:Call Time: ${escapeIcsText(event.title)}`,
           `LOCATION:${escapeIcsText(location)}`,
           `DESCRIPTION:Arrival and warm-up for ${escapeIcsText(event.title)}.`,
@@ -135,8 +157,8 @@ export function renderCalendarIcs(input: CalendarProjection): string {
       "BEGIN:VEVENT",
       `UID:${uid}`,
       `DTSTAMP:${formatUtc(input.generatedAt)}`,
-      `DTSTART:${formatUtc(start)}`,
-      `DTEND:${formatUtc(end)}`,
+      `DTSTART;TZID=${input.timezone}:${formatZoned(start, input.timezone)}`,
+      `DTEND;TZID=${input.timezone}:${formatZoned(end, input.timezone)}`,
       `SUMMARY:${escapeIcsText(event.title)}`,
       `LOCATION:${escapeIcsText(location)}`,
       `DESCRIPTION:${escapeIcsText(eventDescription(event))}`,

@@ -34,8 +34,12 @@ export async function getMyEventSeating(
   return singerSeatingResponseSchema.parse(await response.json());
 }
 
-export async function getMySchedule(signal?: AbortSignal): Promise<SingerEventsResponse> {
-  const response = await request("/api/singer/events", { signal: signal ?? null });
+export async function getMySchedule(
+  signal?: AbortSignal,
+  includePast = false,
+): Promise<SingerEventsResponse> {
+  const query = includePast ? "?includePast=true" : "";
+  const response = await request(`/api/singer/events${query}`, { signal: signal ?? null });
   return singerEventsResponseSchema.parse(await response.json());
 }
 

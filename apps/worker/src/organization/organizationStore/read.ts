@@ -394,6 +394,7 @@ export function dispatchCalendarGetRequest(
       return readOrganizationCalendarSettingsFromStore(storage, organizationId);
     case "/internal/calendar/member-events":
       return listMemberEventsFromStore(storage, {
+        includePast: url.searchParams.get("includePast") === "true",
         organizationId,
         profileId: url.searchParams.get("profileId"),
         readAt: url.searchParams.get("readAt"),

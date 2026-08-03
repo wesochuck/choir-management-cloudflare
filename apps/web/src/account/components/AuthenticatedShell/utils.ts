@@ -59,7 +59,6 @@ export const memberGroups: readonly NavigationGroup[] = [
     items: [
       { href: "/practice", label: "Practice", module: "programs" },
       { href: "/member/resources", label: "Resources", module: "programs" },
-      { href: "/calendar", label: "Calendar subscription", module: "events" },
     ],
   },
 ];
@@ -193,7 +192,7 @@ export function pageTitle(pathname: string): string {
     ["/schedule", "My schedule"],
     ["/practice", "Practice"],
     ["/member/resources", "Resources"],
-    ["/calendar", "Calendar subscription"],
+    ["/calendar", "My schedule"],
     ["/account/security", "Sign-in & security"],
     ["/account/organizations", "Organizations"],
     ["/account/sessions", "Active sessions"],

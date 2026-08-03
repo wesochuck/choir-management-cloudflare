@@ -5816,6 +5816,41 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.my-schedule__controls {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.25rem 0 1rem;
+}
+
+.my-schedule__controls .checkbox-row {
+  margin: 0;
+}
+
+.calendar-feed-url-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.calendar-feed-url-row .button {
+  white-space: nowrap;
+}
+
+@media (max-width: 38rem) {
+  .my-schedule__controls {
+    justify-content: flex-start;
+  }
+
+  .calendar-feed-url-row {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-feed-url-row .button {
+    width: 100%;
+  }
+}
+
 .member-dues-page {
   grid-column: 1 / -1;
 }

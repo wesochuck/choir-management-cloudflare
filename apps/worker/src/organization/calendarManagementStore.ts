@@ -10,7 +10,12 @@ import {
   organizationVenueRequestSchema,
   type OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { defaultRosterConfiguration, isValidTimeZone } from "@choir/domain";
+import {
+  datePartInTimeZone,
+  defaultRosterConfiguration,
+  isValidTimeZone,
+  zonedLocalDateTimeToUtc,
+} from "@choir/domain";
 import { z } from "zod";
 
 import {
@@ -983,6 +988,7 @@ function mapMemberEvent(
 export function listMemberEventsFromStore(
   storage: DurableObjectStorage,
   input: {
+    readonly includePast?: boolean;
     readonly organizationId: string | null;
     readonly profileId: string | null;
     readonly readAt: string | null;
@@ -1003,7 +1009,14 @@ export function listMemberEventsFromStore(
       "SELECT timezone FROM organization_metadata LIMIT 1",
     )
     .one().timezone;
-  const earliest = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString();
+  // The member dashboard is organized by the Organization's calendar day, not by the
+  // event's exact start time. Keep today's events available through 11:59 PM locally so a
+  // performance that has already started does not appear as a stale past event in the
+  // "Upcoming events" section until the day is over.
+  const today = datePartInTimeZone(now, timezone);
+  const earliest = input.includePast
+    ? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString()
+    : (zonedLocalDateTimeToUtc(`${today}T00:00`, timezone) ?? now.toISOString());
   const latest = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1_000).toISOString();
   const events = storage.sql
     .exec<MemberEventRow>(
