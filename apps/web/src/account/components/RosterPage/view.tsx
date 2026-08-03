@@ -7,7 +7,7 @@ import { CsvImportDialog } from "../../CsvImportDialog";
 import { ProfilePhotoEditor } from "../../MemberProfileDirectory";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RosterPageModel } from "./hooks";
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
@@ -21,6 +21,8 @@ export function RosterPageView({
   const [activeTab, setActiveTab] = useState<"roster" | "settings">(initialSection);
   const {
     busy,
+    bulkBusy,
+    bulkUpdateProfiles,
     clearRosterFilters,
     closeDialog,
     closeImportDialog,
@@ -56,6 +58,7 @@ export function RosterPageView({
     rosterImportInspection,
     rosterImportMappings,
     saveProfile,
+    selectedProfileIds,
     selectedVoiceFilters,
     sendPasswordReset,
     setError,
@@ -74,8 +77,23 @@ export function RosterPageView({
     setSuccess,
     statusFilter,
     success,
+    toggleProfileSelection,
+    toggleVisibleProfileSelection,
     toggleVoiceFilter,
   } = model;
+  const selectAllVisibleRef = useRef<HTMLInputElement>(null);
+  const visibleProfileIds = filteredProfiles.map((candidate) => candidate.id);
+  const selectedVisibleCount = visibleProfileIds.filter((profileId) =>
+    selectedProfileIds.includes(profileId),
+  ).length;
+  const allVisibleSelected =
+    visibleProfileIds.length > 0 && selectedVisibleCount === visibleProfileIds.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  useEffect(() => {
+    if (selectAllVisibleRef.current) {
+      selectAllVisibleRef.current.indeterminate = someVisibleSelected;
+    }
+  }, [someVisibleSelected]);
   if (!enabled) {
     return <p className="notice notice--warning">Verify Organization MFA to manage the roster.</p>;
   }
@@ -215,8 +233,98 @@ export function RosterPageView({
               <h2>Profiles</h2>
               <span>{filteredProfiles.length} shown</span>
             </div>
+            {selectedVisibleCount > 0 ? (
+              <div className="roster-bulk-actions" aria-label="Bulk profile actions" role="region">
+                <div>
+                  <strong>{selectedVisibleCount} selected</strong>
+                  <p>
+                    Status actions take manual control. Directory actions only change visibility.
+                  </p>
+                </div>
+                <div className="roster-bulk-actions__buttons">
+                  <button
+                    className="button button--secondary"
+                    disabled={bulkBusy}
+                    onClick={() => {
+                      void bulkUpdateProfiles({ kind: "status", value: "Active" });
+                    }}
+                    type="button"
+                  >
+                    {bulkBusy ? "Updating…" : "Set active"}
+                  </button>
+                  <button
+                    className="button button--secondary"
+                    disabled={bulkBusy}
+                    onClick={() => {
+                      void bulkUpdateProfiles({ kind: "status", value: "Idle" });
+                    }}
+                    type="button"
+                  >
+                    Set On Break
+                  </button>
+                  <button
+                    className="button button--secondary"
+                    disabled={bulkBusy}
+                    onClick={() => {
+                      void bulkUpdateProfiles({ kind: "status", value: "Inactive" });
+                    }}
+                    type="button"
+                  >
+                    Set inactive
+                  </button>
+                  <button
+                    className="button button--secondary"
+                    disabled={bulkBusy}
+                    onClick={() => {
+                      void bulkUpdateProfiles({ kind: "directory", value: true });
+                    }}
+                    type="button"
+                  >
+                    Show in directory
+                  </button>
+                  <button
+                    className="button button--secondary"
+                    disabled={bulkBusy}
+                    onClick={() => {
+                      void bulkUpdateProfiles({ kind: "directory", value: false });
+                    }}
+                    type="button"
+                  >
+                    Hide from directory
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <DataTable
               columns={[
+                {
+                  header: "Select",
+                  headerContent: (
+                    <input
+                      aria-label="Select all visible Profiles"
+                      checked={allVisibleSelected}
+                      disabled={visibleProfileIds.length === 0 || bulkBusy}
+                      onChange={(event) => {
+                        toggleVisibleProfileSelection(visibleProfileIds, event.target.checked);
+                      }}
+                      ref={selectAllVisibleRef}
+                      type="checkbox"
+                    />
+                  ),
+                  id: "selection",
+                  mobileLabel: "Select",
+                  render: (candidate) => (
+                    <input
+                      aria-label={`Select ${candidate.displayName}`}
+                      checked={selectedProfileIds.includes(candidate.id)}
+                      disabled={bulkBusy}
+                      onChange={(event) => {
+                        toggleProfileSelection(candidate.id, event.target.checked);
+                      }}
+                      type="checkbox"
+                    />
+                  ),
+                },
                 {
                   header: "Name",
                   id: "name",

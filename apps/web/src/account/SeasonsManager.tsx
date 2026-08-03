@@ -354,6 +354,11 @@ export function SeasonsManager({
             </button>
           ) : null}
         </div>
+        <p className="seasons-manager-description">
+          {tab === "settings"
+            ? "Create seasons, set dues amounts, and choose which season is active."
+            : "Review dues payment status for members and filter records by season."}
+        </p>
         {tab === "settings" ? (
           <div aria-labelledby="season-settings-tab" id="season-settings-panel" role="tabpanel">
             <SeasonsTab

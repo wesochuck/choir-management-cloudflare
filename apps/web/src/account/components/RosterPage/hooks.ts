@@ -36,6 +36,10 @@ import {
 } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
+export type RosterBulkAction =
+  | { readonly kind: "directory"; readonly value: boolean }
+  | { readonly kind: "status"; readonly value: OrganizationProfile["globalStatus"] };
+
 export function useRosterPageController({
   enabled,
   initialProfileId,
@@ -79,7 +83,9 @@ export function useRosterPageController({
   const [query, setQuery] = useState("");
   const [roster, setRoster] = useState<RosterState>({ status: "loading" });
   const [selectedVoiceFilters, setSelectedVoiceFilters] = useState<readonly string[]>([]);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<readonly string[]>([]);
   const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const openedProfileFromRoute = useRef<string | null>(null);
 
@@ -244,6 +250,74 @@ export function useRosterPageController({
     setQuery("");
     setSelectedVoiceFilters([]);
     setStatusFilter("all");
+  }
+
+  function toggleProfileSelection(profileId: string, selected: boolean): void {
+    setSelectedProfileIds((current) => {
+      if (selected) return current.includes(profileId) ? current : [...current, profileId];
+      return current.filter((candidate) => candidate !== profileId);
+    });
+  }
+
+  function toggleVisibleProfileSelection(profileIds: readonly string[], selected: boolean): void {
+    setSelectedProfileIds((current) => {
+      const next = new Set(current);
+      for (const profileId of profileIds) {
+        if (selected) next.add(profileId);
+        else next.delete(profileId);
+      }
+      return [...next];
+    });
+  }
+
+  async function bulkUpdateProfiles(action: RosterBulkAction): Promise<void> {
+    if (bulkBusy || roster.status !== "ready") return;
+    const selected = filteredProfiles.filter((candidate) =>
+      selectedProfileIds.includes(candidate.id),
+    );
+    if (selected.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    setSuccess(null);
+    const results = await Promise.allSettled(
+      selected.map((candidate) => {
+        const nextProfile: OrganizationProfileRequest = {
+          ...profileRequestFrom(candidate),
+          ...(action.kind === "status"
+            ? { globalStatus: action.value, statusIsManual: true }
+            : { showInDirectory: action.value }),
+        };
+        return updateOrganizationProfile(candidate.id, nextProfile);
+      }),
+    );
+    const updated = results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : [],
+    );
+    const failed = results.length - updated.length;
+    if (updated.length > 0) {
+      const updatedById = new Map(updated.map((candidate) => [candidate.id, candidate]));
+      setRoster((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              profiles: current.profiles.map(
+                (candidate) => updatedById.get(candidate.id) ?? candidate,
+              ),
+            }
+          : current,
+      );
+    }
+    setSelectedProfileIds((current) =>
+      current.filter((profileId) => !selected.some((candidate) => candidate.id === profileId)),
+    );
+    if (failed > 0) {
+      setError(
+        `${String(failed)} Profile${failed === 1 ? "" : "s"} could not be updated. ${String(updated.length)} updated successfully.`,
+      );
+    } else {
+      setSuccess(`${String(updated.length)} Profile${updated.length === 1 ? "" : "s"} updated.`);
+    }
+    setBulkBusy(false);
   }
 
   function closeDialog() {
@@ -470,6 +544,8 @@ export function useRosterPageController({
       : null;
   return {
     busy,
+    bulkBusy,
+    bulkUpdateProfiles,
     clearRosterFilters,
     closeDialog,
     closeImportDialog,
@@ -505,6 +581,7 @@ export function useRosterPageController({
     rosterImportInspection,
     rosterImportMappings,
     saveProfile,
+    selectedProfileIds,
     selectedVoiceFilters,
     sendPasswordReset,
     setError,
@@ -523,6 +600,8 @@ export function useRosterPageController({
     setSuccess,
     statusFilter,
     success,
+    toggleProfileSelection,
+    toggleVisibleProfileSelection,
     toggleVoiceFilter,
   };
 }

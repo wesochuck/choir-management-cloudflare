@@ -4100,6 +4100,11 @@ h2 {
   border-bottom: 0;
 }
 
+.seasons-manager-description {
+  margin: -0.35rem 0 1rem;
+  color: var(--color-text-muted);
+}
+
 .roster-page-tabs {
   margin-bottom: 1.25rem;
 }
@@ -8020,6 +8025,37 @@ footer {
   flex: 0 1 12rem;
 }
 
+.roster-bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: -0.25rem 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-info-surface);
+}
+
+.roster-bulk-actions p {
+  margin: 0.2rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.roster-bulk-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.roster-bulk-actions__buttons .button {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+}
+
 .rsvp-manager {
   display: grid;
   gap: 1.25rem;
@@ -8373,6 +8409,15 @@ footer {
 }
 
 @media (max-width: 640px) {
+  .roster-bulk-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .roster-bulk-actions__buttons {
+    justify-content: flex-start;
+  }
+
   .roster-balance__header {
     flex-direction: column;
   }
@@ -8685,6 +8730,10 @@ footer {
 .ticketing-tabs button.is-active {
   border-bottom-color: var(--color-accent);
   color: var(--color-text);
+}
+
+.ticketing-tabs.seasons-manager-tabs {
+  border-bottom: 0;
 }
 
 .event-manager-description {
