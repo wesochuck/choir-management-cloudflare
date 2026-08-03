@@ -105,8 +105,24 @@ jobs:
             --message "CI release $RELEASE_SHA"
           node --input-type=module -e '
             import { readFileSync } from "node:fs";
-            const result = JSON.parse(readFileSync(process.env.RESULT_FILE, "utf8"));
-            if (!result.version_id) throw new Error("Wrangler did not report a Worker version ID.");
+            const records = readFileSync(process.env.RESULT_FILE, "utf8")
+              .split(/\r?\n/u)
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .flatMap((line) => {
+                try {
+                  return [JSON.parse(line)];
+                } catch {
+                  return [];
+                }
+              });
+            const result = records.find(
+              (record) =>
+                record &&
+                typeof record === "object" &&
+                typeof record.version_id === "string",
+            );
+            if (!result) throw new Error("Wrangler did not report a Worker version ID.");
             process.stdout.write(`version_id=${result.version_id}\n`);
           ' >> "$GITHUB_OUTPUT"
         env:
