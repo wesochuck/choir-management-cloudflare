@@ -354,7 +354,7 @@ function AuditionForm({
         </fieldset>
       )}
       <button
-        className={`button audition-form__submit ${busy || !name || !email ? "button--disabled" : ""}`}
+        className={`button button--primary audition-form__submit ${busy || !name || !email ? "button--disabled" : ""}`}
         disabled={busy || !name || !email}
         onClick={() => {
           onSubmit({
@@ -467,7 +467,7 @@ function AuditionDetailView({
         />
       </div>
       <button
-        className={`button w-full ${submitting ? "button--disabled" : ""}`}
+        className={`button button--primary w-full ${submitting ? "button--disabled" : ""}`}
         disabled={submitting}
         onClick={handleUpdate}
         type="button"

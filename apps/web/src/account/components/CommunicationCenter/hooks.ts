@@ -319,6 +319,10 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
         return "Event reminder";
       case "rsvp_follow_up":
         return "RSVP follow-up";
+      case "audition_confirmation":
+        return "Audition confirmation";
+      case "audition_reminder":
+        return "Audition reminder";
       case "ticket_confirmation":
         return "Ticket confirmation";
       case "ticket_reminder":

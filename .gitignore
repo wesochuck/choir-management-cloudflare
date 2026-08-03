@@ -1,6 +1,7 @@
 # Dependencies and builds
 node_modules/
 .npm-cache/
+.cache/
 dist/
 coverage/
 playwright-report/
@@ -26,6 +27,7 @@ work/
 
 # Build artifacts
 *.tsbuildinfo
+release-manifest.json
 
 # OpenCode goal-plugin state (workflow checkpoints, lifecycle ledger)
 .opencode/goals/

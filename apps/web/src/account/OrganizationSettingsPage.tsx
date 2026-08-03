@@ -134,7 +134,7 @@ function OrganizationPaymentSettingsPanel() {
       id="payments-settings"
       aria-labelledby="payments-settings-title"
     >
-      <div className="section-heading section-heading--compact">
+      <div className="section-heading section-heading--compact organization-payment-settings__heading">
         <p className="eyebrow">Payments</p>
         <h2 id="payments-settings-title">Online payment settings</h2>
         <p className="section-description">
@@ -457,61 +457,6 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   return (
     <div className="settings-stack">
       <OrganizationPaymentSettingsPanel />
-      <section className="surface-card" aria-labelledby="calendar-settings-title">
-        <div className="section-heading section-heading--compact">
-          <p className="eyebrow">Events</p>
-          <h2 id="calendar-settings-title">Calendar settings</h2>
-        </div>
-        {loading ? <p role="status">Loading calendar settings…</p> : null}
-        {error ? (
-          <div className="notice notice--error" role="alert">
-            <p>{error}</p>
-            {!settingsLoaded ? (
-              <button
-                className="button button--secondary button--sm"
-                onClick={() => {
-                  setError(null);
-                  setLoading(true);
-                  setSettingsLoaded(false);
-                  setSettingsLoadAttempt((current) => current + 1);
-                }}
-                type="button"
-              >
-                Retry
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {success ? (
-          <p className="notice notice--success" role="status">
-            {success}
-          </p>
-        ) : null}
-        {settingsLoaded ? (
-          <div className="form-stack settings-form">
-            <div className="field">
-              <label htmlFor="settings-timezone">IANA timezone</label>
-              <select
-                id="settings-timezone"
-                onChange={(event) => {
-                  setTimezone(event.target.value);
-                }}
-                required
-                value={timezone}
-              >
-                {!timeZoneOptions.includes(timezone) ? (
-                  <option value={timezone}>{timezone}</option>
-                ) : null}
-                {timeZoneOptions.map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        ) : null}
-      </section>
       <section className="surface-card" aria-labelledby="transaction-fee-settings-title">
         <div className="section-heading section-heading--compact">
           <p className="eyebrow">Payments</p>
@@ -589,6 +534,61 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
               {money(examplePayerTotalCents)} paid by the donor when pass-through is enabled;
               otherwise the Organization covers the fee.
             </p>
+          </div>
+        ) : null}
+      </section>
+      <section className="surface-card" aria-labelledby="calendar-settings-title">
+        <div className="section-heading section-heading--compact">
+          <p className="eyebrow">Events</p>
+          <h2 id="calendar-settings-title">Calendar settings</h2>
+        </div>
+        {loading ? <p role="status">Loading calendar settings…</p> : null}
+        {error ? (
+          <div className="notice notice--error" role="alert">
+            <p>{error}</p>
+            {!settingsLoaded ? (
+              <button
+                className="button button--secondary button--sm"
+                onClick={() => {
+                  setError(null);
+                  setLoading(true);
+                  setSettingsLoaded(false);
+                  setSettingsLoadAttempt((current) => current + 1);
+                }}
+                type="button"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {success ? (
+          <p className="notice notice--success" role="status">
+            {success}
+          </p>
+        ) : null}
+        {settingsLoaded ? (
+          <div className="form-stack settings-form">
+            <div className="field">
+              <label htmlFor="settings-timezone">IANA timezone</label>
+              <select
+                id="settings-timezone"
+                onChange={(event) => {
+                  setTimezone(event.target.value);
+                }}
+                required
+                value={timezone}
+              >
+                {!timeZoneOptions.includes(timezone) ? (
+                  <option value={timezone}>{timezone}</option>
+                ) : null}
+                {timeZoneOptions.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         ) : null}
       </section>

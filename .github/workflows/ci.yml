@@ -13,15 +13,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  static:
+    name: Security, formatting, and lint
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -29,14 +30,43 @@ jobs:
       - name: Install reproducible dependencies
         run: npm ci
 
+      - name: Audit high-severity dependencies
+        run: npm audit --audit-level=high
+
+      - name: Restore ESLint cache
+        uses: actions/cache@v6
+        with:
+          path: .cache/eslint
+          key: eslint-${{ runner.os }}-${{ hashFiles('package-lock.json', 'eslint.config.js') }}
+
       - name: Check formatting
         run: npm run format:check
 
       - name: Lint
         run: npm run lint
 
+  contracts:
+    name: Types, contracts, and parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install reproducible dependencies
+        run: npm ci
+
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Check exported contracts
+        run: npm run check:contracts:exports
 
       - name: Validate parity ledger
         run: npm run check:parity
@@ -44,14 +74,111 @@ jobs:
       - name: Audit parity implementation
         run: npm run check:parity:implementation
 
-      - name: Unit tests
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install reproducible dependencies
+        run: npm ci
+
+      - name: Run unit tests
         run: npm test
 
-      - name: Build deployable artifact
+  build-release:
+    name: Build immutable release artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install reproducible dependencies
+        run: npm ci
+
+      - name: Build deployable artifact once
         run: npm run build
 
-      - name: Workerd integration tests against the built artifact
-        run: npm run test:integration:prepared
+      - name: Record release identity and file hashes
+        run: npm run release:artifact:create -- --sha "$GITHUB_SHA"
 
-      - name: Audit high-severity dependencies
-        run: npm audit --audit-level=high
+      - name: Upload immutable release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            release-manifest.json
+            apps/worker/dist
+            apps/web/dist
+
+  integration:
+    name: Workerd integration (${{ matrix.shard }}/2)
+    needs: build-release
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install reproducible dependencies
+        run: npm ci
+
+      - name: Download the release built by CI
+        uses: actions/download-artifact@v8
+        with:
+          name: release-${{ github.sha }}
+          path: .
+
+      - name: Verify release artifact before testing
+        run: npm run release:artifact:verify -- --sha "$GITHUB_SHA"
+
+      - name: Run Workerd integration shard
+        run: npm run test:integration:prepared -- --shard=${{ matrix.shard }}/2
+
+  release-ready:
+    name: Release ready
+    if: ${{ always() }}
+    needs: [static, contracts, unit, build-release, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every release gate
+        env:
+          BUILD_RESULT: ${{ needs.build-release.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+        run: |
+          test "$STATIC_RESULT" = success
+          test "$CONTRACTS_RESULT" = success
+          test "$UNIT_RESULT" = success
+          test "$BUILD_RESULT" = success
+          test "$INTEGRATION_RESULT" = success

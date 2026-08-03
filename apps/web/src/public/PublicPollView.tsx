@@ -148,7 +148,7 @@ function PollForm({
         })}
 
       <button
-        className={`button w-full ${busy || selected.length === 0 ? "button--disabled" : ""}`}
+        className={`button button--primary w-full ${busy || selected.length === 0 ? "button--disabled" : ""}`}
         disabled={busy || selected.length === 0}
         onClick={() => {
           onSubmit(selected);

@@ -1,153 +1,85 @@
-import { readFile } from "node:fs/promises";
-
-import { parse } from "yaml";
-
-const matrix = parse(
-  await readFile(new URL("../docs/parity/feature-matrix.yaml", import.meta.url), "utf8"),
-);
-const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
-  /\/$/,
-  "",
-);
-const productOrigin = new URL(productUrl);
-const organizationSlugs = (process.env.STAGING_ORG_SLUGS ?? "lcc,lmc")
+const productUrl = (
+  process.env.DEPLOY_PRODUCT_URL ??
+  process.env.STAGING_PRODUCT_URL ??
+  "https://staging.musicsite.org"
+).replace(/\/$/u, "");
+const expectedEnvironment = process.env.DEPLOY_EXPECTED_ENVIRONMENT ?? "staging";
+const expectedVersion = process.env.DEPLOY_EXPECTED_VERSION ?? process.env.STAGING_EXPECTED_VERSION;
+const organizationSlugs = (
+  process.env.DEPLOY_ORG_SLUGS ??
+  process.env.STAGING_ORG_SLUGS ??
+  "lcc,lmc"
+)
   .split(",")
   .map((slug) => slug.trim().toLowerCase())
   .filter(Boolean);
-const unregisteredUrl = (process.env.STAGING_UNREGISTERED_URL ?? "").replace(/\/$/, "");
-const requestDelayMs = Math.max(0, Number(process.env.STAGING_QUALIFY_DELAY_MS ?? "250"));
-const requestUserAgent =
-  process.env.STAGING_QUALIFY_USER_AGENT ??
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
-const organizationUrls = organizationSlugs.map((slug) => ({
-  label: slug,
-  url: `${productOrigin.protocol}//${slug}.${productOrigin.hostname}`,
-}));
-const hosts = [{ label: "product", url: productUrl }, ...organizationUrls];
-if (unregisteredUrl) hosts.push({ label: "unregistered", url: unregisteredUrl });
+const attempts = Math.max(1, Number(process.env.STAGING_QUALIFY_ATTEMPTS ?? "6"));
+const retryDelayMs = Math.max(0, Number(process.env.STAGING_QUALIFY_RETRY_MS ?? "2000"));
 
-const placeholderId = "00000000-0000-4000-8000-000000000000";
-const expectedRegistered404 = new Set([
-  "GET /api/calendar/feed",
-  "GET /api/public/player/playlist",
-]);
-const failures = [];
-const counts = { browser: 0, api: 0, core: 0 };
-let edgeBlocked = false;
-const browserPaths = [...new Set(["/", ...matrix.browserRoutes.map((route) => route.path)])];
+if (!expectedVersion)
+  throw new Error("The expected release version is required for qualification.");
 
-function routePath(path) {
-  return path.replace(/:([A-Za-z0-9_]+)/g, placeholderId);
+const productOrigin = new URL(productUrl);
+const probes = [
+  { expected: "health", label: "product health", url: `${productUrl}/api/health` },
+  { expected: "ready", label: "product readiness", url: `${productUrl}/api/ready` },
+  ...organizationSlugs.map((slug) => ({
+    expected: "health",
+    label: `${slug} Organization health`,
+    url: `${productOrigin.protocol}//${slug}.${productOrigin.hostname}/api/health`,
+  })),
+];
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function responseCode(text) {
-  try {
-    const body = JSON.parse(text);
-    return typeof body?.code === "string" ? body.code : "";
-  } catch {
-    return "";
+async function probe(entry) {
+  const response = await fetch(entry.url, {
+    headers: { accept: "application/json", "cache-control": "no-cache" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json().catch(() => undefined);
+
+  if (response.status !== 200) {
+    throw new Error(`${entry.label} returned HTTP ${String(response.status)}.`);
   }
-}
-
-async function request(url) {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-        "cache-control": "no-cache",
-        "user-agent": requestUserAgent,
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
-    const text = await response.text();
-    if (requestDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, requestDelayMs));
-    return {
-      code: responseCode(text),
-      edgeBlocked: response.status === 403,
-      status: response.status,
-    };
-  } catch (error) {
-    if (requestDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, requestDelayMs));
-    return { error: error instanceof Error ? error.message : String(error), status: 0 };
+  if (entry.expected === "ready") {
+    if (body?.status !== "ready") throw new Error(`${entry.label} did not report ready.`);
+    return;
   }
-}
-
-function fail(label, message) {
-  failures.push(`${label}: ${message}`);
-}
-
-for (const host of hosts) {
-  if (edgeBlocked) break;
-  for (const path of browserPaths) {
-    if (edgeBlocked) break;
-    const route = routePath(path);
-    const result = await request(`${host.url}${route}`);
-    counts.browser += 1;
-    if (result.status !== 200) {
-      fail(`${host.label} GET ${route}`, `expected 200, received ${String(result.status)}`);
-    }
-    edgeBlocked ||= result.edgeBlocked === true;
+  if (body?.status !== "ok" || body?.environment !== expectedEnvironment) {
+    throw new Error(`${entry.label} did not report healthy ${expectedEnvironment} state.`);
   }
-
-  if (edgeBlocked) break;
-  for (const path of ["/api/health", "/api/ready", "/api/auth/get-session"]) {
-    const result = await request(`${host.url}${path}`);
-    counts.core += 1;
-    const expectedStatus =
-      host.label === "unregistered" && path === "/api/auth/get-session" ? 404 : 200;
-    if (result.status !== expectedStatus) {
-      fail(
-        `${host.label} GET ${path}`,
-        `expected ${String(expectedStatus)}, received ${String(result.status)}`,
-      );
-    }
-    edgeBlocked ||= result.edgeBlocked === true;
-    if (edgeBlocked) break;
-  }
-}
-
-for (const host of hosts.filter((entry) => entry.label !== "unregistered")) {
-  if (edgeBlocked) break;
-  for (const route of matrix.apiRoutes.filter((entry) => entry.method === "GET")) {
-    if (edgeBlocked) break;
-    const path = routePath(route.path);
-    const methodPath = `GET ${path}`;
-    const result = await request(`${host.url}${path}`);
-    counts.api += 1;
-    if (result.status >= 500) {
-      fail(`${host.label} ${methodPath}`, `unexpected server error ${String(result.status)}`);
-    }
-    if (
-      host.label !== "product" &&
-      result.status === 404 &&
-      !expectedRegistered404.has(methodPath)
-    ) {
-      fail(
-        `${host.label} ${methodPath}`,
-        `unexpected tenant-route 404 (${result.code || "no code"})`,
-      );
-    }
-    edgeBlocked ||= result.edgeBlocked === true;
-  }
-}
-
-console.log(
-  `Staging qualification: ${hosts.length} hosts, ${counts.browser} browser-shell probes, ${counts.core} core probes, ${counts.api} product/Organization-host GET API probes${edgeBlocked ? " before edge blocking" : ""}.`,
-);
-if (failures.length > 0) {
-  if (edgeBlocked && failures.every((failure) => failure.includes("received 403"))) {
-    console.warn(
-      `Qualification was blocked by the Cloudflare edge for this runner (${String(failures.length)} HTTP 403 responses). ` +
-        "Run the same read-only check from an allowlisted or interactive network to qualify the custom domains.",
+  if (body?.version !== expectedVersion) {
+    throw new Error(
+      `${entry.label} serves ${String(body?.version)} instead of ${expectedVersion}.`,
     );
-    process.exitCode = 0;
-  } else {
-    console.error(`Qualification failed with ${String(failures.length)} issue(s):`);
-    for (const failure of failures) console.error(`- ${failure}`);
-    process.exitCode = 1;
   }
-} else {
-  console.log(
-    "All anonymous shell, health, readiness, session, and registered-host GET boundaries passed.",
-  );
 }
+
+let lastFailures = [];
+for (let attempt = 1; attempt <= attempts; attempt += 1) {
+  const results = await Promise.allSettled(probes.map(probe));
+  lastFailures = results.flatMap((result, index) =>
+    result.status === "rejected"
+      ? [
+          `${probes[index].label}: ${
+            result.reason instanceof Error ? result.reason.message : String(result.reason)
+          }`,
+        ]
+      : [],
+  );
+
+  if (lastFailures.length === 0) {
+    console.log(
+      `Qualified Worker version ${expectedVersion} with ${String(probes.length)} API probes.`,
+    );
+    process.exit(0);
+  }
+  if (attempt < attempts) await delay(retryDelayMs);
+}
+
+console.error(`Release qualification failed after ${String(attempts)} attempts:`);
+for (const failure of lastFailures) console.error(`- ${failure}`);
+process.exitCode = 1;

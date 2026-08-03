@@ -91,6 +91,15 @@ Before finishing any material change, report:
 - Group related fixes and their regression tests into one commit, then run the complete CI command
   sequence locally before pushing `main`. This avoids repeated red builds caused by a fix landing
   one commit after the change that exposed it.
+- CI builds one immutable release artifact and records the commit, lockfile, Worker bundle, and web
+  asset hashes in `release-manifest.json`. Deployment workflows must download and verify that
+  artifact; do not rebuild or use direct `wrangler deploy` in a promotion workflow.
+- Promote code with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
+  non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly, and keep those
+  changes backward-compatible with the previously deployed Worker Version.
+- Deployment qualification is intentionally API-only: health, readiness, exact `BUILD_VERSION`, and
+  seeded Organization-host resolution. Do not add browser smoke tests to CI or promotion. A blocked
+  or failed API probe is a hard failure and must never be converted to a passing qualification.
 
 ## 4. Plan Execution and Parity
 
@@ -187,6 +196,9 @@ Before finishing any material change, report:
 - Icon-only controls require accessible labels; decorative icons are hidden from assistive
   technology.
 - Use `DataTable` for tabular data and preserve mobile-card behavior for complex rows.
+- Every data table must expose sortable, keyboard-accessible column headers for all displayed data
+  columns unless a documented product reason makes a column genuinely non-sortable. Prefer the
+  shared `DataTable` so headers include visible direction indicators and `aria-sort`.
 - Use the exact product language in `CONTEXT.md`: Organization, Organization Profile, Organization
   Membership, Platform Administrator, On Break in the UI, and `Idle` in storage/API/CSV.
 - Performer eligibility is a non-empty `voicePart`, not an authorization role.

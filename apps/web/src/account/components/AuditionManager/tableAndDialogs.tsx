@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
 import type {
   AuditionStatus,
   OrganizationAudition,
   OrganizationAuditionCreateRequest,
+  OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 
@@ -21,46 +21,16 @@ export function AuditionTable({
   onDelete,
   onEdit,
   onSchedule,
-  onToggle,
-  onToggleAll,
-  selectedIds,
 }: {
   readonly auditions: readonly OrganizationAudition[];
   readonly onConvert: (audition: OrganizationAudition) => void;
   readonly onDelete: (audition: OrganizationAudition) => void;
   readonly onEdit: (audition: OrganizationAudition) => void;
   readonly onSchedule: (audition: OrganizationAudition) => void;
-  readonly onToggle: (id: string) => void;
-  readonly onToggleAll: () => void;
-  readonly selectedIds: readonly string[];
 }) {
-  const selectAllRef = useRef<HTMLInputElement>(null);
-  const selectedIdSet = new Set(selectedIds);
-  const allVisibleSelected =
-    auditions.length > 0 && auditions.every(({ id }) => selectedIdSet.has(id));
-  const someVisibleSelected = auditions.some(({ id }) => selectedIdSet.has(id));
-
-  useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
-    }
-  }, [allVisibleSelected, someVisibleSelected]);
-
   return (
     <div className="audition-table" role="table">
       <div className="audition-table__header" role="row">
-        <span role="columnheader">
-          <input
-            aria-label={
-              allVisibleSelected ? "Clear all visible auditions" : "Select all visible auditions"
-            }
-            checked={allVisibleSelected}
-            className="audition-selection-checkbox"
-            onChange={onToggleAll}
-            ref={selectAllRef}
-            type="checkbox"
-          />
-        </span>
         <span role="columnheader">Name / contact</span>
         <span role="columnheader">Preferred times</span>
         <span role="columnheader">Status</span>
@@ -69,17 +39,6 @@ export function AuditionTable({
       </div>
       {auditions.map((audition) => (
         <div className="audition-table__row" key={audition.id} role="row">
-          <span role="cell">
-            <input
-              aria-label={`Select ${audition.name} for token generation`}
-              checked={selectedIdSet.has(audition.id)}
-              className="audition-selection-checkbox"
-              onChange={() => {
-                onToggle(audition.id);
-              }}
-              type="checkbox"
-            />
-          </span>
           <span role="cell">
             <strong>{audition.name}</strong>
             <small className="table-secondary">
@@ -164,6 +123,7 @@ export function AuditionDialogs({
   onCancelSchedule,
   onCustomScheduleTimeChange,
   onScheduleTimeChange,
+  rosterConfiguration,
   saveEdit,
   schedule,
   scheduleAudition,
@@ -185,6 +145,7 @@ export function AuditionDialogs({
   readonly onCancelSchedule: () => void;
   readonly onCustomScheduleTimeChange: (value: string) => void;
   readonly onScheduleTimeChange: (value: string) => void;
+  readonly rosterConfiguration: OrganizationRosterConfiguration | null;
   readonly saveEdit: (update: {
     readonly adminNotes: string;
     readonly availabilityNotes: string;
@@ -221,7 +182,11 @@ export function AuditionDialogs({
         title="New audition"
       >
         {createOpen ? (
-          <CreateAuditionForm onCancel={onCancelCreate} onSave={createAudition} />
+          <CreateAuditionForm
+            onCancel={onCancelCreate}
+            onSave={createAudition}
+            rosterConfiguration={rosterConfiguration}
+          />
         ) : null}
       </Dialog>
       <Dialog
@@ -261,9 +226,9 @@ export function AuditionDialogs({
                   </select>
                 </label>
               </fieldset>
-              <div className="schedule-time-custom">
-                <strong className="schedule-time-custom__title">Need a different time?</strong>
-                <p className="schedule-time-custom__hint">
+              <fieldset className="schedule-time-section">
+                <legend>Need a different time?</legend>
+                <p className="schedule-time-section__hint">
                   Use this only when none of the requested times work.
                 </p>
                 <label className="field">
@@ -279,7 +244,7 @@ export function AuditionDialogs({
                     }}
                   />
                 </label>
-              </div>
+              </fieldset>
             </>
           ) : null}
           {!schedule?.requestedSlots || schedule.requestedSlots.length === 0 ? (
@@ -299,7 +264,7 @@ export function AuditionDialogs({
             <button className="button button--secondary" onClick={onCancelSchedule} type="button">
               Cancel
             </button>
-            <button className="button" type="submit">
+            <button className="button button--primary" type="submit">
               Confirm schedule
             </button>
           </div>

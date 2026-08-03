@@ -11,7 +11,7 @@
     "@choir/contracts": "0.1.0",
     "@choir/domain": "0.1.0",
     "better-auth": "1.6.23",
-    "hono": "4.12.31",
+    "hono": "4.13.0",
     "zod": "4.4.3"
   }
 }

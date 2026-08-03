@@ -8,6 +8,23 @@ have not been provisioned. Production is isolated with `EXTERNAL_EFFECTS_MODE=di
 `PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
 outside the active goal per GOAL.md.
 
+## August 3 release-pipeline redesign
+
+The local release pipeline now builds the Worker bundle and web assets once in CI, records the
+commit, lockfile, and file hashes in an immutable manifest, and reuses that artifact for Workerd
+integration tests and environment promotion. Static, contract/parity, unit, build, and two
+integration-shard jobs run in parallel where dependencies allow. Permanent staging promotion uses
+Cloudflare Worker Versions, applies version-external triggers explicitly, rejects superseded `main`
+commits, verifies the exact deployed `BUILD_VERSION` with API-only health/readiness checks, and
+restores the prior version automatically when qualification fails. Browser smoke tests remain
+optional and local-only.
+
+The production workflow is still blocked by the deliberately inert production configuration. When
+that environment is separately approved and provisioned, it requires an exact successful staging run
+and promotes the same verified artifact into the isolated production Worker; Cloudflare assigns an
+environment-scoped version ID without changing the artifact bytes. No hosted resource or production
+deployment was modified while preparing this redesign.
+
 ## August 1 refactor and legacy-removal checkpoint
 
 The Worker is now the only application host for the active code path. PocketBase-era forwarding,

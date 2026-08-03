@@ -13,6 +13,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -25,43 +26,158 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
     steps:
+      - name: Require an exact release commit
+        run: test "$(printf '%s' "$RELEASE_SHA" | grep -Ec '^[0-9a-f]{40}$')" = 1
+
       - name: Check out the approved commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_sha }}
 
+      - name: Refuse the inert production placeholder
+        run: |
+          ! grep -q '"name": "choir-management-cloudflare-production-inert"' apps/worker/wrangler.jsonc
+          ! grep -q '"PRODUCT_BASE_DOMAIN": "invalid.example"' apps/worker/wrangler.jsonc
+
+      - name: Require production qualification targets
+        env:
+          PRODUCTION_ORG_SLUGS: ${{ vars.PRODUCTION_ORG_SLUGS }}
+          PRODUCTION_PRODUCT_URL: ${{ vars.PRODUCTION_PRODUCT_URL }}
+        run: |
+          test -n "$PRODUCTION_PRODUCT_URL"
+          test -n "$PRODUCTION_ORG_SLUGS"
+
+      - name: Find exact successful staging and CI runs
+        id: qualified
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          staging_run_id=$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-staging.yml/runs" \
+            -f head_sha="$RELEASE_SHA" -f status=success -f per_page=100 \
+            --jq '.workflow_runs | map(select(.conclusion == "success")) | first | .id // empty')
+          ci_run_id=$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$RELEASE_SHA" -f status=success -f per_page=100 \
+            --jq '.workflow_runs | map(select(.conclusion == "success")) | first | .id // empty')
+          test -n "$staging_run_id"
+          test -n "$ci_run_id"
+          echo "staging_run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
+          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
 
+      - name: Download the exact artifact that passed CI and staging
+        uses: actions/download-artifact@v8
+        with:
+          name: release-${{ inputs.release_sha }}
+          path: .
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.qualified.outputs.ci_run_id }}
+
+      - name: Verify immutable release identity
+        run: npm run release:artifact:verify -- --sha "$RELEASE_SHA"
+
       - name: Install exact lockfile
         run: npm ci
 
-      - name: Verify immutable release identity
-        run: test "$(git rev-parse HEAD)" = "${{ inputs.release_sha }}"
-
-      - name: Refuse the inert production placeholder
-        run: >-
-          ! grep -q 'invalid.example' apps/worker/wrangler.jsonc
-
-      - name: Build approved commit
-        run: npm run build
+      - name: Capture the current production Worker version
+        id: previous
+        run: |
+          npx --no-install wrangler deployments status --json \
+            --config apps/worker/wrangler.jsonc --env production > "$RUNNER_TEMP/production-deployment.json"
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const status = JSON.parse(readFileSync(process.env.STATUS_FILE, "utf8"));
+            const current = status.versions?.find((entry) => entry.percentage === 100)?.version_id ?? "";
+            process.stdout.write(`version_id=${current}\n`);
+          ' >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          STATUS_FILE: ${{ runner.temp }}/production-deployment.json
 
       - name: Apply forward-only production expansion
         run: >-
-          npm run wrangler -- d1 migrations apply CONTROL_DB --config apps/worker/wrangler.jsonc
-          --env production --remote
+          npx --no-install wrangler d1 migrations apply CONTROL_DB --config
+          apps/worker/wrangler.jsonc --env production --remote
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-      - name: Deploy approved commit
-        run: >-
-          npm run wrangler -- deploy --config apps/worker/wrangler.jsonc --env production --var
-          BUILD_VERSION:${{ inputs.release_sha }}
+      - name: Upload the staging-qualified artifact as a production Worker Version
+        id: upload
+        run: |
+          export WRANGLER_OUTPUT_FILE_PATH="$RUNNER_TEMP/version-upload.json"
+          npx --no-install wrangler versions upload apps/worker/dist/index.js \
+            --no-bundle \
+            --assets apps/web/dist \
+            --config apps/worker/wrangler.jsonc \
+            --env production \
+            --var "BUILD_VERSION:$RELEASE_SHA" \
+            --tag "release-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --message "Production release $RELEASE_SHA"
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const result = JSON.parse(readFileSync(process.env.RESULT_FILE, "utf8"));
+            if (!result.version_id) throw new Error("Wrangler did not report a Worker version ID.");
+            process.stdout.write(`version_id=${result.version_id}\n`);
+          ' >> "$GITHUB_OUTPUT"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RESULT_FILE: ${{ runner.temp }}/version-upload.json
+
+      - name: Shift production traffic to the uploaded version
+        id: deploy_version
+        run: >-
+          npx --no-install wrangler versions deploy "${{ steps.upload.outputs.version_id }}@100%"
+          --yes --config apps/worker/wrangler.jsonc --env production --message "Production release
+          $RELEASE_SHA"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Apply version-external production triggers
+        run: >-
+          npx --no-install wrangler triggers deploy --config apps/worker/wrangler.jsonc --env
+          production
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Qualify production with API checks only
+        run: npm run qualify:staging
+        env:
+          DEPLOY_EXPECTED_ENVIRONMENT: production
+          DEPLOY_EXPECTED_VERSION: ${{ env.RELEASE_SHA }}
+          DEPLOY_ORG_SLUGS: ${{ vars.PRODUCTION_ORG_SLUGS }}
+          DEPLOY_PRODUCT_URL: ${{ vars.PRODUCTION_PRODUCT_URL }}
+
+      - name: Roll back traffic after a failed production qualification
+        if: >-
+          ${{ failure() && steps.deploy_version.outcome == 'success' &&
+          steps.previous.outputs.version_id != '' }}
+        run: >-
+          npx --no-install wrangler versions deploy "${{ steps.previous.outputs.version_id }}@100%"
+          --yes --config apps/worker/wrangler.jsonc --env production --message "Automatic rollback
+          from $RELEASE_SHA"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Record production provenance
+        if: ${{ success() }}
+        run: |
+          echo "Commit: $RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Lockfile: $(sha256sum package-lock.json | cut -d ' ' -f 1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Qualified staging run: ${{ steps.qualified.outputs.staging_run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Worker version: ${{ steps.upload.outputs.version_id }}" >> "$GITHUB_STEP_SUMMARY"

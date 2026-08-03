@@ -479,8 +479,8 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                 <div className="communication-history-group">
                   <h3>Automated message history</h3>
                   <p className="field-help">
-                    Completed ticket reminders, ticket confirmations, and scheduled reports appear
-                    here after delivery.
+                    Completed audition messages, ticket reminders, ticket confirmations, and
+                    scheduled reports appear here after delivery.
                   </p>
                   <ul className="account-list">
                     {scheduledMessageHistory.map((message) => (
@@ -558,7 +558,10 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Upcoming sends</h2>
-              <p>See automated reminders and reports that are scheduled for delivery.</p>
+              <p>
+                See automated audition messages, reminders, and reports that are scheduled for
+                delivery.
+              </p>
             </div>
           </div>
           {upcomingScheduledMessages.length === 0 ? (

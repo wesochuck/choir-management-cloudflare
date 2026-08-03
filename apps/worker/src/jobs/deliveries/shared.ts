@@ -58,9 +58,16 @@ export const paymentNotificationJobSchema = z.object({
   subject: z.string().max(300),
 });
 export const auditionNotificationJobSchema = z.object({
+  auditionId: z.string().min(1).max(200),
   contentMarkdown: z.string().max(100_000),
   destination: z.email(),
   id: z.uuid(),
+  kind: z.enum([
+    "inquiry_confirmation",
+    "scheduled_confirmation",
+    "audition_reminder",
+    "admin_alert",
+  ]),
   recipientName: z.string().min(1).max(200),
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
@@ -201,6 +208,8 @@ const playerPlaceholderPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/i;
 const playerPlaceholderReplacementPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi;
 const ticketLinkPlaceholderPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/i;
 const ticketLinkPlaceholderReplacementPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/gi;
+const auditionLinkPlaceholderPattern = /\{\{AUDITION_LINK\}\}|\{auditionLink\}/i;
+const auditionLinkPlaceholderReplacementPattern = /\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi;
 
 export const scheduledEventTemplateIds = {
   attendanceReport: "5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
@@ -208,6 +217,41 @@ export const scheduledEventTemplateIds = {
   performanceReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
   rehearsalReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
 } as const;
+
+export async function renderAuditionLink(
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET"> &
+    Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
+  organizationId: string,
+  content: string,
+  auditionId: string,
+  kind: z.infer<typeof auditionNotificationJobSchema>["kind"],
+): Promise<string> {
+  const hasPlaceholder = auditionLinkPlaceholderPattern.test(content);
+  // Scheduling always sends a link, including for Organizations whose older copy of the system
+  // template predates the placeholder. This keeps customized templates useful without allowing
+  // the scheduling workflow to silently omit the applicant's update link.
+  if (!hasPlaceholder && kind !== "scheduled_confirmation" && kind !== "audition_reminder") {
+    return content;
+  }
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+    algorithm: "HS256",
+    expiresAt: issuedAt + 90 * 24 * 60 * 60,
+    issuedAt,
+    nonce: crypto.randomUUID(),
+    organizationId,
+    purpose: "audition",
+    resourceId: auditionId,
+    subjectId: auditionId,
+    version: 1,
+  });
+  const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null })}/auditions?token=${encodeURIComponent(token)}`;
+  const replacement = `[Review or update your audition](${link})\n\n(No login required.)`;
+  if (hasPlaceholder) {
+    return content.replace(auditionLinkPlaceholderReplacementPattern, () => replacement);
+  }
+  return `${content.trimEnd()}\n\n${replacement}`;
+}
 
 export const scheduledEventJobResponseSchema = z.object({
   event: z.object({

@@ -980,6 +980,17 @@ interface ScheduledTicketMessageRow {
   readonly subject: string;
 }
 
+interface ScheduledAuditionMessageRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly auditionName: string;
+  readonly id: string;
+  readonly kind:
+    "admin_alert" | "audition_reminder" | "inquiry_confirmation" | "scheduled_confirmation";
+  readonly scheduledAt: string;
+  readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
+  readonly subject: string;
+}
+
 interface ScheduledOutboxMessageRow {
   readonly [column: string]: SqlStorageValue;
   readonly dueAt: string;
@@ -1034,6 +1045,36 @@ export function listCommunicationScheduledMessagesFromStore(
         subject: row.subject,
       }),
     );
+
+  const auditionMessages = storage.sql
+    .exec<ScheduledAuditionMessageRow>(
+      `SELECT n.id, n.kind, n.subject, n.status,
+        n.scheduled_for AS scheduledAt, a.name AS auditionName
+       FROM audition_notifications n
+       JOIN auditions a ON a.id = n.audition_id
+       WHERE n.kind IN ('scheduled_confirmation', 'audition_reminder')
+       ORDER BY n.scheduled_for DESC, n.id DESC LIMIT 100`,
+    )
+    .toArray();
+  for (const message of auditionMessages) {
+    messages.push(
+      communicationScheduledMessageSchema.parse({
+        eventId: null,
+        eventTitle: `Audition: ${message.auditionName}`,
+        id: message.id,
+        kind: message.kind === "audition_reminder" ? "audition_reminder" : "audition_confirmation",
+        recipientCount: 1,
+        scheduledAt: message.scheduledAt,
+        status:
+          message.status === "failed"
+            ? "Failed"
+            : message.status === "sent" || message.status === "suppressed"
+              ? "Sent"
+              : "Queued",
+        subject: message.subject,
+      }),
+    );
+  }
 
   const scheduledJobs = storage.sql
     .exec<ScheduledOutboxMessageRow>(

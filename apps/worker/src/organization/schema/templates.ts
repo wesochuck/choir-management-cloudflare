@@ -154,7 +154,7 @@ export const auditionSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\nYour audition is confirmed for {auditionDate} at {auditionTime}.\n\nLocation: {auditionLocation}\n\nWe look forward to meeting you!\n\nBest,\nChoir Management",
+      "Hi {singerName},\n\nYour audition is confirmed for {auditionDate} at {auditionTime}.\n\nLocation: {auditionLocation}\n\n{{AUDITION_LINK}}\n\nWe look forward to meeting you!\n\nBest,\nChoir Management",
     id: auditionSystemCommunicationTemplateIds.confirmation,
     subject: "Your audition is confirmed",
     title: "Audition Confirmed",
@@ -162,7 +162,7 @@ export const auditionSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\nThis is a reminder that your audition is scheduled for {auditionDate} at {auditionTime}.\n\nLocation: {auditionLocation}\n\nSee you soon!\n\nBest,\nChoir Management",
+      "Hi {singerName},\n\nThis is a reminder that your audition is scheduled for {auditionDate} at {auditionTime}.\n\nLocation: {auditionLocation}\n\n{{AUDITION_LINK}}\n\nSee you soon!\n\nBest,\nChoir Management",
     id: auditionSystemCommunicationTemplateIds.reminder,
     subject: "Reminder: your audition is tomorrow",
     title: "Audition Reminder",

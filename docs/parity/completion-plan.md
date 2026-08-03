@@ -33,7 +33,7 @@ The remaining 121 non-verified entries are staging evidence debt for the 121 imp
 
 | Section               | Entries still `implemented` | Completion evidence still required                                                                                                                                 |
 | --------------------- | --------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Public browser routes |                           0 | All 60 browser routes now have a deployed route/empty-state sweep; retain these checks in release automation.                                                      |
+| Public browser routes |                           0 | All 60 browser routes have route/empty-state coverage; retain the full sweep as opt-in local browser evidence while deployment uses exact-version API checks.      |
 | API routes            |                          68 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
 | Record hooks          |                           4 | Workerd/integration replay and audit evidence on the deployed schema; no live external effect.                                                                     |
 | Background tasks      |                           5 | Queue/alarm replay, retry, idempotency, and dead-letter visibility evidence with staging-safe fixtures.                                                            |

@@ -296,8 +296,9 @@ export function TemplateLibrary({
             {editingTemplate.title.toLowerCase().includes("audition") ? (
               <p className="field-help">
                 Audition templates also support {"{auditionDate}"}, {"{auditionTime}"},{" "}
-                {"{auditionDateTime}"}, and {"{auditionLocation}"} when the message is sent
-                automatically.
+                {"{auditionDateTime}"}, {"{auditionLocation}"}, and {"{{AUDITION_LINK}}"} when the
+                message is sent automatically. Scheduling an applicant sends this link
+                automatically; no login is required.
               </p>
             ) : null}
           </div>

@@ -271,6 +271,7 @@
   "memberProfileUpdateRequestSchema",
   "moduleStateSchema",
   "moduleStatesResponseSchema",
+  "musicTrackFileIdsSchema",
   "organizationAttendanceBulkRequestSchema",
   "organizationAttendanceResponseSchema",
   "organizationAttendanceRowSchema",

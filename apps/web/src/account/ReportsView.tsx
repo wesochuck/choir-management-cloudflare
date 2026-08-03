@@ -6,7 +6,9 @@ import {
   type OrganizationMusicPiece,
   type OrganizationProfile,
 } from "@choir/contracts";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { DataTable } from "@choir/ui";
 
 import {
   getOrganizationRosterConfiguration,
@@ -149,13 +151,16 @@ function EventPicker({
 
 function AttendanceReport({
   events,
+  onChange,
   selectedId,
 }: {
   readonly events: readonly OrganizationEvent[];
+  readonly onChange: (id: string) => void;
   readonly selectedId: string;
 }) {
   const [state, setState] = useState<LoadState>("ready");
   const [rows, setRows] = useState<readonly SingerAttendance[]>([]);
+  const performances = useMemo(() => reportEvents(events), [events]);
   const selected = events.find((event) => event.id === selectedId);
   const rehearsals = useMemo(
     () =>
@@ -229,6 +234,7 @@ function AttendanceReport({
           Export CSV
         </button>
       </div>
+      <EventPicker events={performances} onChange={onChange} selectedId={selectedId} />
       {!selected ? <Status state="ready" empty="Choose a performance to view attendance." /> : null}
       {selected ? (
         <>
@@ -257,21 +263,44 @@ function AttendanceReport({
           ) : rows.length === 0 ? (
             <Status state="ready" empty="No attendance has been recorded for these rehearsals." />
           ) : (
-            <ReportTable headers={["Name", "Voice part", "Absences", "Present", "Attendance rate"]}>
-              {rows.map((row) => (
-                <tr key={row.profileId}>
-                  <td>
-                    <strong>{row.name}</strong>
-                  </td>
-                  <td>{row.voicePart || "—"}</td>
-                  <td>{row.absences}</td>
-                  <td>
-                    {row.present} / {row.total}
-                  </td>
-                  <td>{row.total ? `${((row.present / row.total) * 100).toFixed(1)}%` : "—"}</td>
-                </tr>
-              ))}
-            </ReportTable>
+            <DataTable
+              columns={[
+                {
+                  header: "Name",
+                  id: "name",
+                  render: (row) => <strong>{row.name}</strong>,
+                  sortValue: (row) => row.name,
+                },
+                {
+                  header: "Voice part",
+                  id: "voicePart",
+                  render: (row) => row.voicePart || "—",
+                  sortValue: (row) => row.voicePart,
+                },
+                {
+                  header: "Absences",
+                  id: "absences",
+                  render: (row) => row.absences,
+                  sortValue: (row) => row.absences,
+                },
+                {
+                  header: "Present",
+                  id: "present",
+                  render: (row) => `${String(row.present)} / ${String(row.total)}`,
+                  sortValue: (row) => row.present,
+                },
+                {
+                  header: "Attendance rate",
+                  id: "attendanceRate",
+                  render: (row) =>
+                    row.total ? `${((row.present / row.total) * 100).toFixed(1)}%` : "—",
+                  sortValue: (row) => (row.total ? row.present / row.total : null),
+                },
+              ]}
+              initialSort={{ columnId: "absences", direction: "desc" }}
+              keySelector={(row) => row.profileId}
+              rows={rows}
+            />
           )}
         </>
       ) : null}
@@ -281,13 +310,16 @@ function AttendanceReport({
 
 function RsvpReport({
   events,
+  onChange,
   selectedId,
 }: {
   readonly events: readonly OrganizationEvent[];
+  readonly onChange: (id: string) => void;
   readonly selectedId: string;
 }) {
   const [state, setState] = useState<LoadState>("ready");
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
+  const performances = useMemo(() => reportEvents(events), [events]);
   const selected = events.find((event) => event.id === selectedId);
   useEffect(() => {
     if (!selectedId) {
@@ -339,6 +371,7 @@ function RsvpReport({
           Export CSV
         </button>
       </div>
+      <EventPicker events={performances} onChange={onChange} selectedId={selectedId} />
       {!selected ? (
         <Status state="ready" empty="Choose a performance to view RSVP responses." />
       ) : null}
@@ -366,22 +399,41 @@ function RsvpReport({
           {rows.length === 0 ? (
             <Status state="ready" empty="No roster profiles are available for this event." />
           ) : (
-            <ReportTable headers={["Name", "Voice part", "RSVP", "Attendance"]}>
-              {rows.map((row) => (
-                <tr key={row.profileId}>
-                  <td>
-                    <strong>{row.displayName}</strong>
-                  </td>
-                  <td>{row.voicePart || "—"}</td>
-                  <td>
+            <DataTable
+              columns={[
+                {
+                  header: "Name",
+                  id: "name",
+                  render: (row) => <strong>{row.displayName}</strong>,
+                  sortValue: (row) => row.displayName,
+                },
+                {
+                  header: "Voice part",
+                  id: "voicePart",
+                  render: (row) => row.voicePart || "—",
+                  sortValue: (row) => row.voicePart,
+                },
+                {
+                  header: "RSVP",
+                  id: "rsvp",
+                  render: (row) => (
                     <span className={`status-pill status-pill--${row.rsvp.toLowerCase()}`}>
                       {row.rsvp}
                     </span>
-                  </td>
-                  <td>{row.attendance}</td>
-                </tr>
-              ))}
-            </ReportTable>
+                  ),
+                  sortValue: (row) => row.rsvp,
+                },
+                {
+                  header: "Attendance",
+                  id: "attendance",
+                  render: (row) => row.attendance,
+                  sortValue: (row) => row.attendance,
+                },
+              ]}
+              initialSort={{ columnId: "name", direction: "asc" }}
+              keySelector={(row) => row.profileId}
+              rows={rows}
+            />
           )}
         </>
       ) : null}
@@ -439,25 +491,47 @@ function RepertoireReport({ pieces }: { readonly pieces: readonly OrganizationMu
           empty={pieces.length ? "No pieces match this search." : "No music pieces are available."}
         />
       ) : (
-        <ReportTable
-          headers={["Title", "Composer / arranger", "Performances", "Last performed", "Duration"]}
-        >
-          {filtered.map((piece) => (
-            <tr key={piece.id}>
-              <td>
-                <strong>{piece.title}</strong>
-              </td>
-              <td>{[piece.composer, piece.arranger].filter(Boolean).join(" / ") || "—"}</td>
-              <td>{piece.performanceCount}</td>
-              <td>{formatDate(piece.lastPerformedAt)}</td>
-              <td>
-                {piece.durationSeconds === null
+        <DataTable
+          columns={[
+            {
+              header: "Title",
+              id: "title",
+              render: (piece) => <strong>{piece.title}</strong>,
+              sortValue: (piece) => piece.title,
+            },
+            {
+              header: "Composer / arranger",
+              id: "composer",
+              render: (piece) =>
+                [piece.composer, piece.arranger].filter(Boolean).join(" / ") || "—",
+              sortValue: (piece) => `${piece.composer} ${piece.arranger}`,
+            },
+            {
+              header: "Performances",
+              id: "performances",
+              render: (piece) => piece.performanceCount,
+              sortValue: (piece) => piece.performanceCount,
+            },
+            {
+              header: "Last performed",
+              id: "lastPerformed",
+              render: (piece) => formatDate(piece.lastPerformedAt),
+              sortValue: (piece) => piece.lastPerformedAt,
+            },
+            {
+              header: "Duration",
+              id: "duration",
+              render: (piece) =>
+                piece.durationSeconds === null
                   ? "—"
-                  : `${String(Math.floor(piece.durationSeconds / 60))}:${String(piece.durationSeconds % 60).padStart(2, "0")}`}
-              </td>
-            </tr>
-          ))}
-        </ReportTable>
+                  : `${String(Math.floor(piece.durationSeconds / 60))}:${String(piece.durationSeconds % 60).padStart(2, "0")}`,
+              sortValue: (piece) => piece.durationSeconds,
+            },
+          ]}
+          initialSort={{ columnId: "title", direction: "asc" }}
+          keySelector={(piece) => piece.id}
+          rows={filtered}
+        />
       )}
     </>
   );
@@ -521,19 +595,43 @@ function RosterReport({
           }
         />
       ) : (
-        <ReportTable headers={["Name", performerLabel, "Status", "Phone", "Directory"]}>
-          {filtered.map((profile) => (
-            <tr key={profile.id}>
-              <td>
-                <strong>{profile.displayName}</strong>
-              </td>
-              <td>{profile.voicePart || "—"}</td>
-              <td>{profile.globalStatus}</td>
-              <td>{profile.phone || "—"}</td>
-              <td>{profile.showInDirectory ? "Shown" : "Hidden"}</td>
-            </tr>
-          ))}
-        </ReportTable>
+        <DataTable
+          columns={[
+            {
+              header: "Name",
+              id: "name",
+              render: (profile) => <strong>{profile.displayName}</strong>,
+              sortValue: (profile) => profile.displayName,
+            },
+            {
+              header: performerLabel,
+              id: "voicePart",
+              render: (profile) => profile.voicePart || "—",
+              sortValue: (profile) => profile.voicePart,
+            },
+            {
+              header: "Status",
+              id: "status",
+              render: (profile) => profile.globalStatus,
+              sortValue: (profile) => profile.globalStatus,
+            },
+            {
+              header: "Phone",
+              id: "phone",
+              render: (profile) => profile.phone || "—",
+              sortValue: (profile) => profile.phone,
+            },
+            {
+              header: "Directory",
+              id: "directory",
+              render: (profile) => (profile.showInDirectory ? "Shown" : "Hidden"),
+              sortValue: (profile) => profile.showInDirectory,
+            },
+          ]}
+          initialSort={{ columnId: "name", direction: "asc" }}
+          keySelector={(profile) => profile.id}
+          rows={filtered}
+        />
       )}
     </>
   );
@@ -597,48 +695,58 @@ function DonationsReport({
               <span>Processing fees</span>
             </div>
           </div>
-          <ReportTable headers={["Donor", "Amount", "Fee", "Status", "Date", "Tribute"]}>
-            {donations.map((donation) => (
-              <tr key={donation.id}>
-                <td>
-                  <strong>{donation.anonymous ? "Anonymous" : donation.buyerName}</strong>
-                  <br />
-                  <small>{donation.anonymous ? "" : donation.buyerEmail}</small>
-                </td>
-                <td>{money(donation.amountCents)}</td>
-                <td>{donation.feeCents ? money(donation.feeCents) : "Covered"}</td>
-                <td>{donation.status}</td>
-                <td>{formatDate(donation.createdAt, true)}</td>
-                <td>{donation.tributeName || "—"}</td>
-              </tr>
-            ))}
-          </ReportTable>
+          <DataTable
+            columns={[
+              {
+                header: "Donor",
+                id: "donor",
+                render: (donation) => (
+                  <>
+                    <strong>{donation.anonymous ? "Anonymous" : donation.buyerName}</strong>
+                    <br />
+                    <small>{donation.anonymous ? "" : donation.buyerEmail}</small>
+                  </>
+                ),
+                sortValue: (donation) => (donation.anonymous ? "Anonymous" : donation.buyerName),
+              },
+              {
+                header: "Amount",
+                id: "amount",
+                render: (donation) => money(donation.amountCents),
+                sortValue: (donation) => donation.amountCents,
+              },
+              {
+                header: "Fee",
+                id: "fee",
+                render: (donation) => (donation.feeCents ? money(donation.feeCents) : "Covered"),
+                sortValue: (donation) => donation.feeCents,
+              },
+              {
+                header: "Status",
+                id: "status",
+                render: (donation) => donation.status,
+                sortValue: (donation) => donation.status,
+              },
+              {
+                header: "Date",
+                id: "date",
+                render: (donation) => formatDate(donation.createdAt, true),
+                sortValue: (donation) => donation.createdAt,
+              },
+              {
+                header: "Tribute",
+                id: "tribute",
+                render: (donation) => donation.tributeName || "—",
+                sortValue: (donation) => donation.tributeName,
+              },
+            ]}
+            initialSort={{ columnId: "date", direction: "desc" }}
+            keySelector={(donation) => donation.id}
+            rows={donations}
+          />
         </>
       )}
     </>
-  );
-}
-
-function ReportTable({
-  children,
-  headers,
-}: {
-  readonly children: ReactNode;
-  readonly headers: readonly string[];
-}) {
-  return (
-    <div className="table-scroll">
-      <table className="data-table table--actions">
-        <thead>
-          <tr>
-            {headers.map((header) => (
-              <th key={header}>{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
-    </div>
   );
 }
 
@@ -652,7 +760,6 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   const [selectedPerformanceId, setSelectedPerformanceId] = useState("");
   const [donations, setDonations] = useState<readonly DonationRecord[]>([]);
   const [donationState, setDonationState] = useState<LoadState>("ready");
-  const performances = useMemo(() => reportEvents(events), [events]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -739,17 +846,20 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
         ))}
       </nav>
       <section className="panel reports-panel" role="tabpanel">
-        {(tab === "attendance" || tab === "rsvp") && (
-          <EventPicker
-            events={performances}
+        {tab === "attendance" ? (
+          <AttendanceReport
+            events={events}
             onChange={setSelectedPerformanceId}
             selectedId={selectedPerformanceId}
           />
-        )}
-        {tab === "attendance" ? (
-          <AttendanceReport events={events} selectedId={selectedPerformanceId} />
         ) : null}
-        {tab === "rsvp" ? <RsvpReport events={events} selectedId={selectedPerformanceId} /> : null}
+        {tab === "rsvp" ? (
+          <RsvpReport
+            events={events}
+            onChange={setSelectedPerformanceId}
+            selectedId={selectedPerformanceId}
+          />
+        ) : null}
         {tab === "repertoire" ? <RepertoireReport pieces={pieces} /> : null}
         {tab === "roster" ? (
           <RosterReport performerLabel={performerLabel} profiles={profiles} />

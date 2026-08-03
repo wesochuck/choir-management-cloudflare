@@ -30,12 +30,11 @@ Read these files before feature work:
 
 ## Local setup
 
-Requirements: Node.js 22.12 or newer, npm 11 or newer, and a Chromium runtime installed through
-Playwright.
+Requirements: Node.js 22.12 or newer and npm 11 or newer. Chromium is optional and needed only when
+you intentionally run the local Playwright suite.
 
 ```bash
 npm ci
-npx playwright install chromium
 cp .dev.vars.example apps/worker/.dev.vars
 npm run dev
 ```
@@ -62,9 +61,10 @@ npm run build
 npm audit --audit-level=high
 ```
 
-Playwright E2E tests are intentionally local-only so Chromium installation and browser execution do
-not delay the GitHub CI-to-staging deployment path. Run `npm run test:e2e` locally when browser
-coverage is needed; the remaining checks above are the deploy-blocking GitHub gates.
+Playwright E2E tests are intentionally opt-in and local-only. Install Chromium with
+`npx playwright install chromium` and run `npm run test:e2e` only when browser coverage is
+warranted. Browser tests are not part of CI or deployment qualification; Workerd integration tests
+and exact deployed-version API checks are the release gates.
 
 `npm run test:integration` starts workerd on loopback and may require an execution environment that
 allows local ports. Regenerate Worker binding declarations after changing `wrangler.jsonc`:
@@ -77,13 +77,15 @@ npm run wrangler -- types apps/worker/worker-configuration.d.ts \
 ## Staging operations
 
 Local Wrangler OAuth is stored through its supported macOS keyring flow. Do not copy that credential
-into this repository.
+into this repository. Routine staging releases run only through GitHub Actions after `main` passes
+CI; there is no local direct-deploy shortcut.
 
-```bash
-npm run wrangler -- d1 migrations apply CONTROL_DB \
-  --config apps/worker/wrangler.jsonc --env staging --remote
-npm run deploy:staging
-```
+CI builds the Worker bundle and web assets once, records their hashes with the commit and lockfile,
+and uploads that immutable release artifact. The staging workflow downloads and verifies those same
+bytes, applies forward-only D1 migrations, uploads a tagged Cloudflare Worker Version, shifts 100%
+of staging traffic, applies version-external triggers, and checks health/readiness on the product
+and seeded Organization hosts. Failed API qualification automatically restores the prior Worker
+Version when one exists. No browser smoke test runs in this path.
 
 Staging external effects remain captured/fake until provider sandbox credentials and allowlists are
 configured. The deployment currently uses:

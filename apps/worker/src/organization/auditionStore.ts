@@ -76,9 +76,12 @@ interface AuditionRow {
 
 interface AuditionNotificationRow {
   readonly [column: string]: SqlStorageValue;
+  readonly auditionId: string;
   readonly contentMarkdown: string;
   readonly destination: string;
   readonly id: string;
+  readonly kind:
+    "inquiry_confirmation" | "scheduled_confirmation" | "audition_reminder" | "admin_alert";
   readonly recipientName: string;
   readonly status: string;
   readonly subject: string;
@@ -844,7 +847,7 @@ export function readAuditionNotificationJobFromStore(
   const row = storage.sql
     .exec<AuditionNotificationRow>(
       `SELECT id, destination, recipient_name AS recipientName, subject,
-        content_markdown AS contentMarkdown, status
+        audition_id AS auditionId, kind, content_markdown AS contentMarkdown, status
        FROM audition_notifications WHERE id = ? LIMIT 1`,
       notificationId,
     )

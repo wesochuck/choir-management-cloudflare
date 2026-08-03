@@ -13,13 +13,6 @@ export const STATUS_LABELS: Record<AuditionStatus, string> = {
   scheduled: "Scheduled",
 };
 
-export function auditionFollowUpUrl(token: string): string {
-  const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
-  const url = new URL("/auditions", origin);
-  url.searchParams.set("token", token);
-  return url.toString();
-}
-
 export const STATUS_OPTIONS: readonly { readonly label: string; readonly value: AuditionStatus }[] =
   [
     { label: "Pending Review", value: "pending" },

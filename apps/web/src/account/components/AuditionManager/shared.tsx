@@ -3,6 +3,7 @@ import type {
   AuditionStatus,
   OrganizationAudition,
   OrganizationAuditionCreateRequest,
+  OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
 import { emptyCreate, STATUS_OPTIONS } from "./utils";
@@ -182,7 +183,7 @@ export function EditAuditionForm({
         <button className="button button--secondary" onClick={onCancel} type="button">
           Cancel
         </button>
-        <button className="button" disabled={busy} type="submit">
+        <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Saving…" : "Save"}
         </button>
       </div>
@@ -193,9 +194,11 @@ export function EditAuditionForm({
 export function CreateAuditionForm({
   onCancel,
   onSave,
+  rosterConfiguration,
 }: {
   readonly onCancel: () => void;
   readonly onSave: (audition: OrganizationAuditionCreateRequest) => Promise<void>;
+  readonly rosterConfiguration: OrganizationRosterConfiguration | null;
 }) {
   const [draft, setDraft] = useState(emptyCreate);
   const [busy, setBusy] = useState(false);
@@ -260,12 +263,42 @@ export function CreateAuditionForm({
       </label>
       <label className="field">
         Voice part
-        <input
+        <select
+          disabled={rosterConfiguration === null}
           value={draft.voicePart}
           onChange={(event) => {
             update("voicePart", event.target.value);
           }}
-        />
+        >
+          <option value="">
+            {rosterConfiguration === null ? "Loading voice parts…" : "No voice part"}
+          </option>
+          {rosterConfiguration
+            ? (() => {
+                const partsBySection = new Map<string, typeof rosterConfiguration.voiceParts>();
+                for (const part of rosterConfiguration.voiceParts) {
+                  const parts = partsBySection.get(part.sectionCode) ?? [];
+                  parts.push(part);
+                  partsBySection.set(part.sectionCode, parts);
+                }
+                return rosterConfiguration.sections
+                  .filter((section) => !section.trackOnly)
+                  .map((section) => {
+                    const parts = partsBySection.get(section.code) ?? [];
+                    if (parts.length === 0) return null;
+                    return (
+                      <optgroup key={section.code} label={section.name}>
+                        {parts.map((part) => (
+                          <option key={part.label} value={part.label}>
+                            {part.fullName} ({part.label})
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  });
+              })()
+            : null}
+        </select>
       </label>
       <label className="field">
         Experience
@@ -291,7 +324,7 @@ export function CreateAuditionForm({
         <button className="button button--secondary" onClick={onCancel} type="button">
           Cancel
         </button>
-        <button className="button" disabled={busy} type="submit">
+        <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Creating…" : "Create audition"}
         </button>
       </div>

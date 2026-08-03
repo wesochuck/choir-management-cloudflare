@@ -371,13 +371,11 @@ export function SeasonsManager({
             </button>
           ) : null}
         </div>
-        <p className="seasons-manager-description">
-          {tab === "settings"
-            ? "Create seasons, set dues amounts, and choose which season is active."
-            : "Review dues payment status for members and filter records by season."}
-        </p>
         {tab === "settings" ? (
           <div aria-labelledby="season-settings-tab" id="season-settings-panel" role="tabpanel">
+            <p className="seasons-manager-description seasons-manager-description--settings">
+              Create seasons, set dues amounts, and choose which season is active.
+            </p>
             <SeasonsTab
               onActivate={(season) => void activateSeason(season)}
               onDelete={(season) => {
@@ -698,26 +696,31 @@ function DuesTab({
   };
   return (
     <>
-      <div className="dues-records-toolbar">
-        <label className="field">
-          Season
-          <select
-            disabled={seasonState.status !== "ready" || seasons.length === 0}
-            value={seasonFilterId ?? ""}
-            onChange={(event) => {
-              onSeasonFilterChange(event.target.value || "");
-            }}
-          >
-            {seasons.length > 0 ? null : <option value="">All seasons</option>}
-            {seasons.map((season) => (
-              <option key={season.id} value={season.id}>
-                {season.name}
-                {season.isActive ? " (Active)" : ""}
-              </option>
-            ))}
-            {seasons.length > 0 ? <option value="">All seasons</option> : null}
-          </select>
-        </label>
+      <div className="dues-records-header">
+        <p className="seasons-manager-description">
+          Review dues payment status for members and filter records by season.
+        </p>
+        <div className="dues-records-toolbar">
+          <label className="field">
+            Season
+            <select
+              disabled={seasonState.status !== "ready" || seasons.length === 0}
+              value={seasonFilterId ?? ""}
+              onChange={(event) => {
+                onSeasonFilterChange(event.target.value || "");
+              }}
+            >
+              {seasons.length > 0 ? null : <option value="">All seasons</option>}
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name}
+                  {season.isActive ? " (Active)" : ""}
+                </option>
+              ))}
+              {seasons.length > 0 ? <option value="">All seasons</option> : null}
+            </select>
+          </label>
+        </div>
       </div>
       {duesState.dues.length === 0 ? <p>No dues records yet.</p> : null}
       {duesState.dues.length > 0 && filteredDues.length === 0 ? (

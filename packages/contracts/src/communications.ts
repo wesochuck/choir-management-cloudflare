@@ -143,6 +143,8 @@ export const communicationScheduledMessageSchema = z.object({
     "attendance_report",
     "event_reminder",
     "rsvp_follow_up",
+    "audition_confirmation",
+    "audition_reminder",
     "ticket_confirmation",
     "ticket_reminder",
   ]),

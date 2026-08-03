@@ -151,7 +151,7 @@ function RsvpForm({
       )}
 
       <button
-        className={`button w-full ${busy ? "button--disabled" : ""}`}
+        className={`button button--primary w-full ${busy ? "button--disabled" : ""}`}
         disabled={busy || !details.canSubmit}
         onClick={() => {
           onSubmit(rsvp, rsvpNote);

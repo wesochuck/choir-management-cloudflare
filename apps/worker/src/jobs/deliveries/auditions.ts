@@ -1,7 +1,7 @@
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
-import { auditionNotificationJobSchema } from "./shared";
+import { auditionNotificationJobSchema, renderAuditionLink } from "./shared";
 
 export async function deliverAuditionNotificationJob(
   env: JobConsumerEnv,
@@ -20,9 +20,16 @@ export async function deliverAuditionNotificationJob(
   if (!response.ok || !notification.success) {
     throw new Error("The audition notification job is unavailable.");
   }
+  const contentMarkdown = await renderAuditionLink(
+    env,
+    job.organizationId,
+    notification.data.contentMarkdown,
+    notification.data.auditionId,
+    notification.data.kind,
+  );
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
-    contentMarkdown: notification.data.contentMarkdown,
+    contentMarkdown,
     deliveryId: notification.data.id,
     destination: notification.data.destination,
     messageId: notification.data.id,

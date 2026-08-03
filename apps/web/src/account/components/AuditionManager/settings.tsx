@@ -10,6 +10,9 @@ import { formatDate, dateInputStateValue, timeInputStateValue, slotUtcValue } fr
 
 import type { AdministratorRecipient } from "./types";
 
+const DEFAULT_SLOT_START = "18:00";
+const DEFAULT_SLOT_END = "20:00";
+
 export function SettingsForm({
   administratorRecipients,
   initial,
@@ -30,8 +33,8 @@ export function SettingsForm({
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [slotStart, setSlotStart] = useState("");
-  const [slotEnd, setSlotEnd] = useState("");
+  const [slotStart, setSlotStart] = useState(DEFAULT_SLOT_START);
+  const [slotEnd, setSlotEnd] = useState(DEFAULT_SLOT_END);
   const [slotDate, setSlotDate] = useState("");
   const [slotInterval, setSlotInterval] = useState("15");
   const [slotError, setSlotError] = useState<string | null>(null);
@@ -51,8 +54,8 @@ export function SettingsForm({
         a.startsAt.localeCompare(b.startsAt),
       ),
     }));
-    setSlotStart("");
-    setSlotEnd("");
+    setSlotStart(DEFAULT_SLOT_START);
+    setSlotEnd(DEFAULT_SLOT_END);
   }
   function generateSlots() {
     setSlotError(null);
@@ -247,6 +250,8 @@ export function SettingsForm({
           <label className="field">
             Start time
             <input
+              aria-label="Audition slot start time"
+              step="900"
               type="time"
               value={slotStart}
               onChange={(event) => {
@@ -258,6 +263,8 @@ export function SettingsForm({
           <label className="field">
             End time
             <input
+              aria-label="Audition slot end time"
+              step="900"
               type="time"
               value={slotEnd}
               onChange={(event) => {
@@ -267,7 +274,10 @@ export function SettingsForm({
             />
           </label>
         </div>
-        <p className="field-help">Times are entered in {timezone}.</p>
+        <p className="field-help">
+          Use the clock controls to choose a time. New slot ranges start at 6:00 PM and end at 8:00
+          PM in {timezone}; adjust them before generating or adding slots.
+        </p>
         {slotError ? (
           <p className="notice notice--error" role="alert">
             {slotError}
@@ -410,7 +420,11 @@ export function SettingsForm({
         <button className="button button--secondary" onClick={onCancel} type="button">
           Cancel
         </button>
-        <button className="button" disabled={busy || draft.slots.length === 0} type="submit">
+        <button
+          className="button button--primary"
+          disabled={busy || draft.slots.length === 0}
+          type="submit"
+        >
           {busy ? "Saving…" : "Save settings"}
         </button>
       </div>

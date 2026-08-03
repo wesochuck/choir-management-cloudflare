@@ -5,6 +5,7 @@ import type {
   OrganizationAudition,
   OrganizationAuditionCreateRequest,
   OrganizationAuditionSettings,
+  OrganizationRosterConfiguration,
   OrganizationVenue,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
@@ -12,9 +13,9 @@ import {
   convertOrganizationAudition,
   createOrganizationAudition,
   deleteOrganizationAudition,
-  generateAuditionTokens,
   getOrganizationCalendarSettings,
   getOrganizationAuditionSettings,
+  getOrganizationRosterConfiguration,
   listOrganizationEvents,
   listOrganizationAuditions,
   listOrganizationMemberships,
@@ -26,13 +27,7 @@ import {
 import { QRCodeShareCard } from "../../QRCodeShareCard";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
-import {
-  auditionFollowUpUrl,
-  localScheduleInputValue,
-  slotUtcValue,
-  STATUS_OPTIONS,
-  fallbackSettings,
-} from "./utils";
+import { localScheduleInputValue, slotUtcValue, STATUS_OPTIONS, fallbackSettings } from "./utils";
 
 import { ManagerStatusPanel } from "./shared";
 
@@ -49,6 +44,8 @@ export function AuditionManager({ enabled }: Props) {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [performances, setPerformances] = useState<readonly OrganizationEvent[]>([]);
   const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
+  const [rosterConfiguration, setRosterConfiguration] =
+    useState<OrganizationRosterConfiguration | null>(null);
   const [timezone, setTimezone] = useState("UTC");
   const [activeTab, setActiveTab] = useState<AuditionTab>("inquiries");
   const [createOpen, setCreateOpen] = useState(false);
@@ -60,8 +57,6 @@ export function AuditionManager({ enabled }: Props) {
     readonly action: "convert" | "delete";
     readonly audition: OrganizationAudition;
   } | null>(null);
-  const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
-  const [tokens, setTokens] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [administratorRecipients, setAdministratorRecipients] = useState<
@@ -105,6 +100,11 @@ export function AuditionManager({ enabled }: Props) {
       .then(setVenues)
       .catch(() => {
         setVenues([]);
+      });
+    getOrganizationRosterConfiguration(controller.signal)
+      .then(setRosterConfiguration)
+      .catch(() => {
+        setRosterConfiguration(null);
       });
     Promise.all([
       listOrganizationProfiles(controller.signal),
@@ -251,18 +251,6 @@ export function AuditionManager({ enabled }: Props) {
     }
   }
 
-  async function generateTokens() {
-    if (selectedIds.length === 0) return;
-    setActionError(null);
-    try {
-      const generated = await generateAuditionTokens(selectedIds);
-      setTokens((current) => ({ ...current, ...generated }));
-      setNotice(`${String(selectedIds.length)} token(s) generated.`);
-    } catch {
-      setActionError("Tokens could not be generated. Confirm the selected auditions still exist.");
-    }
-  }
-
   if (!enabled || state.status !== "ready") {
     return <ManagerStatusPanel enabled={enabled} status={state.status} />;
   }
@@ -394,30 +382,6 @@ export function AuditionManager({ enabled }: Props) {
               </select>
             </label>
           </div>
-          <p className="field-help audition-token-help">
-            Need to follow up with selected applicants? Generate secure, expiring links that let
-            them review or update their audition information. These links are different from the
-            public signup page above.
-          </p>
-          <div className="form-actions form-actions--start audition-selection-actions">
-            <button
-              className="button button--secondary"
-              disabled={selectedIds.length === 0}
-              onClick={() => void generateTokens()}
-              type="button"
-            >
-              Generate {String(selectedIds.length)} follow-up link(s)
-            </button>
-            <button
-              className="text-button"
-              onClick={() => {
-                setSelectedIds([]);
-              }}
-              type="button"
-            >
-              Clear selection
-            </button>
-          </div>
           {filteredAuditions.length === 0 ? (
             <div className="notice">
               {state.auditions.length === 0
@@ -442,63 +406,8 @@ export function AuditionManager({ enabled }: Props) {
                 setScheduleTime(initialScheduleTime);
                 setCustomScheduleTime(initialScheduleTime);
               }}
-              onToggle={(id) => {
-                setSelectedIds((current) =>
-                  current.includes(id)
-                    ? current.filter((candidate) => candidate !== id)
-                    : [...current, id],
-                );
-              }}
-              onToggleAll={() => {
-                const visibleIds = filteredAuditions.map(({ id }) => id);
-                const visibleIdSet = new Set(visibleIds);
-                const selectedIdSet = new Set(selectedIds);
-                const allVisibleSelected = visibleIds.every((id) => selectedIdSet.has(id));
-                setSelectedIds((current) =>
-                  allVisibleSelected
-                    ? current.filter((id) => !visibleIdSet.has(id))
-                    : [...new Set([...current, ...visibleIds])],
-                );
-              }}
-              selectedIds={selectedIds}
             />
           )}
-          {Object.keys(tokens).length > 0 ? (
-            <details className="mt-4">
-              <summary>Generated follow-up links</summary>
-              <p className="field-help">
-                These secure links expire after 90 days. Copy the full link when sending it to an
-                applicant.
-              </p>
-              <ul className="account-list">
-                {Object.entries(tokens).map(([id, token]) => {
-                  const link = auditionFollowUpUrl(token);
-                  return (
-                    <li className="flex items-center gap-2" key={id}>
-                      <strong>
-                        {`${state.auditions.find((audition) => audition.id === id)?.name ?? id}:`}
-                      </strong>
-                      <a
-                        className="text-xs break-all flex-1"
-                        href={link}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {link}
-                      </a>
-                      <button
-                        className="button button--secondary button--sm"
-                        onClick={() => void navigator.clipboard.writeText(link)}
-                        type="button"
-                      >
-                        Copy link
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </details>
-          ) : null}
         </div>
       )}
 
@@ -530,6 +439,7 @@ export function AuditionManager({ enabled }: Props) {
           setCustomScheduleTime("");
           setScheduleTime(value);
         }}
+        rosterConfiguration={rosterConfiguration}
         saveEdit={saveEdit}
         schedule={schedule}
         scheduleAudition={scheduleAudition}
