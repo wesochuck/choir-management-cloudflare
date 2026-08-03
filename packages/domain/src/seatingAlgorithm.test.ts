@@ -3,10 +3,17 @@ import { describe, expect, it } from "vitest";
 import { calculateSeatingSuggestions, isSeatingSectionMismatch } from "./seatingAlgorithm";
 
 describe("seating formation rules", () => {
-  it("fills horizontal rows from the visual back with continuous section spillover", () => {
+  it("fills horizontal rows from the visual front with continuous section spillover", () => {
     expect(
       calculateSeatingSuggestions([10, 10], { A: 10, S: 10 }, ["S", "A"], "horizontal_row"),
-    ).toMatchObject({ "0-0": "A", "0-9": "A", "1-0": "S", "1-9": "S" });
+    ).toMatchObject({ "0-0": "S", "0-9": "S", "1-0": "A", "1-9": "A" });
+  });
+
+  it("leaves excess horizontal seats unassigned", () => {
+    expect(calculateSeatingSuggestions([3, 3], { S: 2 }, ["S"], "horizontal_row")).toEqual({
+      "0-0": "S",
+      "0-1": "S",
+    });
   });
 
   it("centers active vertical-column seats and assigns sections left to right", () => {

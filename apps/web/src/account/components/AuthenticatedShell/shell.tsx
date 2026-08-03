@@ -165,7 +165,11 @@ export function AuthenticatedShell({
 
   function switchWorkspace(next: Workspace) {
     setSelectedWorkspace(next);
-    window.localStorage.setItem(`choir-workspace:${window.location.hostname}`, next);
+    try {
+      window.localStorage.setItem(`choir-workspace:${window.location.hostname}`, next);
+    } catch {
+      // Restricted storage should not prevent switching workspaces.
+    }
     navigate(workspaceHome(next));
     setMobileNavOpen(false);
   }

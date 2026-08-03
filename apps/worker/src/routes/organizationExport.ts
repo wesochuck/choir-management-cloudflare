@@ -67,14 +67,6 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         ...createdBody.data,
         requestId: context.get("requestId"),
       });
-      await context.env.JOBS_QUEUE.send({
-        attempt: 1,
-        idempotencyKey: `organization-export:${created.exportId}`,
-        jobId: created.exportId,
-        kind: "organization_export",
-        organizationId: authorization.organizationId,
-        version: 1,
-      });
       return context.json(created, 202);
     } catch {
       return context.json(

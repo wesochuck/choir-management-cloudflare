@@ -415,24 +415,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/test-smtp", async (context) => {
-    const auth = createAuth({
-      env: context.env,
-      requestUrl: new URL(context.req.url),
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Authentication required.",
-          requestId: context.get("requestId"),
-        },
-        401,
-      );
-    }
+    const authorization = await authorizePlatformRead(context, new URL(context.req.url));
+    if (authorization instanceof Response) return authorization;
     let body: unknown;
     try {
       body = await context.req.json();
@@ -455,24 +439,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/test-sms", async (context) => {
-    const auth = createAuth({
-      env: context.env,
-      requestUrl: new URL(context.req.url),
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Authentication required.",
-          requestId: context.get("requestId"),
-        },
-        401,
-      );
-    }
+    const authorization = await authorizePlatformRead(context, new URL(context.req.url));
+    if (authorization instanceof Response) return authorization;
     let body: unknown;
     try {
       body = await context.req.json();
@@ -494,24 +462,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.get("/api/platform/queue-settings", async (context) => {
-    const auth = createAuth({
-      env: context.env,
-      requestUrl: new URL(context.req.url),
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Authentication required.",
-          requestId: context.get("requestId"),
-        },
-        401,
-      );
-    }
+    const authorization = await authorizePlatformRead(context, new URL(context.req.url));
+    if (authorization instanceof Response) return authorization;
     return context.json({
       queue: "choir-management-jobs-local",
       deadLetterQueue: "choir-management-jobs-dlq-local",
@@ -521,24 +473,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/platform/queue-settings/generate", async (context) => {
-    const auth = createAuth({
-      env: context.env,
-      requestUrl: new URL(context.req.url),
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Authentication required.",
-          requestId: context.get("requestId"),
-        },
-        401,
-      );
-    }
+    const authorization = await authorizePlatformRead(context, new URL(context.req.url));
+    if (authorization instanceof Response) return authorization;
     return context.json({ generated: true, requestId: context.get("requestId") });
   });
 }

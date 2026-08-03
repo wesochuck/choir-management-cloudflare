@@ -142,13 +142,14 @@ function readProfiles(storage: DurableObjectStorage): readonly StoredProfileRow[
 function readPerformances(storage: DurableObjectStorage): readonly StoredPerformanceRow[] {
   return storage.sql
     .exec<RawPerformanceRow>(
-      `SELECT r.profile_id AS profileId, e.id, e.title, e.starts_at AS startsAt,
+      `SELECT p.id AS profileId, e.id, e.title, e.starts_at AS startsAt,
          e.duration_minutes AS durationMinutes, e.is_archived AS isArchived,
          e.is_canceled AS isCanceled, COALESCE(r.rsvp, 'Pending') AS rsvp,
          COALESCE(r.attendance, 'Pending') AS attendance
-       FROM event_rosters r
-       JOIN events e ON e.id = r.event_id
-       WHERE e.type = 'Performance'
+       FROM profiles p
+       CROSS JOIN events e
+       LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
+       WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
        ORDER BY r.profile_id, e.starts_at DESC, e.id DESC LIMIT 100000`,
     )
     .toArray()

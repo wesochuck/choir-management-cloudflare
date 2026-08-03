@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { musicTrackFileIdsSchema } from "./music";
 export const playerPlaylistItemSchema = z.object({
   arranger: z.string().optional(),
   composer: z.string().optional(),
@@ -7,7 +8,7 @@ export const playerPlaylistItemSchema = z.object({
   notes: z.string().optional(),
   pieceId: z.uuid().optional(),
   title: z.string().min(1).max(300),
-  trackFileIds: z.record(z.string(), z.string()),
+  trackFileIds: musicTrackFileIdsSchema,
 });
 
 export type PlayerPlaylistItem = z.infer<typeof playerPlaylistItemSchema>;

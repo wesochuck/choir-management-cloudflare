@@ -24,8 +24,8 @@ export type AuditionInquiry = z.infer<typeof auditionInquirySchema>;
 
 export const auditionSlotSchema = z.object({
   id: z.string(),
-  startsAt: z.string(),
-  endsAt: z.string(),
+  startsAt: z.iso.datetime(),
+  endsAt: z.iso.datetime(),
 });
 
 export type AuditionSlot = z.infer<typeof auditionSlotSchema>;

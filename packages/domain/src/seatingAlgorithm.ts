@@ -72,9 +72,10 @@ function horizontalSuggestions(
   const totalSeats = rowCounts.reduce((sum, count) => sum + count, 0);
   const suggestions: Record<string, string> = {};
   let filled = 0;
-  for (let rowIndex = rowCounts.length - 1; rowIndex >= 0; rowIndex -= 1) {
+  for (let rowIndex = 0; rowIndex < rowCounts.length; rowIndex += 1) {
     const rowSize = rowCounts[rowIndex] ?? 0;
     for (let seatIndex = 0; seatIndex < rowSize; seatIndex += 1) {
+      if (filled >= singerCount) continue;
       const target = Math.floor((filled / totalSeats) * singerCount);
       let threshold = 0;
       let selected = sectionOrder.at(-1) ?? "";

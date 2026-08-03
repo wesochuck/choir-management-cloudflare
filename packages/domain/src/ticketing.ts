@@ -11,10 +11,10 @@ export interface TransactionFeeSettings {
   readonly percentage: number;
 }
 
-export const defaultTransactionFeeSettings: TransactionFeeSettings = {
+export const defaultTransactionFeeSettings = {
   fixedCents: 30,
   percentage: 2.9,
-};
+} as const;
 
 function calendarDate(value: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", {

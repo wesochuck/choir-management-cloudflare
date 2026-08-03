@@ -68,6 +68,7 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
   const unsavedChangesRef = useRef(false);
   const nativeDropHandledRef = useRef(false);
   const chartRef = useRef<OrganizationSeatingChartRequest | null>(null);
+  const resourcesRef = useRef<SeatingResources | null>(null);
   const editingIdRef = useRef<string | null>(null);
   const eventIdRef = useRef("");
   const [resources, setResources] = useState<SeatingResources | null>(null);
@@ -130,7 +131,9 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     ])
       .then(([events, profiles, roster, seating]) => {
         const performances = events.filter(({ type }) => type === "Performance");
-        setResources({ events: performances, profiles, roster, seating });
+        const nextResources = { events: performances, profiles, roster, seating };
+        resourcesRef.current = nextResources;
+        setResources(nextResources);
         const requested = new URLSearchParams(window.location.search).get("eventId");
         const selected = performances.some(({ id }) => id === requested)
           ? requested
@@ -157,7 +160,8 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
   }, [eventId]);
 
   useEffect(() => {
-    if (!enabled || !eventId || !resources) return;
+    const currentResources = resourcesRef.current;
+    if (!enabled || !eventId || !currentResources) return;
     const controller = new AbortController();
     Promise.all([
       listOrganizationSeatingCharts(eventId, controller.signal),
@@ -171,7 +175,11 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
         const nextId = active?.id ?? null;
         const nextChart = active
           ? chartRequest(active)
-          : { ...emptyChart, formationId: resources.seating.defaultFormationId, venueId: null };
+          : {
+              ...emptyChart,
+              formationId: currentResources.seating.defaultFormationId,
+              venueId: null,
+            };
         setEditingId(nextId);
         editingIdRef.current = nextId;
         setChart(nextChart);
@@ -192,7 +200,7 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     return () => {
       controller.abort();
     };
-  }, [enabled, eventId, resources, updateUrl]);
+  }, [enabled, eventId, updateUrl]);
 
   const eligibleProfiles = useMemo(() => {
     if (!resources) return [];

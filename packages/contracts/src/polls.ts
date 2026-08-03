@@ -52,9 +52,9 @@ export const organizationPollOptionSchema = z.object({
 export type OrganizationPollOption = z.infer<typeof organizationPollOptionSchema>;
 
 export const organizationPollRequestSchema = z.object({
-  archivedAt: z.string().max(100).default(""),
+  archivedAt: z.union([z.literal(""), z.iso.datetime()]).default(""),
   description: z.string().trim().max(10_000).default(""),
-  expiresAt: z.string().max(100).default(""),
+  expiresAt: z.union([z.literal(""), z.iso.datetime()]).default(""),
   multipleChoice: z.boolean().default(false),
   options: z.array(organizationPollOptionSchema).min(2).max(100),
   title: z.string().trim().min(1).max(500),

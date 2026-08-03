@@ -21,7 +21,8 @@ function isAlarmWakePath(pathname: string): boolean {
     pathname === "/internal/audition/update" ||
     pathname === "/internal/donations/manage" ||
     pathname === "/internal/export/create" ||
-    pathname === "/internal/seasons/manage"
+    pathname === "/internal/seasons/manage" ||
+    pathname === "/internal/ticketing/manage"
   );
 }
 

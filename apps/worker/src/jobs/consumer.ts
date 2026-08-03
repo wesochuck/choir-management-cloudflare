@@ -256,7 +256,7 @@ async function processDeadLetterRecord(
   batchQueue: string,
   env: DeadLetterConsumerEnv,
   record: ReturnType<typeof createDeadLetterRecord>,
-): Promise<void> {
+): Promise<boolean> {
   const { job, message } = record;
   if (job && message.attempts < 2) {
     message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
@@ -270,7 +270,7 @@ async function processDeadLetterRecord(
         queue: batchQueue,
       }),
     );
-    return;
+    return false;
   }
   await recordTerminalEventReminder(env, job);
   await recordTerminalJob(env, job);
@@ -285,6 +285,7 @@ async function processDeadLetterRecord(
       queue: batchQueue,
     }),
   );
+  return true;
 }
 
 export async function processDeadLetterBatch(
@@ -294,11 +295,12 @@ export async function processDeadLetterBatch(
   const records = batch.messages.map((message) =>
     createDeadLetterRecord(batch, message, env.CONTROL_DB),
   );
-  if (records.length > 0) {
-    await env.CONTROL_DB.batch(records.map(({ statement }) => statement));
-  }
+  const terminalRecords: typeof records = [];
   for (const record of records) {
-    await processDeadLetterRecord(batch.queue, env, record);
+    if (await processDeadLetterRecord(batch.queue, env, record)) terminalRecords.push(record);
+  }
+  if (terminalRecords.length > 0) {
+    await env.CONTROL_DB.batch(terminalRecords.map(({ statement }) => statement));
   }
 }
 

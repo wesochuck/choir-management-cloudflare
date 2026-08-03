@@ -359,7 +359,7 @@ export function listOrganizationEventsFromStore(
          set_list_json AS setListJson, set_list_approved AS setListApproved,
          created_at AS createdAt, updated_at AS updatedAt,
          is_canceled AS isCanceled
-       FROM events WHERE is_archived = 0 ORDER BY starts_at ASC, id ASC LIMIT 500`,
+       FROM events WHERE is_archived = 0 ORDER BY starts_at DESC, id DESC LIMIT 500`,
     )
     .toArray()
     .map((event) => ({
@@ -1047,7 +1047,7 @@ export function listMemberEventsFromStore(
          ) ELSE 0 END AS seatingAssigned,
          CASE WHEN e.type = 'Performance' THEN (
            SELECT COUNT(*) FROM events rehearsal
-           LEFT JOIN event_rosters attendance ON attendance.event_id = rehearsal.id
+           JOIN event_rosters attendance ON attendance.event_id = rehearsal.id
              AND attendance.profile_id = ?
            WHERE rehearsal.parent_performance_id = e.id
              AND rehearsal.type = 'Rehearsal'
@@ -1060,7 +1060,8 @@ export function listMemberEventsFromStore(
            WHERE rehearsal.parent_performance_id = e.id
              AND rehearsal.type = 'Rehearsal'
              AND rehearsal.is_archived = 0 AND rehearsal.is_canceled = 0
-             AND attendance.attendance = 'Absent'
+             AND (attendance.attendance = 'Absent'
+               OR (attendance.attendance = 'Pending' AND attendance.rsvp = 'No'))
          ) ELSE 0 END AS attendanceMissed
        FROM events e
        LEFT JOIN venues v ON v.id = e.venue_id

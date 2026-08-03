@@ -87,6 +87,12 @@ const uniqueMusicLabelsSchema = z
     }
   });
 
+export const musicTrackFileIdsSchema = z
+  .record(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/), z.uuid())
+  .refine((mapping) => new Set(Object.values(mapping)).size === Object.keys(mapping).length, {
+    message: "Each private audio file may be assigned to only one track.",
+  });
+
 export const organizationMusicPieceRequestSchema = z.object({
   arranger: z.string().trim().max(300).default(""),
   catalogId: z.string().trim().max(200).default(""),
@@ -99,12 +105,7 @@ export const organizationMusicPieceRequestSchema = z.object({
   purchaseDate: z.iso.date().nullable().default(null),
   sectionBuckets: uniqueMusicLabelsSchema.default([]),
   title: z.string().trim().min(1).max(500),
-  trackFileIds: z
-    .record(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/), z.uuid())
-    .refine((mapping) => new Set(Object.values(mapping)).size === Object.keys(mapping).length, {
-      message: "Each private audio file may be assigned to only one track.",
-    })
-    .default({}),
+  trackFileIds: musicTrackFileIdsSchema.default({}),
 });
 
 export const organizationMusicBulkUpdateRequestSchema = z

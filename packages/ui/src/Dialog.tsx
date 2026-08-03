@@ -39,9 +39,6 @@ export function Dialog({ children, description, onClose, open, title }: DialogPr
         <DialogPrimitive.Overlay className="dialog__overlay" />
         <DialogPrimitive.Content
           className="dialog dialog--responsive"
-          onChange={() => {
-            setDirty(true);
-          }}
           onInput={() => {
             setDirty(true);
           }}

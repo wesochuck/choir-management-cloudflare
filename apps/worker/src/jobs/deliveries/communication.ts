@@ -13,7 +13,6 @@ export async function deliverCommunicationJob(
   job: DeliveryJob,
 ): Promise<void> {
   const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
-  const results = [];
   for (const delivery of deliveryJob.deliveries) {
     const templatedContent = renderCommunicationTemplate(
       deliveryJob.contentMarkdown,
@@ -54,11 +53,12 @@ export async function deliverCommunicationJob(
       ),
       unsubscribeUrl: delivery.unsubscribeUrl,
     });
-    results.push({ deliveryId: delivery.id, ...result });
+    // Persist each result before moving on so a worker crash cannot cause all
+    // earlier successful deliveries to be retried as queued.
+    await recordCommunicationDeliveryResults(env, {
+      jobId: job.jobId,
+      organizationId: job.organizationId,
+      results: [{ deliveryId: delivery.id, ...result }],
+    });
   }
-  await recordCommunicationDeliveryResults(env, {
-    jobId: job.jobId,
-    organizationId: job.organizationId,
-    results,
-  });
 }

@@ -121,7 +121,9 @@ async function readMemberDashboardOptionalWidgets(
             .filter(
               (poll) =>
                 poll.archivedAt === "" &&
-                (poll.expiresAt === "" || Date.parse(poll.expiresAt) > Date.now()),
+                (poll.expiresAt === "" ||
+                  (Number.isFinite(Date.parse(poll.expiresAt)) &&
+                    Date.parse(poll.expiresAt) > Date.now())),
             )
             .sort((left, right) => {
               if (left.expiresAt === "") return 1;

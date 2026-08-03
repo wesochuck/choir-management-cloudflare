@@ -246,10 +246,7 @@ export function RosterConfiguration({ enabled }: Props) {
                   ({ sectionCode }) => sectionCode === section.code,
                 );
                 return (
-                  <div
-                    className="roster-configuration-row"
-                    key={`${section.code}-${String(index)}`}
-                  >
+                  <div className="roster-configuration-row" key={`section-row-${String(index)}`}>
                     <label>
                       Code
                       <input
@@ -391,10 +388,7 @@ export function RosterConfiguration({ enabled }: Props) {
                 const assignedProfiles = assignedProfilesByLabel.get(voicePart.label) ?? [];
                 const assigned = assignedProfiles.length > 0;
                 return (
-                  <div
-                    className="roster-configuration-row"
-                    key={`${voicePart.label}-${String(index)}`}
-                  >
+                  <div className="roster-configuration-row" key={`voice-part-row-${String(index)}`}>
                     <label>
                       Label
                       <input
