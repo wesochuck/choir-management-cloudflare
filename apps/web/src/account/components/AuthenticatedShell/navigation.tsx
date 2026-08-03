@@ -63,18 +63,23 @@ export function Navigation({
         <div className="workspace-nav__group" key={group.label}>
           <p className="workspace-nav__label">{group.label}</p>
           <div className="workspace-nav__items">
-            {group.items.map((item) => (
-              <AppLink
-                ariaCurrent={pathname === item.href ? "page" : undefined}
-                href={item.href}
-                key={item.href}
-                onNavigate={navigate}
-              >
-                <span aria-hidden="true" className="workspace-nav__dot" />
-                <span>{item.label}</span>
-                {pathname === item.href ? <span className="sr-only"> (current)</span> : null}
-              </AppLink>
-            ))}
+            {group.items.map((item) => {
+              // Keep nested pages grouped with their primary navigation item. For example,
+              // library settings should still highlight Music library in the sidebar.
+              const isCurrent = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <AppLink
+                  ariaCurrent={isCurrent ? "page" : undefined}
+                  href={item.href}
+                  key={item.href}
+                  onNavigate={navigate}
+                >
+                  <span aria-hidden="true" className="workspace-nav__dot" />
+                  <span>{item.label}</span>
+                  {isCurrent ? <span className="sr-only"> (current)</span> : null}
+                </AppLink>
+              );
+            })}
           </div>
         </div>
       ))}

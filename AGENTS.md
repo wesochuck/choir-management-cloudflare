@@ -190,6 +190,10 @@ Before finishing any material change, report:
 - Use the exact product language in `CONTEXT.md`: Organization, Organization Profile, Organization
   Membership, Platform Administrator, On Break in the UI, and `Idle` in storage/API/CSV.
 - Performer eligibility is a non-empty `voicePart`, not an authorization role.
+- For custom `<details>` dropdowns, use the shared upward chevron glyph (`⌃`) and rotate it 180
+  degrees while closed, returning it to 0 degrees when open. Match the existing
+  `.music-genre-filter summary::after` pattern; do not introduce the visually inconsistent downward
+  glyph (`⌄`). Native `<select>` controls should keep their browser-provided chevron.
 
 ## 9. Security, Providers, and Environments
 

@@ -294,6 +294,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             id: "sharing",
             render: (poll: Poll) => (
               <button
+                className="button button--secondary button--small"
                 disabled={sharingPollId === poll.id}
                 onClick={() => {
                   void sharePoll(poll);

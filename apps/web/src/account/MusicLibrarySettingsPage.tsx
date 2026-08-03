@@ -71,19 +71,35 @@ export function MusicLibrarySettingsPage({
     [pieces],
   );
 
-  async function save(): Promise<void> {
-    if (!settings) return;
+  async function save(section: "catalog" | "practice"): Promise<void> {
+    if (!settings || !savedSettings) return;
     setBusy(true);
     setError(null);
     setSuccess(null);
+    const nextSettings = {
+      ...savedSettings,
+      ...(section === "catalog"
+        ? { publisherSearchTemplate: settings.publisherSearchTemplate.trim() }
+        : { practicePlayerLinkLifetimeDays: settings.practicePlayerLinkLifetimeDays }),
+    };
     try {
-      const saved = await updateOrganizationMusicLibrarySettings({
-        ...settings,
-        publisherSearchTemplate: settings.publisherSearchTemplate.trim(),
-      });
-      setSettings(saved);
+      const saved = await updateOrganizationMusicLibrarySettings(nextSettings);
+      setSettings((current) =>
+        current
+          ? {
+              ...current,
+              ...(section === "catalog"
+                ? { publisherSearchTemplate: saved.publisherSearchTemplate }
+                : { practicePlayerLinkLifetimeDays: saved.practicePlayerLinkLifetimeDays }),
+            }
+          : saved,
+      );
       setSavedSettings(saved);
-      setSuccess("Music library settings updated.");
+      setSuccess(
+        section === "catalog"
+          ? "Catalog lookup settings updated."
+          : "Practice link settings updated.",
+      );
     } catch (caught: unknown) {
       setError(
         caught instanceof AuthApiError
@@ -133,82 +149,114 @@ export function MusicLibrarySettingsPage({
         </p>
       ) : null}
       {settings && savedSettings ? (
-        <section
-          className="music-publisher-settings"
-          aria-labelledby="music-library-settings-title"
-        >
-          <div>
-            <p className="eyebrow">Music library setting</p>
-            <h2 id="music-library-settings-title">Catalog lookup link</h2>
-            <p>
-              Configure the publisher’s HTTPS search URL once here. Use <code>{"{catalogId}"}</code>{" "}
-              where the catalog number belongs; matching catalog rows will include a direct search
-              link.
-            </p>
-          </div>
-          <form
-            className="music-publisher-settings__form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
-            }}
+        <>
+          <section
+            className="music-publisher-settings"
+            aria-labelledby="music-library-settings-title"
           >
-            <label className="field">
-              Publisher search URL template
-              <input
-                aria-describedby="music-publisher-settings-help"
-                placeholder="https://publisher.example/search?catalog={catalogId}"
-                type="text"
-                value={settings.publisherSearchTemplate}
-                onChange={(event) => {
-                  setSettings((current) =>
-                    current ? { ...current, publisherSearchTemplate: event.target.value } : current,
-                  );
-                  setError(null);
-                  setSuccess(null);
-                }}
-              />
-              <small className="field-help" id="music-publisher-settings-help">
-                Leave blank to hide publisher links. HTTPS and the exact{" "}
-                <code>{"{catalogId}"}</code> placeholder are required.
-              </small>
-            </label>
-            <label className="field">
-              Public practice link lifetime (days)
-              <input
-                min="1"
-                max="3650"
-                type="number"
-                value={settings.practicePlayerLinkLifetimeDays}
-                onChange={(event) => {
-                  setSettings((current) =>
-                    current
-                      ? { ...current, practicePlayerLinkLifetimeDays: Number(event.target.value) }
-                      : current,
-                  );
-                  setError(null);
-                  setSuccess(null);
-                }}
-              />
-              <small className="field-help">
-                Existing links keep their expiry. New links default to 180 days and can be rotated
-                by an administrator.
-              </small>
-            </label>
-            <button
-              className="button button--secondary"
-              disabled={
-                busy ||
-                (settings.publisherSearchTemplate.trim() ===
-                  savedSettings.publisherSearchTemplate &&
-                  settings.practicePlayerLinkLifetimeDays ===
-                    savedSettings.practicePlayerLinkLifetimeDays)
-              }
-              type="submit"
+            <div>
+              <p className="eyebrow">Music library setting</p>
+              <h2 id="music-library-settings-title">Catalog lookup link</h2>
+              <p>
+                Configure the publisher’s HTTPS search URL once here. Use{" "}
+                <code>{"{catalogId}"}</code> where the catalog number belongs; matching catalog rows
+                will include a direct search link.
+              </p>
+            </div>
+            <form
+              className="music-publisher-settings__form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void save("catalog");
+              }}
             >
-              {busy ? "Saving…" : "Save settings"}
-            </button>
-          </form>
+              <label className="field">
+                Publisher search URL template
+                <input
+                  aria-describedby="music-publisher-settings-help"
+                  placeholder="https://publisher.example/search?catalog={catalogId}"
+                  type="text"
+                  value={settings.publisherSearchTemplate}
+                  onChange={(event) => {
+                    setSettings((current) =>
+                      current
+                        ? { ...current, publisherSearchTemplate: event.target.value }
+                        : current,
+                    );
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                />
+                <small className="field-help" id="music-publisher-settings-help">
+                  Leave blank to hide publisher links. HTTPS and the exact{" "}
+                  <code>{"{catalogId}"}</code> placeholder are required.
+                </small>
+              </label>
+              <button
+                className="button button--secondary"
+                disabled={
+                  busy ||
+                  settings.publisherSearchTemplate.trim() === savedSettings.publisherSearchTemplate
+                }
+                type="submit"
+              >
+                {busy ? "Saving…" : "Save catalog link"}
+              </button>
+            </form>
+          </section>
+          <section
+            className="music-practice-settings"
+            aria-labelledby="music-practice-settings-title"
+          >
+            <div>
+              <p className="eyebrow">Practice player</p>
+              <h2 id="music-practice-settings-title">Public practice-link settings</h2>
+              <p>
+                Set how long newly created public practice-player links remain valid. This does not
+                change existing links; administrators can rotate them when needed.
+              </p>
+            </div>
+            <form
+              className="music-practice-settings__form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void save("practice");
+              }}
+            >
+              <label className="field">
+                Link lifetime (days)
+                <input
+                  min="1"
+                  max="3650"
+                  type="number"
+                  value={settings.practicePlayerLinkLifetimeDays}
+                  onChange={(event) => {
+                    setSettings((current) =>
+                      current
+                        ? { ...current, practicePlayerLinkLifetimeDays: Number(event.target.value) }
+                        : current,
+                    );
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                />
+                <small className="field-help">
+                  New links default to 180 days and can be rotated by an administrator.
+                </small>
+              </label>
+              <button
+                className="button button--secondary"
+                disabled={
+                  busy ||
+                  settings.practicePlayerLinkLifetimeDays ===
+                    savedSettings.practicePlayerLinkLifetimeDays
+                }
+                type="submit"
+              >
+                {busy ? "Saving…" : "Save practice settings"}
+              </button>
+            </form>
+          </section>
           <section
             className="music-library-genre-settings"
             aria-labelledby="music-library-genres-title"
@@ -237,7 +285,7 @@ export function MusicLibrarySettingsPage({
               </p>
             )}
           </section>
-        </section>
+        </>
       ) : null}
     </section>
   );
