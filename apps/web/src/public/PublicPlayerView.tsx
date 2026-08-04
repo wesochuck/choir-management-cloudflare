@@ -597,7 +597,6 @@ function PublicPracticePlayer({
             <h2 id="public-player-set-list">Set List</h2>
             <p>{String(details.items.length)} tracks</p>
           </div>
-          <span className="public-player__no-login">No login required</span>
         </div>
         <p className="public-player__set-list-help">
           Choose a track to start practicing. Part and section tracks fall back to Tutti when a

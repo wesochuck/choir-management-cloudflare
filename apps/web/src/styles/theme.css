@@ -654,7 +654,6 @@ footer {
 }
 
 .public-player__track-badge,
-.public-player__no-login,
 .public-player__item-track {
   flex: 0 0 auto;
   padding: 0.2rem 0.45rem;
@@ -817,11 +816,6 @@ footer {
 
 .public-player__set-list-heading {
   align-items: center;
-}
-
-.public-player__no-login {
-  border-color: var(--color-success);
-  color: var(--color-success-text);
 }
 
 .public-player__set-list-help {
