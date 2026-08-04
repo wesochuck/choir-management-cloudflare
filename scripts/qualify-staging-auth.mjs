@@ -63,6 +63,10 @@ const organizationRoutes = [
   "/api/singer/calendar-feed-url",
 ];
 
+// Routes that require a parameterized fixture (for example a ticketed event ID)
+// and therefore correctly reject a bare request with 400.
+const organizationValidationRoutes = new Set(["/api/organization/tickets/will-call"]);
+
 const failures = [];
 const counts = { product: 0, organizations: 0 };
 
@@ -91,9 +95,9 @@ async function request(url) {
   }
 }
 
-function check(label, result) {
-  if (result.status !== 200) {
-    failures.push(`${label}: expected 200, received ${String(result.status)}`);
+function check(label, result, expected = 200) {
+  if (result.status !== expected) {
+    failures.push(`${label}: expected ${String(expected)}, received ${String(result.status)}`);
   }
   if (result.error) failures.push(`${label}: ${result.error}`);
 }
@@ -115,7 +119,11 @@ for (const slug of organizationSlugs) {
   const host = `https://${slug}.${new URL(productUrl).hostname}`;
   for (const path of organizationRoutes) {
     counts.organizations += 1;
-    check(`${slug} GET ${path}`, await request(`${host}${path}`));
+    check(
+      `${slug} GET ${path}`,
+      await request(`${host}${path}`),
+      organizationValidationRoutes.has(path) ? 400 : 200,
+    );
   }
 }
 
