@@ -103,4 +103,3 @@ export async function convertOrganizationAudition(
   }
   return { profileId: body.profile.id };
 }
-
