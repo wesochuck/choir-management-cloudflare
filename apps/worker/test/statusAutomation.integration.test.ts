@@ -468,4 +468,484 @@ describe("roster status automation", () => {
     expect(bravoPreview.status).toBe(403);
     expect(pastPerformanceIds).toHaveLength(3);
   });
+
+  it("applies the On Break timeout to an automatically managed Idle profile", async () => {
+    const cookie = await signIn();
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "On Break Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    const saved = await write(
+      "alpha.localhost",
+      "/api/organization/roster-configuration",
+      cookie,
+      { ...roster, onBreakTimeoutDays: 30 },
+      "PUT",
+    );
+    expect(saved.status).toBe(200);
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `UPDATE profiles SET global_status = 'Idle', status_is_manual = 0,
+             status_changed_at = ?, status_change_reason = 'Planned leave'
+           WHERE id = ?`,
+          new Date(Date.now() - 60 * 86_400_000).toISOString(),
+          profile.id,
+        );
+        return null;
+      },
+    );
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        runRosterAutomations(state.storage, "organization-alpha", new Date());
+        return null;
+      },
+    );
+    const profiles = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/profiles", cookie))
+      ).json(),
+    );
+    expect(profiles.profiles.find(({ id }) => id === profile.id)?.globalStatus).toBe("Inactive");
+    const history = organizationProfileStatusHistoryResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/profiles/${profile.id}/status-history`, cookie),
+        )
+      ).json(),
+    );
+    expect(history.entries[0]).toMatchObject({
+      newStatus: "Inactive",
+      reason: "On Break has reached its 30-day timeout.",
+      triggerType: "on_break_timeout",
+    });
+  });
+
+  it("leaves manually managed and non-performer profiles untouched by automation runs", async () => {
+    const cookie = await signIn();
+    const manual = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Manual Singer",
+          voicePart: "S2",
+        })
+      ).json(),
+    );
+    const staff = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Staff Member",
+        })
+      ).json(),
+    );
+    for (let index = 1; index <= 3; index += 1) {
+      const event = organizationEventSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/events", cookie, {
+            startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
+            title: `Staff Missed Performance ${String(index)}`,
+            type: "Performance",
+          })
+        ).json(),
+      );
+      await write(
+        "alpha.localhost",
+        `/api/organization/events/${event.id}/rsvp`,
+        cookie,
+        { profileId: staff.id, rsvp: "No" },
+        "PUT",
+      );
+    }
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `UPDATE profiles SET global_status = 'Idle', status_is_manual = 1,
+             status_changed_at = ?, status_change_reason = 'Manual hold'
+           WHERE id = ?`,
+          new Date(Date.now() - 60 * 86_400_000).toISOString(),
+          manual.id,
+        );
+        return null;
+      },
+    );
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        runRosterAutomations(state.storage, "organization-alpha", new Date());
+        return null;
+      },
+    );
+    const profiles = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/profiles", cookie))
+      ).json(),
+    );
+    expect(profiles.profiles.find(({ id }) => id === manual.id)?.globalStatus).toBe("Idle");
+    expect(profiles.profiles.find(({ id }) => id === staff.id)?.globalStatus).toBe("Active");
+  });
+
+  it("does not expire pending RSVPs when RSVP expiry is disabled", async () => {
+    const cookie = await signIn();
+    await write("alpha.localhost", "/api/organization/profiles", cookie, {
+      displayName: "Expiry Disabled Singer",
+      voicePart: "S1",
+    });
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    const saved = await write(
+      "alpha.localhost",
+      "/api/organization/roster-configuration",
+      cookie,
+      { ...roster, rsvpExpiryEnabled: false },
+      "PUT",
+    );
+    expect(saved.status).toBe(200);
+    const future = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+          title: "Expiry Disabled Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        runRosterAutomations(state.storage, "organization-alpha", new Date());
+        return null;
+      },
+    );
+    const rows = organizationAttendanceResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${future.id}/attendance`, cookie),
+        )
+      ).json(),
+    );
+    expect(rows.rows.every((row) => row.rsvp === "Pending")).toBe(true);
+  });
+
+  it("does not change statuses when status automation is disabled", async () => {
+    const cookie = await signIn();
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Automation Disabled Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    const saved = await write(
+      "alpha.localhost",
+      "/api/organization/roster-configuration",
+      cookie,
+      { ...roster, statusAutomationEnabled: false },
+      "PUT",
+    );
+    expect(saved.status).toBe(200);
+    for (let index = 1; index <= 3; index += 1) {
+      const event = organizationEventSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/events", cookie, {
+            startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
+            title: `Disabled Missed Performance ${String(index)}`,
+            type: "Performance",
+          })
+        ).json(),
+      );
+      await write(
+        "alpha.localhost",
+        `/api/organization/events/${event.id}/rsvp`,
+        cookie,
+        { profileId: profile.id, rsvp: "No" },
+        "PUT",
+      );
+    }
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        runRosterAutomations(state.storage, "organization-alpha", new Date());
+        return null;
+      },
+    );
+    const profiles = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/profiles", cookie))
+      ).json(),
+    );
+    expect(profiles.profiles.find(({ id }) => id === profile.id)?.globalStatus).toBe("Active");
+  });
+
+  it("marks a performer Inactive after three Absent attendances", async () => {
+    const cookie = await signIn();
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Absent Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    for (let index = 1; index <= 3; index += 1) {
+      const event = organizationEventSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/events", cookie, {
+            startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
+            title: `Absent Performance ${String(index)}`,
+            type: "Performance",
+          })
+        ).json(),
+      );
+      const attendance = await write(
+        "alpha.localhost",
+        `/api/organization/events/${event.id}/attendance`,
+        cookie,
+        { updates: [{ attendance: "Absent", profileId: profile.id }] },
+        "PUT",
+      );
+      expect(attendance.status).toBe(200);
+    }
+    const profiles = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/profiles", cookie))
+      ).json(),
+    );
+    expect(profiles.profiles.find(({ id }) => id === profile.id)?.globalStatus).toBe("Inactive");
+    const history = organizationProfileStatusHistoryResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/profiles/${profile.id}/status-history`, cookie),
+        )
+      ).json(),
+    );
+    expect(history.entries[0]).toMatchObject({
+      newStatus: "Inactive",
+      triggerType: "performance_miss",
+    });
+  });
+
+  it("previews pending status changes, On Break timeouts, and RSVP expiries", async () => {
+    const cookie = await signIn();
+    const missed = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Preview Missed Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    const onBreak = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Preview On Break Singer",
+          voicePart: "S2",
+        })
+      ).json(),
+    );
+    const missedEventIds: string[] = [];
+    for (let index = 1; index <= 3; index += 1) {
+      const event = organizationEventSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/events", cookie, {
+            startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
+            title: `Preview Missed Performance ${String(index)}`,
+            type: "Performance",
+          })
+        ).json(),
+      );
+      missedEventIds.push(event.id);
+    }
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        for (const eventId of missedEventIds) {
+          state.storage.sql.exec(
+            `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+             VALUES (?, ?, 'No', 'Pending', ?, ?)`,
+            eventId,
+            missed.id,
+            now,
+            now,
+          );
+        }
+        state.storage.sql.exec(
+          `UPDATE profiles SET global_status = 'Idle', status_is_manual = 0,
+             status_changed_at = ?, status_change_reason = 'Planned leave'
+           WHERE id = ?`,
+          new Date(Date.now() - 60 * 86_400_000).toISOString(),
+          onBreak.id,
+        );
+        return null;
+      },
+    );
+    await write("alpha.localhost", "/api/organization/events", cookie, {
+      startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      title: "Preview Expiry Performance",
+      type: "Performance",
+    });
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    const preview = organizationRosterAutomationPreviewResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          "/api/organization/roster-configuration/preview",
+          cookie,
+          { configuration: { ...roster, onBreakTimeoutDays: 30 }, profileId: null },
+        )
+      ).json(),
+    );
+    expect(preview).toMatchObject({
+      affectedProfileCount: 2,
+      onBreakTimeoutCount: 1,
+      rsvpExpiryCount: 2,
+      statusChangeCount: 2,
+    });
+    expect(preview.selectedProfile).toBeNull();
+  });
+
+  it("applies the On Break timeout when the roster configuration is saved", async () => {
+    const cookie = await signIn();
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Config Save Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `UPDATE profiles SET global_status = 'Idle', status_is_manual = 0,
+             status_changed_at = ?, status_change_reason = 'Planned leave'
+           WHERE id = ?`,
+          new Date(Date.now() - 60 * 86_400_000).toISOString(),
+          profile.id,
+        );
+        return null;
+      },
+    );
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    const saved = await write(
+      "alpha.localhost",
+      "/api/organization/roster-configuration",
+      cookie,
+      { ...roster, onBreakTimeoutDays: 30 },
+      "PUT",
+    );
+    expect(saved.status).toBe(200);
+    const profiles = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/profiles", cookie))
+      ).json(),
+    );
+    expect(profiles.profiles.find(({ id }) => id === profile.id)?.globalStatus).toBe("Inactive");
+  });
+
+  it("writes audit events for automated RSVP and status changes", async () => {
+    const cookie = await signIn();
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Audit Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    for (let index = 1; index <= 3; index += 1) {
+      const event = organizationEventSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/events", cookie, {
+            startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
+            title: `Audit Missed Performance ${String(index)}`,
+            type: "Performance",
+          })
+        ).json(),
+      );
+      await write(
+        "alpha.localhost",
+        `/api/organization/events/${event.id}/rsvp`,
+        cookie,
+        { profileId: profile.id, rsvp: "No" },
+        "PUT",
+      );
+    }
+    await write("alpha.localhost", "/api/organization/events", cookie, {
+      startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      title: "Audit Expiry Performance",
+      type: "Performance",
+    });
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        runRosterAutomations(state.storage, "organization-alpha", new Date());
+        return null;
+      },
+    );
+    const auditActions: string[] = [];
+    const auditActorTypes: string[] = [];
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        for (const row of state.storage.sql
+          .exec<{ readonly action: string; readonly actorType: string }>(
+            "SELECT action, actor_type AS actorType FROM audit_events",
+          )
+          .toArray()) {
+          auditActions.push(row.action);
+          auditActorTypes.push(row.actorType);
+        }
+        return null;
+      },
+    );
+    expect(auditActions).toContain("profile.status.automated");
+    expect(auditActions).toContain("event.rsvp.automated");
+    const automatedIndexes = auditActions
+      .map((action, index) => (action === "profile.status.automated" || action === "event.rsvp.automated" ? index : -1))
+      .filter((index) => index >= 0);
+    for (const index of automatedIndexes) {
+      expect(auditActorTypes[index]).toBe("system");
+    }
+  });
 });

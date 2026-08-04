@@ -118,3 +118,254 @@ describe("status automation rules", () => {
     ).toBe("2027-04-01T04:00:00.000Z");
   });
 });
+
+describe("status automation guard rails", () => {
+  it("does not change a status when automation is disabled", () => {
+    const evaluation = evaluateProfileStatus({
+      configuration: { ...configuration, statusAutomationEnabled: false },
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      performances: [1, 2, 3].map((day) => ({
+        attendance: "Pending" as const,
+        durationMinutes: 120,
+        id: `performance-${String(day)}`,
+        isArchived: false,
+        isCanceled: false,
+        rsvp: "No" as const,
+        startsAt: `2026-04-${String(day).padStart(2, "0")}T14:00:00.000Z`,
+      })),
+      profile: { currentStatus: "Active", isManual: false, isPerformer: true },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Active", triggerType: "none" });
+  });
+
+  it("does not recover a non-active performer when recovery is disabled", () => {
+    const evaluation = evaluateProfileStatus({
+      configuration: { ...configuration, statusAutomationRecoveryEnabled: false },
+      now: new Date("2026-04-01T12:00:00.000Z"),
+      performances: [
+        {
+          attendance: "Pending",
+          durationMinutes: null,
+          id: "future-performance",
+          isArchived: false,
+          isCanceled: false,
+          rsvp: "Yes",
+          startsAt: "2026-04-08T12:00:00.000Z",
+        },
+      ],
+      profile: { currentStatus: "Inactive", isManual: false, isPerformer: true },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Inactive", triggerType: "none" });
+  });
+
+  it("ignores manually managed profiles", () => {
+    const evaluation = evaluateProfileStatus({
+      configuration,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      performances: [1, 2, 3].map((day) => ({
+        attendance: "Pending" as const,
+        durationMinutes: 120,
+        id: `performance-${String(day)}`,
+        isArchived: false,
+        isCanceled: false,
+        rsvp: "No" as const,
+        startsAt: `2026-04-${String(day).padStart(2, "0")}T14:00:00.000Z`,
+      })),
+      profile: { currentStatus: "Active", isManual: true, isPerformer: true },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Active", triggerType: "none" });
+  });
+
+  it("ignores profiles without a voice part", () => {
+    const evaluation = evaluateProfileStatus({
+      configuration,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      performances: [1, 2, 3].map((day) => ({
+        attendance: "Pending" as const,
+        durationMinutes: 120,
+        id: `performance-${String(day)}`,
+        isArchived: false,
+        isCanceled: false,
+        rsvp: "No" as const,
+        startsAt: `2026-04-${String(day).padStart(2, "0")}T14:00:00.000Z`,
+      })),
+      profile: { currentStatus: "Active", isManual: false, isPerformer: false },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Active", triggerType: "none" });
+  });
+
+  it("keeps an Active performer active below the miss threshold", () => {
+    const performances = [1, 2].map((day) => ({
+      attendance: "Pending" as const,
+      durationMinutes: 120,
+      id: `performance-${String(day)}`,
+      isArchived: false,
+      isCanceled: false,
+      rsvp: "No" as const,
+      startsAt: `2026-04-${String(day).padStart(2, "0")}T14:00:00.000Z`,
+    }));
+
+    const evaluation = evaluateProfileStatus({
+      configuration,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      performances,
+      profile: { currentStatus: "Active", isManual: false, isPerformer: true },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Active", triggerType: "none" });
+  });
+
+  it("does not count a Present attendance as a miss", () => {
+    const performances = [
+      {
+        attendance: "Present" as const,
+        durationMinutes: 120,
+        id: "performance-1",
+        isArchived: false,
+        isCanceled: false,
+        rsvp: "No" as const,
+        startsAt: "2026-04-01T14:00:00.000Z",
+      },
+      {
+        attendance: "Pending" as const,
+        durationMinutes: 120,
+        id: "performance-2",
+        isArchived: false,
+        isCanceled: false,
+        rsvp: "No" as const,
+        startsAt: "2026-04-02T14:00:00.000Z",
+      },
+      {
+        attendance: "Pending" as const,
+        durationMinutes: 120,
+        id: "performance-3",
+        isArchived: false,
+        isCanceled: false,
+        rsvp: "No" as const,
+        startsAt: "2026-04-03T14:00:00.000Z",
+      },
+    ];
+
+    const evaluation = evaluateProfileStatus({
+      configuration,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      performances,
+      profile: { currentStatus: "Active", isManual: false, isPerformer: true },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Active", triggerType: "none" });
+  });
+
+  it("excludes archived and canceled performances from the miss window", () => {
+    const performances = [1, 2, 3].map((day) => ({
+      attendance: "Pending" as const,
+      durationMinutes: 120,
+      id: `performance-${String(day)}`,
+      isArchived: day === 1,
+      isCanceled: day !== 1,
+      rsvp: "No" as const,
+      startsAt: `2026-04-${String(day).padStart(2, "0")}T14:00:00.000Z`,
+    }));
+
+    const evaluation = evaluateProfileStatus({
+      configuration,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      performances,
+      profile: { currentStatus: "Active", isManual: false, isPerformer: true },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Active", triggerType: "none" });
+  });
+
+  it("leaves an Idle performer Idle without a future Yes RSVP", () => {
+    const evaluation = evaluateProfileStatus({
+      configuration,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      performances: [
+        {
+          attendance: "Pending",
+          durationMinutes: 120,
+          id: "ended-performance",
+          isArchived: false,
+          isCanceled: false,
+          rsvp: "No",
+          startsAt: "2026-04-01T14:00:00.000Z",
+        },
+      ],
+      profile: { currentStatus: "Idle", isManual: false, isPerformer: true },
+      timezone: "America/New_York",
+    });
+
+    expect(evaluation).toMatchObject({ nextStatus: "Idle", triggerType: "none" });
+  });
+
+  it("treats a performance as ended at the exact end time", () => {
+    expect(
+      performanceHasEnded(
+        { durationMinutes: 120, startsAt: "2026-04-02T01:00:00.000Z" },
+        new Date("2026-04-02T03:00:00.000Z"),
+        "America/New_York",
+      ),
+    ).toBe(true);
+    expect(
+      performanceHasEnded(
+        { durationMinutes: 120, startsAt: "2026-04-02T01:00:00.000Z" },
+        new Date("2026-04-02T02:59:59.999Z"),
+        "America/New_York",
+      ),
+    ).toBe(false);
+  });
+
+  it("returns no RSVP deadline for rehearsals or invalid inputs", () => {
+    expect(
+      calculateRsvpDeadline(
+        { startsAt: "2026-04-08T23:00:00.000Z", type: "Rehearsal" },
+        7,
+        "America/New_York",
+      ),
+    ).toBeNull();
+    expect(
+      calculateRsvpDeadline(
+        { startsAt: "2026-04-08T23:00:00.000Z", type: "Performance" },
+        0,
+        "America/New_York",
+      ),
+    ).toBeNull();
+    expect(
+      calculateRsvpDeadline(
+        { startsAt: "not-a-date", type: "Performance" },
+        7,
+        "America/New_York",
+      ),
+    ).toBeNull();
+  });
+
+  it("returns no On Break transition when disabled, manual, or not Idle", () => {
+    const base = {
+      enabled: true,
+      isManual: false,
+      now: new Date("2026-04-01T12:00:00.000Z"),
+      status: "Idle" as const,
+      statusChangedAt: "2026-04-01T14:30:00.000Z",
+      timezone: "America/New_York",
+      timeoutDays: 365,
+    };
+    expect(calculateOnBreakInactiveAt({ ...base, enabled: false })).toBeNull();
+    expect(calculateOnBreakInactiveAt({ ...base, isManual: true })).toBeNull();
+    expect(calculateOnBreakInactiveAt({ ...base, status: "Active" })).toBeNull();
+    expect(calculateOnBreakInactiveAt({ ...base, status: "Inactive" })).toBeNull();
+    expect(calculateOnBreakInactiveAt({ ...base, timeoutDays: 0 })).toBeNull();
+    expect(calculateOnBreakInactiveAt({ ...base, statusChangedAt: "not-a-date" })).toBeNull();
+  });
+});
