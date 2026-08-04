@@ -113,6 +113,17 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
+      # Trigger synchronization can create a deployment for the currently
+      # active script. Apply it before the final version promotion so it
+      # cannot restore the previous Worker version after qualification starts.
+      - name: Apply version-external production triggers
+        run: >-
+          npx --no-install wrangler triggers deploy --config apps/worker/wrangler.jsonc --env
+          production
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
       - name: Upload the staging-qualified artifact as a production Worker Version
         id: upload
         run: |
@@ -158,14 +169,6 @@ jobs:
           npx --no-install wrangler versions deploy "${{ steps.upload.outputs.version_id }}@100%"
           --yes --config apps/worker/wrangler.jsonc --env production --message "Production release
           $RELEASE_SHA"
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-      - name: Apply version-external production triggers
-        run: >-
-          npx --no-install wrangler triggers deploy --config apps/worker/wrangler.jsonc --env
-          production
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
