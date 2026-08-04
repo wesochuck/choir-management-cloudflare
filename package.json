@@ -21,6 +21,7 @@
     "qualify:staging": "node scripts/qualify-staging.mjs",
     "qualify:staging:auth": "node scripts/qualify-staging-auth.mjs",
     "qualify:staging:auth:login": "node scripts/qualify-staging-auth-login.mjs",
+    "qualify:staging:evidence": "node scripts/qualify-staging-evidence.mjs",
     "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

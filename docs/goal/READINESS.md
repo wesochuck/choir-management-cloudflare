@@ -262,6 +262,15 @@ a cookie, use `npm run qualify:staging:auth:login`; it requests a code, reads th
 terminal, keeps the resulting session only in memory, and invokes the same read-only check. Neither
 command writes staging data or logs the cookie; browser automation remains intentionally deferred.
 
+Per-parity-entry evidence is captured by `npm run qualify:staging:evidence`. It reads the parity
+matrix and probes each implemented API entry with the matching kind: authenticated reads (200),
+anonymous reads (200), empty-body validation on mutations (400, proving the contract validates
+before any side effect), and the Stripe fail-closed gate (503). Entries that need seeded fixtures,
+signed tokens, Platform Administrator elevation, or that mutate state are reported as skipped with
+their reason. `npm run qualify:staging:evidence -- --plan-only` previews the probe plan without
+network access, and `scripts/parity-evidence-plan.test.mjs` keeps the plan in sync with the matrix
+so CI fails if a new API entry lands without a probe kind.
+
 The local non-browser gate was rerun from this exact commit: formatting, lint, strict typecheck, 87
 unit tests, 118 workerd integration tests, and all workspace builds passed. Integration output still
 contains the expected FleetSchema negative-test identity warning; it does not affect the zero exit
