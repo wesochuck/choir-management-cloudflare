@@ -7997,8 +7997,13 @@ footer {
   margin: 0;
 }
 
+.roster-automation__card .section-heading {
+  max-width: none;
+}
+
 .roster-automation__card .section-description {
-  max-width: 72rem;
+  max-width: none;
+  text-wrap: pretty;
 }
 
 .signed-in-main .roster-automation__card label.checkbox-row {
