@@ -290,26 +290,26 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                   value={customDuration}
                 />
               </label>
-              <button
-                className="button button--primary button--small"
-                type="button"
-                onClick={() => {
-                  openCustomItem(musicQuery.trim(), customDuration.trim(), "song");
-                }}
-              >
-                + Add new song
-              </button>
-            </div>
-            <div className="set-list-add-secondary">
-              <button
-                className="button button--secondary button--small"
-                type="button"
-                onClick={() => {
-                  insertCustomItem(items.length);
-                }}
-              >
-                + Insert Custom entry
-              </button>
+              <div className="set-list-add-actions">
+                <button
+                  className="button button--primary button--small"
+                  type="button"
+                  onClick={() => {
+                    openCustomItem(musicQuery.trim(), customDuration.trim(), "song");
+                  }}
+                >
+                  + Add new song
+                </button>
+                <button
+                  className="button button--secondary button--small"
+                  type="button"
+                  onClick={() => {
+                    insertCustomItem(items.length);
+                  }}
+                >
+                  + Insert Custom entry
+                </button>
+              </div>
             </div>
             <p className="field-help set-list-add-tip">
               Select an existing music piece from the suggestions, or add a new song. Use a Custom
