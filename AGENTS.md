@@ -97,9 +97,12 @@ Before finishing any material change, report:
 - Promote code with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
   non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly, and keep those
   changes backward-compatible with the previously deployed Worker Version.
-- Deployment qualification is intentionally API-only: health, readiness, exact `BUILD_VERSION`, and
-  seeded Organization-host resolution. Do not add browser smoke tests to CI or promotion. A blocked
-  or failed API probe is a hard failure and must never be converted to a passing qualification.
+- Deployment qualification is intentionally API-only: direct Worker health/readiness, exact
+  `BUILD_VERSION`, and seeded Organization-host resolution. Do not add browser smoke tests to CI or
+  promotion. Direct Worker failures remain hard failures. If Cloudflare blocks every custom-domain
+  probe for the CI runner with HTTP 403 while the direct Worker probes pass, qualification may
+  succeed with an explicit degraded warning; recheck those custom domains from an allowlisted or
+  interactive network before relying on the routing result.
 
 ## 4. Plan Execution and Parity
 

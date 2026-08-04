@@ -155,6 +155,7 @@ jobs:
         run: npm run qualify:staging
         env:
           STAGING_EXPECTED_VERSION: ${{ env.RELEASE_SHA }}
+          STAGING_WORKER_URL: https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev
 
       - name: Roll back traffic after a failed staging qualification
         if: >-

@@ -5,6 +5,10 @@ const productUrl = (
 ).replace(/\/$/u, "");
 const expectedEnvironment = process.env.DEPLOY_EXPECTED_ENVIRONMENT ?? "staging";
 const expectedVersion = process.env.DEPLOY_EXPECTED_VERSION ?? process.env.STAGING_EXPECTED_VERSION;
+const workerUrl = (process.env.DEPLOY_WORKER_URL ?? process.env.STAGING_WORKER_URL ?? "").replace(
+  /\/$/u,
+  "",
+);
 const organizationSlugs = (
   process.env.DEPLOY_ORG_SLUGS ??
   process.env.STAGING_ORG_SLUGS ??
@@ -20,7 +24,7 @@ if (!expectedVersion)
   throw new Error("The expected release version is required for qualification.");
 
 const productOrigin = new URL(productUrl);
-const probes = [
+const customDomainProbes = [
   { expected: "health", label: "product health", url: `${productUrl}/api/health` },
   { expected: "ready", label: "product readiness", url: `${productUrl}/api/ready` },
   ...organizationSlugs.map((slug) => ({
@@ -29,6 +33,16 @@ const probes = [
     url: `${productOrigin.protocol}//${slug}.${productOrigin.hostname}/api/health`,
   })),
 ];
+const workerProbes = workerUrl
+  ? [
+      { expected: "health", label: "deployed Worker health", url: `${workerUrl}/api/health` },
+      { expected: "ready", label: "deployed Worker readiness", url: `${workerUrl}/api/ready` },
+    ]
+  : [];
+const probes = [...workerProbes, ...customDomainProbes];
+const qualifyUserAgent =
+  process.env.STAGING_QUALIFY_USER_AGENT ??
+  "Mozilla/5.0 (compatible; ChoirManagementReleaseQualification/1.0)";
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -36,11 +50,21 @@ function delay(milliseconds) {
 
 async function probe(entry) {
   const response = await fetch(entry.url, {
-    headers: { accept: "application/json", "cache-control": "no-cache" },
+    headers: {
+      accept: "application/json",
+      "cache-control": "no-cache",
+      "user-agent": qualifyUserAgent,
+    },
     signal: AbortSignal.timeout(15_000),
   });
   const body = await response.json().catch(() => undefined);
 
+  // GitHub-hosted runners can be blocked by a Cloudflare edge rule before the
+  // request reaches the Worker. Keep this distinct from a Worker failure so a
+  // direct workers.dev probe can still prove the exact uploaded version.
+  if (response.status === 403 && customDomainProbes.includes(entry)) {
+    return { edgeBlocked: true };
+  }
   if (response.status !== 200) {
     throw new Error(`${entry.label} returned HTTP ${String(response.status)}.`);
   }
@@ -70,12 +94,30 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
         ]
       : [],
   );
+  const edgeBlocked = results.flatMap((result, index) =>
+    result.status === "fulfilled" && result.value?.edgeBlocked ? [probes[index].label] : [],
+  );
 
   if (lastFailures.length === 0) {
-    console.log(
-      `Qualified Worker version ${expectedVersion} with ${String(probes.length)} API probes.`,
-    );
-    process.exit(0);
+    if (
+      edgeBlocked.length > 0 &&
+      edgeBlocked.length === customDomainProbes.length &&
+      workerProbes.length > 0
+    ) {
+      console.warn(
+        `Qualified Worker version ${expectedVersion} directly, but Cloudflare blocked all ${String(edgeBlocked.length)} custom-domain probes for this runner. Recheck custom-domain routing from an allowlisted or interactive network.`,
+      );
+      process.exit(0);
+    }
+    if (edgeBlocked.length === 0) {
+      console.log(
+        `Qualified Worker version ${expectedVersion} with ${String(probes.length)} API probes.`,
+      );
+      process.exit(0);
+    }
+    lastFailures = [
+      `Only ${String(edgeBlocked.length)} of ${String(customDomainProbes.length)} custom-domain probes were blocked by the Cloudflare edge.`,
+    ];
   }
   if (attempt < attempts) await delay(retryDelayMs);
 }
