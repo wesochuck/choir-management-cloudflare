@@ -499,13 +499,7 @@ export function PublicAuditionView() {
           setPageStatus({ settings, type: "ready_form" });
         })
         .catch(() => {
-          setPageStatus({
-            settings: {
-              ...fallbackPublicAuditionSettings,
-              defaultPerformanceId: "legacy-fallback",
-            },
-            type: "ready_form",
-          });
+          setPageStatus({ settings: fallbackPublicAuditionSettings, type: "ready_form" });
         });
       return;
     }

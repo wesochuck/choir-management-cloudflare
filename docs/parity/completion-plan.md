@@ -10,13 +10,14 @@ and target-evidence paths. It does not prove that an entry's behavior matches th
 pass compared the current implementation with the legacy source, current contracts, the Organization
 Durable Object handlers, and the focused browser/integration tests.
 
-The matrix now records **69 verified, 121 implemented, 0 partial, and 0 planned** entries across
-nine sections (190 entries total after adding the asynchronous export routes). `verified` means the
-entry has both the required local evidence and permanent-staging evidence; `implemented` means the
-behavior and focused local/integration evidence exist, while staging proof is still outstanding;
-`partial` means the feature has target code or a renamed replacement, but the baseline contract is
-not yet complete. Before the route-contract repair, setup recovery and Stripe were the two real
-compatibility gaps; both now have typed target handlers and focused local evidence.
+The matrix now records **69 verified, 112 implemented, 0 partial, and 0 planned** entries across
+nine sections (181 entries total; aliases were removed as the superseded singer-player and
+audition-token endpoints retired). `verified` means the entry has both the required local evidence
+and permanent-staging evidence; `implemented` means the behavior and focused local/integration
+evidence exist, while staging proof is still outstanding; `partial` means the feature has target
+code or a renamed replacement, but the baseline contract is not yet complete. Before the
+route-contract repair, setup recovery and Stripe were the two real compatibility gaps; both now have
+typed target handlers and focused local evidence.
 
 ### Closed gaps and evidence
 
@@ -29,17 +30,17 @@ compatibility gaps; both now have typed target handlers and focused local eviden
 
 ### Open work across the remaining entries
 
-The remaining 121 non-verified entries are staging evidence debt for the 121 implemented entries:
+The remaining 112 non-verified entries are staging evidence debt for the 112 implemented entries:
 
 | Section               | Entries still `implemented` | Completion evidence still required                                                                                                                                 |
 | --------------------- | --------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Public browser routes |                           0 | All 60 browser routes have route/empty-state coverage; retain the full sweep as opt-in local browser evidence while deployment uses exact-version API checks.      |
-| API routes            |                          68 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
+| Public browser routes |                           1 | The library settings tab has route coverage; retain the full sweep as opt-in local browser evidence while deployment uses exact-version API checks.                |
+| API routes            |                          57 | Read and mutation contract probes using seeded staging Organizations, including authorization, MFA, validation, tenant isolation, and safe fake-provider outcomes. |
 | Record hooks          |                           4 | Workerd/integration replay and audit evidence on the deployed schema; no live external effect.                                                                     |
 | Background tasks      |                           5 | Queue/alarm replay, retry, idempotency, and dead-letter visibility evidence with staging-safe fixtures.                                                            |
 | CSV contracts         |                           7 | Import/export round trips and malformed/oversized input checks against Organization-scoped fixtures.                                                               |
 | Signed flows          |                           7 | Expiry, revocation, purpose binding, tenant binding, and successful signed-link browser/API checks.                                                                |
-| Domain workflows      |                          20 | End-to-end success, authorization failure, rollback compatibility, and audit attribution for the remaining workflow families.                                      |
+| Domain workflows      |                          21 | End-to-end success, authorization failure, rollback compatibility, and audit attribution for the remaining workflow families.                                      |
 | File behaviors        |                           5 | Upload/download/public-media checks, key isolation, and metadata/body agreement using non-sensitive fixtures.                                                      |
 | Responsive states     |                           5 | Public checkout, setup, communications, and data-table mobile screenshots/interaction checks; focused dialog, seating, and theme states are already verified.      |
 
@@ -199,7 +200,7 @@ configured. No router-level 404 or unhandled 5xx occurred. This closes the publi
 does not promote authenticated API, queue/file/CSV, signed-flow, or responsive entries by itself.
 
 **Exit criteria:** no `partial` or `planned` statuses remain and the local gate passes. Phase E
-remains open until the 121 implemented entries are staging-verified or explicitly blocked by a
+remains open until the 112 implemented entries are staging-verified or explicitly blocked by a
 documented external prerequisite; production remains unlaunched.
 
 ### Phase F — Whole-product release gate (not started)
