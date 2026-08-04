@@ -43,7 +43,6 @@ import { registerRoutes as registerOrganizationDashboardRoutes } from "./routes/
 import { registerRoutes as registerOrganizationEventManagementRoutes } from "./routes/organizationEventManagement";
 import { registerRoutes as registerOrganizationTokensRoutes } from "./routes/organizationTokens";
 import { registerRoutes as registerOrganizationAuditionsRoutes } from "./routes/organizationAuditions";
-import { registerRoutes as registerOrganizationAuditionTokensRoutes } from "./routes/organizationAuditionTokens";
 import { registerRoutes as registerOrganizationAuditionLifecycleRoutes } from "./routes/organizationAuditionLifecycle";
 import { registerRoutes as registerOrganizationRsvpExportsRoutes } from "./routes/organizationRsvpExports";
 import { registerRoutes as registerOrganizationPollsRoutes } from "./routes/organizationPolls";
@@ -157,7 +156,6 @@ registerOrganizationDashboardRoutes(router);
 registerOrganizationEventManagementRoutes(router);
 registerOrganizationTokensRoutes(router);
 registerOrganizationAuditionsRoutes(router);
-registerOrganizationAuditionTokensRoutes(router);
 registerOrganizationAuditionLifecycleRoutes(router);
 registerOrganizationRsvpExportsRoutes(router);
 registerOrganizationPollsRoutes(router);

@@ -74,22 +74,6 @@ export const publicAuditionInquiryResponseSchema = z.object({
 
 export type PublicAuditionInquiryResponse = z.infer<typeof publicAuditionInquiryResponseSchema>;
 
-export const generateAuditionTokensRequestSchema = z.object({
-  auditionIds: z
-    .array(z.string().min(1).max(128))
-    .min(1)
-    .max(500)
-    .refine((ids) => new Set(ids).size === ids.length, "Audition IDs must be unique."),
-});
-
-export type GenerateAuditionTokensRequest = z.infer<typeof generateAuditionTokensRequestSchema>;
-
-export const generateAuditionTokensResponseSchema = z.object({
-  tokens: z.record(z.string(), z.string().min(1).max(4_096)),
-});
-
-export type GenerateAuditionTokensResponse = z.infer<typeof generateAuditionTokensResponseSchema>;
-
 export const organizationAuditionSchema = z.object({
   id: z.string(),
   name: z.string(),

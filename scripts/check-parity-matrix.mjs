@@ -65,7 +65,6 @@ const expectedApiRoutes = [
   "GET /api/organization/auditions",
   "DELETE /api/organization/auditions/:auditionId",
   "POST /api/organization/auditions/:auditionId/convert",
-  "POST /api/organization/audition-tokens",
   "PUT /api/organization/auditions/:auditionId",
 ];
 const expectedBrowserRoutes = [

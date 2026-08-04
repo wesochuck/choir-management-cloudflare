@@ -2,7 +2,6 @@ import {
   organizationAuditionSchema,
   organizationAuditionListResponseSchema,
   organizationAuditionSettingsSchema,
-  generateAuditionTokensResponseSchema,
   organizationAuditionSettingsResponseSchema,
   organizationAuditionCreateRequestSchema,
   organizationAuditionResponseSchema,
@@ -105,12 +104,3 @@ export async function convertOrganizationAudition(
   return { profileId: body.profile.id };
 }
 
-export async function generateAuditionTokens(
-  auditionIds: readonly string[],
-): Promise<Record<string, string>> {
-  const response = await request("/api/organization/audition-tokens", {
-    body: JSON.stringify({ auditionIds }),
-    method: "POST",
-  });
-  return generateAuditionTokensResponseSchema.parse(await response.json()).tokens;
-}

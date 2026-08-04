@@ -1,43 +1,8 @@
-import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
+import { verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
 
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
   env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
-
-export async function generateAuditionTokens(
-  env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
-  organizationId: string,
-  auditionIds: readonly string[],
-): Promise<{ tokens: Record<string, string> }> {
-  const now = Math.floor(Date.now() / 1000);
-  const tokens: Record<string, string> = {};
-  const objectStub = stub(env, organizationId);
-  for (const auditionId of auditionIds) {
-    const detailsUrl = new URL("https://organization.internal/internal/audition/details");
-    detailsUrl.searchParams.set("organizationId", organizationId);
-    detailsUrl.searchParams.set("auditionId", auditionId);
-    const details = await objectStub.fetch(detailsUrl);
-    if (!details.ok) return { tokens: {} };
-  }
-  const signedTokens = await Promise.all(
-    auditionIds.map(async (auditionId) => {
-      const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-        algorithm: "HS256",
-        expiresAt: now + 90 * 24 * 60 * 60,
-        issuedAt: now,
-        nonce: crypto.randomUUID(),
-        organizationId,
-        purpose: "audition",
-        resourceId: auditionId,
-        subjectId: auditionId,
-        version: 1,
-      });
-      return [auditionId, token] as const;
-    }),
-  );
-  for (const [auditionId, token] of signedTokens) tokens[auditionId] = token;
-  return { tokens };
-}
 
 type AuditionDetailResponse = Record<string, unknown>;
 

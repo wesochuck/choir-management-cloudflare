@@ -6,7 +6,6 @@ import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { auditionSystemCommunicationTemplateIds } from "../src/organization/schema";
 import { updateAuditionInStore } from "../src/organization/auditionStore";
-import { generateAuditionTokens } from "../src/organization/organizationAuditions";
 
 const ALPHA_ORG = "organization-alpha";
 const BRAVO_ORG = "organization-bravo";
@@ -159,16 +158,6 @@ describe("public audition signed flow", () => {
       }),
     );
     expect(invalidSlot.status).toBe(400);
-  });
-
-  it("does not issue partial tokens when an audition ID is missing", async () => {
-    const existingId = await createAuditionInOrg(ALPHA_ORG, "Token Singer", "token@example.com");
-    const generated = await generateAuditionTokens(
-      { ORGANIZATION_STORE: stores, SIGNED_LINK_SECRET: signedLinkSecret },
-      ALPHA_ORG,
-      [existingId, "missing-audition"],
-    );
-    expect(generated.tokens).toEqual({});
   });
 
   it("submits an inquiry and returns an ID", async () => {

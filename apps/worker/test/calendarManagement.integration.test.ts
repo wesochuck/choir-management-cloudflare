@@ -561,15 +561,6 @@ describe("Organization calendar management", () => {
       }),
     );
     expect(organizationAuditionResponseSchema.parse(await updated.json()).status).toBe("scheduled");
-    const tokenResponse = await post(
-      "alpha.localhost",
-      "/api/organization/audition-tokens",
-      cookie,
-      {
-        auditionIds: [audition.id],
-      },
-    );
-    expect(await tokenResponse.json()).toMatchObject({ tokens: expect.any(Object) });
     const deleted = await exports.default.fetch(
       api("alpha.localhost", `/api/organization/auditions/${audition.id}`, cookie, {
         method: "DELETE",

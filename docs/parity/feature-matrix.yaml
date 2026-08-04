@@ -1792,22 +1792,6 @@
           ],
       },
       {
-        "id": "api.organization.audition-tokens",
-        "method": "POST",
-        "path": "/api/organization/audition-tokens",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (audition endpoint)",
-        "targetEvidence":
-          [
-            "apps/worker/src/router.ts",
-            "apps/worker/src/organization/organizationAuditions.ts",
-            "apps/worker/test/publicAudition.integration.test.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
-          ],
-      },
-      {
         "id": "api.organization.audition-update",
         "method": "PUT",
         "path": "/api/organization/auditions/:auditionId",
