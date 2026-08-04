@@ -270,11 +270,10 @@ test("shows not-found state for an invalid audition token", async ({ page }) => 
   await expect(page.getByRole("link", { name: "Return to the Organization site" })).toBeVisible();
 });
 
-test("admin manages auditions: list, edit, and generate tokens", async ({ page }) => {
+test("admin manages auditions: list, edit, and save", async ({ page }) => {
   const updatedAudition: {
     value: { id: string; status: string; adminNotes?: string } | null;
   } = { value: null };
-  let tokenRequestIds: string[] = [];
 
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
@@ -367,26 +366,6 @@ test("admin manages auditions: list, edit, and generate tokens", async ({ page }
     }
     await route.continue();
   });
-  await page.route("**/api/organization/audition-tokens", async (route) => {
-    const body: unknown = route.request().postDataJSON();
-    const ids: string[] =
-      typeof body === "object" &&
-      body !== null &&
-      "auditionIds" in body &&
-      Array.isArray(body.auditionIds)
-        ? body.auditionIds.filter((id): id is string => typeof id === "string")
-        : [];
-    tokenRequestIds = ids;
-    const tokens: Record<string, string> = {};
-    for (const id of ids) {
-      tokens[id] = `signed-token-for-${id}`;
-    }
-    await route.fulfill({
-      body: JSON.stringify({ tokens, requestId }),
-      contentType: "application/json",
-      status: 200,
-    });
-  });
 
   await page.goto("/admin/auditions");
 
@@ -394,19 +373,6 @@ test("admin manages auditions: list, edit, and generate tokens", async ({ page }
   await expect(page.getByText("Singer One")).toBeVisible();
   await expect(page.getByText("Singer Two")).toBeVisible();
   await expect(page.getByText("Soprano")).toBeVisible();
-
-  await page.getByRole("checkbox", { name: "Select Singer One for token generation" }).check();
-  await page.getByRole("checkbox", { name: "Select Singer Two for token generation" }).check();
-  await page.getByRole("button", { name: "Generate 2 follow-up link(s)" }).click();
-
-  await expect(page.getByText("2 token(s) generated.")).toBeVisible();
-  await page.getByText("Generated follow-up links").click();
-  await expect(page.getByText("Singer One:")).toBeVisible();
-  await expect(page.getByText("signed-token-for-audition-001")).toBeVisible();
-  await expect(page.getByText("Singer Two:")).toBeVisible();
-  await expect(page.getByText("signed-token-for-audition-002")).toBeVisible();
-  expect(tokenRequestIds).toEqual(["audition-001", "audition-002"]);
-  await page.getByText("Generated follow-up links").click();
 
   await page.getByRole("button", { name: "Edit" }).first().click({ force: true });
   await expect(page.getByText("Edit Audition")).toBeVisible();

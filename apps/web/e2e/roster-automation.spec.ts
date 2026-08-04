@@ -188,7 +188,8 @@ test("explains roster automation, On Break timeout, and configurable RSVP expiry
   page,
 }) => {
   await routeRosterSettings(page);
-  await page.goto("/admin/settings");
+  await page.goto("/admin/roster");
+  await page.getByRole("tab", { name: "Roster automation" }).click();
 
   const settings = page.getByRole("region", { name: "Roster status automation" });
   await expect(settings.getByRole("heading", { name: "Roster status automation" })).toBeVisible();

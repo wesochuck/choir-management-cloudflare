@@ -7,6 +7,7 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: "http://127.0.0.1:4173",
+    permissions: ["clipboard-read", "clipboard-write"],
     trace: "on-first-retry",
   },
   projects: [

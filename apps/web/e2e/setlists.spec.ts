@@ -225,7 +225,9 @@ test("orders, copies, prints, and saves a set list on desktop and mobile", async
   await page.getByRole("button", { name: "Move Opening Song down" }).click();
   await expect(page.locator(".set-list-item").first()).toContainText("Finale");
   await page.getByRole("button", { name: "Print & Copy" }).click();
+  await page.getByRole("button", { name: "Copy Plain Text" }).click();
   await expect(page.getByText("Set list copied as text.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).first().click();
   await page.getByRole("button", { name: "Save now" }).click();
   await expect(page.getByText("Set list saved.", { exact: true })).toBeVisible();
 
