@@ -71,7 +71,7 @@ seed placeholder provider keys into staging.
   completion-after-expiry coverage is green; staging still needs the signed provider fixture and
   rollback drill.
 
-The remaining 121 `implemented` entries are evidence debt: each has target code and focused tests,
+The remaining 112 `implemented` entries are evidence debt: each has target code and focused tests,
 but still needs the staging success plus authorization, validation, retry, or tenant-isolation proof
 listed in the table. Keep these entries as `implemented` until that evidence is captured.
 
