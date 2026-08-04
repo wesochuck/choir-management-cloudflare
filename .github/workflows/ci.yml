@@ -34,16 +34,30 @@ jobs:
         run: npm audit --audit-level=high
 
       - name: Restore ESLint cache
-        uses: actions/cache@v6
+        id: eslint-cache
+        uses: actions/cache/restore@v6
         with:
           path: .cache/eslint
-          key: eslint-${{ runner.os }}-${{ hashFiles('package-lock.json', 'eslint.config.js') }}
+          key:
+            eslint-${{ runner.os }}-${{ hashFiles('package-lock.json', 'eslint.config.js') }}-${{
+            github.run_id }}
+          restore-keys: |
+            eslint-${{ runner.os }}-${{ hashFiles('package-lock.json', 'eslint.config.js') }}-
 
       - name: Check formatting
         run: npm run format:check
 
       - name: Lint
         run: npm run lint
+
+      - name: Save ESLint cache
+        uses: actions/cache/save@v6
+        if: ${{ steps.eslint-cache.outputs.cache-hit != 'true' }}
+        with:
+          path: .cache/eslint
+          key:
+            eslint-${{ runner.os }}-${{ hashFiles('package-lock.json', 'eslint.config.js') }}-${{
+            github.run_id }}
 
   contracts:
     name: Types, contracts, and parity
@@ -62,8 +76,30 @@ jobs:
       - name: Install reproducible dependencies
         run: npm ci
 
+      - name: Restore TypeScript incremental caches
+        id: ts-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            **/.cache/tsbuildinfo
+          key:
+            typecheck-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tsconfig.base.json')
+            }}-${{ github.run_id }}
+          restore-keys: |
+            typecheck-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tsconfig.base.json') }}-
+
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Save TypeScript incremental caches
+        uses: actions/cache/save@v6
+        if: ${{ steps.ts-cache.outputs.cache-hit != 'true' }}
+        with:
+          path: |
+            **/.cache/tsbuildinfo
+          key:
+            typecheck-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tsconfig.base.json')
+            }}-${{ github.run_id }}
 
       - name: Check exported contracts
         run: npm run check:contracts:exports
@@ -91,8 +127,34 @@ jobs:
       - name: Install reproducible dependencies
         run: npm ci
 
-      - name: Run unit tests
-        run: npm test
+      - name: Run unit tests with coverage
+        run:
+          npm test -- --coverage --reporter=default --reporter=json
+          --outputFile=unit-test-results.json
+
+      - name: Summarize unit test results
+        if: always()
+        run: |
+          if [ -f unit-test-results.json ]; then
+            echo "## Unit tests" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '"Passed: \(.numPassedTests)  Failed: \(.numFailedTests)  Skipped: \(.numSkippedTests)"' unit-test-results.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-results
+          if-no-files-found: ignore
+          path: unit-test-results.json
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          if-no-files-found: ignore
+          path: coverage
 
   build-release:
     name: Build immutable release artifact
@@ -111,8 +173,23 @@ jobs:
       - name: Install reproducible dependencies
         run: npm ci
 
+      - name: Restore Wrangler cache
+        id: wrangler-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.wrangler
+          key: wrangler-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Build deployable artifact once
         run: npm run build
+
+      - name: Save Wrangler cache
+        uses: actions/cache/save@v6
+        if: ${{ steps.wrangler-cache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        with:
+          path: ~/.wrangler
+          key: wrangler-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Record release identity and file hashes
         run: npm run release:artifact:create -- --sha "$GITHUB_SHA"
@@ -130,12 +207,12 @@ jobs:
             apps/web/dist
 
   integration:
-    name: Workerd integration (${{ matrix.shard }}/2)
+    name: Workerd integration (${{ matrix.shard }}/4)
     needs: build-release
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -151,6 +228,13 @@ jobs:
       - name: Install reproducible dependencies
         run: npm ci
 
+      - name: Restore Wrangler cache
+        id: wrangler-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.wrangler
+          key: wrangler-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Download the release built by CI
         uses: actions/download-artifact@v8
         with:
@@ -161,18 +245,92 @@ jobs:
         run: npm run release:artifact:verify -- --sha "$GITHUB_SHA"
 
       - name: Run Workerd integration shard
-        run: npm run test:integration:prepared -- --shard=${{ matrix.shard }}/2
+        run:
+          npm run test:integration:prepared -- --shard=${{ matrix.shard }}/4 --reporter=default
+          --reporter=json --outputFile=integration-shard-${{ matrix.shard }}.json
+
+      - name: Save Wrangler cache
+        uses: actions/cache/save@v6
+        if: ${{ steps.wrangler-cache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        with:
+          path: ~/.wrangler
+          key: wrangler-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Summarize integration test results
+        if: always()
+        run: |
+          if [ -f integration-shard-${{ matrix.shard }}.json ]; then
+            echo "## Integration shard ${{ matrix.shard }}" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '"Passed: \(.numPassedTests)  Failed: \(.numFailedTests)  Skipped: \(.numSkippedTests)"' integration-shard-${{ matrix.shard }}.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-results-shard-${{ matrix.shard }}
+          if-no-files-found: ignore
+          path: integration-shard-${{ matrix.shard }}.json
+
+  e2e:
+    name: Browser E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install reproducible dependencies
+        run: npm ci
+
+      - name: Restore Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Save Playwright browser cache
+        uses: actions/cache/save@v6
+        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' }}
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Run browser E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          if-no-files-found: ignore
+          path: |
+            playwright-report
+            test-results
 
   release-ready:
     name: Release ready
     if: ${{ always() }}
-    needs: [static, contracts, unit, build-release, integration]
+    needs: [static, contracts, unit, build-release, integration, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Require every release gate
         env:
           BUILD_RESULT: ${{ needs.build-release.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           STATIC_RESULT: ${{ needs.static.result }}
           UNIT_RESULT: ${{ needs.unit.result }}
@@ -182,3 +340,4 @@ jobs:
           test "$UNIT_RESULT" = success
           test "$BUILD_RESULT" = success
           test "$INTEGRATION_RESULT" = success
+          test "$E2E_RESULT" = success

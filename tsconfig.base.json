@@ -4,6 +4,7 @@
     "allowJs": false,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
+    "incremental": true,
     "isolatedModules": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "module": "ESNext",

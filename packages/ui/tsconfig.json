@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
+    "tsBuildInfoFile": ".cache/tsbuildinfo/tsconfig.tsbuildinfo",
     "types": ["react"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
