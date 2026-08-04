@@ -343,11 +343,7 @@ describe("status automation guard rails", () => {
       ),
     ).toBeNull();
     expect(
-      calculateRsvpDeadline(
-        { startsAt: "not-a-date", type: "Performance" },
-        7,
-        "America/New_York",
-      ),
+      calculateRsvpDeadline({ startsAt: "not-a-date", type: "Performance" }, 7, "America/New_York"),
     ).toBeNull();
   });
 

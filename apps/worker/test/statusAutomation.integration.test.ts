@@ -820,12 +820,10 @@ describe("roster status automation", () => {
     );
     const preview = organizationRosterAutomationPreviewResponseSchema.parse(
       await (
-        await write(
-          "alpha.localhost",
-          "/api/organization/roster-configuration/preview",
-          cookie,
-          { configuration: { ...roster, onBreakTimeoutDays: 30 }, profileId: null },
-        )
+        await write("alpha.localhost", "/api/organization/roster-configuration/preview", cookie, {
+          configuration: { ...roster, onBreakTimeoutDays: 30 },
+          profileId: null,
+        })
       ).json(),
     );
     expect(preview).toMatchObject({
@@ -942,7 +940,9 @@ describe("roster status automation", () => {
     expect(auditActions).toContain("profile.status.automated");
     expect(auditActions).toContain("event.rsvp.automated");
     const automatedIndexes = auditActions
-      .map((action, index) => (action === "profile.status.automated" || action === "event.rsvp.automated" ? index : -1))
+      .map((action, index) =>
+        action === "profile.status.automated" || action === "event.rsvp.automated" ? index : -1,
+      )
       .filter((index) => index >= 0);
     for (const index of automatedIndexes) {
       expect(auditActorTypes[index]).toBe("system");
