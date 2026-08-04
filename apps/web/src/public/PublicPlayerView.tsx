@@ -84,7 +84,7 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
   });
   if (!response.ok) throw new Error("not_found");
   const data: unknown = await response.json();
-  if (!isRecord(data) || !isRecord(data.event) || !Array.isArray(data.items)) {
+  if (!isRecord(data) || !isRecord(data.event) || !Array.isArray(data.pieces)) {
     throw new Error("invalid_response");
   }
   const { event } = data;
@@ -92,7 +92,7 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
     typeof event.id !== "string" ||
     typeof event.title !== "string" ||
     typeof event.date !== "string" ||
-    !data.items.every(isPlayerPlaylistItem)
+    !data.pieces.every(isPlayerPlaylistItem)
   ) {
     throw new Error("invalid_response");
   }
@@ -100,7 +100,7 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
     eventId: event.id,
     eventTitle: event.title,
     eventStartsAt: event.date,
-    items: data.items,
+    items: data.pieces,
   };
 }
 
