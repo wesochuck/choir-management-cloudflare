@@ -10,15 +10,17 @@ import { RosterConfiguration } from "../../RosterConfiguration";
 import { useEffect, useRef, useState } from "react";
 import type { RosterPageModel } from "./hooks";
 
+type RosterSection = "roster" | "settings" | "automation";
+
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
 export function RosterPageView({
   initialSection = "roster",
   model,
 }: {
-  readonly initialSection?: "roster" | "settings";
+  readonly initialSection?: RosterSection;
   readonly model: RosterPageModel;
 }) {
-  const [activeTab, setActiveTab] = useState<"roster" | "settings">(initialSection);
+  const [activeTab, setActiveTab] = useState<RosterSection>(initialSection);
   const {
     busy,
     bulkBusy,
@@ -126,6 +128,19 @@ export function RosterPageView({
         >
           Settings
         </button>
+        <button
+          aria-controls="roster-automation-panel"
+          aria-selected={activeTab === "automation"}
+          className={activeTab === "automation" ? "is-active" : undefined}
+          id="roster-automation-tab"
+          onClick={() => {
+            setActiveTab("automation");
+          }}
+          role="tab"
+          type="button"
+        >
+          Roster automation
+        </button>
       </nav>
       <div
         aria-labelledby="roster-settings-tab"
@@ -134,6 +149,13 @@ export function RosterPageView({
         role="tabpanel"
       >
         <RosterConfiguration enabled={enabled} />
+      </div>
+      <div
+        aria-labelledby="roster-automation-tab"
+        hidden={activeTab !== "automation"}
+        id="roster-automation-panel"
+        role="tabpanel"
+      >
         <RosterAutomationSettings enabled={enabled} />
       </div>
       <div

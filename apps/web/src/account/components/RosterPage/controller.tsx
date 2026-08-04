@@ -9,7 +9,7 @@ export function RosterPage({
   initialProfileTab = "info",
 }: {
   readonly enabled: boolean;
-  readonly initialSection?: "roster" | "settings";
+  readonly initialSection?: "roster" | "settings" | "automation";
   readonly initialProfileId?: string | null;
   readonly initialProfileTab?: ProfileTab;
 }) {

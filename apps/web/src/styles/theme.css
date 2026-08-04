@@ -7980,16 +7980,15 @@ footer {
 
 .roster-automation__cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 1rem;
 }
 
 .roster-automation__card,
 .roster-automation__preview,
 .roster-automation__profile-preview {
-  padding: 1rem;
+  padding: clamp(1.15rem, 2vw, 1.5rem);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
   background: var(--color-surface-raised);
 }
 
@@ -7999,7 +7998,7 @@ footer {
 }
 
 .roster-automation__card .section-description {
-  min-height: 4.6rem;
+  max-width: 72rem;
 }
 
 .signed-in-main .roster-automation__card label.checkbox-row {
@@ -8034,12 +8033,8 @@ footer {
 }
 
 @media (max-width: 900px) {
-  .roster-automation__cards {
-    grid-template-columns: 1fr;
-  }
-
   .roster-automation__card .section-description {
-    min-height: 0;
+    max-width: none;
   }
 }
 

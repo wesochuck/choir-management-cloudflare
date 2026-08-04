@@ -64,7 +64,11 @@ export function renderOrganizationPage(
   const { pathname } = routeState;
   const routeParams = new URLSearchParams(routeState.search);
   const rosterProfileId = routeParams.get("profileId");
-  const rosterSection = routeParams.get("section") === "settings" ? "settings" : "roster";
+  const requestedRosterSection = routeParams.get("section");
+  const rosterSection =
+    requestedRosterSection === "settings" || requestedRosterSection === "automation"
+      ? requestedRosterSection
+      : "roster";
   const musicPieceId = routeParams.get("pieceId");
   const route =
     pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
