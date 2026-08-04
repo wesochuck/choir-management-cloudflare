@@ -70,6 +70,34 @@ describe("platform email delivery", () => {
     ).rejects.toThrow("not allowlisted");
   });
 
+  it("delivers the HTML body alongside the plain-text fallback when present", async () => {
+    const delivered: EmailMessageBuilder[] = [];
+    const email: SendEmail = {
+      send(candidate: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> {
+        if ("subject" in candidate) delivered.push(candidate);
+        return Promise.resolve({ messageId: "test-message" });
+      },
+    };
+    await sendPlatformEmail(
+      {
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: message.recipient,
+        PLATFORM_EMAIL_FROM: "auth@mail.example.test",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      { ...message, html: "<p>Sensitive test content</p>" },
+    );
+    expect(delivered).toEqual([
+      {
+        from: { email: "auth@mail.example.test", name: "Choir Management" },
+        html: "<p>Sensitive test content</p>",
+        subject: message.subject,
+        text: message.text,
+        to: message.recipient,
+      },
+    ]);
+  });
+
   it("sends an allowlisted message through the native binding", async () => {
     const delivered: EmailMessageBuilder[] = [];
     const email: SendEmail = {
@@ -89,7 +117,7 @@ describe("platform email delivery", () => {
     );
     expect(delivered).toEqual([
       {
-        from: "auth@mail.example.test",
+        from: { email: "auth@mail.example.test", name: "Choir Management" },
         subject: message.subject,
         text: message.text,
         to: message.recipient,

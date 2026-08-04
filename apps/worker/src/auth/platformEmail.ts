@@ -5,6 +5,7 @@ export type PlatformEmailKind =
 
 export interface PlatformEmailMessage {
   readonly kind: PlatformEmailKind;
+  readonly html?: string;
   readonly recipient: string;
   readonly subject: string;
   readonly text: string;
@@ -52,7 +53,8 @@ export function sendPlatformEmail(
     return Promise.reject(new Error("The platform email sandbox transport is not configured."));
   }
   return env.PLATFORM_EMAIL.send({
-    from: env.PLATFORM_EMAIL_FROM,
+    from: { email: env.PLATFORM_EMAIL_FROM, name: "Choir Management" },
+    ...(message.html ? { html: message.html } : {}),
     subject: message.subject,
     text: message.text,
     to: recipient,

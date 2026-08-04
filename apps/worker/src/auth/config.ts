@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { emailOTP, organization, twoFactor } from "better-auth/plugins";
 
 import type { Env } from "../env";
+import { buildOneTimeCodeEmail } from "./emailTemplates";
 import { sendPlatformEmail } from "./platformEmail";
 
 export const authenticationPolicy = {
@@ -100,12 +101,16 @@ export function createAuth(context: AuthRequestContext) {
         otpLength: 6,
         rateLimit: { max: 3, window: 60 },
         sendVerificationOTP: async ({ email, otp, type }) => {
-          const purpose = type === "sign-in" ? "sign in" : "verify your email";
+          const content = buildOneTimeCodeEmail(
+            otp,
+            type === "sign-in" ? "sign-in" : "verify-email",
+          );
           await sendPlatformEmail(env, {
             kind: "email-one-time-code",
+            html: content.html,
             recipient: email,
-            subject: "Your Choir Management code",
-            text: `Use ${otp} to ${purpose}. This code expires in 10 minutes.`,
+            subject: content.subject,
+            text: content.text,
           });
         },
         storeOTP: "hashed",
