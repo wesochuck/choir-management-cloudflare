@@ -10,7 +10,10 @@ import {
   platformElevationRevocationResponseSchema,
   platformMfaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
+  platformOrganizationPublicDomainsResponseSchema,
   platformOrganizationsResponseSchema,
+  publicDomainRegistrationRequestSchema,
+  publicDomainResponseSchema,
   type OrganizationProviderStatusResponse,
   type OrganizationPaymentSettingsResponse,
   type OrganizationStripeConnectOnboardingResponse,
@@ -21,6 +24,8 @@ import {
   type PlatformFleetSchemaStatusResponse,
   type PlatformJobDeadLettersResponse,
   type PlatformOrganizationContextResponse,
+  type PlatformOrganizationPublicDomainsResponse,
+  type PublicDomainResponse,
   type PlatformOrganizationsResponse,
   type PlatformMfaStatusResponse,
 } from "@choir/contracts";
@@ -117,6 +122,42 @@ export async function listPlatformOrganizations(
     signal: signal ?? null,
   });
   return platformOrganizationsResponseSchema.parse(await response.json());
+}
+
+export async function listPlatformOrganizationPublicDomains(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<PlatformOrganizationPublicDomainsResponse> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/public-domains`,
+    { signal: signal ?? null },
+  );
+  return platformOrganizationPublicDomainsResponseSchema.parse(await response.json());
+}
+
+export async function registerPlatformOrganizationPublicDomain(
+  organizationId: string,
+  hostname: string,
+): Promise<PublicDomainResponse> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/public-domains`,
+    {
+      body: JSON.stringify(publicDomainRegistrationRequestSchema.parse({ hostname })),
+      method: "POST",
+    },
+  );
+  return publicDomainResponseSchema.parse(await response.json());
+}
+
+export async function disablePlatformOrganizationPublicDomain(
+  organizationId: string,
+  domainId: string,
+): Promise<PublicDomainResponse> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/public-domains/${encodeURIComponent(domainId)}`,
+    { method: "DELETE" },
+  );
+  return publicDomainResponseSchema.parse(await response.json());
 }
 
 export async function listPlatformJobDeadLetters(

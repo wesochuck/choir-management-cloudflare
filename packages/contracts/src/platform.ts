@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { organizationIdSchema, requestIdSchema } from "./primitives";
+import { publicDomainResponseSchema } from "./exports";
 export const calendarFeedUrlsResponseSchema = z.object({
   expiresAt: z.iso.datetime(),
   httpsUrl: z.url(),
@@ -52,6 +53,15 @@ export const platformOrganizationsResponseSchema = z.object({
 
 export type PlatformOrganizationSummary = z.infer<typeof platformOrganizationSummarySchema>;
 export type PlatformOrganizationsResponse = z.infer<typeof platformOrganizationsResponseSchema>;
+
+export const platformOrganizationPublicDomainsResponseSchema = z.object({
+  domains: z.array(publicDomainResponseSchema),
+  requestId: requestIdSchema,
+});
+
+export type PlatformOrganizationPublicDomainsResponse = z.infer<
+  typeof platformOrganizationPublicDomainsResponseSchema
+>;
 
 export const platformJobDeadLetterSummarySchema = z.object({
   firstSeenAt: z.iso.datetime(),

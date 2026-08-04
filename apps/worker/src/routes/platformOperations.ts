@@ -1,6 +1,8 @@
 import {
   organizationProvisionRequestSchema,
+  publicDomainRegistrationRequestSchema,
   platformElevationRequestSchema,
+  type PlatformOrganizationPublicDomainsResponse,
   type OrganizationProvisionResponse,
   type PlatformOrganizationContextResponse,
   type ProblemDetails,
@@ -18,6 +20,11 @@ import {
   OrganizationProvisioningError,
 } from "../control/provisionOrganization";
 import { validateStartupConfig } from "../env";
+import {
+  disablePublicDomain,
+  listPublicDomains,
+  registerPublicDomain,
+} from "../tenancy/registerPublicDomain";
 
 import type { Context, Hono } from "hono";
 
@@ -216,6 +223,169 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
   });
+
+  router.get("/api/platform/organizations/:organizationId/public-domains", async (context) => {
+    const config = validateStartupConfig(context.env);
+    const requestUrl = new URL(context.req.url);
+    if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+      return context.json(
+        {
+          code: "not_found",
+          message:
+            "Platform public domain management is available only on the product base hostname.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const organizationId = z.uuid().safeParse(context.req.param("organizationId"));
+    if (!organizationId.success) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "The Organization was not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const authorization = await authorizePlatformRead(context, requestUrl);
+    if (authorization instanceof Response) return authorization;
+    const organization = await context.env.CONTROL_DB.prepare(
+      "SELECT id FROM organizations WHERE id = ? LIMIT 1",
+    )
+      .bind(organizationId.data)
+      .first<{ readonly id: string }>();
+    if (!organization) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "The Organization was not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const response: PlatformOrganizationPublicDomainsResponse = {
+      domains: [...(await listPublicDomains(context.env.CONTROL_DB, organizationId.data))],
+      requestId: context.get("requestId"),
+    };
+    return context.json(response);
+  });
+
+  router.post("/api/platform/organizations/:organizationId/public-domains", async (context) => {
+    const config = validateStartupConfig(context.env);
+    const requestUrl = new URL(context.req.url);
+    if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+      return context.json(
+        {
+          code: "not_found",
+          message:
+            "Platform public domain management is available only on the product base hostname.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const organizationId = z.uuid().safeParse(context.req.param("organizationId"));
+    const parsedBody = publicDomainRegistrationRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!organizationId.success || !parsedBody.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid Organization and custom hostname are required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    const authorization = await authorizePlatformRead(context, requestUrl);
+    if (authorization instanceof Response) return authorization;
+    const organization = await context.env.CONTROL_DB.prepare(
+      "SELECT id FROM organizations WHERE id = ? LIMIT 1",
+    )
+      .bind(organizationId.data)
+      .first<{ readonly id: string }>();
+    if (!organization) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "The Organization was not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const registration = await registerPublicDomain(context.env, {
+      actorUserId: authorization.userId,
+      hostname: parsedBody.data.hostname,
+      organizationId: organizationId.data,
+      requestId: context.get("requestId"),
+    });
+    if (!registration.ok) {
+      return context.json(
+        {
+          code: registration.error.code,
+          message: registration.error.message,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        registration.error.code === "validation_failed" ? 400 : 409,
+      );
+    }
+    return context.json({ ...registration.value, requestId: context.get("requestId") }, 201);
+  });
+
+  router.delete(
+    "/api/platform/organizations/:organizationId/public-domains/:domainId",
+    async (context) => {
+      const config = validateStartupConfig(context.env);
+      const requestUrl = new URL(context.req.url);
+      if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+        return context.json(
+          {
+            code: "not_found",
+            message:
+              "Platform public domain management is available only on the product base hostname.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const organizationId = z.uuid().safeParse(context.req.param("organizationId"));
+      const domainId = z.uuid().safeParse(context.req.param("domainId"));
+      if (!organizationId.success || !domainId.success) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The custom hostname was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const authorization = await authorizePlatformRead(context, requestUrl);
+      if (authorization instanceof Response) return authorization;
+      const disabled = await disablePublicDomain(context.env, {
+        actorUserId: authorization.userId,
+        domainId: domainId.data,
+        organizationId: organizationId.data,
+        requestId: context.get("requestId"),
+      });
+      if (!disabled.ok) {
+        return context.json(
+          {
+            code: disabled.error.code,
+            message: disabled.error.message,
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      return context.json({ ...disabled.value, requestId: context.get("requestId") });
+    },
+  );
 
   router.get("/api/platform/organization-context", async (context) => {
     validateStartupConfig(context.env);
