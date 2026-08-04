@@ -57,6 +57,18 @@ export function Navigation({
   readonly navigate: (href: string) => void;
   readonly pathname: string;
 }) {
+  const navigationItems = groups.flatMap((group) => group.items);
+  const matchingItems = navigationItems.filter(
+    (item) =>
+      pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`)),
+  );
+  // Prefer an exact route, then the most specific parent route. This prevents a
+  // parent such as `/admin/settings` from remaining active alongside one of its
+  // more specific pages such as `/admin/settings/modules`.
+  const currentHref =
+    matchingItems.find((item) => item.href === pathname)?.href ??
+    matchingItems.toSorted((left, right) => right.href.length - left.href.length)[0]?.href;
+
   return (
     <nav aria-label="Workspace navigation" className="workspace-nav">
       {groups.map((group) => (
@@ -64,13 +76,7 @@ export function Navigation({
           <p className="workspace-nav__label">{group.label}</p>
           <div className="workspace-nav__items">
             {group.items.map((item) => {
-              // Keep nested pages grouped with their primary navigation item. For example,
-              // library settings should still highlight Music library in the sidebar.
-              // The organization home is `/admin`, which is also the prefix for every
-              // organization page. It should only be active on the exact home route.
-              const isCurrent =
-                pathname === item.href ||
-                (item.href !== "/admin" && pathname.startsWith(`${item.href}/`));
+              const isCurrent = currentHref === item.href;
               return (
                 <AppLink
                   ariaCurrent={isCurrent ? "page" : undefined}

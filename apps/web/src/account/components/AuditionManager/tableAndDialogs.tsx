@@ -63,7 +63,7 @@ export function AuditionTable({
           <span role="cell">
             <div className="table-actions">
               <button
-                className="text-button"
+                className="button button--secondary button--small"
                 onClick={() => {
                   onEdit(audition);
                 }}
@@ -73,7 +73,7 @@ export function AuditionTable({
               </button>
               {audition.status === "pending" ? (
                 <button
-                  className="text-button"
+                  className="button button--secondary button--small"
                   onClick={() => {
                     onSchedule(audition);
                   }}
@@ -84,7 +84,7 @@ export function AuditionTable({
               ) : null}
               {audition.status === "scheduled" ? (
                 <button
-                  className="text-button"
+                  className="button button--secondary button--small"
                   onClick={() => {
                     onConvert(audition);
                   }}
@@ -94,7 +94,7 @@ export function AuditionTable({
                 </button>
               ) : null}
               <button
-                className="text-button text-button--danger"
+                className="button button--danger button--small"
                 onClick={() => {
                   onDelete(audition);
                 }}

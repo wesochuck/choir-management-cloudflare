@@ -1,5 +1,5 @@
 import type { OrganizationResource, OrganizationResourceRequest } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -162,8 +162,11 @@ export function OrganizationResources({
   }
 
   if (!enabled) return null;
+  const resourceIndex = (resource: OrganizationResource): number =>
+    resources.findIndex(({ id }) => id === resource.id);
+
   return (
-    <section className="panel" aria-label="Organization resources">
+    <section className="panel organization-resources" aria-label="Organization resources">
       <p className="section-description">Shared files and trusted links for this Organization.</p>
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -178,53 +181,89 @@ export function OrganizationResources({
       {resources.length === 0 ? (
         <p>No resources have been shared yet.</p>
       ) : (
-        <ol>
-          {resources.map((resource, index) => (
-            <li key={resource.id}>
-              <a
-                href={
-                  resource.fileId
-                    ? `/api/organization/files/${encodeURIComponent(resource.fileId)}`
-                    : (resource.url ?? "#")
-                }
-                rel="noreferrer"
-                target="_blank"
-              >
-                {resource.title}
-              </a>
-              {manager ? (
-                <span className="button-row">
-                  <button
-                    disabled={busy || index === 0}
-                    onClick={() => void move(index, -1)}
-                    type="button"
-                  >
-                    Up
-                  </button>
-                  <button
-                    disabled={busy || index === resources.length - 1}
-                    onClick={() => void move(index, 1)}
-                    type="button"
-                  >
-                    Down
-                  </button>
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      openEdit(resource);
-                    }}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                  <button disabled={busy} onClick={() => void remove(resource)} type="button">
-                    Delete
-                  </button>
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ol>
+        <DataTable
+          columns={[
+            {
+              header: "Resource",
+              id: "title",
+              render: (resource) => (
+                <a
+                  href={
+                    resource.fileId
+                      ? `/api/organization/files/${encodeURIComponent(resource.fileId)}`
+                      : (resource.url ?? "#")
+                  }
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <strong>{resource.title}</strong>
+                </a>
+              ),
+              sortValue: (resource) => resource.title,
+            },
+            {
+              header: "Source",
+              id: "source",
+              render: (resource) => (resource.fileId ? "Shared file" : "HTTPS link"),
+              sortValue: (resource) => (resource.fileId ? "Shared file" : "HTTPS link"),
+            },
+            ...(manager
+              ? [
+                  {
+                    header: "Actions",
+                    id: "actions",
+                    mobileLabel: "Manage",
+                    render: (resource: OrganizationResource) => {
+                      const index = resourceIndex(resource);
+                      return (
+                        <div className="table-actions">
+                          <button
+                            className="button button--secondary button--small"
+                            disabled={busy || index <= 0}
+                            onClick={() => void move(index, -1)}
+                            type="button"
+                          >
+                            Move up
+                          </button>
+                          <button
+                            className="button button--secondary button--small"
+                            disabled={busy || index < 0 || index === resources.length - 1}
+                            onClick={() => void move(index, 1)}
+                            type="button"
+                          >
+                            Move down
+                          </button>
+                          <button
+                            className="button button--secondary button--small"
+                            disabled={busy}
+                            onClick={() => {
+                              openEdit(resource);
+                            }}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="button button--danger button--small"
+                            disabled={busy}
+                            onClick={() => void remove(resource)}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      );
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          emptyMessage="No resources have been shared yet."
+          keySelector={(resource) => resource.id}
+          rowLabel={(resource) => `Edit resource ${resource.title}`}
+          rows={resources}
+          {...(manager ? { onRowClick: openEdit } : {})}
+        />
       )}
       {manager ? (
         <>

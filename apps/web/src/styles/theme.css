@@ -4157,16 +4157,22 @@ h2 {
 }
 
 .dues-records-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+  grid-template-areas: "toolbar description";
+  align-items: center;
   gap: 1rem;
   margin: 0 0 1rem;
 }
 
+.dues-records-header > .seasons-manager-description {
+  grid-area: description;
+}
+
 .dues-records-toolbar {
   display: flex;
-  justify-content: flex-end;
+  grid-area: toolbar;
+  justify-content: flex-start;
   margin: 0;
 }
 
@@ -7471,8 +7477,11 @@ footer {
   }
 
   .dues-records-header {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "toolbar"
+      "description";
     align-items: stretch;
-    flex-direction: column;
     gap: 0.65rem;
   }
 
@@ -8732,6 +8741,11 @@ footer {
   font-weight: 700;
 }
 
+.audition-table__header > :last-child,
+.audition-table__row > [role="cell"]:last-child {
+  text-align: right;
+}
+
 .audition-table__row {
   padding: 0.75rem 0.7rem;
   border-bottom: 1px solid var(--color-border);
@@ -8742,7 +8756,7 @@ footer {
 }
 
 .audition-table__row .table-actions {
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 @media (max-width: 640px) {
@@ -8793,6 +8807,11 @@ footer {
   }
   .audition-table__row > [role="cell"]:nth-child(5) {
     grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .audition-table__row .table-actions {
+    justify-content: flex-start;
   }
 }
 

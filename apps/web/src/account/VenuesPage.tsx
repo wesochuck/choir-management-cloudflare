@@ -158,20 +158,22 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
               header: "Venue",
               id: "name",
               render: (venue) => <strong>{venue.name}</strong>,
+              sortValue: (venue) => venue.name,
             },
             {
               header: "Address",
               id: "address",
               render: (venue) => venue.address || "No address",
+              sortValue: (venue) => venue.address,
             },
             {
               header: "Actions",
               id: "actions",
               mobileLabel: "Manage",
               render: (venue) => (
-                <div className="button-row">
+                <div className="table-actions">
                   <button
-                    className="text-button"
+                    className="button button--secondary button--small"
                     onClick={() => {
                       openEditDialog(venue);
                     }}
@@ -180,7 +182,7 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
                     Edit
                   </button>
                   <button
-                    className="text-button text-button--danger"
+                    className="button button--danger button--small"
                     onClick={() => {
                       setError(null);
                       setSuccess(null);
@@ -195,6 +197,7 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
             },
           ]}
           emptyMessage="No venues have been created yet."
+          initialSort={{ columnId: "name", direction: "asc" }}
           keySelector={(venue) => venue.id}
           onRowClick={openEditDialog}
           rowLabel={(venue) => `Edit ${venue.name}`}
