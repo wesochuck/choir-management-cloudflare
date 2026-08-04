@@ -1143,16 +1143,6 @@
           ],
       },
       {
-        "id": "api.resolve-placeholders",
-        "method": "POST",
-        "path": "/api/singer/resolve-placeholders",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/resolvePlaceholders.ts",
-        "targetEvidence": ["apps/worker/src/router.ts"],
-      },
-      {
         "id": "api.quick-rsvp",
         "method": "POST",
         "path": "/api/public/quick-rsvp",
@@ -1478,22 +1468,6 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/seatingStore.ts",
             "apps/worker/test/seating.integration.test.ts",
-          ],
-      },
-      {
-        "id": "api.singer-playlist",
-        "method": "GET",
-        "path": "/api/singer/player-playlist",
-        "owner": "apps/worker",
-        "milestone": 5,
-        "status": "implemented",
-        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1540",
-        "targetEvidence":
-          [
-            "apps/worker/src/organization/playerStore.ts",
-            "apps/worker/src/organization/organizationPlayerLinks.ts",
-            "apps/worker/src/router.ts",
-            "apps/worker/test/publicPlayer.integration.test.ts",
           ],
       },
       {
