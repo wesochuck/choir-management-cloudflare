@@ -3868,6 +3868,27 @@ h2 {
   font-size: 0.68rem;
 }
 
+.communication-tabs__status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.communication-tabs__status-dot--attention {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.communication-tabs__status-dot--error {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-danger) 18%, transparent);
+}
+
+.communication-center__provider-warning {
+  margin-top: -0.35rem;
+}
+
 .communication-tab-panel {
   display: grid;
   gap: 1rem;

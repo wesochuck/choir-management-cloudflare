@@ -66,7 +66,11 @@ export function Navigation({
             {group.items.map((item) => {
               // Keep nested pages grouped with their primary navigation item. For example,
               // library settings should still highlight Music library in the sidebar.
-              const isCurrent = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              // The organization home is `/admin`, which is also the prefix for every
+              // organization page. It should only be active on the exact home route.
+              const isCurrent =
+                pathname === item.href ||
+                (item.href !== "/admin" && pathname.startsWith(`${item.href}/`));
               return (
                 <AppLink
                   ariaCurrent={isCurrent ? "page" : undefined}

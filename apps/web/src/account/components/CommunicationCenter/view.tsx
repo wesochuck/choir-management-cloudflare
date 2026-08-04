@@ -56,6 +56,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     voiceParts,
   } = model;
   if (!enabled) return null;
+  const brevoStatus = providerStatus?.brevo.status;
+  const brevoNeedsAttention = brevoStatus === "attention" || brevoStatus === "error";
+  const brevoStatusMessage =
+    brevoStatus === "error"
+      ? "Email delivery is not configured. Audition notices and other organization emails cannot be sent until Brevo is configured."
+      : "Email delivery is not active in this environment. Messages will not reach recipients until delivery is enabled.";
   return (
     <section className="panel communication-center" aria-label="Communication center">
       <p className="section-description">
@@ -70,7 +76,17 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
             : providerStatus.externalEffectsMode === "disabled"
               ? "Messages are recorded as suppressed and are not sent."
               : "Provider requests are made under sandbox restrictions."}{" "}
-          <a href="/admin/settings">View provider status details.</a>
+          <a href="/admin/settings/setup-checklist#provider-status-title">
+            View provider status details.
+          </a>
+        </p>
+      ) : null}
+      {brevoStatus === "error" ? (
+        <p className="notice notice--error communication-center__provider-warning" role="alert">
+          <strong>Email delivery needs setup.</strong> {brevoStatusMessage}{" "}
+          <a href="/admin/settings/setup-checklist#provider-status-title">
+            Open Brevo setup status.
+          </a>
         </p>
       ) : null}
       <nav className="communication-tabs" aria-label="Communication sections">
@@ -87,6 +103,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           <button
             aria-selected={activeTab === value}
             className={activeTab === value ? "is-active" : ""}
+            key={value}
             onClick={() => {
               setActiveTab(value);
             }}
@@ -99,6 +116,22 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               <span className="communication-tabs__count">
                 {String(messages.filter((message) => message.status === "Draft").length)}
               </span>
+            ) : null}
+            {value === "settings" && brevoNeedsAttention ? (
+              <span
+                aria-label={
+                  brevoStatus === "error"
+                    ? "Email delivery setup required"
+                    : "Email delivery needs attention"
+                }
+                className={`communication-tabs__status-dot communication-tabs__status-dot--${brevoStatus}`}
+                role="img"
+                title={
+                  brevoStatus === "error"
+                    ? "Email delivery setup required"
+                    : "Email delivery needs attention"
+                }
+              />
             ) : null}
           </button>
         ))}
@@ -422,6 +455,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                   </div>
                   <div className="button-row">
                     <button
+                      className="button button--secondary button--small"
                       disabled={busy}
                       onClick={() => {
                         resumeDraft(message);
@@ -430,7 +464,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                     >
                       Open draft
                     </button>
-                    <button disabled={busy} onClick={() => void deleteDraft(message)} type="button">
+                    <button
+                      className="button button--danger button--small"
+                      disabled={busy}
+                      onClick={() => void deleteDraft(message)}
+                      type="button"
+                    >
                       Delete
                     </button>
                   </div>
