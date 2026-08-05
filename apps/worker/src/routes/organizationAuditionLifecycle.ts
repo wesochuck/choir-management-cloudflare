@@ -4,6 +4,7 @@ import {
   organizationAuditionUpdateRequestSchema,
   type ProblemDetails,
 } from "@choir/contracts";
+import { z } from "zod";
 import {
   createOrganizationProfile,
   OrganizationProfileMutationError,
@@ -24,8 +25,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
-    const auditionId = context.req.param("auditionId");
-    if (!auditionId) {
+    const auditionId = z.uuid().safeParse(context.req.param("auditionId"));
+    if (!auditionId.success) {
       return context.json(
         {
           code: "validation_failed",
@@ -53,7 +54,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
       );
       const url = new URL("https://organization.internal/internal/audition/update");
-      url.searchParams.set("auditionId", auditionId);
+      url.searchParams.set("auditionId", auditionId.data);
       const response = await stub.fetch(url, {
         body: JSON.stringify({
           ...body.data,
@@ -107,14 +108,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
-    const auditionId = context.req.param("auditionId");
+    const auditionId = z.uuid().safeParse(context.req.param("auditionId"));
+    if (!auditionId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid audition ID is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
     try {
       const response = await context.env.ORGANIZATION_STORE.get(
         context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
       ).fetch("https://organization.internal/internal/audition/delete", {
         body: JSON.stringify({
           actorUserId: authorization.userId,
-          auditionId,
+          auditionId: auditionId.data,
           organizationId: authorization.organizationId,
           requestId: context.get("requestId"),
         }),
@@ -158,13 +169,23 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
-    const auditionId = context.req.param("auditionId");
+    const auditionId = z.uuid().safeParse(context.req.param("auditionId"));
+    if (!auditionId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid audition ID is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
     try {
       const stub = context.env.ORGANIZATION_STORE.get(
         context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
       );
       const detailUrl = new URL("https://organization.internal/internal/audition/details");
-      detailUrl.searchParams.set("auditionId", auditionId);
+      detailUrl.searchParams.set("auditionId", auditionId.data);
       const detailResponse = await stub.fetch(detailUrl);
       const audition = organizationAuditionSchema.safeParse(await detailResponse.json());
       if (!detailResponse.ok || !audition.success) {
@@ -198,7 +219,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         requestId: context.get("requestId"),
       });
       const updateResponse = await stub.fetch(
-        `https://organization.internal/internal/audition/update?auditionId=${encodeURIComponent(auditionId)}`,
+        `https://organization.internal/internal/audition/update?auditionId=${encodeURIComponent(auditionId.data)}`,
         {
           body: JSON.stringify({
             actorUserId: authorization.userId,
@@ -211,7 +232,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         },
       );
       if (!updateResponse.ok) throw new Error("audition_update_failed");
-      return context.json({ auditionId, profile, requestId: context.get("requestId") }, 201);
+      return context.json(
+        { auditionId: auditionId.data, profile, requestId: context.get("requestId") },
+        201,
+      );
     } catch (error: unknown) {
       if (error instanceof OrganizationProfileMutationError) {
         return context.json(

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { configuredBrevoEmailSender, deliverOrganizationCommunication } from "./provider";
+import {
+  configuredBrevoEmailSender,
+  deliverOrganizationCommunication,
+  renderCommunicationMarkdown,
+} from "./provider";
 
 const delivery = {
   channel: "email" as const,
@@ -153,5 +157,17 @@ describe("Organization communication provider", () => {
         fetcher,
       ),
     ).rejects.not.toThrow("credential details");
+  });
+
+  it("prevents markdown link URLs from injecting HTML attributes into emails", () => {
+    // The whole markdown is HTML-escaped before the link regex runs, so a
+    // quoted URL cannot break out of the href attribute: escaping makes the
+    // URL fail parsing, and it degrades to plain escaped text.
+    const rendered = renderCommunicationMarkdown('[click](https://example.com" onclick="x=1)');
+    expect(rendered).not.toContain('onclick="');
+    expect(rendered).toContain("&quot;");
+    // Normal links still render with the single-escaped href.
+    const normal = renderCommunicationMarkdown("[docs](https://example.com?a=1&b=2)");
+    expect(normal).toContain('<a href="https://example.com?a=1&amp;b=2">docs</a>');
   });
 });

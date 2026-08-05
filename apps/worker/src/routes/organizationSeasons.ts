@@ -42,9 +42,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
 
   router.post("/api/organization/seasons", (context) => saveSeasonRoute(context, null));
 
-  router.put("/api/organization/seasons/:seasonId", (context) =>
-    saveSeasonRoute(context, context.req.param("seasonId")),
-  );
+  router.put("/api/organization/seasons/:seasonId", async (context) => {
+    const seasonId = z.uuid().safeParse(context.req.param("seasonId"));
+    if (!seasonId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid season is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    return saveSeasonRoute(context, seasonId.data);
+  });
 
   router.post("/api/organization/seasons/:seasonId/activate", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
