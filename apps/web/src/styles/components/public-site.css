@@ -1,0 +1,223 @@
+/* === Public site: header, hero, foundation, and buttons ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  .directory-grid p {
+    margin-top: 0.5rem;
+    overflow-wrap: anywhere;
+    color: var(--color-text-muted);
+  }
+
+  /* Public site header and hero */
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 5rem;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .header-actions nav a {
+    font-size: 0.9rem;
+    font-weight: 750;
+    text-decoration-thickness: 0.12rem;
+    text-underline-offset: 0.25rem;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-weight: 750;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    display: grid;
+    width: 2.4rem;
+    height: 2.4rem;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: var(--color-background);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+  }
+
+  .service-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    font-weight: 650;
+  }
+
+  .service-status__dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+  }
+
+  .service-status--ready .service-status__dot {
+    background: var(--color-success);
+    box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--color-success) 18%, transparent);
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
+    align-items: center;
+    gap: clamp(2rem, 7vw, 6rem);
+    min-height: calc(100vh - 8rem);
+    padding-block: 4rem 7rem;
+  }
+
+  .eyebrow {
+    margin: 0 0 0.8rem;
+    color: var(--color-accent);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2 {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 560;
+    letter-spacing: -0.035em;
+    line-height: 0.98;
+  }
+
+  h1 {
+    max-width: 13ch;
+    font-size: clamp(3rem, 8vw, 6.7rem);
+  }
+
+  h2 {
+    font-size: clamp(2.3rem, 5vw, 4rem);
+  }
+
+  .hero__lede,
+  .section-heading > p:last-child {
+    max-width: 40rem;
+    color: var(--color-text-muted);
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    line-height: 1.7;
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  /* Buttons */
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3rem;
+    padding: 0.75rem 1.1rem;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    font-weight: 750;
+    text-decoration: none;
+  }
+
+  .button:disabled,
+  .text-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .button--primary {
+    background: var(--color-primary);
+    color: var(--color-background);
+  }
+
+  .button--secondary {
+    background: transparent;
+    color: var(--color-primary);
+  }
+
+  .button--danger {
+    border-color: var(--color-danger);
+    background: transparent;
+    color: var(--color-danger);
+  }
+
+  .hero__art {
+    position: relative;
+    display: grid;
+    min-height: 26rem;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 48% 48% 2rem 2rem;
+    background:
+      linear-gradient(180deg, transparent 49%, var(--color-surface) 49% 51%, transparent 51%),
+      linear-gradient(90deg, transparent 49%, var(--color-surface) 49% 51%, transparent 51%),
+      color-mix(in srgb, var(--color-surface) 70%, transparent);
+    box-shadow: 0 2rem 5rem var(--color-shadow);
+  }
+
+  .voice {
+    position: absolute;
+    display: grid;
+    width: 5.2rem;
+    height: 5.2rem;
+    place-items: center;
+    border: 0.45rem solid var(--color-surface-raised);
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: #fff;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 2rem;
+    box-shadow: 0 0.75rem 2rem var(--color-shadow);
+  }
+
+  .voice--one {
+    transform: translate(-62%, -76%);
+  }
+
+  .voice--two {
+    transform: translate(62%, -76%);
+    background: #477b76;
+  }
+
+  .voice--three {
+    transform: translate(-62%, 76%);
+    background: #8071a8;
+  }
+
+  .voice--four {
+    transform: translate(62%, 76%);
+    background: #c29a4d;
+  }
+
+  .foundation {
+    padding-block: 5rem 8rem;
+    border-top: 1px solid var(--color-border);
+  }
+}

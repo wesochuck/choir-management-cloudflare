@@ -1,0 +1,281 @@
+/* === Ticket scanner, donations, and patrons ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  .ticket-scanner {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .ticket-scanner__toolbar {
+    display: grid;
+    grid-template-columns: minmax(14rem, 1fr) auto;
+    align-items: end;
+    gap: 1rem;
+  }
+
+  .ticket-scanner__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+    gap: 1rem;
+  }
+
+  .ticket-scanner__video {
+    display: grid;
+    min-height: 16rem;
+    overflow: hidden;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: #050b10;
+  }
+
+  .ticket-scanner__video video {
+    display: block;
+    width: 100%;
+    max-height: 28rem;
+    object-fit: contain;
+  }
+
+  .ticket-scanner__side-panel,
+  .ticket-scanner__manual,
+  .ticket-scanner__history {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .ticket-scanner__manual h3,
+  .ticket-scanner__history h3 {
+    margin: 0;
+  }
+
+  .ticket-scanner__side-panel {
+    align-content: start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .ticket-scanner__history .section-heading {
+    align-items: center;
+    margin: 0;
+  }
+
+  .ticket-scan-history-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.82rem;
+  }
+
+  .ticket-scan-history-row:last-child {
+    border-bottom: 0;
+  }
+
+  .ticket-scan-history-row span {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ticket-scan-history-row time {
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+  }
+
+  .ticket-scan-history-row.is-valid strong {
+    color: var(--color-success-text);
+  }
+
+  .ticket-scan-history-row.is-invalid strong {
+    color: var(--color-danger-text);
+  }
+
+  .ticket-scan-result {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+  }
+
+  .ticket-scan-result h3,
+  .ticket-scan-result p {
+    margin: 0;
+  }
+
+  .ticket-scan-result--valid {
+    border-color: var(--color-success-text);
+    background: color-mix(in srgb, var(--color-success-text) 10%, var(--color-surface));
+  }
+
+  .ticket-scan-result--invalid {
+    border-color: var(--color-danger-text);
+    background: color-mix(in srgb, var(--color-danger-text) 10%, var(--color-surface));
+  }
+
+  .ticket-scan-result dl {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+  }
+
+  .ticket-scan-result dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .ticket-scan-result dt {
+    color: var(--color-text-muted);
+  }
+
+  .ticket-scan-result dd {
+    margin: 0;
+    font-weight: 700;
+    text-align: right;
+  }
+
+  .ticket-scanner__next {
+    justify-self: start;
+  }
+
+  .ticket-scanner__history-list {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .donation-history {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .donation-dashboard,
+  .donation-register {
+    margin-top: 0;
+  }
+
+  .ticket-dashboard__metrics.donation-dashboard__metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ticket-dashboard__filters.donation-dashboard__filters {
+    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(8rem, 1fr)) minmax(11rem, 1fr);
+  }
+
+  .donation-patrons {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .donation-patrons summary {
+    padding: 0.9rem 1rem;
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .donation-patrons[open] {
+    padding-bottom: 1rem;
+  }
+
+  .donation-patrons[open] > :not(summary) {
+    margin-right: 1rem;
+    margin-left: 1rem;
+  }
+
+  .donation-settings-grid .surface-card {
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+  }
+
+  .donation-level-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+  }
+
+  .donation-level-option {
+    display: flex;
+    min-height: 4.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .donation-level-option > span {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .donation-level-option small {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+  }
+
+  .donation-level-option.is-selected {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  }
+
+  .donation-levels-heading {
+    display: flex;
+    max-width: none;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .donation-levels-heading h3,
+  .donation-levels-heading .eyebrow {
+    margin: 0;
+  }
+
+  .donation-levels-heading .eyebrow {
+    margin-bottom: 0.25rem;
+  }
+
+  .donation-level-table-scroll {
+    margin-top: 0.25rem;
+  }
+
+  .donation-level-table {
+    min-width: 42rem;
+  }
+
+  .donation-level-table th[scope="row"] {
+    color: var(--color-text);
+    font-weight: 700;
+  }
+
+  .donation-level-table td:last-child,
+  .donation-level-table th:last-child {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .donation-level-table td:last-child .table-actions {
+    justify-content: flex-end;
+  }
+}

@@ -1,0 +1,218 @@
+/* === Account managers: seasons, roster, dues, auditions, and notices ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  .seasons-manager-controls {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    /* Extend the tab rule to the panel edges, matching the full-width event tabs. */
+    margin: 0 -1.15rem 1.25rem;
+    padding-inline: 1.15rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .seasons-manager-tabs {
+    flex: 1 1 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .seasons-manager-description {
+    margin: 0;
+    color: var(--color-text-muted);
+  }
+
+  .seasons-manager-description--settings {
+    margin-bottom: 1rem;
+  }
+
+  .roster-page-tabs {
+    margin-bottom: 1.25rem;
+  }
+
+  .dues-records-header {
+    display: grid;
+    grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+    grid-template-areas: "toolbar description";
+    align-items: center;
+    gap: 1rem;
+    margin: 0 0 1rem;
+  }
+
+  .dues-records-header > .seasons-manager-description {
+    grid-area: description;
+  }
+
+  .dues-records-toolbar {
+    display: flex;
+    grid-area: toolbar;
+    justify-content: flex-start;
+    margin: 0;
+  }
+
+  .dues-records-toolbar .field {
+    min-width: min(100%, 20rem);
+  }
+
+  .audition-schedule-form {
+    gap: 0.9rem;
+  }
+
+  .schedule-time-section {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.65rem;
+    background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+  }
+
+  .schedule-time-section legend {
+    padding-inline: 0.35rem;
+    font-weight: 750;
+  }
+
+  .schedule-time-section__hint {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    line-height: 1.45;
+  }
+
+  .audition-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.35rem;
+    margin: 0 0 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .audition-tabs button {
+    min-height: 2.7rem;
+    padding: 0.65rem 0.75rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .audition-tabs button:hover,
+  .audition-tabs button:focus-visible,
+  .audition-tabs button.is-active {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-text);
+  }
+
+  .audition-tab-panel {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .audition-tab-panel h2,
+  .audition-tab-panel > .section-description {
+    margin: 0;
+  }
+
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  /* Auth methods, text buttons, and notices */
+
+  .auth-methods {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .auth-methods .text-button[aria-pressed="true"] {
+    color: var(--color-accent);
+    text-decoration-thickness: 0.18rem;
+  }
+
+  .text-button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-primary);
+    cursor: pointer;
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 0.1rem;
+    text-underline-offset: 0.2rem;
+  }
+
+  .text-link {
+    justify-self: start;
+    color: var(--color-primary);
+    font-weight: 700;
+    text-underline-offset: 0.2rem;
+  }
+
+  .notice {
+    margin: 1rem 0;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    line-height: 1.5;
+  }
+
+  .notice p {
+    margin-top: 0;
+  }
+
+  .notice--error {
+    border-color: var(--color-danger);
+    background: var(--color-danger-surface);
+    color: var(--color-danger);
+  }
+
+  .notice--info {
+    background: var(--color-info-surface);
+  }
+
+  .notice--success {
+    border-color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
+    color: var(--color-text);
+  }
+
+  .notice--warning {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+    color: var(--color-text);
+  }
+
+  .account-layout {
+    align-content: start;
+  }
+
+  .account-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .account-heading p:last-child {
+    margin-bottom: 0;
+  }
+}

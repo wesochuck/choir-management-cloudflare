@@ -1,0 +1,267 @@
+/* === Empty pages, dialogs, sheets, collapsibles, and dropdown menus ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  @media (max-width: 760px) {
+    .platform-setup-monitor__heading,
+    .platform-setup-check {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .platform-setup-monitor__heading .button {
+      width: 100%;
+    }
+
+    .platform-setup-monitor__error .button {
+      width: 100%;
+    }
+
+    .platform-setup-check__status {
+      justify-content: space-between;
+      text-align: left;
+    }
+
+    .provider-status-card__row {
+      flex-direction: column;
+    }
+
+    .communication-sender-details {
+      grid-template-columns: 1fr;
+    }
+
+    .provider-status-card__row .platform-setup-status {
+      align-self: flex-start;
+    }
+
+    .ticketing-page-header {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .ticketing-page-header .button {
+      width: 100%;
+    }
+
+    .donation-levels-heading {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .donation-levels-heading .button {
+      align-self: flex-start;
+    }
+
+    .ticketing-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticketing-tabs button {
+      text-align: left;
+    }
+
+    .ticketing-share-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-dashboard__intro,
+    .ticket-dashboard__section-heading {
+      flex-direction: column;
+    }
+
+    .ticket-dashboard__intro .field {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    .ticket-dashboard__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticket-dashboard__filters {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-confirmation-settings__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .empty-page {
+    display: grid;
+    justify-items: start;
+    gap: 1rem;
+  }
+
+  .empty-page h1 {
+    max-width: 18ch;
+    font-size: clamp(2.2rem, 5vw, 4rem);
+  }
+
+  .dialog--responsive {
+    position: fixed;
+    z-index: 41;
+    top: 50%;
+    left: 50%;
+    width: min(42rem, calc(100% - 2rem));
+    max-height: min(90vh, 52rem);
+    margin: 0;
+    overflow: auto;
+    transform: translate(-50%, -50%);
+  }
+
+  .dialog__actions {
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+
+  .sheet {
+    position: fixed;
+    z-index: 41;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(22rem, calc(100% - 2rem));
+    padding: 1.5rem 1rem;
+    overflow-y: auto;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: 1rem 0 3rem rgb(0 0 0 / 16%);
+  }
+
+  .sheet__header {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0 2.75rem 1.5rem 0.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  @media (max-width: 860px) {
+    .signed-in-body {
+      display: block;
+    }
+
+    .signed-in-sidebar {
+      display: none;
+    }
+
+    .mobile-nav-trigger {
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .signed-in-main {
+      padding: 1.25rem 1rem 3rem;
+    }
+
+    .floating-save-bar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .floating-save-bar__actions {
+      justify-content: stretch;
+    }
+
+    .floating-save-bar__actions .button {
+      flex: 1;
+    }
+
+    .page-heading {
+      align-items: start;
+      flex-direction: column;
+      margin-bottom: 1.25rem;
+    }
+
+    .page-heading__location {
+      max-width: none;
+      text-align: left;
+    }
+
+    .workspace-card-grid,
+    .ticket-scanner__toolbar,
+    .ticket-scanner__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-dashboard__metrics.donation-dashboard__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticket-dashboard__filters.donation-dashboard__filters {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-scanner__toolbar .table-actions {
+      justify-content: flex-start;
+    }
+
+    .page-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .page-toolbar__actions {
+      width: 100%;
+    }
+
+    .page-toolbar__actions .button {
+      flex: 1;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .signed-in-header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .signed-in-header__actions {
+      justify-content: space-between;
+    }
+
+    .signed-in-header__actions > * {
+      flex: 1;
+    }
+
+    .workspace-switcher select,
+    .signed-in-header__actions .button {
+      width: 100%;
+    }
+
+    .signed-in-header__actions > .theme-switcher {
+      flex: 0 0 2.3rem;
+    }
+
+    .signed-in-header__brand > a {
+      flex: 1;
+    }
+
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .settings-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .form-grid__wide {
+      grid-column: auto;
+    }
+
+    .dialog--responsive {
+      top: auto;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      max-height: 92vh;
+      border-radius: 1.25rem 1.25rem 0 0;
+      transform: none;
+    }
+  }
+}

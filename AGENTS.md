@@ -201,8 +201,11 @@ Before finishing any material change, report:
 
 - Use repository-owned shadcn-style components built on Radix primitives. Do not copy Shoelace/Web
   Awesome implementation dependencies.
-- Use Tailwind and semantic theme variables. Avoid raw dark-mode overrides when semantic tokens
-  express the intent.
+- Styles live in `apps/web/src/styles/` as semantic tokens and layered component files; there is no
+  Tailwind. `theme.css` is the import manifest (`@layer tokens, base, components;`); add tokens to
+  `tokens.css`, element styles to `base.css`, and feature styles to the matching `components/*.css`
+  file. Avoid raw dark-mode overrides when semantic tokens express the intent: redefine tokens in
+  the `:root[data-theme="dark"]` block in `tokens.css` instead.
 - Preserve responsive table/card layouts, mobile dialogs, focus management, keyboard use,
   destructive confirmation patterns, and meaningful loading/error/empty states.
 - Destructive actions require danger-styled confirmations with a visible Cancel action.

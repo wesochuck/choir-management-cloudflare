@@ -1,0 +1,165 @@
+/* === Print rules, roster configuration, and my schedule ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@page {
+  size: landscape;
+  margin: 0.35in;
+}
+
+@layer components {
+  @media print {
+    html,
+    body {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .signed-in-header,
+    .signed-in-sidebar,
+    .skip-link,
+    .page-heading,
+    .no-print,
+    .seating-tray,
+    .seating-page-heading__actions,
+    .seating-tabs,
+    .seating-toolbar {
+      display: none !important;
+    }
+
+    .signed-in-shell {
+      --color-background: #fff;
+      --color-border: #bbb;
+      --color-surface: #fff;
+      --color-surface-raised: #fff;
+      --color-text-muted: #555;
+      --color-text: #111;
+      min-height: 0;
+      background: #fff;
+      color: #111;
+    }
+
+    .signed-in-body {
+      display: block;
+      min-height: 0;
+    }
+
+    .signed-in-main {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .seating-workspace,
+    .seating-editor-canvas {
+      width: 100%;
+      display: block;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .seating-grid--canvas {
+      display: flex;
+      width: 100%;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .seating-row--canvas {
+      width: 100%;
+      min-width: 0;
+      grid-template-columns: 5rem repeat(var(--seating-seat-count), minmax(2.4rem, 1fr));
+      break-inside: avoid;
+    }
+
+    .seating-seat--canvas {
+      min-height: 3.25rem;
+      color: #111;
+      background: #fff;
+    }
+
+    .set-list-layout {
+      display: block;
+      padding: 0;
+      border: 0;
+      background: #fff;
+      color: #111;
+    }
+
+    .set-list-layout > .form-stack,
+    .set-list-summary,
+    .set-list-save-row,
+    .set-list-credits,
+    .set-list-item-heading .button-row {
+      display: none !important;
+    }
+
+    .set-list-items {
+      padding-left: 1.5rem;
+    }
+
+    .set-list-item {
+      break-inside: avoid;
+      border: 0;
+      padding: 0.3rem 0;
+    }
+  }
+
+  .roster-configuration-list {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .roster-configuration-row {
+    display: grid;
+    grid-template-columns: minmax(5rem, 0.6fr) minmax(10rem, 2fr) minmax(7rem, 1fr) auto auto;
+    align-items: end;
+    gap: 0.75rem;
+  }
+
+  .roster-configuration-row label:not(.checkbox-row) {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .roster-configuration-assignment {
+    display: grid;
+    align-items: end;
+    gap: 0.35rem;
+  }
+
+  .roster-configuration-assignment .field-help {
+    max-width: 18rem;
+  }
+
+  .account-section--my-schedule {
+    grid-column: 1 / -1;
+  }
+
+  .my-schedule__controls {
+    display: flex;
+    justify-content: flex-end;
+    margin: -0.25rem 0 1rem;
+  }
+
+  .my-schedule__controls .checkbox-row {
+    margin: 0;
+  }
+
+  .calendar-feed-url-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .calendar-feed-url-row .button {
+    white-space: nowrap;
+  }
+}

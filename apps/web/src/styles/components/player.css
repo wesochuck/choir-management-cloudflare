@@ -1,0 +1,469 @@
+/* === Public practice player ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  .public-player-layout {
+    display: grid;
+    min-height: calc(100vh - 10rem);
+    place-items: start center;
+    padding: 1.5rem 1rem 3rem;
+    background: color-mix(in srgb, var(--color-surface) 72%, var(--color-background));
+  }
+
+  .public-player {
+    display: grid;
+    width: min(100%, 32rem);
+    gap: 0.9rem;
+  }
+
+  .public-player__header {
+    padding-inline: 0.1rem;
+  }
+
+  .public-player__header h1,
+  .public-player__header p {
+    margin: 0;
+  }
+
+  .public-player__header h1 {
+    font-size: clamp(1.7rem, 7vw, 2.25rem);
+    line-height: 1;
+  }
+
+  .public-player__header p:not(.eyebrow) {
+    margin-top: 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+  }
+
+  /* Track pills and voice part selection */
+
+  .public-player__track-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .public-player__track-pills button {
+    min-height: 1.9rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .public-player__track-pills button:hover,
+  .public-player__track-pills button:focus-visible,
+  .public-player__track-pills button.is-active {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-background);
+  }
+
+  .public-player__voice-part-select {
+    display: inline-flex;
+  }
+
+  .public-player__voice-part-select select {
+    min-height: 1.9rem;
+    padding: 0.35rem 1.9rem 0.35rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface-raised);
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 750;
+  }
+
+  /* Now playing and set list */
+
+  .public-player__now-playing,
+  .public-player__set-list {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+    box-shadow: 0 0.45rem 1rem color-mix(in srgb, var(--color-shadow) 32%, transparent);
+  }
+
+  .public-player__track-heading,
+  .public-player__set-list-heading,
+  .public-player__option-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .public-player__track-heading h2,
+  .public-player__track-heading p,
+  .public-player__set-list-heading h2,
+  .public-player__set-list-heading p {
+    margin: 0;
+  }
+
+  .public-player__track-heading h2,
+  .public-player__set-list-heading h2 {
+    font-size: 1rem;
+  }
+
+  .public-player__track-heading p:not(.eyebrow),
+  .public-player__set-list-heading p,
+  .public-player__set-list-help {
+    margin-top: 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+  }
+
+  .public-player__track-badge,
+  .public-player__item-track {
+    flex: 0 0 auto;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--color-accent);
+    border-radius: 999px;
+    color: var(--color-accent);
+    font-size: 0.63rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .public-player__audio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .public-player__progress {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .public-player__progress input,
+  .public-player__option input[type="range"] {
+    width: 100%;
+    accent-color: var(--color-accent);
+  }
+
+  .public-player__progress > div {
+    display: flex;
+    justify-content: space-between;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+  }
+
+  .public-player__transport {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  .public-player__play {
+    min-width: 4.25rem;
+  }
+
+  .public-player__repeat,
+  .public-player__guide-toggle {
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--color-accent);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 750;
+  }
+
+  .public-player__repeat {
+    padding: 0.35rem 0.55rem;
+  }
+
+  .public-player__options {
+    display: grid;
+    gap: 0.65rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .public-player__option {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.7rem;
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-surface) 82%, var(--color-accent));
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+    font-weight: 750;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .public-player__option input[type="number"],
+  .public-player__option select {
+    max-width: 100%;
+    min-height: 2rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font-size: 0.85rem;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  .public-player__option small {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: normal;
+    line-height: 1.45;
+    text-transform: none;
+  }
+
+  .public-player__inline-input {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .public-player__inline-input input {
+    width: 4rem;
+  }
+
+  .public-player__guide-toggle {
+    min-height: 2rem;
+    padding: 0.35rem 0.65rem;
+  }
+
+  .public-player__guide {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+    padding: 0.75rem;
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+  }
+
+  .public-player__guide div {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+  }
+
+  .public-player__guide strong {
+    color: var(--color-text);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .public-player__guide span,
+  .public-player__set-list-help {
+    line-height: 1.45;
+  }
+
+  .public-player__guide span {
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+  }
+
+  .public-player__set-list {
+    gap: 0.65rem;
+  }
+
+  .public-player__set-list-heading {
+    align-items: center;
+  }
+
+  .public-player__set-list-help {
+    margin: 0;
+  }
+
+  .public-player__set-list ol {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .public-player__set-list li {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem;
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+  }
+
+  .public-player__set-list li.is-active {
+    outline: 1px solid var(--color-accent);
+  }
+
+  .public-player__set-list-item {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 0.15rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .public-player__set-list-item:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .public-player__set-list-item small {
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+  }
+
+  .public-player__item-track {
+    padding: 0.18rem 0.35rem;
+    font-size: 0.58rem;
+  }
+
+  .public-player__empty {
+    margin: 0;
+    padding: 1rem;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-control);
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+  }
+
+  /* Practice player filters */
+
+  .practice-player__filters,
+  .practice-player__options,
+  .practice-player__track-heading {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .practice-player__filters,
+  .practice-player__options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .practice-player__voice-filter {
+    display: grid;
+    align-content: end;
+    gap: 0.35rem;
+  }
+
+  .practice-player__now-playing {
+    display: grid;
+    gap: 0.9rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .practice-player__track-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .practice-player__track-heading h3,
+  .practice-player__track-heading p {
+    margin: 0;
+  }
+
+  .practice-player__track-heading p:last-child {
+    margin-top: 0.3rem;
+    color: var(--color-text-muted);
+  }
+
+  .practice-player__now-playing audio {
+    width: 100%;
+  }
+
+  .practice-player__controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .practice-player__playlist {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .practice-player__playlist li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .practice-player__playlist-item--active {
+    border-color: var(--color-accent) !important;
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-raised)) !important;
+  }
+
+  .practice-player__playlist-select {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.65rem;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .practice-player__playlist-select > span:last-child {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+
+  .practice-player__playlist-select small {
+    color: var(--color-text-muted);
+  }
+
+  .practice-player__playlist-number {
+    display: inline-grid;
+    width: 1.7rem;
+    height: 1.7rem;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    font-size: 0.8rem;
+    font-weight: 800;
+  }
+}

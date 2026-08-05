@@ -1,0 +1,316 @@
+/* === Signed-in shell refinements and shared control geometry ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  /* Function-first refinements: use real text weights and a smaller operational scale. */
+  .signed-in-shell {
+    font-size: 0.9375rem;
+    -webkit-font-smoothing: auto;
+  }
+
+  .signed-in-shell h1 {
+    font-size: clamp(1.75rem, 2.5vw, 2.1rem);
+    font-weight: 600;
+  }
+
+  .signed-in-shell h2 {
+    font-size: clamp(1.1rem, 1.6vw, 1.3rem);
+    font-weight: 600;
+  }
+
+  .signed-in-shell h3 {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .signed-in-shell .eyebrow {
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+  }
+
+  .signed-in-header__brand > a {
+    font-weight: 600;
+  }
+
+  .signed-in-shell .button {
+    font-weight: 600;
+  }
+
+  .sidebar-context strong {
+    font-weight: 600;
+  }
+
+  .workspace-nav__label {
+    font-weight: 600;
+    letter-spacing: 0.07em;
+  }
+
+  .workspace-nav__items a {
+    font-weight: 500;
+  }
+
+  .workspace-nav__items a[aria-current="page"] {
+    font-weight: 600;
+  }
+
+  .page-heading h1,
+  .signed-in-main .account-heading h1,
+  .signed-in-main .auth-card h1 {
+    font-size: clamp(1.75rem, 2.5vw, 2.1rem);
+    font-weight: 600;
+  }
+
+  .workspace-hero h1 {
+    font-size: clamp(1.5rem, 2.4vw, 2rem);
+    font-weight: 600;
+  }
+
+  .workspace-card-grid strong,
+  .workspace-card strong,
+  .signed-in-main .account-list h3 {
+    font-weight: 600;
+  }
+
+  .signed-in-main .field label,
+  .signed-in-main .checkbox-label,
+  .signed-in-main .checkbox-row {
+    font-weight: 500;
+  }
+
+  @media (max-width: 560px) {
+    .page-heading h1,
+    .signed-in-main .account-heading h1,
+    .signed-in-main .auth-card h1 {
+      font-size: 1.7rem;
+    }
+
+    .workspace-hero h1 {
+      font-size: 1.5rem;
+    }
+  }
+
+  /* Shared control geometry: every operational form uses the same rhythm. */
+  .signed-in-shell {
+    --control-height: 2.5rem;
+    --control-radius: 0.45rem;
+  }
+
+  .signed-in-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .signed-in-main select,
+  .signed-in-main .search-field input,
+  .signed-in-main .recovery-codes {
+    width: 100%;
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--control-radius);
+    font-size: 0.875rem;
+    line-height: 1.25;
+  }
+
+  .signed-in-main .field textarea {
+    width: 100%;
+    min-height: 6rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--control-radius);
+    font-size: 0.875rem;
+    line-height: 1.4;
+  }
+
+  .signed-in-main input[type="file"] {
+    width: auto;
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: 0.25rem 0.5rem;
+  }
+
+  .signed-in-main input[type="checkbox"],
+  .signed-in-main input[type="radio"] {
+    appearance: auto;
+    -webkit-appearance: auto;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    margin: 0 0.45rem 0 0;
+    padding: 0;
+    accent-color: auto;
+    vertical-align: middle;
+  }
+
+  .signed-in-main .checkbox-field,
+  .signed-in-main .checkbox-row,
+  .signed-in-main .checkbox-label {
+    display: flex;
+    gap: 0.5rem;
+    min-height: 1.5rem;
+    align-items: center;
+  }
+
+  .signed-in-main .checkbox-field input,
+  .signed-in-main .checkbox-row input,
+  .signed-in-main .checkbox-label input {
+    margin-right: 0;
+    flex: 0 0 auto;
+  }
+
+  /* Keep native checkboxes from collapsing when labels share a row. */
+  .signed-in-main label:has(> input[type="checkbox"]),
+  .signed-in-main label:has(> input[type="radio"]) {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 1.75rem;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+  }
+
+  .signed-in-main label:has(> input[type="checkbox"]) > input,
+  .signed-in-main label:has(> input[type="radio"]) > input {
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    min-height: 1rem;
+    flex: 0 0 1rem;
+    margin: 0;
+  }
+
+  /* Keep the set-list visibility checkbox aligned with its heading, not centered
+ * against the helper text below it. */
+  .signed-in-main .set-list-visibility {
+    align-items: flex-start;
+  }
+
+  .signed-in-main .set-list-visibility > input {
+    margin-top: 0.2rem;
+  }
+
+  /* Radix portals render outside the shell; keep signed-in dialogs on the same control system. */
+  .dialog--responsive {
+    width: min(40rem, calc(100% - 2rem));
+    max-height: min(88vh, 48rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.8rem;
+    padding: 1.15rem;
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .dialog--responsive input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .dialog--responsive select,
+  .dialog--responsive textarea {
+    width: 100%;
+    min-height: var(--control-height);
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--control-radius);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font-size: 0.875rem;
+    line-height: 1.25;
+  }
+
+  .dialog--responsive input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .dialog--responsive select {
+    height: var(--control-height);
+  }
+
+  .dialog--responsive textarea {
+    min-height: 6rem;
+    line-height: 1.4;
+  }
+
+  .dialog--responsive input[type="checkbox"],
+  .dialog--responsive input[type="radio"] {
+    appearance: auto;
+    -webkit-appearance: auto;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    margin: 0 0.45rem 0 0;
+    padding: 0;
+    accent-color: auto;
+    vertical-align: middle;
+  }
+
+  .dialog--responsive .checkbox-row,
+  .dialog--responsive .checkbox-label,
+  .dialog--responsive .checkbox-field {
+    display: flex;
+    gap: 0.5rem;
+    min-height: 1.5rem;
+    align-items: center;
+  }
+
+  /* === Dialog === */
+  .dialog {
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0;
+    max-width: 32rem;
+    width: calc(100% - 2rem);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  }
+
+  .dialog::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .dialog__close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--muted-foreground);
+    padding: 0.25rem;
+    line-height: 1;
+  }
+
+  .summary-card {
+    display: grid;
+    gap: 0.25rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-surface) 90%, var(--color-accent) 10%);
+  }
+
+  .summary-card__label {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .summary-card strong {
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  .summary-card small {
+    color: var(--muted-foreground);
+  }
+
+  .dialog--responsive {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: min(42rem, calc(100% - 2rem));
+    max-width: min(42rem, calc(100% - 2rem));
+    max-height: min(90vh, 52rem);
+    overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    background: var(--color-surface);
+    color: var(--color-text);
+    transform: translate(-50%, -50%);
+  }
+
+  .dialog--responsive::backdrop {
+    background: rgb(3 18 28 / 72%);
+  }
+}

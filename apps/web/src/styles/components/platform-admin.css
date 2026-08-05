@@ -1,0 +1,520 @@
+/* === Platform administration: MFA, operations, provisioning, and directory ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  .password-form {
+    max-width: 34rem;
+  }
+
+  .platform-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .platform-action h3,
+  .platform-action p,
+  .mfa-enrollment h3,
+  .mfa-enrollment p,
+  .platform-verification h3,
+  .platform-verification p {
+    margin-top: 0;
+  }
+
+  .platform-action p,
+  .mfa-enrollment p,
+  .platform-verification p {
+    color: var(--color-text-muted);
+    line-height: 1.6;
+  }
+
+  .mfa-start-form__controls {
+    flex: 0 1 22rem;
+    width: 100%;
+  }
+
+  .mfa-start-form__controls .button {
+    justify-self: start;
+  }
+
+  .mfa-enrollment {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .mfa-enrollment > * {
+    min-width: 0;
+  }
+
+  .platform-verification {
+    padding: 1.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .recovery-codes {
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    line-height: 1.65;
+  }
+
+  .recovery-confirmation {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 1rem;
+  }
+
+  .recovery-confirmation label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    font-weight: 700;
+  }
+
+  .recovery-confirmation input {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-top: 0.1rem;
+  }
+
+  .platform-verification {
+    max-width: 34rem;
+    margin-top: 1.5rem;
+  }
+
+  /* Platform operations and setup monitor */
+
+  .platform-operations {
+    margin-top: 1.5rem;
+  }
+
+  .platform-setup-monitor {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .platform-setup-monitor__heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .platform-setup-monitor__heading h2,
+  .platform-setup-monitor__heading p {
+    margin: 0;
+  }
+
+  .platform-setup-monitor__heading p:not(.eyebrow) {
+    max-width: 56rem;
+    margin-top: 0.35rem;
+    color: var(--color-text-muted);
+  }
+
+  .platform-setup-monitor__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+  }
+
+  .platform-setup-monitor__error {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .platform-setup-monitor__error .notice {
+    margin: 0;
+  }
+
+  .platform-setup-monitor__error .button {
+    justify-self: start;
+  }
+
+  .platform-setup-checks {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .platform-setup-check {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .platform-setup-check__copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+
+  .platform-setup-check__copy span {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+  }
+
+  .platform-setup-check__status {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.7rem;
+    text-align: right;
+  }
+
+  .platform-setup-check__status a {
+    color: var(--color-primary);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .platform-setup-status {
+    display: inline-flex;
+    min-width: 6.5rem;
+    justify-content: center;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .platform-setup-status--ok {
+    background: color-mix(in srgb, var(--color-success) 16%, transparent);
+    color: var(--color-success);
+  }
+
+  .platform-setup-status--attention {
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    color: var(--color-accent);
+  }
+
+  .platform-setup-status--error {
+    background: color-mix(in srgb, var(--color-danger) 18%, transparent);
+    color: var(--color-danger);
+  }
+
+  .section-heading--nested h3,
+  .section-heading--nested p,
+  .platform-directory h4 {
+    margin-top: 0;
+  }
+
+  .section-heading--nested p {
+    color: var(--color-text-muted);
+    line-height: 1.6;
+  }
+
+  /* Provisioning, schema status, and organization list */
+
+  .platform-provisioning-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+    gap: 1rem;
+    max-width: 48rem;
+    margin-top: 1.5rem;
+  }
+
+  .platform-provisioning-form .button {
+    justify-self: start;
+  }
+
+  .platform-directory {
+    margin-top: 2rem;
+  }
+
+  .platform-schema-status {
+    justify-self: start;
+    background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+    color: var(--color-success);
+  }
+
+  .platform-organization-list h5,
+  .platform-organization-list p {
+    margin: 0;
+  }
+
+  .platform-organization-list h5 {
+    font-size: 1rem;
+  }
+
+  .platform-organization-list .status-pill {
+    display: inline-block;
+    margin-top: 0.65rem;
+  }
+
+  .platform-organization-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
+  }
+
+  .platform-organization-domains {
+    flex: 1 1 100%;
+    margin-top: 0.9rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.75rem;
+  }
+
+  .platform-organization-domains summary {
+    color: var(--color-primary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .platform-organization-domains__content {
+    max-width: 52rem;
+    margin-top: 0.8rem;
+  }
+
+  .platform-domain-list {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0.8rem 0 1rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .platform-domain-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.45rem;
+  }
+
+  .platform-domain-list li > span {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .platform-domain-list .status-pill {
+    margin: 0;
+  }
+
+  .platform-domain-form {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .platform-domain-form > div {
+    display: flex;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .platform-domain-form input {
+    min-width: 0;
+    flex: 1;
+  }
+
+  @media (max-width: 48rem) {
+    .platform-domain-form > div {
+      flex-direction: column;
+    }
+  }
+
+  .platform-load-more {
+    margin-top: 1rem;
+  }
+
+  .platform-elevation-form {
+    max-width: 40rem;
+    margin-top: 1.5rem;
+  }
+
+  .platform-elevation-form .status-pill {
+    justify-self: start;
+    margin: 0;
+  }
+
+  .platform-elevation-form textarea {
+    resize: vertical;
+  }
+
+  .platform-elevation-active .notice {
+    margin: 0;
+  }
+
+  .organization-security-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .organization-security-status .notice {
+    margin: 0;
+  }
+
+  .organization-policy {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .organization-policy h3,
+.organization-policy .section-description,
+
+/* Organization enrollment, security, and invitations */
+
+.organization-enrollment-start h3,
+.organization-enrollment-start p,
+.organization-verification h3 {
+    margin-top: 0;
+  }
+
+  .danger-confirmation {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .danger-confirmation p {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .organization-mfa-enrollment,
+  .organization-verification,
+  .organization-enrollment-start {
+    margin-top: 1.5rem;
+  }
+
+  .organization-verification {
+    max-width: 40rem;
+    margin-top: 1.5rem;
+  }
+
+  .organization-invitation-form {
+    max-width: 40rem;
+  }
+
+  .organization-pending-invitations {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .organization-pending-invitations > h3,
+  .organization-invitation-list h4,
+  .organization-invitation-list p {
+    margin-top: 0;
+  }
+
+  .organization-invitation-list h4 {
+    margin-bottom: 0.25rem;
+    overflow-wrap: anywhere;
+  }
+
+  .organization-invitation-list .danger-confirmation {
+    flex: 0 1 28rem;
+  }
+
+  .organization-invitation-list .form-actions {
+    align-items: flex-end;
+  }
+
+  .auth-card > .danger-confirmation,
+  .auth-card > .button + .button {
+    margin-top: 1rem;
+  }
+
+  .invitation-details {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+
+  .invitation-details div {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
+    gap: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .invitation-details dt {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-weight: 750;
+  }
+
+  .invitation-details dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .section-heading--compact h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  .organization-payment-settings__heading {
+    max-width: none;
+  }
+
+  .section-description {
+    margin: 1rem 0 1.5rem;
+  }
+
+  @media (min-width: 900px) {
+    .organization-payment-settings__heading .section-description {
+      white-space: nowrap;
+    }
+  }
+
+  .account-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .account-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .account-list h3,
+  .account-list p {
+    margin: 0;
+  }
+
+  .account-list h3 {
+    font-size: 1rem;
+  }
+
+  .account-list p {
+    margin-top: 0.25rem;
+    font-size: 0.84rem;
+  }
+}

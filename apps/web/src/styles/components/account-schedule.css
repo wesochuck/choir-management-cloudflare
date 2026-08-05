@@ -1,0 +1,108 @@
+/* === Member dues page ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  @media (max-width: 38rem) {
+    .my-schedule__controls {
+      justify-content: flex-start;
+    }
+
+    .calendar-feed-url-row {
+      grid-template-columns: 1fr;
+    }
+
+    .calendar-feed-url-row .button {
+      width: 100%;
+    }
+  }
+
+  .member-dues-page {
+    grid-column: 1 / -1;
+  }
+
+  .member-dues-list {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .member-dues-row {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) minmax(18rem, 1.4fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .member-dues-row h3,
+  .member-dues-row p {
+    margin: 0;
+  }
+
+  .member-dues-row p {
+    margin-top: 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+  }
+
+  .member-dues-row__amounts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 0;
+  }
+
+  .member-dues-row__amounts div {
+    min-width: 5.5rem;
+  }
+
+  .member-dues-row__amounts dt {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+  }
+
+  .member-dues-row__amounts dd {
+    margin: 0.15rem 0 0;
+    font-weight: 700;
+  }
+
+  .member-dues-row__action {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .member-dues-page__note {
+    margin: 1rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 56rem) {
+    .member-dues-row {
+      grid-template-columns: 1fr auto;
+    }
+
+    .member-dues-row__amounts {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 38rem) {
+    .member-dues-row {
+      grid-template-columns: 1fr;
+    }
+
+    .member-dues-row__amounts,
+    .member-dues-row__action {
+      grid-column: auto;
+      justify-content: flex-start;
+    }
+  }
+}

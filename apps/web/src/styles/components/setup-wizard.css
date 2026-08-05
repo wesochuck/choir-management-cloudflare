@@ -1,0 +1,125 @@
+/* === Setup wizard and data import ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  /* The setup wizard is intentionally outside the signed-in application shell,
+   so give it the same compact operational scale and keep its heading in normal
+   document flow. The generic account heading uses a horizontal flex layout,
+   which made the eyebrow and oversized title compete for the same row. */
+  .setup-wizard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 1.25rem;
+    min-height: calc(100vh - 2rem);
+    padding-block: clamp(1.5rem, 4vw, 3.5rem);
+  }
+
+  .setup-wizard .account-heading {
+    display: grid;
+    align-items: start;
+    justify-items: start;
+    gap: 0.35rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .setup-wizard .account-heading .eyebrow {
+    margin: 0;
+  }
+
+  .setup-wizard .account-heading h1 {
+    max-width: 26ch;
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    line-height: 1.05;
+  }
+
+  .setup-wizard > .notice {
+    margin: 0;
+  }
+
+  .setup-wizard > .panel {
+    display: grid;
+    gap: 1.25rem;
+    margin: 0;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .setup-wizard > .panel h2 {
+    margin: 0;
+    font-size: clamp(1.35rem, 2.5vw, 2rem);
+    line-height: 1.15;
+  }
+
+  .setup-wizard > .panel > p {
+    margin: -0.5rem 0 0;
+    color: var(--color-text-muted);
+  }
+
+  .setup-wizard > .panel .form-actions {
+    justify-content: flex-start;
+    align-items: center;
+    margin-top: 0.25rem;
+  }
+
+  .setup-wizard > .panel .form-actions .button {
+    width: auto;
+  }
+
+  .setup-data-import__heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .setup-data-import__heading h2,
+  .setup-data-import__heading p {
+    margin: 0;
+  }
+
+  .setup-data-import__heading h2 {
+    margin-top: 0.25rem;
+    font-size: clamp(1.35rem, 2.5vw, 2rem);
+    line-height: 1.15;
+  }
+
+  .setup-data-import__options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  .setup-data-import__option {
+    display: grid;
+    align-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .setup-data-import__option h3,
+  .setup-data-import__option p {
+    margin: 0;
+  }
+
+  .setup-data-import__option h3 {
+    font-size: 1rem;
+  }
+
+  .setup-data-import__option p:not(.notice) {
+    margin-top: 0.35rem;
+    color: var(--color-text-muted);
+    line-height: 1.45;
+  }
+
+  .setup-data-import__option .notice {
+    margin-top: 0.75rem;
+  }
+}

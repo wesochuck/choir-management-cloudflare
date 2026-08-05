@@ -1,0 +1,146 @@
+/* === DataTable and responsive cards ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  /* === DataTable responsive === */
+  .table-scroll {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .data-table {
+    width: 100%;
+    min-width: 42rem;
+    border-collapse: collapse;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-table th.data-table__cell--actions,
+  .data-table td.data-table__cell--actions {
+    text-align: right;
+  }
+
+  .data-table th.data-table__cell--actions .data-table__sort-button {
+    margin-left: auto;
+  }
+
+  .data-table td.data-table__cell--actions > .table-actions,
+  .data-table td.data-table__cell--actions > .button-row,
+  .data-table td.data-table__cell--actions > .form-actions {
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  .data-table td.data-table__cell--actions .text-button {
+    display: inline-flex;
+    min-height: 2.3rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-control);
+    text-decoration: none;
+  }
+
+  .data-table td.data-table__cell--actions .text-button--danger {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+  }
+
+  .data-table td.data-table__cell--actions > button:not(.button):not(.text-button),
+  .data-table > .table-actions > button:not(.button):not(.text-button) {
+    min-height: 2.3rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--color-primary);
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .data-table td.data-table__cell--actions > button:not(.button):not(.text-button):disabled,
+  .data-table > .table-actions > button:not(.button):not(.text-button):disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .data-table th {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--muted-foreground);
+  }
+
+  .table--actions th:last-child,
+  .table--actions td:last-child {
+    text-align: right;
+  }
+
+  .table--actions td:last-child > .rsvp-row-actions,
+  .table--actions td:last-child > .form-actions,
+  .table--actions td:last-child > .table-actions {
+    justify-content: flex-end;
+  }
+
+  .table--actions td:last-child .text-button {
+    display: inline-flex;
+    min-height: 2.3rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-control);
+    text-decoration: none;
+  }
+
+  .table--actions td:last-child .text-button--danger {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+  }
+
+  @media (max-width: 640px) {
+    .seasons-manager-controls {
+      align-items: stretch;
+      flex-direction: column;
+      margin-inline: -0.9rem;
+      padding-inline: 0.9rem;
+    }
+
+    .seasons-manager-tabs {
+      width: 100%;
+    }
+
+    .seasons-manager-tabs .button,
+    .seasons-manager-controls > .button {
+      flex: 1 1 10rem;
+    }
+
+    .dues-records-header {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "toolbar"
+        "description";
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+
+    .dues-records-toolbar {
+      justify-content: stretch;
+    }
+
+    .data-table {
+      display: none;
+    }
+
+    .music-bulk-edit-field {
+      grid-template-columns: 1fr;
+    }
+  }
+}

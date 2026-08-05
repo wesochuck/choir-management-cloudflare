@@ -1,0 +1,224 @@
+/* === Set list items, drag state, and dialog ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  .set-list-item {
+    cursor: pointer;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .set-list-item:not(.set-list-item--dragging):hover {
+    border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
+  }
+
+  .set-list-item-heading {
+    align-items: center;
+    margin-bottom: 0.45rem;
+  }
+
+  .set-list-item-title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .set-list-item-title strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+
+  .set-list-drag-handle {
+    position: relative;
+    display: inline-block;
+    width: 1rem;
+    min-width: 1rem;
+    height: 1.35rem;
+    flex: 0 0 1rem;
+    color: var(--color-text-muted);
+    cursor: grab;
+  }
+
+  .set-list-drag-handle::before {
+    position: absolute;
+    top: 0.18rem;
+    left: 0.1rem;
+    width: 0.22rem;
+    height: 0.22rem;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow:
+      0 0.38rem currentColor,
+      0 0.76rem currentColor,
+      0.38rem 0 currentColor,
+      0.38rem 0.38rem currentColor,
+      0.38rem 0.76rem currentColor;
+    content: "";
+  }
+
+  /* Item drag, type, and insert zones */
+
+  .set-list-item--dragging .set-list-drag-handle {
+    color: var(--color-accent);
+    cursor: grabbing;
+  }
+
+  .set-list-item-type {
+    flex: none;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
+    border-radius: 999px;
+    color: var(--color-accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .set-list-item--intermission {
+    border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+  }
+
+  .set-list-insert-zone {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 1.25rem;
+    margin: -0.1rem 0;
+    padding: 0;
+  }
+
+  .set-list-insert-zone::before,
+  .set-list-insert-zone::after {
+    flex: 1 1 auto;
+    height: 1px;
+    background: transparent;
+    content: "";
+    transition: background 120ms ease;
+  }
+
+  .set-list-insert-zone button {
+    flex: 0 0 auto;
+    min-height: 1.15rem;
+    padding: 0.1rem 0.45rem;
+    border: 0;
+    border-radius: 0;
+    color: var(--color-text-muted);
+    background: transparent;
+    font-size: 0.72rem;
+    opacity: 0;
+    transition:
+      color 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .set-list-insert-zone:hover::before,
+  .set-list-insert-zone:hover::after,
+  .set-list-insert-zone:focus-within::before,
+  .set-list-insert-zone:focus-within::after {
+    background: var(--color-border);
+  }
+
+  .set-list-insert-zone:hover button,
+  .set-list-insert-zone:focus-within button,
+  .set-list-insert-zone button:focus-visible {
+    color: var(--color-accent);
+    opacity: 1;
+  }
+
+  .set-list-insert-zone button:focus-visible {
+    outline-offset: 1px;
+  }
+
+  .set-list-item-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+  }
+
+  .set-list-item > .button-row {
+    justify-content: flex-end;
+    margin-top: 0.35rem;
+  }
+
+  .set-list-item-actions {
+    gap: 0.55rem;
+  }
+
+  .set-list-item-actions .text-button {
+    font-size: 0.8rem;
+  }
+
+  .set-list-item-dialog {
+    gap: 0.65rem;
+  }
+
+  .set-list-item-dialog .field {
+    gap: 0.25rem;
+  }
+
+  .set-list-linked-piece {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 48%, var(--color-border));
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-primary) 9%, var(--color-surface-raised));
+  }
+
+  .set-list-linked-piece > div {
+    min-width: 0;
+  }
+
+  .set-list-linked-piece .eyebrow {
+    margin: 0 0 0.2rem;
+  }
+
+  .set-list-linked-piece strong {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .set-list-linked-piece .field-help {
+    margin: 0.25rem 0 0;
+  }
+
+  .set-list-linked-piece--missing {
+    border-color: var(--color-danger);
+    background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface-raised));
+  }
+
+  .set-list-item-dialog input[readonly] {
+    border-color: color-mix(in srgb, var(--color-border) 72%, var(--color-text-muted));
+    background: color-mix(in srgb, var(--color-surface) 70%, var(--color-surface-raised));
+    color: var(--color-text);
+    cursor: not-allowed;
+  }
+
+  .set-list-credits {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .set-list-credits > .field-help {
+    margin: 0 0 0.5rem;
+  }
+
+  .set-list-credit-list {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+}

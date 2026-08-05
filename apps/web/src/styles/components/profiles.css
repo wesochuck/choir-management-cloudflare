@@ -1,0 +1,425 @@
+/* === Member profiles, performance history, and directory ===
+ * Split from the original single-file stylesheet; imported in order from
+ * theme.css so the cascade is unchanged.
+ */
+@layer components {
+  .member-profile-form {
+    max-width: 42rem;
+  }
+
+  .profile-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .profile-photo {
+    align-items: center;
+    background: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    display: flex;
+    font-size: 1.5rem;
+    font-weight: 700;
+    height: 5rem;
+    justify-content: center;
+    overflow: hidden;
+    width: 5rem;
+  }
+
+  .profile-photo img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+  }
+
+  /* Profile photos and camera */
+
+  .profile-photo--directory {
+    height: 3.5rem;
+    width: 3.5rem;
+  }
+
+  .profile-photo-controls {
+    border-bottom: 1px solid var(--color-border);
+    padding-block: 1rem;
+  }
+
+  .profile-photo-controls__heading {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+  }
+
+  .profile-photo-controls__heading .field-help {
+    margin: 0.25rem 0 0;
+  }
+
+  .profile-photo-camera {
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgb(0 0 0 / 68%);
+  }
+
+  .profile-photo-camera__panel {
+    display: grid;
+    width: min(32rem, 100%);
+    max-height: calc(100dvh - 2rem);
+    gap: 1rem;
+    overflow-y: auto;
+    padding: clamp(1rem, 4vw, 1.5rem);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: 0 1rem 2.5rem var(--color-shadow);
+  }
+
+  .profile-photo-camera__header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .profile-photo-camera__header h2 {
+    margin: 0.2rem 0 0;
+  }
+
+  .profile-photo-camera__preview {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-background);
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  .profile-facts p {
+    margin: 0;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .roster-profile-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .roster-profile-tabs button {
+    min-height: 2.5rem;
+    padding: 0.55rem 0.8rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .roster-profile-tabs button:hover,
+  .roster-profile-tabs button:focus-visible,
+  .roster-profile-tabs button.is-active {
+    color: var(--color-primary);
+  }
+
+  .roster-profile-tabs button.is-active {
+    border-bottom-color: var(--color-accent);
+  }
+
+  /* Performance history and RSVP */
+
+  .profile-performance-history {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .profile-performance-history__heading {
+    margin-bottom: 0.55rem;
+  }
+
+  .profile-performance-history__heading h3 {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .profile-performance-history__list {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .profile-performance-history__empty {
+    margin: 0;
+    padding: 0.9rem;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--control-radius);
+    color: var(--color-text-muted);
+  }
+
+  .profile-performance-card {
+    display: grid;
+    grid-template-columns:
+      minmax(5.5rem, 0.75fr) minmax(10rem, 1.45fr) minmax(6.5rem, 0.75fr)
+      minmax(7rem, 0.9fr);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--control-radius);
+    background: var(--color-surface-raised);
+  }
+
+  .profile-performance-card__date,
+  .profile-performance-card__event,
+  .profile-performance-card__status {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .profile-performance-card__date strong,
+  .profile-performance-card__event strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .profile-performance-card__date span,
+  .profile-performance-card__event span {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-performance-card__label {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .profile-performance-card__status .status-pill {
+    justify-self: start;
+    white-space: nowrap;
+  }
+
+  .profile-performance-rsvp-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Dues history and folder numbers */
+
+  .profile-dues-history {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .profile-dues-history__heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .profile-dues-history__heading h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .profile-dues-history__heading .eyebrow {
+    margin-bottom: 0.25rem;
+  }
+
+  .profile-dues-history__empty {
+    margin: 0;
+    padding: 0.9rem;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--control-radius);
+    color: var(--color-text-muted);
+  }
+
+  .profile-dues-history__list {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .profile-dues-row {
+    display: grid;
+    grid-template-columns:
+      minmax(9rem, 1.5fr) minmax(4.5rem, 0.75fr) minmax(6rem, 0.9fr) minmax(5.5rem, 0.9fr)
+      minmax(0, auto);
+    column-gap: 1rem;
+    row-gap: 0.4rem;
+    align-items: center;
+    padding: 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--control-radius);
+    background: var(--color-surface-raised);
+  }
+
+  .profile-dues-row__season,
+  .profile-dues-row__amount,
+  .profile-dues-row__status,
+  .profile-dues-row__paid {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .profile-dues-row__season span,
+  .profile-dues-row__paid span:last-child {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-dues-row__status .status-pill {
+    justify-self: start;
+    white-space: nowrap;
+  }
+
+  .profile-dues-row__action {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .profile-folder-numbers {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .profile-folder-numbers__heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .profile-folder-numbers__heading h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .profile-folder-numbers__heading .eyebrow {
+    margin-bottom: 0.25rem;
+  }
+
+  .profile-folder-numbers__empty {
+    margin: 0;
+    padding: 0.9rem;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--control-radius);
+    color: var(--color-text-muted);
+  }
+
+  .profile-folder-numbers__list {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .profile-folder-row {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.4fr) minmax(8rem, 0.75fr) minmax(8rem, 0.8fr) minmax(
+        4.5rem,
+        0.45fr
+      );
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--control-radius);
+    background: var(--color-surface-raised);
+  }
+
+  .profile-folder-row__event,
+  .profile-folder-row__number {
+    display: grid;
+    min-width: 0;
+    gap: 0.2rem;
+  }
+
+  .profile-folder-row__event strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .profile-folder-row__event span {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-folder-row__number > span {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .profile-folder-row__number input {
+    min-width: 0;
+  }
+
+  .profile-folder-row__returned {
+    min-height: 2.5rem;
+  }
+
+  .profile-folder-row__action {
+    display: flex;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  /* Directory filters and grid */
+
+  .directory-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .directory-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1.25rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .directory-grid li {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .directory-grid h3,
+  .directory-grid p {
+    margin: 0;
+  }
+}
