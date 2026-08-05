@@ -251,7 +251,7 @@ function PlatformOrganizationDomains({ organizationId }: { readonly organization
           }}
         >
           <label htmlFor={`platform-domain-${organizationId}`}>Hostname</label>
-          <div>
+          <div className="platform-domain-form__controls">
             <input
               id={`platform-domain-${organizationId}`}
               onChange={(event) => {
@@ -307,7 +307,7 @@ function QueueDeadLetterDirectory() {
         <p className="empty-state">No jobs have reached the dead-letter queue.</p>
       ) : null}
       {deadLetters.status === "ready" && deadLetters.deadLetters.length > 0 ? (
-        <ul className="account-list platform-organization-list">
+        <ul className="account-list platform-dead-letter-list">
           {deadLetters.deadLetters.map((deadLetter) => (
             <li key={`${deadLetter.queueName}:${deadLetter.messageId}`}>
               <div>
@@ -525,7 +525,7 @@ function OrganizationDirectory() {
 
   return (
     <div className="platform-operations" aria-labelledby="platform-organizations-title">
-      <div className="section-heading section-heading--nested">
+      <div className="section-heading section-heading--nested platform-operation__heading">
         <h3 id="platform-organizations-title">Organization provisioning</h3>
         <p>
           Create one audited Organization registry and Durable Object at a time. Canonical hostname
@@ -584,7 +584,7 @@ function OrganizationDirectory() {
         </button>
       </form>
 
-      <div className="platform-directory" aria-live="polite">
+      <div className="platform-directory platform-directory--organizations" aria-live="polite">
         <h4>Platform Organizations</h4>
         {directory.status === "loading" ? <p>Loading Organizations…</p> : null}
         {directory.status === "error" ? (
@@ -596,12 +596,12 @@ function OrganizationDirectory() {
           <p className="empty-state">No Organizations have been provisioned yet.</p>
         ) : null}
         {directory.status === "ready" && directory.organizations.length > 0 ? (
-          <ul className="account-list platform-organization-list">
+          <ul className="account-list platform-organization-list platform-organization-list--directory">
             {directory.organizations.map((organization) => {
               const ready = organizationStatus(organization) === "Ready";
               return (
                 <li key={organization.organizationId}>
-                  <div>
+                  <div className="platform-organization-card__identity">
                     <h5>{organization.name}</h5>
                     <p>{organization.canonicalHostname}</p>
                     <span className="status-pill">{organizationStatus(organization)}</span>
@@ -727,7 +727,7 @@ function OrganizationElevation({ organizationId }: { readonly organizationId: st
 
   return (
     <div className="platform-operations" aria-labelledby="platform-elevation-title">
-      <div className="section-heading section-heading--nested">
+      <div className="section-heading section-heading--nested platform-operation__heading">
         <h3 id="platform-elevation-title">Organization access</h3>
         <p>
           The validated hostname selected this Organization. Read access does not impersonate a

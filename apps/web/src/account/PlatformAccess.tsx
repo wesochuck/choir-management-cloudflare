@@ -44,7 +44,7 @@ function PlatformSection({
 }: PlatformSectionProps) {
   return (
     <section className="account-section account-section--platform" aria-labelledby={titleId}>
-      <div className="section-heading section-heading--compact">
+      <div className="section-heading section-heading--compact platform-section__heading">
         <p className="eyebrow">{eyebrow}</p>
         <h2 id={titleId}>{title}</h2>
       </div>
@@ -481,7 +481,7 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
   if (accessState.status === "ready") {
     return (
       <PlatformSection actionError={actionError} {...copy}>
-        <div className="notice notice--success" role="status">
+        <div className="notice notice--success platform-access-status" role="status">
           <strong>Platform access is ready.</strong> Verified with {accessState.context.mfaMethod};
           expires {displayDate(accessState.context.mfaVerifiedUntil)}.
         </div>

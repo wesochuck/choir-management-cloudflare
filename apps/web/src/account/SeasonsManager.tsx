@@ -679,18 +679,25 @@ function DuesTab({
   readonly seasonState: SeasonState;
   readonly setRefundId: (id: string | null) => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
   if (duesState.status === "loading") return <p>Loading dues records…</p>;
   if (duesState.status === "error")
     return <p className="notice notice--error">Dues records could not be loaded.</p>;
   const seasons = seasonState.status === "ready" ? seasonState.seasons : [];
   const seasonsById = new Map(seasons.map((season) => [season.id, season] as const));
-  const filteredDues = seasonFilterId
-    ? duesState.dues.filter((record) => record.seasonId === seasonFilterId)
-    : duesState.dues;
   const profileName = (record: DuesRecord): string =>
     profilesById.get(record.profileId)?.displayName ?? "Profile unavailable";
   const seasonName = (record: DuesRecord): string =>
     seasonsById.get(record.seasonId)?.name ?? "Season unavailable";
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
+  const filteredDues = duesState.dues.filter((record) => {
+    if (seasonFilterId && record.seasonId !== seasonFilterId) return false;
+    if (!normalizedSearchQuery) return true;
+    return [profileName(record), seasonName(record), record.status].some((value) =>
+      value.toLocaleLowerCase().includes(normalizedSearchQuery),
+    );
+  });
+  const hasSearchQuery = normalizedSearchQuery.length > 0;
   const openProfile = (record: DuesRecord) => {
     if (profilesById.has(record.profileId)) onOpenProfile(record.profileId);
   };
@@ -698,9 +705,20 @@ function DuesTab({
     <>
       <div className="dues-records-header">
         <p className="seasons-manager-description">
-          Review dues payment status for members and filter records by season.
+          Review dues payment status for members, filter by season, or search by name.
         </p>
         <div className="dues-records-toolbar">
+          <label className="field">
+            Search records
+            <input
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+              }}
+              placeholder="Search names, seasons, or status…"
+              type="search"
+              value={searchQuery}
+            />
+          </label>
           <label className="field">
             Season
             <select
@@ -724,7 +742,13 @@ function DuesTab({
       </div>
       {duesState.dues.length === 0 ? <p>No dues records yet.</p> : null}
       {duesState.dues.length > 0 && filteredDues.length === 0 ? (
-        <p>No dues records for the selected season.</p>
+        <p>
+          {hasSearchQuery
+            ? seasonFilterId
+              ? "No dues records match the selected season and search."
+              : "No dues records match your search."
+            : "No dues records for the selected season."}
+        </p>
       ) : null}
       {filteredDues.length > 0 ? (
         <DataTable

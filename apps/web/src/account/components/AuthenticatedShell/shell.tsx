@@ -261,11 +261,13 @@ export function AuthenticatedShell({
           <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
         </aside>
         <main
-          className={
-            route.pathname === "/admin"
-              ? "signed-in-main signed-in-main--admin-overview"
-              : "signed-in-main"
-          }
+          className={[
+            "signed-in-main",
+            route.pathname === "/admin" ? "signed-in-main--admin-overview" : "",
+            workspace === "platform" ? "signed-in-main--platform" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           id="signed-in-main"
         >
           {route.pathname === "/admin" || route.pathname === "/admin/seating" ? null : (
