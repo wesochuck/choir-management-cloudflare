@@ -31,7 +31,7 @@
   .setup-wizard .account-heading h1 {
     max-width: 26ch;
     font-size: clamp(2rem, 4vw, 3.5rem);
-    line-height: 1.05;
+    line-height: var(--line-height-tight);
   }
 
   .setup-wizard > .notice {
@@ -50,8 +50,8 @@
 
   .setup-wizard > .panel h2 {
     margin: 0;
-    font-size: clamp(1.35rem, 2.5vw, 2rem);
-    line-height: 1.15;
+    font-size: var(--font-size-section);
+    line-height: var(--line-height-tight);
   }
 
   .setup-wizard > .panel > p {
@@ -83,8 +83,8 @@
 
   .setup-data-import__heading h2 {
     margin-top: 0.25rem;
-    font-size: clamp(1.35rem, 2.5vw, 2rem);
-    line-height: 1.15;
+    font-size: var(--font-size-section);
+    line-height: var(--line-height-tight);
   }
 
   .setup-data-import__options {
@@ -110,13 +110,13 @@
   }
 
   .setup-data-import__option h3 {
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .setup-data-import__option p:not(.notice) {
     margin-top: 0.35rem;
     color: var(--color-text-muted);
-    line-height: 1.45;
+    line-height: var(--line-height-normal);
   }
 
   .setup-data-import__option .notice {

@@ -46,7 +46,7 @@
   .member-dues-row p {
     margin-top: 0.25rem;
     color: var(--color-text-muted);
-    font-size: 0.9rem;
+    font-size: var(--font-size-base);
   }
 
   .member-dues-row__amounts {
@@ -62,12 +62,12 @@
 
   .member-dues-row__amounts dt {
     color: var(--color-text-muted);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   .member-dues-row__amounts dd {
     margin: 0.15rem 0 0;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .member-dues-row__action {
@@ -81,7 +81,7 @@
   .member-dues-page__note {
     margin: 1rem 0 0;
     color: var(--color-text-muted);
-    font-size: 0.9rem;
+    font-size: var(--font-size-base);
   }
 
   @media (max-width: 56rem) {

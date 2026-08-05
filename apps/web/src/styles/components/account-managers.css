@@ -76,14 +76,14 @@
 
   .schedule-time-section legend {
     padding-inline: 0.35rem;
-    font-weight: 750;
+    font-weight: var(--font-weight-extrabold);
   }
 
   .schedule-time-section__hint {
     margin: 0;
     color: var(--color-text-muted);
-    font-size: 0.82rem;
-    line-height: 1.45;
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-normal);
   }
 
   .audition-tabs {
@@ -103,7 +103,7 @@
     background: transparent;
     color: var(--color-text-muted);
     font: inherit;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
   }
 
@@ -152,7 +152,7 @@
     background: transparent;
     color: var(--color-primary);
     cursor: pointer;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-decoration: underline;
     text-decoration-thickness: 0.1rem;
     text-underline-offset: 0.2rem;
@@ -161,7 +161,7 @@
   .text-link {
     justify-self: start;
     color: var(--color-primary);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-underline-offset: 0.2rem;
   }
 
@@ -170,7 +170,7 @@
     padding: 0.9rem 1rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
-    line-height: 1.5;
+    line-height: var(--line-height-normal);
   }
 
   .notice p {

@@ -76,7 +76,7 @@
     align-items: center;
     padding: 0.55rem 0;
     border-bottom: 1px solid var(--color-border);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .ticket-scan-history-row:last-child {
@@ -92,7 +92,7 @@
 
   .ticket-scan-history-row time {
     color: var(--color-text-muted);
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
   }
 
   .ticket-scan-history-row.is-valid strong {
@@ -145,7 +145,7 @@
 
   .ticket-scan-result dd {
     margin: 0;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-align: right;
   }
 
@@ -185,7 +185,7 @@
   .donation-patrons summary {
     padding: 0.9rem 1rem;
     cursor: pointer;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .donation-patrons[open] {
@@ -231,7 +231,7 @@
 
   .donation-level-option small {
     color: var(--color-text-muted);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   .donation-level-option.is-selected {
@@ -266,7 +266,7 @@
 
   .donation-level-table th[scope="row"] {
     color: var(--color-text);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .donation-level-table td:last-child,

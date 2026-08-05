@@ -63,7 +63,7 @@
     background: transparent;
     color: var(--color-primary);
     cursor: pointer;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .data-table td.data-table__cell--actions > button:not(.button):not(.text-button):disabled,
@@ -73,8 +73,8 @@
   }
 
   .data-table th {
-    font-weight: 600;
-    font-size: 0.875rem;
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-base);
     color: var(--muted-foreground);
   }
 

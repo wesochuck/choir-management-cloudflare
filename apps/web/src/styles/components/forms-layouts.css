@@ -29,8 +29,8 @@
     border-radius: 0.35rem;
     background: color-mix(in srgb, var(--color-accent) 10%, transparent);
     color: var(--color-text-muted);
-    font-size: 0.82rem;
-    line-height: 1.45;
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-normal);
   }
 
   /* Ticketing manager */
@@ -69,7 +69,7 @@
     border-radius: 0;
     background: transparent;
     color: var(--color-text-muted);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .ticketing-tabs button:hover,

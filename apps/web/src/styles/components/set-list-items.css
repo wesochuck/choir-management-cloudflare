@@ -30,7 +30,7 @@
   .set-list-item-title strong {
     min-width: 0;
     overflow-wrap: anywhere;
-    line-height: 1.35;
+    line-height: var(--line-height-snug);
   }
 
   .set-list-drag-handle {
@@ -74,8 +74,8 @@
     border: 1px solid color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
     border-radius: 999px;
     color: var(--color-accent);
-    font-size: 0.68rem;
-    font-weight: 800;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-black);
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
@@ -111,7 +111,7 @@
     border-radius: 0;
     color: var(--color-text-muted);
     background: transparent;
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     opacity: 0;
     transition:
       color 120ms ease,
@@ -142,7 +142,7 @@
     justify-content: space-between;
     gap: 0.5rem;
     color: var(--color-text-muted);
-    font-size: 0.85rem;
+    font-size: var(--font-size-md);
   }
 
   .set-list-item > .button-row {
@@ -155,7 +155,7 @@
   }
 
   .set-list-item-actions .text-button {
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   .set-list-item-dialog {

@@ -43,8 +43,8 @@
 
   .communication-sender-details dt {
     color: var(--color-text-muted);
-    font-size: 0.78rem;
-    font-weight: 700;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -70,7 +70,7 @@
   }
 
   .communication-sender-setup h3 {
-    font-size: 0.95rem;
+    font-size: var(--font-size-base);
   }
 
   .communication-sender-setup dl {
@@ -88,8 +88,8 @@
 
   .communication-sender-setup dt {
     color: var(--color-text-muted);
-    font-size: 0.78rem;
-    font-weight: 700;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
     text-transform: uppercase;
   }
 
@@ -113,7 +113,7 @@
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
     color: var(--color-text-muted);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .provider-status-card__rows {
@@ -140,8 +140,8 @@
     max-width: 58rem;
     margin: 0.2rem 0 0;
     color: var(--color-text-muted);
-    font-size: 0.86rem;
-    line-height: 1.45;
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-normal);
   }
 
   .provider-status-card__connect {
@@ -153,14 +153,14 @@
 
   .provider-status-card__connect h3 {
     margin: 0.15rem 0 0.35rem;
-    font-size: 1.05rem;
+    font-size: var(--font-size-body);
   }
 
   .provider-status-card__connect p:not(.eyebrow):not(.field-help):not(.notice) {
     max-width: 68rem;
     margin: 0 0 0.65rem;
     color: var(--color-text-muted);
-    line-height: 1.45;
+    line-height: var(--line-height-normal);
   }
 
   .provider-status-card__guide,
@@ -175,7 +175,7 @@
   .platform-setup-guide summary {
     cursor: pointer;
     color: var(--color-primary);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .provider-status-card__guide > div,
@@ -183,14 +183,14 @@
     max-width: 68rem;
     margin-top: 0.85rem;
     color: var(--color-text-muted);
-    line-height: 1.55;
+    line-height: var(--line-height-relaxed);
   }
 
   .provider-status-card__guide h3,
   .platform-setup-guide h3 {
     margin: 1rem 0 0.3rem;
     color: var(--color-text);
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .provider-status-card__guide ol,
@@ -223,8 +223,8 @@
 
   .communication-preview dt {
     color: var(--color-muted);
-    font-size: 0.8rem;
-    font-weight: 700;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
     text-transform: uppercase;
   }
 
@@ -271,8 +271,8 @@
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 750;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .communication-tabs button:hover,
@@ -291,7 +291,7 @@
     border-radius: 999px;
     background: var(--color-info-surface);
     color: var(--color-text);
-    font-size: 0.68rem;
+    font-size: var(--font-size-xs);
   }
 
   .communication-tabs__status-dot {
@@ -324,8 +324,8 @@
     max-width: 52rem;
     margin: -0.35rem 0 0;
     color: var(--color-text-muted);
-    font-size: 0.9rem;
-    line-height: 1.55;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-relaxed);
   }
 
   .communication-template-editor {
@@ -338,8 +338,8 @@
 
   .communication-template-editor legend {
     padding-inline: 0.35rem;
-    font-size: 1.05rem;
-    font-weight: 750;
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .communication-template-editor__intro {
@@ -354,7 +354,7 @@
 
   .communication-history-group h3 {
     margin: 0;
-    font-size: 1.05rem;
+    font-size: var(--font-size-body);
   }
 
   .communication-history-group .account-list {
@@ -370,21 +370,21 @@
 
   .communication-tab-panel__heading h2 {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: var(--font-size-xl);
   }
 
   .communication-tab-panel__heading p {
     margin: 0.35rem 0 0;
     color: var(--color-text-muted);
-    font-size: 0.85rem;
+    font-size: var(--font-size-md);
   }
 
   .communication-stepper li {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    font-size: 0.9rem;
-    font-weight: 700;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
   }
 
   .communication-stepper li + li::before {
@@ -400,7 +400,7 @@
     place-items: center;
     border: 1px solid var(--color-border);
     border-radius: 999px;
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   .communication-stepper li.is-active,
@@ -494,7 +494,7 @@
 
   .communication-poll-link-placeholder {
     color: var(--color-accent);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .communication-placeholders {
@@ -531,12 +531,12 @@
 
   .communication-placeholder code {
     color: var(--color-accent);
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   .communication-placeholder span {
     color: var(--color-text-muted);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
   }
 
   @media (max-width: 48rem) {

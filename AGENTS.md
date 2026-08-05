@@ -206,6 +206,12 @@ Before finishing any material change, report:
   `tokens.css`, element styles to `base.css`, and feature styles to the matching `components/*.css`
   file. Avoid raw dark-mode overrides when semantic tokens express the intent: redefine tokens in
   the `:root[data-theme="dark"]` block in `tokens.css` instead.
+- Typography uses the token scale in `tokens.css` — never new raw values. Pick from `--font-size-*`
+  (3xs through 4xl, plus the `hero`/`hero-compact`/`section` clamp tokens), `--line-height-*` (none
+  through relaxed), and `--font-weight-*` (regular through black) for every font-size, line-height,
+  and font-weight in component styles. Raw values are allowed only for em-relative context; when a
+  token step is genuinely wrong for a role, adjust the nearest step in `tokens.css` instead of
+  adding a one-off value.
 - Preserve responsive table/card layouts, mobile dialogs, focus management, keyboard use,
   destructive confirmation patterns, and meaningful loading/error/empty states.
 - Destructive actions require danger-styled confirmations with a visible Cancel action.

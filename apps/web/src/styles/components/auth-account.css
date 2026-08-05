@@ -29,7 +29,7 @@
 
   .public-audition-card h1 {
     margin-bottom: 0.75rem;
-    line-height: 0.98;
+    line-height: var(--line-height-none);
   }
 
   .public-audition-card .auth-card__intro {
@@ -59,19 +59,19 @@
 
   .audition-event-details__label {
     color: var(--color-text-muted);
-    font-size: 0.75rem;
-    font-weight: 750;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-extrabold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
   .audition-event-details__value {
-    font-size: 1.05rem;
+    font-size: var(--font-size-body);
   }
 
   .audition-event-details__secondary {
     color: var(--color-text-muted);
-    line-height: 1.45;
+    line-height: var(--line-height-normal);
   }
 
   .audition-form {
@@ -107,13 +107,13 @@
 
   .audition-slot-picker legend {
     padding-inline: 0.35rem;
-    font-weight: 750;
+    font-weight: var(--font-weight-extrabold);
   }
 
   .audition-slot-picker__hint {
     margin: 0 0 0.75rem;
     color: var(--color-text-muted);
-    font-size: 0.9rem;
+    font-size: var(--font-size-base);
   }
 
   .audition-slot-options {
@@ -130,7 +130,7 @@
     border-radius: calc(var(--radius-control) - 0.2rem);
     background: var(--color-surface);
     cursor: pointer;
-    line-height: 1.45;
+    line-height: var(--line-height-normal);
   }
 
   .audition-slot-option:hover {
@@ -174,19 +174,19 @@
   .section-description,
   .account-list p {
     color: var(--color-text-muted);
-    line-height: 1.6;
+    line-height: var(--line-height-relaxed);
   }
 
   .auth-card__intro {
     margin: 1.25rem 0 2rem;
-    font-size: 1.05rem;
+    font-size: var(--font-size-body);
   }
 
   .auth-card__help {
     margin: 2rem 0 0;
     padding-top: 1.25rem;
     border-top: 1px solid var(--color-border);
-    font-size: 0.9rem;
+    font-size: var(--font-size-base);
   }
 
   /* Form stack, fields, and actions */
@@ -202,8 +202,8 @@
   }
 
   .field label {
-    font-size: 0.9rem;
-    font-weight: 750;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .field input,

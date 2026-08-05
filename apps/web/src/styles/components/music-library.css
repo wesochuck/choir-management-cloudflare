@@ -40,7 +40,7 @@
   .music-publisher-settings h2,
   .music-practice-settings h2 {
     margin-top: 0.25rem;
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .music-publisher-settings__form {
@@ -88,7 +88,7 @@
 
   .music-library-genre-settings h2 {
     margin-top: 0.25rem;
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .music-library-genre-settings__list {
@@ -103,7 +103,7 @@
 
   .music-publisher-search-link {
     white-space: nowrap;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .music-library-tabs {
@@ -119,7 +119,7 @@
     padding: 0.65rem 0.75rem;
     border-bottom: 2px solid transparent;
     color: var(--color-text-muted);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-decoration: none;
   }
 
@@ -177,7 +177,7 @@
     display: inline-block;
     content: "⌃";
     color: var(--color-text-muted);
-    line-height: 1;
+    line-height: var(--line-height-none);
     transform: rotate(180deg);
     transition: transform 120ms ease;
   }
@@ -191,7 +191,7 @@
   .music-genre-filter__summary-count {
     margin-left: auto;
     color: var(--color-text-muted);
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   .music-genre-filter__panel {
@@ -220,7 +220,7 @@
   }
 
   .music-genre-filter__header strong {
-    font-size: 0.86rem;
+    font-size: var(--font-size-md);
   }
 
   .music-genre-filter__mode {
@@ -236,8 +236,8 @@
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: 0.75rem;
-    font-weight: 800;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-black);
   }
 
   .music-genre-filter__mode button + button {
@@ -270,13 +270,13 @@
   .music-genre-filter__empty,
   .music-genre-filter__footer {
     color: var(--color-text-muted);
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   .music-genre-filter__footer .button {
     min-height: 2.25rem;
     padding: 0.4rem 0.7rem;
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
   }
 
   .music-genre-picker {
@@ -314,12 +314,12 @@
 
   .music-genre-picker__placeholder {
     color: var(--color-text-muted);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .music-genre-picker__caret {
     color: var(--color-text-muted);
-    line-height: 1;
+    line-height: var(--line-height-none);
     transform: rotate(180deg);
     transition: transform 120ms ease;
   }
@@ -355,15 +355,15 @@
 
   .music-genre-picker__header {
     color: var(--color-text-muted);
-    font-size: 0.62rem;
-    font-weight: 750;
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-extrabold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
   .music-genre-picker__header .text-button {
     color: var(--color-danger);
-    font-size: 0.68rem;
+    font-size: var(--font-size-xs);
   }
 
   .music-genre-picker__panel > input,
@@ -395,7 +395,7 @@
 
   .music-genre-picker__empty {
     color: var(--color-text-muted);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
   }
 
   .music-genre-picker__add {
@@ -407,7 +407,7 @@
   .music-genre-picker__footer .button {
     min-height: 2.25rem;
     padding: 0.4rem 0.75rem;
-    font-size: 0.76rem;
+    font-size: var(--font-size-sm);
     white-space: nowrap;
   }
 
@@ -434,9 +434,9 @@
     border-radius: 999px;
     background: color-mix(in srgb, var(--genre-chip-color) 14%, var(--color-surface));
     color: var(--genre-chip-color);
-    font-size: 0.75rem;
-    font-weight: 750;
-    line-height: 1.1;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-extrabold);
+    line-height: var(--line-height-tight);
     white-space: nowrap;
   }
 
@@ -453,7 +453,7 @@
     color: inherit;
     cursor: pointer;
     font: inherit;
-    line-height: 1;
+    line-height: var(--line-height-none);
   }
 
   .music-genre-chip__count {
@@ -463,7 +463,7 @@
     border-radius: 999px;
     background: color-mix(in srgb, currentColor 16%, transparent);
     text-align: center;
-    font-size: 0.68rem;
+    font-size: var(--font-size-xs);
     font-variant-numeric: tabular-nums;
   }
 
@@ -614,7 +614,7 @@
 
   .music-bulk-edit-fields legend {
     padding-inline: 0.35rem;
-    font-weight: 750;
+    font-weight: var(--font-weight-extrabold);
   }
 
   .music-bulk-edit-field {
@@ -659,14 +659,14 @@
   .music-table-track-player > .text-button {
     min-width: 1.75rem;
     padding: 0.2rem 0.35rem;
-    font-size: 1.1rem;
+    font-size: var(--font-size-lg);
   }
 
   /* Piece form and CSV import */
 
   .music-piece-form .field-hint {
     color: var(--color-text-muted);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
   }
 
   .csv-import-warnings {
@@ -688,7 +688,7 @@
   .csv-import-warnings .checkbox-row {
     align-items: flex-start;
     gap: 0.55rem;
-    font-size: 0.86rem;
+    font-size: var(--font-size-md);
   }
 
   .csv-import-warnings small {
@@ -707,7 +707,7 @@
 
   .csv-import-mappings legend {
     padding-inline: 0.35rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .csv-import-mappings p {
@@ -728,7 +728,7 @@
 
   .csv-import-mapping > span {
     overflow-wrap: anywhere;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   /* Catalog list view */

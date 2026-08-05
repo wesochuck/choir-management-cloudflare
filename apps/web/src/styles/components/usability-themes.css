@@ -30,8 +30,8 @@
       BlinkMacSystemFont,
       "Segoe UI",
       sans-serif;
-    font-size: 0.9375rem;
-    line-height: 1.5;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
     color: var(--color-text);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -52,27 +52,27 @@
   .signed-in-shell h3,
   .signed-in-shell h4,
   .signed-in-shell h5 {
-    line-height: 1.2;
+    line-height: var(--line-height-tight);
   }
 
   .signed-in-shell h1 {
     max-width: none;
-    font-size: clamp(1.75rem, 2.6vw, 2.35rem);
-    font-weight: 720;
+    font-size: var(--font-size-hero);
+    font-weight: var(--font-weight-bold);
   }
 
   .signed-in-shell h2 {
     font-size: clamp(1.2rem, 1.8vw, 1.45rem);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .signed-in-shell h3 {
-    font-size: 1.05rem;
-    font-weight: 700;
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-bold);
   }
 
   .signed-in-shell p {
-    line-height: 1.55;
+    line-height: var(--line-height-relaxed);
   }
 
   .signed-in-header {
@@ -82,8 +82,8 @@
   }
 
   .signed-in-header__brand > a {
-    font-size: 0.9rem;
-    font-weight: 650;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
     letter-spacing: 0.01em;
   }
 
@@ -92,7 +92,7 @@
     height: 2rem;
     background: var(--color-accent);
     color: var(--color-background);
-    font-size: 0.68rem;
+    font-size: var(--font-size-xs);
   }
 
   .signed-in-header__actions {
@@ -105,16 +105,16 @@
     border-radius: 0.45rem;
     background: var(--color-surface);
     color: var(--color-text);
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
   }
 
   .signed-in-shell .button {
     min-height: 2.35rem;
     padding: 0.5rem 0.85rem;
     border-radius: 0.45rem;
-    font-size: 0.84rem;
-    font-weight: 650;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
     letter-spacing: 0.005em;
   }
 
@@ -174,13 +174,13 @@
 
   .sidebar-context .eyebrow {
     color: var(--color-text-muted);
-    font-size: 0.61rem;
+    font-size: var(--font-size-2xs);
     letter-spacing: 0.09em;
   }
 
   .sidebar-context strong {
-    font-size: 0.86rem;
-    font-weight: 650;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
   }
 
   .workspace-nav {
@@ -194,8 +194,8 @@
   .workspace-nav__label {
     margin: 0 0 0.25rem 0.6rem;
     color: var(--color-text-muted);
-    font-size: 0.62rem;
-    font-weight: 700;
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-bold);
     letter-spacing: 0.08em;
   }
 
@@ -209,8 +209,8 @@
     padding: 0.45rem 0.6rem;
     border-radius: 0.45rem;
     color: var(--color-text-muted);
-    font-size: 0.82rem;
-    font-weight: 560;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
     letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
   }
@@ -224,7 +224,7 @@
     background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
     box-shadow: inset 3px 0 var(--color-accent);
     color: var(--color-text);
-    font-weight: 650;
+    font-weight: var(--font-weight-semibold);
   }
 
   .workspace-nav__items a[href="/dashboard"],
@@ -256,20 +256,20 @@
   .page-heading h1,
   .signed-in-main .account-heading h1,
   .signed-in-main .auth-card h1 {
-    font-size: clamp(1.75rem, 2.6vw, 2.35rem);
-    font-weight: 720;
+    font-size: var(--font-size-hero);
+    font-weight: var(--font-weight-bold);
   }
 
   .page-heading .eyebrow {
     margin-bottom: 0.25rem;
-    font-size: 0.65rem;
+    font-size: var(--font-size-2xs);
   }
 
   .page-heading__location {
     max-width: 20rem;
     color: var(--color-text-muted);
-    font-size: 0.76rem;
-    font-weight: 500;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-regular);
   }
 
   .workspace-hero {
@@ -282,7 +282,7 @@
 
   .workspace-hero .eyebrow {
     margin-bottom: 0.1rem;
-    font-size: 0.65rem;
+    font-size: var(--font-size-2xs);
   }
 
   .workspace-hero h1 {
@@ -294,7 +294,7 @@
     max-width: 48rem;
     margin-top: 0.15rem;
     color: var(--color-text-muted);
-    font-size: 0.93rem;
+    font-size: var(--font-size-base);
   }
 
   .overview-section {
@@ -307,14 +307,14 @@
   }
 
   .overview-section--quiet h2 {
-    font-size: 1.25rem;
+    font-size: var(--font-size-xl);
   }
 
   .signed-in-main .section-heading h2,
   .table-heading h2,
   .signed-in-main .section-heading > p:last-child {
-    font-size: 0.82rem;
-    line-height: 1.55;
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-relaxed);
   }
 
   .workspace-card-grid {
@@ -333,20 +333,20 @@
   .workspace-card-grid strong,
   .workspace-card strong {
     margin-bottom: 0.2rem;
-    font-size: 0.95rem;
+    font-size: var(--font-size-base);
   }
 
   .workspace-card-grid small,
   .workspace-card small {
-    font-size: 0.82rem;
-    line-height: 1.45;
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-normal);
   }
 
   .workspace-card__icon {
     width: 2.15rem;
     height: 2.15rem;
     border-radius: 0.55rem;
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .signed-in-main .surface-card,
@@ -391,13 +391,13 @@
   }
 
   .signed-in-main .account-list h3 {
-    font-size: 0.95rem;
+    font-size: var(--font-size-base);
   }
 
   .signed-in-main .account-list p,
   .signed-in-main .section-description,
   .signed-in-main .table-secondary {
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .signed-in-main .page-toolbar {
@@ -410,8 +410,8 @@
 
   .signed-in-main .field label,
   .signed-in-main .checkbox-label {
-    font-size: 0.82rem;
-    font-weight: 620;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
   }
 
   .signed-in-main .field input,
@@ -423,7 +423,7 @@
     padding: 0.55rem 0.7rem;
     border-radius: 0.45rem;
     background: var(--color-surface-raised);
-    font-size: 0.86rem;
+    font-size: var(--font-size-md);
   }
 
   .signed-in-main .field textarea {
@@ -443,11 +443,11 @@
     margin: 0.75rem 0;
     padding: 0.7rem 0.8rem;
     border-radius: 0.5rem;
-    font-size: 0.86rem;
+    font-size: var(--font-size-md);
   }
 
   .signed-in-main table {
-    font-size: 0.84rem;
+    font-size: var(--font-size-md);
   }
 
   .signed-in-main table th,
@@ -457,7 +457,7 @@
 
   .signed-in-main .status-pill,
   .signed-in-main .badge {
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
   }
 
   .dialog--responsive {
@@ -534,7 +534,7 @@
     height: 2rem;
     border-radius: 0.4rem;
     color: var(--color-text-muted);
-    font-size: 1.2rem;
+    font-size: var(--font-size-lg);
   }
 
   @media (max-width: 860px) {
@@ -550,7 +550,7 @@
     }
 
     .signed-in-header__brand > a {
-      font-size: 0.84rem;
+      font-size: var(--font-size-md);
     }
 
     .signed-in-main .page-heading {
@@ -560,7 +560,7 @@
     .page-heading h1,
     .signed-in-main .account-heading h1,
     .signed-in-main .auth-card h1 {
-      font-size: 1.65rem;
+      font-size: var(--font-size-3xl);
     }
 
     .workspace-hero {
@@ -568,7 +568,7 @@
     }
 
     .workspace-hero h1 {
-      font-size: 1.55rem;
+      font-size: var(--font-size-2xl);
     }
 
     .workspace-card-grid {
@@ -663,11 +663,11 @@
     }
 
     .attendance-manager__count {
-      font-size: 0.85rem;
+      font-size: var(--font-size-md);
     }
 
     .attendance-manager__count strong {
-      font-size: 1.45rem;
+      font-size: var(--font-size-2xl);
     }
 
     .attendance-manager__controls,
@@ -773,12 +773,12 @@
       min-width: 0 !important;
       padding-right: 0.3rem !important;
       color: #111 !important;
-      font-size: 0.68rem !important;
+      font-size: var(--font-size-xs) !important;
     }
 
     .seating-row-label--canvas span {
       color: #444 !important;
-      font-size: 0.6rem !important;
+      font-size: var(--font-size-2xs) !important;
     }
 
     .seating-seat--canvas {
@@ -789,7 +789,7 @@
       border-radius: 0.35rem !important;
       color: #111 !important;
       background: #fff !important;
-      font-size: 0.62rem !important;
+      font-size: var(--font-size-2xs) !important;
     }
 
     .seating-seat--canvas * {
@@ -846,7 +846,7 @@
       margin: 0 !important;
       color: #111 !important;
       background: #fff !important;
-      font-size: 0.85rem;
+      font-size: var(--font-size-md);
     }
 
     .set-list-print-view .set-list-preview {

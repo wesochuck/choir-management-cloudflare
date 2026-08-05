@@ -28,7 +28,7 @@
   .mfa-enrollment p,
   .platform-verification p {
     color: var(--color-text-muted);
-    line-height: 1.6;
+    line-height: var(--line-height-relaxed);
   }
 
   .mfa-start-form__controls {
@@ -61,7 +61,7 @@
   .recovery-codes {
     resize: vertical;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    line-height: 1.65;
+    line-height: var(--line-height-relaxed);
   }
 
   .recovery-confirmation {
@@ -74,7 +74,7 @@
     display: flex;
     align-items: flex-start;
     gap: 0.65rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .recovery-confirmation input {
@@ -126,7 +126,7 @@
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
     color: var(--color-text-muted);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .platform-setup-monitor__error {
@@ -166,7 +166,7 @@
 
   .platform-setup-check__copy span {
     color: var(--color-text-muted);
-    font-size: 0.85rem;
+    font-size: var(--font-size-md);
   }
 
   .platform-setup-check__status {
@@ -179,8 +179,8 @@
 
   .platform-setup-check__status a {
     color: var(--color-primary);
-    font-size: 0.82rem;
-    font-weight: 700;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
   }
 
   .platform-setup-status {
@@ -189,8 +189,8 @@
     justify-content: center;
     padding: 0.25rem 0.55rem;
     border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
   }
 
   .platform-setup-status--ok {
@@ -216,7 +216,7 @@
 
   .section-heading--nested p {
     color: var(--color-text-muted);
-    line-height: 1.6;
+    line-height: var(--line-height-relaxed);
   }
 
   /* Provisioning, schema status, and organization list */
@@ -250,7 +250,7 @@
   }
 
   .platform-organization-list h5 {
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .platform-organization-list .status-pill {
@@ -275,8 +275,8 @@
   .platform-organization-domains summary {
     color: var(--color-primary);
     cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 700;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
   }
 
   .platform-organization-domains__content {
@@ -394,7 +394,7 @@
 
   .danger-confirmation p {
     margin: 0;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .organization-mfa-enrollment,
@@ -458,8 +458,8 @@
 
   .invitation-details dt {
     color: var(--color-text-muted);
-    font-size: 0.85rem;
-    font-weight: 750;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .invitation-details dd {
@@ -510,11 +510,11 @@
   }
 
   .account-list h3 {
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .account-list p {
     margin-top: 0.25rem;
-    font-size: 0.84rem;
+    font-size: var(--font-size-md);
   }
 }

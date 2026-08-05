@@ -54,13 +54,13 @@
     width: 100%;
     max-width: none;
     margin-inline: auto;
-    font-size: 1.15rem;
+    font-size: var(--font-size-lg);
   }
 
   .set-list-preview__header p {
     margin-top: 0.25rem;
     color: var(--color-text-muted);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
   }
 
   .set-list-preview__items {
@@ -80,7 +80,7 @@
     display: flex;
     justify-content: space-between;
     gap: 1rem;
-    line-height: 1.35;
+    line-height: var(--line-height-snug);
   }
 
   .set-list-preview__composer {
@@ -93,8 +93,8 @@
   .set-list-preview__group {
     padding: 0.2rem 0 0 1rem;
     color: var(--color-text-muted);
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
   }
 
   .set-list-preview__intermission {
@@ -102,7 +102,7 @@
     border-top: 1px dashed var(--color-border);
     border-bottom: 1px dashed var(--color-border);
     color: var(--color-text-muted);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-align: center;
   }
 
@@ -131,9 +131,9 @@
 
   .set-list-field-label {
     color: var(--color-text-muted);
-    font-size: 0.82rem;
-    font-weight: 700;
-    line-height: 1.2;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-tight);
   }
 
   .set-list-credit-controls {
@@ -187,7 +187,7 @@
 
   .set-list-visibility small {
     color: var(--color-text-muted);
-    font-size: 0.75rem;
+    font-size: var(--font-size-sm);
   }
 
   /* Set list music search */
@@ -230,7 +230,7 @@
   .set-list-music-result span,
   .set-list-music-results__empty {
     color: var(--color-text-muted);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .set-list-music-results__empty {
@@ -263,8 +263,8 @@
   .set-list-add-bar .field-help {
     margin: 0.35rem 0 0;
     color: var(--color-text-muted);
-    font-size: 0.78rem;
-    line-height: 1.35;
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-snug);
   }
 
   .set-list-duration-input input {
@@ -300,7 +300,7 @@
     flex-wrap: wrap;
     gap: 0.6rem 1.25rem;
     color: var(--color-text-muted);
-    font-size: 0.85rem;
+    font-size: var(--font-size-md);
   }
 
   .set-list-summary span {
@@ -350,6 +350,6 @@
   .schedule-set-list li span {
     display: block;
     color: var(--color-text-muted);
-    font-size: 0.84rem;
+    font-size: var(--font-size-md);
   }
 }

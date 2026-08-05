@@ -26,8 +26,8 @@
   }
 
   .header-actions nav a {
-    font-size: 0.9rem;
-    font-weight: 750;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-extrabold);
     text-decoration-thickness: 0.12rem;
     text-underline-offset: 0.25rem;
   }
@@ -36,7 +36,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.7rem;
-    font-weight: 750;
+    font-weight: var(--font-weight-extrabold);
     text-decoration: none;
   }
 
@@ -48,7 +48,7 @@
     border-radius: 50%;
     background: var(--color-primary);
     color: var(--color-background);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
     letter-spacing: 0.08em;
   }
 
@@ -57,8 +57,8 @@
     align-items: center;
     gap: 0.45rem;
     color: var(--color-text-muted);
-    font-size: 0.82rem;
-    font-weight: 650;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
   }
 
   .service-status__dot {
@@ -85,8 +85,8 @@
   .eyebrow {
     margin: 0 0 0.8rem;
     color: var(--color-accent);
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-black);
     letter-spacing: 0.13em;
     text-transform: uppercase;
   }
@@ -102,9 +102,9 @@
   h2 {
     margin: 0;
     font-family: Georgia, "Times New Roman", serif;
-    font-weight: 560;
+    font-weight: var(--font-weight-medium);
     letter-spacing: -0.035em;
-    line-height: 0.98;
+    line-height: var(--line-height-none);
   }
 
   h1 {
@@ -121,7 +121,7 @@
     max-width: 40rem;
     color: var(--color-text-muted);
     font-size: clamp(1rem, 2vw, 1.2rem);
-    line-height: 1.7;
+    line-height: var(--line-height-relaxed);
   }
 
   .hero__actions {
@@ -142,7 +142,7 @@
     border: 1px solid var(--color-primary);
     border-radius: var(--radius-control);
     cursor: pointer;
-    font-weight: 750;
+    font-weight: var(--font-weight-extrabold);
     text-decoration: none;
   }
 
@@ -193,7 +193,7 @@
     background: var(--color-accent);
     color: #fff;
     font-family: Georgia, "Times New Roman", serif;
-    font-size: 2rem;
+    font-size: var(--font-size-4xl);
     box-shadow: 0 0.75rem 2rem var(--color-shadow);
   }
 

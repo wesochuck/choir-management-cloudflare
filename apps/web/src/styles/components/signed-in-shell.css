@@ -55,7 +55,7 @@
   }
 
   .signed-in-header__brand > a {
-    font-weight: 800;
+    font-weight: var(--font-weight-black);
     text-decoration: none;
   }
 
@@ -70,14 +70,14 @@
     border-radius: 999px;
     background: var(--color-surface);
     color: var(--color-text);
-    font-size: 0.82rem;
-    font-weight: 750;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .button--small {
     min-height: 2.6rem;
     padding-block: 0.55rem;
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .mobile-nav-trigger {
@@ -118,12 +118,12 @@
 
   .sidebar-context .eyebrow {
     margin-bottom: 0;
-    font-size: 0.62rem;
+    font-size: var(--font-size-2xs);
   }
 
   .sidebar-context strong {
     overflow-wrap: anywhere;
-    font-size: 0.95rem;
+    font-size: var(--font-size-base);
   }
 
   /* Workspace navigation */
@@ -141,8 +141,8 @@
   .workspace-nav__label {
     margin: 0 0 0.2rem 0.75rem;
     color: var(--color-text-muted);
-    font-size: 0.68rem;
-    font-weight: 800;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-black);
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
@@ -160,8 +160,8 @@
     padding: 0.55rem 0.75rem;
     border-radius: 0.65rem;
     color: var(--color-text-muted);
-    font-size: 0.87rem;
-    font-weight: 700;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
     text-decoration: none;
   }
 
@@ -210,8 +210,8 @@
 
   .floating-save-bar > span {
     color: var(--color-text);
-    font-size: 0.9rem;
-    font-weight: 750;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .floating-save-bar__actions {
@@ -243,8 +243,8 @@
   .page-heading__location {
     max-width: 18rem;
     color: var(--color-text-muted);
-    font-size: 0.86rem;
-    font-weight: 700;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
     text-align: right;
   }
 
@@ -273,7 +273,7 @@
     max-width: 45rem;
     margin: 0;
     color: var(--color-text-muted);
-    line-height: 1.65;
+    line-height: var(--line-height-relaxed);
   }
 
   /* Overview sections and workspace cards */
@@ -296,7 +296,7 @@
   .overview-section--quiet p:last-child {
     max-width: 42rem;
     color: var(--color-text-muted);
-    line-height: 1.65;
+    line-height: var(--line-height-relaxed);
   }
 
   .workspace-card-grid {
@@ -335,14 +335,14 @@
   .workspace-card strong {
     display: block;
     margin-bottom: 0.35rem;
-    font-size: 1.05rem;
+    font-size: var(--font-size-body);
   }
 
   .workspace-card-grid small,
   .workspace-card small {
     display: block;
     color: var(--color-text-muted);
-    line-height: 1.5;
+    line-height: var(--line-height-normal);
   }
 
   .workspace-card__icon {
@@ -354,8 +354,8 @@
     border-radius: 0.8rem;
     background: color-mix(in srgb, var(--color-accent) 16%, transparent);
     color: var(--color-accent);
-    font-size: 1.2rem;
-    font-weight: 800;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-black);
   }
 
   .page-toolbar {
@@ -416,12 +416,12 @@
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
     color: var(--color-text-muted);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .roster-automation__flow span:nth-child(odd) {
     color: var(--color-text);
-    font-weight: 650;
+    font-weight: var(--font-weight-semibold);
   }
 
   .roster-automation__cards {
@@ -455,7 +455,7 @@
   .signed-in-main .roster-automation__card label.checkbox-row {
     min-width: 0;
     align-items: flex-start;
-    line-height: 1.4;
+    line-height: var(--line-height-snug);
     white-space: normal;
   }
 
@@ -540,8 +540,8 @@
     background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
     color: var(--color-text-muted);
     font: inherit;
-    font-size: 0.78rem;
-    font-weight: 700;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
     transition:
       border-color 120ms ease,
@@ -614,16 +614,16 @@
 
   .roster-balance__section span {
     color: var(--color-text-muted);
-    font-size: 0.78rem;
-    font-weight: 750;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-extrabold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
   .roster-balance__section strong {
     color: var(--color-primary-strong);
-    font-size: 2rem;
-    line-height: 1;
+    font-size: var(--font-size-4xl);
+    line-height: var(--line-height-none);
   }
 
   .roster-balance__part {
@@ -634,13 +634,13 @@
 
   .roster-balance__part span {
     color: var(--color-text-muted);
-    font-size: 0.8rem;
-    font-weight: 750;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .roster-balance__part strong {
-    font-size: 1.25rem;
-    line-height: 1;
+    font-size: var(--font-size-xl);
+    line-height: var(--line-height-none);
   }
 
   .roster-filter-row {
@@ -673,7 +673,7 @@
   .roster-bulk-actions p {
     margin: 0.2rem 0 0;
     color: var(--color-text-muted);
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   .roster-bulk-actions__buttons {
@@ -686,7 +686,7 @@
   .roster-bulk-actions__buttons .button {
     min-height: 2.25rem;
     padding: 0.45rem 0.7rem;
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   /* RSVP manager and member dashboard */
@@ -725,7 +725,7 @@
     background: transparent;
     color: var(--color-text-muted);
     font: inherit;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
   }
 
@@ -765,12 +765,12 @@
 
   .rsvp-manager__table-heading h2 {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: var(--font-size-lg);
   }
 
   .rsvp-manager__table-heading span {
     color: var(--color-text-muted);
-    font-size: 0.85rem;
+    font-size: var(--font-size-md);
   }
 
   .rsvp-manager__table {
@@ -791,8 +791,8 @@
     border-radius: 999px;
     background: color-mix(in srgb, var(--color-text-muted) 12%, var(--color-surface));
     color: var(--color-text-muted);
-    font-size: 0.75rem;
-    font-weight: 750;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-extrabold);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -912,11 +912,11 @@
 
   .member-dashboard__event-date {
     margin-top: 0.25rem;
-    font-size: 0.9rem;
+    font-size: var(--font-size-base);
   }
 
   .member-dashboard__event-details {
-    font-size: 0.88rem;
+    font-size: var(--font-size-base);
   }
 
   .member-dashboard__event-actions {
@@ -933,7 +933,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     color: var(--color-text);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-decoration: none;
   }
 
@@ -952,7 +952,7 @@
   .member-dashboard__set-list summary {
     cursor: pointer;
     color: var(--color-primary);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .member-dashboard__set-list ul {
@@ -981,7 +981,7 @@
 
   .member-dashboard__link-list a {
     color: var(--color-primary);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
   }
 
   .member-dashboard__bulletin-list button {
@@ -999,7 +999,7 @@
   .member-dashboard__bulletin-list span {
     overflow: hidden;
     color: var(--color-text-muted);
-    font-size: 0.85rem;
+    font-size: var(--font-size-md);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -1145,7 +1145,7 @@
   .public-link-share__qr .notice {
     margin: 0;
     padding: 0.5rem;
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
     text-align: center;
   }
 
@@ -1165,7 +1165,7 @@
   .table-secondary {
     display: block;
     color: var(--color-text-muted);
-    font-size: 0.8rem;
+    font-size: var(--font-size-md);
   }
 
   .audition-table {
@@ -1187,8 +1187,8 @@
     padding: 0.65rem 0.7rem;
     border-bottom: 1px solid var(--color-border);
     color: var(--color-text-muted);
-    font-size: 0.78rem;
-    font-weight: 700;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
   }
 
   .audition-table__header > :last-child,
@@ -1241,8 +1241,8 @@
       display: block;
       margin-bottom: 0.15rem;
       color: var(--color-text-muted);
-      font-size: 0.7rem;
-      font-weight: 700;
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-bold);
       text-transform: uppercase;
     }
 

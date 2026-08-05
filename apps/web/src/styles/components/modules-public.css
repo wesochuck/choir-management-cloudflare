@@ -14,14 +14,14 @@
   .setup-checklist__details p {
     max-width: 42rem;
     color: var(--color-text-muted);
-    line-height: 1.45;
+    line-height: var(--line-height-normal);
   }
 
   .setup-checklist__item .button {
     flex: 0 0 auto;
     min-height: 2.5rem;
     padding: 0.55rem 0.8rem;
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .status-pill {
@@ -30,8 +30,8 @@
     border: 1px solid var(--color-border);
     border-radius: 999px;
     color: var(--color-text-muted);
-    font-size: 0.78rem;
-    font-weight: 750;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-extrabold);
   }
 
   .empty-state {
@@ -40,7 +40,7 @@
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
-    line-height: 1.6;
+    line-height: var(--line-height-relaxed);
   }
 
   .section-heading {
@@ -64,27 +64,27 @@
 
   .module-card__index {
     color: var(--color-accent);
-    font-size: 0.75rem;
-    font-weight: 800;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-black);
     letter-spacing: 0.12em;
   }
 
   .module-card h3 {
     margin: 3rem 0 0.5rem;
     font-family: Georgia, "Times New Roman", serif;
-    font-size: 1.7rem;
+    font-size: var(--font-size-3xl);
   }
 
   .module-card p {
     color: var(--color-text-muted);
-    line-height: 1.6;
+    line-height: var(--line-height-relaxed);
   }
 
   footer {
     padding-block: 2rem;
     border-top: 1px solid var(--color-border);
     color: var(--color-text-muted);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   /* Public website v2 */
@@ -129,8 +129,8 @@
   .public-site-brand {
     gap: 0.75rem;
     font-family: var(--public-heading-font, system-ui, sans-serif);
-    font-size: 1.1rem;
-    font-weight: 800;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-black);
     text-decoration: none;
   }
 
@@ -150,7 +150,7 @@
   .public-section-heading a,
   .public-site-footer a {
     color: var(--color-primary);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     text-decoration: none;
   }
 
@@ -179,7 +179,7 @@
   .public-hero h1 {
     margin: 0.5rem 0 1rem;
     font-size: clamp(2.8rem, 8vw, 6rem);
-    line-height: 0.98;
+    line-height: var(--line-height-none);
   }
 
   .public-hero p:last-child {
@@ -243,7 +243,7 @@
   }
 
   .public-copy p {
-    line-height: 1.7;
+    line-height: var(--line-height-relaxed);
   }
 
   .public-site-footer {

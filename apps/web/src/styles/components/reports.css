@@ -47,7 +47,7 @@
 
   .reports-toolbar h2 {
     margin: 0 0 0.3rem;
-    font-size: 1.25rem;
+    font-size: var(--font-size-xl);
   }
 
   .reports-search {
@@ -70,12 +70,12 @@
   }
 
   .reports-kpi strong {
-    font-size: 1.35rem;
+    font-size: var(--font-size-xl);
   }
 
   .reports-kpi span {
     color: var(--muted-foreground);
-    font-size: 0.82rem;
+    font-size: var(--font-size-md);
   }
 
   .reports-kpi-grid--compact {

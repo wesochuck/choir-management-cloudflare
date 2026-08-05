@@ -19,8 +19,8 @@
     border: 1px solid var(--color-border);
     border-radius: 999px;
     display: flex;
-    font-size: 1.5rem;
-    font-weight: 700;
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
     height: 5rem;
     justify-content: center;
     overflow: hidden;
@@ -122,8 +122,8 @@
     background: transparent;
     color: var(--color-text-muted);
     font: inherit;
-    font-size: 0.86rem;
-    font-weight: 700;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
   }
 
   .roster-profile-tabs button:hover,
@@ -150,7 +150,7 @@
   .profile-performance-history__heading h3 {
     margin: 0;
     color: var(--color-text-muted);
-    font-size: 0.76rem;
+    font-size: var(--font-size-sm);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -199,15 +199,15 @@
   .profile-performance-card__event span {
     overflow: hidden;
     color: var(--color-text-muted);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .profile-performance-card__label {
     color: var(--color-text-muted);
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -238,7 +238,7 @@
 
   .profile-dues-history__heading h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .profile-dues-history__heading .eyebrow {
@@ -285,7 +285,7 @@
   .profile-dues-row__paid span:last-child {
     overflow: hidden;
     color: var(--color-text-muted);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -316,7 +316,7 @@
 
   .profile-folder-numbers__heading h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--font-size-body);
   }
 
   .profile-folder-numbers__heading .eyebrow {
@@ -365,15 +365,15 @@
   .profile-folder-row__event span {
     overflow: hidden;
     color: var(--color-text-muted);
-    font-size: 0.78rem;
+    font-size: var(--font-size-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .profile-folder-row__number > span {
     color: var(--color-text-muted);
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
