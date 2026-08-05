@@ -205,16 +205,20 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
           </>
         ) : null}
       </div>
-      {error ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="notice notice--success" role="status">
-          {message}
-        </p>
-      ) : null}
+      {/* The status strip always renders so autosave messages cannot shift the
+       * layout; the list below stays put while saving. */}
+      <div aria-live="polite" className="set-list-save-status">
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {message ? (
+          <p className="notice notice--success" role="status">
+            {message}
+          </p>
+        ) : null}
+      </div>
       {!loaded ? <p>Loading set lists…</p> : null}
       {loaded && performances.length === 0 ? (
         <p className="empty-state">Create a Performance before building a set list.</p>

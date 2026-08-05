@@ -118,6 +118,17 @@
     margin: 0;
   }
 
+  /* Always-present status strip: reserves one compact notice line so autosave
+   * success messages never push the list below. Errors may still grow it. */
+  .set-list-save-status {
+    min-height: 2.5rem;
+  }
+
+  .set-list-save-status .notice {
+    margin: 0.25rem 0 0;
+    padding: 0.4rem 0.75rem;
+  }
+
   .set-list-toolbar {
     display: grid;
     grid-template-columns: minmax(14rem, 1.05fr) minmax(18rem, 1.25fr) minmax(15rem, 0.9fr);
