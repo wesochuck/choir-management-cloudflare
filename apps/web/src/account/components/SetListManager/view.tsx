@@ -6,7 +6,7 @@ import {
   parseSetListDuration,
 } from "@choir/domain";
 import { Dialog } from "@choir/ui";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type DragEvent } from "react";
 import {
   displayEvent,
   durationFromSeconds,
@@ -18,9 +18,39 @@ import {
 import { SetListCreditEditor, SetListPreview, SetListPrintView } from "./shared";
 import type { SetListManagerModel } from "./hooks";
 
+function dropBoundaryForEvent(event: DragEvent<HTMLElement>, itemIndex: number): number {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  return event.clientY < bounds.top + bounds.height / 2 ? itemIndex : itemIndex + 1;
+}
+
+function canDropAtBoundary(boundary: number, dragIndex: number | null): boolean {
+  return dragIndex !== null && boundary !== dragIndex && boundary !== dragIndex + 1;
+}
+
+function dropStateForItem(
+  itemIndex: number,
+  dragIndex: number | null,
+  dragOverBoundary: number | null,
+): { readonly before: boolean; readonly after: boolean } {
+  return {
+    after: dragOverBoundary === itemIndex + 1 && canDropAtBoundary(itemIndex + 1, dragIndex),
+    before: dragOverBoundary === itemIndex && canDropAtBoundary(itemIndex, dragIndex),
+  };
+}
+
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
 export function SetListManagerView({ model }: { readonly model: SetListManagerModel }) {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [dragOverBoundary, setDragOverBoundary] = useState<number | null>(null);
+  const [recentlyMovedItemId, setRecentlyMovedItemId] = useState<string | null>(null);
+  const movedFlashTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (movedFlashTimerRef.current !== null) {
+        window.clearTimeout(movedFlashTimerRef.current);
+      }
+    };
+  }, []);
   const {
     addCustomItem,
     addMusicPiece,
@@ -90,6 +120,38 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
   const linkedMusicPiece = editingItem
     ? musicPieceForSetListItem(editingItem, resources.music)
     : undefined;
+
+  function flashMovedItem(itemId: string): void {
+    setRecentlyMovedItemId(itemId);
+    if (movedFlashTimerRef.current !== null) {
+      window.clearTimeout(movedFlashTimerRef.current);
+    }
+    movedFlashTimerRef.current = window.setTimeout(() => {
+      setRecentlyMovedItemId((current) => (current === itemId ? null : current));
+      movedFlashTimerRef.current = null;
+    }, 900);
+  }
+
+  function moveItemWithFeedback(index: number, direction: -1 | 1): void {
+    const moved = items[index];
+    const targetIndex = index + direction;
+    if (!moved || targetIndex < 0 || targetIndex >= items.length) return;
+    updateDraftItems((current) => [...moveSetListItem(current, index, direction)]);
+    if (moved.id) flashMovedItem(moved.id);
+  }
+
+  function moveDraggedItemWithFeedback(toIndex: number): void {
+    if (dragIndex === null || dragIndex === toIndex) return;
+    const moved = items[dragIndex];
+    moveDraggedItem(toIndex);
+    if (moved?.id) flashMovedItem(moved.id);
+  }
+
+  function dropDraggedItem(boundary: number): void {
+    if (!canDropAtBoundary(boundary, dragIndex) || dragIndex === null) return;
+    moveDraggedItemWithFeedback(boundary > dragIndex ? boundary - 1 : boundary);
+    setDragOverBoundary(null);
+  }
   const editingItemIsLinked = Boolean(editingItem?.pieceId);
   const editingTitle = linkedMusicPiece?.title ?? editingItem?.title ?? "";
   const editingComposer = linkedMusicPiece?.composer ?? editingItem?.composer ?? "";
@@ -340,153 +402,183 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                 Drag an item to reorder it, or use Move up and Move down for keyboard control.
               </p>
               <ol className="set-list-items" aria-label="Ordered set-list items">
-                {items.map((item, index) => (
-                  <Fragment key={item.id}>
-                    <li
-                      className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}`}
-                      draggable
-                      onClick={(event) => {
-                        const target = event.target;
-                        if (
-                          !(target instanceof HTMLElement) ||
-                          target.closest("button, a, .set-list-drag-handle")
-                        ) {
-                          return;
-                        }
-                        openItemEditor(index);
-                      }}
-                      onDragEnd={() => {
-                        setDragIndex(null);
-                      }}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                      }}
-                      onDragStart={() => {
-                        setDragIndex(index);
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        moveDraggedItem(index);
-                      }}
-                      onPointerCancel={(event) => {
-                        if (event.pointerType === "touch") setDragIndex(null);
-                      }}
-                      onPointerDown={(event) => {
-                        if (event.pointerType === "touch") setDragIndex(index);
-                      }}
-                      onPointerUp={(event) => {
-                        if (event.pointerType === "touch") moveDraggedItem(index);
-                      }}
-                    >
-                      <div className="set-list-item-heading">
-                        <div className="set-list-item-title">
-                          <span
-                            className="set-list-drag-handle"
-                            aria-hidden="true"
-                            title="Drag to reorder"
-                          />
-                          {item.type === "intermission" ? (
-                            <span className="set-list-item-type">Custom entry</span>
-                          ) : null}
-                          <strong>
-                            {String(index + 1)}. {item.title}
-                          </strong>
-                        </div>
-                        <div className="button-row set-list-item-actions">
-                          <button
-                            className="text-button"
-                            type="button"
-                            onClick={() => {
-                              openItemEditor(index);
-                            }}
-                          >
-                            Set list details
-                          </button>
-                          {item.pieceId &&
-                          resources.music.some(
-                            (piece) =>
-                              (piece.id === item.pieceId || piece.parentId === item.pieceId) &&
-                              Object.keys(piece.trackFileIds).length > 0,
-                          ) ? (
-                            <a
-                              className="text-button"
-                              href={`/practice?pieceId=${encodeURIComponent(item.pieceId)}`}
-                            >
-                              Play
-                            </a>
-                          ) : null}
-                          <button
-                            aria-label={`Move ${item.title} up`}
-                            className="text-button"
-                            disabled={index === 0}
-                            type="button"
-                            onClick={() => {
-                              updateDraftItems((current) => [
-                                ...moveSetListItem(current, index, -1),
-                              ]);
-                            }}
-                          >
-                            Move up
-                          </button>
-                          <button
-                            aria-label={`Move ${item.title} down`}
-                            className="text-button"
-                            disabled={index === items.length - 1}
-                            type="button"
-                            onClick={() => {
-                              updateDraftItems((current) => [
-                                ...moveSetListItem(current, index, 1),
-                              ]);
-                            }}
-                          >
-                            Move down
-                          </button>
-                          <button
-                            className="text-button text-button--danger"
-                            type="button"
-                            onClick={() => {
-                              updateDraftItems((current) =>
-                                current.filter((_, itemIndex) => itemIndex !== index),
-                              );
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                      <div className="set-list-item-summary">
-                        <span>
-                          {[item.composer, normalizeSetListDuration(item.duration)]
-                            .filter(Boolean)
-                            .join(" · ") || (item.notes ? "Notes added" : "No additional details")}
-                        </span>
-                        {item.isFeaturedNumber ? (
-                          <span className="status-pill">Featured</span>
-                        ) : null}
-                      </div>
-                    </li>
-                    {index < items.length - 1 ? (
+                {items.map((item, index) => {
+                  const dropState = dropStateForItem(index, dragIndex, dragOverBoundary);
+                  return (
+                    <Fragment key={item.id}>
                       <li
-                        className="set-list-insert-zone"
-                        role="presentation"
+                        className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}${dropState.before ? " set-list-item--drop-before" : ""}${dropState.after ? " set-list-item--drop-after" : ""}${recentlyMovedItemId === item.id ? " set-list-item--moved" : ""}`}
+                        draggable
+                        onClick={(event) => {
+                          const target = event.target;
+                          if (
+                            !(target instanceof HTMLElement) ||
+                            target.closest("button, a, .set-list-drag-handle")
+                          ) {
+                            return;
+                          }
+                          openItemEditor(index);
+                        }}
+                        onDragEnd={() => {
+                          setDragIndex(null);
+                          setDragOverBoundary(null);
+                        }}
+                        onDragOver={(event) => {
+                          if (dragIndex === null) return;
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                          setDragOverBoundary(dropBoundaryForEvent(event, index));
+                        }}
+                        onDragStart={() => {
+                          setDragIndex(index);
+                          setDragOverBoundary(null);
+                          setRecentlyMovedItemId(null);
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          dropDraggedItem(dropBoundaryForEvent(event, index));
+                        }}
+                        onPointerCancel={(event) => {
+                          if (event.pointerType === "touch") {
+                            setDragIndex(null);
+                            setDragOverBoundary(null);
+                          }
+                        }}
                         onPointerDown={(event) => {
-                          event.stopPropagation();
+                          if (event.pointerType === "touch") {
+                            setDragIndex(index);
+                            setDragOverBoundary(null);
+                          }
+                        }}
+                        onPointerUp={(event) => {
+                          if (event.pointerType === "touch") {
+                            moveDraggedItemWithFeedback(index);
+                            setDragOverBoundary(null);
+                          }
                         }}
                       >
-                        <button
-                          aria-label={`Insert custom entry after ${String(index + 1)}. ${item.title}`}
-                          className="set-list-insert-zone__button"
-                          type="button"
-                          onClick={() => {
-                            insertCustomItem(index + 1);
+                        <div className="set-list-item-heading">
+                          <div className="set-list-item-title">
+                            <span
+                              className="set-list-drag-handle"
+                              aria-hidden="true"
+                              title="Drag to reorder"
+                            />
+                            {item.type === "intermission" ? (
+                              <span className="set-list-item-type">Custom entry</span>
+                            ) : null}
+                            <strong>
+                              {String(index + 1)}. {item.title}
+                            </strong>
+                          </div>
+                          <div className="button-row set-list-item-actions">
+                            <button
+                              className="text-button"
+                              type="button"
+                              onClick={() => {
+                                openItemEditor(index);
+                              }}
+                            >
+                              Set list details
+                            </button>
+                            {item.pieceId &&
+                            resources.music.some(
+                              (piece) =>
+                                (piece.id === item.pieceId || piece.parentId === item.pieceId) &&
+                                Object.keys(piece.trackFileIds).length > 0,
+                            ) ? (
+                              <a
+                                className="text-button"
+                                href={`/practice?pieceId=${encodeURIComponent(item.pieceId)}`}
+                              >
+                                Play
+                              </a>
+                            ) : null}
+                            <button
+                              aria-label={`Move ${item.title} up`}
+                              className="text-button"
+                              disabled={index === 0}
+                              type="button"
+                              onClick={() => {
+                                moveItemWithFeedback(index, -1);
+                              }}
+                            >
+                              Move up
+                            </button>
+                            <button
+                              aria-label={`Move ${item.title} down`}
+                              className="text-button"
+                              disabled={index === items.length - 1}
+                              type="button"
+                              onClick={() => {
+                                moveItemWithFeedback(index, 1);
+                              }}
+                            >
+                              Move down
+                            </button>
+                            <button
+                              className="text-button text-button--danger"
+                              type="button"
+                              onClick={() => {
+                                updateDraftItems((current) =>
+                                  current.filter((_, itemIndex) => itemIndex !== index),
+                                );
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                        <div className="set-list-item-summary">
+                          <span>
+                            {[item.composer, normalizeSetListDuration(item.duration)]
+                              .filter(Boolean)
+                              .join(" · ") ||
+                              (item.notes ? "Notes added" : "No additional details")}
+                          </span>
+                          {item.isFeaturedNumber ? (
+                            <span className="status-pill">Featured</span>
+                          ) : null}
+                        </div>
+                      </li>
+                      {index < items.length - 1 ? (
+                        <li
+                          className={`set-list-insert-zone${dropState.after ? " set-list-insert-zone--drop-target" : ""}`}
+                          role="presentation"
+                          onDragOver={(event) => {
+                            if (dragIndex === null) return;
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                            setDragOverBoundary(index + 1);
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            dropDraggedItem(index + 1);
+                          }}
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
                           }}
                         >
-                          + Insert custom entry
-                        </button>
-                      </li>
-                    ) : null}
-                  </Fragment>
-                ))}
+                          {dropState.after ? (
+                            <span className="set-list-insert-zone__drop-label" aria-hidden="true">
+                              Drop item here
+                            </span>
+                          ) : null}
+                          <button
+                            aria-label={`Insert custom entry after ${String(index + 1)}. ${item.title}`}
+                            className="set-list-insert-zone__button"
+                            type="button"
+                            onClick={() => {
+                              insertCustomItem(index + 1);
+                            }}
+                          >
+                            + Insert custom entry
+                          </button>
+                        </li>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
               </ol>
             </>
           )}

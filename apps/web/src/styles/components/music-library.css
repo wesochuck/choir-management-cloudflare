@@ -46,7 +46,7 @@
   .music-publisher-settings__form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
+    align-items: center;
     gap: 0.75rem;
   }
 
@@ -61,7 +61,7 @@
   .music-practice-settings__form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
+    align-items: center;
     gap: 0.75rem;
   }
 

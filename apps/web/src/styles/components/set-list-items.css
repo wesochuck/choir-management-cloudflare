@@ -4,6 +4,7 @@
  */
 @layer components {
   .set-list-item {
+    position: relative;
     cursor: pointer;
     padding: 0.6rem 0.75rem;
     border: 1px solid var(--color-border);
@@ -68,6 +69,25 @@
     cursor: grabbing;
   }
 
+  .set-list-item--dragging {
+    opacity: 0.4;
+  }
+
+  @keyframes set-list-item-moved {
+    0%,
+    100% {
+      background: var(--color-surface-raised);
+    }
+
+    40% {
+      background: color-mix(in srgb, var(--color-accent) 28%, var(--color-surface-raised));
+    }
+  }
+
+  .set-list-item--moved {
+    animation: set-list-item-moved 900ms ease-out;
+  }
+
   .set-list-item-type {
     flex: none;
     padding: 0.2rem 0.45rem;
@@ -83,6 +103,27 @@
   .set-list-item--intermission {
     border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
     background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+  }
+
+  .set-list-item--drop-before::before,
+  .set-list-item--drop-after::after {
+    position: absolute;
+    right: 0;
+    left: 0;
+    height: 0.2rem;
+    border-radius: 999px;
+    background: var(--color-accent);
+    box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-accent) 18%, transparent);
+    content: "";
+    pointer-events: none;
+  }
+
+  .set-list-item--drop-before::before {
+    top: -0.45rem;
+  }
+
+  .set-list-item--drop-after::after {
+    bottom: -0.45rem;
   }
 
   .set-list-insert-zone {
@@ -116,6 +157,39 @@
     transition:
       color 120ms ease,
       opacity 120ms ease;
+  }
+
+  .set-list-insert-zone--drop-target {
+    min-height: 2.75rem;
+    margin: 0;
+    padding: 0.4rem 0.65rem;
+    border: 2px dashed var(--color-accent);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  }
+
+  .set-list-insert-zone--drop-target::before,
+  .set-list-insert-zone--drop-target::after {
+    height: 2px;
+    background: color-mix(in srgb, var(--color-accent) 65%, transparent);
+  }
+
+  .set-list-insert-zone--drop-target button {
+    display: none;
+  }
+
+  .set-list-insert-zone__drop-label {
+    color: var(--color-accent);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .set-list-item--moved {
+      animation: none;
+      background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface-raised));
+    }
   }
 
   .set-list-insert-zone:hover::before,
