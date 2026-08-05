@@ -14,6 +14,7 @@ export const requestIdSchema = z.uuid();
 export const emailAddressSchema = z.email();
 
 export const healthResponseSchema = z.object({
+  baseHostname: z.string().min(1).max(255).optional(),
   environment: z.enum(["local", "preview", "staging", "production"]),
   fingerprint: z.literal("cloudflare-worker").default("cloudflare-worker"),
   requestId: requestIdSchema,

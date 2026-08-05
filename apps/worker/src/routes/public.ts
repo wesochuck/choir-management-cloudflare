@@ -9,6 +9,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/health", (context) => {
     const config = validateStartupConfig(context.env);
     const response: HealthResponse = {
+      baseHostname: config.PRODUCT_BASE_DOMAIN,
       environment: config.APP_ENV,
       fingerprint: "cloudflare-worker",
       requestId: context.get("requestId"),

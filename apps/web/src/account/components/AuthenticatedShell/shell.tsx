@@ -1,4 +1,5 @@
 import {
+  healthResponseSchema,
   moduleStatesResponseSchema,
   setupStatusSchema,
   type CurrentAuthSession,
@@ -58,6 +59,7 @@ export function AuthenticatedShell({
   const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
   const [access, setAccess] = useState<AccessState>({ status: "loading" });
   const [platformAvailable, setPlatformAvailable] = useState(false);
+  const [baseHostname, setBaseHostname] = useState<string | null>(null);
   const [organizationPerformerLabel, setOrganizationPerformerLabel] = useState("Performer");
 
   useEffect(() => {
@@ -101,8 +103,17 @@ export function AuthenticatedShell({
       getPlatformMfaStatus(controller.signal)
         .then((status) => status.activePlatformAdministrator)
         .catch(() => false),
+      fetch("/api/health", { credentials: "same-origin", signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) return null;
+          const body: unknown = await response.json();
+          const parsed = healthResponseSchema.safeParse(body);
+          return parsed.success ? (parsed.data.baseHostname ?? null) : null;
+        })
+        .catch(() => null),
     ])
-      .then(([context, modules, organizationName, hasPlatformAccess]) => {
+      .then(([context, modules, organizationName, hasPlatformAccess, baseHostname]) => {
+        setBaseHostname(baseHostname);
         setPlatformAvailable(hasPlatformAccess);
         setAccess(
           context ? { context, modules, organizationName, status: "ready" } : { status: "none" },
@@ -116,6 +127,16 @@ export function AuthenticatedShell({
       controller.abort();
     };
   }, []);
+
+  // Platform administration is served only from the product base hostname;
+  // visiting it from an Organization subdomain redirects to the base host
+  // instead of rendering a broken page.
+  useEffect(() => {
+    if (selectedWorkspace !== "platform" || baseHostname === null) return;
+    if (window.location.hostname !== baseHostname) {
+      window.location.replace(`https://${baseHostname}/platform`);
+    }
+  }, [baseHostname, selectedWorkspace]);
 
   useEffect(() => {
     if (access.status !== "ready") return;
