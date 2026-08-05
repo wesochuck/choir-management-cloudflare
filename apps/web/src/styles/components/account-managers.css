@@ -143,19 +143,36 @@
 
   .auth-methods .text-button[aria-pressed="true"] {
     color: var(--color-accent);
+    text-decoration: underline;
     text-decoration-thickness: 0.18rem;
+    text-underline-offset: 0.2rem;
   }
 
+  /* Ghost button: transparent with a subtle hover fill — used for row and
+   * inline actions where a filled button would be too heavy. */
   .text-button {
-    padding: 0;
+    padding: 0.35rem 0.6rem;
     border: 0;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-primary);
     cursor: pointer;
-    font-weight: var(--font-weight-bold);
-    text-decoration: underline;
-    text-decoration-thickness: 0.1rem;
-    text-underline-offset: 0.2rem;
+    font-weight: var(--font-weight-semibold);
+    transition:
+      background 140ms ease,
+      color 140ms ease;
+  }
+
+  .text-button:hover {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+
+  .text-button--danger {
+    color: var(--color-danger);
+  }
+
+  .text-button--danger:hover {
+    background: color-mix(in srgb, var(--color-danger) 10%, transparent);
   }
 
   .text-link {

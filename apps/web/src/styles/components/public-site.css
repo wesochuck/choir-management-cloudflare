@@ -131,7 +131,9 @@
     margin-top: 2rem;
   }
 
-  /* Buttons */
+  /* Buttons — conventional filled variants: primary solid, secondary
+   * neutral fill with a subtle border, danger solid red. Ghost text buttons
+   * live in account-managers.css. */
 
   .button {
     display: inline-flex;
@@ -139,11 +141,16 @@
     justify-content: center;
     min-height: 3rem;
     padding: 0.75rem 1.1rem;
-    border: 1px solid var(--color-primary);
+    border: 1px solid transparent;
     border-radius: var(--radius-control);
     cursor: pointer;
-    font-weight: var(--font-weight-extrabold);
+    font-weight: var(--font-weight-semibold);
     text-decoration: none;
+    transition:
+      background 140ms ease,
+      border-color 140ms ease,
+      box-shadow 140ms ease,
+      filter 140ms ease;
   }
 
   .button:disabled,
@@ -152,20 +159,39 @@
     opacity: 0.6;
   }
 
+  .button:focus-visible,
+  .text-button:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
   .button--primary {
     background: var(--color-primary);
-    color: var(--color-background);
+    color: var(--color-primary-foreground);
+  }
+
+  .button--primary:hover {
+    background: var(--color-primary-strong);
   }
 
   .button--secondary {
-    background: transparent;
-    color: var(--color-primary);
+    border-color: var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .button--secondary:hover {
+    border-color: color-mix(in srgb, var(--color-border) 70%, var(--color-text));
+    background: color-mix(in srgb, var(--color-surface) 94%, var(--color-text));
   }
 
   .button--danger {
-    border-color: var(--color-danger);
-    background: transparent;
-    color: var(--color-danger);
+    background: var(--color-danger);
+    color: var(--color-danger-foreground);
+  }
+
+  .button--danger:hover {
+    background: color-mix(in srgb, var(--color-danger) 88%, var(--color-text));
   }
 
   .hero__art {

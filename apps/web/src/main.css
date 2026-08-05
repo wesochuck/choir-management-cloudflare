@@ -16,10 +16,12 @@
   --color-text-muted: #64748b;
   --color-primary: #1e3a5f;
   --color-primary-strong: #15294a;
+  --color-primary-foreground: #ffffff;
   --color-accent: #ea580c;
   --color-border: #e2e8f0;
   --color-danger: #dc2626;
   --color-danger-surface: #fef2f2;
+  --color-danger-foreground: #ffffff;
   --color-info-surface: #eff6ff;
   --color-success: #16a34a;
   --color-shadow: rgb(0 0 0 / 10%);
