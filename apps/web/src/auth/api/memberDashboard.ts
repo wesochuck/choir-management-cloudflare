@@ -19,5 +19,5 @@ export async function getMemberPracticeLink(eventId: string): Promise<string> {
   ) {
     throw new Error("The practice player link response was invalid.");
   }
-  return `/player?token=${encodeURIComponent(body.token)}`;
+  return `/player?mode=set-list&token=${encodeURIComponent(body.token)}`;
 }
