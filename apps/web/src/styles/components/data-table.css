@@ -188,7 +188,7 @@
     .data-table-card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 0.5rem;
+      border-radius: var(--radius-control);
       padding: 1rem;
     }
 

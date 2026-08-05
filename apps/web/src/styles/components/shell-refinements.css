@@ -94,7 +94,6 @@
   /* Shared control geometry: every operational form uses the same rhythm. */
   .signed-in-shell {
     --control-height: 2.5rem;
-    --control-radius: 0.45rem;
   }
 
   .signed-in-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
@@ -105,7 +104,7 @@
     height: var(--control-height);
     min-height: var(--control-height);
     padding: 0.55rem 0.75rem;
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     font-size: var(--font-size-base);
     line-height: var(--line-height-tight);
   }
@@ -114,7 +113,7 @@
     width: 100%;
     min-height: 6rem;
     padding: 0.65rem 0.75rem;
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     font-size: var(--font-size-base);
     line-height: var(--line-height-snug);
   }
@@ -192,7 +191,7 @@
     width: min(40rem, calc(100% - 2rem));
     max-height: min(88vh, 48rem);
     border: 1px solid var(--color-border);
-    border-radius: 0.8rem;
+    border-radius: var(--radius-lg);
     padding: 1.15rem;
     background: var(--color-surface);
     color: var(--color-text);
@@ -205,7 +204,7 @@
     min-height: var(--control-height);
     padding: 0.55rem 0.75rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     background: var(--color-surface-raised);
     color: var(--color-text);
     font-size: var(--font-size-base);
@@ -248,11 +247,11 @@
   /* === Dialog === */
   .dialog {
     border: none;
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     padding: 0;
     max-width: 32rem;
     width: calc(100% - 2rem);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-xl);
   }
 
   .dialog::backdrop {
@@ -291,7 +290,7 @@
     gap: 0.25rem;
     padding: 1rem;
     border: 1px solid var(--color-border);
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--color-surface) 90%, var(--color-accent) 10%);
   }
 
@@ -320,7 +319,7 @@
     max-height: min(90vh, 52rem);
     overflow: auto;
     border: 1px solid var(--color-border);
-    border-radius: 1rem;
+    border-radius: var(--radius-xl);
     padding: 1.25rem;
     background: var(--color-surface);
     color: var(--color-text);

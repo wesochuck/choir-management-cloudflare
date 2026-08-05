@@ -84,7 +84,7 @@
     margin: 0.75rem 0 0;
     padding: 0.65rem 0.8rem;
     border: 1px solid var(--color-accent);
-    border-radius: 0.45rem;
+    border-radius: var(--radius-control);
     color: var(--color-text);
     background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
     font-size: var(--font-size-sm);
@@ -116,7 +116,7 @@
     gap: 0.4rem;
     padding: 0.45rem;
     border: 1px solid var(--color-border);
-    border-radius: 0.45rem;
+    border-radius: var(--radius-control);
     background: var(--color-surface);
     box-shadow: var(--admin-overview-card-shadow);
   }
@@ -200,7 +200,7 @@
     align-items: flex-start;
     padding: 0.65rem;
     border: 1px solid var(--color-border);
-    border-radius: 0.4rem;
+    border-radius: var(--radius-sm);
     color: var(--color-text);
     background: var(--color-surface);
     box-shadow: var(--admin-overview-card-shadow);
@@ -213,7 +213,7 @@
 
   .admin-overview__cards > a:hover {
     border-color: var(--color-primary);
-    box-shadow: 0 0.65rem 1rem var(--color-shadow);
+    box-shadow: var(--shadow-lg);
     transform: translateY(-0.08rem);
   }
 
@@ -228,7 +228,7 @@
     width: 1.9rem;
     height: 1.9rem;
     place-items: center;
-    border-radius: 0.35rem;
+    border-radius: var(--radius-sm);
     font-size: var(--font-size-body);
     line-height: var(--line-height-none);
   }

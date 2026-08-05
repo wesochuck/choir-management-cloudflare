@@ -193,7 +193,7 @@
     gap: 0.45rem;
     padding: 0.45rem 0.55rem;
     border: 1px solid color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
-    border-radius: 0.55rem;
+    border-radius: var(--radius-control);
     color: var(--color-text);
     background: color-mix(in srgb, var(--color-accent) 13%, var(--color-surface-raised));
     cursor: grab;
@@ -559,7 +559,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
-    box-shadow: 0 1rem 2.5rem var(--color-shadow);
+    box-shadow: var(--shadow-xl);
   }
 
   .communication-section-picker__panel .field-help {
@@ -1000,7 +1000,7 @@
     margin: 0.45rem 0 0;
     padding: 0.45rem 0.55rem;
     border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-    border-radius: 0.2rem;
+    border-radius: var(--radius-sm);
     background: var(--color-surface);
     list-style: none;
   }

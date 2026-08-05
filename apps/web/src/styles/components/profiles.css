@@ -75,7 +75,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
-    box-shadow: 0 1rem 2.5rem var(--color-shadow);
+    box-shadow: var(--shadow-xl);
   }
 
   .profile-photo-camera__header {
@@ -164,7 +164,7 @@
     margin: 0;
     padding: 0.9rem;
     border: 1px dashed var(--color-border);
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     color: var(--color-text-muted);
   }
 
@@ -177,7 +177,7 @@
     align-items: center;
     padding: 0.8rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     background: var(--color-surface-raised);
   }
 
@@ -249,7 +249,7 @@
     margin: 0;
     padding: 0.9rem;
     border: 1px dashed var(--color-border);
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     color: var(--color-text-muted);
   }
 
@@ -268,7 +268,7 @@
     align-items: center;
     padding: 0.8rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     background: var(--color-surface-raised);
   }
 
@@ -327,7 +327,7 @@
     margin: 0;
     padding: 0.9rem;
     border: 1px dashed var(--color-border);
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     color: var(--color-text-muted);
   }
 
@@ -346,7 +346,7 @@
     align-items: center;
     padding: 0.8rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--control-radius);
+    border-radius: var(--radius-control);
     background: var(--color-surface-raised);
   }
 

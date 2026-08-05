@@ -179,7 +179,7 @@
       linear-gradient(180deg, transparent 49%, var(--color-surface) 49% 51%, transparent 51%),
       linear-gradient(90deg, transparent 49%, var(--color-surface) 49% 51%, transparent 51%),
       color-mix(in srgb, var(--color-surface) 70%, transparent);
-    box-shadow: 0 2rem 5rem var(--color-shadow);
+    box-shadow: var(--shadow-xl);
   }
 
   .voice {

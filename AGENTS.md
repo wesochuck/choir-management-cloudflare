@@ -201,17 +201,21 @@ Before finishing any material change, report:
 
 - Use repository-owned shadcn-style components built on Radix primitives. Do not copy Shoelace/Web
   Awesome implementation dependencies.
-- Styles live in `apps/web/src/styles/` as semantic tokens and layered component files; there is no
-  Tailwind. `theme.css` is the import manifest (`@layer tokens, base, components;`); add tokens to
-  `tokens.css`, element styles to `base.css`, and feature styles to the matching `components/*.css`
-  file. Avoid raw dark-mode overrides when semantic tokens express the intent: redefine tokens in
-  the `:root[data-theme="dark"]` block in `tokens.css` instead.
-- Typography uses the token scale in `tokens.css` — never new raw values. Pick from `--font-size-*`
+- Styles use Tailwind CSS v4 (`@tailwindcss/vite`, imported from `apps/web/src/main.css`) alongside
+  the layered BEM component files in `apps/web/src/styles/`. Design tokens live in the `@theme`
+  block in `main.css` (colors, type scale, radii, elevation) — Tailwind utilities and BEM `var()`
+  references resolve to the same values. `theme.css` is the manifest for `tokens.css` (aliases,
+  control geometry, and the `:root[data-theme="dark"]` / `prefers-color-scheme` dark overrides),
+  `base.css`, and the `components/*.css` files. Prefer Tailwind utilities for new UI; keep BEM
+  classes for existing components. Avoid raw dark-mode overrides: redefine tokens in the
+  `:root[data-theme="dark"]` block in `tokens.css` instead.
+- Typography uses the token scale in `main.css` — never new raw values. Pick from `--font-size-*`
   (3xs through 4xl, plus the `hero`/`hero-compact`/`section` clamp tokens), `--line-height-*` (none
   through relaxed), and `--font-weight-*` (regular through black) for every font-size, line-height,
-  and font-weight in component styles. Raw values are allowed only for em-relative context; when a
-  token step is genuinely wrong for a role, adjust the nearest step in `tokens.css` instead of
-  adding a one-off value.
+  and font-weight in component styles. Use the `--radius-*` (sm/md/lg/xl/full) and `--shadow-*`
+  (sm/md/lg/xl) scales instead of hardcoded radii or shadows. Raw values are allowed only for
+  em-relative context; when a token step is genuinely wrong for a role, adjust the nearest step in
+  `main.css` instead of adding a one-off value.
 - Preserve responsive table/card layouts, mobile dialogs, focus management, keyboard use,
   destructive confirmation patterns, and meaningful loading/error/empty states.
 - Destructive actions require danger-styled confirmations with a visible Cancel action.

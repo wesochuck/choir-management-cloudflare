@@ -1,114 +1,73 @@
 /* === Design tokens ===
- * Split from the original single-file stylesheet; imported in order from
- * theme.css so the cascade is unchanged.
+ * Theme values (colors, type scale, radii) live in the @theme block in
+ * main.css; this file keeps the non-theme custom properties, aliases, and
+ * the dark-mode overrides that swap the @theme values.
  */
 @layer tokens {
   :root {
     color-scheme: light;
     font-family: var(--font-family-sans);
     font-synthesis: none;
-    --color-background: #f6f1e8;
-    --color-surface: #fffaf1;
-    --color-surface-raised: #ffffff;
-    --color-text: #183247;
-    --color-text-muted: #5e6d76;
-    --color-primary: #173f5f;
-    --color-primary-strong: #0c2b44;
-    --color-accent: #d56d4a;
-    --color-border: #d8d0c3;
-    --color-danger: #a53b36;
-    --color-danger-surface: #fff0ed;
     --color-danger-text: var(--color-danger);
     --color-danger-bg: var(--color-danger-surface);
-    --color-info-surface: #eef6f8;
-    --color-success: #297a63;
     --color-success-text: var(--color-success);
-    --color-shadow: rgb(23 63 95 / 14%);
-    --radius-card: 1.25rem;
-    --radius-control: 0.75rem;
     /* Shared form geometry. Keep this on the root because dialog portals render
-   * outside the signed-in shell and still need the same control dimensions. */
+     * outside the signed-in shell and still need the same control dimensions. */
     --control-height: 2.5rem;
-    --control-radius: 0.45rem;
     --border: var(--color-border);
     --card: var(--color-surface);
     --muted-foreground: var(--color-text-muted);
-
-    /* Typography scale. Use these tokens for every font-size, line-height, and
-     * font-weight in component styles; do not introduce new raw values. */
-    --font-family-sans:
-      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --font-size-3xs: 0.55rem;
-    --font-size-2xs: 0.65rem;
-    --font-size-xs: 0.7rem;
-    --font-size-sm: 0.78rem;
-    --font-size-md: 0.82rem;
-    --font-size-base: 0.9rem;
-    --font-size-body: 1rem;
-    --font-size-lg: 1.15rem;
-    --font-size-xl: 1.3rem;
-    --font-size-2xl: 1.5rem;
-    --font-size-3xl: 1.7rem;
-    --font-size-4xl: 2rem;
-    /* Responsive hero sizes; only these shared clamps are allowed, page-specific
-     * hero tuning goes through these tokens rather than new clamp values. */
-    --font-size-hero: clamp(1.75rem, 2.6vw, 2.35rem);
-    --font-size-hero-compact: clamp(1.75rem, 2.5vw, 2.1rem);
-    --font-size-section: clamp(1.35rem, 2.5vw, 2rem);
-    --line-height-none: 1;
-    --line-height-tight: 1.2;
-    --line-height-snug: 1.35;
-    --line-height-normal: 1.45;
-    --line-height-relaxed: 1.6;
-    --font-weight-regular: 500;
-    --font-weight-medium: 600;
-    --font-weight-semibold: 650;
-    --font-weight-bold: 700;
-    --font-weight-extrabold: 750;
-    --font-weight-black: 800;
   }
 
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --color-background: #102634;
-    --color-surface: #173241;
-    --color-surface-raised: #1c3b4d;
-    --color-text: #fffaf1;
-    --color-text-muted: #c0cbd0;
-    --color-primary: #f2c38d;
-    --color-primary-strong: #ffddb5;
-    --color-accent: #f08a67;
-    --color-border: #355264;
-    --color-danger: #ffaaa2;
-    --color-danger-surface: #452b2d;
+    --color-background: #0f172a;
+    --color-surface: #1e293b;
+    --color-surface-raised: #334155;
+    --color-text: #f8fafc;
+    --color-text-muted: #94a3b8;
+    --color-primary: #60a5fa;
+    --color-primary-strong: #93c5fd;
+    --color-accent: #fb923c;
+    --color-border: #334155;
+    --color-danger: #fca5a5;
+    --color-danger-surface: #450a0a;
     --color-danger-text: var(--color-danger);
     --color-danger-bg: var(--color-danger-surface);
-    --color-info-surface: #1b3c49;
-    --color-success: #75d1b4;
+    --color-info-surface: #172554;
+    --color-success: #86efac;
     --color-success-text: var(--color-success);
     --color-shadow: rgb(0 0 0 / 30%);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 15%);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 30%), 0 2px 4px -2px rgb(0 0 0 / 30%);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 40%), 0 4px 6px -4px rgb(0 0 0 / 40%);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 50%), 0 8px 10px -6px rgb(0 0 0 / 50%);
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme]) {
       color-scheme: dark;
-      --color-background: #102634;
-      --color-surface: #173241;
-      --color-surface-raised: #1c3b4d;
-      --color-text: #fffaf1;
-      --color-text-muted: #c0cbd0;
-      --color-primary: #f2c38d;
-      --color-primary-strong: #ffddb5;
-      --color-accent: #f08a67;
-      --color-border: #355264;
-      --color-danger: #ffaaa2;
-      --color-danger-surface: #452b2d;
+      --color-background: #0f172a;
+      --color-surface: #1e293b;
+      --color-surface-raised: #334155;
+      --color-text: #f8fafc;
+      --color-text-muted: #94a3b8;
+      --color-primary: #60a5fa;
+      --color-primary-strong: #93c5fd;
+      --color-accent: #fb923c;
+      --color-border: #334155;
+      --color-danger: #fca5a5;
+      --color-danger-surface: #450a0a;
       --color-danger-text: var(--color-danger);
       --color-danger-bg: var(--color-danger-surface);
-      --color-info-surface: #1b3c49;
-      --color-success: #75d1b4;
+      --color-info-surface: #172554;
+      --color-success: #86efac;
       --color-success-text: var(--color-success);
       --color-shadow: rgb(0 0 0 / 30%);
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 15%);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 30%), 0 2px 4px -2px rgb(0 0 0 / 30%);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 40%), 0 4px 6px -4px rgb(0 0 0 / 40%);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 50%), 0 8px 10px -6px rgb(0 0 0 / 50%);
     }
   }
 }

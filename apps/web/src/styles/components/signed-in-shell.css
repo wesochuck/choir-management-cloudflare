@@ -158,7 +158,7 @@
     gap: 0.65rem;
     min-height: 2.5rem;
     padding: 0.55rem 0.75rem;
-    border-radius: 0.65rem;
+    border-radius: var(--radius-control);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-bold);
@@ -203,7 +203,7 @@
     border: 1px solid var(--color-accent);
     border-radius: var(--radius-card);
     background: color-mix(in srgb, var(--color-surface-raised) 94%, transparent);
-    box-shadow: 0 1rem 2.5rem var(--color-shadow);
+    box-shadow: var(--shadow-xl);
     transform: translateX(50%);
     backdrop-filter: blur(1rem);
   }
@@ -327,7 +327,7 @@
   .workspace-card-grid > a:hover,
   .workspace-card:hover {
     border-color: var(--color-accent);
-    box-shadow: 0 1rem 2rem var(--color-shadow);
+    box-shadow: var(--shadow-xl);
     transform: translateY(-0.15rem);
   }
 
@@ -351,7 +351,7 @@
     height: 2.6rem;
     flex: 0 0 auto;
     place-items: center;
-    border-radius: 0.8rem;
+    border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--color-accent) 16%, transparent);
     color: var(--color-accent);
     font-size: var(--font-size-lg);

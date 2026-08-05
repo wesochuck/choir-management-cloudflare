@@ -202,7 +202,7 @@
   .provider-status-card__guide code,
   .platform-setup-guide code {
     padding: 0.08rem 0.25rem;
-    border-radius: 0.25rem;
+    border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--color-primary) 12%, transparent);
     color: var(--color-text);
     font-size: 0.9em;
@@ -486,7 +486,7 @@
 
   .communication-composer__preview code {
     padding: 0.1rem 0.25rem;
-    border-radius: 0.2rem;
+    border-radius: var(--radius-sm);
     background: var(--color-background);
   }
 

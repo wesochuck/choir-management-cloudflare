@@ -208,7 +208,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
-    box-shadow: 0 1rem 2.5rem var(--color-shadow);
+    box-shadow: var(--shadow-xl);
   }
 
   .music-genre-filter__header,
@@ -227,7 +227,7 @@
     display: inline-flex;
     overflow: hidden;
     border: 1px solid var(--color-border);
-    border-radius: 0.45rem;
+    border-radius: var(--radius-control);
   }
 
   .music-genre-filter__mode button {
@@ -253,7 +253,7 @@
     min-height: 2.65rem;
     padding: 0.55rem 0.7rem;
     border: 1px solid var(--color-border);
-    border-radius: 0.45rem;
+    border-radius: var(--radius-control);
     background: var(--color-surface);
     color: var(--color-text);
   }
@@ -292,7 +292,7 @@
     gap: 0.5rem;
     padding: 0.3rem 0.65rem;
     border: 1px solid var(--color-success);
-    border-radius: 0.45rem;
+    border-radius: var(--radius-control);
     background: var(--color-surface-raised);
     color: var(--color-text);
     cursor: pointer;
@@ -339,9 +339,9 @@
     overflow: hidden;
     padding: 0.65rem;
     border: 1px solid var(--color-border);
-    border-radius: 0.45rem;
+    border-radius: var(--radius-control);
     background: var(--color-surface-raised);
-    box-shadow: 0 0.85rem 2rem var(--color-shadow);
+    box-shadow: var(--shadow-xl);
   }
 
   .music-genre-picker__header,
@@ -372,7 +372,7 @@
     min-height: 2.35rem;
     padding: 0.5rem 0.65rem;
     border: 1px solid var(--color-border);
-    border-radius: 0.35rem;
+    border-radius: var(--radius-sm);
     background: var(--color-surface);
     color: var(--color-text);
   }
