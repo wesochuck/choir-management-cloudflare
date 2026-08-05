@@ -39,8 +39,8 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
               Store the Stripe platform API secret as <code>STRIPE_SECRET_KEY</code>.
             </li>
             <li>
-              Add this webhook endpoint in Stripe: <code>{stripeWebhookEndpoint()}</code>. Store
-              the signing secret as <code>STRIPE_WEBHOOK_SECRET</code>.
+              Add this webhook endpoint in Stripe: <code>{stripeWebhookEndpoint()}</code>. Store the
+              signing secret as <code>STRIPE_WEBHOOK_SECRET</code>.
             </li>
             <li>
               Have each Organization complete Stripe Connect onboarding from Organization settings.
@@ -68,8 +68,7 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
               the comma-separated <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist.
             </li>
             <li>
-              For SMS testing, store <code>BREVO_API_KEY</code> and{" "}
-              <code>BREVO_SMS_SENDER</code>.
+              For SMS testing, store <code>BREVO_API_KEY</code> and <code>BREVO_SMS_SENDER</code>.
             </li>
             <li>
               For SMS sandbox tests, add the comma-separated{" "}
