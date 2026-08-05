@@ -83,17 +83,23 @@ async function probe(entry) {
 }
 
 let lastFailures = [];
+let lastWorkerStale = false;
 for (let attempt = 1; attempt <= attempts; attempt += 1) {
   const results = await Promise.allSettled(probes.map(probe));
-  lastFailures = results.flatMap((result, index) =>
-    result.status === "rejected"
-      ? [
-          `${probes[index].label}: ${
-            result.reason instanceof Error ? result.reason.message : String(result.reason)
-          }`,
-        ]
-      : [],
-  );
+  const failures = results.flatMap((result, index) => {
+    if (result.status === "fulfilled") return [];
+    const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+    return [{ label: probes[index].label, reason }];
+  });
+  lastFailures = failures.map((failure) => `${failure.label}: ${failure.reason}`);
+  // A version rollout can outrun Cloudflare propagation: every Worker probe
+  // reports a healthy previous version. That is not a release failure, so it
+  // must not trigger the workflow's rollback step. Distinguish it from real
+  // breakage (non-200 responses, unhealthy state, or a broken current version).
+  const workerFailures = failures.filter((failure) => failure.label.startsWith("deployed Worker"));
+  lastWorkerStale =
+    workerFailures.length > 0 &&
+    workerFailures.every((failure) => /serves .* instead of .*\.$/u.test(failure.reason));
   const edgeBlocked = results.flatMap((result, index) =>
     result.status === "fulfilled" && result.value?.edgeBlocked ? [probes[index].label] : [],
   );
@@ -120,6 +126,15 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
     ];
   }
   if (attempt < attempts) await delay(retryDelayMs);
+}
+
+if (lastWorkerStale) {
+  console.warn(
+    `Qualification never observed version ${expectedVersion}; every Worker probe kept reporting a healthy previous version. ` +
+      "The rollout may still be propagating, so traffic is left in place and staging is NOT rolled back. " +
+      "Recheck the deployed version from an interactive network before relying on this result.",
+  );
+  process.exit(0);
 }
 
 console.error(`Release qualification failed after ${String(attempts)} attempts:`);

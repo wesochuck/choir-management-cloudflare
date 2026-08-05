@@ -108,7 +108,11 @@ Before finishing any material change, report:
   promotion. Direct Worker failures remain hard failures. If Cloudflare blocks every custom-domain
   probe for the CI runner with HTTP 403 while the direct Worker probes pass, qualification may
   succeed with an explicit degraded warning; recheck those custom domains from an allowlisted or
-  interactive network before relying on the routing result.
+  interactive network before relying on the routing result. If every Worker probe reports a healthy
+  previous version for the whole qualification window, the rollout is treated as still propagating:
+  qualification succeeds with a degraded warning and staging is not rolled back; recheck the
+  deployed version from an interactive network. Real Worker failures (non-200, unhealthy state, or a
+  broken current version) remain hard failures and do trigger the rollback.
 
 ## 4. Plan Execution and Parity
 
