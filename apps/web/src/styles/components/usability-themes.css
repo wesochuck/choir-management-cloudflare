@@ -529,12 +529,27 @@
     outline-offset: 2px;
   }
 
+  .dialog__header {
+    margin-bottom: 0.85rem;
+  }
+
+  .dialog__title {
+    font-family: inherit;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: normal;
+  }
+
   .dialog__close {
     width: 2rem;
     height: 2rem;
     border-radius: 0.4rem;
     color: var(--color-text-muted);
     font-size: var(--font-size-lg);
+  }
+
+  .dialog__body {
+    font-size: var(--font-size-base);
   }
 
   @media (max-width: 860px) {

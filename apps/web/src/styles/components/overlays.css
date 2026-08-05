@@ -100,6 +100,13 @@
     font-size: clamp(2.2rem, 5vw, 4rem);
   }
 
+  .dialog__overlay {
+    position: fixed;
+    z-index: 40;
+    inset: 0;
+    background: rgb(5 15 21 / 58%);
+  }
+
   .dialog--responsive {
     position: fixed;
     z-index: 41;
@@ -110,6 +117,13 @@
     margin: 0;
     overflow: auto;
     transform: translate(-50%, -50%);
+  }
+
+  .dialog__description {
+    margin-top: 0.35rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-normal);
   }
 
   .dialog__actions {
@@ -131,12 +145,66 @@
     box-shadow: 1rem 0 3rem rgb(0 0 0 / 16%);
   }
 
+  .sheet__close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
   .sheet__header {
     display: grid;
     gap: 0.3rem;
     margin: 0 2.75rem 1.5rem 0.75rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--color-border);
+  }
+
+  .collapsible__trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .dropdown-menu {
+    z-index: 60;
+    min-width: 12rem;
+    padding: 0.35rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    box-shadow: 0 1rem 2rem var(--color-shadow);
+  }
+
+  .dropdown-menu__item {
+    display: block;
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 0;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .dropdown-menu__item:hover,
+  .dropdown-menu__item:focus-visible {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   }
 
   @media (max-width: 860px) {

@@ -55,7 +55,10 @@
   }
 
   .data-table td.data-table__cell--actions > button:not(.button):not(.text-button),
-  .data-table > .table-actions > button:not(.button):not(.text-button) {
+  .data-table
+    td.data-table__cell--actions
+    > .table-actions
+    > button:not(.button):not(.text-button) {
     min-height: 2.3rem;
     padding: 0.45rem 0.75rem;
     border: 1px solid var(--color-primary);
@@ -67,7 +70,10 @@
   }
 
   .data-table td.data-table__cell--actions > button:not(.button):not(.text-button):disabled,
-  .data-table > .table-actions > button:not(.button):not(.text-button):disabled {
+  .data-table
+    td.data-table__cell--actions
+    > .table-actions
+    > button:not(.button):not(.text-button):disabled {
     cursor: not-allowed;
     opacity: 0.6;
   }
@@ -76,6 +82,36 @@
     font-weight: var(--font-weight-medium);
     font-size: var(--font-size-base);
     color: var(--muted-foreground);
+  }
+
+  .data-table__sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .data-table__sort-button:hover,
+  .data-table__sort-button:focus-visible {
+    color: var(--color-primary);
+  }
+
+  .data-table__row--interactive {
+    cursor: pointer;
+  }
+
+  .data-table__row--interactive:hover td {
+    background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+  }
+
+  .data-table__row--interactive:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
   }
 
   .table--actions th:last-child,
@@ -103,6 +139,10 @@
   .table--actions td:last-child .text-button--danger {
     border-color: var(--color-danger);
     color: var(--color-danger);
+  }
+
+  .data-table-cards {
+    display: none;
   }
 
   @media (max-width: 640px) {
@@ -137,6 +177,69 @@
 
     .data-table {
       display: none;
+    }
+
+    .data-table-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .data-table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+    }
+
+    .data-table-card--interactive {
+      cursor: pointer;
+    }
+
+    .data-table-card--interactive:hover,
+    .data-table-card--interactive:focus-visible {
+      border-color: var(--color-primary);
+    }
+
+    .data-table-card--interactive:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    .data-table-card__field {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.375rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table-card__field:last-child {
+      border-bottom: none;
+    }
+
+    .data-table-card__label {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      color: var(--muted-foreground);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .data-table-card__value {
+      font-size: var(--font-size-base);
+      text-align: right;
+    }
+
+    .data-table-card__field--actions {
+      align-items: flex-start;
+    }
+
+    .data-table-card__field--actions .data-table-card__value {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.5rem;
     }
 
     .music-bulk-edit-field {

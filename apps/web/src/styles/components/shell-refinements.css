@@ -259,6 +259,19 @@
     background: rgba(0, 0, 0, 0.4);
   }
 
+  .dialog__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .dialog__title {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-medium);
+  }
+
   .dialog__close {
     background: none;
     border: none;
@@ -267,6 +280,10 @@
     color: var(--muted-foreground);
     padding: 0.25rem;
     line-height: var(--line-height-none);
+  }
+
+  .dialog__body {
+    font-size: var(--font-size-base);
   }
 
   .summary-card {
