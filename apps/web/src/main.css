@@ -5,6 +5,10 @@
  * fallback defined in tokens.css. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/* Breakpoint scale aligned to Tailwind's default theme: 40rem (sm), 48rem
+ * (md), 64rem (lg), 80rem (xl). Component CSS uses these values for media
+ * queries; prefer Tailwind responsive utilities for new markup. */
+
 @theme {
   /* Colors — emitted as CSS custom properties on :root so existing BEM
    * var() references and Tailwind utilities resolve to the same values.

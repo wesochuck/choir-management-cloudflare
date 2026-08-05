@@ -276,6 +276,7 @@
   }
 
   .donation-level-table td:last-child .table-actions {
+    flex-wrap: nowrap;
     justify-content: flex-end;
   }
 }

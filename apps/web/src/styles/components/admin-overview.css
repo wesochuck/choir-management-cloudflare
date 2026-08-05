@@ -296,7 +296,7 @@
     margin-top: 1rem;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 40rem) {
     .admin-overview__banner {
       padding-block: 0.72rem 0.65rem;
     }

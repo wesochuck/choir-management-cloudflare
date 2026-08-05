@@ -38,26 +38,30 @@
 
   .dues-records-header {
     display: grid;
-    grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 1fr);
     grid-template-areas: "toolbar description";
-    align-items: center;
+    align-items: end;
     gap: 1rem;
     margin: 0 0 1rem;
   }
 
   .dues-records-header > .seasons-manager-description {
+    align-self: end;
     grid-area: description;
+    margin-bottom: 0.6rem;
   }
 
   .dues-records-toolbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 20rem);
     grid-area: toolbar;
-    justify-content: flex-start;
+    align-items: end;
+    gap: 0.75rem;
     margin: 0;
   }
 
   .dues-records-toolbar .field {
-    min-width: min(100%, 20rem);
+    min-width: 0;
   }
 
   .audition-schedule-form {

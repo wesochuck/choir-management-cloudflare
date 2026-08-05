@@ -145,7 +145,7 @@
     display: none;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 40rem) {
     .seasons-manager-controls {
       align-items: stretch;
       flex-direction: column;
@@ -172,7 +172,11 @@
     }
 
     .dues-records-toolbar {
-      justify-content: stretch;
+      grid-template-columns: 1fr;
+    }
+
+    .dues-records-header > .seasons-manager-description {
+      margin-bottom: 0;
     }
 
     .data-table {

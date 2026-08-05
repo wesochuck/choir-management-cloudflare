@@ -483,13 +483,13 @@
     gap: 0.45rem;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 64rem) {
     .roster-automation__card .section-description {
       max-width: none;
     }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 40rem) {
     .roster-automation__flow {
       align-items: flex-start;
       flex-direction: column;
@@ -1004,13 +1004,13 @@
     white-space: nowrap;
   }
 
-  @media (max-width: 800px) {
+  @media (max-width: 48rem) {
     .member-dashboard__layout {
       grid-template-columns: 1fr;
     }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 40rem) {
     .member-dashboard__header {
       align-items: stretch;
       flex-direction: column;
@@ -1043,7 +1043,7 @@
     }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 40rem) {
     .roster-bulk-actions {
       align-items: stretch;
       flex-direction: column;
@@ -1209,7 +1209,7 @@
     justify-content: flex-end;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 40rem) {
     .audition-table {
       display: grid;
       gap: 0.75rem;

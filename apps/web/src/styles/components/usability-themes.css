@@ -519,13 +519,13 @@
     font-size: var(--font-size-base);
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 48rem) {
     .signed-in-main {
       padding: 1.25rem 1rem 3rem;
     }
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 40rem) {
     .signed-in-header {
       min-height: auto;
       padding: 0.7rem 0.85rem;

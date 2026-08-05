@@ -95,7 +95,7 @@
     background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 48rem) {
     .reports-toolbar {
       flex-direction: column;
     }

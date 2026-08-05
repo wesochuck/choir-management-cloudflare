@@ -79,7 +79,7 @@
     font-weight: var(--font-weight-regular);
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 40rem) {
     .page-heading h1,
     .signed-in-main .account-heading h1,
     .signed-in-main .auth-card h1 {

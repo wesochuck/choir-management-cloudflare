@@ -3,7 +3,7 @@
  * theme.css so the cascade is unchanged.
  */
 @layer components {
-  @media (max-width: 38rem) {
+  @media (max-width: 40rem) {
     .my-schedule__controls {
       justify-content: flex-start;
     }
@@ -84,7 +84,7 @@
     font-size: var(--font-size-base);
   }
 
-  @media (max-width: 56rem) {
+  @media (max-width: 64rem) {
     .member-dues-row {
       grid-template-columns: 1fr auto;
     }
@@ -94,7 +94,7 @@
     }
   }
 
-  @media (max-width: 38rem) {
+  @media (max-width: 40rem) {
     .member-dues-row {
       grid-template-columns: 1fr;
     }
