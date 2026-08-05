@@ -443,8 +443,18 @@
   .seating-toolbar--secondary {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.75rem;
     padding-block: 0.45rem;
+  }
+
+  .seating-toolbar__display-options,
+  .seating-toolbar__primary-actions {
+    flex: 0 0 auto;
+  }
+
+  .seating-toolbar__view-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
   }
 
   .field--compact {
@@ -463,7 +473,7 @@
   }
 
   .checkbox-row--compact {
-    margin: 0 0.5rem;
+    margin: 0;
     white-space: nowrap;
     font-size: var(--font-size-md);
   }
@@ -1014,6 +1024,7 @@
   }
 
   .seating-list-row li:not(:last-child)::after {
+    margin-left: -0.35rem;
     color: var(--color-text-muted);
     content: ",";
   }
@@ -1245,6 +1256,10 @@
 
     .seating-toolbar__actions {
       justify-content: stretch;
+    }
+
+    .seating-toolbar__view-actions {
+      margin-left: 0;
     }
 
     .seating-toolbar__actions .button {

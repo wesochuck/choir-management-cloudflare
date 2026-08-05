@@ -209,12 +209,18 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
        * layout; the list below stays put while saving. */}
       <div aria-live="polite" className="set-list-save-status">
         {error ? (
-          <p className="notice notice--error" role="alert">
+          <p
+            className="set-list-save-status__message set-list-save-status__message--error"
+            role="alert"
+          >
             {error}
           </p>
         ) : null}
         {message ? (
-          <p className="notice notice--success" role="status">
+          <p
+            className="set-list-save-status__message set-list-save-status__message--success"
+            role="status"
+          >
             {message}
           </p>
         ) : null}
@@ -468,12 +474,11 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                               aria-hidden="true"
                               title="Drag to reorder"
                             />
+                            <strong className="set-list-item-position">{String(index + 1)}.</strong>
+                            <strong>{item.title}</strong>
                             {item.type === "intermission" ? (
                               <span className="set-list-item-type">Custom entry</span>
                             ) : null}
-                            <strong>
-                              {String(index + 1)}. {item.title}
-                            </strong>
                           </div>
                           <div className="button-row set-list-item-actions">
                             <button

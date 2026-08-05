@@ -352,7 +352,33 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
           </div>
 
           <div className="seating-toolbar seating-toolbar--secondary no-print">
-            <div className="seating-toolbar__actions">
+            <div className="seating-toolbar__actions seating-toolbar__display-options">
+              <label className="checkbox-row checkbox-row--compact">
+                <input
+                  checked={showSeatNumbers}
+                  disabled={viewMode !== "list"}
+                  onChange={(event) => {
+                    setShowSeatNumbers(event.target.checked);
+                  }}
+                  title="Available in List view"
+                  type="checkbox"
+                />{" "}
+                Seat numbers
+              </label>
+              <label className="checkbox-row checkbox-row--compact">
+                <input
+                  checked={showVoiceParts}
+                  disabled={viewMode !== "list"}
+                  onChange={(event) => {
+                    setShowVoiceParts(event.target.checked);
+                  }}
+                  title="Available in List view"
+                  type="checkbox"
+                />{" "}
+                Voice parts
+              </label>
+            </div>
+            <div className="seating-toolbar__actions seating-toolbar__primary-actions">
               <button
                 className="button button--secondary button--small"
                 onClick={() => {
@@ -421,7 +447,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                 Print
               </button>
             </div>
-            <div className="seating-toolbar__actions">
+            <div className="seating-toolbar__actions seating-toolbar__view-actions">
               <button
                 aria-pressed={viewMode === "grid"}
                 className={`button button--small ${viewMode === "grid" ? "button--primary" : "button--secondary"}`}
@@ -454,30 +480,6 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
               >
                 Index
               </button>
-              {viewMode === "list" ? (
-                <>
-                  <label className="checkbox-row checkbox-row--compact">
-                    <input
-                      checked={showSeatNumbers}
-                      onChange={(event) => {
-                        setShowSeatNumbers(event.target.checked);
-                      }}
-                      type="checkbox"
-                    />{" "}
-                    Seat numbers
-                  </label>
-                  <label className="checkbox-row checkbox-row--compact">
-                    <input
-                      checked={showVoiceParts}
-                      onChange={(event) => {
-                        setShowVoiceParts(event.target.checked);
-                      }}
-                      type="checkbox"
-                    />{" "}
-                    Voice parts
-                  </label>
-                </>
-              ) : null}
               <span
                 className={`seating-save-status seating-save-status--${saveState}`}
                 role="status"
