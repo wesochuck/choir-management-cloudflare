@@ -13,6 +13,12 @@ const steps = [
     command: "npm",
     args: ["run", "audit"],
   },
+  {
+    job: "static",
+    label: "Verify lockfile matches manifests",
+    command: "node",
+    args: ["scripts/check-lockfile.mjs"],
+  },
   { job: "static", label: "Check formatting", command: "npm", args: ["run", "format:check"] },
   { job: "static", label: "Lint", command: "npm", args: ["run", "lint"] },
   { job: "contracts", label: "Typecheck", command: "npm", args: ["run", "typecheck"] },

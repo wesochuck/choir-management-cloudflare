@@ -1,0 +1,20 @@
+#!/bin/sh
+# Block commits that stage package manifests without a matching lockfile
+# update (CI's `npm ci` would fail the same way, but after a slow remote
+# cycle). Runs the staged-content check; the file-based `--staged` variant
+# never reads the working tree, only the index.
+set -e
+
+changed=$(git diff --cached --name-only || true)
+case "$changed" in
+  *package.json*)
+    if ! echo "$changed" | grep -q "package-lock.json"; then
+      echo "error: package.json changes are staged without package-lock.json." >&2
+      echo "Run \`npm install\` and stage package-lock.json with the manifest change," >&2
+      echo "or commit with --no-verify if the change is metadata-only." >&2
+      exit 1
+    fi
+    ;;
+esac
+
+node scripts/check-lockfile.mjs --staged

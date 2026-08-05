@@ -77,11 +77,15 @@ Before finishing any material change, report:
 ### CI failure-prevention checklist
 
 - Run `npm run check:ci` before pushing `main`. It mirrors the CI job sequence locally (audit,
-  formatting, lint, typecheck, contracts exports, both parity checks, unit tests, the deployable
-  build, the release-artifact round-trip, and prepared Workerd integration tests) and stops at the
-  first failing step. The browser E2E job is not covered: run
+  lockfile sync, formatting, lint, typecheck, contracts exports, both parity checks, unit tests, the
+  deployable build, the release-artifact round-trip, and prepared Workerd integration tests) and
+  stops at the first failing step. The browser E2E job is not covered: run
   `npx playwright install chromium && npm run test:e2e` after `check:ci` when a push touches
   browser-visible flows.
+- Always stage `package-lock.json` with any `package.json` change — the pre-commit hook
+  (`.githooks/pre-commit`, enabled via `git config core.hooksPath .githooks`) blocks a manifest
+  staged without its lockfile update, and `check:ci` verifies the working tree matches. CI's
+  `npm ci` fails the same way but only after a slow remote cycle.
 - Treat route removals and parity evidence as one atomic change. When a Worker route is renamed or
   removed, update `docs/parity/feature-matrix.yaml`, the route inventory in
   `scripts/check-parity-matrix.mjs`, and any route-level tests in the same commit. Do not push an
