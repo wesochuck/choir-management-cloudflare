@@ -7,8 +7,6 @@ import type { DeliveryJob } from "../contracts";
 export type JobConsumerEnv = Pick<
   Env,
   | "BREVO_API_KEY"
-  | "BREVO_EMAIL_FROM"
-  | "BREVO_EMAIL_FROM_NAME"
   | "BREVO_SMS_ALLOWED_RECIPIENTS"
   | "BREVO_SMS_SENDER"
   | "EXTERNAL_EFFECTS_MODE"
@@ -17,7 +15,16 @@ export type JobConsumerEnv = Pick<
   | "PRODUCT_BASE_DOMAIN"
   | "SIGNED_LINK_SECRET"
 > &
-  Partial<Pick<Env, "CONTROL_DB">>;
+  Partial<
+    Pick<
+      Env,
+      | "CONTROL_DB"
+      | "PLATFORM_EMAIL"
+      | "PLATFORM_EMAIL_ALLOWED_RECIPIENTS"
+      | "PLATFORM_EMAIL_FROM"
+      | "PLATFORM_EMAIL_MODE"
+    >
+  >;
 export type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB"> &
   Partial<Pick<Env, "ORGANIZATION_STORE">>;
 

@@ -7,7 +7,7 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
-import { configuredBrevoEmailSender } from "../communications/provider";
+import { configuredPlatformEmailSender } from "../communications/provider";
 import { validateStartupConfig } from "../env";
 import {
   createStripeAccountOnboardingLink,
@@ -46,7 +46,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const providerChecks = providerSetupChecks(context.env, config.EXTERNAL_EFFECTS_MODE);
     return context.json({
       ...providerChecks,
-      emailSender: configuredBrevoEmailSender(context.env),
+      emailSender: configuredPlatformEmailSender(context.env),
       environment: config.APP_ENV,
       externalEffectsMode: config.EXTERNAL_EFFECTS_MODE,
       requestId: context.get("requestId"),
@@ -69,8 +69,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const stripeConfigured = Boolean(context.env.STRIPE_SECRET_KEY?.trim());
       const webhookConfigured = Boolean(context.env.STRIPE_WEBHOOK_SECRET?.trim());
       const brevoConfigured =
-        Boolean(context.env.BREVO_API_KEY?.trim()) &&
-        z.email().safeParse(context.env.BREVO_EMAIL_FROM).success;
+        Boolean(context.env.PLATFORM_EMAIL) &&
+        z.email().safeParse(context.env.PLATFORM_EMAIL_FROM).success &&
+        context.env.PLATFORM_EMAIL_MODE !== "disabled";
       return context.json(
         organizationPaymentSettingsResponseSchema.parse({
           activations: stored.activations,
@@ -130,8 +131,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         Boolean(context.env.STRIPE_WEBHOOK_SECRET?.trim()) &&
         stripe.status === "ready";
       const brevoReady =
-        Boolean(context.env.BREVO_API_KEY?.trim()) &&
-        z.email().safeParse(context.env.BREVO_EMAIL_FROM).success;
+        Boolean(context.env.PLATFORM_EMAIL) &&
+        z.email().safeParse(context.env.PLATFORM_EMAIL_FROM).success &&
+        context.env.PLATFORM_EMAIL_MODE !== "disabled";
       if (body.data.enabled && (!globalEnabled || !stripeReady || !brevoReady)) {
         return context.json(
           {

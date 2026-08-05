@@ -1,4 +1,4 @@
-import type { PlatformSetupStatusResponse } from "@choir/contracts";
+import type { PlatformSetupCheck, PlatformSetupStatusResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 import { getPlatformSetupStatus } from "../auth/api";
@@ -19,6 +19,73 @@ function checkAction(id: string): { readonly href: string; readonly label: strin
   if (id === "background_jobs" || id === "schema") {
     return { href: "/platform/organizations", label: "Review operations" };
   }
+  return null;
+}
+
+function stripeWebhookEndpoint(): string {
+  if (typeof window === "undefined") return "/api/webhook/stripe";
+  return new URL("/api/webhook/stripe", window.location.origin).toString();
+}
+
+function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id"] }) {
+  if (id === "stripe") {
+    return (
+      <details className="platform-setup-guide platform-setup-check__guide">
+        <summary>Stripe setup instructions</summary>
+        <div>
+          <p>Configure these once per environment with secure Worker secrets.</p>
+          <ol>
+            <li>
+              Store the Stripe platform API secret as <code>STRIPE_SECRET_KEY</code>.
+            </li>
+            <li>
+              Add this webhook endpoint in Stripe: <code>{stripeWebhookEndpoint()}</code>. Store
+              the signing secret as <code>STRIPE_WEBHOOK_SECRET</code>.
+            </li>
+            <li>
+              Have each Organization complete Stripe Connect onboarding from Organization settings.
+            </li>
+          </ol>
+          <p className="field-help">
+            This release records connected-account readiness but keeps checkout in fake mode until
+            live direct-charge activation and signed webhook verification are complete.
+          </p>
+        </div>
+      </details>
+    );
+  }
+
+  if (id === "brevo") {
+    return (
+      <details className="platform-setup-guide platform-setup-check__guide">
+        <summary>Brevo setup instructions</summary>
+        <div>
+          <p>Configure email and SMS delivery once per environment.</p>
+          <ol>
+            <li>
+              Email sends through the Cloudflare Email Sending binding. Configure the{" "}
+              <code>PLATFORM_EMAIL</code> binding, a <code>PLATFORM_EMAIL_FROM</code> sender, and
+              the comma-separated <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist.
+            </li>
+            <li>
+              For SMS testing, store <code>BREVO_API_KEY</code> and{" "}
+              <code>BREVO_SMS_SENDER</code>.
+            </li>
+            <li>
+              For SMS sandbox tests, add the comma-separated{" "}
+              <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
+            </li>
+            <li>Use sandbox mode, then send a test email from Communications → Settings.</li>
+          </ol>
+          <p className="field-help">
+            A green health check means the required settings are present, not that a live message
+            has been sent.
+          </p>
+        </div>
+      </details>
+    );
+  }
+
   return null;
 }
 
@@ -99,11 +166,17 @@ export function PlatformSetupMonitor() {
           <div className="platform-setup-checks" role="list">
             {state.data.checks.map((check) => {
               const action = checkAction(check.id);
+              const setupInstructions = ProviderSetupInstructions({ id: check.id });
               return (
-                <div className="platform-setup-check" key={check.id} role="listitem">
+                <div
+                  className={`platform-setup-check${setupInstructions ? " platform-setup-check--provider" : ""}`}
+                  key={check.id}
+                  role="listitem"
+                >
                   <div className="platform-setup-check__copy">
                     <strong>{check.label}</strong>
                     <span>{check.detail}</span>
+                    {setupInstructions}
                   </div>
                   <div className="platform-setup-check__status">
                     <span
@@ -119,55 +192,6 @@ export function PlatformSetupMonitor() {
               );
             })}
           </div>
-          <details className="platform-setup-guide">
-            <summary>Stripe and Brevo setup instructions</summary>
-            <div>
-              <p>
-                Configure these once per environment with secure Worker secrets. Organization
-                administrators see the resulting health status, but never the secret values.
-              </p>
-              <h3>Stripe payments</h3>
-              <ol>
-                <li>
-                  Store the Stripe platform API secret as <code>STRIPE_SECRET_KEY</code> for this
-                  environment.
-                </li>
-                <li>
-                  Point Stripe webhooks at the product webhook endpoint and store the signing secret
-                  as <code>STRIPE_WEBHOOK_SECRET</code>.
-                </li>
-                <li>
-                  Have each Organization complete Stripe Connect onboarding from Organization
-                  settings.
-                </li>
-              </ol>
-              <p className="field-help">
-                This release records Organization connected-account readiness but keeps checkout in
-                fake mode until live direct-charge activation and webhook routing are verified.
-              </p>
-              <h3>Brevo communications</h3>
-              <ol>
-                <li>Verify a Brevo sender/domain and create an environment-specific API key.</li>
-                <li>
-                  Store <code>BREVO_API_KEY</code> and <code>BREVO_EMAIL_FROM</code>; optionally add{" "}
-                  <code>BREVO_EMAIL_FROM_NAME</code>.
-                </li>
-                <li>
-                  For SMS sandbox tests, add <code>BREVO_SMS_SENDER</code> and the comma-separated{" "}
-                  <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
-                </li>
-                <li>
-                  Use sandbox mode, then have an Organization administrator send a test email from
-                  Communications → Settings.
-                </li>
-              </ol>
-              <p className="field-help">
-                Current staging checkout is simulated and Brevo sandbox email is dropped by the
-                provider. A green health check means the required settings are present, not that a
-                live payment or message has been sent.
-              </p>
-            </div>
-          </details>
           <p className="field-help">
             Background job failures recorded: {String(state.data.jobDeadLetterCount ?? 0)}. This
             monitor reports platform-level signals; Organization data remains scoped to its own

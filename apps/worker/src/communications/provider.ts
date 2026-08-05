@@ -16,11 +16,13 @@ type ProviderFetch = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface CommunicationProviderConfig {
   readonly BREVO_API_KEY?: string;
-  readonly BREVO_EMAIL_FROM?: string;
-  readonly BREVO_EMAIL_FROM_NAME?: string;
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string;
   readonly BREVO_SMS_SENDER?: string;
   readonly EXTERNAL_EFFECTS_MODE: string;
+  readonly PLATFORM_EMAIL?: SendEmail;
+  readonly PLATFORM_EMAIL_ALLOWED_RECIPIENTS?: string;
+  readonly PLATFORM_EMAIL_FROM?: string;
+  readonly PLATFORM_EMAIL_MODE?: string;
 }
 
 export interface CommunicationProviderResult {
@@ -34,18 +36,19 @@ export interface ConfiguredEmailSender {
   readonly fromName: string | null;
 }
 
-const DEFAULT_BREVO_EMAIL_FROM_NAME = "MusicSite Organization";
+const DEFAULT_PLATFORM_EMAIL_FROM_NAME = "Choir Management";
 
-export function configuredBrevoEmailSender(
-  config: Pick<CommunicationProviderConfig, "BREVO_EMAIL_FROM" | "BREVO_EMAIL_FROM_NAME">,
+export function configuredPlatformEmailSender(
+  config: Pick<CommunicationProviderConfig, "PLATFORM_EMAIL_FROM">,
 ): ConfiguredEmailSender {
-  const parsedEmail = z.string().trim().min(1).pipe(z.email()).safeParse(config.BREVO_EMAIL_FROM);
+  const parsedEmail = z
+    .string()
+    .trim()
+    .min(1)
+    .pipe(z.email())
+    .safeParse(config.PLATFORM_EMAIL_FROM);
   if (!parsedEmail.success) return { fromEmail: null, fromName: null };
-  const parsedName = z.string().trim().min(1).max(200).safeParse(config.BREVO_EMAIL_FROM_NAME);
-  return {
-    fromEmail: parsedEmail.data,
-    fromName: parsedName.success ? parsedName.data : DEFAULT_BREVO_EMAIL_FROM_NAME,
-  };
+  return { fromEmail: parsedEmail.data, fromName: DEFAULT_PLATFORM_EMAIL_FROM_NAME };
 }
 
 function required(value: string | undefined, name: string): string {
@@ -176,6 +179,48 @@ async function brevoRequest(
   };
 }
 
+function deliverOrganizationEmail(
+  config: CommunicationProviderConfig,
+  delivery: z.infer<typeof deliverySchema>,
+): Promise<CommunicationProviderResult> {
+  if (config.PLATFORM_EMAIL_MODE === "disabled") {
+    return Promise.resolve({ failureDetail: "", providerMessageId: null, status: "suppressed" });
+  }
+  const recipient = delivery.destination.trim().toLowerCase();
+  const allowedRecipients = new Set(
+    (config.PLATFORM_EMAIL_ALLOWED_RECIPIENTS ?? "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  // The allowlist is a staging sandbox safety: when configured, only those
+  // recipients send. An empty allowlist means unrestricted delivery.
+  if (allowedRecipients.size > 0 && !allowedRecipients.has(recipient)) {
+    return Promise.resolve({
+      failureDetail: "sandbox recipient is not allowlisted",
+      providerMessageId: null,
+      status: "suppressed",
+    });
+  }
+  if (!config.PLATFORM_EMAIL) {
+    return Promise.reject(new Error("The Cloudflare email binding is not configured."));
+  }
+  const sender = configuredPlatformEmailSender(config);
+  const senderEmail = sender.fromEmail ?? required(config.PLATFORM_EMAIL_FROM, "email sender");
+  const contents = emailContents(delivery.contentMarkdown, delivery.unsubscribeUrl);
+  return config.PLATFORM_EMAIL.send({
+    from: { email: senderEmail, name: sender.fromName ?? DEFAULT_PLATFORM_EMAIL_FROM_NAME },
+    html: contents.htmlContent,
+    subject: delivery.subject,
+    text: contents.textContent,
+    to: recipient,
+  }).then((result) => ({
+    failureDetail: "",
+    providerMessageId: result.messageId,
+    status: "sent",
+  }));
+}
+
 export function deliverOrganizationCommunication(
   config: CommunicationProviderConfig,
   input: z.infer<typeof deliverySchema>,
@@ -194,23 +239,8 @@ export function deliverOrganizationCommunication(
   }
   if (config.EXTERNAL_EFFECTS_MODE !== "sandbox")
     throw new Error("The Organization communications provider mode is invalid.");
-  const apiKey = required(config.BREVO_API_KEY, "Brevo API key");
   if (delivery.channel === "email") {
-    const sender = configuredBrevoEmailSender(config);
-    const senderEmail = sender.fromEmail ?? required(config.BREVO_EMAIL_FROM, "Brevo email sender");
-    const senderName = sender.fromName ?? DEFAULT_BREVO_EMAIL_FROM_NAME;
-    return brevoRequest(
-      apiKey,
-      "smtp/email",
-      {
-        ...emailContents(delivery.contentMarkdown, delivery.unsubscribeUrl),
-        headers: { "X-Sib-Sandbox": "drop" },
-        sender: { email: senderEmail, name: senderName },
-        subject: delivery.subject,
-        to: [{ email: delivery.destination, name: delivery.recipientName }],
-      },
-      fetcher,
-    );
+    return deliverOrganizationEmail(config, delivery);
   }
   if (!allowedSmsRecipients(config.BREVO_SMS_ALLOWED_RECIPIENTS).has(delivery.destination))
     return Promise.resolve({
@@ -219,7 +249,7 @@ export function deliverOrganizationCommunication(
       status: "suppressed",
     });
   return brevoRequest(
-    apiKey,
+    required(config.BREVO_API_KEY, "Brevo API key"),
     "transactionalSMS/send",
     {
       content: delivery.contentMarkdown,

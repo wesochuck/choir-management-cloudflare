@@ -201,7 +201,10 @@ function OrganizationPaymentSettingsPanel() {
                 Complete Stripe Connect onboarding and confirm charges and payouts are enabled.
               </li>
               <li>Verify the signed Stripe webhook is pointed at the shared platform endpoint.</li>
-              <li>Verify the Organization Brevo sender so paid confirmations can be delivered.</li>
+              <li>
+                Verify the Organization email sender (Cloudflare Email Sending) so paid
+                confirmations can be delivered.
+              </li>
               <li>Use a Stripe test-mode checkout in staging before requesting live activation.</li>
             </ul>
           </details>
