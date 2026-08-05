@@ -32,6 +32,15 @@
     margin-inline: auto;
   }
 
+  /* The banner bleeds to the page edges by negating the main content
+   * padding; the gutter must track that padding, which snaps to 1rem below
+   * the 48rem breakpoint. Otherwise the bleed overshoots the viewport. */
+  @media (max-width: 48rem) {
+    .admin-overview {
+      --admin-overview-gutter: 1rem;
+    }
+  }
+
   .admin-overview__banner h1 {
     margin: 0;
     color: inherit;
