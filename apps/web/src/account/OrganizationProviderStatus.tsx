@@ -121,7 +121,7 @@ export function OrganizationProviderStatus() {
           </div>
           <div className="provider-status-card__rows">
             <ProviderRow label="Stripe" {...state.data.stripe} />
-            <ProviderRow label="Brevo" {...state.data.brevo} />
+            <ProviderRow label="Email & SMS" {...state.data.brevo} />
           </div>
           <div className="provider-status-card__connect">
             <div>
@@ -207,16 +207,17 @@ export function OrganizationProviderStatus() {
             review the checklist and enable each direct-charge payment type separately after the
             staging test-mode checkout and webhook verification pass.
           </p>
-          <h3>Brevo</h3>
+          <h3>Email &amp; SMS</h3>
           <ol>
-            <li>Verify the sender/domain in Brevo and create an API key for the environment.</li>
             <li>
-              Store <code>BREVO_API_KEY</code> and <code>BREVO_EMAIL_FROM</code>; add{" "}
-              <code>BREVO_EMAIL_FROM_NAME</code> for the sender name.
+              Email sends through the Cloudflare Email Sending binding. Configure the{" "}
+              <code>PLATFORM_EMAIL</code> binding, a <code>PLATFORM_EMAIL_FROM</code> sender, and
+              the comma-separated <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist.
             </li>
             <li>
-              For SMS testing only, also configure <code>BREVO_SMS_SENDER</code> and the
-              comma-separated <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
+              For SMS testing only, configure the Brevo <code>BREVO_API_KEY</code>,{" "}
+              <code>BREVO_SMS_SENDER</code>, and the comma-separated{" "}
+              <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
             </li>
             <li>
               Use sandbox mode and the Communications → Settings test email before enabling live

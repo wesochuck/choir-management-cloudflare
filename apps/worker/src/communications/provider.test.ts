@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 
 import {
-  configuredBrevoEmailSender,
+  configuredPlatformEmailSender,
   deliverOrganizationCommunication,
   renderCommunicationMarkdown,
 } from "./provider";
@@ -18,63 +17,87 @@ const delivery = {
   unsubscribeUrl: "https://alpha.staging.example.com/unsubscribe?token=signed-value",
 };
 
+function platformEmailBinding() {
+  return {
+    send: vi.fn().mockResolvedValue({ messageId: "cloudflare-email-id" }),
+  };
+}
+
 describe("Organization communication provider", () => {
   it("reports the effective configured email sender without exposing provider credentials", () => {
     expect(
-      configuredBrevoEmailSender({
-        BREVO_EMAIL_FROM: " communications@mail.staging.example.com ",
-        BREVO_EMAIL_FROM_NAME: " Example Choir ",
+      configuredPlatformEmailSender({
+        PLATFORM_EMAIL_FROM: " communications@mail.staging.example.com ",
       }),
     ).toEqual({
       fromEmail: "communications@mail.staging.example.com",
-      fromName: "Example Choir",
+      fromName: "Choir Management",
     });
-    expect(configuredBrevoEmailSender({})).toEqual({ fromEmail: null, fromName: null });
+    expect(configuredPlatformEmailSender({})).toEqual({ fromEmail: null, fromName: null });
   });
 
-  it("uses Brevo email sandbox-drop mode and includes the signed unsubscribe link", async () => {
-    const fetcher = vi.fn((input: string, request: RequestInit) => {
-      void input;
-      void request;
-      return Promise.resolve(Response.json({ messageId: "brevo-email-id" }, { status: 201 }));
-    });
+  it("sends Organization email through the Cloudflare binding with the signed unsubscribe link", async () => {
+    const email = platformEmailBinding();
     const result = await deliverOrganizationCommunication(
       {
-        BREVO_API_KEY: "sandbox-key",
-        BREVO_EMAIL_FROM: "communications@mail.staging.example.com",
-        BREVO_EMAIL_FROM_NAME: "Example Choir",
         EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: " singer@example.test ,other@example.test",
+        PLATFORM_EMAIL_FROM: "communications@mail.staging.example.com",
+        PLATFORM_EMAIL_MODE: "sandbox",
       },
       delivery,
-      fetcher,
     );
 
     expect(result).toEqual({
       failureDetail: "",
-      providerMessageId: "brevo-email-id",
+      providerMessageId: "cloudflare-email-id",
       status: "sent",
     });
-    expect(fetcher).toHaveBeenCalledOnce();
-    const [url, request] = fetcher.mock.calls[0] ?? [];
-    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
-    expect(request?.headers).toMatchObject({ "api-key": "sandbox-key" });
-    const requestBody = request?.body;
-    if (typeof requestBody !== "string") throw new Error("Expected a JSON request body.");
-    const parsedBody: unknown = JSON.parse(requestBody);
-    const body = z
-      .object({
-        headers: z.object({ "X-Sib-Sandbox": z.string() }),
-        htmlContent: z.string(),
-        subject: z.string(),
-        textContent: z.string(),
-      })
-      .parse(parsedBody);
-    expect(body).toMatchObject({
-      headers: { "X-Sib-Sandbox": "drop" },
+    expect(email.send).toHaveBeenCalledOnce();
+    const sent = email.send.mock.calls[0]?.[0];
+    expect(sent).toMatchObject({
+      from: { email: "communications@mail.staging.example.com", name: "Choir Management" },
       subject: "Rehearsal",
-      textContent: expect.stringContaining(delivery.unsubscribeUrl),
+      text: expect.stringContaining(delivery.unsubscribeUrl),
+      to: "singer@example.test",
     });
-    expect(body.htmlContent).toContain("Hello &lt;Singer&gt;");
+    expect(sent?.html).toContain("Hello &lt;Singer&gt;");
+    expect(sent?.html).toContain(delivery.unsubscribeUrl);
+  });
+
+  it("suppresses a sandbox email recipient that is not allowlisted without calling the binding", async () => {
+    const email = platformEmailBinding();
+    const result = await deliverOrganizationCommunication(
+      {
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "other@example.test",
+        PLATFORM_EMAIL_FROM: "communications@mail.staging.example.com",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      delivery,
+    );
+
+    expect(result.status).toBe("suppressed");
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it("sends to any recipient when no allowlist is configured", async () => {
+    const email = platformEmailBinding();
+    const result = await deliverOrganizationCommunication(
+      {
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_FROM: "communications@mail.staging.example.com",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      delivery,
+    );
+
+    expect(result.status).toBe("sent");
+    expect(email.send).toHaveBeenCalledOnce();
+    expect(email.send.mock.calls[0]?.[0]).toMatchObject({ to: "singer@example.test" });
   });
 
   it("suppresses a sandbox SMS recipient that is not explicitly allowlisted", async () => {
@@ -129,20 +152,27 @@ describe("Organization communication provider", () => {
     expect(fetcher.mock.calls[0]?.[0]).toBe("https://api.brevo.com/v3/transactionalSMS/send");
   });
 
-  it("fails closed without exposing rejected provider response bodies", async () => {
+  it("fails closed without exposing rejected SMS provider response bodies", async () => {
     const fetcher = vi.fn((input: string, request: RequestInit) => {
       void input;
       void request;
       return Promise.resolve(new Response("credential details", { status: 401 }));
     });
+    const smsDelivery = {
+      ...delivery,
+      channel: "sms" as const,
+      destination: "+15550000001",
+      unsubscribeUrl: null,
+    };
     await expect(
       deliverOrganizationCommunication(
         {
           BREVO_API_KEY: "sandbox-key",
-          BREVO_EMAIL_FROM: "communications@mail.staging.example.com",
+          BREVO_SMS_ALLOWED_RECIPIENTS: "+15550000001",
+          BREVO_SMS_SENDER: "MusicSite",
           EXTERNAL_EFFECTS_MODE: "sandbox",
         },
-        delivery,
+        smsDelivery,
         fetcher,
       ),
     ).rejects.toThrow("provider rejected its credentials");
@@ -150,10 +180,11 @@ describe("Organization communication provider", () => {
       deliverOrganizationCommunication(
         {
           BREVO_API_KEY: "sandbox-key",
-          BREVO_EMAIL_FROM: "communications@mail.staging.example.com",
+          BREVO_SMS_ALLOWED_RECIPIENTS: "+15550000001",
+          BREVO_SMS_SENDER: "MusicSite",
           EXTERNAL_EFFECTS_MODE: "sandbox",
         },
-        delivery,
+        smsDelivery,
         fetcher,
       ),
     ).rejects.not.toThrow("credential details");

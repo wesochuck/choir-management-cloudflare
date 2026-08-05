@@ -100,17 +100,24 @@ export function providerSetupChecks(
   env: Pick<
     Env,
     | "BREVO_API_KEY"
-    | "BREVO_EMAIL_FROM"
     | "BREVO_SMS_ALLOWED_RECIPIENTS"
     | "BREVO_SMS_SENDER"
     | "EXTERNAL_EFFECTS_MODE"
+    | "PLATFORM_EMAIL"
+    | "PLATFORM_EMAIL_ALLOWED_RECIPIENTS"
+    | "PLATFORM_EMAIL_FROM"
+    | "PLATFORM_EMAIL_MODE"
     | "STRIPE_SECRET_KEY"
     | "STRIPE_WEBHOOK_SECRET"
   >,
   mode: "disabled" | "fake" | "sandbox",
 ): ProviderSetupChecks {
-  const brevoEmailReady =
-    Boolean(env.BREVO_API_KEY?.trim()) && z.email().safeParse(env.BREVO_EMAIL_FROM).success;
+  const platformEmailReady =
+    Boolean(env.PLATFORM_EMAIL) &&
+    z.email().safeParse(env.PLATFORM_EMAIL_FROM).success &&
+    (env.PLATFORM_EMAIL_ALLOWED_RECIPIENTS ?? "")
+      .split(",")
+      .some((recipient) => recipient.trim().length > 0);
   const brevoSmsReady =
     Boolean(env.BREVO_SMS_SENDER?.trim()) &&
     (env.BREVO_SMS_ALLOWED_RECIPIENTS ?? "")
@@ -123,25 +130,24 @@ export function providerSetupChecks(
     mode === "fake"
       ? {
           detail:
-            "Fake mode is active, so no Brevo request is sent. Configure a Brevo API key and verified sender before sandbox or live delivery.",
+            "Fake mode is active, so no provider request is sent. Configure the Cloudflare email binding and Brevo SMS sender before sandbox delivery.",
           status: "attention" as const,
         }
       : mode === "disabled"
         ? {
-            detail:
-              "External delivery is disabled for this environment. Brevo is not sending messages.",
+            detail: "External delivery is disabled for this environment. No email or SMS is sent.",
             status: "attention" as const,
           }
-        : brevoEmailReady
+        : platformEmailReady
           ? {
               detail: brevoSmsReady
-                ? "Brevo email sandbox is configured; email is dropped by sandbox mode. SMS is restricted to the configured allowlist."
-                : "Brevo email sandbox is configured; email is dropped by sandbox mode. Add an SMS sender and allowlist only if SMS testing is needed.",
+                ? "Email sends through the Cloudflare Email Sending binding, restricted to the configured allowlist. SMS is restricted to the configured Brevo allowlist."
+                : "Email sends through the Cloudflare Email Sending binding, restricted to the configured allowlist. Add a Brevo SMS sender and allowlist only if SMS testing is needed.",
               status: "ok" as const,
             }
           : {
               detail:
-                "Add BREVO_API_KEY and a verified BREVO_EMAIL_FROM sender. Use sandbox mode to qualify email delivery before enabling live effects.",
+                "Add the PLATFORM_EMAIL binding, a PLATFORM_EMAIL_FROM sender, and a PLATFORM_EMAIL_ALLOWED_RECIPIENTS allowlist before sandbox email delivery.",
               status: "error" as const,
             };
 
