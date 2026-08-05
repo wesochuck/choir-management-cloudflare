@@ -383,6 +383,116 @@ describe("Organization queue delivery", () => {
     expect(columns.results.map((column) => column.name)).not.toContain("payload");
   });
 
+  it("requeues a terminal job with its original idempotency key and records an Organization audit event", async () => {
+    const organizationId = "organization-retry";
+    const jobId = "44444444-4444-4444-8444-444444444444";
+    const idempotencyKey = "scheduler:organization-retry:stale_checkout_cleanup:2026-07-21";
+    const stub = organizationStore.get(organizationStore.idFromName(organizationId));
+    const provisionResponse = await stub.fetch("https://organization.internal/internal/provision", {
+      body: JSON.stringify({
+        actorUserId: "platform-retry-test",
+        canonicalHostname: "retry.localhost",
+        canonicalStatus: "active",
+        name: "Retry Organization",
+        organizationId,
+        requestId: "55555555-5555-4555-8555-555555555555",
+        slug: "retry",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(provisionResponse.status).toBe(200);
+    await runInDurableObject(stub, (_instance, state) => {
+      const now = "2026-07-21T12:00:00.000Z";
+      state.storage.transactionSync(() => {
+        state.storage.sql.exec(
+          `INSERT INTO scheduled_job_outbox
+            (job_id, kind, idempotency_key, due_at, created_at)
+           VALUES (?, 'stale_checkout_cleanup', ?, ?, ?)`,
+          jobId,
+          idempotencyKey,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO job_ledger
+            (idempotency_key, job_id, kind, status, attempt, retry_count,
+             claimed_at, failed_at, terminal_at, last_error_code)
+           VALUES (?, ?, 'stale_checkout_cleanup', 'failed', 5, 4, ?, ?, ?, 'queue_dead_lettered')`,
+          idempotencyKey,
+          jobId,
+          now,
+          now,
+          now,
+        );
+      });
+    });
+
+    const retryResponse = await stub.fetch("https://organization.internal/internal/jobs/retry", {
+      body: JSON.stringify({
+        actorUserId: "platform-retry-test",
+        attempt: 1,
+        idempotencyKey,
+        jobId,
+        kind: "stale_checkout_cleanup",
+        organizationId,
+        requestId: "66666666-6666-4666-8666-666666666666",
+        version: 1,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(retryResponse.status).toBe(200);
+    await expect(retryResponse.json()).resolves.toEqual({ retryQueued: true });
+
+    const retryState = await runInDurableObject(stub, (_instance, state) => ({
+      auditCount: state.storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM audit_events WHERE action = 'organization.job.retry_requested'",
+        )
+        .one().count,
+      job: state.storage.sql
+        .exec<{
+          readonly attempt: number;
+          readonly lastErrorCode: string;
+          readonly status: string;
+        }>(
+          `SELECT attempt, last_error_code AS lastErrorCode, status
+           FROM job_ledger WHERE idempotency_key = ?`,
+          idempotencyKey,
+        )
+        .one(),
+      outbox: state.storage.sql
+        .exec<{ readonly enqueuedAt: string | null }>(
+          "SELECT enqueued_at AS enqueuedAt FROM scheduled_job_outbox WHERE job_id = ?",
+          jobId,
+        )
+        .one(),
+    }));
+    expect(retryState).toMatchObject({
+      auditCount: 1,
+      job: { attempt: 0, lastErrorCode: "platform_retry_queued", status: "failed" },
+    });
+    expect(retryState.outbox.enqueuedAt).toEqual(expect.any(String));
+
+    const replayResponse = await stub.fetch("https://organization.internal/internal/jobs/retry", {
+      body: JSON.stringify({
+        actorUserId: "platform-retry-test",
+        attempt: 1,
+        idempotencyKey,
+        jobId,
+        kind: "stale_checkout_cleanup",
+        organizationId,
+        requestId: "77777777-7777-4777-8777-777777777777",
+        version: 1,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(replayResponse.status).toBe(200);
+    await expect(replayResponse.json()).resolves.toEqual({ retryQueued: true });
+  });
+
   it("accepts and completes an event_reminder job in fake mode", async () => {
     const eventReminderJob: DeliveryJob = {
       attempt: 1,

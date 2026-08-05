@@ -53,6 +53,7 @@ export const probePlan = new Map([
   ["api.queue-settings", { kind: "skip-elevation" }],
   ["api.queue-settings-generate", { kind: "skip-elevation" }],
   ["api.platform.reconciliation-report", { kind: "skip-elevation" }],
+  ["api.platform.queue-failure-action", { kind: "skip-elevation" }],
   ["api.setup-recover-admin", { kind: "skip-elevation" }],
   ["api.test-email", { kind: "skip-elevation" }],
   ["api.test-sms", { kind: "skip-elevation" }],

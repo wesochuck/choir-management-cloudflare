@@ -976,9 +976,7 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await expect(
     organizationsSection.getByRole("heading", { name: "Organization provisioning" }),
   ).toBeVisible();
-  await expect(
-    organizationsSection.getByText("No jobs have reached the dead-letter queue."),
-  ).toBeVisible();
+  await expect(organizationsSection.getByText("Queue failures")).toHaveCount(0);
   await organizationsSection.getByRole("button", { name: "Prepare schemas" }).click();
   await expect(
     organizationsSection.getByRole("button", { name: "Preparation running" }),
@@ -992,6 +990,10 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
     "canonical hostname remains pending",
   );
   await expect(page.getByText("recovery-01")).toHaveCount(0);
+
+  await page.goto("/platform/queue-failures");
+  const queueFailuresSection = page.getByRole("region", { name: "Queue failures" });
+  await expect(queueFailuresSection.getByText("No queue failures need attention.")).toBeVisible();
 });
 
 test("enables and ends scoped Platform Administrator edit access", async ({ page }) => {

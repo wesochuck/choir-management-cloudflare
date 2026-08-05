@@ -13,6 +13,7 @@ import {
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
   platformMfaStatusResponseSchema,
+  platformJobDeadLetterActionResponseSchema,
   platformJobDeadLettersResponseSchema,
   platformFleetSchemaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
@@ -1668,6 +1669,23 @@ describe("Platform Administrator MFA", () => {
         ],
         nextCursor: null,
       });
+      const ignoredDeadLetterResponse = await fetchWorker(
+        authRequest(
+          "/api/platform/job-dead-letters/choir-management-jobs-dlq-local%3Aplatform-visible-failure/actions",
+          {
+            body: JSON.stringify({
+              action: "ignore",
+              note: "Reviewed invalid source record.",
+            }),
+            headers: { cookie: sessionCookie },
+            method: "POST",
+          },
+        ),
+      );
+      expect(ignoredDeadLetterResponse.status).toBe(200);
+      expect(
+        platformJobDeadLetterActionResponseSchema.parse(await ignoredDeadLetterResponse.json()),
+      ).toMatchObject({ deadLetter: { resolutionStatus: "ignored" } });
       const invalidDeadLetterCursorResponse = await fetchWorker(
         authRequest("/api/platform/job-dead-letters?cursor=invalid", {
           headers: { cookie: sessionCookie },
@@ -1682,6 +1700,18 @@ describe("Platform Administrator MFA", () => {
         ),
       );
       expect(scopedDeadLetterResponse.status).toBe(404);
+      const scopedDeadLetterActionResponse = await fetchWorker(
+        authRequest(
+          "/api/platform/job-dead-letters/choir-management-jobs-dlq-local%3Aplatform-visible-failure/actions",
+          {
+            body: JSON.stringify({ action: "ignore", note: "Cross-scope action must be hidden." }),
+            headers: { cookie: sessionCookie },
+            method: "POST",
+          },
+          ALPHA_AUTH_ORIGIN,
+        ),
+      );
+      expect(scopedDeadLetterActionResponse.status).toBe(404);
 
       const initialDirectoryResponse = await fetchWorker(
         authRequest("/api/platform/organizations", { headers: { cookie: sessionCookie } }),

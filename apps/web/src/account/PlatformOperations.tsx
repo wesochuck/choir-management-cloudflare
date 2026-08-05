@@ -1,6 +1,7 @@
 import type {
   PlatformContextResponse,
   PlatformFleetSchemaStatusResponse,
+  PlatformJobDeadLetterActionRequest,
   PlatformJobDeadLetterSummary,
   PlatformOrganizationContextResponse,
   PublicDomainResponse,
@@ -10,6 +11,7 @@ import { useEffect, useState } from "react";
 
 import {
   AuthApiError,
+  actOnPlatformJobDeadLetter,
   createPlatformElevation,
   getPlatformOrganizationContext,
   getPlatformFleetSchemaStatus,
@@ -39,9 +41,11 @@ type DeadLetterState =
   | { readonly status: "loading" }
   | {
       readonly deadLetters: readonly PlatformJobDeadLetterSummary[];
-      readonly hasMore: boolean;
+      readonly nextCursor: string | null;
       readonly status: "ready";
     };
+
+type DeadLetterAction = PlatformJobDeadLetterActionRequest["action"];
 
 type FleetSchemaState =
   | { readonly status: "error" }
@@ -92,7 +96,7 @@ function organizationAccessHref(hostname: string): string {
   return `${protocol}//${hostname}/platform/access`;
 }
 
-function platformOrganizationsHref(): string {
+function platformControlPlaneHref(pathname: string): string {
   const { hostname, port, protocol } = window.location;
   const isIpv4Address = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
   const baseHostname = hostname.endsWith(".localhost")
@@ -101,7 +105,15 @@ function platformOrganizationsHref(): string {
       ? hostname
       : hostname.split(".").slice(1).join(".");
   const authority = baseHostname === "localhost" && port ? `${baseHostname}:${port}` : baseHostname;
-  return `${protocol}//${authority}/platform/organizations`;
+  return `${protocol}//${authority}${pathname}`;
+}
+
+function platformOrganizationsHref(): string {
+  return platformControlPlaneHref("/platform/organizations");
+}
+
+function platformQueueFailuresHref(): string {
+  return platformControlPlaneHref("/platform/queue-failures");
 }
 
 function organizationStatus(organization: PlatformOrganizationSummary): string {
@@ -253,11 +265,15 @@ function PlatformOrganizationDomains({ organizationId }: { readonly organization
           <label htmlFor={`platform-domain-${organizationId}`}>Hostname</label>
           <div className="platform-domain-form__controls">
             <input
+              autoCapitalize="none"
+              autoComplete="off"
               id={`platform-domain-${organizationId}`}
+              inputMode="url"
               onChange={(event) => {
                 setHostname(event.target.value);
               }}
               placeholder="tickets.example.org"
+              spellCheck={false}
               value={hostname}
             />
             <button className="button button--secondary" disabled={busy} type="submit">
@@ -270,8 +286,26 @@ function PlatformOrganizationDomains({ organizationId }: { readonly organization
   );
 }
 
-function QueueDeadLetterDirectory() {
+function queueFailureStatusLabel(status: PlatformJobDeadLetterSummary["resolutionStatus"]): string {
+  switch (status) {
+    case "ignored":
+      return "Ignored";
+    case "resolved":
+      return "Resolved";
+    case "retry_queued":
+      return "Retry queued";
+    case "open":
+      return "Needs attention";
+  }
+}
+
+function QueueFailuresDirectory() {
   const [deadLetters, setDeadLetters] = useState<DeadLetterState>({ status: "loading" });
+  const [actionBusy, setActionBusy] = useState<Record<string, DeadLetterAction | undefined>>({});
+  const [actionErrors, setActionErrors] = useState<Record<string, string | undefined>>({});
+  const [listError, setListError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [notes, setNotes] = useState<Record<string, string | undefined>>({});
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -279,7 +313,7 @@ function QueueDeadLetterDirectory() {
       .then((result) => {
         setDeadLetters({
           deadLetters: result.deadLetters,
-          hasMore: result.nextCursor !== null,
+          nextCursor: result.nextCursor,
           status: "ready",
         });
       })
@@ -293,41 +327,242 @@ function QueueDeadLetterDirectory() {
     };
   }, []);
 
+  async function loadMore() {
+    if (deadLetters.status !== "ready" || !deadLetters.nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    setListError(null);
+    try {
+      const result = await listPlatformJobDeadLetters(deadLetters.nextCursor);
+      setDeadLetters((current) =>
+        current.status === "ready"
+          ? {
+              deadLetters: [...current.deadLetters, ...result.deadLetters],
+              nextCursor: result.nextCursor,
+              status: "ready",
+            }
+          : current,
+      );
+    } catch {
+      setListError("More queue failures could not be loaded. Refresh and try again.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  async function act(deadLetter: PlatformJobDeadLetterSummary, action: DeadLetterAction) {
+    const note = notes[deadLetter.id]?.trim() ?? "";
+    if (note.length < 3) {
+      setActionErrors((current) => ({
+        ...current,
+        [deadLetter.id]: "Add a short operator note before recording this action.",
+      }));
+      return;
+    }
+    setActionErrors((current) => ({ ...current, [deadLetter.id]: undefined }));
+    setActionBusy((current) => ({ ...current, [deadLetter.id]: action }));
+    try {
+      const result = await actOnPlatformJobDeadLetter(deadLetter.id, { action, note });
+      setDeadLetters((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              deadLetters: current.deadLetters.map((item) =>
+                item.id === result.deadLetter.id ? result.deadLetter : item,
+              ),
+            }
+          : current,
+      );
+    } catch (error: unknown) {
+      setActionErrors((current) => ({
+        ...current,
+        [deadLetter.id]:
+          error instanceof AuthApiError
+            ? error.message
+            : "The queue failure action could not be completed. Refresh and try again.",
+      }));
+    } finally {
+      setActionBusy((current) => ({ ...current, [deadLetter.id]: undefined }));
+    }
+  }
+
   return (
-    <div className="platform-directory" aria-live="polite">
-      <h4>Queue dead letters</h4>
-      <p>Operational metadata only. Message payloads are never copied into the control plane.</p>
+    <div className="platform-directory platform-queue-failures" aria-live="polite">
+      <div className="section-heading section-heading--nested">
+        <h4>Queue failures</h4>
+        <p>
+          These are background jobs that exhausted their automatic retries. Fix the underlying
+          provider or configuration issue, then retry the stored Organization job. The original
+          idempotency key is preserved, and message payloads are never copied into the control
+          plane.
+        </p>
+      </div>
       {deadLetters.status === "loading" ? <p>Loading queue failures…</p> : null}
       {deadLetters.status === "error" ? (
         <p className="notice notice--error" role="alert">
-          Queue dead-letter visibility could not be loaded. Refresh and try again.
+          Queue failures could not be loaded. Refresh and try again.
         </p>
       ) : null}
       {deadLetters.status === "ready" && deadLetters.deadLetters.length === 0 ? (
-        <p className="empty-state">No jobs have reached the dead-letter queue.</p>
+        <p className="empty-state">No queue failures need attention.</p>
       ) : null}
       {deadLetters.status === "ready" && deadLetters.deadLetters.length > 0 ? (
-        <ul className="account-list platform-dead-letter-list">
-          {deadLetters.deadLetters.map((deadLetter) => (
-            <li key={`${deadLetter.queueName}:${deadLetter.messageId}`}>
-              <div>
-                <h5>{deadLetter.jobKind ?? "Invalid queue message"}</h5>
-                <p>
-                  {deadLetter.organizationId ?? "No validated Organization"} · observed{" "}
-                  {displayDate(deadLetter.lastSeenAt)}
-                </p>
-                <span className="status-pill">
-                  {deadLetter.observationCount === 1
-                    ? "Recorded once"
-                    : `Recorded ${String(deadLetter.observationCount)} times`}
-                </span>
-              </div>
-            </li>
-          ))}
+        <ul className="account-list platform-queue-failure-list">
+          {/* eslint-disable-next-line complexity -- renders independent metadata and action states for each queue failure. */}
+          {deadLetters.deadLetters.map((deadLetter) => {
+            const closed =
+              deadLetter.resolutionStatus === "resolved" ||
+              deadLetter.resolutionStatus === "ignored";
+            const retryable =
+              deadLetter.messageValid &&
+              deadLetter.organizationId !== null &&
+              deadLetter.jobId !== null;
+            return (
+              <li className="platform-queue-failure" key={deadLetter.id}>
+                <div className="platform-queue-failure__header">
+                  <div>
+                    <p className="eyebrow">{deadLetter.jobKind ?? "Invalid queue message"}</p>
+                    <h5>
+                      {deadLetter.organizationName ??
+                        deadLetter.organizationId ??
+                        "No validated Organization"}
+                    </h5>
+                    <p>
+                      Observed {displayDate(deadLetter.lastSeenAt)} ·{" "}
+                      {deadLetter.observationCount === 1
+                        ? "recorded once"
+                        : `recorded ${String(deadLetter.observationCount)} times`}
+                    </p>
+                  </div>
+                  <span className={`status-pill status-pill--${deadLetter.resolutionStatus}`}>
+                    {queueFailureStatusLabel(deadLetter.resolutionStatus)}
+                  </span>
+                </div>
+                <dl className="platform-queue-failure__metadata">
+                  <div>
+                    <dt>Organization</dt>
+                    <dd>
+                      {deadLetter.organizationHostname ? (
+                        <a href={organizationAccessHref(deadLetter.organizationHostname)}>
+                          {deadLetter.organizationHostname}
+                        </a>
+                      ) : (
+                        "Not available"
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Queue</dt>
+                    <dd>
+                      <code>{deadLetter.queueName}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Attempt</dt>
+                    <dd>{String(deadLetter.observedAttempt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Message ID</dt>
+                    <dd>
+                      <code>{deadLetter.messageId}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Stable job key</dt>
+                    <dd>
+                      <code>{deadLetter.idempotencyKey ?? "Unavailable"}</code>
+                    </dd>
+                  </div>
+                </dl>
+                {deadLetter.resolutionStatus === "retry_queued" ? (
+                  <p className="field-help">
+                    Retry was queued with the same job identity. Verify the source result before
+                    marking this record resolved.
+                  </p>
+                ) : null}
+                {closed ? (
+                  <p className="field-help">
+                    {deadLetter.resolutionNote || "No operator note was recorded."}
+                  </p>
+                ) : (
+                  <div className="platform-queue-failure__actions">
+                    <div className="field">
+                      <label htmlFor={`queue-failure-note-${deadLetter.id}`}>Operator note</label>
+                      <textarea
+                        id={`queue-failure-note-${deadLetter.id}`}
+                        maxLength={500}
+                        onChange={(event) => {
+                          setNotes((current) => ({
+                            ...current,
+                            [deadLetter.id]: event.target.value,
+                          }));
+                        }}
+                        placeholder="What was checked or changed?"
+                        rows={2}
+                        value={notes[deadLetter.id] ?? ""}
+                      />
+                    </div>
+                    <div className="platform-queue-failure__buttons">
+                      {deadLetter.resolutionStatus === "open" ? (
+                        <button
+                          className="button button--primary"
+                          disabled={actionBusy[deadLetter.id] !== undefined || !retryable}
+                          onClick={() => {
+                            void act(deadLetter, "retry");
+                          }}
+                          type="button"
+                        >
+                          {actionBusy[deadLetter.id] === "retry" ? "Queueing retry…" : "Retry job"}
+                        </button>
+                      ) : null}
+                      <button
+                        className="button button--secondary"
+                        disabled={actionBusy[deadLetter.id] !== undefined}
+                        onClick={() => {
+                          void act(deadLetter, "resolve");
+                        }}
+                        type="button"
+                      >
+                        {actionBusy[deadLetter.id] === "resolve" ? "Saving…" : "Mark resolved"}
+                      </button>
+                      <button
+                        className="button button--danger"
+                        disabled={actionBusy[deadLetter.id] !== undefined}
+                        onClick={() => {
+                          void act(deadLetter, "ignore");
+                        }}
+                        type="button"
+                      >
+                        {actionBusy[deadLetter.id] === "ignore" ? "Saving…" : "Ignore"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {actionErrors[deadLetter.id] ? (
+                  <p className="notice notice--error" role="alert">
+                    {actionErrors[deadLetter.id]}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
-      {deadLetters.status === "ready" && deadLetters.hasMore ? (
-        <p>Showing the 25 most recent queue failures.</p>
+      {deadLetters.status === "ready" && deadLetters.nextCursor ? (
+        <button
+          className="button button--secondary platform-load-more"
+          disabled={loadingMore}
+          onClick={() => {
+            void loadMore();
+          }}
+          type="button"
+        >
+          {loadingMore ? "Loading…" : "Load more queue failures"}
+        </button>
+      ) : null}
+      {listError ? (
+        <p className="notice notice--error" role="alert">
+          {listError}
+        </p>
       ) : null}
     </div>
   );
@@ -642,7 +877,6 @@ function OrganizationDirectory() {
         ) : null}
       </div>
 
-      <QueueDeadLetterDirectory />
       <FleetSchemaPreparation />
     </div>
   );
@@ -799,7 +1033,7 @@ function OrganizationElevation({ organizationId }: { readonly organizationId: st
   );
 }
 
-export type PlatformOperationsMode = "access" | "organizations";
+export type PlatformOperationsMode = "access" | "organizations" | "queue_failures";
 
 function OrganizationsUnavailable() {
   return (
@@ -807,6 +1041,15 @@ function OrganizationsUnavailable() {
       The Organization directory is available from the platform control-plane host. Open it here to
       provision and monitor Organizations:{" "}
       <a href={platformOrganizationsHref()}>Platform Organizations</a>.
+    </p>
+  );
+}
+
+function QueueFailuresUnavailable() {
+  return (
+    <p className="notice notice--warning" role="status">
+      Queue failures are available from the product-base Platform Administrator console. Open them
+      here: <a href={platformQueueFailuresHref()}>Queue failures</a>.
     </p>
   );
 }
@@ -828,6 +1071,13 @@ export function PlatformOperations({
 }) {
   if (mode === "organizations") {
     return scope.kind === "product_base" ? <OrganizationDirectory /> : <OrganizationsUnavailable />;
+  }
+  if (mode === "queue_failures") {
+    return scope.kind === "product_base" ? (
+      <QueueFailuresDirectory />
+    ) : (
+      <QueueFailuresUnavailable />
+    );
   }
   return scope.kind === "organization" ? (
     <OrganizationElevation organizationId={scope.organizationId} />

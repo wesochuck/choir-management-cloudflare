@@ -54,7 +54,11 @@
 
 - At-least-once delivery is expected. Do not manually duplicate a message with a new idempotency
   key.
-- Inspect safe job metadata, correct the provider/configuration cause, then replay through a bounded
-  operator path that retains the original effect identity.
+- Open Platform Admin → Queue failures. Inspect the Organization, queue, attempt, message ID, and
+  stable job key; payloads are intentionally unavailable in the control plane.
+- Correct the provider/configuration cause, then use Retry job. The bounded replay path reconstructs
+  the stored Organization job and retains its original effect identity. Review the source result
+  before marking the record resolved; use Ignore only when the failure is understood and no replay
+  is required.
 - Record terminal state and operator action in Organization Audit History when user-visible behavior
   changes.

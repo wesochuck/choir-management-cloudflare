@@ -53,6 +53,11 @@ export function OverviewPage({
           label: "Platform security",
           text: "Verify Platform Administrator MFA.",
         },
+        {
+          href: "/platform/queue-failures",
+          label: "Queue failures",
+          text: "Review and safely replay failed background jobs.",
+        },
       ]
     : [
         {
@@ -218,6 +223,9 @@ export function PlatformWorkspacePage({
   }
   if (pathname === "/platform/access") {
     return <PlatformAccess view="access" />;
+  }
+  if (pathname === "/platform/queue-failures") {
+    return <PlatformAccess view="queue_failures" />;
   }
   return <PlatformAccess view="security" />;
 }

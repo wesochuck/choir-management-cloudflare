@@ -66,6 +66,7 @@ const expectedApiRoutes = [
   "DELETE /api/organization/auditions/:auditionId",
   "POST /api/organization/auditions/:auditionId/convert",
   "PUT /api/organization/auditions/:auditionId",
+  "POST /api/platform/job-dead-letters/:deadLetterId/actions",
 ];
 const expectedBrowserRoutes = [
   "/",
@@ -113,6 +114,7 @@ const expectedBrowserRoutes = [
   "/platform",
   "/platform/access",
   "/platform/organizations",
+  "/platform/queue-failures",
   "/platform/security",
   "/player",
   "/poll",

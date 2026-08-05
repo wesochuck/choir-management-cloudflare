@@ -65,6 +65,7 @@ export type PlatformOrganizationPublicDomainsResponse = z.infer<
 
 export const platformJobDeadLetterSummarySchema = z.object({
   firstSeenAt: z.iso.datetime(),
+  id: z.string().min(1).max(512),
   idempotencyKey: z.string().min(1).max(256).nullable(),
   jobId: z.uuid().nullable(),
   jobKind: z
@@ -72,8 +73,10 @@ export const platformJobDeadLetterSummarySchema = z.object({
       "attendance_report",
       "audition_notification",
       "communication_delivery",
+      "event_reminder",
       "organization_export",
       "payment_notification",
+      "rsvp_follow_up",
       "stale_checkout_cleanup",
       "ticket_notification",
     ])
@@ -84,7 +87,14 @@ export const platformJobDeadLetterSummarySchema = z.object({
   observationCount: z.number().int().positive(),
   observedAttempt: z.number().int().nonnegative(),
   organizationId: organizationIdSchema.nullable(),
+  organizationHostname: z.string().min(1).max(253).nullable(),
+  organizationName: z.string().min(1).max(120).nullable(),
   queueName: z.string().min(1).max(128),
+  resolutionActorUserId: z.string().min(1).max(128).nullable(),
+  resolutionNote: z.string().max(500),
+  resolutionStatus: z.enum(["open", "retry_queued", "resolved", "ignored"]),
+  resolutionAt: z.iso.datetime().nullable(),
+  retryCount: z.number().int().nonnegative(),
 });
 
 export const platformJobDeadLettersResponseSchema = z.object({
@@ -95,6 +105,24 @@ export const platformJobDeadLettersResponseSchema = z.object({
 
 export type PlatformJobDeadLetterSummary = z.infer<typeof platformJobDeadLetterSummarySchema>;
 export type PlatformJobDeadLettersResponse = z.infer<typeof platformJobDeadLettersResponseSchema>;
+
+export const platformJobDeadLetterActionRequestSchema = z.object({
+  action: z.enum(["ignore", "resolve", "retry"]),
+  note: z.string().trim().min(3).max(500),
+});
+
+export type PlatformJobDeadLetterActionRequest = z.infer<
+  typeof platformJobDeadLetterActionRequestSchema
+>;
+
+export const platformJobDeadLetterActionResponseSchema = z.object({
+  deadLetter: platformJobDeadLetterSummarySchema,
+  requestId: requestIdSchema,
+});
+
+export type PlatformJobDeadLetterActionResponse = z.infer<
+  typeof platformJobDeadLetterActionResponseSchema
+>;
 
 export const platformFleetSchemaPreparationSchema = z.object({
   completedAt: z.iso.datetime().nullable(),

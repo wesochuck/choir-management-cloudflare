@@ -39,6 +39,7 @@ import { recordProviderRefundRequestedInStore } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
 import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
 import { ensurePracticePlayerLinkInStore } from "../playerLinkStore";
+import { retryJobInStore } from "../retryJob";
 
 import {
   provisionOrganizationStore,
@@ -151,7 +152,7 @@ export async function dispatchPostRequest(
     const result = await runOrganizationAlarm(storage, queue);
     return Response.json({ ...result, ranAt: new Date().toISOString() });
   }
-  return dispatchOperationalPostRequest(storage, pathname, request);
+  return dispatchOperationalPostRequest(storage, queue, pathname, request);
 }
 
 export async function auditionCreateHandler(
@@ -370,6 +371,7 @@ export async function dispatchAuditionPostRequest(
 
 export async function dispatchOperationalPostRequest(
   storage: DurableObjectStorage,
+  queue: Queue<DeliveryJob>,
   pathname: string,
   request: Request,
 ): Promise<Response | null> {
@@ -384,6 +386,8 @@ export async function dispatchOperationalPostRequest(
       return failJob(storage, request);
     case "/internal/jobs/terminal":
       return terminalJob(storage, request);
+    case "/internal/jobs/retry":
+      return retryJobInStore(storage, queue, await request.json().catch(() => null));
     case "/internal/calendar/credential":
       return manageCalendarCredential(storage, request);
     case "/internal/calendar/feed":

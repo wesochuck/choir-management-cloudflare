@@ -6,6 +6,8 @@ import {
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
   platformFleetSchemaStatusResponseSchema,
+  platformJobDeadLetterActionRequestSchema,
+  platformJobDeadLetterActionResponseSchema,
   platformJobDeadLettersResponseSchema,
   platformElevationRevocationResponseSchema,
   platformMfaStatusResponseSchema,
@@ -22,6 +24,8 @@ import {
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
   type PlatformFleetSchemaStatusResponse,
+  type PlatformJobDeadLetterActionRequest,
+  type PlatformJobDeadLetterActionResponse,
   type PlatformJobDeadLettersResponse,
   type PlatformOrganizationContextResponse,
   type PlatformOrganizationPublicDomainsResponse,
@@ -173,6 +177,20 @@ export async function listPlatformJobDeadLetters(
     signal: signal ?? null,
   });
   return platformJobDeadLettersResponseSchema.parse(await response.json());
+}
+
+export async function actOnPlatformJobDeadLetter(
+  deadLetterId: string,
+  action: PlatformJobDeadLetterActionRequest,
+): Promise<PlatformJobDeadLetterActionResponse> {
+  const response = await request(
+    `/api/platform/job-dead-letters/${encodeURIComponent(deadLetterId)}/actions`,
+    {
+      body: JSON.stringify(platformJobDeadLetterActionRequestSchema.parse(action)),
+      method: "POST",
+    },
+  );
+  return platformJobDeadLetterActionResponseSchema.parse(await response.json());
 }
 
 export async function getPlatformFleetSchemaStatus(

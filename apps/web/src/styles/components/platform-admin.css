@@ -740,8 +740,23 @@
   }
 
   .signed-in-main.signed-in-main--platform .platform-domain-form__controls input {
+    height: var(--control-height);
     min-width: 0;
+    min-height: var(--control-height);
     flex: 1;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-tight);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-form__controls input::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.9;
   }
 
   .signed-in-main.signed-in-main--platform .platform-organization-actions {
@@ -765,42 +780,119 @@
     margin: 0;
   }
 
-  .signed-in-main.signed-in-main--platform .platform-dead-letter-list {
+  .signed-in-main.signed-in-main--platform .platform-queue-failure-list {
     display: grid;
-    gap: 0.6rem;
+    gap: 1rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .signed-in-main.signed-in-main--platform .platform-dead-letter-list > li {
+  .signed-in-main.signed-in-main--platform .platform-queue-failure {
     display: grid;
-    align-items: start;
-    gap: 0.3rem;
+    gap: 1rem;
     min-width: 0;
-    padding: 0.85rem 1rem;
+    padding: 1rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    background: var(--color-surface-raised);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
   }
 
-  .signed-in-main.signed-in-main--platform .platform-dead-letter-list h5,
-  .signed-in-main.signed-in-main--platform .platform-dead-letter-list p {
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__header h5,
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__header p {
     margin: 0;
   }
 
-  .signed-in-main.signed-in-main--platform .platform-dead-letter-list h5 {
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__header h5 {
     font-size: var(--font-size-base);
   }
 
-  .signed-in-main.signed-in-main--platform .platform-dead-letter-list p {
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__header p:not(.eyebrow) {
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
 
-  .signed-in-main.signed-in-main--platform .platform-dead-letter-list .status-pill {
-    justify-self: start;
-    margin: 0.25rem 0 0;
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__header .status-pill {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__metadata {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0;
+    padding: 0.85rem 0;
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__metadata div {
+    min-width: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__metadata dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__metadata dd {
+    margin: 0.2rem 0 0;
+    overflow-wrap: anywhere;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__metadata code {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__actions {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__actions .field {
+    max-width: 42rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-queue-failure .notice {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .status-pill--open {
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    color: var(--color-accent);
+  }
+
+  .signed-in-main.signed-in-main--platform .status-pill--retry_queued {
+    background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+    color: var(--color-primary);
+  }
+
+  .signed-in-main.signed-in-main--platform .status-pill--resolved {
+    background: color-mix(in srgb, var(--color-success) 16%, transparent);
+    color: var(--color-success);
+  }
+
+  .signed-in-main.signed-in-main--platform .status-pill--ignored {
+    background: color-mix(in srgb, var(--color-text-muted) 18%, transparent);
+    color: var(--color-text-muted);
   }
 
   .signed-in-main.signed-in-main--platform .platform-elevation-form,
@@ -894,6 +986,14 @@
     .signed-in-main.signed-in-main--platform .platform-elevation-active .button {
       justify-self: start;
     }
+
+    .signed-in-main.signed-in-main--platform .platform-queue-failure__header {
+      flex-direction: column;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-queue-failure__metadata {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 40rem) {
@@ -905,6 +1005,15 @@
     .signed-in-main.signed-in-main--platform .platform-organization-actions {
       grid-column: 1;
       grid-row: auto;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-queue-failure__metadata {
+      grid-template-columns: 1fr;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-queue-failure__buttons {
+      align-items: stretch;
+      flex-direction: column;
     }
   }
 }

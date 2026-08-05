@@ -304,7 +304,7 @@ async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
   }
 }
 
-type PlatformAccessView = "access" | "organizations" | "security";
+type PlatformAccessView = "access" | "organizations" | "queue_failures" | "security";
 
 interface PlatformAccessProps {
   readonly view?: PlatformAccessView;
@@ -327,6 +327,13 @@ function viewCopy(view: PlatformAccessView): {
       eyebrow: "Platform operations",
       title: "Organization access",
       titleId: "platform-access-title",
+    };
+  }
+  if (view === "queue_failures") {
+    return {
+      eyebrow: "Platform operations",
+      title: "Queue failures",
+      titleId: "platform-queue-failures-title",
     };
   }
   return {

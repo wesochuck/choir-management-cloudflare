@@ -509,7 +509,14 @@ export interface PlatformDeadLetterRow {
   readonly observationCount: number;
   readonly observedAttempt: number;
   readonly organizationId: string | null;
+  readonly organizationHostname: string | null;
+  readonly organizationName: string | null;
   readonly queueName: string;
+  readonly resolutionActorUserId: string | null;
+  readonly resolutionAt: string | null;
+  readonly resolutionNote: string;
+  readonly resolutionStatus: "ignored" | "open" | "resolved" | "retry_queued";
+  readonly retryCount: number;
 }
 
 export interface PlatformCountRow {
