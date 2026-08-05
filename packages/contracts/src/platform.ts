@@ -70,8 +70,10 @@ export const platformJobDeadLetterSummarySchema = z.object({
   jobKind: z
     .enum([
       "attendance_report",
+      "audition_notification",
       "communication_delivery",
       "organization_export",
+      "payment_notification",
       "stale_checkout_cleanup",
       "ticket_notification",
     ])
