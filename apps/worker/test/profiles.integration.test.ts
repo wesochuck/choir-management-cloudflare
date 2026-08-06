@@ -2,6 +2,7 @@ import {
   organizationProfileSchema,
   organizationProfileResponseSchema,
   organizationProfileImportResponseSchema,
+  organizationProfileDeliveriesResponseSchema,
   organizationProfilesResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
@@ -314,5 +315,117 @@ describe("Organization Profiles", () => {
           .one().count,
     );
     expect(auditCount).toBe(2);
+  });
+});
+
+describe("provider bounces and delivery history", () => {
+  it("records a hard bounce, suppresses the profile, and exposes delivery history", async () => {
+    const organizationId = "organization-alpha";
+    const profileId = "33333333-3333-4333-8333-333333333333";
+    const requestId = "44444444-4444-4444-8444-444444444444";
+    const now = "2026-08-05T12:00:00.000Z";
+    const stub = organizationStore.get(organizationStore.idFromName(organizationId));
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        profileId,
+        "Bounced Singer",
+        now,
+        now,
+      );
+    });
+
+    const bounceResponse = await stub.fetch(
+      "https://organization.internal/internal/profiles/bounce",
+      {
+        body: JSON.stringify({
+          hard: true,
+          organizationId,
+          profileId,
+          reason: "550 5.1.1 User unknown",
+          requestId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(bounceResponse.status).toBe(200);
+
+    const state = await runInDurableObject<
+      OrganizationStore,
+      {
+        readonly auditCount: number;
+        readonly doNotEmail: number;
+        readonly lastBounceAt: string;
+        readonly suppressionReason: string;
+        readonly suppressionCount: number;
+      }
+    >(stub, (_instance, s) => {
+      const profile = s.storage.sql
+        .exec<{
+          readonly bounceReason: string;
+          readonly doNotEmail: number;
+          readonly lastBounceAt: string;
+        }>(
+          "SELECT do_not_email AS doNotEmail, last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason FROM profiles WHERE id = ?",
+          profileId,
+        )
+        .one();
+      const suppression = s.storage.sql
+        .exec<{ readonly reason: string }>(
+          "SELECT reason FROM communication_suppressions WHERE profile_id = ? AND channel = 'email'",
+          profileId,
+        )
+        .toArray();
+      const audit = s.storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM audit_events WHERE target_id = ? AND action = 'profile.email_bounced_hard'",
+          profileId,
+        )
+        .one();
+      return {
+        auditCount: audit.count,
+        doNotEmail: profile.doNotEmail,
+        lastBounceAt: profile.lastBounceAt,
+        suppressionCount: suppression.length,
+        suppressionReason: suppression[0]?.reason ?? "",
+      };
+    });
+    expect(state.doNotEmail).toBe(1);
+    expect(new Date(state.lastBounceAt).toISOString()).toBe(state.lastBounceAt);
+    expect(state.suppressionCount).toBe(1);
+    expect(state.suppressionReason).toBe("provider");
+    expect(state.auditCount).toBe(1);
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, s) => {
+      s.storage.sql.exec(
+        `INSERT INTO communication_deliveries
+          (id, message_id, profile_id, recipient_name, channel, destination, status, attempts, created_at, updated_at)
+         VALUES (?, ?, ?, 'Bounced Singer', 'email', 'bounced@example.test', 'failed', 1, ?, ?)`,
+        "delivery-1",
+        "55555555-5555-4555-8555-555555555555",
+        profileId,
+        now,
+        now,
+      );
+    });
+
+    const deliveriesUrl = new URL(
+      "https://organization.internal/internal/communications/deliveries",
+    );
+    deliveriesUrl.searchParams.set("organizationId", organizationId);
+    deliveriesUrl.searchParams.set("profileId", profileId);
+    const deliveriesResponse = await stub.fetch(deliveriesUrl);
+    expect(deliveriesResponse.status).toBe(200);
+    const deliveriesBody = organizationProfileDeliveriesResponseSchema
+      .omit({ requestId: true })
+      .parse(await deliveriesResponse.json());
+    expect(deliveriesBody.deliveries).toHaveLength(1);
+    expect(deliveriesBody.deliveries[0]).toMatchObject({
+      destination: "bounced@example.test",
+      status: "failed",
+      subject: "(no subject)",
+    });
   });
 });

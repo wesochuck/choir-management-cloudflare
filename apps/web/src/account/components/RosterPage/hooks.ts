@@ -3,6 +3,7 @@ import { organizationInvitationRequestSchema } from "@choir/contracts";
 import { emptyProfile, profileMatchesVoiceFilters, profileRequestFrom } from "./utils";
 import type {
   PerformanceHistoryState,
+  ProfileDeliveriesState,
   ProfileDuesState,
   ProfileFolderNumbersState,
   ProfileStatusHistoryState,
@@ -23,6 +24,7 @@ import {
   createOrganizationProfile,
   createOrganizationInvitation,
   getOrganizationRosterConfiguration,
+  getOrganizationProfileDeliveries,
   getOrganizationProfilePerformanceHistory,
   getOrganizationProfileStatusHistory,
   getOrganizationProfileFolderNumbers,
@@ -76,6 +78,9 @@ export function useRosterPageController({
   });
   const [profileDues, setProfileDues] = useState<ProfileDuesState>({ status: "idle" });
   const [profileFolderNumbers, setProfileFolderNumbers] = useState<ProfileFolderNumbersState>({
+    status: "idle",
+  });
+  const [profileDeliveries, setProfileDeliveries] = useState<ProfileDeliveriesState>({
     status: "idle",
   });
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
@@ -133,6 +138,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: initialProfileTab === "dues" ? "loading" : "idle" });
     setProfileFolderNumbers({ status: initialProfileTab === "folders" ? "loading" : "idle" });
+    setProfileDeliveries({ status: initialProfileTab === "messages" ? "loading" : "idle" });
     setResetFeedback(null);
     setError(null);
     setSuccess(null);
@@ -183,6 +189,23 @@ export function useRosterPageController({
       .catch((folderError: unknown) => {
         if (!(folderError instanceof DOMException && folderError.name === "AbortError")) {
           setProfileFolderNumbers({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [dialogOpen, editingId, profileTab]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingId || profileTab !== "messages") return;
+    const controller = new AbortController();
+    getOrganizationProfileDeliveries(editingId, controller.signal)
+      .then((data) => {
+        setProfileDeliveries({ data, status: "ready" });
+      })
+      .catch((deliveriesError: unknown) => {
+        if (!(deliveriesError instanceof DOMException && deliveriesError.name === "AbortError")) {
+          setProfileDeliveries({ status: "error" });
         }
       });
     return () => {
@@ -332,6 +355,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setProfileDeliveries({ status: "idle" });
     setResetFeedback(null);
     setError(null);
   }
@@ -397,6 +421,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setProfileDeliveries({ status: "idle" });
     setProfile(emptyProfile);
     setProfileEmail("");
     setProfilePhotoFileId(null);
@@ -413,6 +438,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setProfileDeliveries({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
     setProfileEmail(
@@ -565,6 +591,7 @@ export function useRosterPageController({
     performanceHistory,
     performerLabel,
     profile,
+    profileDeliveries,
     profileDues,
     profileEmail,
     profileFolderNumbers,
@@ -588,6 +615,7 @@ export function useRosterPageController({
     setImportDialogOpen,
     setPerformanceHistory,
     setProfile,
+    setProfileDeliveries,
     setProfileDues,
     setProfileEmail,
     setProfileFolderNumbers,

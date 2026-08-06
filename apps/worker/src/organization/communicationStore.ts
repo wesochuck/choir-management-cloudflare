@@ -969,6 +969,58 @@ export function listMemberBulletinsFromStore(
   return Response.json({ bulletins });
 }
 
+interface ProfileDeliveryRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly attempts: number;
+  readonly channel: "email" | "sms";
+  readonly destination: string;
+  readonly failureDetail: string;
+  readonly lastAttemptAt: string | null;
+  readonly messageId: string;
+  readonly recipientName: string;
+  readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
+  readonly subject: string | null;
+  readonly updatedAt: string;
+}
+
+export function listProfileDeliveriesFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly organizationId: string | null; readonly profileId: string | null },
+): Response {
+  if (!input.organizationId || !identityMatches(storage, input.organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const profileId = z.uuid().safeParse(input.profileId);
+  if (!profileId.success) return Response.json({ code: "profile_not_found" }, { status: 404 });
+  const rows = storage.sql
+    .exec<ProfileDeliveryRow>(
+      `SELECT d.id, d.message_id AS messageId, m.subject, d.recipient_name AS recipientName,
+         d.channel, d.destination, d.status, d.attempts,
+         d.failure_detail AS failureDetail, d.last_attempt_at AS lastAttemptAt,
+         d.updated_at AS updatedAt
+       FROM communication_deliveries d
+       LEFT JOIN communication_messages m ON m.id = d.message_id
+       WHERE d.profile_id = ?
+       ORDER BY COALESCE(d.last_attempt_at, d.updated_at) DESC, d.id DESC
+       LIMIT 25`,
+      profileId.data,
+    )
+    .toArray()
+    .map((row) => ({
+      attempts: row.attempts,
+      channel: row.channel,
+      destination: row.destination,
+      failureDetail: row.failureDetail,
+      lastAttemptAt: row.lastAttemptAt ?? row.updatedAt,
+      messageId: row.messageId,
+      recipientName: row.recipientName,
+      status: row.status,
+      subject: row.subject ?? "(no subject)",
+      updatedAt: row.updatedAt,
+    }));
+  return Response.json({ deliveries: rows });
+}
+
 interface ScheduledTicketMessageRow {
   readonly [column: string]: SqlStorageValue;
   readonly eventId: string | null;

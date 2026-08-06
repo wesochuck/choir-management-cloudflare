@@ -7,7 +7,7 @@ import {
 } from "../../../auth/api";
 
 import { duesStatusLabel, formatDuesAmount, formatPerformanceDate } from "./utils";
-import type { ProfileDuesState, ProfileFolderNumbersState } from "./types";
+import type { ProfileDeliveriesState, ProfileDuesState, ProfileFolderNumbersState } from "./types";
 
 export function ProfileFolderNumbers({
   onFolderNumberChanged,
@@ -254,4 +254,62 @@ export function ProfileDues({
       </div>
     </div>
   );
+}
+
+export function ProfileMessages({ state }: { readonly state: ProfileDeliveriesState }) {
+  if (state.status === "loading") {
+    return <p className="notice notice--info">Loading message history…</p>;
+  }
+  if (state.status === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Message history could not be loaded. Try again later.
+      </p>
+    );
+  }
+  if (state.status !== "ready") return null;
+  if (state.data.deliveries.length === 0) {
+    return <p className="empty-state">No messages have been delivered to this profile yet.</p>;
+  }
+  return (
+    <ul className="account-list">
+      {state.data.deliveries.map((delivery) => (
+        <li key={delivery.messageId}>
+          <div className="profile-delivery-row">
+            <div className="profile-delivery-row__meta">
+              <strong>{delivery.subject}</strong>
+              <small className="table-secondary">
+                {formatDeliveryDate(delivery.lastAttemptAt)} · {delivery.channel.toUpperCase()} ·{" "}
+                {maskDestination(delivery.destination)}
+              </small>
+            </div>
+            <span className={`status-pill status-pill--${delivery.status}`}>
+              {delivery.status.charAt(0).toUpperCase() + delivery.status.slice(1)}
+            </span>
+          </div>
+          {delivery.failureDetail ? <p className="field-help">{delivery.failureDetail}</p> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function maskDestination(destination: string): string {
+  if (destination.includes("@")) {
+    const [local, domain] = destination.split("@");
+    if (local !== undefined && domain !== undefined) {
+      const visible = local.slice(0, 2);
+      return `${visible}…@${domain}`;
+    }
+  }
+  return destination.slice(0, 4) + "…";
+}
+
+function formatDeliveryDate(value: string): string {
+  return new Date(value).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  });
 }

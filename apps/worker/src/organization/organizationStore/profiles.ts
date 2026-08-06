@@ -1,5 +1,6 @@
 import { calculateOnBreakInactiveAt } from "@choir/domain";
 import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
+import { z } from "zod";
 import {
   recalculateProfileStatuses,
   recordProfileStatusChange,
@@ -63,6 +64,7 @@ export function listProfiles(
          receive_admin_notifications AS receiveAdminNotifications,
          receive_financial_alerts AS receiveFinancialAlerts,
          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
+         last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
          status_change_reason AS statusChangeReason,
          created_at AS createdAt, updated_at AS updatedAt
@@ -96,6 +98,7 @@ export function readProfile(storage: DurableObjectStorage, profileId: string) {
          receive_admin_notifications AS receiveAdminNotifications,
          receive_financial_alerts AS receiveFinancialAlerts,
          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
+         last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
          status_change_reason AS statusChangeReason,
          created_at AS createdAt, updated_at AS updatedAt
@@ -408,6 +411,81 @@ export async function updateProfile(
     );
   });
   return Response.json(readProfile(storage, parsed.data.profileId));
+}
+
+const profileBounceSchema = z.object({
+  hard: z.boolean(),
+  organizationId: z.string().min(1).max(128),
+  profileId: z.uuid(),
+  reason: z.string().trim().min(1).max(500),
+  requestId: z.uuid(),
+});
+
+export async function recordProfileBounce(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = profileBounceSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return Response.json({ code: "invalid_profile_bounce" }, { status: 400 });
+  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const now = new Date().toISOString();
+  const recorded = storage.transactionSync(() => {
+    const profile = storage.sql
+      .exec<{ readonly id: string }>(
+        "SELECT id FROM profiles WHERE id = ? LIMIT 1",
+        parsed.data.profileId,
+      )
+      .toArray();
+    if (profile.length === 0) return false;
+    if (parsed.data.hard) {
+      storage.sql.exec(
+        `UPDATE profiles SET do_not_email = 1, last_bounce_at = ?, bounce_reason = ?, updated_at = ?
+         WHERE id = ?`,
+        now,
+        parsed.data.reason,
+        now,
+        parsed.data.profileId,
+      );
+      storage.sql.exec(
+        `INSERT INTO communication_suppressions
+          (id, profile_id, channel, reason, active, created_at, updated_at)
+         VALUES (?, ?, 'email', 'provider', 1, ?, ?)
+         ON CONFLICT(profile_id, channel) DO UPDATE SET
+           reason = 'provider', active = 1, updated_at = excluded.updated_at`,
+        crypto.randomUUID(),
+        parsed.data.profileId,
+        now,
+        now,
+      );
+    } else {
+      storage.sql.exec(
+        `UPDATE profiles SET last_bounce_at = ?, bounce_reason = ?, updated_at = ?
+         WHERE id = ?`,
+        now,
+        parsed.data.reason,
+        now,
+        parsed.data.profileId,
+      );
+    }
+    storage.sql.exec(
+      `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id,
+        request_id, change_summary, occurred_at)
+       VALUES (?, 'provider', ?, ?, 'profile', ?, ?, ?, ?)`,
+      `email-bounce:${parsed.data.requestId}`,
+      parsed.data.profileId,
+      parsed.data.hard ? "profile.email_bounced_hard" : "profile.email_bounced_soft",
+      parsed.data.profileId,
+      parsed.data.requestId,
+      JSON.stringify({ reason: parsed.data.reason }),
+      now,
+    );
+    return true;
+  });
+  return recorded
+    ? Response.json({ bounced: true, profileId: parsed.data.profileId })
+    : Response.json({ code: "profile_not_found" }, { status: 404 });
 }
 
 export async function deleteProfile(

@@ -17,8 +17,10 @@ export const organizationProfileRequestSchema = z.object({
 });
 
 export const organizationProfileSchema = organizationProfileRequestSchema.extend({
+  bounceReason: z.string().max(500).default(""),
   createdAt: z.iso.datetime(),
   id: z.uuid(),
+  lastBounceAt: z.string().max(100).default(""),
   onBreakInactiveAt: z.iso.datetime().nullable().default(null),
   photoFileId: z.uuid().nullable().default(null),
   statusChangedAt: z.iso.datetime().default("1970-01-01T00:00:00.000Z"),

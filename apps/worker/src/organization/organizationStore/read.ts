@@ -34,6 +34,7 @@ import { listResourcesFromStore } from "../resourceStore";
 import {
   listCommunicationMessagesFromStore,
   listMemberBulletinsFromStore,
+  listProfileDeliveriesFromStore,
   listCommunicationScheduledMessagesFromStore,
   listCommunicationTemplatesFromStore,
   readCommunicationTemplateFromStore,
@@ -90,6 +91,7 @@ import {
   importProfiles,
   updateProfile,
   deleteProfile,
+  recordProfileBounce,
   updateMemberProfile,
   manageProfilePhoto,
 } from "./profiles";
@@ -114,6 +116,11 @@ export const contentGetHandlers: Record<
     listCommunicationMessagesFromStore(storage, organizationId),
   "/internal/communications/member-bulletins": (storage, url, organizationId) =>
     listMemberBulletinsFromStore(storage, {
+      organizationId,
+      profileId: url.searchParams.get("profileId"),
+    }),
+  "/internal/communications/deliveries": (storage, url, organizationId) =>
+    listProfileDeliveriesFromStore(storage, {
       organizationId,
       profileId: url.searchParams.get("profileId"),
     }),
@@ -328,6 +335,8 @@ export async function dispatchProfilePostRequest(
       return updateProfile(storage, request);
     case "/internal/profiles/delete":
       return deleteProfile(storage, request);
+    case "/internal/profiles/bounce":
+      return recordProfileBounce(storage, request);
     default:
       return null;
   }
