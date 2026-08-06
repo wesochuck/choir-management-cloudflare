@@ -93,6 +93,13 @@ export function RosterPageView({
   const allVisibleSelected =
     visibleProfileIds.length > 0 && selectedVisibleCount === visibleProfileIds.length;
   const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  // The linked Membership email is the read-only source for the field; the
+  // draft value must not gate editability or the input locks after one key.
+  const linkedProfileEmail =
+    editingProfileRecord === null || roster.status !== "ready"
+      ? ""
+      : (roster.memberships.find(({ profileId }) => profileId === editingProfileRecord.id)?.email ??
+        "");
   useEffect(() => {
     if (selectAllVisibleRef.current) {
       selectAllVisibleRef.current.indeterminate = someVisibleSelected;
@@ -636,14 +643,14 @@ export function RosterPageView({
                   setProfileEmail(event.target.value);
                 }}
                 placeholder={`Enter an email to invite this ${performerLabel.toLowerCase()}`}
-                readOnly={Boolean(editingId && profileEmail)}
+                readOnly={Boolean(linkedProfileEmail)}
                 type="email"
                 value={profileEmail}
               />
               <p className="field-help">
                 Linked account emails are managed through Membership invitations.
               </p>
-              {editingId && profileEmail ? (
+              {linkedProfileEmail ? (
                 <button
                   className="button button--secondary button--small"
                   disabled={busy || resettingProfileId !== null}
