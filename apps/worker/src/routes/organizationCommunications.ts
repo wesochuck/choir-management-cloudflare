@@ -430,9 +430,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         unsubscribeUrl: null,
       });
       if (delivery.status === "suppressed") {
-        throw new Error(
-          delivery.failureDetail || "Organization email delivery is disabled.",
-        );
+        throw new Error(delivery.failureDetail || "Organization email delivery is disabled.");
       }
       if (delivery.status === "failed") {
         throw new Error(
