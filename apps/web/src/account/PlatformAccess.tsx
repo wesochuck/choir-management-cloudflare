@@ -305,7 +305,8 @@ async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
   }
 }
 
-type PlatformAccessView = "access" | "email-suppressions" | "organizations" | "security";
+type PlatformAccessView =
+  "access" | "dead-letters" | "email-suppressions" | "organizations" | "security";
 
 interface PlatformAccessProps {
   readonly view?: PlatformAccessView;
@@ -335,6 +336,13 @@ function viewCopy(view: PlatformAccessView): {
       eyebrow: "Provider safety",
       title: "Global email suppressions",
       titleId: "platform-email-suppressions-title",
+    };
+  }
+  if (view === "dead-letters") {
+    return {
+      eyebrow: "Queue operations",
+      title: "Queue dead letters",
+      titleId: "platform-dead-letters-title",
     };
   }
   return {

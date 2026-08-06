@@ -16,7 +16,10 @@ function statusLabel(status: "attention" | "error" | "ok"): string {
 
 function checkAction(id: string): { readonly href: string; readonly label: string } | null {
   if (id === "platform_mfa") return { href: "/platform/security", label: "Review security" };
-  if (id === "background_jobs" || id === "schema") {
+  if (id === "background_jobs") {
+    return { href: "/platform/dead-letters", label: "Review queue" };
+  }
+  if (id === "schema") {
     return { href: "/platform/organizations", label: "Review operations" };
   }
   return null;

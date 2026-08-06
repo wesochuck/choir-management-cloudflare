@@ -88,7 +88,7 @@ function schemaButtonLabel(state: FleetSchemaState, busy: boolean, running: bool
 
 function organizationHref(hostname: string): string {
   const protocol = hostname === "localhost" || hostname.endsWith(".localhost") ? "http:" : "https:";
-  return `${protocol}//${hostname}/account`;
+  return `${protocol}//${hostname}/admin`;
 }
 
 function organizationAccessHref(hostname: string): string {
@@ -96,7 +96,7 @@ function organizationAccessHref(hostname: string): string {
   return `${protocol}//${hostname}/platform/access`;
 }
 
-function platformOrganizationsHref(): string {
+function platformProductHref(pathname: string): string {
   const { hostname, port, protocol } = window.location;
   const isIpv4Address = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
   const baseHostname = hostname.endsWith(".localhost")
@@ -105,7 +105,15 @@ function platformOrganizationsHref(): string {
       ? hostname
       : hostname.split(".").slice(1).join(".");
   const authority = baseHostname === "localhost" && port ? `${baseHostname}:${port}` : baseHostname;
-  return `${protocol}//${authority}/platform/organizations`;
+  return `${protocol}//${authority}${pathname}`;
+}
+
+function platformOrganizationsHref(): string {
+  return platformProductHref("/platform/organizations");
+}
+
+function platformDeadLettersHref(): string {
+  return platformProductHref("/platform/dead-letters");
 }
 
 function organizationStatus(organization: PlatformOrganizationSummary): string {
@@ -1029,8 +1037,6 @@ function OrganizationElevation({ organizationId }: { readonly organizationId: st
   );
 }
 
-export type PlatformOperationsMode = "access" | "organizations";
-
 function OrganizationsUnavailable() {
   return (
     <p className="notice notice--warning" role="status">
@@ -1049,6 +1055,17 @@ function AccessUnavailable() {
   );
 }
 
+function DeadLettersUnavailable() {
+  return (
+    <p className="notice notice--warning" role="status">
+      Queue dead letters are available from the platform control-plane host. Open them here:{" "}
+      <a href={platformDeadLettersHref()}>Queue dead letters</a>
+    </p>
+  );
+}
+
+export type PlatformOperationsMode = "access" | "dead-letters" | "organizations";
+
 export function PlatformOperations({
   mode,
   scope,
@@ -1058,6 +1075,13 @@ export function PlatformOperations({
 }) {
   if (mode === "organizations") {
     return scope.kind === "product_base" ? <OrganizationDirectory /> : <OrganizationsUnavailable />;
+  }
+  if (mode === "dead-letters") {
+    return scope.kind === "product_base" ? (
+      <QueueDeadLetterDirectory />
+    ) : (
+      <DeadLettersUnavailable />
+    );
   }
   return scope.kind === "organization" ? (
     <OrganizationElevation organizationId={scope.organizationId} />

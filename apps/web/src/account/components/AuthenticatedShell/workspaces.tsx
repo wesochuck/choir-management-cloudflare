@@ -54,6 +54,11 @@ export function OverviewPage({
           text: "Verify Platform Administrator MFA.",
         },
         {
+          href: "/platform/dead-letters",
+          label: "Queue dead letters",
+          text: "Review, retry, or dismiss failed queue jobs.",
+        },
+        {
           href: "/platform/email-suppressions",
           label: "Email suppressions",
           text: "Review application-wide provider blocks.",
@@ -223,6 +228,9 @@ export function PlatformWorkspacePage({
   }
   if (pathname === "/platform/access") {
     return <PlatformAccess view="access" />;
+  }
+  if (pathname === "/platform/dead-letters") {
+    return <PlatformAccess view="dead-letters" />;
   }
   if (pathname === "/platform/email-suppressions") {
     return <PlatformAccess view="email-suppressions" />;

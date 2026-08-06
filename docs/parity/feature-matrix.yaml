@@ -465,6 +465,22 @@
           ],
       },
       {
+        "id": "route.platform.dead-letters",
+        "path": "/platform/dead-letters",
+        "owner": "apps/web",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent legacy queue dead-letter operator surface existed.",
+        "targetEvidence":
+          [
+            "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/utils.ts",
+            "apps/web/src/account/PlatformAccess.tsx",
+            "apps/web/src/account/PlatformOperations.tsx",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
         "id": "route.platform.email-suppressions",
         "path": "/platform/email-suppressions",
         "owner": "apps/web",

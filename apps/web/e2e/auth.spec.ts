@@ -971,13 +971,19 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await platformSection.getByRole("button", { name: "Verify Platform access" }).click();
   await expect(platformSection.getByRole("status")).toContainText("Platform access is ready");
 
+  await page.goto("/platform/dead-letters");
+  const deadLettersSection = page.getByRole("region", { name: "Queue dead letters" });
+  await expect(
+    deadLettersSection.getByRole("heading", { level: 2, name: "Queue dead letters" }),
+  ).toBeVisible();
+  await expect(
+    deadLettersSection.getByText("No jobs have reached the dead-letter queue."),
+  ).toBeVisible();
+
   await page.goto("/platform/organizations");
   const organizationsSection = page.getByRole("region", { name: "Organizations" });
   await expect(
     organizationsSection.getByRole("heading", { name: "Organization provisioning" }),
-  ).toBeVisible();
-  await expect(
-    organizationsSection.getByText("No jobs have reached the dead-letter queue."),
   ).toBeVisible();
   await organizationsSection.getByRole("button", { name: "Prepare schemas" }).click();
   await expect(

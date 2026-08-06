@@ -873,4 +873,30 @@
     color: var(--color-text);
     text-align: center;
   }
+
+  /* Safari keeps the native menulist-button geometry unless appearance is reset.
+   * Normalize authenticated selects so the shared control height, radius, and
+   * dark/light theme remain consistent across browsers. */
+  .signed-in-shell select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-inline-end: 2.25rem;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%),
+      linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%);
+    background-position:
+      calc(100% - 0.9rem) 50%,
+      calc(100% - 0.6rem) 50%;
+    background-repeat: no-repeat;
+    background-size: 0.35rem 0.35rem;
+    cursor: pointer;
+  }
+
+  .signed-in-shell .workspace-switcher select {
+    min-width: 9rem;
+    height: 2.35rem;
+    min-height: 2.35rem;
+    padding: 0.45rem 2.25rem 0.45rem 0.75rem;
+    line-height: var(--line-height-tight);
+  }
 }
