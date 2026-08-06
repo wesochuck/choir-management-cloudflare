@@ -187,6 +187,7 @@
         "BUILD_VERSION": "staging",
         "EXTERNAL_EFFECTS_MODE": "sandbox",
         "JOBS_DLQ_NAME": "choir-management-jobs-dlq-staging",
+        "PLATFORM_EMAIL_ALLOWED_RECIPIENTS": "dsksfjksjfakjsdf@dkfjsajfdskaj.test",
         "PLATFORM_EMAIL_FROM": "auth@mail.staging.musicsite.org",
         "PLATFORM_EMAIL_MODE": "sandbox",
         "PRODUCT_BASE_DOMAIN": "staging.musicsite.org",
