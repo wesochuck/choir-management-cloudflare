@@ -442,7 +442,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const result = communicationProblem(
         error,
         context.get("requestId"),
-        "The test email could not be sent. Check the email delivery setup and try again.",
+        error instanceof Error
+          ? `The test email could not be sent. ${error.message}`
+          : "The test email could not be sent. Check the email delivery setup and try again.",
       );
       return context.json(result.problem, result.status);
     }

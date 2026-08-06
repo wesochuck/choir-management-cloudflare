@@ -69,6 +69,13 @@ export async function saveSeasonRoute(
 }
 
 export function communicationProblem(error: unknown, requestIdValue: string, message: string) {
+  console.error(
+    JSON.stringify({
+      event: "communication_route_error",
+      error: error instanceof Error ? error.message : String(error),
+      requestId: requestIdValue,
+    }),
+  );
   const status = error instanceof CommunicationRepositoryError ? error.status : 503;
   return {
     problem: {
