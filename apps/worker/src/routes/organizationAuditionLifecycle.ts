@@ -6,6 +6,10 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 import {
+  assertEmailProviderRecipientAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
+import {
   createOrganizationProfile,
   OrganizationProfileMutationError,
 } from "../organization/profiles";
@@ -50,6 +54,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      if (body.data.email) {
+        await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
+      }
       const stub = context.env.ORGANIZATION_STORE.get(
         context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
       );
@@ -88,7 +95,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const updated = organizationAuditionSchema.safeParse(await response.json());
       if (!updated.success) throw new Error("invalid_audition");
       return context.json({ requestId: context.get("requestId"), ...updated.data });
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",

@@ -12,6 +12,7 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 
+import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
 import type { Env } from "../env";
 
 interface ProfileEmailRow {
@@ -132,16 +133,26 @@ export async function createOrganizationProfile(
   env: Env,
   input: {
     readonly actorUserId: string;
+    readonly email?: string;
     readonly organizationId: string;
     readonly profile: OrganizationProfileRequest;
     readonly requestId: string;
   },
 ): Promise<OrganizationProfile> {
+  if (input.email) {
+    await assertEmailProviderRecipientAvailable(env.CONTROL_DB, input.email);
+  }
   const profileId = crypto.randomUUID();
   const response = await organizationStub(env, input.organizationId).fetch(
     "https://organization.internal/internal/profiles",
     {
-      body: JSON.stringify({ ...input, profileId }),
+      body: JSON.stringify({
+        actorUserId: input.actorUserId,
+        organizationId: input.organizationId,
+        profile: input.profile,
+        profileId,
+        requestId: input.requestId,
+      }),
       headers: { "content-type": "application/json" },
       method: "POST",
     },
@@ -180,6 +191,7 @@ export async function importOrganizationProfiles(
   env: Env,
   input: {
     readonly actorUserId: string;
+    readonly email?: string;
     readonly organizationId: string;
     readonly profiles: readonly OrganizationProfileRequest[];
     readonly requestId: string;
@@ -213,16 +225,26 @@ export async function updateOrganizationProfile(
   env: Env,
   input: {
     readonly actorUserId: string;
+    readonly email?: string;
     readonly organizationId: string;
     readonly profile: OrganizationProfileRequest;
     readonly profileId: string;
     readonly requestId: string;
   },
 ): Promise<OrganizationProfile> {
+  if (input.email) {
+    await assertEmailProviderRecipientAvailable(env.CONTROL_DB, input.email);
+  }
   const response = await organizationStub(env, input.organizationId).fetch(
     "https://organization.internal/internal/profiles/update",
     {
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        actorUserId: input.actorUserId,
+        organizationId: input.organizationId,
+        profile: input.profile,
+        profileId: input.profileId,
+        requestId: input.requestId,
+      }),
       headers: { "content-type": "application/json" },
       method: "POST",
     },

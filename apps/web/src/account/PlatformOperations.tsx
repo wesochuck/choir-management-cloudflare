@@ -1,11 +1,13 @@
 import type {
   PlatformContextResponse,
   PlatformFleetSchemaStatusResponse,
+  PlatformJobDeadLetterView,
   PlatformJobDeadLetterSummary,
   PlatformOrganizationContextResponse,
   PublicDomainResponse,
   PlatformOrganizationSummary,
 } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -13,12 +15,14 @@ import {
   createPlatformElevation,
   getPlatformOrganizationContext,
   getPlatformFleetSchemaStatus,
+  dismissPlatformJobDeadLetter,
   disablePlatformOrganizationPublicDomain,
   listPlatformOrganizationPublicDomains,
   listPlatformJobDeadLetters,
   listPlatformOrganizations,
   provisionOrganization,
   registerPlatformOrganizationPublicDomain,
+  retryPlatformJobDeadLetter,
   revokePlatformElevation,
   startPlatformFleetSchemaPreparation,
 } from "../auth/api";
@@ -270,12 +274,40 @@ function PlatformOrganizationDomains({ organizationId }: { readonly organization
   );
 }
 
+interface DeadLetterActionTarget {
+  readonly action: "dismiss" | "retry";
+  readonly deadLetter: PlatformJobDeadLetterSummary;
+}
+
+function deadLetterActionLabel(status: PlatformJobDeadLetterSummary["actionStatus"]): string {
+  switch (status) {
+    case "dismissed":
+      return "Dismissed";
+    case "retry_failed":
+      return "Retry unavailable";
+    case "retry_queued":
+      return "Retry queued";
+    case "retry_requested":
+      return "Retry pending";
+    case "open":
+      return "Needs review";
+  }
+}
+
+// eslint-disable-next-line complexity -- the panel keeps loading, action confirmation, and five operator states together.
 function QueueDeadLetterDirectory() {
   const [deadLetters, setDeadLetters] = useState<DeadLetterState>({ status: "loading" });
+  const [view, setView] = useState<PlatformJobDeadLetterView>("open");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [actionTarget, setActionTarget] = useState<DeadLetterActionTarget | null>(null);
+  const [actionReason, setActionReason] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const abortController = new AbortController();
-    listPlatformJobDeadLetters(null, abortController.signal)
+    listPlatformJobDeadLetters(null, abortController.signal, view)
       .then((result) => {
         setDeadLetters({
           deadLetters: result.deadLetters,
@@ -291,12 +323,99 @@ function QueueDeadLetterDirectory() {
     return () => {
       abortController.abort();
     };
-  }, []);
+  }, [refreshKey, view]);
+
+  function openAction(
+    action: DeadLetterActionTarget["action"],
+    deadLetter: PlatformJobDeadLetterSummary,
+  ) {
+    setActionTarget({ action, deadLetter });
+    setActionError(null);
+    setActionReason("");
+  }
+
+  function closeAction(): void {
+    if (actionBusy) return;
+    setActionTarget(null);
+    setActionError(null);
+    setActionReason("");
+  }
+
+  async function submitAction(): Promise<void> {
+    if (!actionTarget) return;
+    const reason = actionReason.trim();
+    if (reason.length < 3 || reason.length > 500) {
+      setActionError("Enter a reason between 3 and 500 characters.");
+      return;
+    }
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const result =
+        actionTarget.action === "retry"
+          ? await retryPlatformJobDeadLetter(actionTarget.deadLetter.id, reason)
+          : await dismissPlatformJobDeadLetter(actionTarget.deadLetter.id, reason);
+      setSuccess(
+        result.actionStatus === "retry_queued"
+          ? "The job was reset and a fresh queue attempt was created."
+          : "The dead-letter record was dismissed. The originating job was not deleted.",
+      );
+      setDeadLetters({ status: "loading" });
+      setActionTarget(null);
+      setActionReason("");
+      setRefreshKey((current) => current + 1);
+    } catch (failure: unknown) {
+      setActionError(
+        failure instanceof AuthApiError
+          ? failure.message
+          : "The queue failure action could not be completed. Refresh and try again.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   return (
     <div className="platform-directory" aria-live="polite">
       <h4>Queue dead letters</h4>
-      <p>Operational metadata only. Message payloads are never copied into the control plane.</p>
+      <p>
+        These are final queue-failure records, not a second inbox. The original queue message has
+        already been acknowledged and its payload is not stored here. Retry creates a fresh attempt
+        from the originating record; dismiss only clears this incident from the needs-review list.
+      </p>
+      <div className="platform-dead-letter-toolbar">
+        <label className="field" htmlFor="platform-dead-letter-view">
+          <span>Show</span>
+          <select
+            id="platform-dead-letter-view"
+            onChange={(event) => {
+              setSuccess(null);
+              setDeadLetters({ status: "loading" });
+              setView(event.target.value === "all" ? "all" : "open");
+            }}
+            value={view}
+          >
+            <option value="open">Needs review</option>
+            <option value="all">All records</option>
+          </select>
+        </label>
+        <button
+          className="button button--secondary"
+          disabled={deadLetters.status === "loading"}
+          onClick={() => {
+            setSuccess(null);
+            setRefreshKey((current) => current + 1);
+          }}
+          type="button"
+        >
+          {deadLetters.status === "loading" ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      {success ? (
+        <p className="notice notice--success" role="status">
+          {success}
+        </p>
+      ) : null}
       {deadLetters.status === "loading" ? <p>Loading queue failures…</p> : null}
       {deadLetters.status === "error" ? (
         <p className="notice notice--error" role="alert">
@@ -308,20 +427,73 @@ function QueueDeadLetterDirectory() {
       ) : null}
       {deadLetters.status === "ready" && deadLetters.deadLetters.length > 0 ? (
         <ul className="account-list platform-dead-letter-list">
+          {/* eslint-disable-next-line complexity -- each row intentionally reflects its operator state. */}
           {deadLetters.deadLetters.map((deadLetter) => (
             <li key={`${deadLetter.queueName}:${deadLetter.messageId}`}>
-              <div>
+              <div className="platform-dead-letter-list__copy">
                 <h5>{deadLetter.jobKind ?? "Invalid queue message"}</h5>
                 <p>
                   {deadLetter.organizationId ?? "No validated Organization"} · observed{" "}
                   {displayDate(deadLetter.lastSeenAt)}
                 </p>
+                <p className="platform-dead-letter-list__meta">
+                  Message {deadLetter.messageId} · queue attempt{" "}
+                  {String(deadLetter.observedAttempt)}
+                </p>
                 <span className="status-pill">
+                  {deadLetterActionLabel(deadLetter.actionStatus)} ·{" "}
                   {deadLetter.observationCount === 1
-                    ? "Recorded once"
-                    : `Recorded ${String(deadLetter.observationCount)} times`}
+                    ? "recorded once"
+                    : `recorded ${String(deadLetter.observationCount)} times`}
                 </span>
+                {deadLetter.actionError ? (
+                  <p className="notice notice--warning">{deadLetter.actionError}</p>
+                ) : null}
+                {deadLetter.actionStatus !== "open" && deadLetter.actionAt ? (
+                  <p className="platform-dead-letter-list__meta">
+                    {deadLetterActionLabel(deadLetter.actionStatus)}{" "}
+                    {displayDate(deadLetter.actionAt)}
+                    {deadLetter.actionReason ? ` · ${deadLetter.actionReason}` : ""}
+                  </p>
+                ) : null}
+                {deadLetter.actionStatus === "retry_queued" ? (
+                  <p className="platform-dead-letter-list__hint">
+                    The new attempt is in the normal job queue. Check the originating notification
+                    for its result.
+                  </p>
+                ) : null}
               </div>
+              {deadLetter.actionStatus !== "dismissed" ? (
+                <div className="platform-dead-letter-list__actions">
+                  {(deadLetter.actionStatus === "open" ||
+                    deadLetter.actionStatus === "retry_failed") &&
+                  deadLetter.messageValid &&
+                  deadLetter.organizationId &&
+                  deadLetter.jobId &&
+                  deadLetter.jobKind &&
+                  deadLetter.idempotencyKey &&
+                  deadLetter.observedAttempt < 10 ? (
+                    <button
+                      className="button button--primary"
+                      onClick={() => {
+                        openAction("retry", deadLetter);
+                      }}
+                      type="button"
+                    >
+                      {deadLetter.actionStatus === "retry_failed" ? "Try retry again" : "Retry job"}
+                    </button>
+                  ) : null}
+                  <button
+                    className="button button--secondary"
+                    onClick={() => {
+                      openAction("dismiss", deadLetter);
+                    }}
+                    type="button"
+                  >
+                    Dismiss record
+                  </button>
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -329,6 +501,64 @@ function QueueDeadLetterDirectory() {
       {deadLetters.status === "ready" && deadLetters.hasMore ? (
         <p>Showing the 25 most recent queue failures.</p>
       ) : null}
+      <Dialog
+        description={
+          actionTarget?.action === "retry"
+            ? "Retry only after fixing or confirming the cause. A retry can send the message again."
+            : "Dismissal keeps the audit record and does not delete or resend the originating job."
+        }
+        onClose={closeAction}
+        open={actionTarget !== null}
+        title={
+          actionTarget?.action === "retry" ? "Retry queue job?" : "Dismiss dead-letter record?"
+        }
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitAction();
+          }}
+        >
+          {actionError ? (
+            <p className="notice notice--error" role="alert">
+              {actionError}
+            </p>
+          ) : null}
+          <p>
+            {actionTarget?.action === "retry"
+              ? `Create a new attempt for ${actionTarget.deadLetter.jobKind ?? "this job"}?`
+              : "Remove this incident from the needs-review list?"}
+          </p>
+          <label className="field" htmlFor="platform-dead-letter-action-reason">
+            <span>Reason</span>
+            <textarea
+              autoFocus
+              id="platform-dead-letter-action-reason"
+              maxLength={500}
+              minLength={3}
+              onChange={(event) => {
+                setActionReason(event.target.value);
+              }}
+              required
+              rows={3}
+              value={actionReason}
+            />
+          </label>
+          <div className="dialog__actions">
+            <button className="button button--secondary" onClick={closeAction} type="button">
+              Cancel
+            </button>
+            <button className="button button--primary" disabled={actionBusy} type="submit">
+              {actionBusy
+                ? "Saving…"
+                : actionTarget?.action === "retry"
+                  ? "Create retry"
+                  : "Dismiss record"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }

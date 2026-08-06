@@ -52,6 +52,7 @@ import { registerRoutes as registerOrganizationInvitationsRoutes } from "./route
 import { registerRoutes as registerOrganizationAccessRoutes } from "./routes/organizationAccess";
 import { registerRoutes as registerOrganizationDomainsRoutes } from "./routes/organizationDomains";
 import { registerRoutes as registerPlatformAdministrationRoutes } from "./routes/platformAdministration";
+import { registerRoutes as registerPlatformEmailSuppressionRoutes } from "./routes/platformEmailSuppressions";
 import { registerRoutes as registerPlatformOperationsRoutes } from "./routes/platformOperations";
 import { registerRoutes as registerSingerDashboardRoutes } from "./routes/singerDashboard";
 import { registerRoutes as registerSetupRoutes } from "./routes/setup";
@@ -166,6 +167,7 @@ registerOrganizationInvitationsRoutes(router);
 registerOrganizationAccessRoutes(router);
 registerOrganizationDomainsRoutes(router);
 registerPlatformAdministrationRoutes(router);
+registerPlatformEmailSuppressionRoutes(router);
 registerPlatformOperationsRoutes(router);
 registerSingerDashboardRoutes(router);
 registerSetupRoutes(router);

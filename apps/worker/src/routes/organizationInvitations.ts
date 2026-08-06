@@ -7,6 +7,10 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { createAuth, isCanonicalAuthHost } from "../auth/config";
+import {
+  assertEmailProviderRecipientAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
 import { validateStartupConfig } from "../env";
 import { authorizeOrganizationMember } from "../tenancy/authorizeOrganization";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
@@ -109,6 +113,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const betterAuthRole =
       parsedBody.data.role === "administrator" ? "admin" : parsedBody.data.role;
     try {
+      await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, email);
       const invitation = await auth.api.createInvitation({
         body: {
           email,
@@ -141,7 +146,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         },
         201,
       );
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: "conflict",

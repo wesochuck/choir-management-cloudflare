@@ -1188,9 +1188,13 @@ function recordTicketNotificationResult(
   const now = new Date().toISOString();
   storage.sql.exec(
     `UPDATE ticket_notifications SET status = ?, attempts = attempts + 1,
-      provider_message_id = ?, failure_detail = ?, updated_at = ?,
+      provider_message_id = ?,
+      provider_status = CASE WHEN ? = 'sent' AND ? IS NOT NULL AND provider_status IS NULL THEN 'accepted' ELSE provider_status END,
+      failure_detail = ?, updated_at = ?,
       sent_at = CASE WHEN ? IN ('sent', 'suppressed') THEN ? ELSE sent_at END
      WHERE id = ?`,
+    operation.status,
+    operation.providerMessageId,
     operation.status,
     operation.providerMessageId,
     operation.failureDetail,
@@ -1419,9 +1423,15 @@ export function readTicketNotificationJobFromStore(
       readonly status: string;
       readonly subject: string;
       readonly timezone: string;
+      readonly providerEventAt: string | null;
+      readonly providerMessageId: string | null;
+      readonly providerReason: string;
+      readonly providerStatus: string | null;
     }>(
       `SELECT n.id, n.purchase_id AS purchaseId, n.kind, n.destination, n.subject,
         n.content_markdown AS contentMarkdown, n.status, p.buyer_name AS buyerName,
+        n.provider_event_at AS providerEventAt, n.provider_message_id AS providerMessageId,
+        n.provider_reason AS providerReason, n.provider_status AS providerStatus,
         COALESCE(e.title, p.event_title) AS eventTitle,
         p.quantity, p.amount_paid_cents AS amountPaidCents,
         p.currency, p.bundle_title AS bundleTitle, p.event_timezone AS timezone,

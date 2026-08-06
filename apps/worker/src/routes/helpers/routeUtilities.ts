@@ -9,6 +9,10 @@ import { type Context } from "hono";
 import { z } from "zod";
 import type { createAuth } from "../../auth/config";
 import { isCanonicalAuthHost, isProductBaseHost } from "../../auth/config";
+import {
+  assertEmailProviderRecipientAvailable,
+  EmailRecipientSuppressedError,
+} from "../../communications/emailFeedback";
 import type { Env } from "../../env";
 import { ResourceRepositoryError } from "../../organization/organizationResources";
 import { setOrganizationProfilePhoto } from "../../organization/profiles";
@@ -310,6 +314,7 @@ export async function submitPublicAuditionInquiry(
   requestIdValue: string,
 ): Promise<Response> {
   try {
+    await assertEmailProviderRecipientAvailable(env.CONTROL_DB, body.email);
     const stub = env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
     const settingsUrl = new URL("https://organization.internal/internal/audition/settings");
     settingsUrl.searchParams.set("organizationId", organizationId);
@@ -356,7 +361,17 @@ export async function submitPublicAuditionInquiry(
       { id: createdId, message: "Your audition inquiry has been received." },
       { status: 201 },
     );
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof EmailRecipientSuppressedError) {
+      return Response.json(
+        {
+          code: error.code,
+          message: error.message,
+          requestId: requestIdValue,
+        } satisfies ProblemDetails,
+        { status: error.status },
+      );
+    }
     return Response.json(
       {
         code: "service_unavailable",

@@ -359,6 +359,45 @@
     margin-top: 1rem;
   }
 
+  .platform-email-suppressions__intro {
+    margin: 0 0 1.25rem;
+    color: var(--color-text-muted);
+  }
+
+  .platform-email-suppressions__filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.45fr) auto;
+    align-items: end;
+    gap: 0.8rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .platform-email-suppressions__filter-actions {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  .platform-email-suppressions__detail {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 14rem;
+  }
+
+  .platform-email-suppressions__detail small {
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 48rem) {
+    .platform-email-suppressions__filters {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-email-suppressions__filter-actions {
+      flex-wrap: wrap;
+    }
+  }
+
   .platform-elevation-form {
     max-width: 40rem;
     margin-top: 1.5rem;
@@ -793,10 +832,24 @@
     list-style: none;
   }
 
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-toolbar {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-toolbar .field {
+    min-width: 14rem;
+    margin: 0;
+  }
+
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list > li {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
-    gap: 0.3rem;
+    gap: 1rem;
     min-width: 0;
     padding: 0.85rem 1rem;
     border: 1px solid var(--color-border);
@@ -818,9 +871,37 @@
     font-size: var(--font-size-md);
   }
 
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.3rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__meta,
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__hint {
+    overflow-wrap: anywhere;
+    font-size: var(--font-size-sm);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__hint {
+    color: var(--color-text);
+  }
+
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list .status-pill {
     justify-self: start;
     margin: 0.25rem 0 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    justify-content: end;
+    gap: 0.5rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions .button {
+    white-space: nowrap;
   }
 
   .signed-in-main.signed-in-main--platform .platform-elevation-form,
@@ -913,6 +994,14 @@
 
     .signed-in-main.signed-in-main--platform .platform-elevation-active .button {
       justify-self: start;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-dead-letter-list > li {
+      grid-template-columns: 1fr;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions {
+      justify-content: start;
     }
   }
 

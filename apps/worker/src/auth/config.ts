@@ -135,7 +135,9 @@ export function createAuth(context: AuthRequestContext) {
           invitationUrl.searchParams.set("id", id);
           await sendPlatformEmail(env, {
             kind: "organization-invitation",
+            organizationId: invitedOrganization.id,
             recipient: email,
+            sourceId: id,
             subject: `Invitation to ${invitedOrganization.name}`,
             text: `Accept your invitation: ${invitationUrl.toString()}`,
           });

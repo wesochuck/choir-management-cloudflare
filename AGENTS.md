@@ -254,6 +254,49 @@ Before finishing any material change, report:
 - Do not modify hosted resources, domains, data, or provider configuration without authenticated
   environment context and authorization consistent with the active goal.
 
+### Cloudflare Email Sending event subscriptions
+
+- For native Cloudflare Email Sending, provider event subscriptions are the authoritative
+  delivery-feedback path. Do not add an inbound `email()` bounce handler, DSN parser, heuristic
+  bounce detector, catch-all bounce route, or obsolete bounce endpoint for this purpose. The
+  `email()` handler is reserved for explicitly requested Email Routing/inbound-mail behavior and
+  must not be used as a substitute for Email Sending events.
+- Treat Email Sending queue subscriptions as account-level provider configuration, separate from
+  `wrangler.jsonc`. Configure them programmatically through the Cloudflare API rather than relying
+  on the dashboard flow or the generic Wrangler create command; the Email Sending source requires a
+  sending-domain selector and the current CLI/dashboard flow may not expose the required zone field.
+- Create subscriptions with `POST /accounts/{account_id}/event_subscriptions/subscriptions` and this
+  source/destination shape:
+
+  ```json
+  {
+    "source": {
+      "type": "email.sending",
+      "zone_id": "<sending-zone-id>",
+      "domain": "<verified-sending-domain>"
+    },
+    "destination": {
+      "type": "queues.queue",
+      "queue_id": "<feedback-queue-id>"
+    },
+    "events": [
+      "message.delivered",
+      "message.deferred",
+      "message.bounced",
+      "message.failed",
+      "message.rejected",
+      "message.complained"
+    ]
+  }
+  ```
+
+- Use a scoped API token from the approved secret store or an authenticated Wrangler session; never
+  print, commit, or place the token in a tracked file. Read the subscription back from the API and
+  with `npx wrangler queues subscription list <queue-name>` before qualifying the worker.
+- For production, require explicit release approval and resolve the production account, zone,
+  verified sending domain, queue, and dead-letter queue independently. Never reuse staging IDs,
+  domains, allowlists, subscriptions, or credentials.
+
 ## 10. Pause Conditions
 
 Continue autonomously through safe, in-scope implementation and verification. Pause only when:

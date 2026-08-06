@@ -7,6 +7,7 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
+import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
 import { deliverOrganizationCommunication } from "../communications/provider";
 import {
   listOrganizationCommunications,
@@ -419,13 +420,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     try {
+      await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
       const delivery = await deliverOrganizationCommunication(context.env, {
         channel: "email",
         contentMarkdown: body.data.contentMarkdown,
         deliveryId: crypto.randomUUID(),
         destination: body.data.email,
         messageId: crypto.randomUUID(),
+        organizationId: authorization.organizationId,
         recipientName: "Test recipient",
+        sourceId: crypto.randomUUID(),
+        sourceKind: "test_email",
         subject: `[Test] ${body.data.subject}`,
         unsubscribeUrl: null,
       });

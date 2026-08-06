@@ -63,8 +63,27 @@ export type PlatformOrganizationPublicDomainsResponse = z.infer<
   typeof platformOrganizationPublicDomainsResponseSchema
 >;
 
+export const platformJobDeadLetterViewSchema = z.enum(["open", "all"]);
+export type PlatformJobDeadLetterView = z.infer<typeof platformJobDeadLetterViewSchema>;
+
+export const platformJobDeadLetterActionStatusSchema = z.enum([
+  "open",
+  "retry_requested",
+  "retry_queued",
+  "retry_failed",
+  "dismissed",
+]);
+export type PlatformJobDeadLetterActionStatus = z.infer<
+  typeof platformJobDeadLetterActionStatusSchema
+>;
+
 export const platformJobDeadLetterSummarySchema = z.object({
+  actionAt: z.iso.datetime().nullable(),
+  actionError: z.string().max(500),
+  actionReason: z.string().max(500).nullable(),
+  actionStatus: platformJobDeadLetterActionStatusSchema,
   firstSeenAt: z.iso.datetime(),
+  id: z.string().min(1).max(512),
   idempotencyKey: z.string().min(1).max(256).nullable(),
   jobId: z.uuid().nullable(),
   jobKind: z
@@ -72,6 +91,8 @@ export const platformJobDeadLetterSummarySchema = z.object({
       "attendance_report",
       "audition_notification",
       "communication_delivery",
+      "event_reminder",
+      "rsvp_follow_up",
       "organization_export",
       "payment_notification",
       "stale_checkout_cleanup",
@@ -95,6 +116,73 @@ export const platformJobDeadLettersResponseSchema = z.object({
 
 export type PlatformJobDeadLetterSummary = z.infer<typeof platformJobDeadLetterSummarySchema>;
 export type PlatformJobDeadLettersResponse = z.infer<typeof platformJobDeadLettersResponseSchema>;
+
+export const platformJobDeadLetterActionRequestSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+export type PlatformJobDeadLetterActionRequest = z.infer<
+  typeof platformJobDeadLetterActionRequestSchema
+>;
+
+export const platformJobDeadLetterActionResponseSchema = z.object({
+  actionStatus: platformJobDeadLetterActionStatusSchema,
+  deadLetterId: z.string().min(1).max(512),
+  requestId: requestIdSchema,
+  retryAttempt: z.number().int().min(1).max(10).nullable(),
+});
+
+export type PlatformJobDeadLetterActionResponse = z.infer<
+  typeof platformJobDeadLetterActionResponseSchema
+>;
+
+export const platformEmailSuppressionReasonSchema = z.enum([
+  "bounce",
+  "complaint",
+  "provider_rejected",
+]);
+
+export const platformEmailSuppressionSchema = z.object({
+  active: z.boolean(),
+  createdAt: z.iso.datetime(),
+  detail: z.string().max(500),
+  email: z.email(),
+  providerMessageId: z.string().min(1).max(512),
+  reason: platformEmailSuppressionReasonSchema,
+  sourceEventId: z.string().min(1).max(128),
+  updatedAt: z.iso.datetime(),
+});
+
+export const platformEmailSuppressionsResponseSchema = z.object({
+  nextCursor: z.string().min(1).max(512).nullable(),
+  requestId: requestIdSchema,
+  suppressions: z.array(platformEmailSuppressionSchema).max(25),
+});
+
+export type PlatformEmailSuppression = z.infer<typeof platformEmailSuppressionSchema>;
+export type PlatformEmailSuppressionsResponse = z.infer<
+  typeof platformEmailSuppressionsResponseSchema
+>;
+
+export const platformEmailSuppressionReleaseRequestSchema = z.object({
+  email: z.email().max(320),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export type PlatformEmailSuppressionReleaseRequest = z.infer<
+  typeof platformEmailSuppressionReleaseRequestSchema
+>;
+
+export const platformEmailSuppressionReleaseResponseSchema = z.object({
+  active: z.literal(false),
+  email: z.email(),
+  requestId: requestIdSchema,
+  updatedAt: z.iso.datetime(),
+});
+
+export type PlatformEmailSuppressionReleaseResponse = z.infer<
+  typeof platformEmailSuppressionReleaseResponseSchema
+>;
 
 export const platformFleetSchemaPreparationSchema = z.object({
   completedAt: z.iso.datetime().nullable(),

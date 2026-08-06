@@ -4,6 +4,10 @@ import {
   organizationAuditionSchema,
   type ProblemDetails,
 } from "@choir/contracts";
+import {
+  assertEmailProviderRecipientAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
 
 import type { Hono } from "hono";
 
@@ -34,6 +38,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
       const response = await context.env.ORGANIZATION_STORE.get(
         context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
       ).fetch("https://organization.internal/internal/audition/create", {
@@ -60,7 +65,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const audition = organizationAuditionSchema.safeParse(responseBody);
       if (!audition.success) throw new Error("invalid_audition");
       return context.json({ ...audition.data, requestId: context.get("requestId") }, 201);
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",

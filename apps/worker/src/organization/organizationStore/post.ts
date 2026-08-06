@@ -39,12 +39,14 @@ import { recordProviderRefundRequestedInStore } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
 import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
 import { ensurePracticePlayerLinkInStore } from "../playerLinkStore";
+import { recordProviderEmailFeedback } from "./providerFeedback";
 
 import {
   provisionOrganizationStore,
   claimJob,
   completeJob,
   failJob,
+  requeueJob,
   terminalJob,
   prepareOrganizationSchema,
 } from "./provision";
@@ -106,6 +108,9 @@ export async function dispatchPostRequest(
   }
   if (pathname === "/internal/payments/notification-result") {
     return recordPaymentNotificationResultInStore(storage, await request.json().catch(() => null));
+  }
+  if (pathname === "/internal/email/provider-event") {
+    return recordProviderEmailFeedback(storage, request);
   }
   if (pathname === "/internal/ticket-confirmation-settings") {
     return ticketConfirmationSettingsUpdateHandler(storage, request);
@@ -382,6 +387,8 @@ export async function dispatchOperationalPostRequest(
       return completeJob(storage, request);
     case "/internal/jobs/fail":
       return failJob(storage, request);
+    case "/internal/jobs/requeue":
+      return requeueJob(storage, request);
     case "/internal/jobs/terminal":
       return terminalJob(storage, request);
     case "/internal/calendar/credential":

@@ -69,7 +69,10 @@ export async function deliverTicketNotificationJob(
     deliveryId: notification.data.id,
     destination: notification.data.destination,
     messageId: notification.data.id,
+    organizationId: job.organizationId,
     recipientName: notification.data.buyerName,
+    sourceId: notification.data.id,
+    sourceKind: "ticket_notification",
     subject: renderCommunicationTemplate(
       notification.data.subject,
       notification.data.buyerName,

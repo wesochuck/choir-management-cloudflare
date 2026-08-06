@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { publicAuditionSettingsSchema } from "@choir/contracts";
+import { responseError } from "../auth/api/client";
 
 interface AuditionSlot {
   readonly id: string;
@@ -75,7 +76,7 @@ type PageStatus =
   | { type: "closed"; message: string }
   | { type: "submitting_inquiry"; settings: PublicAuditionSettings }
   | { type: "inquiry_submitted"; id: string }
-  | { type: "inquiry_error"; settings: PublicAuditionSettings }
+  | { type: "inquiry_error"; message: string; settings: PublicAuditionSettings }
   | { type: "not_found" }
   | { type: "ready_details"; details: AuditionDetails }
   | { type: "updating"; details: AuditionDetails }
@@ -194,8 +195,8 @@ function submitInquiry(
     }),
     headers: { "content-type": "application/json" },
     method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("submit_failed");
+  }).then(async (response) => {
+    if (!response.ok) throw await responseError(response);
     return response.json().then((data: unknown) => {
       if (typeof data !== "object" || data === null) throw new Error("invalid_response");
       if (!("id" in data)) throw new Error("invalid_response");
@@ -538,8 +539,15 @@ export function PublicAuditionView() {
       .then((id) => {
         setPageStatus({ type: "inquiry_submitted", id });
       })
-      .catch(() => {
-        setPageStatus({ settings, type: "inquiry_error" });
+      .catch((failure: unknown) => {
+        setPageStatus({
+          message:
+            failure instanceof Error
+              ? failure.message
+              : "Your inquiry could not be submitted. Please try again later.",
+          settings,
+          type: "inquiry_error",
+        });
       });
   }
 
@@ -610,7 +618,7 @@ export function PublicAuditionView() {
           <p className="eyebrow">Audition</p>
           <h1 id="audition-title">Submission Error</h1>
           <p className="notice notice--error" role="alert">
-            Your inquiry could not be submitted. Please try again later.
+            {pageStatus.message}
           </p>
           <button
             className="button button--secondary"

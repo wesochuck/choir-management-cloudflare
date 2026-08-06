@@ -9,6 +9,10 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 import { createAuth, isProductBaseHost } from "../auth/config";
+import {
+  assertEmailProviderRecipientAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
 import { authorizePlatformAdministratorSession } from "../auth/platformAdministrator";
 import {
   createPlatformElevation,
@@ -596,6 +600,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const parsed = z.object({ to: z.string().min(3).max(320) }).safeParse(body);
     if (!parsed.success || !parsed.data.to.includes("@"))
       return context.json({ error: "Invalid email address" }, 400);
+    try {
+      await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, parsed.data.to);
+    } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "The email suppression list could not be checked.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
     const mode: string = context.env.EXTERNAL_EFFECTS_MODE || "fake";
     if (mode === "fake") {
       return context.json({

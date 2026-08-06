@@ -125,6 +125,7 @@ export const platformGroups: readonly NavigationGroup[] = [
       { href: "/platform", label: "Platform overview" },
       { href: "/platform/security", label: "Platform security" },
       { href: "/platform/organizations", label: "Organizations" },
+      { href: "/platform/email-suppressions", label: "Email suppressions" },
     ],
   },
 ];
@@ -184,6 +185,7 @@ export function pageTitle(pathname: string): string {
     ["/admin/settings", "Organization settings"],
     ["/platform/security", "Platform security"],
     ["/platform/organizations", "Organizations"],
+    ["/platform/email-suppressions", "Email suppressions"],
     ["/platform/access", "Scoped Organization access"],
     ["/platform", "Platform overview"],
     ["/profile", "My Profile"],

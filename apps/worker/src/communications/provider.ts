@@ -1,12 +1,24 @@
 import { z } from "zod";
 
+import {
+  attachEmailProviderMessage,
+  emailProviderSourceKindSchema,
+  isEmailProviderSuppressed,
+  markEmailProviderRouteUnknown,
+  prepareEmailProviderRoute,
+  type EmailProviderSourceKind,
+} from "./emailFeedback";
+
 const deliverySchema = z.object({
   channel: z.enum(["email", "sms"]),
   contentMarkdown: z.string().max(100_000),
   deliveryId: z.uuid(),
   destination: z.string().min(1).max(320),
   messageId: z.uuid(),
+  organizationId: z.string().min(1).max(128).optional(),
   recipientName: z.string().min(1).max(200),
+  sourceId: z.string().trim().min(1).max(256).optional(),
+  sourceKind: emailProviderSourceKindSchema.optional(),
   subject: z.string().max(300),
   unsubscribeUrl: z.url().max(4_096).nullable(),
 });
@@ -18,6 +30,7 @@ export interface CommunicationProviderConfig {
   readonly BREVO_API_KEY?: string;
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string;
   readonly BREVO_SMS_SENDER?: string;
+  readonly CONTROL_DB?: D1Database;
   readonly EXTERNAL_EFFECTS_MODE: string;
   readonly PLATFORM_EMAIL?: SendEmail;
   readonly PLATFORM_EMAIL_ALLOWED_RECIPIENTS?: string;
@@ -179,7 +192,8 @@ async function brevoRequest(
   };
 }
 
-function deliverOrganizationEmail(
+// eslint-disable-next-line complexity -- coordinates sandbox gates, suppression, route reservation, and provider acceptance.
+async function deliverOrganizationEmail(
   config: CommunicationProviderConfig,
   delivery: z.infer<typeof deliverySchema>,
 ): Promise<CommunicationProviderResult> {
@@ -203,22 +217,70 @@ function deliverOrganizationEmail(
     });
   }
   if (!config.PLATFORM_EMAIL) {
-    return Promise.reject(new Error("The Cloudflare email binding is not configured."));
+    throw new Error("The Cloudflare email binding is not configured.");
+  }
+  if (config.CONTROL_DB && (await isEmailProviderSuppressed(config.CONTROL_DB, recipient))) {
+    return {
+      failureDetail: "recipient is suppressed by provider feedback",
+      providerMessageId: null,
+      status: "suppressed",
+    };
+  }
+  const sourceKind: EmailProviderSourceKind | undefined = delivery.sourceKind;
+  const controlDatabase = config.CONTROL_DB;
+  const routeInput =
+    controlDatabase && sourceKind && delivery.sourceId
+      ? {
+          destination: recipient,
+          organizationId: delivery.organizationId ?? null,
+          sourceId: delivery.sourceId,
+          sourceKind,
+        }
+      : null;
+  const route =
+    routeInput && controlDatabase
+      ? await prepareEmailProviderRoute(controlDatabase, routeInput)
+      : null;
+  if (route?.alreadyAccepted && route.providerMessageId) {
+    return { failureDetail: "", providerMessageId: route.providerMessageId, status: "sent" };
   }
   const sender = configuredPlatformEmailSender(config);
   const senderEmail = sender.fromEmail ?? required(config.PLATFORM_EMAIL_FROM, "email sender");
   const contents = emailContents(delivery.contentMarkdown, delivery.unsubscribeUrl);
-  return config.PLATFORM_EMAIL.send({
-    from: { email: senderEmail, name: sender.fromName ?? DEFAULT_PLATFORM_EMAIL_FROM_NAME },
-    html: contents.htmlContent,
-    subject: delivery.subject,
-    text: contents.textContent,
-    to: recipient,
-  }).then((result) => ({
+  let result: Awaited<ReturnType<SendEmail["send"]>>;
+  try {
+    result = await config.PLATFORM_EMAIL.send({
+      from: { email: senderEmail, name: sender.fromName ?? DEFAULT_PLATFORM_EMAIL_FROM_NAME },
+      html: contents.htmlContent,
+      subject: delivery.subject,
+      text: contents.textContent,
+      to: recipient,
+    });
+  } catch (error: unknown) {
+    if (routeInput && controlDatabase) {
+      await markEmailProviderRouteUnknown(controlDatabase, routeInput).catch(() => undefined);
+    }
+    throw error;
+  }
+  if (routeInput && controlDatabase) {
+    await attachEmailProviderMessage(controlDatabase, routeInput, result.messageId).catch(
+      (error: unknown) => {
+        console.error(
+          JSON.stringify({
+            errorType: error instanceof Error ? error.name : "UnknownError",
+            event: "email_provider_route_attach_failed",
+            sourceId: routeInput.sourceId,
+            sourceKind: routeInput.sourceKind,
+          }),
+        );
+      },
+    );
+  }
+  return {
     failureDetail: "",
     providerMessageId: result.messageId,
     status: "sent",
-  }));
+  };
 }
 
 export function deliverOrganizationCommunication(

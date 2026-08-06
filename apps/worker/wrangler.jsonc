@@ -14,6 +14,9 @@
       "head_sampling_rate": 1,
     },
   },
+  "triggers": {
+    "crons": ["*/5 * * * *"],
+  },
   "assets": {
     "binding": "ASSETS",
     "directory": "../web/dist",
@@ -24,6 +27,8 @@
   "vars": {
     "APP_ENV": "local",
     "BUILD_VERSION": "development",
+    "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-local",
+    "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-local",
     "EXTERNAL_EFFECTS_MODE": "fake",
     "JOBS_DLQ_NAME": "choir-management-jobs-dlq-local",
     "PLATFORM_EMAIL_FROM": "auth@invalid.example",
@@ -73,6 +78,19 @@
     ],
     "consumers": [
       {
+        "queue": "choir-management-email-events-local",
+        "dead_letter_queue": "choir-management-email-events-dlq-local",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+      },
+      {
+        "queue": "choir-management-email-events-dlq-local",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 10,
+      },
+      {
         "queue": "choir-management-jobs-local",
         "dead_letter_queue": "choir-management-jobs-dlq-local",
         "max_batch_size": 10,
@@ -113,6 +131,9 @@
           "zone_name": "musicsite.org",
         },
       ],
+      "triggers": {
+        "crons": ["*/5 * * * *"],
+      },
       "d1_databases": [
         {
           "binding": "CONTROL_DB",
@@ -145,6 +166,7 @@
         {
           "name": "PLATFORM_EMAIL",
           "allowed_sender_addresses": ["auth@mail.staging.musicsite.org"],
+          "allowed_destination_addresses": ["dsksfjksjfakjsdf@dkfjsajfdskaj.test"],
         },
       ],
       "queues": {
@@ -155,6 +177,19 @@
           },
         ],
         "consumers": [
+          {
+            "queue": "choir-management-email-events-staging",
+            "dead_letter_queue": "choir-management-email-events-dlq-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 5,
+          },
+          {
+            "queue": "choir-management-email-events-dlq-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 10,
+          },
           {
             "queue": "choir-management-jobs-staging",
             "dead_letter_queue": "choir-management-jobs-dlq-staging",
@@ -185,6 +220,8 @@
       "vars": {
         "APP_ENV": "staging",
         "BUILD_VERSION": "staging",
+        "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-staging",
+        "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-staging",
         "EXTERNAL_EFFECTS_MODE": "sandbox",
         "JOBS_DLQ_NAME": "choir-management-jobs-dlq-staging",
         "PLATFORM_EMAIL_ALLOWED_RECIPIENTS": "dsksfjksjfakjsdf@dkfjsajfdskaj.test",
@@ -200,6 +237,8 @@
       "vars": {
         "APP_ENV": "production",
         "BUILD_VERSION": "unreleased",
+        "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-production",
+        "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-production",
         "EXTERNAL_EFFECTS_MODE": "disabled",
         "JOBS_DLQ_NAME": "choir-management-jobs-dlq-production",
         "PLATFORM_EMAIL_FROM": "auth@invalid.example",

@@ -49,6 +49,40 @@
     font: inherit;
   }
 
+  /* Tailwind's preflight intentionally makes form controls transparent. Give
+   * every visible control a shared surface, border, and placeholder treatment;
+   * component-specific form rules can still refine the sizing afterward. */
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
+        [type="hidden"]
+      ),
+    select,
+    textarea
+  ) {
+    min-height: var(--control-height);
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    color-scheme: inherit;
+  }
+
+  :where(input, textarea)::placeholder {
+    color: var(--color-text-muted);
+    opacity: 1;
+  }
+
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
+        [type="hidden"]
+      ),
+    select,
+    textarea
+  ):focus {
+    border-color: var(--color-primary);
+  }
+
   button:focus-visible,
   input:focus-visible,
   select:focus-visible,

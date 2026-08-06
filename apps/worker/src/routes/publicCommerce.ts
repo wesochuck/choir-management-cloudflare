@@ -9,6 +9,11 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
+import {
+  assertEmailProviderRecipientAvailable,
+  assertEmailProviderRecipientsAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
 import { validateStartupConfig } from "../env";
 import {
   readPublishedOrganization,
@@ -235,6 +240,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      await assertEmailProviderRecipientsAvailable(context.env.CONTROL_DB, [
+        checkout.data.buyerEmail,
+        checkout.data.tributeNotifyEmail,
+      ]);
       return context.json(
         await createDonationCheckoutSession(
           context.env,
@@ -245,6 +254,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         201,
       );
     } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: error instanceof DonationError ? error.code : "donation_checkout_unavailable",
@@ -355,6 +370,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, checkout.data.buyerEmail);
       return context.json(
         await createPublicTicketCheckout(
           context.env,
@@ -365,6 +381,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         201,
       );
     } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: error instanceof TicketingError ? error.code : "ticket_checkout_unavailable",

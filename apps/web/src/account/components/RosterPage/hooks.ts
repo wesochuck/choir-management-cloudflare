@@ -473,16 +473,25 @@ export function useRosterPageController({
     setError(null);
     try {
       const saved = editingId
-        ? await updateOrganizationProfile(editingId, profile)
-        : await createOrganizationProfile(profile);
+        ? await updateOrganizationProfile(
+            editingId,
+            profile,
+            normalizedEmail && normalizedEmail !== linkedEmail ? normalizedEmail : undefined,
+          )
+        : await createOrganizationProfile(
+            profile,
+            normalizedEmail && normalizedEmail !== linkedEmail ? normalizedEmail : undefined,
+          );
       let invitationNote = "";
       if (normalizedEmail && normalizedEmail !== linkedEmail) {
         try {
           await createOrganizationInvitation({ email: normalizedEmail, role: "member" });
           invitationNote = ` A membership invitation was sent to ${normalizedEmail}.`;
-        } catch {
+        } catch (invitationError: unknown) {
           invitationNote =
-            " The Profile was saved, but the membership invitation could not be created.";
+            invitationError instanceof AuthApiError
+              ? ` The Profile was saved, but the membership invitation could not be created. ${invitationError.message}`
+              : " The Profile was saved, but the membership invitation could not be created.";
         }
       }
       setRoster((current) =>

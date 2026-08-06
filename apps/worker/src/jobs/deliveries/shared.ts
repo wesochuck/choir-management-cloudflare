@@ -37,6 +37,14 @@ export const deliveryAttemptSchema = z.number().int().min(1).max(10);
 export const failureResponseSchema = z.object({ failed: z.boolean() });
 export const terminalResponseSchema = z.object({ terminal: z.boolean() });
 export const eventReminderResultResponseSchema = z.object({ recorded: z.boolean() });
+const providerNotificationFields = {
+  providerEventAt: z.string().max(100).nullable(),
+  providerMessageId: z.string().max(512).nullable(),
+  providerReason: z.string().max(500),
+  providerStatus: z
+    .enum(["accepted", "delivered", "deferred", "bounced", "failed", "rejected", "complained"])
+    .nullable(),
+};
 export const ticketNotificationJobSchema = z.object({
   buyerName: z.string().min(1).max(200),
   contentMarkdown: z.string().max(100_000),
@@ -53,6 +61,7 @@ export const ticketNotificationJobSchema = z.object({
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
   timezone: z.string().min(1).max(100),
+  ...providerNotificationFields,
 });
 export const paymentNotificationJobSchema = z.object({
   contentMarkdown: z.string().max(100_000),
@@ -63,6 +72,7 @@ export const paymentNotificationJobSchema = z.object({
   resourceId: z.uuid(),
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
+  ...providerNotificationFields,
 });
 export const auditionNotificationJobSchema = z.object({
   auditionId: z.string().min(1).max(200),
@@ -78,6 +88,7 @@ export const auditionNotificationJobSchema = z.object({
   recipientName: z.string().min(1).max(200),
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
+  ...providerNotificationFields,
 });
 export const organizationExportJobSchema = z.object({
   actorType: z.enum(["organization_member", "platform_administrator"]),

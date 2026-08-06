@@ -6,6 +6,10 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
+import {
+  assertEmailProviderRecipientsAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
 import { generateRsvpTokens } from "../organization/organizationRsvpLinks";
 import { generatePollTokens } from "../organization/organizationPollLinks";
 import {
@@ -287,6 +291,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      await assertEmailProviderRecipientsAvailable(
+        context.env.CONTROL_DB,
+        body.data.adminNotifyUsers,
+      );
       const stub = context.env.ORGANIZATION_STORE.get(
         context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
       );
@@ -325,7 +333,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const settings = organizationAuditionSettingsSchema.safeParse(await response.json());
       if (!settings.success) throw new Error("invalid_settings");
       return context.json({ ...settings.data, requestId: context.get("requestId") });
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",

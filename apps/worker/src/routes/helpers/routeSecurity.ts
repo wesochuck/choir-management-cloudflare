@@ -14,6 +14,10 @@ import type { Env } from "../../env";
 import { validateStartupConfig } from "../../env";
 import { MusicRepositoryError } from "../../organization/organizationMusic";
 import { CommunicationRepositoryError } from "../../organization/organizationCommunications";
+import {
+  assertEmailProviderRecipientAvailable,
+  EmailRecipientSuppressedError,
+} from "../../communications/emailFeedback";
 import { createOrganizationProfile, deleteOrganizationProfile } from "../../organization/profiles";
 import { getSetupStatus } from "../../organization/organizationSetup";
 import { createSeason, updateSeason } from "../../organization/organizationSeasons";
@@ -76,11 +80,20 @@ export function communicationProblem(error: unknown, requestIdValue: string, mes
       requestId: requestIdValue,
     }),
   );
-  const status = error instanceof CommunicationRepositoryError ? error.status : 503;
+  const suppression = error instanceof EmailRecipientSuppressedError;
+  const status = suppression
+    ? error.status
+    : error instanceof CommunicationRepositoryError
+      ? error.status
+      : 503;
   return {
     problem: {
-      code: error instanceof CommunicationRepositoryError ? error.code : "service_unavailable",
-      message,
+      code: suppression
+        ? error.code
+        : error instanceof CommunicationRepositoryError
+          ? error.code
+          : "service_unavailable",
+      message: suppression ? error.message : message,
       requestId: requestIdValue,
     } satisfies ProblemDetails,
     status,
@@ -463,6 +476,24 @@ export async function recoverAdministrator(
   if (authorization instanceof Response) return authorization;
   const setup = await ensureAdministratorRecoverySetup(context, organizationId);
   if (setup instanceof Response) return setup;
+  try {
+    await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, request.email);
+  } catch (error: unknown) {
+    if (error instanceof EmailRecipientSuppressedError) {
+      return context.json(
+        { code: error.code, message: error.message, requestId: context.get("requestId") },
+        error.status,
+      );
+    }
+    return context.json(
+      {
+        code: "service_unavailable",
+        message: "The email suppression list could not be checked.",
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      503,
+    );
+  }
   const identity = await recoverAdministratorIdentity(context, organizationId, request);
   if (identity instanceof Response) return identity;
   const profile = await createAdministratorRecoveryProfile(

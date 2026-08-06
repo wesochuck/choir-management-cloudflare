@@ -94,9 +94,15 @@ export function readPaymentNotificationJobFromStore(
       readonly resourceId: string;
       readonly status: "queued" | "processing";
       readonly subject: string;
+      readonly providerEventAt: string | null;
+      readonly providerMessageId: string | null;
+      readonly providerReason: string;
+      readonly providerStatus: string | null;
     }>(
       `SELECT id, payment_type AS paymentType, resource_id AS resourceId, destination,
-        recipient_name AS recipientName, subject, content_markdown AS contentMarkdown, status
+        recipient_name AS recipientName, subject, content_markdown AS contentMarkdown, status,
+        provider_event_at AS providerEventAt, provider_message_id AS providerMessageId,
+        provider_reason AS providerReason, provider_status AS providerStatus
        FROM payment_notifications WHERE id = ? LIMIT 1`,
       parsedJobId.data,
     )
@@ -127,10 +133,14 @@ export function recordPaymentNotificationResultInStore(
   const sentAt = result.data.status === "sent" ? new Date().toISOString() : null;
   storage.sql.exec(
     `UPDATE payment_notifications
-     SET status = ?, failure_detail = ?, provider_message_id = ?, sent_at = ?, updated_at = ?
+     SET status = ?, failure_detail = ?, provider_message_id = ?,
+       provider_status = CASE WHEN ? = 'sent' AND ? IS NOT NULL AND provider_status IS NULL THEN 'accepted' ELSE provider_status END,
+       sent_at = ?, updated_at = ?
      WHERE id = ?`,
     result.data.status,
     result.data.failureDetail,
+    result.data.providerMessageId,
+    result.data.status,
     result.data.providerMessageId,
     sentAt,
     new Date().toISOString(),

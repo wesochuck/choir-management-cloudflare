@@ -547,6 +547,19 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                 Delivery: {summary.state} · {summary.total.sent} sent · {summary.total.failed}{" "}
                 failed · {summary.total.queued + summary.total.processing} remaining
               </p>
+              {summary.provider.total > 0 ? (
+                <>
+                  <p>
+                    Provider: {summary.provider.accepted} accepted · {summary.provider.delivered}{" "}
+                    delivered · {summary.provider.deferred} deferred · {summary.provider.bounced}{" "}
+                    bounced
+                  </p>
+                  <p>
+                    Provider: {summary.provider.failed} failed · {summary.provider.rejected}{" "}
+                    rejected · {summary.provider.complained} complained
+                  </p>
+                </>
+              ) : null}
               {summary.failures.length > 0 ? (
                 <ul>
                   {summary.failures.map((failure, index) => (

@@ -10,6 +10,25 @@ export const communicationDeliveryStatusSchema = z.enum([
   "failed",
   "suppressed",
 ]);
+const communicationProviderStatusSchema = z.enum([
+  "accepted",
+  "delivered",
+  "deferred",
+  "bounced",
+  "failed",
+  "rejected",
+  "complained",
+]);
+const communicationProviderStatusCountsSchema = z.object({
+  accepted: z.number().int().nonnegative(),
+  bounced: z.number().int().nonnegative(),
+  complained: z.number().int().nonnegative(),
+  deferred: z.number().int().nonnegative(),
+  delivered: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  rejected: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+});
 export const communicationFailureCategorySchema = z.enum([
   "authentication",
   "invalid-destination",
@@ -130,6 +149,7 @@ export const communicationDeliverySummarySchema = z.object({
   hasMoreFailures: z.boolean(),
   lastActivity: z.iso.datetime().nullable(),
   messageId: z.uuid(),
+  provider: communicationProviderStatusCountsSchema,
   sms: communicationChannelCountsSchema,
   state: z.enum(["failed", "partial", "queued", "sending", "sent", "tracking-unavailable"]),
   total: communicationChannelCountsSchema,
@@ -223,6 +243,9 @@ export const organizationProfileDeliverySchema = z.object({
   failureDetail: z.string().max(2_000),
   lastAttemptAt: z.string().min(1).max(100),
   messageId: z.uuid(),
+  providerEventAt: z.string().max(100).nullable(),
+  providerReason: z.string().max(500),
+  providerStatus: communicationProviderStatusSchema.nullable(),
   recipientName: z.string().min(1).max(200),
   status: z.enum(["failed", "processing", "queued", "sent", "suppressed"]),
   subject: z.string().min(1).max(300),

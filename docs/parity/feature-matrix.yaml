@@ -465,6 +465,19 @@
           ],
       },
       {
+        "id": "route.platform.email-suppressions",
+        "path": "/platform/email-suppressions",
+        "owner": "apps/web",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent legacy global provider-suppression view existed.",
+        "targetEvidence":
+          [
+            "apps/web/src/account/PlatformAccess.tsx",
+            "apps/web/src/account/PlatformEmailSuppressions.tsx",
+          ],
+      },
+      {
         "id": "route.member.dashboard",
         "path": "/dashboard",
         "owner": "apps/web",
@@ -1221,6 +1234,65 @@
             "apps/worker/src/routes/platformOperations.ts",
             "apps/worker/src/organization/reconciliationStore.ts",
             "apps/worker/test/reconciliation.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.platform.email-suppressions",
+        "method": "GET",
+        "path": "/api/platform/email-suppressions",
+        "owner": "apps/worker",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent legacy global provider-suppression API existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/platformEmailSuppressions.ts",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.platform.job-dead-letters",
+        "method": "GET",
+        "path": "/api/platform/job-dead-letters",
+        "owner": "apps/worker",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent operator dead-letter directory existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/platformAdministration.ts",
+            "apps/web/src/account/PlatformOperations.tsx",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.platform.job-dead-letters.retry",
+        "method": "POST",
+        "path": "/api/platform/job-dead-letters/:deadLetterId/retry",
+        "owner": "apps/worker",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent source-aware queue retry action existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/platformAdministration.ts",
+            "apps/worker/src/organization/organizationStore/provision.ts",
+            "apps/worker/test/auth.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.platform.job-dead-letters.dismiss",
+        "method": "POST",
+        "path": "/api/platform/job-dead-letters/:deadLetterId/dismiss",
+        "owner": "apps/worker",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent auditable dead-letter dismissal action existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/platformAdministration.ts",
+            "apps/web/src/account/PlatformOperations.tsx",
+            "apps/worker/test/auth.integration.test.ts",
           ],
       },
       {

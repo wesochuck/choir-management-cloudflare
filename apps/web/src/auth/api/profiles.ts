@@ -49,9 +49,10 @@ export async function linkOrganizationMembershipProfile(
 
 export async function createOrganizationProfile(
   profile: OrganizationProfileRequest,
+  email?: string,
 ): Promise<OrganizationProfile> {
   const response = await request("/api/organization/profiles", {
-    body: JSON.stringify(profile),
+    body: JSON.stringify({ ...profile, ...(email ? { email } : {}) }),
     method: "POST",
   });
   return organizationProfileResponseSchema.parse(await response.json());
@@ -72,9 +73,10 @@ export async function importOrganizationProfilesCsv(
 export async function updateOrganizationProfile(
   profileId: string,
   profile: OrganizationProfileRequest,
+  email?: string,
 ): Promise<OrganizationProfile> {
   const response = await request(`/api/organization/profiles/${encodeURIComponent(profileId)}`, {
-    body: JSON.stringify(profile),
+    body: JSON.stringify({ ...profile, ...(email ? { email } : {}) }),
     method: "PUT",
   });
   return organizationProfileResponseSchema.parse(await response.json());

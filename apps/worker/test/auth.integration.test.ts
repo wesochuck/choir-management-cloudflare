@@ -13,8 +13,11 @@ import {
   organizationProvisionResponseSchema,
   organizationProfileLinkResponseSchema,
   platformMfaStatusResponseSchema,
+  platformJobDeadLetterActionResponseSchema,
   platformJobDeadLettersResponseSchema,
   platformFleetSchemaStatusResponseSchema,
+  platformEmailSuppressionsResponseSchema,
+  platformEmailSuppressionReleaseResponseSchema,
   platformOrganizationContextResponseSchema,
   platformOrganizationsResponseSchema,
   publicDomainResponseSchema,
@@ -55,6 +58,8 @@ const testEnv: Env = {
   BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
   BUILD_VERSION: env.BUILD_VERSION,
   CONTROL_DB: requireBinding(env.CONTROL_DB, "CONTROL_DB"),
+  EMAIL_EVENTS_DLQ_NAME: env.EMAIL_EVENTS_DLQ_NAME,
+  EMAIL_EVENTS_QUEUE_NAME: env.EMAIL_EVENTS_QUEUE_NAME,
   EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE,
   FLEET_SCHEMA_WORKFLOW: requireBinding(env.FLEET_SCHEMA_WORKFLOW, "FLEET_SCHEMA_WORKFLOW"),
   JOBS_DLQ_NAME: env.JOBS_DLQ_NAME,
@@ -1390,6 +1395,158 @@ describe("Platform Administrator MFA", () => {
     expect(revokedResponse.status).toBe(403);
   });
 
+  it("lists application-wide email suppressions for verified Platform Administrators", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+
+    const ordinaryUserResponse = await fetchWorker(
+      authRequest("/api/platform/email-suppressions", { headers: { cookie: sessionCookie } }),
+    );
+    expect(ordinaryUserResponse.status).toBe(403);
+
+    await grantPlatformAdministratorForCurrentSession();
+    const activeCreatedAt = "2026-08-06T17:07:28.817Z";
+    const inactiveCreatedAt = "2026-08-05T17:07:28.817Z";
+    await testEnv.CONTROL_DB.batch([
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO email_recipient_suppressions
+          (email_normalized, reason, source_event_id, provider_message_id, detail, active, created_at, updated_at)
+         VALUES (?, 'bounce', ?, ?, ?, 1, ?, ?)`,
+      ).bind(
+        "bounce@example.test",
+        "event-bounce",
+        "provider-bounce",
+        "Mailbox unavailable",
+        activeCreatedAt,
+        activeCreatedAt,
+      ),
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO email_recipient_suppressions
+          (email_normalized, reason, source_event_id, provider_message_id, detail, active, created_at, updated_at)
+         VALUES (?, 'complaint', ?, ?, ?, 0, ?, ?)`,
+      ).bind(
+        "complaint@example.test",
+        "event-complaint",
+        "provider-complaint",
+        "Complaint cleared for test",
+        inactiveCreatedAt,
+        inactiveCreatedAt,
+      ),
+    ]);
+
+    const activeResponse = await fetchWorker(
+      authRequest("/api/platform/email-suppressions", { headers: { cookie: sessionCookie } }),
+    );
+    expect(activeResponse.status).toBe(200);
+    expect(
+      platformEmailSuppressionsResponseSchema.parse(await activeResponse.json()),
+    ).toMatchObject({
+      nextCursor: null,
+      suppressions: [
+        {
+          active: true,
+          email: "bounce@example.test",
+          reason: "bounce",
+          sourceEventId: "event-bounce",
+        },
+      ],
+    });
+
+    const searchResponse = await fetchWorker(
+      authRequest("/api/platform/email-suppressions?q=complaint&status=all", {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    expect(searchResponse.status).toBe(200);
+    expect(
+      platformEmailSuppressionsResponseSchema.parse(await searchResponse.json()),
+    ).toMatchObject({
+      suppressions: [
+        {
+          active: false,
+          email: "complaint@example.test",
+          reason: "complaint",
+        },
+      ],
+    });
+
+    const releaseResponse = await fetchWorker(
+      authRequest("/api/platform/email-suppressions/release", {
+        body: JSON.stringify({
+          email: "BOUNCE@example.test",
+          reason: "Mailbox issue was resolved and verified.",
+        }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(releaseResponse.status).toBe(200);
+    expect(
+      platformEmailSuppressionReleaseResponseSchema.parse(await releaseResponse.json()),
+    ).toMatchObject({ active: false, email: "bounce@example.test" });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT active FROM email_recipient_suppressions WHERE email_normalized = ?`,
+      )
+        .bind("bounce@example.test")
+        .first(),
+    ).resolves.toEqual({ active: 0 });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT action, actor_user_id AS actorUserId, target_id AS targetId
+         FROM platform_audit_events
+         WHERE target_id = ? AND action = 'platform.email_suppression.released'`,
+      )
+        .bind("bounce@example.test")
+        .first(),
+    ).resolves.toMatchObject({
+      action: "platform.email_suppression.released",
+      actorUserId: "user-invited-member",
+      targetId: "bounce@example.test",
+    });
+
+    const repeatedReleaseResponse = await fetchWorker(
+      authRequest("/api/platform/email-suppressions/release", {
+        body: JSON.stringify({
+          email: "bounce@example.test",
+          reason: "Repeated release request.",
+        }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(repeatedReleaseResponse.status).toBe(200);
+
+    const invalidFilterResponse = await fetchWorker(
+      authRequest("/api/platform/email-suppressions?status=invalid", {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    expect(invalidFilterResponse.status).toBe(400);
+
+    const wrongHostResponse = await fetchWorker(
+      authRequest(
+        "/api/platform/email-suppressions",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(wrongHostResponse.status).toBe(404);
+
+    const wrongHostReleaseResponse = await fetchWorker(
+      authRequest(
+        "/api/platform/email-suppressions/release",
+        {
+          body: JSON.stringify({ email: "bounce@example.test", reason: "Verified." }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(wrongHostReleaseResponse.status).toBe(404);
+  });
+
   it("bounds edit elevation to one Organization and supports explicit revocation", async () => {
     await seedInvitedUser();
     await seedOrganizations(true);
@@ -1884,9 +2041,235 @@ describe("Platform Administrator MFA", () => {
       await fleetWorkflowIntrospector.dispose();
     }
   });
+
+  it("lets Platform Administrators retry valid queue jobs and dismiss invalid records", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const sessionCookie = await signInInvitedUser();
+    await grantPlatformAdministratorForCurrentSession();
+
+    const jobId = "44444444-4444-4444-8444-444444444444";
+    const idempotencyKey = `organization-export:${jobId}`;
+    const validDeadLetterId = `${testEnv.JOBS_DLQ_NAME}:retryable-export`;
+    const invalidDeadLetterId = `${testEnv.JOBS_DLQ_NAME}:invalid-payload`;
+    const now = "2026-08-06T18:00:00.000Z";
+    await runInDurableObject(
+      testEnv.ORGANIZATION_STORE.get(testEnv.ORGANIZATION_STORE.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `INSERT INTO organization_metadata
+            (organization_id, name, slug, lifecycle_state, created_at, updated_at)
+           VALUES (?, ?, ?, 'active', ?, ?)`,
+          "organization-alpha",
+          "Organization Alpha",
+          "alpha",
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO organization_exports
+            (id, format, status, actor_type, actor_user_id, request_id, error_code,
+             created_at, updated_at)
+           VALUES (?, 'json', 'failed', 'organization_member', ?, ?, ?, ?, ?)`,
+          jobId,
+          "user-invited-member",
+          "55555555-5555-4555-8555-555555555555",
+          "queue_dead_lettered",
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO scheduled_job_outbox
+            (job_id, kind, idempotency_key, due_at, created_at, enqueued_at)
+           VALUES (?, 'organization_export', ?, ?, ?, ?)`,
+          jobId,
+          idempotencyKey,
+          now,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO job_ledger
+            (idempotency_key, job_id, kind, status, attempt, retry_count,
+             claimed_at, failed_at, terminal_at, last_error_code)
+           VALUES (?, ?, 'organization_export', 'failed', 1, 1, ?, ?, ?, 'queue_dead_lettered')`,
+          idempotencyKey,
+          jobId,
+          now,
+          now,
+          now,
+        );
+      },
+    );
+    await testEnv.CONTROL_DB.batch([
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO job_dead_letters
+          (id, queue_name, message_id, message_valid, observed_attempt,
+           organization_id, job_id, job_kind, idempotency_key,
+           first_seen_at, last_seen_at, observation_count)
+         VALUES (?, ?, ?, 1, 2, ?, ?, 'organization_export', ?, ?, ?, 1)`,
+      ).bind(
+        validDeadLetterId,
+        testEnv.JOBS_DLQ_NAME,
+        "retryable-export",
+        "organization-alpha",
+        jobId,
+        idempotencyKey,
+        now,
+        now,
+      ),
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO job_dead_letters
+          (id, queue_name, message_id, message_valid, observed_attempt,
+           organization_id, job_id, job_kind, idempotency_key,
+           first_seen_at, last_seen_at, observation_count)
+         VALUES (?, ?, ?, 0, 2, NULL, NULL, NULL, NULL, ?, ?, 1)`,
+      ).bind(invalidDeadLetterId, testEnv.JOBS_DLQ_NAME, "invalid-payload", now, now),
+    ]);
+    let sourceSnapshot:
+      | {
+          readonly exportStatus: string;
+          readonly jobKind: string;
+          readonly jobStatus: string;
+          readonly outboxKey: string;
+        }
+      | undefined;
+    await runInDurableObject(
+      testEnv.ORGANIZATION_STORE.get(testEnv.ORGANIZATION_STORE.idFromName("organization-alpha")),
+      (_instance, state) => {
+        sourceSnapshot = state.storage.sql
+          .exec<{
+            readonly exportStatus: string;
+            readonly jobKind: string;
+            readonly jobStatus: string;
+            readonly outboxKey: string;
+          }>(
+            `SELECT e.status AS exportStatus, l.kind AS jobKind, l.status AS jobStatus,
+              o.idempotency_key AS outboxKey
+             FROM organization_exports e
+             JOIN job_ledger l ON l.job_id = e.id
+             JOIN scheduled_job_outbox o ON o.job_id = e.id
+             WHERE e.id = ?`,
+            jobId,
+          )
+          .toArray()
+          .at(0);
+      },
+    );
+    expect(sourceSnapshot).toEqual({
+      exportStatus: "failed",
+      jobKind: "organization_export",
+      jobStatus: "failed",
+      outboxKey: idempotencyKey,
+    });
+
+    const retryResponse = await fetchWorker(
+      authRequest(`/api/platform/job-dead-letters/${encodeURIComponent(validDeadLetterId)}/retry`, {
+        body: JSON.stringify({ reason: "Export source was repaired; retrying once." }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(retryResponse.status, await retryResponse.clone().text()).toBe(202);
+    expect(
+      platformJobDeadLetterActionResponseSchema.parse(await retryResponse.json()),
+    ).toMatchObject({
+      actionStatus: "retry_queued",
+      deadLetterId: validDeadLetterId,
+      retryAttempt: 1,
+    });
+
+    const dismissResponse = await fetchWorker(
+      authRequest(
+        `/api/platform/job-dead-letters/${encodeURIComponent(invalidDeadLetterId)}/dismiss`,
+        {
+          body: JSON.stringify({ reason: "Invalid payload reviewed and no source job exists." }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+      ),
+    );
+    expect(dismissResponse.status).toBe(200);
+    expect(
+      platformJobDeadLetterActionResponseSchema.parse(await dismissResponse.json()),
+    ).toMatchObject({
+      actionStatus: "dismissed",
+      deadLetterId: invalidDeadLetterId,
+    });
+
+    const openResponse = await fetchWorker(
+      authRequest("/api/platform/job-dead-letters", { headers: { cookie: sessionCookie } }),
+    );
+    expect(platformJobDeadLettersResponseSchema.parse(await openResponse.json())).toMatchObject({
+      deadLetters: [{ actionStatus: "retry_queued", id: validDeadLetterId }],
+    });
+    const allResponse = await fetchWorker(
+      authRequest("/api/platform/job-dead-letters?view=all", {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    expect(
+      platformJobDeadLettersResponseSchema.parse(await allResponse.json()).deadLetters,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ actionStatus: "dismissed", id: invalidDeadLetterId }),
+        expect.objectContaining({ actionStatus: "retry_queued", id: validDeadLetterId }),
+      ]),
+    );
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT COUNT(*) AS count FROM platform_audit_events
+         WHERE target_type = 'job_dead_letter' AND target_id IN (?, ?)`,
+      )
+        .bind(validDeadLetterId, invalidDeadLetterId)
+        .first<{ count: number }>(),
+    ).resolves.toEqual({ count: 3 });
+  });
 });
 
 describe("Organization invitations", () => {
+  it("explains application-wide suppression before creating an invitation", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO email_recipient_suppressions
+          (email_normalized, reason, source_event_id, provider_message_id, detail, active, created_at, updated_at)
+         VALUES (?, 'bounce', ?, ?, ?, 1, ?, ?)`,
+    )
+      .bind(
+        "suppressed@example.test",
+        "event-invitation-guard",
+        "provider-invitation-guard",
+        "Mailbox unavailable",
+        "2026-08-06T12:00:00.000Z",
+        "2026-08-06T12:00:00.000Z",
+      )
+      .run();
+
+    const response = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations",
+        {
+          body: JSON.stringify({ email: "SUPPRESSED@example.test", role: "member" }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "email_recipient_suppressed",
+      message: expect.stringContaining("Platform Administrator"),
+    });
+    await expect(
+      testEnv.CONTROL_DB.prepare("SELECT COUNT(*) AS count FROM invitation WHERE email = ?")
+        .bind("suppressed@example.test")
+        .first(),
+    ).resolves.toEqual({ count: 0 });
+  });
+
   it("creates a pending identity that can sign in and accept its invitation", async () => {
     await seedInvitedUser();
     await seedOrganizations();

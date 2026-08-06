@@ -1,6 +1,10 @@
 import { type ProblemDetails } from "@choir/contracts";
 import { z } from "zod";
 import {
+  assertEmailProviderRecipientAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
+import {
   resendOrganizationTicketConfirmation,
   refundFakeTicketPurchase,
   TicketingError,
@@ -95,6 +99,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      if (body.data.recipientEmail) {
+        await assertEmailProviderRecipientAvailable(
+          context.env.CONTROL_DB,
+          body.data.recipientEmail,
+        );
+      }
       await resendOrganizationTicketConfirmation(
         context.env,
         {
@@ -107,6 +117,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
       return context.json({ queued: true, requestId: context.get("requestId") });
     } catch (error: unknown) {
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: error instanceof TicketingError ? error.code : "ticket_confirmation_unavailable",

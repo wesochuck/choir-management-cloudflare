@@ -33,7 +33,10 @@ export async function deliverAuditionNotificationJob(
     deliveryId: notification.data.id,
     destination: notification.data.destination,
     messageId: notification.data.id,
+    organizationId: job.organizationId,
     recipientName: notification.data.recipientName,
+    sourceId: notification.data.id,
+    sourceKind: "audition_notification",
     subject: notification.data.subject,
     unsubscribeUrl: null,
   });

@@ -85,6 +85,10 @@ interface AuditionNotificationRow {
   readonly recipientName: string;
   readonly status: string;
   readonly subject: string;
+  readonly providerEventAt: string | null;
+  readonly providerMessageId: string | null;
+  readonly providerReason: string;
+  readonly providerStatus: string | null;
 }
 
 interface AuditionNotificationResult {
@@ -847,7 +851,9 @@ export function readAuditionNotificationJobFromStore(
   const row = storage.sql
     .exec<AuditionNotificationRow>(
       `SELECT id, destination, recipient_name AS recipientName, subject,
-        audition_id AS auditionId, kind, content_markdown AS contentMarkdown, status
+        audition_id AS auditionId, kind, content_markdown AS contentMarkdown, status,
+        provider_event_at AS providerEventAt, provider_message_id AS providerMessageId,
+        provider_reason AS providerReason, provider_status AS providerStatus
        FROM audition_notifications WHERE id = ? LIMIT 1`,
       notificationId,
     )
@@ -893,9 +899,13 @@ export function recordAuditionNotificationResult(
   const now = new Date().toISOString();
   storage.sql.exec(
     `UPDATE audition_notifications SET status = ?, attempts = attempts + 1,
-      provider_message_id = ?, failure_detail = ?, updated_at = ?,
+      provider_message_id = ?,
+      provider_status = CASE WHEN ? = 'sent' AND ? IS NOT NULL AND provider_status IS NULL THEN 'accepted' ELSE provider_status END,
+      failure_detail = ?, updated_at = ?,
       sent_at = CASE WHEN ? IN ('sent', 'suppressed') THEN ? ELSE sent_at END
      WHERE id = ?`,
+    result.status,
+    result.providerMessageId,
     result.status,
     result.providerMessageId,
     result.failureDetail,

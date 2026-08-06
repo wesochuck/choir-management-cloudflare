@@ -2,6 +2,10 @@ import { organizationProfileRequestSchema, type ProblemDetails } from "@choir/co
 import { z } from "zod";
 import { parseRosterCsv, RosterCsvError } from "@choir/domain";
 import { createAuth } from "../auth/config";
+import {
+  assertEmailProviderRecipientsAvailable,
+  EmailRecipientSuppressedError,
+} from "../communications/emailFeedback";
 import { validateStartupConfig } from "../env";
 import {
   createOrganizationProfile,
@@ -16,6 +20,10 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute, resolveCanonicalOrganizationId } from "./helpers";
+
+const organizationProfileMutationRequestSchema = organizationProfileRequestSchema.extend({
+  email: z.union([z.literal(""), z.email().max(320)]).default(""),
+});
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post("/api/organization/profiles/import", async (context) => {
@@ -51,6 +59,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
       const parsed = parseRosterCsv(csv);
       if (parsed.length === 0) throw new RosterCsvError("The CSV contains no Profiles.");
+      await assertEmailProviderRecipientsAvailable(
+        context.env.CONTROL_DB,
+        parsed.map(({ email }) => email).filter(Boolean),
+      );
       const imported = await importOrganizationProfiles(context.env, {
         actorUserId: authorization.userId,
         organizationId: authorization.organizationId,
@@ -83,6 +95,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           400,
         );
       }
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",
@@ -108,7 +126,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-    const parsedBody = organizationProfileRequestSchema.safeParse(
+    const parsedBody = organizationProfileMutationRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
     );
     if (!parsedBody.success) {
@@ -121,6 +139,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
+    const { email, ...profileDetails } = parsedBody.data;
     const auth = createAuth({
       env: context.env,
       requestUrl,
@@ -156,18 +175,25 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const profile = await createOrganizationProfile(context.env, {
+      const createdProfile = await createOrganizationProfile(context.env, {
         actorUserId: authorization.value.userId,
         organizationId,
-        profile: parsedBody.data,
+        profile: profileDetails,
         requestId: context.get("requestId"),
+        ...(email ? { email } : {}),
       });
-      return context.json({ ...profile, requestId: context.get("requestId") }, 201);
+      return context.json({ ...createdProfile, requestId: context.get("requestId") }, 201);
     } catch (error: unknown) {
       if (error instanceof OrganizationProfileMutationError) {
         return context.json(
           { code: error.code, message: error.message, requestId: context.get("requestId") },
           400,
+        );
+      }
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
         );
       }
       return context.json(
@@ -190,7 +216,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     const profileId = z.uuid().safeParse(context.req.param("profileId"));
-    const profile = organizationProfileRequestSchema.safeParse(
+    const profile = organizationProfileMutationRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
     );
     if (!profileId.success || !profile.success) {
@@ -203,13 +229,15 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
+    const { email, ...profileDetails } = profile.data;
     try {
       const updated = await updateOrganizationProfile(context.env, {
         actorUserId: authorization.userId,
         organizationId: authorization.organizationId,
-        profile: profile.data,
+        profile: profileDetails,
         profileId: profileId.data,
         requestId: context.get("requestId"),
+        ...(email ? { email } : {}),
       });
       return context.json({ ...updated, requestId: context.get("requestId") });
     } catch (error: unknown) {
@@ -217,6 +245,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         return context.json(
           { code: error.code, message: error.message, requestId: context.get("requestId") },
           400,
+        );
+      }
+      if (error instanceof EmailRecipientSuppressedError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          error.status,
         );
       }
       return context.json(

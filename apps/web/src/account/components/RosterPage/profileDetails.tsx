@@ -283,11 +283,18 @@ export function ProfileMessages({ state }: { readonly state: ProfileDeliveriesSt
                 {maskDestination(delivery.destination)}
               </small>
             </div>
-            <span className={`status-pill status-pill--${delivery.status}`}>
-              {delivery.status.charAt(0).toUpperCase() + delivery.status.slice(1)}
-            </span>
+            <div>
+              <span className={`status-pill status-pill--${delivery.status}`}>
+                Queue: {delivery.status}
+              </span>
+              {delivery.providerStatus ? (
+                <span className="status-pill">Provider: {delivery.providerStatus}</span>
+              ) : null}
+            </div>
           </div>
-          {delivery.failureDetail ? <p className="field-help">{delivery.failureDetail}</p> : null}
+          {delivery.failureDetail || delivery.providerReason ? (
+            <p className="field-help">{delivery.failureDetail || delivery.providerReason}</p>
+          ) : null}
         </li>
       ))}
     </ul>

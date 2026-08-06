@@ -180,6 +180,10 @@ interface DeliveryRow {
   readonly id: string;
   readonly messageId: string;
   readonly profileId: string;
+  readonly providerEventAt: string | null;
+  readonly providerReason: string;
+  readonly providerStatus:
+    "accepted" | "bounced" | "complained" | "deferred" | "delivered" | "failed" | "rejected" | null;
   readonly recipientName: string;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly unsubscribeUrl: string | null;
@@ -857,9 +861,15 @@ function recordDeliveryResults(
     for (const result of operation.results) {
       storage.sql.exec(
         `UPDATE communication_deliveries
-         SET status = ?, attempts = attempts + 1, provider_message_id = ?, failure_detail = ?,
+         SET status = ?, attempts = attempts + 1, provider_message_id = ?,
+           provider_status = CASE
+             WHEN ? = 'sent' AND ? IS NOT NULL AND provider_status IS NULL THEN 'accepted'
+             ELSE provider_status END,
+           failure_detail = ?,
            last_attempt_at = ?, updated_at = ?
          WHERE id = ? AND message_id = ? AND status IN ('queued', 'processing')`,
+        result.status,
+        result.providerMessageId,
         result.status,
         result.providerMessageId,
         result.failureDetail,
@@ -977,6 +987,10 @@ interface ProfileDeliveryRow {
   readonly failureDetail: string;
   readonly lastAttemptAt: string | null;
   readonly messageId: string;
+  readonly providerEventAt: string | null;
+  readonly providerReason: string;
+  readonly providerStatus:
+    "accepted" | "bounced" | "complained" | "deferred" | "delivered" | "failed" | "rejected" | null;
   readonly recipientName: string;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly subject: string | null;
@@ -997,7 +1011,8 @@ export function listProfileDeliveriesFromStore(
       `SELECT d.id, d.message_id AS messageId, m.subject, d.recipient_name AS recipientName,
          d.channel, d.destination, d.status, d.attempts,
          d.failure_detail AS failureDetail, d.last_attempt_at AS lastAttemptAt,
-         d.updated_at AS updatedAt
+         d.provider_status AS providerStatus, d.provider_event_at AS providerEventAt,
+         d.provider_reason AS providerReason, d.updated_at AS updatedAt
        FROM communication_deliveries d
        LEFT JOIN communication_messages m ON m.id = d.message_id
        WHERE d.profile_id = ?
@@ -1013,6 +1028,9 @@ export function listProfileDeliveriesFromStore(
       failureDetail: row.failureDetail,
       lastAttemptAt: row.lastAttemptAt ?? row.updatedAt,
       messageId: row.messageId,
+      providerEventAt: row.providerEventAt,
+      providerReason: row.providerReason,
+      providerStatus: row.providerStatus,
       recipientName: row.recipientName,
       status: row.status,
       subject: row.subject ?? "(no subject)",
@@ -1280,7 +1298,8 @@ export function readCommunicationSummaryFromStore(
   const records: DeliveryRecord[] = storage.sql
     .exec<DeliveryRow>(
       `SELECT id, message_id AS messageId, recipient_name AS recipientName, channel, destination,
-        status, attempts, failure_detail AS failureDetail, updated_at AS updatedAt
+        status, attempts, failure_detail AS failureDetail, provider_status AS providerStatus,
+        updated_at AS updatedAt
        FROM communication_deliveries WHERE message_id = ? ORDER BY id LIMIT 10000`,
       parsedMessageId.data,
     )

@@ -1,6 +1,8 @@
 export type CommunicationChannel = "Both" | "Email" | "SMS";
 export type DeliveryChannel = "email" | "sms";
 export type DeliveryStatus = "failed" | "processing" | "queued" | "sent" | "suppressed";
+export type ProviderDeliveryStatus =
+  "accepted" | "bounced" | "complained" | "deferred" | "delivered" | "failed" | "rejected";
 
 export interface ReachableRecipient {
   readonly email: string;
@@ -20,6 +22,7 @@ export interface DeliveryRecord {
   readonly channel: DeliveryChannel;
   readonly destination: string;
   readonly failureDetail: string;
+  readonly providerStatus?: ProviderDeliveryStatus | null;
   readonly status: DeliveryStatus;
   readonly updatedAt: string;
 }
@@ -30,6 +33,17 @@ interface ChannelCounts {
   queued: number;
   sent: number;
   suppressed: number;
+  total: number;
+}
+
+interface ProviderCounts {
+  accepted: number;
+  bounced: number;
+  complained: number;
+  deferred: number;
+  delivered: number;
+  failed: number;
+  rejected: number;
   total: number;
 }
 
@@ -104,7 +118,25 @@ function emptyCounts(): ChannelCounts {
   return { failed: 0, processing: 0, queued: 0, sent: 0, suppressed: 0, total: 0 };
 }
 
+function emptyProviderCounts(): ProviderCounts {
+  return {
+    accepted: 0,
+    bounced: 0,
+    complained: 0,
+    deferred: 0,
+    delivered: 0,
+    failed: 0,
+    rejected: 0,
+    total: 0,
+  };
+}
+
 function increment(counts: ChannelCounts, status: DeliveryStatus): void {
+  counts[status] += 1;
+  counts.total += 1;
+}
+
+function incrementProvider(counts: ProviderCounts, status: ProviderDeliveryStatus): void {
   counts[status] += 1;
   counts.total += 1;
 }
@@ -124,11 +156,13 @@ export function summarizeCommunicationDeliveries(
 ) {
   const email = emptyCounts();
   const sms = emptyCounts();
+  const provider = emptyProviderCounts();
   const failures = [];
   let hasMoreFailures = false;
   let lastActivity: string | null = null;
   for (const record of records) {
     increment(record.channel === "email" ? email : sms, record.status);
+    if (record.providerStatus) incrementProvider(provider, record.providerStatus);
     if (!lastActivity || record.updatedAt > lastActivity) lastActivity = record.updatedAt;
     if (record.status === "failed") {
       if (failures.length < 20) {
@@ -155,6 +189,7 @@ export function summarizeCommunicationDeliveries(
     hasMoreFailures,
     lastActivity,
     messageId,
+    provider,
     sms,
     state: deliveryState(total),
     total,

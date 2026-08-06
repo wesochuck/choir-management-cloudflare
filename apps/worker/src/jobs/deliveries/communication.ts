@@ -45,7 +45,10 @@ export async function deliverCommunicationJob(
       deliveryId: delivery.id,
       destination: delivery.destination,
       messageId: deliveryJob.messageId,
+      organizationId: job.organizationId,
       recipientName: delivery.recipientName,
+      sourceId: delivery.id,
+      sourceKind: delivery.channel === "email" ? "communication_delivery" : undefined,
       subject: renderCommunicationTemplate(
         deliveryJob.subject,
         delivery.recipientName,

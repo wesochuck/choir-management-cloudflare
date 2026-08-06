@@ -11,6 +11,7 @@ import {
   verifyPlatformMfa,
   verifyAccountTotpEnrollment,
 } from "../auth/api";
+import { PlatformEmailSuppressions } from "./PlatformEmailSuppressions";
 import { PlatformOperations } from "./PlatformOperations";
 
 type AccessState =
@@ -304,7 +305,7 @@ async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
   }
 }
 
-type PlatformAccessView = "access" | "organizations" | "security";
+type PlatformAccessView = "access" | "email-suppressions" | "organizations" | "security";
 
 interface PlatformAccessProps {
   readonly view?: PlatformAccessView;
@@ -327,6 +328,13 @@ function viewCopy(view: PlatformAccessView): {
       eyebrow: "Platform operations",
       title: "Organization access",
       titleId: "platform-access-title",
+    };
+  }
+  if (view === "email-suppressions") {
+    return {
+      eyebrow: "Provider safety",
+      title: "Global email suppressions",
+      titleId: "platform-email-suppressions-title",
     };
   }
   return {
@@ -485,7 +493,9 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
           <strong>Platform access is ready.</strong> Verified with {accessState.context.mfaMethod};
           expires {displayDate(accessState.context.mfaVerifiedUntil)}.
         </div>
-        {view === "security" ? null : (
+        {view === "security" ? null : view === "email-suppressions" ? (
+          <PlatformEmailSuppressions />
+        ) : (
           <PlatformOperations mode={view} scope={accessState.context.scope} />
         )}
       </PlatformSection>

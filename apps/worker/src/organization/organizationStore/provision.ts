@@ -16,6 +16,19 @@ import type {
   JobLedgerRow,
 } from "./storeShared";
 
+const requeueJobSchema = deliveryJobSchema.pick({
+  idempotencyKey: true,
+  jobId: true,
+  kind: true,
+  organizationId: true,
+});
+
+function sourceIdFromJobKey(idempotencyKey: string, prefix: string): string | null {
+  if (!idempotencyKey.startsWith(prefix)) return null;
+  const sourceId = idempotencyKey.slice(prefix.length).split(":", 1)[0];
+  return sourceId ?? null;
+}
+
 export async function provisionOrganizationStore(
   storage: DurableObjectStorage,
   request: Request,
@@ -129,6 +142,209 @@ export async function claimJob(storage: DurableObjectStorage, request: Request):
     parsed.data.attempt,
   );
   return Response.json({ claimed: reclaim.rowsWritten === 1, status: "claimed" });
+}
+
+/**
+ * Reopens a terminal job's source record before a platform operator creates a
+ * fresh queue delivery. The queue attempt counter belongs to the new message,
+ * so the ledger is reset to zero and the normal consumer claims it at attempt 1.
+ */
+export async function requeueJob(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = requeueJobSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_job_requeue" }, { status: 400 });
+  }
+
+  const identity = storage.sql
+    .exec<{ readonly organizationId: string }>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0)?.organizationId;
+  if (identity !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+
+  const ledger = storage.sql
+    .exec<{
+      readonly jobId: string;
+      readonly kind: string;
+      readonly status: string;
+    }>(
+      `SELECT job_id AS jobId, kind, status
+       FROM job_ledger WHERE idempotency_key = ? LIMIT 1`,
+      parsed.data.idempotencyKey,
+    )
+    .toArray()
+    .at(0);
+  if (!ledger) return Response.json({ code: "job_not_found" }, { status: 404 });
+  if (ledger.jobId !== parsed.data.jobId || ledger.kind !== parsed.data.kind) {
+    return Response.json({ code: "job_identity_conflict" }, { status: 409 });
+  }
+  if (ledger.status === "completed") {
+    return Response.json({ requeued: false, status: "completed" });
+  }
+  if (ledger.status !== "failed") {
+    return Response.json({ code: "job_not_terminal" }, { status: 409 });
+  }
+
+  const outbox = storage.sql
+    .exec<{ readonly idempotencyKey: string; readonly kind: string }>(
+      `SELECT idempotency_key AS idempotencyKey, kind
+       FROM scheduled_job_outbox WHERE job_id = ? LIMIT 1`,
+      parsed.data.jobId,
+    )
+    .toArray()
+    .at(0);
+  if (!outbox) return Response.json({ code: "job_source_not_found" }, { status: 404 });
+  if (outbox.kind !== parsed.data.kind || outbox.idempotencyKey !== parsed.data.idempotencyKey) {
+    return Response.json({ code: "job_source_conflict" }, { status: 409 });
+  }
+
+  const now = new Date().toISOString();
+  const sourceState = { ready: true };
+  // eslint-disable-next-line complexity -- source-specific reset logic is kept atomic with the ledger reset.
+  storage.transactionSync(() => {
+    if (parsed.data.kind === "communication_delivery") {
+      const messageId = sourceIdFromJobKey(parsed.data.idempotencyKey, "communication:");
+      if (!messageId) {
+        sourceState.ready = false;
+      } else {
+        const deliveryCount = storage.sql
+          .exec<{ readonly count: number }>(
+            `SELECT COUNT(*) AS count FROM communication_deliveries
+             WHERE message_id = ? AND status IN ('queued', 'processing', 'failed')`,
+            messageId,
+          )
+          .one().count;
+        sourceState.ready = deliveryCount > 0;
+        if (sourceState.ready) {
+          storage.sql.exec(
+            `UPDATE communication_deliveries
+             SET status = 'queued', failure_detail = '', updated_at = ?
+             WHERE message_id = ? AND status IN ('processing', 'failed')`,
+            now,
+            messageId,
+          );
+          storage.sql.exec(
+            "UPDATE communication_messages SET status = 'Queued', updated_at = ? WHERE id = ?",
+            now,
+            messageId,
+          );
+        }
+      }
+    } else if (parsed.data.kind === "audition_notification") {
+      const notificationId = sourceIdFromJobKey(
+        parsed.data.idempotencyKey,
+        "audition-notification:",
+      );
+      if (!notificationId) {
+        sourceState.ready = false;
+      } else {
+        const source = storage.sql
+          .exec<{ readonly status: string }>(
+            "SELECT status FROM audition_notifications WHERE id = ? LIMIT 1",
+            notificationId,
+          )
+          .toArray()
+          .at(0);
+        sourceState.ready =
+          source !== undefined && ["queued", "processing", "failed"].includes(source.status);
+        if (sourceState.ready) {
+          storage.sql.exec(
+            `UPDATE audition_notifications
+             SET status = 'queued', failure_detail = '', updated_at = ?, sent_at = NULL
+             WHERE id = ?`,
+            now,
+            notificationId,
+          );
+        }
+      }
+    } else if (parsed.data.kind === "payment_notification") {
+      const source = storage.sql
+        .exec<{ readonly status: string }>(
+          "SELECT status FROM payment_notifications WHERE id = ? LIMIT 1",
+          parsed.data.jobId,
+        )
+        .toArray()
+        .at(0);
+      sourceState.ready =
+        source !== undefined && ["queued", "processing", "failed"].includes(source.status);
+      if (sourceState.ready) {
+        storage.sql.exec(
+          `UPDATE payment_notifications
+           SET status = 'queued', failure_detail = '', updated_at = ?, sent_at = NULL
+           WHERE id = ?`,
+          now,
+          parsed.data.jobId,
+        );
+      }
+    } else if (parsed.data.kind === "ticket_notification") {
+      const notificationId = sourceIdFromJobKey(parsed.data.idempotencyKey, "ticket-notification:");
+      if (!notificationId) {
+        sourceState.ready = false;
+      } else {
+        const source = storage.sql
+          .exec<{ readonly status: string }>(
+            "SELECT status FROM ticket_notifications WHERE id = ? LIMIT 1",
+            notificationId,
+          )
+          .toArray()
+          .at(0);
+        sourceState.ready =
+          source !== undefined && ["queued", "processing", "failed"].includes(source.status);
+        if (sourceState.ready) {
+          storage.sql.exec(
+            `UPDATE ticket_notifications
+             SET status = 'queued', failure_detail = '', updated_at = ?, sent_at = NULL
+             WHERE id = ?`,
+            now,
+            notificationId,
+          );
+        }
+      }
+    } else if (parsed.data.kind === "organization_export") {
+      const source = storage.sql
+        .exec<{ readonly status: string }>(
+          "SELECT status FROM organization_exports WHERE id = ? LIMIT 1",
+          parsed.data.jobId,
+        )
+        .toArray()
+        .at(0);
+      sourceState.ready =
+        source !== undefined && ["queued", "processing", "failed"].includes(source.status);
+      if (sourceState.ready) {
+        storage.sql.exec(
+          `UPDATE organization_exports
+           SET status = 'queued', error_code = '', archive_key = NULL,
+               byte_count = NULL, checksum_sha256 = NULL, updated_at = ?, completed_at = NULL
+           WHERE id = ?`,
+          now,
+          parsed.data.jobId,
+        );
+      }
+    }
+
+    if (sourceState.ready) {
+      storage.sql.exec(
+        `UPDATE job_ledger
+         SET status = 'failed', attempt = 0, completed_at = NULL, failed_at = NULL,
+             terminal_at = NULL, last_error_code = ''
+         WHERE idempotency_key = ? AND job_id = ? AND kind = ? AND status = 'failed'`,
+        parsed.data.idempotencyKey,
+        parsed.data.jobId,
+        parsed.data.kind,
+      );
+    }
+  });
+
+  if (!sourceState.ready) {
+    return Response.json({ code: "job_source_not_retryable" }, { status: 409 });
+  }
+  return Response.json({ requeued: true, status: "failed" });
 }
 
 export async function completeJob(

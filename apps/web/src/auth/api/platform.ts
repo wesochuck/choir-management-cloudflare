@@ -6,8 +6,12 @@ import {
   organizationProvisionResponseSchema,
   platformContextResponseSchema,
   platformFleetSchemaStatusResponseSchema,
+  platformJobDeadLetterActionRequestSchema,
+  platformJobDeadLetterActionResponseSchema,
   platformJobDeadLettersResponseSchema,
   platformElevationRevocationResponseSchema,
+  platformEmailSuppressionReleaseRequestSchema,
+  platformEmailSuppressionReleaseResponseSchema,
   platformMfaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
   platformOrganizationPublicDomainsResponseSchema,
@@ -21,13 +25,18 @@ import {
   type OrganizationProvisionRequest,
   type OrganizationProvisionResponse,
   type PlatformContextResponse,
+  type PlatformEmailSuppressionsResponse,
+  type PlatformEmailSuppressionReleaseResponse,
   type PlatformFleetSchemaStatusResponse,
   type PlatformJobDeadLettersResponse,
+  type PlatformJobDeadLetterActionResponse,
+  type PlatformJobDeadLetterView,
   type PlatformOrganizationContextResponse,
   type PlatformOrganizationPublicDomainsResponse,
   type PublicDomainResponse,
   type PlatformOrganizationsResponse,
   type PlatformMfaStatusResponse,
+  platformEmailSuppressionsResponseSchema,
 } from "@choir/contracts";
 
 import { request } from "./client";
@@ -109,6 +118,35 @@ export async function getPlatformContext(): Promise<PlatformContextResponse> {
   return platformContextResponseSchema.parse(await response.json());
 }
 
+export async function listPlatformEmailSuppressions(
+  options: {
+    readonly cursor?: string | null;
+    readonly query?: string;
+    readonly status?: "active" | "all";
+    readonly signal?: AbortSignal;
+  } = {},
+): Promise<PlatformEmailSuppressionsResponse> {
+  const search = new URLSearchParams();
+  if (options.cursor) search.set("cursor", options.cursor);
+  if (options.query?.trim()) search.set("q", options.query.trim());
+  search.set("status", options.status ?? "active");
+  const response = await request(`/api/platform/email-suppressions?${search.toString()}`, {
+    signal: options.signal ?? null,
+  });
+  return platformEmailSuppressionsResponseSchema.parse(await response.json());
+}
+
+export async function releasePlatformEmailSuppression(
+  email: string,
+  reason: string,
+): Promise<PlatformEmailSuppressionReleaseResponse> {
+  const response = await request("/api/platform/email-suppressions/release", {
+    body: JSON.stringify(platformEmailSuppressionReleaseRequestSchema.parse({ email, reason })),
+    method: "POST",
+  });
+  return platformEmailSuppressionReleaseResponseSchema.parse(await response.json());
+}
+
 export async function listPlatformOrganizations(
   cursor: string | null = null,
   signal?: AbortSignal,
@@ -163,16 +201,46 @@ export async function disablePlatformOrganizationPublicDomain(
 export async function listPlatformJobDeadLetters(
   cursor: string | null = null,
   signal?: AbortSignal,
+  view: PlatformJobDeadLetterView = "open",
 ): Promise<PlatformJobDeadLettersResponse> {
   const search = new URLSearchParams();
   if (cursor) {
     search.set("cursor", cursor);
   }
+  search.set("view", view);
   const suffix = search.size > 0 ? `?${search.toString()}` : "";
   const response = await request(`/api/platform/job-dead-letters${suffix}`, {
     signal: signal ?? null,
   });
   return platformJobDeadLettersResponseSchema.parse(await response.json());
+}
+
+export async function retryPlatformJobDeadLetter(
+  deadLetterId: string,
+  reason: string,
+): Promise<PlatformJobDeadLetterActionResponse> {
+  const response = await request(
+    `/api/platform/job-dead-letters/${encodeURIComponent(deadLetterId)}/retry`,
+    {
+      body: JSON.stringify(platformJobDeadLetterActionRequestSchema.parse({ reason })),
+      method: "POST",
+    },
+  );
+  return platformJobDeadLetterActionResponseSchema.parse(await response.json());
+}
+
+export async function dismissPlatformJobDeadLetter(
+  deadLetterId: string,
+  reason: string,
+): Promise<PlatformJobDeadLetterActionResponse> {
+  const response = await request(
+    `/api/platform/job-dead-letters/${encodeURIComponent(deadLetterId)}/dismiss`,
+    {
+      body: JSON.stringify(platformJobDeadLetterActionRequestSchema.parse({ reason })),
+      method: "POST",
+    },
+  );
+  return platformJobDeadLetterActionResponseSchema.parse(await response.json());
 }
 
 export async function getPlatformFleetSchemaStatus(

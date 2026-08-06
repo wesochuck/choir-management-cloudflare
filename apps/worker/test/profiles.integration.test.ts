@@ -125,6 +125,58 @@ afterEach(async () => {
 });
 
 describe("Organization Profiles", () => {
+  it("rejects suppressed email recipients before Profile creation or CSV import", async () => {
+    await controlDatabase
+      .prepare(
+        `INSERT INTO email_recipient_suppressions
+          (email_normalized, reason, source_event_id, provider_message_id, detail, active, created_at, updated_at)
+         VALUES (?, 'bounce', ?, ?, ?, 1, ?, ?)`,
+      )
+      .bind(
+        "suppressed@example.test",
+        "event-profile-guard",
+        "provider-profile-guard",
+        "Mailbox unavailable",
+        "2026-08-06T12:00:00.000Z",
+        "2026-08-06T12:00:00.000Z",
+      )
+      .run();
+    const cookie = await signIn();
+    const createResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        body: JSON.stringify({
+          displayName: "Suppressed Singer",
+          email: "SUPPRESSED@example.test",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(createResponse.status).toBe(409);
+    expect(await createResponse.json()).toMatchObject({
+      code: "email_recipient_suppressed",
+      message: expect.stringContaining("Platform Administrator"),
+    });
+
+    const importResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles/import", cookie, {
+        body: "Name,Email\nSuppressed Import,suppressed@example.test",
+        headers: { "content-type": "text/csv" },
+        method: "POST",
+      }),
+    );
+    expect(importResponse.status).toBe(409);
+    expect(
+      await runInDurableObject<OrganizationStore, number>(
+        organizationStore.get(organizationStore.idFromName("organization-alpha")),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>("SELECT COUNT(*) AS count FROM profiles")
+            .one().count,
+      ),
+    ).toBe(0);
+  });
+
   it("imports Profiles atomically without creating login identities", async () => {
     const cookie = await signIn();
     const response = await exports.default.fetch(
@@ -334,23 +386,67 @@ describe("provider bounces and delivery history", () => {
         now,
         now,
       );
+      state.storage.sql.exec(
+        `INSERT INTO communication_deliveries
+          (id, message_id, profile_id, recipient_name, channel, destination, status, attempts, created_at, updated_at)
+         VALUES (?, ?, ?, 'Bounced Singer', 'email', 'bounced@example.test', 'sent', 1, ?, ?)`,
+        "delivery-1",
+        "55555555-5555-4555-8555-555555555555",
+        profileId,
+        now,
+        now,
+      );
     });
 
     const bounceResponse = await stub.fetch(
-      "https://organization.internal/internal/profiles/bounce",
+      "https://organization.internal/internal/email/provider-event",
       {
         body: JSON.stringify({
-          hard: true,
+          bounceType: "hard",
+          eventId: requestId,
+          eventTimestamp: now,
           organizationId,
-          profileId,
-          reason: "550 5.1.1 User unknown",
-          requestId,
+          providerMessageId: "cloudflare-bounced-id",
+          providerReason: "550 5.1.1 User unknown",
+          providerSmtpEnhancedStatusCode: "5.1.1",
+          providerSmtpResponse: "550 5.1.1 User unknown",
+          providerSmtpStatusCode: "550",
+          providerStatus: "bounced",
+          recipient: "bounced@example.test",
+          shouldSuppress: true,
+          sourceId: "delivery-1",
+          sourceKind: "communication_delivery",
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       },
     );
     expect(bounceResponse.status).toBe(200);
+
+    const outOfOrderDeliveredResponse = await stub.fetch(
+      "https://organization.internal/internal/email/provider-event",
+      {
+        body: JSON.stringify({
+          bounceType: null,
+          eventId: `${requestId}-delivered`,
+          eventTimestamp: "2026-08-05T12:01:00.000Z",
+          organizationId,
+          providerMessageId: "cloudflare-bounced-id",
+          providerReason: "",
+          providerSmtpEnhancedStatusCode: "2.0.0",
+          providerSmtpResponse: "250 2.0.0 OK",
+          providerSmtpStatusCode: "250",
+          providerStatus: "delivered",
+          recipient: "bounced@example.test",
+          shouldSuppress: false,
+          sourceId: "delivery-1",
+          sourceKind: "communication_delivery",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(outOfOrderDeliveredResponse.status).toBe(200);
 
     const state = await runInDurableObject<
       OrganizationStore,
@@ -360,6 +456,7 @@ describe("provider bounces and delivery history", () => {
         readonly lastBounceAt: string;
         readonly suppressionReason: string;
         readonly suppressionCount: number;
+        readonly providerStatus: string;
       }
     >(stub, (_instance, s) => {
       const profile = s.storage.sql
@@ -380,14 +477,21 @@ describe("provider bounces and delivery history", () => {
         .toArray();
       const audit = s.storage.sql
         .exec<{ readonly count: number }>(
-          "SELECT COUNT(*) AS count FROM audit_events WHERE target_id = ? AND action = 'profile.email_bounced_hard'",
-          profileId,
+          "SELECT COUNT(*) AS count FROM audit_events WHERE target_id = ? AND action = 'organization.email_provider_bounced'",
+          "delivery-1",
+        )
+        .one();
+      const delivery = s.storage.sql
+        .exec<{ readonly providerStatus: string }>(
+          "SELECT provider_status AS providerStatus FROM communication_deliveries WHERE id = ?",
+          "delivery-1",
         )
         .one();
       return {
         auditCount: audit.count,
         doNotEmail: profile.doNotEmail,
         lastBounceAt: profile.lastBounceAt,
+        providerStatus: delivery.providerStatus,
         suppressionCount: suppression.length,
         suppressionReason: suppression[0]?.reason ?? "",
       };
@@ -397,19 +501,7 @@ describe("provider bounces and delivery history", () => {
     expect(state.suppressionCount).toBe(1);
     expect(state.suppressionReason).toBe("provider");
     expect(state.auditCount).toBe(1);
-
-    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, s) => {
-      s.storage.sql.exec(
-        `INSERT INTO communication_deliveries
-          (id, message_id, profile_id, recipient_name, channel, destination, status, attempts, created_at, updated_at)
-         VALUES (?, ?, ?, 'Bounced Singer', 'email', 'bounced@example.test', 'failed', 1, ?, ?)`,
-        "delivery-1",
-        "55555555-5555-4555-8555-555555555555",
-        profileId,
-        now,
-        now,
-      );
-    });
+    expect(state.providerStatus).toBe("bounced");
 
     const deliveriesUrl = new URL(
       "https://organization.internal/internal/communications/deliveries",
@@ -424,7 +516,8 @@ describe("provider bounces and delivery history", () => {
     expect(deliveriesBody.deliveries).toHaveLength(1);
     expect(deliveriesBody.deliveries[0]).toMatchObject({
       destination: "bounced@example.test",
-      status: "failed",
+      providerStatus: "bounced",
+      status: "sent",
       subject: "(no subject)",
     });
   });

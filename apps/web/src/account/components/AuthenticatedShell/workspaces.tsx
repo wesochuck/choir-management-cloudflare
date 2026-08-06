@@ -53,6 +53,11 @@ export function OverviewPage({
           label: "Platform security",
           text: "Verify Platform Administrator MFA.",
         },
+        {
+          href: "/platform/email-suppressions",
+          label: "Email suppressions",
+          text: "Review application-wide provider blocks.",
+        },
       ]
     : [
         {
@@ -218,6 +223,9 @@ export function PlatformWorkspacePage({
   }
   if (pathname === "/platform/access") {
     return <PlatformAccess view="access" />;
+  }
+  if (pathname === "/platform/email-suppressions") {
+    return <PlatformAccess view="email-suppressions" />;
   }
   return <PlatformAccess view="security" />;
 }

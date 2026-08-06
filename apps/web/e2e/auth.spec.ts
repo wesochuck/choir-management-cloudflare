@@ -903,7 +903,7 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
       status: 200,
     });
   });
-  await page.route("**/api/platform/job-dead-letters", async (route) => {
+  await page.route("**/api/platform/job-dead-letters**", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
         deadLetters: [],

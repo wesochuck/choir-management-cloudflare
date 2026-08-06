@@ -74,6 +74,7 @@ import { readPaymentSettingsFromStore } from "../paymentSettingsStore";
 import { readEventReminderJobFromStore, readRsvpFollowUpJobFromStore } from "../schedulingStore";
 import { readPaymentNotificationJobFromStore } from "../paymentNotificationStore";
 import { readPaymentRefundTargetFromStore } from "../paymentRefundStore";
+import { listEmailProviderRoutesFromStore } from "./providerFeedback";
 import {
   listSeasonsFromStore,
   listDuesFromStore,
@@ -91,7 +92,6 @@ import {
   importProfiles,
   updateProfile,
   deleteProfile,
-  recordProfileBounce,
   updateMemberProfile,
   manageProfilePhoto,
 } from "./profiles";
@@ -141,6 +141,11 @@ export const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readCommunicationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/email/provider-routes": (storage, url, organizationId) => {
+    const rawOffset = Number(url.searchParams.get("offset") ?? "0");
+    const offset = Number.isInteger(rawOffset) ? Math.max(0, Math.min(100_000, rawOffset)) : 0;
+    return listEmailProviderRoutesFromStore(storage, organizationId, offset);
+  },
   "/internal/export/snapshot": (storage, _url, organizationId) =>
     readExportSnapshot(storage, organizationId),
   "/internal/export/job": (storage, url, organizationId) =>
@@ -335,8 +340,6 @@ export async function dispatchProfilePostRequest(
       return updateProfile(storage, request);
     case "/internal/profiles/delete":
       return deleteProfile(storage, request);
-    case "/internal/profiles/bounce":
-      return recordProfileBounce(storage, request);
     default:
       return null;
   }
