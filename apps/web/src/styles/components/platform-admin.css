@@ -158,6 +158,14 @@
     background: var(--color-surface-raised);
   }
 
+  .platform-setup-check--provider {
+    align-items: flex-start;
+  }
+
+  .platform-setup-check--provider .platform-setup-check__copy {
+    flex: 1 1 auto;
+  }
+
   .platform-setup-check__copy {
     display: grid;
     min-width: 0;
@@ -181,6 +189,18 @@
     color: var(--color-primary);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-bold);
+  }
+
+  .platform-setup-check__guide {
+    margin-top: 0.75rem;
+  }
+
+  .platform-setup-check__guide > div {
+    margin-top: 0.75rem;
+  }
+
+  .platform-setup-check__guide code {
+    overflow-wrap: anywhere;
   }
 
   .platform-setup-status {

@@ -10,6 +10,7 @@ import {
   communicationTemplatesResponseSchema,
   communicationTestEmailResponseSchema,
   communicationUnsubscribeResponseSchema,
+  organizationProfileDeliveriesResponseSchema,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
   type CommunicationMessage,
@@ -19,6 +20,7 @@ import {
   type CommunicationTemplate,
   type CommunicationTemplateRequest,
   type CommunicationTestEmailRequest,
+  type OrganizationProfileDeliveriesResponse,
 } from "@choir/contracts";
 
 import { request } from "./client";
@@ -154,4 +156,15 @@ export async function unsubscribeOrganizationEmail(token: string): Promise<void>
     method: "POST",
   });
   communicationUnsubscribeResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationProfileDeliveries(
+  profileId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationProfileDeliveriesResponse> {
+  const response = await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}/deliveries`,
+    { signal: signal ?? null },
+  );
+  return organizationProfileDeliveriesResponseSchema.parse(await response.json());
 }

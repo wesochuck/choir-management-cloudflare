@@ -342,6 +342,8 @@ export function OrganizationAdminOverview({
   const summaryError = summary.status === "error";
   const activeProfileCount = summary.status === "ready" ? summary.data.activeProfileCount : null;
   const upcomingEventCount = summary.status === "ready" ? summary.data.upcomingEventCount : null;
+  const recentBounceCount = summary.status === "ready" ? summary.data.recentBounceCount : null;
+  const doNotEmailCount = summary.status === "ready" ? summary.data.doNotEmailCount : null;
 
   return (
     <div className="admin-overview">
@@ -365,6 +367,18 @@ export function OrganizationAdminOverview({
               <DashboardLink href="/admin/auditions" onNavigate={navigate}>
                 <span>Pending Auditions</span>
                 <strong>{displayCount(pendingAuditionCount)}</strong>
+              </DashboardLink>
+            ) : null}
+            {moduleIsEnabled(modules, "people") ? (
+              <DashboardLink href="/admin/roster" onNavigate={navigate}>
+                <span>Recent Email Bounces</span>
+                <strong>{displayCount(recentBounceCount)}</strong>
+              </DashboardLink>
+            ) : null}
+            {moduleIsEnabled(modules, "people") ? (
+              <DashboardLink href="/admin/roster" onNavigate={navigate}>
+                <span>Email Disabled</span>
+                <strong>{displayCount(doNotEmailCount)}</strong>
               </DashboardLink>
             ) : null}
           </div>

@@ -1,3 +1,4 @@
+import { handleInboundEmail } from "./communications/bounceHandler";
 import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
 import { router } from "./router";
@@ -8,6 +9,9 @@ import type { Env } from "./env";
 export { FleetSchemaWorkflow, OrganizationStore, ProvisioningWorkflow };
 
 const worker = {
+  async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
+    await handleInboundEmail(message, env);
+  },
   async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {
     return router.fetch(request, env, executionContext);
   },

@@ -2,7 +2,7 @@ import { rosterCsvColumnOptions } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
 import { PerformanceHistory, VoicePartBalance } from "./shared";
 import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } from "./utils";
-import { ProfileDues, ProfileFolderNumbers } from "./profileDetails";
+import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "./profileDetails";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { ProfilePhotoEditor } from "../../MemberProfileDirectory";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
@@ -44,6 +44,7 @@ export function RosterPageView({
     performanceHistory,
     performerLabel,
     profile,
+    profileDeliveries,
     profileDues,
     profileEmail,
     profileFolderNumbers,
@@ -69,6 +70,7 @@ export function RosterPageView({
     setProfile,
     setProfileDues,
     setProfileEmail,
+    setProfileDeliveries,
     setProfileFolderNumbers,
     setProfilePhotoFileId,
     setProfileTab,
@@ -381,6 +383,25 @@ export function RosterPageView({
                   sortValue: (candidate) => statusLabel(candidate.globalStatus),
                 },
                 {
+                  header: "Email",
+                  id: "delivery",
+                  render: (candidate) =>
+                    candidate.doNotEmail ? (
+                      <span
+                        className="roster-delivery-indicator"
+                        role="img"
+                        title={`Email delivery disabled${candidate.bounceReason ? `: ${candidate.bounceReason}` : ""}`}
+                      >
+                        ⚠
+                      </span>
+                    ) : (
+                      <span className="roster-delivery-indicator roster-delivery-indicator--ok">
+                        —
+                      </span>
+                    ),
+                  sortValue: (candidate) => candidate.doNotEmail,
+                },
+                {
                   header: "Directory",
                   id: "directory",
                   render: (candidate) => (candidate.showInDirectory ? "Shown" : "Hidden"),
@@ -469,6 +490,18 @@ export function RosterPageView({
             >
               Folder numbers
             </button>
+            <button
+              aria-selected={profileTab === "messages"}
+              className={profileTab === "messages" ? "is-active" : ""}
+              onClick={() => {
+                setProfileDeliveries({ status: "loading" });
+                setProfileTab("messages");
+              }}
+              role="tab"
+              type="button"
+            >
+              Messages
+            </button>
           </div>
         ) : null}
         {editingId && profileTab === "performance" ? (
@@ -511,6 +544,8 @@ export function RosterPageView({
             profileId={editingId}
             state={profileFolderNumbers}
           />
+        ) : editingId && profileTab === "messages" ? (
+          <ProfileMessages state={profileDeliveries} />
         ) : editingId && profileTab === "dues" ? (
           <ProfileDues
             onCashPaymentMarked={(record) => {

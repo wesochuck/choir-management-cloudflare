@@ -2,6 +2,7 @@ import type {
   DuesRecord,
   OrganizationMembershipSummary,
   OrganizationProfile,
+  OrganizationProfileDeliveriesResponse,
   OrganizationProfileFolderNumber,
   OrganizationProfilePerformanceHistoryResponse,
   OrganizationProfileStatusHistoryResponse,
@@ -21,11 +22,20 @@ export type RosterState =
 
 export type RosterStatusFilter = "all" | OrganizationProfile["globalStatus"];
 
-export type ProfileTab = "dues" | "folders" | "info" | "performance";
+export type ProfileTab = "dues" | "folders" | "info" | "messages" | "performance";
 
 export type ProfileStatusHistoryState =
   | { readonly status: "error" | "idle" | "loading" }
   | { readonly data: OrganizationProfileStatusHistoryResponse; readonly status: "ready" };
+
+export type ProfileDeliveriesState =
+  | { readonly status: "idle" }
+  | { readonly status: "loading" }
+  | { readonly status: "error" }
+  | {
+      readonly data: OrganizationProfileDeliveriesResponse;
+      readonly status: "ready";
+    };
 
 export type PerformanceHistoryState =
   | { readonly status: "idle" }

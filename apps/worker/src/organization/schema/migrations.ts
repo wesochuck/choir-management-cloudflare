@@ -1022,6 +1022,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "CREATE INDEX idx_practice_player_links_expiry ON practice_player_links(expires_at, event_id)",
     ],
   },
+  {
+    version: 61,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN last_bounce_at TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE profiles ADD COLUMN bounce_reason TEXT NOT NULL DEFAULT ''",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

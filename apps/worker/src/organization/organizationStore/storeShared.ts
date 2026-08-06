@@ -145,9 +145,11 @@ export interface OrganizationProfileRow {
   readonly globalStatus: "Active" | "Idle" | "Inactive";
   readonly id: string;
   readonly isSectionLeader: number;
+  readonly lastBounceAt: string;
   readonly notes: string;
   readonly photoFileId: string | null;
   readonly phone: string;
+  readonly bounceReason: string;
   readonly receiveAdminNotifications: number;
   readonly receiveAttendanceReports: number;
   readonly receiveFinancialAlerts: number;
@@ -169,9 +171,11 @@ export function profileResult(row: OrganizationProfileRow, onBreakInactiveAt: st
     id: row.id,
     onBreakInactiveAt,
     isSectionLeader: row.isSectionLeader === 1,
+    lastBounceAt: row.lastBounceAt,
     notes: row.notes,
     photoFileId: row.photoFileId,
     phone: row.phone,
+    bounceReason: row.bounceReason,
     receiveAdminNotifications: row.receiveAdminNotifications === 1,
     receiveAttendanceReports: row.receiveAttendanceReports === 1,
     receiveFinancialAlerts: row.receiveFinancialAlerts === 1,

@@ -213,3 +213,28 @@ export type CommunicationTestEmailRequest = z.infer<typeof communicationTestEmai
 export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
 export type CommunicationTemplateRequest = z.infer<typeof communicationTemplateRequestSchema>;
 export type SingerLearningTrackPiece = z.infer<typeof singerLearningTrackPieceSchema>;
+
+export const organizationProfileDeliverySchema = z.object({
+  attempts: z.number().int().nonnegative(),
+  // Delivery rows store the lowercase provider channel; the display casing
+  // is applied by the client.
+  channel: z.enum(["email", "sms"]),
+  destination: z.string().min(1).max(320),
+  failureDetail: z.string().max(2_000),
+  lastAttemptAt: z.string().min(1).max(100),
+  messageId: z.uuid(),
+  recipientName: z.string().min(1).max(200),
+  status: z.enum(["failed", "processing", "queued", "sent", "suppressed"]),
+  subject: z.string().min(1).max(300),
+  updatedAt: z.string().min(1).max(100),
+});
+
+export const organizationProfileDeliveriesResponseSchema = z.object({
+  deliveries: z.array(organizationProfileDeliverySchema).max(25),
+  requestId: requestIdSchema,
+});
+
+export type OrganizationProfileDelivery = z.infer<typeof organizationProfileDeliverySchema>;
+export type OrganizationProfileDeliveriesResponse = z.infer<
+  typeof organizationProfileDeliveriesResponseSchema
+>;

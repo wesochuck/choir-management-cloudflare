@@ -417,6 +417,18 @@ export function readOrganizationDashboardSummaryFromStore(
       now,
     )
     .one().count;
+  const doNotEmailCount = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      "SELECT COUNT(*) AS count FROM profiles WHERE do_not_email = 1",
+    )
+    .one().count;
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const recentBounceCount = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      "SELECT COUNT(*) AS count FROM profiles WHERE last_bounce_at >= ?",
+      thirtyDaysAgo,
+    )
+    .one().count;
   const nextEvents = storage.sql
     .exec<DashboardEventRow>(
       `SELECT id, title, type, starts_at AS startsAt
@@ -432,7 +444,13 @@ export function readOrganizationDashboardSummaryFromStore(
       title: event.title,
       type: event.type,
     }));
-  return Response.json({ activeProfileCount, nextEvents, upcomingEventCount });
+  return Response.json({
+    activeProfileCount,
+    doNotEmailCount,
+    nextEvents,
+    recentBounceCount,
+    upcomingEventCount,
+  });
 }
 
 export function readOrganizationCalendarSettingsFromStore(

@@ -28,7 +28,9 @@ export const organizationDashboardEventSchema = z.object({
 
 export const organizationDashboardSummaryResponseSchema = z.object({
   activeProfileCount: z.number().int().nonnegative(),
+  doNotEmailCount: z.number().int().nonnegative(),
   nextEvents: z.array(organizationDashboardEventSchema).max(5),
+  recentBounceCount: z.number().int().nonnegative(),
   requestId: requestIdSchema,
   upcomingEventCount: z.number().int().nonnegative(),
 });
