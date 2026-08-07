@@ -207,6 +207,11 @@
     background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   }
 
+  .signed-in-shell[data-sidebar-pinned="false"] .mobile-nav-trigger {
+    display: inline-grid;
+    place-items: center;
+  }
+
   @media (max-width: 48rem) {
     .signed-in-body {
       display: block;
@@ -270,6 +275,12 @@
     .page-toolbar {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    /* In a column toolbar, the shared search field's flex-basis would become
+     * a vertical size. Keep the label sized to its input instead. */
+    .page-toolbar .search-field {
+      flex: 0 1 auto;
     }
 
     .page-toolbar__actions {

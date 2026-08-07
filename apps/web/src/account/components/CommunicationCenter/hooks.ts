@@ -3,6 +3,7 @@ import type {
   CommunicationChannel,
   CommunicationDeliverySummary,
   CommunicationMessage,
+  CommunicationReach,
   CommunicationScheduledMessage,
   OrganizationEvent,
   OrganizationProviderStatusResponse,
@@ -147,27 +148,37 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
 
   function composeRequest() {
     return {
-      audience: {
-        ...audience,
-        voiceParts: voiceParts
-          .split(",")
-          .map((part) => part.trim())
-          .filter(Boolean),
-      },
+      audience: composeAudienceRequest(),
       channel,
       contentMarkdown,
       subject,
     };
   }
 
+  function composeAudienceRequest(): CommunicationAudienceRequest {
+    return {
+      ...audience,
+      voiceParts: voiceParts
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    };
+  }
+
+  function formatReach(result: CommunicationReach): string {
+    return `${String(result.total)} reachable · ${String(result.email)} by email · ${String(result.sms)} by SMS · ${String(result.unreachable)} unreachable`;
+  }
+
   async function previewReach() {
     setBusy(true);
     setError(null);
+    setReach(null);
     try {
-      const result = await previewOrganizationCommunicationReach(composeRequest());
-      setReach(
-        `${String(result.total)} reachable · ${String(result.email)} by email · ${String(result.sms)} by SMS · ${String(result.unreachable)} unreachable`,
-      );
+      const result = await previewOrganizationCommunicationReach({
+        audience: composeAudienceRequest(),
+        channel,
+      });
+      setReach(formatReach(result));
     } catch (failure: unknown) {
       setError(failureMessage(failure));
     } finally {
@@ -179,10 +190,11 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     setBusy(true);
     setError(null);
     try {
-      const result = await previewOrganizationCommunicationReach(composeRequest());
-      setReach(
-        `${String(result.total)} reachable · ${String(result.email)} by email · ${String(result.sms)} by SMS · ${String(result.unreachable)} unreachable`,
-      );
+      const result = await previewOrganizationCommunicationReach({
+        audience: composeAudienceRequest(),
+        channel,
+      });
+      setReach(formatReach(result));
       setPreviewOpen(true);
     } catch (failure: unknown) {
       setError(failureMessage(failure));

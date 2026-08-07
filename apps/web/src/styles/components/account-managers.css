@@ -64,6 +64,28 @@
     min-width: 0;
   }
 
+  /* The pinned navigation leaves less room for the page content at tablet and
+   * narrow desktop widths. Stack the filters before their labels are forced
+   * into narrow columns. */
+  @media (max-width: 64rem) {
+    .dues-records-header {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "toolbar"
+        "description";
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+
+    .dues-records-toolbar {
+      grid-template-columns: 1fr;
+    }
+
+    .dues-records-header > .seasons-manager-description {
+      margin-bottom: 0;
+    }
+  }
+
   .audition-schedule-form {
     gap: 0.9rem;
   }

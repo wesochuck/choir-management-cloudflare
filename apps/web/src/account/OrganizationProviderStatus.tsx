@@ -183,50 +183,12 @@ export function OrganizationProviderStatus() {
           </div>
         </>
       ) : null}
-      <details className="provider-status-card__guide">
-        <summary>How platform setup works</summary>
-        <div>
-          <p>
-            These values are Worker secrets and environment settings, not Organization form fields.
-            Never paste secret values into support messages or Organization settings.
-          </p>
-          <h3>Stripe</h3>
-          <ol>
-            <li>
-              The Platform Administrator stores the Stripe platform API secret as{" "}
-              <code>STRIPE_SECRET_KEY</code>.
-            </li>
-            <li>
-              Point Stripe webhooks at the product webhook endpoint and store its signing secret as{" "}
-              <code>STRIPE_WEBHOOK_SECRET</code>.
-            </li>
-            <li>Have each Organization owner complete the Stripe Connect onboarding card above.</li>
-          </ol>
-          <p className="field-help">
-            Connected-account readiness is recorded here. Use Organization Settings → Payments to
-            review the checklist and enable each direct-charge payment type separately after the
-            staging test-mode checkout and webhook verification pass.
-          </p>
-          <h3>Email &amp; SMS</h3>
-          <ol>
-            <li>
-              Email sends through the Cloudflare Email Sending binding. Configure the{" "}
-              <code>PLATFORM_EMAIL</code> binding, a <code>PLATFORM_EMAIL_FROM</code> sender, and
-              the comma-separated <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist.
-            </li>
-            <li>
-              For SMS testing only, configure the Brevo <code>BREVO_API_KEY</code>,{" "}
-              <code>BREVO_SMS_SENDER</code>, and the comma-separated{" "}
-              <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
-            </li>
-            <li>
-              Use sandbox mode and the Communications → Settings test email before enabling live
-              external effects.
-            </li>
-          </ol>
-          <p className="field-help">No secret values are returned by the status check.</p>
-        </div>
-      </details>
+      <p className="notice notice--info">
+        <strong>Platform-managed setup:</strong> Provider credentials and environment settings are
+        managed by a Platform Administrator. Organization admins cannot edit them here. If Stripe or
+        Email &amp; SMS shows “Needs attention” or “Not configured,” contact your Platform
+        Administrator. Organization-specific Stripe Connect onboarding is handled above.
+      </p>
     </section>
   );
 }

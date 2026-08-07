@@ -1362,6 +1362,22 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     "href",
     "/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster",
   );
+  await eventsPage.getByRole("button", { name: "Bulk add rehearsals" }).click();
+  const bulkRehearsalDialog = page.getByRole("dialog", { name: "Bulk add rehearsals" });
+  await expect(bulkRehearsalDialog.getByRole("combobox", { name: "Day of week" })).toHaveValue("");
+  await bulkRehearsalDialog
+    .getByRole("combobox", { name: "Day of week" })
+    .selectOption({ label: "Wednesday" });
+  await bulkRehearsalDialog.getByRole("button", { name: "Cancel" }).click();
+  await eventsPage.getByRole("row", { name: /Edit event Browser Concert/ }).click();
+  const eventEditor = page.getByRole("dialog", { name: "Edit event" });
+  await expect(
+    eventEditor.getByRole("link", { name: "Change RSVP expiry in Roster Settings" }),
+  ).toHaveAttribute("href", "/admin/roster?section=settings");
+  await expect(eventEditor).toContainText(
+    "This date is calculated from the event start using the organization's RSVP expiry setting.",
+  );
+  await page.getByRole("button", { name: "Close" }).click();
   await eventsPage.locator('button:has-text("Clone"):visible').click();
   await expect(page.getByRole("dialog", { name: "Clone event" })).toBeVisible();
   await page.getByRole("button", { name: "Close" }).click();
@@ -1376,7 +1392,31 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(page.getByRole("dialog", { name: "Delete venue?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
 
+  await page.setViewportSize({ height: 734, width: 844 });
   await page.goto("/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster");
+  const collapseNavigation = page.getByRole("button", {
+    name: "Collapse workspace navigation",
+  });
+  await expect(collapseNavigation).toBeVisible();
+  await collapseNavigation.click();
+  await expect(page.locator(".signed-in-sidebar")).toHaveCount(0);
+  const openNavigation = page.getByRole("button", { name: "Open workspace navigation" });
+  await expect(openNavigation).toBeVisible();
+  await openNavigation.click();
+  const navigationDrawer = page.getByRole("dialog", { name: "Workspace navigation" });
+  await expect(navigationDrawer).toBeVisible();
+  await navigationDrawer.getByRole("button", { name: "Pin navigation open" }).click();
+  await expect(navigationDrawer).toHaveCount(0);
+  await expect(collapseNavigation).toBeVisible();
+  await page.reload();
+  await expect(collapseNavigation).toBeVisible();
+
+  const rsvpPage = page.getByRole("main");
+  await expect(
+    rsvpPage.locator(".rsvp-manager__balance").getByRole("combobox", { name: "Performance" }),
+  ).toHaveValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  await expect(rsvpPage.locator(".rsvp-manager__roster").getByRole("combobox")).toHaveCount(0);
+  await expect(rsvpPage.getByRole("textbox", { name: "Search active singers" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
     "href",
     "/api/organization/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-export.csv?sort=lastName",
@@ -1393,6 +1433,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(invitationSection.getByRole("status")).toContainText(
     "Invitation created for future.member@example.test",
   );
+
+  await page.goto("/admin/settings/setup-checklist");
+  const providerStatus = page.getByRole("region", { name: "Payments and email setup" });
+  await expect(providerStatus.getByText("Platform-managed setup:")).toBeVisible();
+  await expect(providerStatus.getByText("How platform setup works")).toHaveCount(0);
 
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();

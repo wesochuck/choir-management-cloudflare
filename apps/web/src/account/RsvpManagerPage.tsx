@@ -285,11 +285,27 @@ export function RsvpManagerPage({
           <div>
             <p className="eyebrow">Event response</p>
             <h2 id="rsvp-balance-title">Voice part RSVP balance</h2>
-            <p className="field-help">
-              {selectedEvent
-                ? `${selectedEvent.title} · ${displayEventDate(selectedEvent.startsAt)}`
-                : "Choose an event to view responses."}
-            </p>
+            <label className="field rsvp-manager__performance">
+              <span>Performance</span>
+              <select
+                onChange={(event) => {
+                  setEventId(event.target.value);
+                  setRows([]);
+                  setFeedback(null);
+                }}
+                value={eventId}
+              >
+                <option value="">Choose performance</option>
+                {state.events
+                  .filter((event) => event.type === "Performance")
+                  .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
+                  .map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title} · {displayEventDate(event.startsAt)}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <RsvpDeadlineNotice event={selectedEvent} />
           </div>
           <div className="rsvp-manager__summary-actions">
@@ -347,27 +363,6 @@ export function RsvpManagerPage({
 
       <section className="surface-card rsvp-manager__roster" aria-labelledby="rsvp-roster-title">
         <div className="rsvp-manager__controls">
-          <label className="field">
-            <span>Performance</span>
-            <select
-              onChange={(event) => {
-                setEventId(event.target.value);
-                setRows([]);
-                setFeedback(null);
-              }}
-              value={eventId}
-            >
-              <option value="">Choose performance</option>
-              {state.events
-                .filter((event) => event.type === "Performance")
-                .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
-                .map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title} · {displayEventDate(event.startsAt)}
-                  </option>
-                ))}
-            </select>
-          </label>
           <label className="field rsvp-manager__search">
             <span>Search active singers</span>
             <input

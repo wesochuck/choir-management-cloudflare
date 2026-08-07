@@ -45,16 +45,15 @@ export function EventRsvpDeadlineNotice({
       {state.rsvpExpiryEnabled
         ? draftDeadline
           ? draftDeadlinePassed
-            ? `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, true, state.timezone)}. Pending RSVPs will close. Change the date or adjust this in Roster Settings.`
-            : `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, false, state.timezone)} through 11:59 p.m. Link: Roster Settings.`
-          : "Choose a valid start date to calculate the RSVP deadline."
-        : "RSVP Expiry is off. You can change it in Roster Settings."}
-      {state.rsvpExpiryEnabled ? (
-        <>
-          {" "}
-          <a href="/admin/roster?section=settings">Open Roster Settings</a>
-        </>
-      ) : null}
+            ? `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, true, state.timezone)}. Pending member RSVPs are closed. This date was calculated from the event start using the organization's RSVP expiry setting.`
+            : `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, false, state.timezone)} through 11:59 p.m. This date is calculated from the event start using the organization's RSVP expiry setting.`
+          : "Enter a valid start date to calculate the member RSVP deadline."
+        : "Automatic RSVP expiry is off, so pending member RSVPs do not close automatically."}{" "}
+      <a href="/admin/roster?section=settings">
+        {state.rsvpExpiryEnabled
+          ? "Change RSVP expiry in Roster Settings"
+          : "Configure RSVP expiry in Roster Settings"}
+      </a>
     </p>
   );
 }

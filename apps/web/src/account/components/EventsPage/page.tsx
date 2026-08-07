@@ -36,7 +36,7 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const [bulkRehearsalOpen, setBulkRehearsalOpen] = useState(false);
   const [cancelCandidate, setCancelCandidate] = useState<OrganizationEvent | null>(null);
   const [bulkRehearsalCount, setBulkRehearsalCount] = useState("8");
-  const [bulkRehearsalDay, setBulkRehearsalDay] = useState("2");
+  const [bulkRehearsalDay, setBulkRehearsalDay] = useState("");
   const [bulkRehearsalPerformanceId, setBulkRehearsalPerformanceId] = useState("");
   const [bulkRehearsalTime, setBulkRehearsalTime] = useState("19:00");
   const [bulkRehearsalVenueId, setBulkRehearsalVenueId] = useState("");
@@ -129,13 +129,7 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     const target = performances[0];
     setBulkRehearsalPerformanceId(target?.id ?? "");
     setBulkRehearsalVenueId(state.venues[0]?.id ?? "");
-    if (target) {
-      const localStart = utcToZonedLocalDateTime(target.startsAt, state.timezone);
-      if (localStart) {
-        const date = new Date(`${localStart.slice(0, 10)}T12:00:00Z`);
-        if (Number.isFinite(date.getTime())) setBulkRehearsalDay(String(date.getUTCDay()));
-      }
-    }
+    setBulkRehearsalDay("");
     setBulkRehearsalCount("8");
     setBulkRehearsalTime("19:00");
     setError(null);
@@ -287,6 +281,7 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  // eslint-disable-next-line complexity -- bulk generation validates inputs and coordinates creation state.
   async function bulkAddRehearsals() {
     if (state.status !== "ready") return;
     const target = state.events.find(({ id }) => id === bulkRehearsalPerformanceId);
@@ -298,6 +293,10 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     }
     if (!Number.isInteger(count) || count < 1 || count > 52) {
       setError("Choose between 1 and 52 rehearsals.");
+      return;
+    }
+    if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+      setError("Choose a day of the week.");
       return;
     }
     if (!/^\d{2}:\d{2}$/.test(bulkRehearsalTime)) {

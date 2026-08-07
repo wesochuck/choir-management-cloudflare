@@ -478,8 +478,7 @@ export function OrganizationInvitations({
       </div>
       <p className="section-description">
         Invitations expire after 8 days. The recipient must sign in with the invited email before
-        accepting; administrators can invite Organization Members or Administrators, while only an
-        Owner can invite another Owner.
+        accepting.
       </p>
       {mfaBlocked ? (
         <p className="notice notice--info" role="status">
@@ -520,6 +519,7 @@ export function OrganizationInvitations({
         <div className="field">
           <label htmlFor="organization-invitation-role">Organization role</label>
           <select
+            aria-describedby="organization-invitation-role-help"
             id="organization-invitation-role"
             onChange={(event) => {
               setRole(parseInvitationRole(event.target.value));
@@ -530,6 +530,13 @@ export function OrganizationInvitations({
             <option value="administrator">Organization Administrator</option>
             {context.role === "owner" ? <option value="owner">Organization Owner</option> : null}
           </select>
+          <p className="field-help" id="organization-invitation-role-help">
+            These are Organization Membership roles, not Profile roles. Members can use
+            member-facing features. Administrators can manage the Organization&apos;s operational
+            data, Profiles, Memberships, and invitations. Owners have Administrator access plus
+            owner-only controls such as Organization MFA, Public Website domains, and Owner
+            invitations.
+          </p>
         </div>
         <button className="button button--primary" disabled={busy || mfaBlocked} type="submit">
           {busy ? "Creating invitation…" : "Create invitation"}

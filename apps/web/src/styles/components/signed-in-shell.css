@@ -97,6 +97,10 @@
     min-height: calc(100vh - 4.5rem);
   }
 
+  .signed-in-shell[data-sidebar-pinned="false"] .signed-in-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .signed-in-sidebar {
     position: sticky;
     top: 4.5rem;
@@ -106,6 +110,67 @@
     padding: 1.5rem 1rem;
     border-right: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-surface) 74%, transparent);
+  }
+
+  .sidebar-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin: -0.5rem 0 0.45rem;
+  }
+
+  .sidebar-toolbar__button {
+    display: inline-grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+
+  .sidebar-toolbar__button:hover,
+  .sidebar-toolbar__button:focus-visible {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+    color: var(--color-text);
+  }
+
+  .sidebar-toolbar__button svg,
+  .sidebar-drawer__pin svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+  }
+
+  .sidebar-drawer__pin {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 2.5rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+    color: var(--color-text);
+    cursor: pointer;
+    font: inherit;
+    font-weight: var(--font-weight-bold);
+    text-align: left;
+  }
+
+  .sidebar-drawer__pin:hover,
+  .sidebar-drawer__pin:focus-visible {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface));
   }
 
   .sidebar-context {
@@ -700,6 +765,15 @@
     margin: 0;
   }
 
+  .rsvp-manager__balance .roster-balance__header > div:first-child {
+    min-width: 0;
+  }
+
+  .rsvp-manager__performance {
+    width: min(100%, 32rem);
+    margin: 0.75rem 0;
+  }
+
   .rsvp-manager__summary-actions {
     display: flex;
     flex-wrap: wrap;
@@ -743,7 +817,7 @@
 
   .rsvp-manager__controls {
     display: grid;
-    grid-template-columns: minmax(14rem, 0.8fr) minmax(18rem, 1.2fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.9rem;
     padding: 0.9rem;
     border: 1px solid var(--color-border);
@@ -1068,6 +1142,10 @@
     .roster-filter-row {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .roster-filter-row .search-field {
+      flex: 0 1 auto;
     }
 
     .roster-filter-row__status {

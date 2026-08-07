@@ -176,6 +176,15 @@
     grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(8rem, 1fr)) minmax(11rem, 1fr);
   }
 
+  /* The pinned navigation leaves a narrower content column at tablet and
+   * narrow desktop widths. Keep each donation filter readable instead of
+   * compressing four controls into one row. */
+  @media (max-width: 64rem) {
+    .ticket-dashboard__filters.donation-dashboard__filters {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .donation-patrons {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);

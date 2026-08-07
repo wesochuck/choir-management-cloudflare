@@ -43,6 +43,20 @@ import {
   workspaceNavigation,
 } from "./workspacesUtils";
 
+function sidebarPinnedStorageKey(): string {
+  return `choir-sidebar-pinned:${window.location.hostname}`;
+}
+
+function readSidebarPinned(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(sidebarPinnedStorageKey()) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+// eslint-disable-next-line complexity -- the shell coordinates pinned and modal navigation states.
 export function AuthenticatedShell({
   currentSession,
   onSignedOut,
@@ -52,7 +66,10 @@ export function AuthenticatedShell({
 }) {
   const [route, navigate] = useRoute();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const mobileNavTriggerRef = useRef<HTMLElement | null>(null);
+  const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned);
+  const mobileNavTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const sidebarCollapseRef = useRef<HTMLButtonElement | null>(null);
+  const focusPinnedSidebarRef = useRef(false);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace>(() =>
     workspaceForPath(readRoute().pathname),
   );
@@ -73,6 +90,22 @@ export function AuthenticatedShell({
       document.documentElement.removeAttribute("data-theme");
     };
   }, [themePreference]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(sidebarPinnedStorageKey(), String(sidebarPinned));
+    } catch {
+      // Restricted storage should not prevent the navigation drawer from working.
+    }
+  }, [sidebarPinned]);
+
+  useEffect(() => {
+    if (mobileNavOpen || !focusPinnedSidebarRef.current) return;
+    focusPinnedSidebarRef.current = false;
+    window.requestAnimationFrame(() => {
+      sidebarCollapseRef.current?.focus();
+    });
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -195,6 +228,22 @@ export function AuthenticatedShell({
     setMobileNavOpen(false);
   }
 
+  function collapseWorkspaceNavigation() {
+    setSidebarPinned(false);
+    setMobileNavOpen(false);
+  }
+
+  function unpinWorkspaceNavigation() {
+    setSidebarPinned(false);
+    setMobileNavOpen(true);
+  }
+
+  function pinWorkspaceNavigation() {
+    focusPinnedSidebarRef.current = true;
+    setSidebarPinned(true);
+    setMobileNavOpen(false);
+  }
+
   const navGroups = workspaceNavigation(
     selectedWorkspace,
     visibleOrganizationGroups,
@@ -204,7 +253,11 @@ export function AuthenticatedShell({
   const organizationName = organizationDisplayName(access, currentSession);
 
   return (
-    <div className="signed-in-shell" data-theme={themePreference}>
+    <div
+      className="signed-in-shell"
+      data-sidebar-pinned={sidebarPinned ? "true" : "false"}
+      data-theme={themePreference}
+    >
       <a className="skip-link" href="#signed-in-main">
         Skip to main content
       </a>
@@ -220,6 +273,7 @@ export function AuthenticatedShell({
             }}
             type="button"
             aria-label="Open workspace navigation"
+            aria-expanded={mobileNavOpen}
           >
             <span aria-hidden="true">☰</span>
           </button>
@@ -274,13 +328,43 @@ export function AuthenticatedShell({
         </div>
       </header>
       <div className="signed-in-body">
-        <aside className="signed-in-sidebar">
-          <div className="sidebar-context">
-            <span className="eyebrow">{workspaceLabel(selectedWorkspace)}</span>
-            <strong>{organizationName}</strong>
-          </div>
-          <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
-        </aside>
+        {sidebarPinned ? (
+          <aside className="signed-in-sidebar">
+            <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
+              <button
+                aria-label="Collapse workspace navigation"
+                className="sidebar-toolbar__button"
+                onClick={collapseWorkspaceNavigation}
+                ref={sidebarCollapseRef}
+                title="Collapse workspace navigation"
+                type="button"
+              >
+                <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                  <path d="m14 6-6 6 6 6" />
+                </svg>
+                <span className="sr-only">Collapse workspace navigation</span>
+              </button>
+              <button
+                aria-label="Unpin workspace navigation"
+                aria-pressed={sidebarPinned}
+                className="sidebar-toolbar__button sidebar-toolbar__button--pin"
+                onClick={unpinWorkspaceNavigation}
+                title="Unpin workspace navigation"
+                type="button"
+              >
+                <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                  <path d="m8 4 8 8m-8-8v5l-3 3h14l-3-3V4M12 12v8" />
+                </svg>
+                <span className="sr-only">Unpin workspace navigation</span>
+              </button>
+            </div>
+            <div className="sidebar-context">
+              <span className="eyebrow">{workspaceLabel(selectedWorkspace)}</span>
+              <strong>{organizationName}</strong>
+            </div>
+            <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
+          </aside>
+        ) : null}
         <main
           className={[
             "signed-in-main",
@@ -339,6 +423,19 @@ export function AuthenticatedShell({
         <div className="sheet__header">
           <span className="eyebrow">Workspace</span>
           <strong>{workspaceLabel(selectedWorkspace)}</strong>
+          {!sidebarPinned ? (
+            <button
+              aria-pressed="false"
+              className="sidebar-drawer__pin"
+              onClick={pinWorkspaceNavigation}
+              type="button"
+            >
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                <path d="m8 4 8 8m-8-8v5l-3 3h14l-3-3V4M12 12v8" />
+              </svg>
+              <span>Pin navigation open</span>
+            </button>
+          ) : null}
         </div>
         <Navigation
           groups={navGroups}

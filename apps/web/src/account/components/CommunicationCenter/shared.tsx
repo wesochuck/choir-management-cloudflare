@@ -217,6 +217,7 @@ export function TemplateLibrary({
               </div>
               <span className="button-row">
                 <button
+                  className="button button--secondary"
                   disabled={busy}
                   onClick={() => {
                     onApply(template);

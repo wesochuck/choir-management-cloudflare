@@ -1,4 +1,4 @@
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 // Responsive audit: renders key signed-in pages at the breakpoint ladder and
 // asserts the document never overflows horizontally. API responses are mocked
@@ -8,6 +8,8 @@ const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const eventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const musicId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const profileId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const seasonId = "12121212-1212-4121-8121-121212121212";
+const pollId = "34343434-3434-4343-8434-343434343434";
 
 const session = {
   session: {
@@ -169,6 +171,55 @@ const events = [
   },
 ];
 
+const responsiveManagerResponses: Record<string, unknown> = {
+  "/api/organization/dues": { dues: [], requestId },
+  "/api/organization/donation-settings": {
+    buttonText: "Give now",
+    description: "Support our choir.",
+    levels: [],
+    requestId,
+  },
+  "/api/organization/donations": { donations: [], requestId },
+  "/api/organization/patrons": { patrons: [], requestId },
+  "/api/organization/polls": {
+    polls: [
+      {
+        archivedAt: "",
+        createdAt: "2026-07-20T20:00:00.000Z",
+        expiresAt: "",
+        id: pollId,
+        responseCount: 0,
+        title: "Responsive poll",
+      },
+    ],
+    requestId,
+  },
+  "/api/organization/seasons": {
+    requestId,
+    seasons: [
+      {
+        createdAt: "2026-07-20T20:00:00.000Z",
+        duesAmountCents: 12000,
+        endsAt: "2026-12-31T23:59:59.000Z",
+        id: seasonId,
+        isActive: true,
+        name: "Fall season",
+        startsAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-07-20T20:00:00.000Z",
+      },
+    ],
+  },
+  "/api/organization/ticket-confirmation-settings": {
+    pendingMessage: "Your order is pending.",
+    qrCodeInstructions: "Show this code at the door.",
+    requestId,
+    successMessage: "Your order is confirmed.",
+    willCallInstructions: "Pick up tickets at will call.",
+  },
+  "/api/organization/tickets/bundles": { bundles: [], requestId },
+  "/api/organization/tickets/orders": { orders: [], requestId },
+};
+
 async function handleDataRoute(route: Route): Promise<boolean> {
   const url = new URL(route.request().url());
   if (url.pathname === "/api/organization/events") {
@@ -231,6 +282,11 @@ async function handleDataRoute(route: Route): Promise<boolean> {
     });
     return true;
   }
+  const managerResponse = responsiveManagerResponses[url.pathname];
+  if (managerResponse !== undefined) {
+    await fulfillJson(route, managerResponse);
+    return true;
+  }
   if (url.pathname === "/api/organization/venues") {
     await fulfillJson(route, {
       requestId,
@@ -283,6 +339,70 @@ async function handleDataRoute(route: Route): Promise<boolean> {
   return false;
 }
 
+async function assertStackedFields(
+  page: Page,
+  selector: string,
+  expectedCount: number,
+): Promise<void> {
+  const fieldsLocator = page.locator(selector);
+  await expect(fieldsLocator).toHaveCount(expectedCount);
+  const filterFields = await fieldsLocator.evaluateAll((fields) =>
+    fields.map((field) => {
+      const rect = field.getBoundingClientRect();
+      return { bottom: rect.bottom, top: rect.top };
+    }),
+  );
+  expect(filterFields).toHaveLength(expectedCount);
+  for (let index = 1; index < filterFields.length; index += 1) {
+    expect(filterFields[index]?.top).toBeGreaterThanOrEqual(
+      (filterFields[index - 1]?.bottom ?? 0) - 1,
+    );
+  }
+}
+
+async function assertBreakpointSpecificLayout(
+  page: Page,
+  path: string,
+  width: number,
+): Promise<void> {
+  if (path === "/admin/events" && width <= 768) {
+    const searchFieldSize = await page
+      .locator(".event-manager-search .search-field")
+      .evaluate((label) => ({
+        inputHeight: label.querySelector("input")?.getBoundingClientRect().height ?? 0,
+        labelHeight: label.getBoundingClientRect().height,
+      }));
+    expect(searchFieldSize.labelHeight).toBeLessThanOrEqual(searchFieldSize.inputHeight + 1);
+  }
+  if (path === "/admin/seasons" && width <= 1024) {
+    await assertStackedFields(page, "#dues-records-panel .dues-records-toolbar > .field", 2);
+  }
+  if (path === "/admin/donations" && width <= 1024) {
+    await assertStackedFields(page, ".donation-dashboard__filters > .field", 4);
+  }
+  if (path === "/admin/tickets" && width <= 1024) {
+    const metricsLocator = page.locator(
+      ".ticket-dashboard:not(.donation-dashboard) .ticket-dashboard__metric",
+    );
+    await expect(metricsLocator).toHaveCount(4);
+    const metrics = await metricsLocator.evaluateAll((cards) =>
+      cards.map((card) => {
+        const cardRight = card.getBoundingClientRect().right;
+        const overflowingDescendant = [...card.querySelectorAll("*")].some(
+          (descendant) => descendant.getBoundingClientRect().right > cardRight + 1,
+        );
+        return { overflowingDescendant };
+      }),
+    );
+    expect(metrics.map(({ overflowingDescendant }) => overflowingDescendant)).not.toContain(true);
+  }
+  if (path === "/admin/polls" && width > 640) {
+    await expect(page.getByRole("columnheader", { name: "Sharing" })).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Actions" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Share with members" })).toBeVisible();
+  }
+}
+
 test("signed-in pages never overflow horizontally at any breakpoint", async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     if (await handleShellRoute(route)) return;
@@ -293,7 +413,11 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
   const pages = [
     { path: "/dashboard", label: "member dashboard" },
     { path: "/admin", label: "admin overview" },
+    { path: "/admin/donations", label: "donations" },
     { path: "/admin/events", label: "events" },
+    { path: "/admin/polls", label: "polls" },
+    { path: "/admin/tickets", label: "ticketing" },
+    { path: "/admin/seasons", label: "seasons and dues" },
     { path: "/admin/setlists", label: "set lists" },
   ];
 
@@ -308,6 +432,7 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
     for (const width of widths) {
       await page.setViewportSize({ width, height: 900 });
       await page.waitForTimeout(120);
+      await assertBreakpointSpecificLayout(page, path, width);
       const audit = await page.evaluate(() => {
         const viewport = window.innerWidth;
         const scrollWidth = document.documentElement.scrollWidth;

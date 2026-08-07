@@ -21,12 +21,14 @@ import type { PerformanceHistoryState, RsvpStatus } from "./types";
 
 export function VoicePartBalance({
   configuration,
+  performerLabel,
   profiles,
   selectedFilters,
   onToggle,
 }: {
   readonly configuration: OrganizationRosterConfiguration;
   readonly onToggle: (filter: string) => void;
+  readonly performerLabel: string;
   readonly profiles: readonly OrganizationProfile[];
   readonly selectedFilters: readonly string[];
 }) {
@@ -55,8 +57,10 @@ export function VoicePartBalance({
       <div className="roster-balance__header">
         <div>
           <p className="eyebrow">Roster overview</p>
-          <h2 id="roster-balance-title">Voice part balance</h2>
-          <p className="field-help">Select a section or voice part to filter the roster below.</p>
+          <h2 id="roster-balance-title">{performerLabel} balance</h2>
+          <p className="field-help">
+            Select a section or {performerLabel.toLowerCase()} to filter the roster below.
+          </p>
         </div>
         <div className="roster-balance__meta">
           <span className="status-pill">{profiles.length} profiles</span>

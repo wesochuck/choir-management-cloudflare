@@ -127,6 +127,7 @@ export function BulkRehearsalDialog({
               setDayOfWeek(event.target.value);
             }}
           >
+            <option value="">Choose a day of the week…</option>
             {DAYS_OF_WEEK.map((day, index) => (
               <option key={day} value={String(index)}>
                 {day}

@@ -36,8 +36,8 @@
   /* Profile photos and camera */
 
   .profile-photo--directory {
-    height: 3.5rem;
-    width: 3.5rem;
+    height: 4rem;
+    width: 4rem;
   }
 
   .profile-photo-controls {
@@ -418,9 +418,12 @@
     background: var(--color-surface-raised);
   }
 
-  .directory-grid h3,
   .directory-grid p {
     margin: 0;
+  }
+
+  .directory-grid h3 {
+    margin: 0.65rem 0 0;
   }
 }
 

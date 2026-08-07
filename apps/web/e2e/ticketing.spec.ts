@@ -184,6 +184,19 @@ const adminOrder = {
   updatedAt: "2026-07-23T15:00:00.000Z",
 };
 
+const sortableAdminOrder = {
+  ...adminOrder,
+  amountPaidCents: 900,
+  buyerEmail: "alex@example.test",
+  buyerName: "Alex Anderson",
+  createdAt: "2026-07-23T14:00:00.000Z",
+  feeCents: 0,
+  id: "f1d0c8b4-0a67-4c12-a6a4-5db0d4d4b9d4",
+  status: "pending",
+  unitPriceCents: 900,
+  updatedAt: "2026-07-23T14:00:00.000Z",
+};
+
 const adminBundle = {
   capacity: 100,
   createdAt: "2026-07-01T00:00:00.000Z",
@@ -425,7 +438,7 @@ test.describe("admin ticket management", () => {
     });
     await page.route("**/api/organization/tickets/orders", async (route) => {
       await route.fulfill({
-        body: JSON.stringify({ orders: [adminOrder], requestId }),
+        body: JSON.stringify({ orders: [adminOrder, sortableAdminOrder], requestId }),
         contentType: "application/json",
         status: 200,
       });
@@ -449,12 +462,20 @@ test.describe("admin ticket management", () => {
 
     await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Jane Buyer" })).toBeVisible();
-    await expect(page.getByText("jane@example.test")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "jane@example.test" })).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Updates automatically every 5 seconds.");
     await expect(
       page.locator(".ticket-dashboard__metric--sold").getByText("Spring Concert", { exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("cell", { name: "$15.74" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "paid (simulation)" })).toBeVisible();
+
+    const orderRows = page.locator(".data-table tbody tr");
+    await expect(orderRows).toHaveCount(2);
+    await page.getByRole("button", { name: "Sort by Buyer name" }).click();
+    await expect(orderRows.first().getByRole("cell").first()).toHaveText("Alex Anderson");
+    await page.getByRole("button", { name: "Sort by Buyer name" }).click();
+    await expect(orderRows.first().getByRole("cell").first()).toHaveText("Jane Buyer");
   });
 
   test("refunds a paid order via danger confirmation", async ({ page }) => {
@@ -500,12 +521,13 @@ test.describe("admin ticket management", () => {
 
     await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
     await page.getByRole("button", { name: "Refund" }).click({ force: true });
-    await expect(page.getByText("Refund this complete order?")).toBeVisible();
+    const ticketOrdersTable = page.getByRole("table");
+    await expect(ticketOrdersTable.getByText("Refund this complete order?")).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click({ force: true });
-    await expect(page.getByText("Refund this complete order?")).not.toBeVisible();
+    await expect(ticketOrdersTable.getByText("Refund this complete order?")).not.toBeVisible();
 
     await page.getByRole("button", { name: "Refund" }).click({ force: true });
-    await expect(page.getByText("Refund this complete order?")).toBeVisible();
+    await expect(ticketOrdersTable.getByText("Refund this complete order?")).toBeVisible();
     await page.getByRole("button", { name: "Confirm refund" }).click({ force: true });
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();

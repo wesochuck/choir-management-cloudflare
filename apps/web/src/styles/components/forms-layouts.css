@@ -234,6 +234,14 @@
     border-top-color: #10b981;
   }
 
+  /* Four metrics become too narrow for ticket counts and currency values
+   * once the pinned navigation reduces the content column. */
+  @media (max-width: 64rem) {
+    .ticket-dashboard:not(.donation-dashboard) .ticket-dashboard__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .ticket-dashboard__filters {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
@@ -246,6 +254,10 @@
 
   .ticket-dashboard__filters .field {
     min-width: 0;
+  }
+
+  .ticket-dashboard__filters--search {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .ticket-dashboard__will-call .table-scroll {

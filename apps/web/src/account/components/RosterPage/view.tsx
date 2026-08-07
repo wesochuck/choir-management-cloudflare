@@ -220,6 +220,7 @@ export function RosterPageView({
             <VoicePartBalance
               configuration={roster.configuration}
               onToggle={toggleVoiceFilter}
+              performerLabel={performerLabel}
               profiles={roster.profiles}
               selectedFilters={selectedVoiceFilters}
             />
@@ -376,7 +377,7 @@ export function RosterPageView({
                     "",
                 },
                 {
-                  header: "Voice part",
+                  header: performerLabel,
                   id: "voicePart",
                   render: (candidate) => candidate.voicePart || "Not assigned",
                   sortValue: (candidate) => candidate.voicePart,
@@ -674,7 +675,7 @@ export function RosterPageView({
               ) : null}
             </div>
             <div className="field">
-              <label htmlFor="roster-profile-voice-part">Voice part</label>
+              <label htmlFor="roster-profile-voice-part">{performerLabel}</label>
               <select
                 id="roster-profile-voice-part"
                 onChange={(event) => {
@@ -682,7 +683,7 @@ export function RosterPageView({
                 }}
                 value={profile.voicePart}
               >
-                <option value="">No voice part</option>
+                <option value="">No {performerLabel.toLowerCase()}</option>
                 {roster.status === "ready"
                   ? roster.configuration.voiceParts.map(({ fullName, label }) => (
                       <option key={label} value={label}>

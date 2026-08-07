@@ -248,8 +248,9 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                 {audience.targetAudiences.includes("Members") ||
                 audience.targetAudiences.includes("Ticket Buyers") ? (
                   <div className="field">
-                    <label htmlFor="communication-event">Event audience (optional)</label>
+                    <label htmlFor="communication-event">Event (optional)</label>
                     <select
+                      aria-describedby="communication-event-help"
                       id="communication-event"
                       onChange={(event) => {
                         const eventId = event.target.value || null;
@@ -269,6 +270,10 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                         </option>
                       ))}
                     </select>
+                    <p className="field-help" id="communication-event-help">
+                      Choose an event to target its matching contacts and unlock event-specific
+                      placeholders in the Compose step.
+                    </p>
                   </div>
                 ) : null}
                 {audience.eventId && audience.targetAudiences.includes("Members") ? (
@@ -296,8 +301,18 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                     </select>
                   </div>
                 ) : null}
+                {reach ? (
+                  <p className="notice notice--info communication-audience-reach" role="status">
+                    <strong>Audience reach</strong>
+                    <br />
+                    {reach}
+                  </p>
+                ) : null}
                 <div className="form-actions form-actions--end">
-                  <button className="button button--primary" type="submit">
+                  <button disabled={busy} onClick={() => void previewReach()} type="button">
+                    {busy ? "Calculating…" : "Preview audience reach"}
+                  </button>
+                  <button className="button button--primary" disabled={busy} type="submit">
                     Continue to compose
                   </button>
                 </div>
@@ -336,9 +351,13 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                     audience={audience}
                     channel={channel}
                     contentMarkdown={contentMarkdown}
+                    onBackToAudience={() => {
+                      setStage("audience");
+                    }}
                     onContentChange={(value) => {
                       setContentMarkdown(value);
                     }}
+                    subject={subject}
                   />
                 </div>
                 {reach ? (

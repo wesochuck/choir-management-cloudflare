@@ -513,6 +513,28 @@
     margin-top: 0.75rem;
   }
 
+  .communication-placeholders__group {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .communication-placeholders__group + .communication-placeholders__group {
+    margin-top: 0.35rem;
+  }
+
+  .communication-placeholders__group h4 {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .communication-placeholders__group-list {
+    display: grid;
+    gap: 0.45rem;
+  }
+
   .communication-placeholder {
     display: grid;
     gap: 0.15rem;
@@ -530,6 +552,7 @@
   }
 
   .communication-placeholder code {
+    overflow-wrap: anywhere;
     color: var(--color-accent);
     font-size: var(--font-size-md);
   }
@@ -537,6 +560,21 @@
   .communication-placeholder span {
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+  }
+
+  .communication-placeholders__event-help {
+    margin-top: 0.75rem;
+  }
+
+  .communication-placeholders__event-help .field-help {
+    margin: 0;
+  }
+
+  .communication-placeholders__event-help .text-button {
+    display: block;
+    margin-top: 0.35rem;
+    padding-left: 0;
+    text-align: left;
   }
 
   @media (max-width: 48rem) {

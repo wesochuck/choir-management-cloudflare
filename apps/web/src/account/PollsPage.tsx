@@ -290,34 +290,31 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             render: (poll: Poll) => formatExpiry(poll.expiresAt),
           },
           {
-            header: "Sharing",
-            id: "sharing",
-            render: (poll: Poll) => (
-              <button
-                className="button button--secondary button--small"
-                disabled={sharingPollId === poll.id}
-                onClick={() => {
-                  void sharePoll(poll);
-                }}
-                type="button"
-              >
-                {sharingPollId === poll.id ? "Preparing…" : "Share with members"}
-              </button>
-            ),
-          },
-          {
             header: "Actions",
             id: "actions",
+            mobileLabel: "Manage",
             render: (poll: Poll) => (
-              <button
-                disabled={loadingPollId === poll.id}
-                onClick={() => {
-                  void openEditDialog(poll);
-                }}
-                type="button"
-              >
-                {loadingPollId === poll.id ? "Loading…" : "Edit"}
-              </button>
+              <div className="table-actions">
+                <button
+                  className="button button--secondary button--small"
+                  disabled={sharingPollId === poll.id}
+                  onClick={() => {
+                    void sharePoll(poll);
+                  }}
+                  type="button"
+                >
+                  {sharingPollId === poll.id ? "Preparing…" : "Share with members"}
+                </button>
+                <button
+                  disabled={loadingPollId === poll.id}
+                  onClick={() => {
+                    void openEditDialog(poll);
+                  }}
+                  type="button"
+                >
+                  {loadingPollId === poll.id ? "Loading…" : "Edit"}
+                </button>
+              </div>
             ),
           },
         ]}

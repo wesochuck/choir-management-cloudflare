@@ -152,10 +152,12 @@ function EventPicker({
 function AttendanceReport({
   events,
   onChange,
+  performerLabel,
   selectedId,
 }: {
   readonly events: readonly OrganizationEvent[];
   readonly onChange: (id: string) => void;
+  readonly performerLabel: string;
   readonly selectedId: string;
 }) {
   const [state, setState] = useState<LoadState>("ready");
@@ -218,7 +220,14 @@ function AttendanceReport({
           disabled={!selected || rows.length === 0}
           onClick={() => {
             downloadCsv("attendance-report.csv", [
-              ["Name", "Voice part", "Absences", "Present", "Total rehearsals", "Attendance rate"],
+              [
+                "Name",
+                performerLabel,
+                "Absences",
+                "Present",
+                "Total rehearsals",
+                "Attendance rate",
+              ],
               ...rows.map((row) => [
                 row.name,
                 row.voicePart,
@@ -272,7 +281,7 @@ function AttendanceReport({
                   sortValue: (row) => row.name,
                 },
                 {
-                  header: "Voice part",
+                  header: performerLabel,
                   id: "voicePart",
                   render: (row) => row.voicePart || "—",
                   sortValue: (row) => row.voicePart,
@@ -311,10 +320,12 @@ function AttendanceReport({
 function RsvpReport({
   events,
   onChange,
+  performerLabel,
   selectedId,
 }: {
   readonly events: readonly OrganizationEvent[];
   readonly onChange: (id: string) => void;
+  readonly performerLabel: string;
   readonly selectedId: string;
 }) {
   const [state, setState] = useState<LoadState>("ready");
@@ -362,7 +373,7 @@ function RsvpReport({
           disabled={!selected || rows.length === 0}
           onClick={() => {
             downloadCsv("rsvp-report.csv", [
-              ["Name", "Voice part", "RSVP", "Attendance"],
+              ["Name", performerLabel, "RSVP", "Attendance"],
               ...rows.map((row) => [row.displayName, row.voicePart, row.rsvp, row.attendance]),
             ]);
           }}
@@ -408,7 +419,7 @@ function RsvpReport({
                   sortValue: (row) => row.displayName,
                 },
                 {
-                  header: "Voice part",
+                  header: performerLabel,
                   id: "voicePart",
                   render: (row) => row.voicePart || "—",
                   sortValue: (row) => row.voicePart,
@@ -850,6 +861,7 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
           <AttendanceReport
             events={events}
             onChange={setSelectedPerformanceId}
+            performerLabel={performerLabel}
             selectedId={selectedPerformanceId}
           />
         ) : null}
@@ -857,6 +869,7 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
           <RsvpReport
             events={events}
             onChange={setSelectedPerformanceId}
+            performerLabel={performerLabel}
             selectedId={selectedPerformanceId}
           />
         ) : null}

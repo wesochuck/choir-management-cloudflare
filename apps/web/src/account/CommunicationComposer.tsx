@@ -2,6 +2,8 @@ import type { CommunicationAudienceRequest, CommunicationChannel } from "@choir/
 import { useRef, useState } from "react";
 
 import {
+  communicationPlaceholderContext,
+  hasEventDependentCommunicationPlaceholders,
   visibleCommunicationPlaceholders,
   type CommunicationPlaceholder,
 } from "./communicationPlaceholders";
@@ -11,7 +13,9 @@ interface CommunicationComposerProps {
   readonly audience: CommunicationAudienceRequest;
   readonly channel: CommunicationChannel;
   readonly contentMarkdown: string;
+  readonly onBackToAudience: () => void;
   readonly onContentChange: (value: string) => void;
+  readonly subject: string;
 }
 
 function insertAtSelection(
@@ -58,11 +62,29 @@ export function CommunicationComposer({
   audience,
   channel,
   contentMarkdown,
+  onBackToAudience,
   onContentChange,
+  subject,
 }: CommunicationComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [preview, setPreview] = useState(false);
-  const placeholders = visibleCommunicationPlaceholders(audience, channel);
+  const context = communicationPlaceholderContext(`${subject}\n${contentMarkdown}`);
+  const placeholders = visibleCommunicationPlaceholders(
+    audience,
+    channel,
+    context,
+    contentMarkdown,
+  );
+  const placeholderGroups = Array.from(
+    placeholders.reduce((groups, placeholder) => {
+      const group = groups.get(placeholder.category) ?? [];
+      group.push(placeholder);
+      groups.set(placeholder.category, group);
+      return groups;
+    }, new Map<CommunicationPlaceholder["category"], CommunicationPlaceholder[]>()),
+  );
+  const needsEvent =
+    !audience.eventId && hasEventDependentCommunicationPlaceholders(audience, channel, context);
 
   function insert(replacement: string) {
     if (!textareaRef.current) return;
@@ -192,19 +214,34 @@ export function CommunicationComposer({
           <p className="field-help">Click a placeholder to insert it at the cursor.</p>
         </div>
         <div className="communication-placeholders__list">
-          {placeholders.map((placeholder) => (
-            <PlaceholderButton
-              key={placeholder.tag}
-              onInsert={() => {
-                insert(placeholder.tag);
-              }}
-              placeholder={placeholder}
-            />
+          {placeholderGroups.map(([category, group]) => (
+            <section className="communication-placeholders__group" key={category}>
+              <h4>{category}</h4>
+              <div className="communication-placeholders__group-list">
+                {group.map((placeholder) => (
+                  <PlaceholderButton
+                    key={placeholder.tag}
+                    onInsert={() => {
+                      insert(placeholder.tag);
+                    }}
+                    placeholder={placeholder}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
-        {placeholders.some(({ requiresEvent }) => requiresEvent) ? null : (
-          <p className="field-help">Select an event to unlock event placeholders.</p>
-        )}
+        {needsEvent ? (
+          <div className="communication-placeholders__event-help">
+            <p className="field-help">
+              Event-specific placeholders become available after you choose an event in step 1,
+              Audience.
+            </p>
+            <button className="text-button" onClick={onBackToAudience} type="button">
+              Choose an event in Audience
+            </button>
+          </div>
+        ) : null}
       </aside>
     </div>
   );
