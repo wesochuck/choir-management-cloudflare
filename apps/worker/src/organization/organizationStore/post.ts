@@ -14,9 +14,11 @@ import {
   readAuditionFromStore,
   listAuditionsFromStore,
   updateAuditionInStore,
+  updatePublicAuditionInStore,
   updateAuditionSettingsInStore,
   auditionSlotsAreConfigured,
   recordAuditionNotificationResult,
+  checkPublicAuditionInquiryRateLimit,
 } from "../auditionStore";
 import {
   completeOrganizationExportInStore,
@@ -39,7 +41,7 @@ import { recordProviderRefundRequestedInStore } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
 import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
 import { ensurePracticePlayerLinkInStore } from "../playerLinkStore";
-import { recordProviderEmailFeedback } from "./providerFeedback";
+import { recordProviderEmailFeedback, releaseProviderEmailSuppression } from "./providerFeedback";
 
 import {
   provisionOrganizationStore,
@@ -111,6 +113,9 @@ export async function dispatchPostRequest(
   }
   if (pathname === "/internal/email/provider-event") {
     return recordProviderEmailFeedback(storage, request);
+  }
+  if (pathname === "/internal/email/provider-suppression-release") {
+    return releaseProviderEmailSuppression(storage, request);
   }
   if (pathname === "/internal/ticket-confirmation-settings") {
     return ticketConfirmationSettingsUpdateHandler(storage, request);
@@ -288,6 +293,30 @@ export async function auditionUpdateHandler(
   return updateAuditionInStore(storage, auditionId, payload.input, payload.actor);
 }
 
+export function auditionPublicUpdateHandler(
+  storage: DurableObjectStorage,
+  request: Request,
+): Response {
+  const url = new URL(request.url);
+  const auditionId = url.searchParams.get("auditionId") ?? "";
+  const payload = z
+    .object({
+      availabilityNotes: z.string().max(5_000).optional(),
+      voicePart: z.string().max(100).optional(),
+    })
+    .safeParse({
+      availabilityNotes: url.searchParams.get("availabilityNotes") ?? undefined,
+      voicePart: url.searchParams.get("voicePart") ?? undefined,
+    });
+  if (!payload.success) return Response.json({ code: "validation_failed" }, { status: 400 });
+  const input: { availabilityNotes?: string; voicePart?: string } = {};
+  if (payload.data.availabilityNotes !== undefined) {
+    input.availabilityNotes = payload.data.availabilityNotes;
+  }
+  if (payload.data.voicePart !== undefined) input.voicePart = payload.data.voicePart;
+  return updatePublicAuditionInStore(storage, auditionId, input);
+}
+
 export async function auditionSettingsUpdateHandler(
   storage: DurableObjectStorage,
   request: Request,
@@ -352,12 +381,16 @@ export async function dispatchAuditionPostRequest(
   switch (pathname) {
     case "/internal/audition/update":
       return auditionUpdateHandler(storage, request);
+    case "/internal/audition/public-update":
+      return auditionPublicUpdateHandler(storage, request);
     case "/internal/audition/create":
       return auditionCreateHandler(storage, request);
     case "/internal/audition/delete":
       return auditionDeleteHandler(storage, request);
     case "/internal/audition/settings":
       return auditionSettingsUpdateHandler(storage, request);
+    case "/internal/audition/rate-limit":
+      return checkPublicAuditionInquiryRateLimit(storage, request);
     case "/internal/audition/notification-result":
       return auditionNotificationResultHandler(storage, request);
     case "/internal/export/create":

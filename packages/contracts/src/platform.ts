@@ -136,6 +136,132 @@ export type PlatformJobDeadLetterActionResponse = z.infer<
   typeof platformJobDeadLetterActionResponseSchema
 >;
 
+export const platformEmailProviderStatusSchema = z.enum([
+  "accepted",
+  "delivered",
+  "deferred",
+  "bounced",
+  "failed",
+  "rejected",
+  "complained",
+]);
+
+export type PlatformEmailProviderStatus = z.infer<typeof platformEmailProviderStatusSchema>;
+
+export const platformEmailProviderEventStateSchema = z.enum([
+  "pending",
+  "processing",
+  "processed",
+  "dead_letter",
+]);
+
+export type PlatformEmailProviderEventState = z.infer<typeof platformEmailProviderEventStateSchema>;
+
+export const platformEmailFeedbackViewSchema = z.enum(["open", "all"]);
+export type PlatformEmailFeedbackView = z.infer<typeof platformEmailFeedbackViewSchema>;
+
+export const platformEmailFeedbackActionRequestSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+export type PlatformEmailFeedbackActionRequest = z.infer<
+  typeof platformEmailFeedbackActionRequestSchema
+>;
+
+export const platformEmailFeedbackActionStatusSchema = z.enum([
+  "retry_requested",
+  "retry_unavailable",
+  "acknowledged",
+]);
+
+export type PlatformEmailFeedbackActionStatus = z.infer<
+  typeof platformEmailFeedbackActionStatusSchema
+>;
+
+export const platformEmailProviderEventSchema = z.object({
+  attempts: z.number().int().nonnegative(),
+  bounceType: z.enum(["hard", "soft"]).nullable(),
+  createdAt: z.iso.datetime(),
+  eventId: z.string().min(1).max(128),
+  eventTimestamp: z.iso.datetime(),
+  eventType: platformEmailProviderStatusSchema,
+  lastError: z.string().max(500),
+  messageId: z.string().min(1).max(512),
+  operatorAt: z.iso.datetime().nullable(),
+  operatorReason: z.string().max(500),
+  operatorStatus: z.enum(["open", "acknowledged"]),
+  organizationId: organizationIdSchema.nullable(),
+  recipient: z.email(),
+  rejectionParty: z.enum(["sender", "recipient", "other"]).nullable(),
+  routeState: z.enum(["pending", "accepted", "unknown"]).nullable(),
+  sourceDomain: z.string().min(1).max(253),
+  sourceId: z.string().min(1).max(256).nullable(),
+  sourceKind: z
+    .enum([
+      "communication_delivery",
+      "ticket_notification",
+      "audition_notification",
+      "payment_notification",
+      "platform_auth",
+      "test_email",
+    ])
+    .nullable(),
+  state: platformEmailProviderEventStateSchema,
+  terminal: z.boolean(),
+  updatedAt: z.iso.datetime(),
+});
+
+export type PlatformEmailProviderEvent = z.infer<typeof platformEmailProviderEventSchema>;
+
+export const platformEmailProviderEventsResponseSchema = z.object({
+  events: z.array(platformEmailProviderEventSchema).max(25),
+  nextCursor: z.string().min(1).max(512).nullable(),
+  requestId: requestIdSchema,
+});
+
+export type PlatformEmailProviderEventsResponse = z.infer<
+  typeof platformEmailProviderEventsResponseSchema
+>;
+
+export const platformEmailFeedbackDeadLetterSchema = z.object({
+  actionAt: z.iso.datetime().nullable(),
+  actionReason: z.string().max(500),
+  actionStatus: z.enum(["open", "acknowledged"]),
+  eventId: z.string().min(1).max(128).nullable(),
+  firstSeenAt: z.iso.datetime(),
+  id: z.string().min(1).max(128),
+  lastSeenAt: z.iso.datetime(),
+  messageId: z.string().min(1).max(256),
+  observationCount: z.number().int().positive(),
+  observedAttempt: z.number().int().nonnegative(),
+  providerMessageId: z.string().min(1).max(512).nullable(),
+  queueName: z.string().min(1).max(128),
+  reason: z.string().min(1).max(500),
+  retryable: z.boolean(),
+});
+
+export type PlatformEmailFeedbackDeadLetter = z.infer<typeof platformEmailFeedbackDeadLetterSchema>;
+
+export const platformEmailFeedbackDeadLettersResponseSchema = z.object({
+  deadLetters: z.array(platformEmailFeedbackDeadLetterSchema).max(25),
+  nextCursor: z.string().min(1).max(512).nullable(),
+  requestId: requestIdSchema,
+});
+
+export type PlatformEmailFeedbackDeadLettersResponse = z.infer<
+  typeof platformEmailFeedbackDeadLettersResponseSchema
+>;
+
+export const platformEmailFeedbackActionResponseSchema = z.object({
+  actionStatus: platformEmailFeedbackActionStatusSchema,
+  eventId: z.string().min(1).max(128).nullable(),
+  requestId: requestIdSchema,
+});
+
+export type PlatformEmailFeedbackActionResponse = z.infer<
+  typeof platformEmailFeedbackActionResponseSchema
+>;
+
 export const platformEmailSuppressionReasonSchema = z.enum([
   "bounce",
   "complaint",
@@ -151,6 +277,19 @@ export const platformEmailSuppressionSchema = z.object({
   reason: platformEmailSuppressionReasonSchema,
   sourceEventId: z.string().min(1).max(128),
   updatedAt: z.iso.datetime(),
+  localSuppressions: z
+    .array(
+      z.object({
+        active: z.boolean(),
+        organizationId: organizationIdSchema,
+        organizationName: z.string().min(1).max(120),
+        profileId: z.uuid(),
+        reason: z.literal("provider"),
+        updatedAt: z.iso.datetime(),
+      }),
+    )
+    .max(25)
+    .default([]),
 });
 
 export const platformEmailSuppressionsResponseSchema = z.object({
@@ -182,6 +321,30 @@ export const platformEmailSuppressionReleaseResponseSchema = z.object({
 
 export type PlatformEmailSuppressionReleaseResponse = z.infer<
   typeof platformEmailSuppressionReleaseResponseSchema
+>;
+
+export const platformLocalEmailSuppressionReleaseRequestSchema = z.object({
+  email: z.email().max(320),
+  organizationId: organizationIdSchema,
+  profileId: z.uuid(),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export type PlatformLocalEmailSuppressionReleaseRequest = z.infer<
+  typeof platformLocalEmailSuppressionReleaseRequestSchema
+>;
+
+export const platformLocalEmailSuppressionReleaseResponseSchema = z.object({
+  active: z.literal(false),
+  email: z.email(),
+  organizationId: organizationIdSchema,
+  profileId: z.uuid(),
+  requestId: requestIdSchema,
+  updatedAt: z.iso.datetime(),
+});
+
+export type PlatformLocalEmailSuppressionReleaseResponse = z.infer<
+  typeof platformLocalEmailSuppressionReleaseResponseSchema
 >;
 
 export const platformFleetSchemaPreparationSchema = z.object({

@@ -92,6 +92,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Check generated Worker bindings
+        run:
+          npx --no-install wrangler types apps/worker/worker-configuration.d.ts --check --config
+          apps/worker/wrangler.jsonc
+
       - name: Save TypeScript incremental caches
         uses: actions/cache/save@v6
         if: ${{ steps.ts-cache.outputs.cache-hit != 'true' }}

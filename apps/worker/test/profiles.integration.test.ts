@@ -454,6 +454,7 @@ describe("provider bounces and delivery history", () => {
         readonly auditCount: number;
         readonly doNotEmail: number;
         readonly lastBounceAt: string;
+        readonly providerEmailSuppressed: number;
         readonly suppressionReason: string;
         readonly suppressionCount: number;
         readonly providerStatus: string;
@@ -464,8 +465,9 @@ describe("provider bounces and delivery history", () => {
           readonly bounceReason: string;
           readonly doNotEmail: number;
           readonly lastBounceAt: string;
+          readonly providerEmailSuppressed: number;
         }>(
-          "SELECT do_not_email AS doNotEmail, last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason FROM profiles WHERE id = ?",
+          "SELECT do_not_email AS doNotEmail, last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason, provider_email_suppressed AS providerEmailSuppressed FROM profiles WHERE id = ?",
           profileId,
         )
         .one();
@@ -491,12 +493,14 @@ describe("provider bounces and delivery history", () => {
         auditCount: audit.count,
         doNotEmail: profile.doNotEmail,
         lastBounceAt: profile.lastBounceAt,
+        providerEmailSuppressed: profile.providerEmailSuppressed,
         providerStatus: delivery.providerStatus,
         suppressionCount: suppression.length,
         suppressionReason: suppression[0]?.reason ?? "",
       };
     });
-    expect(state.doNotEmail).toBe(1);
+    expect(state.doNotEmail).toBe(0);
+    expect(state.providerEmailSuppressed).toBe(1);
     expect(new Date(state.lastBounceAt).toISOString()).toBe(state.lastBounceAt);
     expect(state.suppressionCount).toBe(1);
     expect(state.suppressionReason).toBe("provider");

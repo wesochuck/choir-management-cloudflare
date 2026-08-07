@@ -1,4 +1,6 @@
 import {
+  platformLocalEmailSuppressionReleaseRequestSchema,
+  type PlatformLocalEmailSuppressionReleaseResponse,
   platformEmailSuppressionReleaseRequestSchema,
   type PlatformEmailSuppression,
   type PlatformEmailSuppressionReleaseResponse,
@@ -30,6 +32,15 @@ interface EmailSuppressionRow {
   readonly providerMessageId: string;
   readonly reason: PlatformEmailSuppression["reason"];
   readonly sourceEventId: string;
+  readonly updatedAt: string;
+}
+
+interface LocalSuppressionRow {
+  readonly active: number;
+  readonly email: string;
+  readonly organizationId: string;
+  readonly organizationName: string;
+  readonly profileId: string;
   readonly updatedAt: string;
 }
 
@@ -76,7 +87,13 @@ async function readSuppressionRows(
   const conditions: string[] = [];
   const bindings: (string | number)[] = [];
   if (filters.status === "active") {
-    conditions.push("active = 1");
+    conditions.push(
+      `(active = 1 OR EXISTS (
+         SELECT 1 FROM email_provider_profile_suppressions local
+         WHERE local.email_normalized = email_recipient_suppressions.email_normalized
+           AND local.active = 1
+       ))`,
+    );
   }
   if (filters.query.length > 0) {
     conditions.push("email_normalized LIKE ? ESCAPE '\\'");
@@ -99,6 +116,28 @@ async function readSuppressionRows(
     )
     .bind(...bindings, PAGE_SIZE + 1)
     .all<EmailSuppressionRow>();
+}
+
+async function readLocalSuppressions(
+  database: D1Database,
+  emails: readonly string[],
+): Promise<LocalSuppressionRow[]> {
+  if (emails.length === 0) return [];
+  const placeholders = emails.map(() => "?").join(", ");
+  const result = await database
+    .prepare(
+      `SELECT s.email_normalized AS email, s.organization_id AS organizationId,
+        o.name AS organizationName, s.profile_id AS profileId, s.active,
+        s.updated_at AS updatedAt
+       FROM email_provider_profile_suppressions s
+       JOIN organizations o ON o.id = s.organization_id
+       WHERE s.email_normalized IN (${placeholders})
+       ORDER BY s.email_normalized, s.updated_at DESC
+       LIMIT 500`,
+    )
+    .bind(...emails)
+    .all<LocalSuppressionRow>();
+  return result.results;
 }
 
 function invalidResponse(context: WorkerContext, message: string): Response {
@@ -180,7 +219,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       return invalidResponse(context, "The email suppression filter is invalid.");
     }
     const rows = await readSuppressionRows(context.env.CONTROL_DB, filters);
-    const suppressions = rows.results.slice(0, PAGE_SIZE).map((row) => ({
+    const pageRows = rows.results.slice(0, PAGE_SIZE);
+    const localRows = await readLocalSuppressions(
+      context.env.CONTROL_DB,
+      pageRows.map((row) => row.email),
+    );
+    const localByEmail = new Map<string, LocalSuppressionRow[]>();
+    for (const local of localRows) {
+      const existing = localByEmail.get(local.email) ?? [];
+      existing.push(local);
+      localByEmail.set(local.email, existing);
+    }
+    const suppressions = pageRows.map((row) => ({
       active: row.active === 1,
       createdAt: row.createdAt,
       detail: row.detail,
@@ -189,6 +239,14 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       reason: row.reason,
       sourceEventId: row.sourceEventId,
       updatedAt: row.updatedAt,
+      localSuppressions: (localByEmail.get(row.email) ?? []).map((local) => ({
+        active: local.active === 1,
+        organizationId: local.organizationId,
+        organizationName: local.organizationName,
+        profileId: local.profileId,
+        reason: "provider" as const,
+        updatedAt: local.updatedAt,
+      })),
     }));
     const cursorRow = suppressions.length === PAGE_SIZE ? rows.results[PAGE_SIZE - 1] : undefined;
     return context.json({
@@ -270,6 +328,104 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       requestId: context.get("requestId"),
       updatedAt,
     } satisfies PlatformEmailSuppressionReleaseResponse;
+    return context.json(response);
+  });
+
+  router.post("/api/platform/email-suppressions/release-local", async (context) => {
+    const requestUrl = new URL(context.req.url);
+    const authorization = await authorizeSuppressionAdministration(context, requestUrl);
+    if (authorization instanceof Response) return authorization;
+    const parsed = platformLocalEmailSuppressionReleaseRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!parsed.success) {
+      return invalidResponse(
+        context,
+        "A valid recipient, Organization, Profile, and release reason are required.",
+      );
+    }
+    const input = { ...parsed.data, email: parsed.data.email.trim().toLowerCase() };
+    const local = await context.env.CONTROL_DB.prepare(
+      `SELECT active FROM email_provider_profile_suppressions
+       WHERE organization_id = ? AND profile_id = ? AND email_normalized = ? LIMIT 1`,
+    )
+      .bind(input.organizationId, input.profileId, input.email)
+      .first<{ readonly active: number }>();
+    if (!local) {
+      return context.json(
+        {
+          code: "provider_suppression_not_found",
+          message: "No local provider suppression exists for that profile.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const organizationStub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(input.organizationId),
+    );
+    const organizationResponse = await organizationStub.fetch(
+      "https://organization.internal/internal/email/provider-suppression-release",
+      {
+        body: JSON.stringify({
+          actorUserId: authorization.userId,
+          email: input.email,
+          organizationId: input.organizationId,
+          profileId: input.profileId,
+          reason: input.reason,
+          requestId: context.get("requestId"),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    if (!organizationResponse.ok) {
+      return context.json(
+        {
+          code:
+            organizationResponse.status === 404
+              ? "provider_suppression_not_found"
+              : "provider_suppression_release_failed",
+          message:
+            organizationResponse.status === 404
+              ? "The local provider suppression could not be found."
+              : "The Organization provider suppression could not be released.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        organizationResponse.status === 404 ? 404 : 503,
+      );
+    }
+    const updatedAt = new Date().toISOString();
+    await context.env.CONTROL_DB.batch([
+      context.env.CONTROL_DB.prepare(
+        `UPDATE email_provider_profile_suppressions
+         SET active = 0, updated_at = ?
+         WHERE organization_id = ? AND profile_id = ? AND email_normalized = ?`,
+      ).bind(updatedAt, input.organizationId, input.profileId, input.email),
+      context.env.CONTROL_DB.prepare(
+        `INSERT INTO platform_audit_events
+          (id, actor_user_id, organization_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, ?, ?, 'platform.email_provider_suppression.released',
+           'email_provider_profile_suppression', ?, ?, ?, ?)`,
+      ).bind(
+        `email-provider-suppression-release:${input.organizationId}:${input.profileId}:${updatedAt}`,
+        authorization.userId,
+        input.organizationId,
+        input.profileId,
+        context.get("requestId"),
+        JSON.stringify({ email: input.email, reason: input.reason }),
+        updatedAt,
+      ),
+    ]);
+    const response: PlatformLocalEmailSuppressionReleaseResponse = {
+      active: false,
+      email: input.email,
+      organizationId: input.organizationId,
+      profileId: input.profileId,
+      requestId: context.get("requestId"),
+      updatedAt,
+    };
     return context.json(response);
   });
 }

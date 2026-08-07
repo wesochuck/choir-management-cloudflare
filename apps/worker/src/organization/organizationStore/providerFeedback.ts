@@ -28,6 +28,7 @@ const providerFeedbackSchema = z.object({
   providerSmtpStatusCode: z.string().max(32).nullable(),
   providerStatus: providerStatusSchema,
   recipient: z.email(),
+  rejectionParty: z.enum(["sender", "recipient", "other"]).nullable().default(null),
   shouldSuppress: z.boolean(),
   sourceId: z.string().trim().min(1).max(256),
   sourceKind: sourceKindSchema,
@@ -218,8 +219,11 @@ function applyProfileSuppression(
 ): void {
   storage.sql.exec(
     `UPDATE profiles
-     SET do_not_email = 1, last_bounce_at = ?, bounce_reason = ?, updated_at = ?
+     SET provider_email_suppressed = 1, provider_email_suppressed_at = ?,
+       provider_email_suppressed_reason = ?, last_bounce_at = ?, bounce_reason = ?, updated_at = ?
      WHERE id = ?`,
+    input.eventTimestamp,
+    input.providerReason,
     input.eventTimestamp,
     input.providerReason,
     input.eventTimestamp,
@@ -227,12 +231,19 @@ function applyProfileSuppression(
   );
   storage.sql.exec(
     `INSERT INTO communication_suppressions
-      (id, profile_id, channel, reason, active, created_at, updated_at)
-     VALUES (?, ?, 'email', 'provider', 1, ?, ?)
+      (id, profile_id, channel, reason, source_message_id, active, created_at, updated_at)
+     VALUES (?, ?, 'email', 'provider', ?, 1, ?, ?)
      ON CONFLICT(profile_id, channel) DO UPDATE SET
-       reason = 'provider', active = 1, updated_at = excluded.updated_at`,
+       reason = CASE
+         WHEN communication_suppressions.reason IN ('user_unsubscribe', 'manager')
+         THEN communication_suppressions.reason
+         ELSE 'provider'
+       END,
+       source_message_id = excluded.source_message_id,
+       active = 1, updated_at = excluded.updated_at`,
     crypto.randomUUID(),
     profileId,
+    input.providerMessageId,
     input.eventTimestamp,
     input.eventTimestamp,
   );
@@ -277,5 +288,76 @@ export async function recordProviderEmailFeedback(
     }),
     input.eventTimestamp,
   );
-  return Response.json({ recorded: true });
+  return Response.json({
+    profileId: record.profileId,
+    providerSuppressed: Boolean(input.shouldSuppress && record.profileId),
+    recorded: true,
+  });
+}
+
+const providerSuppressionReleaseSchema = z.object({
+  actorUserId: z.string().trim().min(1).max(128),
+  email: z.email(),
+  organizationId: z.string().trim().min(1).max(128),
+  profileId: z.uuid(),
+  requestId: z.uuid(),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export async function releaseProviderEmailSuppression(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = providerSuppressionReleaseSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success)
+    return Response.json({ code: "invalid_provider_suppression_release" }, { status: 400 });
+  const input = parsed.data;
+  if (readOrganizationId(storage) !== input.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const profile = storage.sql
+    .exec<{
+      readonly email: string;
+      readonly providerEmailSuppressed: number;
+    }>(
+      `SELECT email, provider_email_suppressed AS providerEmailSuppressed
+       FROM profiles WHERE id = ? LIMIT 1`,
+      input.profileId,
+    )
+    .toArray()
+    .at(0);
+  if (profile?.email.trim().toLowerCase() !== input.email.trim().toLowerCase()) {
+    return Response.json({ code: "provider_suppression_not_found" }, { status: 404 });
+  }
+  const now = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE profiles
+       SET provider_email_suppressed = 0, provider_email_suppressed_at = '',
+           provider_email_suppressed_reason = '', updated_at = ?
+       WHERE id = ?`,
+      now,
+      input.profileId,
+    );
+    storage.sql.exec(
+      `UPDATE communication_suppressions
+       SET active = 0, updated_at = ?
+       WHERE profile_id = ? AND channel = 'email' AND reason = 'provider'`,
+      now,
+      input.profileId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'platform', ?, 'organization.email_provider_suppression_released',
+        'profile', ?, ?, ?, ?)`,
+      `email-provider-suppression-release:${input.profileId}:${now}`,
+      input.actorUserId,
+      input.profileId,
+      input.requestId,
+      JSON.stringify({ email: input.email, reason: input.reason }),
+      now,
+    );
+  });
+  return Response.json({ released: true, updatedAt: now });
 }

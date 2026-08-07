@@ -1,5 +1,6 @@
 import { verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
+import { publicAuditionDetailsResponseSchema } from "@choir/contracts";
 
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
   env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
@@ -25,7 +26,10 @@ export async function resolveAuditionDetails(
   if (!response.ok) {
     return { code: "audition_details_failed", status: response.status };
   }
-  return await response.json();
+  const parsed = publicAuditionDetailsResponseSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  return parsed.success ? parsed.data : { code: "audition_details_failed", status: 503 };
 }
 
 export async function submitAuditionUpdate(
@@ -42,7 +46,7 @@ export async function submitAuditionUpdate(
   if (!envelope?.resourceId) {
     return { code: "invalid_link", status: 404 };
   }
-  const url = new URL("https://organization.internal/internal/audition/update");
+  const url = new URL("https://organization.internal/internal/audition/public-update");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("auditionId", envelope.resourceId);
   if (availabilityNotes !== undefined) {

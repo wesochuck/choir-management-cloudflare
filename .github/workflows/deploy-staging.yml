@@ -1,5 +1,9 @@
 name: Deploy staging
 
+run-name:
+  Staging release ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha ||
+  inputs.release_sha }}
+
 on:
   workflow_run:
     workflows: [CI]
@@ -83,6 +87,45 @@ jobs:
       - name: Install exact lockfile
         if: ${{ steps.current.outputs.deploy == 'true' }}
         run: npm ci
+
+      - name: Verify the staging Email Sending event subscription
+        if: ${{ steps.current.outputs.deploy == 'true' }}
+        run: |
+          npx --no-install wrangler queues subscription list choir-management-email-events-staging \
+            --json > "$RUNNER_TEMP/staging-email-subscriptions.json"
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const subscriptions = JSON.parse(
+              readFileSync(process.env.SUBSCRIPTIONS_FILE, "utf8"),
+            );
+            const expectedEvents = new Set([
+              "message.delivered",
+              "message.deferred",
+              "message.bounced",
+              "message.failed",
+              "message.rejected",
+              "message.complained",
+            ]);
+            const subscription = subscriptions.find(
+              (candidate) =>
+                candidate?.name === "staging-email-feedback" &&
+                candidate?.enabled === true &&
+                candidate?.source?.type === "email.sending" &&
+                candidate?.source?.domain === "mail.staging.musicsite.org" &&
+                candidate?.destination?.type === "queues.queue" &&
+                candidate.events?.length === expectedEvents.size &&
+                candidate.events.every((event) => expectedEvents.has(event)),
+            );
+            if (!subscription) {
+              throw new Error(
+                "The enabled staging Email Sending event subscription is missing or incomplete.",
+              );
+            }
+          '
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SUBSCRIPTIONS_FILE: ${{ runner.temp }}/staging-email-subscriptions.json
 
       - name: Capture the current staging Worker version
         if: ${{ steps.current.outputs.deploy == 'true' }}

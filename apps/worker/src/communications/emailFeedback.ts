@@ -6,6 +6,7 @@ const CLOUDFLARE_EVENT_PREFIX = "cf.email.sending.message.";
 const MAX_ATTEMPTS = 20;
 const MAX_REASON_LENGTH = 500;
 const MAX_SMTP_RESPONSE_LENGTH = 500;
+const MAX_BACKFILL_ORGANIZATIONS = 100;
 
 const emailProviderStatusSchema = z.enum([
   "accepted",
@@ -56,7 +57,7 @@ const deliverySchema = z
 
 const cloudflareEmailEventSchema = z.looseObject({
   metadata: z.looseObject({
-    eventTimestamp: z.string().trim().max(100).optional(),
+    eventTimestamp: z.string().trim().min(1).max(100),
   }),
   payload: z.looseObject({
     bounce: z
@@ -112,6 +113,7 @@ export interface NormalizedEmailProviderEvent {
   readonly eventType: EmailProviderStatus;
   readonly messageId: string;
   readonly reason: string;
+  readonly rejectionParty: "sender" | "recipient" | "other" | null;
   readonly recipient: string;
   readonly smtpEnhancedStatusCode: string | null;
   readonly smtpResponse: string;
@@ -139,6 +141,7 @@ interface EmailProviderEventRow {
   readonly lastError: string;
   readonly messageId: string;
   readonly reason: string;
+  readonly rejectionParty: "sender" | "recipient" | "other" | null;
   readonly recipient: string;
   readonly smtpEnhancedStatusCode: string | null;
   readonly smtpResponse: string;
@@ -146,6 +149,13 @@ interface EmailProviderEventRow {
   readonly sourceDomain: string;
   readonly state: "pending" | "processing" | "processed" | "dead_letter";
   readonly terminal: number;
+  readonly operatorStatus: "open" | "acknowledged";
+  readonly operatorReason: string;
+  readonly operatorActorUserId: string | null;
+  readonly operatorAt: string | null;
+  readonly manualRetryCount: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 export interface EmailProviderRouteInput {
@@ -159,12 +169,39 @@ function normalizedEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function routeMatchesInput(route: EmailProviderRouteRow, input: EmailProviderRouteInput): boolean {
+  return (
+    normalizedEmail(route.destination) === normalizedEmail(input.destination) &&
+    (route.organizationId ?? null) === (input.organizationId ?? null)
+  );
+}
+
 function bounded(value: string, maximum: number): string {
   return value.trim().slice(0, maximum);
 }
 
+function logEmailFeedback(event: string, detail: Record<string, unknown>): void {
+  console.info(JSON.stringify({ event, ...detail }));
+}
+
+function emailDomain(value: string | undefined): string | undefined {
+  const parsed = z.email().safeParse(value);
+  if (!parsed.success) return undefined;
+  return parsed.data.slice(parsed.data.lastIndexOf("@") + 1).toLowerCase();
+}
+
 function eventTypeFromCloudflareType(value: z.infer<typeof cloudflareEventTypeSchema>) {
   return emailProviderStatusSchema.parse(value.slice(CLOUDFLARE_EVENT_PREFIX.length));
+}
+
+function normalizedRejectionParty(
+  value: string | undefined,
+): "sender" | "recipient" | "other" | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "sender") return "sender";
+  if (normalized === "recipient") return "recipient";
+  return "other";
 }
 
 function eventReason(payload: z.infer<typeof cloudflareEmailEventSchema>["payload"]): string {
@@ -182,26 +219,44 @@ function eventReason(payload: z.infer<typeof cloudflareEmailEventSchema>["payloa
   return bounded([rejectionParty, detail].filter(Boolean).join(": "), MAX_REASON_LENGTH);
 }
 
-export function parseCloudflareEmailEvent(input: unknown): NormalizedEmailProviderEvent {
+// eslint-disable-next-line complexity -- validates the bounded Cloudflare envelope and normalizes provider-specific fields.
+export function parseCloudflareEmailEvent(
+  input: unknown,
+  expectedSourceDomain?: string,
+): NormalizedEmailProviderEvent {
   const parsed = cloudflareEmailEventSchema.safeParse(input);
   if (!parsed.success) throw new Error("The Cloudflare email event payload was invalid.");
   const event = parsed.data;
-  const eventTimestamp =
-    event.metadata.eventTimestamp && !Number.isNaN(Date.parse(event.metadata.eventTimestamp))
-      ? new Date(event.metadata.eventTimestamp).toISOString()
-      : new Date().toISOString();
+  const eventType = eventTypeFromCloudflareType(event.type);
+  const eventTimestamp = new Date(event.metadata.eventTimestamp);
+  if (Number.isNaN(eventTimestamp.getTime())) {
+    throw new Error("The Cloudflare email event timestamp was invalid.");
+  }
+  if (
+    expectedSourceDomain &&
+    event.source.domain.trim().toLowerCase() !== expectedSourceDomain.trim().toLowerCase()
+  ) {
+    throw new Error("The Cloudflare email event source domain was not configured for this Worker.");
+  }
+  if (event.payload.delivery?.status && event.payload.delivery.status !== eventType) {
+    throw new Error("The Cloudflare email event status did not match its envelope type.");
+  }
+  if ((eventType === "deferred") === event.payload.terminal) {
+    throw new Error("The Cloudflare email event terminal flag did not match its event type.");
+  }
   return {
     bounceType: event.payload.bounce?.type ?? null,
     eventId: event.payload.eventId,
-    eventTimestamp,
-    eventType: eventTypeFromCloudflareType(event.type),
+    eventTimestamp: eventTimestamp.toISOString(),
+    eventType,
     messageId: event.payload.messageId,
     reason: eventReason(event.payload),
     recipient: normalizedEmail(event.payload.recipient),
+    rejectionParty: normalizedRejectionParty(event.payload.rejection?.party),
     smtpEnhancedStatusCode: event.payload.delivery?.smtpEnhancedStatusCode ?? null,
     smtpResponse: bounded(event.payload.delivery?.smtpResponse ?? "", MAX_SMTP_RESPONSE_LENGTH),
     smtpStatusCode: event.payload.delivery?.smtpStatusCode ?? null,
-    sourceDomain: event.source.domain,
+    sourceDomain: event.source.domain.trim().toLowerCase(),
     terminal: event.payload.terminal,
   };
 }
@@ -228,6 +283,9 @@ export async function prepareEmailProviderRoute(
 ): Promise<{ readonly alreadyAccepted: boolean; readonly providerMessageId: string | null }> {
   const existing = await readRoute(database, input);
   if (existing) {
+    if (!routeMatchesInput(existing, input)) {
+      throw new Error("The email source route is already reserved for another recipient.");
+    }
     if (existing.providerMessageId) {
       return { alreadyAccepted: true, providerMessageId: existing.providerMessageId };
     }
@@ -266,7 +324,25 @@ export async function attachEmailProviderMessage(
   input: EmailProviderRouteInput,
   providerMessageId: string,
 ): Promise<void> {
-  await database
+  const normalizedProviderMessageId = z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .safeParse(providerMessageId);
+  if (!normalizedProviderMessageId.success) {
+    throw new Error("The accepted email provider message ID was invalid.");
+  }
+  const existing = await readRoute(database, input);
+  if (!existing) throw new Error("The email provider route was not reserved.");
+  if (!routeMatchesInput(existing, input)) {
+    throw new Error("The email source route belongs to another recipient.");
+  }
+  if (existing.providerMessageId) {
+    if (existing.providerMessageId === normalizedProviderMessageId.data) return;
+    throw new Error("The email provider route already has another provider message ID.");
+  }
+  const result = await database
     .prepare(
       `UPDATE email_provider_routes
        SET provider_message_id = ?, state = 'accepted', accepted_at = ?, updated_at = ?
@@ -274,19 +350,28 @@ export async function attachEmailProviderMessage(
          AND provider_message_id IS NULL`,
     )
     .bind(
-      providerMessageId,
+      normalizedProviderMessageId.data,
       new Date().toISOString(),
       new Date().toISOString(),
       input.sourceKind,
       input.sourceId,
     )
     .run();
+  if (result.meta.changes === 1) return;
+  const current = await readRoute(database, input);
+  if (current && !routeMatchesInput(current, input)) {
+    throw new Error("The email source route belongs to another recipient.");
+  }
+  if (current?.providerMessageId === normalizedProviderMessageId.data) return;
+  throw new Error("The accepted email provider message could not be attached to its route.");
 }
 
 export async function markEmailProviderRouteUnknown(
   database: D1Database,
   input: EmailProviderRouteInput,
 ): Promise<void> {
+  const existing = await readRoute(database, input);
+  if (!existing || !routeMatchesInput(existing, input)) return;
   await database
     .prepare(
       `UPDATE email_provider_routes SET state = 'unknown', updated_at = ?
@@ -344,33 +429,40 @@ export async function assertEmailProviderRecipientsAvailable(
   }
 }
 
-async function backfillEmailProviderRoutes(
+// eslint-disable-next-line complexity -- paginates the bounded Organization route backfill and preserves its cursor.
+export async function backfillEmailProviderRoutes(
   database: D1Database,
-  organizationStore: Env["ORGANIZATION_STORE"],
+  readOrganizationRoutes: (organizationId: string, offset: number) => Promise<Response>,
 ): Promise<void> {
   const backfill = await database
     .prepare(
-      `SELECT completed_at AS completedAt
+      `SELECT completed_at AS completedAt, cursor_organization_id AS cursorOrganizationId
        FROM email_provider_route_backfill WHERE id = 1 LIMIT 1`,
     )
-    .first<{ readonly completedAt: string | null }>();
+    .first<{
+      readonly completedAt: string | null;
+      readonly cursorOrganizationId: string | null;
+    }>();
   if (backfill?.completedAt) return;
 
   const organizations = await database
     .prepare(
       `SELECT id AS organizationId FROM organizations
-       WHERE lifecycle_state <> 'provisioning' ORDER BY id LIMIT 1000`,
+       WHERE lifecycle_state <> 'provisioning'
+         AND (? IS NULL OR id > ?)
+       ORDER BY id LIMIT ?`,
+    )
+    .bind(
+      backfill?.cursorOrganizationId ?? null,
+      backfill?.cursorOrganizationId ?? null,
+      MAX_BACKFILL_ORGANIZATIONS,
     )
     .all<{ readonly organizationId: string }>();
   for (const organization of organizations.results) {
     let offset = 0;
     let hasMore = true;
     while (hasMore) {
-      const response = await organizationStore
-        .get(organizationStore.idFromName(organization.organizationId))
-        .fetch(
-          `https://organization.internal/internal/email/provider-routes?organizationId=${encodeURIComponent(organization.organizationId)}&offset=${String(offset)}`,
-        );
+      const response = await readOrganizationRoutes(organization.organizationId, offset);
       if (!response.ok) throw new Error("The organization provider route backfill was rejected.");
       const parsed = providerRouteBackfillResponseSchema.safeParse(
         await response.json().catch(() => null),
@@ -424,22 +516,47 @@ async function backfillEmailProviderRoutes(
       if (parsed.data.nextOffset !== null) offset = parsed.data.nextOffset;
     }
   }
-  await database
-    .prepare("UPDATE email_provider_route_backfill SET completed_at = ? WHERE id = 1")
-    .bind(new Date().toISOString())
-    .run();
+  const lastOrganizationId = organizations.results.at(-1)?.organizationId ?? null;
+  if (organizations.results.length < MAX_BACKFILL_ORGANIZATIONS) {
+    await database
+      .prepare(
+        `UPDATE email_provider_route_backfill
+         SET cursor_organization_id = ?, completed_at = ? WHERE id = 1`,
+      )
+      .bind(lastOrganizationId, new Date().toISOString())
+      .run();
+  } else {
+    await database
+      .prepare(
+        `UPDATE email_provider_route_backfill
+         SET cursor_organization_id = ?, completed_at = NULL WHERE id = 1`,
+      )
+      .bind(lastOrganizationId)
+      .run();
+  }
 }
 
 function suppressesFutureEmail(event: EmailProviderEventRow): boolean {
   if (event.eventType === "bounced" || event.eventType === "complained") return true;
-  return event.eventType === "rejected" && /suppress|spam|recipient/i.test(event.reason);
+  return (
+    event.eventType === "rejected" &&
+    event.rejectionParty === "recipient" &&
+    /blocked|disabled|invalid|mailbox|recipient|spam|suppress|unknown/i.test(event.reason)
+  );
 }
 
 async function recordGlobalSuppression(
   database: D1Database,
   event: EmailProviderEventRow,
 ): Promise<void> {
-  if (!suppressesFutureEmail(event)) return;
+  const shouldSuppress = suppressesFutureEmail(event);
+  logEmailFeedback("email_provider_suppression_decision", {
+    eventId: event.eventId,
+    providerStatus: event.eventType,
+    scope: "global",
+    suppressed: shouldSuppress,
+  });
+  if (!shouldSuppress) return;
   const reason =
     event.eventType === "complained"
       ? "complaint"
@@ -468,9 +585,13 @@ async function readEvent(database: D1Database, eventId: string): Promise<EmailPr
   const row = await database
     .prepare(
       `SELECT event_id AS eventId, provider_message_id AS messageId, event_type AS eventType,
-        recipient, source_domain AS sourceDomain, terminal, smtp_status_code AS smtpStatusCode,
+        recipient, source_domain AS sourceDomain, terminal, bounce_type AS bounceType,
+        rejection_party AS rejectionParty, smtp_status_code AS smtpStatusCode,
         smtp_enhanced_status_code AS smtpEnhancedStatusCode, smtp_response AS smtpResponse,
-        reason, event_timestamp AS eventTimestamp, state, attempts, last_error AS lastError
+        reason, event_timestamp AS eventTimestamp, state, attempts, last_error AS lastError,
+        operator_status AS operatorStatus, operator_reason AS operatorReason,
+        operator_actor_user_id AS operatorActorUserId, operator_at AS operatorAt,
+        manual_retry_count AS manualRetryCount, created_at AS createdAt, updated_at AS updatedAt
        FROM email_provider_events WHERE event_id = ? LIMIT 1`,
     )
     .bind(eventId)
@@ -488,9 +609,9 @@ export async function ingestEmailProviderEvent(
     .prepare(
       `INSERT OR IGNORE INTO email_provider_events
         (event_id, provider, provider_message_id, event_type, recipient, source_domain, terminal,
-         smtp_status_code, smtp_enhanced_status_code, smtp_response, reason, event_timestamp,
-         state, attempts, next_attempt_at, last_error, created_at, updated_at)
-       VALUES (?, 'cloudflare_email', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, '', ?, ?)`,
+         bounce_type, rejection_party, smtp_status_code, smtp_enhanced_status_code, smtp_response,
+         reason, event_timestamp, state, attempts, next_attempt_at, last_error, created_at, updated_at)
+       VALUES (?, 'cloudflare_email', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, '', ?, ?)`,
     )
     .bind(
       event.eventId,
@@ -499,6 +620,8 @@ export async function ingestEmailProviderEvent(
       event.recipient,
       event.sourceDomain,
       event.terminal ? 1 : 0,
+      event.bounceType,
+      event.rejectionParty,
       event.smtpStatusCode,
       event.smtpEnhancedStatusCode,
       event.smtpResponse,
@@ -558,6 +681,66 @@ async function markEventPending(
     .run();
 }
 
+export async function retryEmailProviderEvent(
+  database: D1Database,
+  eventId: string,
+): Promise<"retry_requested" | "retry_unavailable" | "not_found"> {
+  const result = await database
+    .prepare(
+      `UPDATE email_provider_events
+       SET state = 'pending', next_attempt_at = ?, last_error = '',
+           operator_status = 'open', operator_reason = '', operator_actor_user_id = NULL,
+           operator_at = ?, manual_retry_count = manual_retry_count + 1, updated_at = ?
+       WHERE event_id = ? AND state <> 'processed' AND manual_retry_count < 3`,
+    )
+    .bind(new Date().toISOString(), new Date().toISOString(), new Date().toISOString(), eventId)
+    .run();
+  if (result.meta.changes === 1) return "retry_requested";
+  const exists = await database
+    .prepare(
+      "SELECT event_id AS eventId, state FROM email_provider_events WHERE event_id = ? LIMIT 1",
+    )
+    .bind(eventId)
+    .first<{ readonly eventId: string; readonly state: string }>();
+  return exists ? "retry_unavailable" : "not_found";
+}
+
+export async function acknowledgeEmailProviderEvent(
+  database: D1Database,
+  eventId: string,
+  actorUserId: string,
+  reason: string,
+): Promise<boolean> {
+  const result = await database
+    .prepare(
+      `UPDATE email_provider_events
+       SET operator_status = 'acknowledged', operator_reason = ?,
+           operator_actor_user_id = ?, operator_at = ?, updated_at = ?
+       WHERE event_id = ?`,
+    )
+    .bind(reason, actorUserId, new Date().toISOString(), new Date().toISOString(), eventId)
+    .run();
+  return result.meta.changes === 1;
+}
+
+export async function acknowledgeEmailProviderDeadLetter(
+  database: D1Database,
+  deadLetterId: string,
+  actorUserId: string,
+  reason: string,
+): Promise<boolean> {
+  const result = await database
+    .prepare(
+      `UPDATE email_feedback_dead_letters
+       SET operator_status = 'acknowledged', operator_reason = ?,
+           operator_actor_user_id = ?, operator_at = ?
+       WHERE id = ?`,
+    )
+    .bind(reason, actorUserId, new Date().toISOString(), deadLetterId)
+    .run();
+  return result.meta.changes === 1;
+}
+
 async function processEventRow(
   database: D1Database,
   organizationStore: Env["ORGANIZATION_STORE"],
@@ -572,7 +755,13 @@ async function processEventRow(
     )
     .bind(event.messageId)
     .first<EmailProviderRouteRow>();
-  if (!route) return false;
+  if (!route) {
+    logEmailFeedback("email_provider_route_unmatched", {
+      eventId: event.eventId,
+      messageId: event.messageId,
+    });
+    return false;
+  }
   if (normalizedEmail(route.destination) !== normalizedEmail(event.recipient)) {
     throw new Error("The provider event recipient did not match its reserved route.");
   }
@@ -581,6 +770,13 @@ async function processEventRow(
     route.organizationId &&
     organizationEmailProviderSourceKindSchema.safeParse(route.sourceKind).success
   ) {
+    if (event.eventType === "rejected") {
+      logEmailFeedback("email_provider_rejected_feedback", {
+        eventId: event.eventId,
+        rejectionParty: event.rejectionParty,
+        suppressed: suppressesFutureEmail(event),
+      });
+    }
     const response = await organizationStore
       .get(organizationStore.idFromName(route.organizationId))
       .fetch("https://organization.internal/internal/email/provider-event", {
@@ -596,6 +792,7 @@ async function processEventRow(
           providerSmtpResponse: event.smtpResponse,
           providerSmtpStatusCode: event.smtpStatusCode,
           recipient: event.recipient,
+          rejectionParty: event.rejectionParty,
           shouldSuppress: suppressesFutureEmail(event),
           sourceId: route.sourceId,
           sourceKind: route.sourceKind,
@@ -604,6 +801,47 @@ async function processEventRow(
         method: "POST",
       });
     if (!response.ok) throw new Error("The organization rejected the provider email event.");
+    const feedback = z
+      .object({
+        profileId: z.uuid().nullable(),
+        providerSuppressed: z.boolean(),
+        recorded: z.literal(true),
+      })
+      .safeParse(await response.json().catch(() => null));
+    if (!feedback.success) throw new Error("The organization provider feedback was invalid.");
+    if (feedback.data.providerSuppressed && feedback.data.profileId) {
+      const suppressionReason =
+        event.eventType === "complained"
+          ? "complaint"
+          : event.eventType === "rejected"
+            ? "provider_rejected"
+            : "bounce";
+      await database
+        .prepare(
+          `INSERT INTO email_provider_profile_suppressions
+            (organization_id, profile_id, email_normalized, source_event_id, provider_message_id,
+             reason, active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+           ON CONFLICT(organization_id, profile_id) DO UPDATE SET
+             email_normalized = excluded.email_normalized,
+             source_event_id = excluded.source_event_id,
+             provider_message_id = excluded.provider_message_id,
+             reason = excluded.reason,
+             active = 1,
+             updated_at = excluded.updated_at`,
+        )
+        .bind(
+          route.organizationId,
+          feedback.data.profileId,
+          event.recipient,
+          event.eventId,
+          event.messageId,
+          suppressionReason,
+          event.eventTimestamp,
+          event.eventTimestamp,
+        )
+        .run();
+    }
   }
   await markEventProcessed(database, event.eventId);
   return true;
@@ -642,7 +880,11 @@ export async function processEmailProviderEventById(
 export async function reconcileEmailProviderEvents(
   env: Pick<Env, "CONTROL_DB" | "ORGANIZATION_STORE">,
 ): Promise<void> {
-  await backfillEmailProviderRoutes(env.CONTROL_DB, env.ORGANIZATION_STORE);
+  await backfillEmailProviderRoutes(env.CONTROL_DB, async (organizationId, offset) =>
+    env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId)).fetch(
+      `https://organization.internal/internal/email/provider-routes?organizationId=${encodeURIComponent(organizationId)}&offset=${String(offset)}`,
+    ),
+  );
   const now = new Date().toISOString();
   const events = await env.CONTROL_DB.prepare(
     `SELECT event_id AS eventId FROM email_provider_events
@@ -668,16 +910,22 @@ export async function reconcileEmailProviderEvents(
 
 export async function processEmailProviderQueue(
   batch: MessageBatch,
-  env: Pick<Env, "CONTROL_DB" | "ORGANIZATION_STORE">,
+  env: Pick<Env, "CONTROL_DB" | "ORGANIZATION_STORE"> & Partial<Pick<Env, "PLATFORM_EMAIL_FROM">>,
 ): Promise<void> {
   for (const message of batch.messages) {
     let parsed: NormalizedEmailProviderEvent | null = null;
     try {
-      parsed = parseCloudflareEmailEvent(message.body);
+      parsed = parseCloudflareEmailEvent(message.body, emailDomain(env.PLATFORM_EMAIL_FROM));
       await ingestEmailProviderEvent(env.CONTROL_DB, parsed);
       await processEmailProviderEventById(env, parsed.eventId);
       message.ack();
     } catch (error: unknown) {
+      if (!parsed) {
+        logEmailFeedback("email_provider_event_malformed", {
+          messageId: message.id,
+          queueName: batch.queue,
+        });
+      }
       console.error(
         JSON.stringify({
           errorType: error instanceof Error ? error.name : "UnknownError",
@@ -693,13 +941,13 @@ export async function processEmailProviderQueue(
 
 export async function processEmailProviderDeadLetterBatch(
   batch: MessageBatch,
-  env: Pick<Env, "CONTROL_DB">,
+  env: Pick<Env, "CONTROL_DB"> & Partial<Pick<Env, "PLATFORM_EMAIL_FROM">>,
 ): Promise<void> {
   for (const message of batch.messages) {
     let eventId: string | null = null;
     let providerMessageId: string | null = null;
     try {
-      const event = parseCloudflareEmailEvent(message.body);
+      const event = parseCloudflareEmailEvent(message.body, emailDomain(env.PLATFORM_EMAIL_FROM));
       eventId = event.eventId;
       providerMessageId = event.messageId;
     } catch {
@@ -728,6 +976,12 @@ export async function processEmailProviderDeadLetterBatch(
         now,
       )
       .run();
+    logEmailFeedback("email_provider_dead_letter_recorded", {
+      eventId,
+      messageId: message.id,
+      queueName: batch.queue,
+      retryable: eventId !== null,
+    });
     message.ack();
   }
 }

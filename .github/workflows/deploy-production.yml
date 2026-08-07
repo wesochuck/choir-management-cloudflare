@@ -1,5 +1,7 @@
 name: Promote qualified commit to production
 
+run-name: Promote production ${{ inputs.release_sha }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -57,8 +59,8 @@ jobs:
         run: |
           staging_run_id=$(gh api --method GET \
             "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-staging.yml/runs" \
-            -f head_sha="$RELEASE_SHA" -f status=success -f per_page=100 \
-            --jq '.workflow_runs | map(select(.conclusion == "success")) | first | .id // empty')
+            -f status=success -f per_page=100 \
+            --jq '.workflow_runs | map(select(.conclusion == "success" and .display_title == "Staging release '"$RELEASE_SHA"'")) | sort_by(.created_at) | last | .id // empty')
           ci_run_id=$(gh api --method GET \
             "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
             -f head_sha="$RELEASE_SHA" -f status=success -f per_page=100 \
@@ -92,11 +94,22 @@ jobs:
       - name: Capture the current production Worker version
         id: previous
         run: |
-          npx --no-install wrangler deployments status --json \
-            --config apps/worker/wrangler.jsonc --env production > "$RUNNER_TEMP/production-deployment.json"
+          status_file="$RUNNER_TEMP/production-deployment.json"
+          error_file="$RUNNER_TEMP/production-deployment-error.txt"
+          if ! npx --no-install wrangler deployments status --json \
+            --config apps/worker/wrangler.jsonc --env production > "$status_file" 2> "$error_file"; then
+            if grep -q "This Worker does not exist on your account" "$error_file"; then
+              echo "No existing production Worker was found; this is a first deployment." >> "$GITHUB_STEP_SUMMARY"
+              : > "$status_file"
+            else
+              cat "$error_file" >&2
+              exit 1
+            fi
+          fi
           node --input-type=module -e '
             import { readFileSync } from "node:fs";
-            const status = JSON.parse(readFileSync(process.env.STATUS_FILE, "utf8"));
+            const raw = readFileSync(process.env.STATUS_FILE, "utf8").trim();
+            const status = raw ? JSON.parse(raw) : {};
             const current = status.versions?.find((entry) => entry.percentage === 100)?.version_id ?? "";
             process.stdout.write(`version_id=${current}\n`);
           ' >> "$GITHUB_OUTPUT"

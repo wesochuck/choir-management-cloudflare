@@ -34,11 +34,8 @@ interface PublicAuditionVoicePart {
 interface AuditionDetails {
   readonly id: string;
   readonly createdAt: string;
-  readonly email: string;
   readonly name: string;
-  readonly phone?: string;
   readonly voicePart?: string;
-  readonly experience?: string;
   readonly availabilityNotes?: string;
   readonly requestedSlots?: readonly string[];
   readonly scheduledTimeSlot?: string | null;
@@ -89,7 +86,6 @@ function isAuditionDetails(value: unknown): value is AuditionDetails {
     value !== null &&
     "id" in value &&
     "name" in value &&
-    "email" in value &&
     "status" in value
   );
 }

@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import {
   AuthApiError,
   listPlatformEmailSuppressions,
+  releaseLocalPlatformEmailSuppression,
   releasePlatformEmailSuppression,
 } from "../auth/api";
 
 type FilterStatus = "active" | "all";
+type LocalSuppression = PlatformEmailSuppression["localSuppressions"][number];
 type LoadState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
@@ -49,6 +51,13 @@ export function PlatformEmailSuppressions() {
   const [releaseReason, setReleaseReason] = useState("");
   const [releaseError, setReleaseError] = useState<string | null>(null);
   const [releasing, setReleasing] = useState(false);
+  const [localReleaseTarget, setLocalReleaseTarget] = useState<{
+    readonly local: LocalSuppression;
+    readonly row: PlatformEmailSuppression;
+  } | null>(null);
+  const [localReleaseReason, setLocalReleaseReason] = useState("");
+  const [localReleaseError, setLocalReleaseError] = useState<string | null>(null);
+  const [localReleasing, setLocalReleasing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
@@ -167,11 +176,79 @@ export function PlatformEmailSuppressions() {
     }
   }
 
+  function openLocalReleaseDialog(row: PlatformEmailSuppression, local: LocalSuppression): void {
+    setLocalReleaseTarget({ local, row });
+    setLocalReleaseReason("");
+    setLocalReleaseError(null);
+  }
+
+  function closeLocalReleaseDialog(): void {
+    if (localReleasing) return;
+    setLocalReleaseTarget(null);
+    setLocalReleaseReason("");
+    setLocalReleaseError(null);
+  }
+
+  async function releaseLocalSuppression(): Promise<void> {
+    if (!localReleaseTarget || localReleasing) return;
+    const reason = localReleaseReason.trim();
+    if (reason.length < 3) {
+      setLocalReleaseError(
+        "Enter at least three characters explaining why this local block is safe to release.",
+      );
+      return;
+    }
+    setLocalReleaseError(null);
+    setLocalReleasing(true);
+    try {
+      const response = await releaseLocalPlatformEmailSuppression({
+        email: localReleaseTarget.row.email,
+        organizationId: localReleaseTarget.local.organizationId,
+        profileId: localReleaseTarget.local.profileId,
+        reason,
+      });
+      setState((current) => {
+        if (current.status !== "ready") return current;
+        return {
+          ...current,
+          rows: current.rows.map((row) =>
+            row.email === response.email
+              ? {
+                  ...row,
+                  localSuppressions: row.localSuppressions.map((local) =>
+                    local.organizationId === response.organizationId &&
+                    local.profileId === response.profileId
+                      ? { ...local, active: false, updatedAt: response.updatedAt }
+                      : local,
+                  ),
+                }
+              : row,
+          ),
+        };
+      });
+      setSuccess(
+        `Local provider suppression released for ${localReleaseTarget.row.email} in ${localReleaseTarget.local.organizationName}. Manual or Cloudflare-managed suppression may still block delivery.`,
+      );
+      setLocalReleaseTarget(null);
+      setLocalReleaseReason("");
+      setLocalReleaseError(null);
+    } catch (error: unknown) {
+      setLocalReleaseError(
+        error instanceof AuthApiError
+          ? error.message
+          : "The local provider suppression could not be released. Refresh and try again.",
+      );
+    } finally {
+      setLocalReleasing(false);
+    }
+  }
+
   return (
     <div className="platform-email-suppressions">
       <p className="platform-email-suppressions__intro">
         This is the application-wide suppression list checked before native Cloudflare Email Sending
-        requests. It is separate from Cloudflare&apos;s provider-managed suppression state.
+        requests. The Organization rows below are separate from this global layer, user or manager
+        “do not email” choices, and Cloudflare&apos;s provider-managed suppression state.
       </p>
       {success ? (
         <p className="notice notice--success" role="status">
@@ -258,6 +335,29 @@ export function PlatformEmailSuppressions() {
                     <span>{row.detail || "No additional detail recorded."}</span>
                     <small>Event: {row.sourceEventId}</small>
                     <small>Provider message: {row.providerMessageId}</small>
+                    {row.localSuppressions.length > 0 ? (
+                      <span>
+                        <strong>Organization provider suppressions</strong>
+                        {row.localSuppressions.map((local) => (
+                          <span key={`${local.organizationId}:${local.profileId}`}>
+                            {local.organizationName} · {local.active ? "active" : "released"} ·{" "}
+                            {local.active ? (
+                              <button
+                                className="text-button"
+                                onClick={() => {
+                                  openLocalReleaseDialog(row, local);
+                                }}
+                                type="button"
+                              >
+                                Release local block
+                              </button>
+                            ) : (
+                              "local release recorded"
+                            )}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
                   </span>
                 ),
               },
@@ -366,6 +466,62 @@ export function PlatformEmailSuppressions() {
             </button>
             <button className="button button--primary" disabled={releasing} type="submit">
               {releasing ? "Releasing…" : "Release suppression"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+      <Dialog
+        description="This clears only the application’s local Organization provider suppression. It does not remove Cloudflare-managed suppression and does not change a user or manager do-not-email choice."
+        onClose={closeLocalReleaseDialog}
+        open={localReleaseTarget !== null}
+        title="Release local provider suppression?"
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void releaseLocalSuppression();
+          }}
+        >
+          {localReleaseError ? (
+            <p className="notice notice--error" role="alert">
+              {localReleaseError}
+            </p>
+          ) : null}
+          <p>
+            {localReleaseTarget
+              ? `Release the local provider block for ${localReleaseTarget.row.email} in ${localReleaseTarget.local.organizationName}?`
+              : "Release this local provider block?"}
+          </p>
+          <p className="notice notice--warning">
+            Confirm the mailbox or account issue is resolved first. The global application block,
+            explicit user or manager opt-out, and Cloudflare-managed suppression remain separate.
+          </p>
+          <label className="field" htmlFor="platform-local-suppression-release-reason">
+            <span>Reason for local release</span>
+            <textarea
+              autoFocus
+              id="platform-local-suppression-release-reason"
+              maxLength={500}
+              minLength={3}
+              onChange={(event) => {
+                setLocalReleaseReason(event.target.value);
+              }}
+              required
+              rows={3}
+              value={localReleaseReason}
+            />
+          </label>
+          <div className="dialog__actions">
+            <button
+              className="button button--secondary"
+              onClick={closeLocalReleaseDialog}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className="button button--primary" disabled={localReleasing} type="submit">
+              {localReleasing ? "Releasing…" : "Release local block"}
             </button>
           </div>
         </form>

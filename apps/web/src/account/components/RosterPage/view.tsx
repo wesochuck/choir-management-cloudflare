@@ -393,11 +393,15 @@ export function RosterPageView({
                   header: "Email",
                   id: "delivery",
                   render: (candidate) =>
-                    candidate.doNotEmail ? (
+                    candidate.doNotEmail || candidate.providerEmailSuppressed ? (
                       <span
                         className="roster-delivery-indicator"
                         role="img"
-                        title={`Email delivery disabled${candidate.bounceReason ? `: ${candidate.bounceReason}` : ""}`}
+                        title={
+                          candidate.providerEmailSuppressed
+                            ? "Provider suppression is active. Contact a Platform Administrator to release local provider suppression after the address issue is resolved."
+                            : `Email delivery disabled${candidate.bounceReason ? `: ${candidate.bounceReason}` : ""}`
+                        }
                       >
                         ⚠
                       </span>
@@ -406,7 +410,8 @@ export function RosterPageView({
                         —
                       </span>
                     ),
-                  sortValue: (candidate) => candidate.doNotEmail,
+                  sortValue: (candidate) =>
+                    candidate.doNotEmail || candidate.providerEmailSuppressed,
                 },
                 {
                   header: "Directory",
@@ -792,6 +797,14 @@ export function RosterPageView({
               />
               Do not email
             </label>
+            {editingProfileRecord?.providerEmailSuppressed ? (
+              <p className="field-help" role="status">
+                Provider suppression is active for this profile. Changing “Do not email” does not
+                release it; a Platform Administrator must review and release the local provider
+                suppression after the account issue is resolved. Cloudflare-managed suppression may
+                still block delivery.
+              </p>
+            ) : null}
             <label className="checkbox-row">
               <input
                 checked={profile.receiveAdminNotifications}

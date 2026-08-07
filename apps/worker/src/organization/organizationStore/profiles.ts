@@ -64,6 +64,7 @@ export function listProfiles(
          receive_financial_alerts AS receiveFinancialAlerts,
          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
          last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
+         provider_email_suppressed AS providerEmailSuppressed,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
          status_change_reason AS statusChangeReason,
          created_at AS createdAt, updated_at AS updatedAt
@@ -98,6 +99,7 @@ export function readProfile(storage: DurableObjectStorage, profileId: string) {
          receive_financial_alerts AS receiveFinancialAlerts,
          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
          last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
+         provider_email_suppressed AS providerEmailSuppressed,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
          status_change_reason AS statusChangeReason,
          created_at AS createdAt, updated_at AS updatedAt

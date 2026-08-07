@@ -84,7 +84,10 @@ export async function sendPlatformEmail(
         destination: recipient,
         organizationId: message.organizationId ?? null,
         sourceId: sourceId ?? crypto.randomUUID(),
-        sourceKind: "platform_auth" as const,
+        sourceKind:
+          message.kind === "communication-test"
+            ? ("test_email" as const)
+            : ("platform_auth" as const),
       }
     : null;
   const route =
@@ -109,7 +112,8 @@ export async function sendPlatformEmail(
   }
   if (routeInput && controlDatabase) {
     await attachEmailProviderMessage(controlDatabase, routeInput, result.messageId).catch(
-      (error: unknown) => {
+      async (error: unknown) => {
+        await markEmailProviderRouteUnknown(controlDatabase, routeInput).catch(() => undefined);
         console.error(
           JSON.stringify({
             errorType: error instanceof Error ? error.name : "UnknownError",

@@ -53,6 +53,7 @@ import { registerRoutes as registerOrganizationAccessRoutes } from "./routes/org
 import { registerRoutes as registerOrganizationDomainsRoutes } from "./routes/organizationDomains";
 import { registerRoutes as registerPlatformAdministrationRoutes } from "./routes/platformAdministration";
 import { registerRoutes as registerPlatformEmailSuppressionRoutes } from "./routes/platformEmailSuppressions";
+import { registerRoutes as registerPlatformEmailFeedbackRoutes } from "./routes/platformEmailFeedback";
 import { registerRoutes as registerPlatformOperationsRoutes } from "./routes/platformOperations";
 import { registerRoutes as registerSingerDashboardRoutes } from "./routes/singerDashboard";
 import { registerRoutes as registerSetupRoutes } from "./routes/setup";
@@ -64,6 +65,33 @@ import { registerRoutes as registerPaymentsRoutes } from "./routes/payments";
 export const router = new Hono<WorkerHonoEnvironment>();
 
 router.use("*", requestId());
+router.use("*", async (context, next) => {
+  const method = context.req.method.toUpperCase();
+  const cookie = context.req.header("cookie") ?? "";
+  const authorization = context.req.header("authorization") ?? "";
+  const hasSessionCookie = /(?:^|;\s*)(?:__Secure-)?choir-management\.session_token=/.test(cookie);
+  const isBearerClient = /^Bearer\s+/i.test(authorization);
+  const path = new URL(context.req.url).pathname;
+  if (
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+    hasSessionCookie &&
+    !isBearerClient &&
+    !path.startsWith("/api/auth/")
+  ) {
+    const origin = context.req.header("origin");
+    if (origin !== new URL(context.req.url).origin) {
+      return context.json(
+        {
+          code: "csrf_origin_mismatch",
+          message: "This request must originate from the current application origin.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        403,
+      );
+    }
+  }
+  await next();
+});
 router.use("*", async (context, next) => {
   if (context.req.method === "OPTIONS") {
     context.res.headers.set(
@@ -168,6 +196,7 @@ registerOrganizationAccessRoutes(router);
 registerOrganizationDomainsRoutes(router);
 registerPlatformAdministrationRoutes(router);
 registerPlatformEmailSuppressionRoutes(router);
+registerPlatformEmailFeedbackRoutes(router);
 registerPlatformOperationsRoutes(router);
 registerSingerDashboardRoutes(router);
 registerSetupRoutes(router);

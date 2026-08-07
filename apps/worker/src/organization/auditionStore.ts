@@ -23,6 +23,112 @@ const defaultAuditionSettings: OrganizationAuditionSettings = {
   venueId: null,
 };
 
+const publicAuditionRateLimitRequestSchema = z.object({
+  clientKey: z.string().regex(/^[a-f0-9]{64}$/),
+  emailKey: z.string().regex(/^[a-f0-9]{64}$/),
+  organizationId: z.string().trim().min(1).max(128),
+});
+
+const publicAuditionRateLimits = [
+  { durationMs: 10 * 60 * 1_000, key: "ip", limit: 10 },
+  { durationMs: 24 * 60 * 60 * 1_000, key: "email", limit: 3 },
+  { durationMs: 60 * 60 * 1_000, key: "organization", limit: 100 },
+] as const;
+
+export async function checkPublicAuditionInquiryRateLimit(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = publicAuditionRateLimitRequestSchema.safeParse(
+    await request.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return Response.json({ code: "invalid_public_rate_limit_request" }, { status: 400 });
+  const identity = storage.sql
+    .exec<{ readonly organizationId: string }>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0)?.organizationId;
+  if (identity !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const now = Date.now();
+  const buckets = [
+    ...publicAuditionRateLimits.map((limit) => ({
+      ...limit,
+      bucketKey:
+        limit.key === "ip"
+          ? `audition:ip:${parsed.data.clientKey}`
+          : limit.key === "email"
+            ? `audition:email:${parsed.data.emailKey}`
+            : `audition:organization:${parsed.data.organizationId}`,
+    })),
+  ];
+  const result = storage.transactionSync(() => {
+    const existing = buckets.map((bucket) => ({
+      ...bucket,
+      row: storage.sql
+        .exec<{ readonly requestCount: number; readonly windowStartedAt: number }>(
+          `SELECT request_count AS requestCount, window_started_at AS windowStartedAt
+           FROM public_rate_limit_buckets WHERE bucket_key = ? LIMIT 1`,
+          bucket.bucketKey,
+        )
+        .toArray()
+        .at(0),
+    }));
+    const retryAfterSeconds = existing.reduce((retryAfter, bucket) => {
+      if (!bucket.row || now - bucket.row.windowStartedAt >= bucket.durationMs) return retryAfter;
+      if (bucket.row.requestCount < bucket.limit) return retryAfter;
+      return Math.max(
+        retryAfter,
+        Math.ceil((bucket.durationMs - (now - bucket.row.windowStartedAt)) / 1_000),
+      );
+    }, 0);
+    if (retryAfterSeconds > 0) return { allowed: false, retryAfterSeconds };
+    for (const bucket of existing) {
+      const active = bucket.row && now - bucket.row.windowStartedAt < bucket.durationMs;
+      if (active) {
+        storage.sql.exec(
+          `UPDATE public_rate_limit_buckets
+           SET request_count = request_count + 1 WHERE bucket_key = ?`,
+          bucket.bucketKey,
+        );
+      } else {
+        storage.sql.exec(
+          `INSERT INTO public_rate_limit_buckets (bucket_key, window_started_at, request_count)
+           VALUES (?, ?, 1)
+           ON CONFLICT(bucket_key) DO UPDATE SET window_started_at = excluded.window_started_at,
+             request_count = excluded.request_count`,
+          bucket.bucketKey,
+          now,
+        );
+      }
+    }
+    storage.sql.exec(
+      "DELETE FROM public_rate_limit_buckets WHERE window_started_at < ?",
+      now - 24 * 60 * 60 * 1_000,
+    );
+    return { allowed: true, retryAfterSeconds: 0 };
+  });
+  if (!result.allowed) {
+    return new Response(
+      JSON.stringify({
+        code: "public_rate_limit_exceeded",
+        retryAfterSeconds: result.retryAfterSeconds,
+      }),
+      {
+        headers: {
+          "content-type": "application/json",
+          "retry-after": String(result.retryAfterSeconds),
+        },
+        status: 429,
+      },
+    );
+  }
+  return Response.json({ allowed: true });
+}
+
 interface AuditionCreateInput {
   readonly adminNotes?: string;
   readonly availabilityNotes: string;
@@ -405,6 +511,38 @@ function responseForRow(storage: DurableObjectStorage, row: AuditionRow): Respon
   });
 }
 
+function publicResponseForRow(storage: DurableObjectStorage, row: AuditionRow): Response {
+  return Response.json({
+    availabilityNotes: row.availabilityNotes || undefined,
+    createdAt: row.createdAt,
+    id: row.id,
+    name: row.name,
+    requestedSlots: parseRequestedSlots(row.requestedSlotsJson),
+    scheduledTimeSlot: row.scheduledTimeSlot,
+    slots: readSlotsForAudition(storage, row.id),
+    status: row.status,
+    updatedAt: row.updatedAt,
+    voicePart: row.voicePart || undefined,
+  });
+}
+
+export function readPublicAuditionFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  auditionId: string,
+): Response {
+  const identity = storage.sql
+    .exec<{ readonly organizationId: string }>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0)?.organizationId;
+  const row = readAuditionRow(storage, auditionId);
+  return !organizationId || identity !== organizationId || !row
+    ? Response.json({ code: "audition_not_found" }, { status: 404 })
+    : publicResponseForRow(storage, row);
+}
+
 function insertAudit(
   storage: DurableObjectStorage,
   actor: AuditionActor,
@@ -519,6 +657,24 @@ export function updateAuditionInStore(
   input: AuditionUpdateInput,
   actor?: AuditionActor,
 ): Response {
+  return updateAuditionResponseInStore(storage, auditionId, input, actor, "admin");
+}
+
+export function updatePublicAuditionInStore(
+  storage: DurableObjectStorage,
+  auditionId: string,
+  input: Pick<AuditionUpdateInput, "availabilityNotes" | "voicePart">,
+): Response {
+  return updateAuditionResponseInStore(storage, auditionId, input, undefined, "public");
+}
+
+function updateAuditionResponseInStore(
+  storage: DurableObjectStorage,
+  auditionId: string,
+  input: AuditionUpdateInput,
+  actor: AuditionActor | undefined,
+  responseMode: "admin" | "public",
+): Response {
   const previous = readAuditionRow(storage, auditionId);
   if (!previous) {
     return Response.json({ code: "audition_not_found" }, { status: 404 });
@@ -547,7 +703,9 @@ export function updateAuditionInStore(
   });
   const row = readAuditionRow(storage, auditionId);
   return row
-    ? responseForRow(storage, row)
+    ? responseMode === "public"
+      ? publicResponseForRow(storage, row)
+      : responseForRow(storage, row)
     : Response.json({ code: "audition_not_found" }, { status: 404 });
 }
 

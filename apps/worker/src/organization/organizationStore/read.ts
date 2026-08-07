@@ -17,6 +17,7 @@ import { readPlayerDetailsFromStore, readPlayerPlaylistFromStore } from "../play
 import { readPracticePlayerLinkFromStore } from "../playerLinkStore";
 import {
   readAuditionFromStore,
+  readPublicAuditionFromStore,
   readPublicAuditionSettingsFromStore,
   readAuditionSettingsFromStore,
   listAuditionsFromStore,
@@ -248,6 +249,12 @@ export const contentGetHandlers: Record<
       organizationId,
     }),
   "/internal/audition/details": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) =>
+    readPublicAuditionFromStore(storage, organizationId, url.searchParams.get("auditionId") ?? ""),
+  "/internal/audition/admin-details": (
     storage: DurableObjectStorage,
     url: URL,
     organizationId: string | null,

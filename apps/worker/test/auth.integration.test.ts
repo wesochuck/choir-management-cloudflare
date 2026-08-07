@@ -577,6 +577,33 @@ describe("Better Auth Worker integration", () => {
     expect(newPasswordSignIn.status).toBe(200);
   });
 
+  it("blocks cross-origin cookie mutations while allowing same-origin requests to reach validation", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+    const crossOrigin = await fetchWorker(
+      new Request(`${BASE_AUTH_ORIGIN}/api/account/password`, {
+        body: JSON.stringify({ mode: "set", newPassword: "correct-horse-battery-staple" }),
+        headers: {
+          cookie: sessionCookie,
+          "content-type": "application/json",
+          origin: "http://evil.example.test",
+        },
+        method: "PUT",
+      }),
+    );
+    expect(crossOrigin.status).toBe(403);
+    await expect(crossOrigin.json()).resolves.toMatchObject({ code: "csrf_origin_mismatch" });
+
+    const sameOrigin = await fetchWorker(
+      authRequest("/api/account/password", {
+        body: JSON.stringify({ mode: "set", newPassword: "short" }),
+        headers: { cookie: sessionCookie },
+        method: "PUT",
+      }),
+    );
+    expect(sameOrigin.status).toBe(400);
+  });
+
   it("recovers only an invited identity with a single-use link and revokes its sessions", async () => {
     await seedInvitedUser();
     const firstSessionCookie = await signInInvitedUser();

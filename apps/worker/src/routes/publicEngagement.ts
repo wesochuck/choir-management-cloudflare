@@ -258,6 +258,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       resolved.value.organizationId,
       body.data,
       requestIdValue,
+      context.req.header("cf-connecting-ip") ?? "unknown",
     );
   });
 

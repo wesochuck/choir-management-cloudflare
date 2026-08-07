@@ -197,8 +197,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const stub = context.env.ORGANIZATION_STORE.get(
         context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
       );
-      const detailUrl = new URL("https://organization.internal/internal/audition/details");
+      const detailUrl = new URL("https://organization.internal/internal/audition/admin-details");
       detailUrl.searchParams.set("auditionId", auditionId.data);
+      detailUrl.searchParams.set("organizationId", authorization.organizationId);
       const detailResponse = await stub.fetch(detailUrl);
       const audition = organizationAuditionSchema.safeParse(await detailResponse.json());
       if (!detailResponse.ok || !audition.success) {

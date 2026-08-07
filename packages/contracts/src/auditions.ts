@@ -48,7 +48,17 @@ export const auditionDetailsSchema = z.object({
 
 export type AuditionDetails = z.infer<typeof auditionDetailsSchema>;
 
-export const publicAuditionDetailsResponseSchema = auditionDetailsSchema;
+export const publicAuditionDetailsResponseSchema = z.object({
+  availabilityNotes: z.string().max(5_000).optional(),
+  createdAt: z.string(),
+  id: z.string(),
+  name: z.string(),
+  requestedSlots: z.array(z.iso.datetime()).max(20).default([]),
+  scheduledTimeSlot: z.iso.datetime().nullable().optional(),
+  slots: z.array(auditionSlotSchema),
+  status: auditionStatusSchema,
+  voicePart: z.string().max(100).optional(),
+});
 
 export type PublicAuditionDetailsResponse = z.infer<typeof publicAuditionDetailsResponseSchema>;
 

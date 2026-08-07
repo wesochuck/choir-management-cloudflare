@@ -1066,6 +1066,20 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "CREATE INDEX idx_payment_notifications_provider_message ON payment_notifications(provider_message_id) WHERE provider_message_id IS NOT NULL",
     ],
   },
+  {
+    version: 63,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN provider_email_suppressed INTEGER NOT NULL DEFAULT 0 CHECK (provider_email_suppressed IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN provider_email_suppressed_at TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE profiles ADD COLUMN provider_email_suppressed_reason TEXT NOT NULL DEFAULT ''",
+      `CREATE TABLE public_rate_limit_buckets (
+        bucket_key TEXT PRIMARY KEY,
+        window_started_at INTEGER NOT NULL,
+        request_count INTEGER NOT NULL CHECK (request_count >= 0)
+      ) STRICT`,
+      "CREATE INDEX idx_public_rate_limit_buckets_window ON public_rate_limit_buckets(window_started_at)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

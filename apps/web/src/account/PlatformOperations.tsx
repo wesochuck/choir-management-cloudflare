@@ -1,6 +1,9 @@
 import type {
   PlatformContextResponse,
   PlatformFleetSchemaStatusResponse,
+  PlatformEmailFeedbackDeadLetter,
+  PlatformEmailFeedbackView,
+  PlatformEmailProviderEvent,
   PlatformJobDeadLetterView,
   PlatformJobDeadLetterSummary,
   PlatformOrganizationContextResponse,
@@ -16,13 +19,19 @@ import {
   getPlatformOrganizationContext,
   getPlatformFleetSchemaStatus,
   dismissPlatformJobDeadLetter,
+  acknowledgePlatformEmailFeedbackDeadLetter,
+  acknowledgePlatformEmailProviderEvent,
   disablePlatformOrganizationPublicDomain,
   listPlatformOrganizationPublicDomains,
   listPlatformJobDeadLetters,
+  listPlatformEmailFeedbackDeadLetters,
+  listPlatformEmailProviderEvents,
   listPlatformOrganizations,
   provisionOrganization,
   registerPlatformOrganizationPublicDomain,
   retryPlatformJobDeadLetter,
+  retryPlatformEmailFeedbackDeadLetter,
+  retryPlatformEmailProviderEvent,
   revokePlatformElevation,
   startPlatformFleetSchemaPreparation,
 } from "../auth/api";
@@ -286,6 +295,27 @@ interface DeadLetterActionTarget {
   readonly action: "dismiss" | "retry";
   readonly deadLetter: PlatformJobDeadLetterSummary;
 }
+
+type EmailFeedbackState =
+  | { readonly status: "error" }
+  | { readonly status: "loading" }
+  | {
+      readonly deadLetters: readonly PlatformEmailFeedbackDeadLetter[];
+      readonly events: readonly PlatformEmailProviderEvent[];
+      readonly hasMoreDeadLetters: boolean;
+      readonly hasMoreEvents: boolean;
+      readonly status: "ready";
+    };
+
+type EmailFeedbackActionTarget =
+  | {
+      readonly action: "acknowledge-event" | "retry-event";
+      readonly event: PlatformEmailProviderEvent;
+    }
+  | {
+      readonly action: "acknowledge-dead-letter" | "retry-dead-letter";
+      readonly deadLetter: PlatformEmailFeedbackDeadLetter;
+    };
 
 function deadLetterActionLabel(status: PlatformJobDeadLetterSummary["actionStatus"]): string {
   switch (status) {
@@ -568,6 +598,392 @@ function QueueDeadLetterDirectory() {
         </form>
       </Dialog>
     </div>
+  );
+}
+
+function emailFeedbackActionLabel(action: EmailFeedbackActionTarget["action"]): string {
+  switch (action) {
+    case "retry-event":
+    case "retry-dead-letter":
+      return "Retry provider event";
+    case "acknowledge-event":
+    case "acknowledge-dead-letter":
+      return "Acknowledge record";
+  }
+}
+
+function providerEventStatusLabel(event: PlatformEmailProviderEvent): string {
+  return `${event.eventType} · ${event.state} · ${event.operatorStatus}`;
+}
+
+// eslint-disable-next-line complexity -- this operator view keeps normalized events and queue dead letters together.
+function EmailProviderFeedbackDirectory() {
+  const [feedback, setFeedback] = useState<EmailFeedbackState>({ status: "loading" });
+  const [view, setView] = useState<PlatformEmailFeedbackView>("open");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [actionTarget, setActionTarget] = useState<EmailFeedbackActionTarget | null>(null);
+  const [actionReason, setActionReason] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    Promise.all([
+      listPlatformEmailProviderEvents(null, abortController.signal, view),
+      listPlatformEmailFeedbackDeadLetters(null, abortController.signal, view),
+    ])
+      .then(([events, deadLetters]) => {
+        setFeedback({
+          deadLetters: deadLetters.deadLetters,
+          events: events.events,
+          hasMoreDeadLetters: deadLetters.nextCursor !== null,
+          hasMoreEvents: events.nextCursor !== null,
+          status: "ready",
+        });
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setFeedback({ status: "error" });
+        }
+      });
+    return () => {
+      abortController.abort();
+    };
+  }, [refreshKey, view]);
+
+  function openAction(target: EmailFeedbackActionTarget): void {
+    setActionTarget(target);
+    setActionError(null);
+    setActionReason("");
+  }
+
+  function closeAction(): void {
+    if (actionBusy) return;
+    setActionTarget(null);
+    setActionError(null);
+    setActionReason("");
+  }
+
+  async function submitAction(): Promise<void> {
+    if (!actionTarget) return;
+    const reason = actionReason.trim();
+    if (reason.length < 3 || reason.length > 500) {
+      setActionError("Enter a reason between 3 and 500 characters.");
+      return;
+    }
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      let result;
+      if (actionTarget.action === "retry-event") {
+        result = await retryPlatformEmailProviderEvent(actionTarget.event.eventId, reason);
+      } else if (actionTarget.action === "acknowledge-event") {
+        result = await acknowledgePlatformEmailProviderEvent(actionTarget.event.eventId, reason);
+      } else if (actionTarget.action === "retry-dead-letter") {
+        result = await retryPlatformEmailFeedbackDeadLetter(actionTarget.deadLetter.id, reason);
+      } else if ("deadLetter" in actionTarget) {
+        result = await acknowledgePlatformEmailFeedbackDeadLetter(
+          actionTarget.deadLetter.id,
+          reason,
+        );
+      } else {
+        return;
+      }
+      setSuccess(
+        result.actionStatus === "retry_requested"
+          ? "The normalized provider event was queued for another correlation attempt."
+          : result.actionStatus === "retry_unavailable"
+            ? "This record cannot be retried. Malformed queue messages are acknowledge-only."
+            : "The provider feedback record was acknowledged. Its audit history was retained.",
+      );
+      setFeedback({ status: "loading" });
+      setActionTarget(null);
+      setActionReason("");
+      setRefreshKey((current) => current + 1);
+    } catch (failure: unknown) {
+      setActionError(
+        failure instanceof AuthApiError
+          ? failure.message
+          : "The provider feedback action could not be completed. Refresh and try again.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  return (
+    <div className="platform-directory" aria-live="polite">
+      <h4>Email provider feedback</h4>
+      <p>
+        Cloudflare Email Sending events are normalized and correlated to the originating
+        notification. Retry acts on the stored normalized event only; raw provider payloads and
+        email bodies are not retained. Queue dead letters below are acknowledge-only when the
+        original message was malformed.
+      </p>
+      <div className="platform-dead-letter-toolbar">
+        <label className="field" htmlFor="platform-email-feedback-view">
+          <span>Show</span>
+          <select
+            id="platform-email-feedback-view"
+            onChange={(event) => {
+              setSuccess(null);
+              setFeedback({ status: "loading" });
+              setView(event.target.value === "all" ? "all" : "open");
+            }}
+            value={view}
+          >
+            <option value="open">Needs review</option>
+            <option value="all">All records</option>
+          </select>
+        </label>
+        <button
+          className="button button--secondary"
+          disabled={feedback.status === "loading"}
+          onClick={() => {
+            setSuccess(null);
+            setRefreshKey((current) => current + 1);
+          }}
+          type="button"
+        >
+          {feedback.status === "loading" ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      {success ? (
+        <p className="notice notice--success" role="status">
+          {success}
+        </p>
+      ) : null}
+      {feedback.status === "loading" ? <p>Loading email feedback…</p> : null}
+      {feedback.status === "error" ? (
+        <p className="notice notice--error" role="alert">
+          Email provider feedback could not be loaded. Refresh and try again.
+        </p>
+      ) : null}
+      {feedback.status === "ready" ? (
+        <>
+          <h5>Normalized provider events</h5>
+          {feedback.events.length === 0 ? (
+            <p className="empty-state">No provider events need review.</p>
+          ) : (
+            <ul className="account-list platform-dead-letter-list">
+              {feedback.events.map((event) => (
+                <li key={event.eventId}>
+                  <div className="platform-dead-letter-list__copy">
+                    <h5>{event.recipient}</h5>
+                    <p>{providerEventStatusLabel(event)}</p>
+                    <p className="platform-dead-letter-list__meta">
+                      {event.organizationId ?? "Unmatched Organization"} · message {event.messageId}
+                    </p>
+                    <p className="platform-dead-letter-list__meta">
+                      {event.sourceKind ?? "Unmatched route"} · updated{" "}
+                      {displayDate(event.updatedAt)}
+                    </p>
+                    {event.lastError ? (
+                      <p className="notice notice--warning">{event.lastError}</p>
+                    ) : null}
+                    {event.operatorStatus === "acknowledged" && event.operatorReason ? (
+                      <p className="platform-dead-letter-list__meta">
+                        Acknowledged: {event.operatorReason}
+                      </p>
+                    ) : null}
+                  </div>
+                  {event.state !== "processed" ? (
+                    <div className="platform-dead-letter-list__actions">
+                      <button
+                        className="button button--primary"
+                        onClick={() => {
+                          openAction({ action: "retry-event", event });
+                        }}
+                        type="button"
+                      >
+                        Retry correlation
+                      </button>
+                      <button
+                        className="button button--secondary"
+                        onClick={() => {
+                          openAction({ action: "acknowledge-event", event });
+                        }}
+                        type="button"
+                      >
+                        Acknowledge
+                      </button>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {feedback.hasMoreEvents ? <p>Showing the 25 most recent provider events.</p> : null}
+          <h5>Queue dead letters</h5>
+          {feedback.deadLetters.length === 0 ? (
+            <p className="empty-state">No email feedback queue dead letters need review.</p>
+          ) : (
+            <ul className="account-list platform-dead-letter-list">
+              {feedback.deadLetters.map((deadLetter) => (
+                <li key={deadLetter.id}>
+                  <div className="platform-dead-letter-list__copy">
+                    <h5>{deadLetter.queueName}</h5>
+                    <p>
+                      {deadLetter.eventId ? `Event ${deadLetter.eventId}` : "Malformed message"} ·
+                      observed {displayDate(deadLetter.lastSeenAt)}
+                    </p>
+                    <p className="platform-dead-letter-list__meta">
+                      {deadLetter.reason} · message {deadLetter.messageId} · attempt{" "}
+                      {String(deadLetter.observedAttempt)}
+                    </p>
+                    <span className="status-pill">
+                      {deadLetter.actionStatus === "acknowledged" ? "Acknowledged" : "Needs review"}
+                    </span>
+                    {!deadLetter.retryable ? (
+                      <p className="platform-dead-letter-list__hint">
+                        This message was malformed and cannot be replayed. Acknowledge it after
+                        recording the operator decision.
+                      </p>
+                    ) : null}
+                  </div>
+                  {deadLetter.actionStatus === "open" ? (
+                    <div className="platform-dead-letter-list__actions">
+                      {deadLetter.retryable ? (
+                        <button
+                          className="button button--primary"
+                          onClick={() => {
+                            openAction({ action: "retry-dead-letter", deadLetter });
+                          }}
+                          type="button"
+                        >
+                          Retry event
+                        </button>
+                      ) : null}
+                      <button
+                        className="button button--secondary"
+                        onClick={() => {
+                          openAction({ action: "acknowledge-dead-letter", deadLetter });
+                        }}
+                        type="button"
+                      >
+                        Acknowledge
+                      </button>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {feedback.hasMoreDeadLetters ? (
+            <p>Showing the 25 most recent email queue dead letters.</p>
+          ) : null}
+        </>
+      ) : null}
+      <Dialog
+        description={
+          actionTarget?.action.startsWith("retry")
+            ? "Retry only after reviewing the correlation or queue failure. The action is recorded with your reason."
+            : "Acknowledgement removes this record from the needs-review view but never deletes its audit history."
+        }
+        onClose={closeAction}
+        open={actionTarget !== null}
+        title={
+          actionTarget
+            ? `${emailFeedbackActionLabel(actionTarget.action)}?`
+            : "Provider feedback action"
+        }
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitAction();
+          }}
+        >
+          {actionError ? (
+            <p className="notice notice--error" role="alert">
+              {actionError}
+            </p>
+          ) : null}
+          <label className="field" htmlFor="platform-email-feedback-action-reason">
+            <span>Reason</span>
+            <textarea
+              autoFocus
+              id="platform-email-feedback-action-reason"
+              maxLength={500}
+              minLength={3}
+              onChange={(event) => {
+                setActionReason(event.target.value);
+              }}
+              required
+              rows={3}
+              value={actionReason}
+            />
+          </label>
+          <div className="dialog__actions">
+            <button className="button button--secondary" onClick={closeAction} type="button">
+              Cancel
+            </button>
+            <button className="button button--primary" disabled={actionBusy} type="submit">
+              {actionBusy
+                ? "Saving…"
+                : emailFeedbackActionLabel(actionTarget?.action ?? "acknowledge-event")}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+    </div>
+  );
+}
+
+type PlatformDeadLetterTab = "email-provider" | "queue";
+
+function PlatformDeadLetterWorkspace() {
+  const [tab, setTab] = useState<PlatformDeadLetterTab>("queue");
+  return (
+    <>
+      <nav aria-label="Dead-letter sections" className="ticketing-tabs" role="tablist">
+        <button
+          aria-controls="platform-email-provider-events-panel"
+          aria-selected={tab === "email-provider"}
+          className={tab === "email-provider" ? "is-active" : undefined}
+          id="platform-email-provider-events-tab"
+          onClick={() => {
+            setTab("email-provider");
+          }}
+          role="tab"
+          type="button"
+        >
+          Email provider events
+        </button>
+        <button
+          aria-controls="platform-queue-dead-letters-panel"
+          aria-selected={tab === "queue"}
+          className={tab === "queue" ? "is-active" : undefined}
+          id="platform-queue-dead-letters-tab"
+          onClick={() => {
+            setTab("queue");
+          }}
+          role="tab"
+          type="button"
+        >
+          Queue DLQ
+        </button>
+      </nav>
+      {tab === "email-provider" ? (
+        <div
+          aria-labelledby="platform-email-provider-events-tab"
+          id="platform-email-provider-events-panel"
+          role="tabpanel"
+        >
+          <EmailProviderFeedbackDirectory />
+        </div>
+      ) : (
+        <div
+          aria-labelledby="platform-queue-dead-letters-tab"
+          id="platform-queue-dead-letters-panel"
+          role="tabpanel"
+        >
+          <QueueDeadLetterDirectory />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -880,7 +1296,6 @@ function OrganizationDirectory() {
         ) : null}
       </div>
 
-      <QueueDeadLetterDirectory />
       <FleetSchemaPreparation />
     </div>
   );
@@ -1078,7 +1493,7 @@ export function PlatformOperations({
   }
   if (mode === "dead-letters") {
     return scope.kind === "product_base" ? (
-      <QueueDeadLetterDirectory />
+      <PlatformDeadLetterWorkspace />
     ) : (
       <DeadLettersUnavailable />
     );

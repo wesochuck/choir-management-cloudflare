@@ -90,4 +90,48 @@ describe("Cloudflare email provider events", () => {
       }),
     ).toThrow("Cloudflare email event payload was invalid");
   });
+
+  it("rejects invalid timestamps, unapproved sending domains, and inconsistent status fields", () => {
+    expect(() =>
+      parseCloudflareEmailEvent(
+        {
+          ...baseEvent,
+          metadata: { eventTimestamp: "not-a-date" },
+          type: "cf.email.sending.message.delivered",
+        },
+        "mail.staging.musicsite.org",
+      ),
+    ).toThrow("timestamp was invalid");
+    expect(() =>
+      parseCloudflareEmailEvent(
+        { ...baseEvent, type: "cf.email.sending.message.delivered" },
+        "mail.production.musicsite.org",
+      ),
+    ).toThrow("source domain");
+    expect(() =>
+      parseCloudflareEmailEvent({
+        ...baseEvent,
+        payload: {
+          ...baseEvent.payload,
+          delivery: { status: "bounced" },
+          terminal: true,
+        },
+        type: "cf.email.sending.message.delivered",
+      }),
+    ).toThrow("status did not match");
+  });
+
+  it("rejects a deferred event marked terminal", () => {
+    expect(() =>
+      parseCloudflareEmailEvent({
+        ...baseEvent,
+        payload: {
+          ...baseEvent.payload,
+          delivery: { status: "deferred" },
+          terminal: true,
+        },
+        type: "cf.email.sending.message.deferred",
+      }),
+    ).toThrow("terminal flag");
+  });
 });

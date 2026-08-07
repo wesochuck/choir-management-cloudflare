@@ -23,6 +23,7 @@ export const organizationProfileSchema = organizationProfileRequestSchema.extend
   lastBounceAt: z.string().max(100).default(""),
   onBreakInactiveAt: z.iso.datetime().nullable().default(null),
   photoFileId: z.uuid().nullable().default(null),
+  providerEmailSuppressed: z.boolean().default(false),
   statusChangedAt: z.iso.datetime().default("1970-01-01T00:00:00.000Z"),
   statusChangeReason: z.string().max(500).default("Initial status"),
   updatedAt: z.iso.datetime(),

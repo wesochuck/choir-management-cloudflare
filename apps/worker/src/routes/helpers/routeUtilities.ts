@@ -307,11 +307,18 @@ export function createdAuditionId(value: unknown): string {
   return "";
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+// eslint-disable-next-line complexity -- this route sequences suppression, settings, rate-limit, and creation safeguards.
 export async function submitPublicAuditionInquiry(
   env: Env,
   organizationId: string,
   body: z.infer<typeof publicAuditionInquiryRequestSchema>,
   requestIdValue: string,
+  clientIp: string,
 ): Promise<Response> {
   try {
     await assertEmailProviderRecipientAvailable(env.CONTROL_DB, body.email);
@@ -328,6 +335,38 @@ export async function submitPublicAuditionInquiry(
     );
     if (settingsProblem)
       return Response.json(settingsProblem.problem, { status: settingsProblem.status });
+    const [clientKey, emailKey] = await Promise.all([
+      sha256Hex(clientIp.trim() || "unknown"),
+      sha256Hex(body.email.trim().toLowerCase()),
+    ]);
+    const rateLimitResponse = await stub.fetch(
+      "https://organization.internal/internal/audition/rate-limit",
+      {
+        body: JSON.stringify({ clientKey, emailKey, organizationId }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    if (!rateLimitResponse.ok) {
+      if (rateLimitResponse.status === 429) {
+        const retryAfter = rateLimitResponse.headers.get("retry-after");
+        return new Response(
+          JSON.stringify({
+            code: "public_rate_limit_exceeded",
+            message: "Too many audition inquiries. Please try again later.",
+            requestId: requestIdValue,
+          } satisfies ProblemDetails),
+          {
+            headers: {
+              "content-type": "application/json",
+              ...(retryAfter ? { "retry-after": retryAfter } : {}),
+            },
+            status: 429,
+          },
+        );
+      }
+      throw new Error("rate_limit_unavailable");
+    }
     const response = await stub.fetch("https://organization.internal/internal/audition/create", {
       body: JSON.stringify({
         availabilityNotes: body.availabilityNotes ?? "",

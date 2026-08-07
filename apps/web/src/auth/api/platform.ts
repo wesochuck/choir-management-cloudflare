@@ -12,6 +12,13 @@ import {
   platformElevationRevocationResponseSchema,
   platformEmailSuppressionReleaseRequestSchema,
   platformEmailSuppressionReleaseResponseSchema,
+  platformEmailFeedbackActionRequestSchema,
+  platformEmailFeedbackActionResponseSchema,
+  platformEmailFeedbackDeadLettersResponseSchema,
+  platformEmailFeedbackViewSchema,
+  platformEmailProviderEventsResponseSchema,
+  platformLocalEmailSuppressionReleaseRequestSchema,
+  platformLocalEmailSuppressionReleaseResponseSchema,
   platformMfaStatusResponseSchema,
   platformOrganizationContextResponseSchema,
   platformOrganizationPublicDomainsResponseSchema,
@@ -27,6 +34,11 @@ import {
   type PlatformContextResponse,
   type PlatformEmailSuppressionsResponse,
   type PlatformEmailSuppressionReleaseResponse,
+  type PlatformEmailFeedbackActionResponse,
+  type PlatformEmailFeedbackDeadLettersResponse,
+  type PlatformEmailFeedbackView,
+  type PlatformEmailProviderEventsResponse,
+  type PlatformLocalEmailSuppressionReleaseResponse,
   type PlatformFleetSchemaStatusResponse,
   type PlatformJobDeadLettersResponse,
   type PlatformJobDeadLetterActionResponse,
@@ -145,6 +157,101 @@ export async function releasePlatformEmailSuppression(
     method: "POST",
   });
   return platformEmailSuppressionReleaseResponseSchema.parse(await response.json());
+}
+
+export async function releaseLocalPlatformEmailSuppression(input: {
+  readonly email: string;
+  readonly organizationId: string;
+  readonly profileId: string;
+  readonly reason: string;
+}): Promise<PlatformLocalEmailSuppressionReleaseResponse> {
+  const response = await request("/api/platform/email-suppressions/release-local", {
+    body: JSON.stringify(platformLocalEmailSuppressionReleaseRequestSchema.parse(input)),
+    method: "POST",
+  });
+  return platformLocalEmailSuppressionReleaseResponseSchema.parse(await response.json());
+}
+
+export async function listPlatformEmailProviderEvents(
+  cursor: string | null = null,
+  signal?: AbortSignal,
+  view: PlatformEmailFeedbackView = "open",
+): Promise<PlatformEmailProviderEventsResponse> {
+  const search = new URLSearchParams({ view: platformEmailFeedbackViewSchema.parse(view) });
+  if (cursor) search.set("cursor", cursor);
+  const response = await request(`/api/platform/email-feedback/events?${search.toString()}`, {
+    signal: signal ?? null,
+  });
+  return platformEmailProviderEventsResponseSchema.parse(await response.json());
+}
+
+export async function retryPlatformEmailProviderEvent(
+  eventId: string,
+  reason: string,
+): Promise<PlatformEmailFeedbackActionResponse> {
+  const response = await request(
+    `/api/platform/email-feedback/events/${encodeURIComponent(eventId)}/retry`,
+    {
+      body: JSON.stringify(platformEmailFeedbackActionRequestSchema.parse({ reason })),
+      method: "POST",
+    },
+  );
+  return platformEmailFeedbackActionResponseSchema.parse(await response.json());
+}
+
+export async function acknowledgePlatformEmailProviderEvent(
+  eventId: string,
+  reason: string,
+): Promise<PlatformEmailFeedbackActionResponse> {
+  const response = await request(
+    `/api/platform/email-feedback/events/${encodeURIComponent(eventId)}/acknowledge`,
+    {
+      body: JSON.stringify(platformEmailFeedbackActionRequestSchema.parse({ reason })),
+      method: "POST",
+    },
+  );
+  return platformEmailFeedbackActionResponseSchema.parse(await response.json());
+}
+
+export async function listPlatformEmailFeedbackDeadLetters(
+  cursor: string | null = null,
+  signal?: AbortSignal,
+  view: PlatformEmailFeedbackView = "open",
+): Promise<PlatformEmailFeedbackDeadLettersResponse> {
+  const search = new URLSearchParams({ view: platformEmailFeedbackViewSchema.parse(view) });
+  if (cursor) search.set("cursor", cursor);
+  const response = await request(`/api/platform/email-feedback/dead-letters?${search.toString()}`, {
+    signal: signal ?? null,
+  });
+  return platformEmailFeedbackDeadLettersResponseSchema.parse(await response.json());
+}
+
+export async function retryPlatformEmailFeedbackDeadLetter(
+  deadLetterId: string,
+  reason: string,
+): Promise<PlatformEmailFeedbackActionResponse> {
+  const response = await request(
+    `/api/platform/email-feedback/dead-letters/${encodeURIComponent(deadLetterId)}/retry`,
+    {
+      body: JSON.stringify(platformEmailFeedbackActionRequestSchema.parse({ reason })),
+      method: "POST",
+    },
+  );
+  return platformEmailFeedbackActionResponseSchema.parse(await response.json());
+}
+
+export async function acknowledgePlatformEmailFeedbackDeadLetter(
+  deadLetterId: string,
+  reason: string,
+): Promise<PlatformEmailFeedbackActionResponse> {
+  const response = await request(
+    `/api/platform/email-feedback/dead-letters/${encodeURIComponent(deadLetterId)}/acknowledge`,
+    {
+      body: JSON.stringify(platformEmailFeedbackActionRequestSchema.parse({ reason })),
+      method: "POST",
+    },
+  );
+  return platformEmailFeedbackActionResponseSchema.parse(await response.json());
 }
 
 export async function listPlatformOrganizations(

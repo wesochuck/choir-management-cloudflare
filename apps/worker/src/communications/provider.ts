@@ -264,7 +264,8 @@ async function deliverOrganizationEmail(
   }
   if (routeInput && controlDatabase) {
     await attachEmailProviderMessage(controlDatabase, routeInput, result.messageId).catch(
-      (error: unknown) => {
+      async (error: unknown) => {
+        await markEmailProviderRouteUnknown(controlDatabase, routeInput).catch(() => undefined);
         console.error(
           JSON.stringify({
             errorType: error instanceof Error ? error.name : "UnknownError",

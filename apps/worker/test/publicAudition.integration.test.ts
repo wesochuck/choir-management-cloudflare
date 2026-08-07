@@ -179,6 +179,40 @@ describe("public audition signed flow", () => {
     expect(body).toMatchObject({ id: expect.any(String) });
   });
 
+  it("rate-limits repeated public inquiries before creating the fourth record", async () => {
+    const request = () =>
+      exports.default.fetch(
+        api("alpha.localhost", "/api/public/audition-inquiry", {
+          body: JSON.stringify({ email: "limited@example.com", name: "Limited Singer" }),
+          headers: {
+            "cf-connecting-ip": "192.0.2.10",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+    await expect(request()).resolves.toMatchObject({ status: 201 });
+    await expect(request()).resolves.toMatchObject({ status: 201 });
+    await expect(request()).resolves.toMatchObject({ status: 201 });
+    const limited = await request();
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBeTruthy();
+    const body: unknown = await limited.json();
+    expect(body).toMatchObject({ code: "public_rate_limit_exceeded" });
+    const auditionCount = await runInDurableObject<OrganizationStore, number>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM auditions WHERE email = ?",
+            "limited@example.com",
+          )
+          .toArray()
+          .at(0)?.count ?? 0,
+    );
+    expect(auditionCount).toBe(3);
+  });
+
   it("queues a confirmation notification inside the same Organization", async () => {
     const response = await exports.default.fetch(
       api("alpha.localhost", "/api/public/audition-inquiry", {
@@ -368,11 +402,12 @@ describe("public audition signed flow", () => {
     expect(response.status).toBe(200);
     const body: unknown = await response.json();
     expect(body).toMatchObject({
-      email: "singer@example.com",
       id: auditionId,
       name: "Test Singer",
       status: "pending",
     });
+    expect(body).not.toHaveProperty("adminNotes");
+    expect(body).not.toHaveProperty("email");
   });
 
   it("rejects a token used on the wrong hostname", async () => {
@@ -460,6 +495,14 @@ describe("public audition signed flow", () => {
       }),
     );
     expect(submitResponse.status).toBe(200);
+    const submitBody: unknown = await submitResponse.json();
+    expect(submitBody).toMatchObject({
+      availabilityNotes: "Available weekends",
+      id: auditionId,
+      voicePart: "Soprano",
+    });
+    expect(submitBody).not.toHaveProperty("adminNotes");
+    expect(submitBody).not.toHaveProperty("email");
 
     const row = await runInDurableObject<
       OrganizationStore,
