@@ -1,4 +1,5 @@
 import type { MemberDashboardResponse } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getMemberDashboard, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
@@ -36,6 +37,13 @@ function seatingLabel(event: DashboardEvent): string {
   if (event.seating.status === "not_assigned") return "Seat not assigned yet";
   if (event.seating.status === "declined") return "Seating unavailable after declining";
   return "Seating not published yet";
+}
+
+function bulletinDialogTitle(
+  bulletin: MemberDashboardResponse["bulletins"][number] | null,
+): string {
+  if (!bulletin?.subject.trim()) return "Update";
+  return bulletin.subject;
 }
 
 function isActionDisabled(event: DashboardEvent): boolean {
@@ -77,12 +85,14 @@ function DashboardEventSetList({ event }: { readonly event: DashboardEvent }) {
 
 function DashboardEventActions({
   event,
+  busyEventId,
   navigate,
   onDeclineRehearsal,
   onOpenPractice,
   onRsvp,
 }: {
   readonly event: DashboardEvent;
+  readonly busyEventId: string | null;
   readonly navigate: (href: string) => void;
   readonly onDeclineRehearsal: (event: DashboardEvent) => void;
   readonly onOpenPractice: (event: DashboardEvent) => void;
@@ -94,6 +104,7 @@ function DashboardEventActions({
     event.seating.status !== "not_published" &&
     event.seating.status !== "declined";
   const actionDisabled = isActionDisabled(event);
+  const busy = busyEventId === event.id;
   return (
     <div className="member-dashboard__event-actions">
       <div className="member-dashboard__rsvp-actions" aria-label={`${event.title} RSVP`}>
@@ -101,19 +112,21 @@ function DashboardEventActions({
           className={
             event.resolvedRsvp === "Yes" ? "button button--primary" : "button button--secondary"
           }
-          disabled={actionDisabled}
+          aria-busy={busy}
+          disabled={actionDisabled || busy}
           onClick={() => {
             onRsvp(event, "Yes");
           }}
           type="button"
         >
-          Attend
+          {busy ? "Updating…" : "Attend"}
         </button>
         <button
           className={
             event.resolvedRsvp === "No" ? "button button--danger" : "button button--secondary"
           }
-          disabled={actionDisabled}
+          aria-busy={busy}
+          disabled={actionDisabled || busy}
           onClick={() => {
             if (event.type === "Rehearsal") {
               onDeclineRehearsal(event);
@@ -123,7 +136,7 @@ function DashboardEventActions({
           }}
           type="button"
         >
-          Decline
+          {busy ? "Updating…" : "Decline"}
         </button>
       </div>
       <div className="member-dashboard__secondary-actions">
@@ -166,6 +179,7 @@ function DashboardEventFooter({ event }: { readonly event: DashboardEvent }) {
 }
 
 function DashboardEventCard({
+  busyEventId,
   event,
   onDeclineRehearsal,
   onOpenPractice,
@@ -173,6 +187,7 @@ function DashboardEventCard({
   navigate,
   timezone,
 }: {
+  readonly busyEventId: string | null;
   readonly event: DashboardEvent;
   readonly navigate: (href: string) => void;
   readonly onDeclineRehearsal: (event: DashboardEvent) => void;
@@ -202,6 +217,7 @@ function DashboardEventCard({
       <DashboardEventHighlights event={event} />
       <DashboardEventSetList event={event} />
       <DashboardEventActions
+        busyEventId={busyEventId}
         event={event}
         navigate={navigate}
         onDeclineRehearsal={onDeclineRehearsal}
@@ -214,12 +230,14 @@ function DashboardEventCard({
 }
 
 function DashboardSchedule({
+  busyEventId,
   dashboard,
   navigate,
   onDeclineRehearsal,
   onOpenPractice,
   onRsvp,
 }: {
+  readonly busyEventId: string | null;
   readonly dashboard: MemberDashboardResponse;
   readonly navigate: (href: string) => void;
   readonly onDeclineRehearsal: (event: DashboardEvent) => void;
@@ -242,6 +260,7 @@ function DashboardSchedule({
             <div className="member-dashboard__next-up">
               <p className="eyebrow">Next up</p>
               <DashboardEventCard
+                busyEventId={busyEventId}
                 event={nextEvent}
                 navigate={navigate}
                 onDeclineRehearsal={onDeclineRehearsal}
@@ -258,6 +277,7 @@ function DashboardSchedule({
               </div>
               {remainingEvents.map((event) => (
                 <DashboardEventCard
+                  busyEventId={busyEventId}
                   event={event}
                   key={event.id}
                   navigate={navigate}
@@ -380,6 +400,7 @@ function DashboardWidgets({
 }
 
 function DashboardDialogs({
+  actionError,
   busyEventId,
   declineEvent,
   declineNote,
@@ -389,6 +410,7 @@ function DashboardDialogs({
   onDecline,
   selectedBulletin,
 }: {
+  readonly actionError: string | null;
   readonly busyEventId: string | null;
   readonly declineEvent: DashboardEvent | null;
   readonly declineNote: string;
@@ -400,67 +422,81 @@ function DashboardDialogs({
 }) {
   return (
     <>
-      {declineEvent ? (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            aria-labelledby="decline-rehearsal-title"
-            aria-modal="true"
-            className="dialog"
-            role="dialog"
-          >
-            <h2 id="decline-rehearsal-title">Decline rehearsal</h2>
-            <p>Please add a note so the Organization knows why you cannot attend.</p>
-            <label className="field">
-              Note
-              <textarea
-                value={declineNote}
-                onChange={(event) => {
-                  onChangeDeclineNote(event.target.value);
-                }}
-              />
-            </label>
-            <div className="dialog__actions">
-              <button className="button button--secondary" onClick={onCloseDecline} type="button">
-                Cancel
-              </button>
-              <button
-                className="button button--danger"
-                disabled={!declineNote.trim() || busyEventId === declineEvent.id}
-                onClick={onDecline}
-                type="button"
-              >
-                Decline rehearsal
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-      {selectedBulletin ? (
-        <div className="dialog-backdrop" role="presentation">
-          <section
-            aria-labelledby="bulletin-title"
-            aria-modal="true"
-            className="dialog"
-            role="dialog"
-          >
+      <Dialog
+        description="Please add a note so the Organization knows why you cannot attend."
+        onClose={onCloseDecline}
+        open={declineEvent !== null}
+        title="Decline rehearsal"
+      >
+        <form
+          className="form-stack"
+          onSubmit={(formEvent) => {
+            formEvent.preventDefault();
+            onDecline();
+          }}
+        >
+          {actionError ? (
+            <p className="notice notice--error" role="alert">
+              {actionError}
+            </p>
+          ) : null}
+          {busyEventId === declineEvent?.id ? (
+            <p className="notice notice--info" role="status">
+              Saving your RSVP…
+            </p>
+          ) : null}
+          <div className="field">
+            <label htmlFor="decline-rehearsal-note">Note</label>
+            <textarea
+              aria-describedby="decline-rehearsal-note-help"
+              aria-required="true"
+              id="decline-rehearsal-note"
+              maxLength={2_000}
+              onChange={(event) => {
+                onChangeDeclineNote(event.target.value);
+              }}
+              required
+              value={declineNote}
+            />
+            <small className="field-help" id="decline-rehearsal-note-help">
+              Required for rehearsals. {String(declineNote.length)} of 2,000 characters.
+            </small>
+          </div>
+          <div className="dialog__actions">
             <button
-              aria-label="Close bulletin"
-              className="dialog__close"
-              onClick={onCloseBulletin}
+              className="button button--secondary"
+              disabled={busyEventId === declineEvent?.id}
+              onClick={onCloseDecline}
               type="button"
             >
-              ×
+              Cancel
             </button>
+            <button
+              className="button button--danger"
+              disabled={!declineNote.trim() || busyEventId === declineEvent?.id}
+              type="submit"
+            >
+              {busyEventId === declineEvent?.id ? "Saving…" : "Decline rehearsal"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+      <Dialog
+        onClose={onCloseBulletin}
+        open={selectedBulletin !== null}
+        title={bulletinDialogTitle(selectedBulletin)}
+      >
+        {selectedBulletin ? (
+          <>
             <p className="eyebrow">Bulletin</p>
-            <h2 id="bulletin-title">{selectedBulletin.subject || "Update"}</h2>
             <div
               dangerouslySetInnerHTML={{
                 __html: renderCommunicationMarkdownPreview(selectedBulletin.contentMarkdown),
               }}
             />
-          </section>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </Dialog>
     </>
   );
 }
@@ -506,6 +542,7 @@ export function DashboardView({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [declineEvent, setDeclineEvent] = useState<DashboardEvent | null>(null);
   const [declineNote, setDeclineNote] = useState("");
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
@@ -560,14 +597,18 @@ export function DashboardView({
     event: DashboardEvent,
     rsvp: "No" | "Yes",
     rsvpNote = "",
-  ): Promise<void> {
+  ): Promise<boolean> {
     setBusyEventId(event.id);
     setActionError(null);
+    setActionMessage(null);
     try {
       await setMyEventRsvp(event.id, rsvp, rsvpNote);
       await loadDashboard();
+      setActionMessage("Your RSVP was updated.");
+      return true;
     } catch {
       setActionError("Your RSVP could not be updated. Please try again.");
+      return false;
     } finally {
       setBusyEventId(null);
     }
@@ -577,6 +618,7 @@ export function DashboardView({
     if (!event.practice.sourceEventId) return;
     setBusyEventId(event.id);
     setActionError(null);
+    setActionMessage(null);
     try {
       const href = await getMemberPracticeLink(event.practice.sourceEventId);
       window.location.assign(href);
@@ -642,17 +684,25 @@ export function DashboardView({
         </section>
       ) : null}
       {actionError ? (
-        <p className="notice notice--error" role="alert">
+        <p className="notice notice--error" role="alert" hidden={declineEvent !== null}>
           {actionError}
+        </p>
+      ) : null}
+      {actionMessage ? (
+        <p className="notice notice--success" role="status">
+          {actionMessage}
         </p>
       ) : null}
       <div className="member-dashboard__layout">
         <DashboardSchedule
+          busyEventId={busyEventId}
           dashboard={dashboard}
           navigate={navigate}
           onDeclineRehearsal={(event) => {
             setDeclineEvent(event);
             setDeclineNote("");
+            setActionError(null);
+            setActionMessage(null);
           }}
           onOpenPractice={(event) => {
             void openPractice(event);
@@ -669,6 +719,7 @@ export function DashboardView({
         />
       </div>
       <DashboardDialogs
+        actionError={actionError}
         busyEventId={busyEventId}
         declineEvent={declineEvent}
         declineNote={declineNote}
@@ -677,12 +728,18 @@ export function DashboardView({
           setSelectedBulletinId(null);
         }}
         onCloseDecline={() => {
-          setDeclineEvent(null);
+          if (busyEventId === null) {
+            setDeclineEvent(null);
+            setDeclineNote("");
+            setActionError(null);
+          }
         }}
         onDecline={() => {
           if (!declineEvent) return;
-          void updateRsvp(declineEvent, "No", declineNote.trim()).then(() => {
+          void updateRsvp(declineEvent, "No", declineNote.trim()).then((succeeded) => {
+            if (!succeeded) return;
             setDeclineEvent(null);
+            setDeclineNote("");
           });
         }}
         selectedBulletin={selectedBulletin}

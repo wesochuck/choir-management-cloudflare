@@ -38,6 +38,10 @@ function eventLocation(event: SingerEvent): string {
   return event.location;
 }
 
+function rsvpNoteRequired(event: SingerEvent): boolean {
+  return event.type === "Rehearsal" && event.directRsvp === "No";
+}
+
 function performerCredit(
   item: SingerEvent["setList"][number],
   performerLabelPlural: string,
@@ -247,8 +251,11 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                     </select>
                     {event.directRsvp === "No" ? (
                       <>
-                        <label htmlFor={`my-rsvp-note-${event.id}`}>Decline note</label>
+                        <label htmlFor={`my-rsvp-note-${event.id}`}>
+                          Decline note{event.type === "Rehearsal" ? " (required)" : ""}
+                        </label>
                         <textarea
+                          aria-required={event.type === "Rehearsal"}
                           disabled={busyEventId !== null || !event.rsvpSelfServiceOpen}
                           id={`my-rsvp-note-${event.id}`}
                           maxLength={2000}
@@ -267,6 +274,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                                 : current,
                             );
                           }}
+                          required={event.type === "Rehearsal"}
                           rows={3}
                           value={event.rsvpNote}
                         />
@@ -274,7 +282,11 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                     ) : null}
                     <button
                       className="button button--secondary"
-                      disabled={busyEventId !== null || !event.rsvpSelfServiceOpen}
+                      disabled={
+                        busyEventId !== null ||
+                        !event.rsvpSelfServiceOpen ||
+                        (rsvpNoteRequired(event) && !event.rsvpNote.trim())
+                      }
                       onClick={() => {
                         void changeRsvp(event.id, event.directRsvp, event.rsvpNote);
                       }}

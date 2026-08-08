@@ -376,15 +376,44 @@ export function recordEventRsvpChange(
   change: EventRsvpChange,
 ): boolean {
   const existing = storage.sql
-    .exec<{ readonly [column: string]: SqlStorageValue; readonly rsvp: "No" | "Pending" | "Yes" }>(
-      "SELECT rsvp FROM event_rosters WHERE event_id = ? AND profile_id = ? LIMIT 1",
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly rsvp: "No" | "Pending" | "Yes";
+      readonly rsvpNote: string;
+    }>(
+      "SELECT rsvp, rsvp_note AS rsvpNote FROM event_rosters WHERE event_id = ? AND profile_id = ? LIMIT 1",
       change.eventId,
       change.profileId,
     )
     .toArray()
     .at(0);
   const previous = existing?.rsvp ?? "Pending";
-  if (existing && previous === change.newRsvp) return false;
+  const requestedNote = change.newRsvp === "No" ? change.rsvpNote : "";
+  if (existing && previous === change.newRsvp) {
+    if (existing.rsvpNote === requestedNote) return false;
+    storage.sql.exec(
+      `UPDATE event_rosters SET rsvp_note = ?, updated_at = ?
+       WHERE event_id = ? AND profile_id = ?`,
+      requestedNote,
+      change.occurredAt,
+      change.eventId,
+      change.profileId,
+    );
+    insertAudit(
+      storage,
+      change.actor,
+      "event.rsvp.note_updated",
+      "event_roster",
+      `${change.eventId}:${change.profileId}`,
+      {
+        automatic: change.automatic,
+        rsvp: change.newRsvp,
+        reason: change.reason,
+      },
+      change.occurredAt,
+    );
+    return true;
+  }
   storage.sql.exec(
     `INSERT INTO event_rosters (event_id, profile_id, rsvp, rsvp_note, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)
@@ -393,7 +422,7 @@ export function recordEventRsvpChange(
     change.eventId,
     change.profileId,
     change.newRsvp,
-    change.newRsvp === "No" ? change.rsvpNote : "",
+    requestedNote,
     change.occurredAt,
     change.occurredAt,
   );

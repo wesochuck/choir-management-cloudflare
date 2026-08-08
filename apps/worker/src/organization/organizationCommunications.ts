@@ -272,6 +272,7 @@ export async function queueAutomatedOrganizationCommunication(
   context: ActorContext & { readonly organizationOrigin: string },
   input: {
     readonly contentMarkdown: string;
+    readonly dedupeKey?: string;
     readonly eventId: string | null;
     readonly recipients: readonly AutomatedCommunicationRecipient[];
     readonly subject: string;
@@ -305,6 +306,7 @@ export async function queueAutomatedOrganizationCommunication(
     action: "send",
     actorType: "organization_system",
     ...context,
+    dedupeKey: input.dedupeKey,
     jobId: crypto.randomUUID(),
     message: {
       audience: {

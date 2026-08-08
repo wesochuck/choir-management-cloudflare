@@ -52,14 +52,15 @@ and attributable through the same history path.
 ## Not brought forward yet
 
 These legacy templates are intentionally flagged rather than seeded with broken placeholders. The
-new delivery path does not currently provide their required context or automated delivery behavior:
+RSVP Decline Notice now has a typed automated delivery path, but it is not yet an editable
+Communication Center template; the remaining entries still lack their required delivery context:
 
 | Legacy template(s)                               | Missing capability in the current project                                                                                                  |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | RSVP Confirmation; Free Ticket RSVP Confirmation | Public/member RSVP confirmation workflows do not expose the buyer/event confirmation fields to the Communication Center template renderer. |
 | Audition Declined                                | The declined-audition delivery path and its status-specific context are not yet exposed as a Communication Center system template.         |
 | Ticket Sale, Donation, and Refund admin notices  | Financial notifications are not yet exposed as editable Communication Center templates.                                                    |
-| RSVP Decline Notice                              | The composer does not expose administrator, declined-member, voice-part, or RSVP-note context.                                             |
+| RSVP Decline Notice                              | The composer does not expose administrator, declined-member, voice-part, or RSVP-note context for editing this automated message.          |
 
 When those delivery paths expose typed context, the templates can be promoted from this list into
 the migration seed without changing the template storage model.

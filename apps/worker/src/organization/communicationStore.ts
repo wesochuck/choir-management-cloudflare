@@ -57,6 +57,7 @@ const sendOperationSchema = contextSchema
       .enum(["organization_member", "organization_system"])
       .default("organization_member"),
     jobId: z.uuid(),
+    dedupeKey: z.string().trim().min(1).max(256).optional(),
     message: communicationSendRequestSchema,
     messageId: z.uuid(),
     recipients: z.array(recipientSchema).max(500),
@@ -546,6 +547,20 @@ async function sendMessage(
   operation: z.infer<typeof sendOperationSchema>,
   now: string,
 ): Promise<Response> {
+  if (operation.dedupeKey) {
+    const existing = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+        "SELECT id FROM communication_messages WHERE dedupe_key = ? LIMIT 1",
+        operation.dedupeKey,
+      )
+      .toArray()
+      .at(0);
+    if (existing) {
+      const message = readMessage(storage, existing.id);
+      if (!message) throw new Error("The deduplicated communication message could not be read.");
+      return Response.json(message);
+    }
+  }
   const reach = communicationReach(operation.recipients, operation.message.channel);
   if (reach.total === 0)
     return Response.json({ code: "communication_has_no_recipients" }, { status: 409 });
@@ -558,12 +573,12 @@ async function sendMessage(
   if (deliveries.length > MAX_COMMUNICATION_DELIVERIES) {
     return Response.json({ code: "communication_delivery_limit_exceeded" }, { status: 413 });
   }
-  storage.transactionSync(() => {
+  const inserted = storage.transactionSync(() => {
     storage.sql.exec(
-      `INSERT INTO communication_messages
+      `INSERT${operation.dedupeKey ? " OR IGNORE" : ""} INTO communication_messages
         (id, channel, status, subject, content_markdown, audience_json, reach_json,
-         created_by, created_at, updated_at, queued_at)
-       VALUES (?, ?, 'Queued', ?, ?, ?, ?, ?, ?, ?, ?)`,
+         created_by, created_at, updated_at, queued_at, dedupe_key)
+       VALUES (?, ?, 'Queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       operation.messageId,
       operation.message.channel,
       operation.message.subject,
@@ -574,7 +589,21 @@ async function sendMessage(
       now,
       now,
       now,
+      operation.dedupeKey ?? null,
     );
+    const persisted = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+        operation.dedupeKey
+          ? "SELECT id FROM communication_messages WHERE dedupe_key = ? LIMIT 1"
+          : "SELECT id FROM communication_messages WHERE id = ? LIMIT 1",
+        operation.dedupeKey ?? operation.messageId,
+      )
+      .toArray()
+      .at(0);
+    if (!persisted) throw new Error("The communication message was not persisted.");
+    if (persisted.id !== operation.messageId) {
+      return false;
+    }
     for (const delivery of deliveries) {
       storage.sql.exec(
         `INSERT INTO communication_deliveries
@@ -611,7 +640,21 @@ async function sendMessage(
       "communication_message",
       operation.actorType,
     );
+    return true;
   });
+  if (!inserted) {
+    const existing = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+        "SELECT id FROM communication_messages WHERE dedupe_key = ? LIMIT 1",
+        operation.dedupeKey,
+      )
+      .toArray()
+      .at(0);
+    if (!existing) throw new Error("The deduplicated communication message could not be read.");
+    const message = readMessage(storage, existing.id);
+    if (!message) throw new Error("The deduplicated communication message could not be read.");
+    return Response.json(message);
+  }
   await storage.setAlarm(Date.now() + 1);
   return Response.json(readMessage(storage, operation.messageId));
 }

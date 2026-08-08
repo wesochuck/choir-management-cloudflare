@@ -56,12 +56,15 @@ async function assertProfileMutationAccepted(response: Response, operation: stri
   if (!response.ok) throw new Error(`The Organization store rejected the Profile ${operation}.`);
 }
 
-function organizationStub(env: Env, organizationId: string): DurableObjectStub {
+function organizationStub(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+): DurableObjectStub {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
 
 export async function listOrganizationProfiles(
-  env: Env,
+  env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly OrganizationProfile[]> {
   const url = new URL("https://organization.internal/internal/profiles");

@@ -1693,6 +1693,14 @@ export async function manageOrganizationCalendarInStore(
   if (event.isCanceled === 1) {
     return Response.json({ code: "event_canceled" }, { status: 409 });
   }
+  if (
+    rsvpOperation.selfService &&
+    event.type === "Rehearsal" &&
+    rsvpOperation.rsvp.rsvp === "No" &&
+    rsvpOperation.rsvp.rsvpNote.trim() === ""
+  ) {
+    return Response.json({ code: "rsvp_decline_note_required" }, { status: 400 });
+  }
   if (rsvpOperation.selfService) {
     const configuration = readRosterAutomationConfiguration(storage);
     const timezone = storage.sql

@@ -9,6 +9,7 @@ const ALPHA_PROFILE = "11111111-1111-4111-8111-111111111111";
 const BRAVO_PROFILE = "22222222-2222-4222-8222-222222222222";
 const ALPHA_EVENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BRAVO_EVENT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const ALPHA_REHEARSAL = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
   if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -257,6 +258,49 @@ describe("public RSVP signed flow", () => {
           .at(0) ?? null,
     );
     expect(row).toEqual({ rsvp: "No", rsvpNote: "Family event" });
+  });
+
+  it("requires a note when a public RSVP declines a rehearsal", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const now = new Date().toISOString();
+        state.storage.sql.exec(
+          `INSERT INTO events
+            (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
+             parent_performance_id, details, set_list_json, set_list_approved,
+             is_archived, created_at, updated_at)
+           VALUES (?, 'alpha Rehearsal', 'Rehearsal', ?, 120, '', '', NULL, NULL, '', '[]', 0, 0, ?, ?)`,
+          ALPHA_REHEARSAL,
+          new Date(Date.now() + 10 * 24 * 60 * 60 * 1_000).toISOString(),
+          now,
+          now,
+        );
+        return null;
+      },
+    );
+    const token = await issueRsvpToken("organization-alpha", ALPHA_REHEARSAL, ALPHA_PROFILE);
+    const missingNote = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/quick-rsvp", {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "   ", token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(missingNote.status).toBe(400);
+    await expect(missingNote.json()).resolves.toMatchObject({
+      code: "rsvp_decline_note_required",
+    });
+
+    const submitted = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/quick-rsvp", {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "Family event", token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(submitted.status).toBe(200);
+    await expect(submitted.json()).resolves.toMatchObject({ rsvp: "No" });
   });
 
   it("marks RSVP details as closed after the event starts", async () => {

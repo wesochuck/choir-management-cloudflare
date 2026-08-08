@@ -1,4 +1,5 @@
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
+import { organizationRsvpSchema, type OrganizationRsvp } from "@choir/contracts";
 import type { Env } from "../env";
 
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
@@ -145,7 +146,7 @@ export async function submitQuickRsvp(
   rsvp: "Yes" | "No" | "Pending",
   rsvpNote: string,
 ): Promise<
-  | { readonly status: number; readonly code?: never }
+  | { readonly rsvp: OrganizationRsvp; readonly status: number }
   | { readonly code: string; readonly status: number }
 > {
   const envelope = await verifySignedLinkScope(env.SIGNED_LINK_SECRET, token, {
@@ -173,7 +174,17 @@ export async function submitQuickRsvp(
     },
   );
   if (!response.ok) {
-    return { code: "rsvp_update_failed", status: response.status };
+    const errorBody: unknown = await response.json().catch(() => null);
+    const code =
+      typeof errorBody === "object" &&
+      errorBody !== null &&
+      "code" in errorBody &&
+      typeof errorBody.code === "string"
+        ? errorBody.code
+        : "rsvp_update_failed";
+    return { code, status: response.status };
   }
-  return { status: response.status };
+  const updated = organizationRsvpSchema.safeParse(await response.json().catch(() => null));
+  if (!updated.success) return { code: "rsvp_update_failed", status: 502 };
+  return { rsvp: updated.data, status: response.status };
 }

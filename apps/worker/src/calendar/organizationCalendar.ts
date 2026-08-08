@@ -41,12 +41,33 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
+import { z } from "zod";
 
 interface ActorContext {
   readonly actorUserId: string;
   readonly organizationId: string;
   readonly requestId: string;
 }
+
+const organizationProfileEventRsvpSchema = z.object({
+  callTime: z.string().max(5),
+  details: z.string().max(100_000),
+  displayName: z.string().min(1).max(200),
+  durationMinutes: z.number().int().positive().nullable(),
+  id: z.uuid(),
+  location: z.string().max(2_000),
+  profileId: z.uuid(),
+  rsvp: z.enum(["No", "Pending", "Yes"]),
+  rsvpNote: z.string().max(2_000),
+  rsvpSelfServiceOpen: z.boolean(),
+  startsAt: z.iso.datetime(),
+  title: z.string().min(1).max(500),
+  type: z.enum(["Performance", "Rehearsal"]),
+  venueAddress: z.string().max(2_000),
+  venueName: z.string().max(500),
+});
+
+export type OrganizationProfileEventRsvp = z.infer<typeof organizationProfileEventRsvpSchema>;
 
 export class CalendarMutationError extends Error {
   constructor(
@@ -63,7 +84,7 @@ function errorCode(value: unknown): string {
   return typeof value.code === "string" ? value.code : "unknown";
 }
 
-function stub(env: Env, organizationId: string): DurableObjectStub {
+function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string): DurableObjectStub {
   return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
 }
 
@@ -104,6 +125,22 @@ export async function listOrganizationEventRsvpHistory(
   const response = await stub(env, organizationId).fetch(url);
   if (!response.ok) throw new Error("The Organization store rejected the RSVP history request.");
   return organizationEventRsvpHistoryResponseSchema.parse(await response.json());
+}
+
+export async function readOrganizationProfileEventRsvp(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  eventId: string,
+  profileId: string,
+): Promise<OrganizationProfileEventRsvp | null> {
+  const url = new URL("https://organization.internal/internal/calendar/event-rsvp");
+  url.searchParams.set("eventId", eventId);
+  url.searchParams.set("organizationId", organizationId);
+  url.searchParams.set("profileId", profileId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("The Organization store rejected the RSVP details request.");
+  return organizationProfileEventRsvpSchema.parse(await response.json());
 }
 
 export async function listOrganizationProfileFolderNumbers(
@@ -330,7 +367,7 @@ export async function setOrganizationEventRsvp(
 }
 
 export async function readOrganizationCalendarSettings(
-  env: Env,
+  env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<OrganizationCalendarSettings> {
   const url = new URL("https://organization.internal/internal/calendar/settings");

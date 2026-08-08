@@ -32,6 +32,7 @@ import {
   readPublicDonationReceipt,
 } from "../organization/organizationDonations";
 import { resolveRsvpDetails, submitQuickRsvp } from "../organization/organizationRsvpLinks";
+import { queueRsvpDeclineNotice } from "../organization/rsvpDeclineNotifications";
 import { resolvePollDetails, submitPollResponse } from "../organization/organizationPollLinks";
 
 import type { Hono } from "hono";
@@ -536,11 +537,36 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           message:
             result.code === "invalid_link"
               ? "This RSVP link is invalid or expired."
-              : "RSVP could not be submitted.",
+              : result.code === "rsvp_decline_note_required"
+                ? "A note is required when declining a rehearsal."
+                : "RSVP could not be submitted.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         status as Parameters<typeof context.json>[1],
+      );
+    }
+    if (result.rsvp.rsvp === "No") {
+      context.executionCtx.waitUntil(
+        queueRsvpDeclineNotice(context.env, {
+          actorUserId: `public:${result.rsvp.profileId}`,
+          eventId: result.rsvp.eventId,
+          organizationId: resolved.value.organizationId,
+          organizationOrigin: new URL(context.req.url).origin,
+          profileId: result.rsvp.profileId,
+          requestId: context.get("requestId"),
+          updatedAt: result.rsvp.updatedAt,
+        }).catch(() => {
+          console.error(
+            JSON.stringify({
+              event: "rsvp_decline_notice_queue_failed",
+              eventId: result.rsvp.eventId,
+              organizationId: resolved.value.organizationId,
+              profileId: result.rsvp.profileId,
+              requestId: context.get("requestId"),
+            }),
+          );
+        }),
       );
     }
     return context.json({ rsvp: body.data.rsvp, requestId: context.get("requestId") });

@@ -98,6 +98,7 @@ function RsvpForm({
   const initialRsvp = details.rsvp === "Yes" ? "Yes" : details.rsvp === "No" ? "No" : "Yes";
   const [rsvp, setRsvp] = useState<"Yes" | "No" | "Pending">(initialRsvp);
   const [rsvpNote, setRsvpNote] = useState(details.rsvpNote);
+  const noteRequired = details.event.type === "Rehearsal" && rsvp === "No";
 
   if (!details.canSubmit) {
     return (
@@ -138,21 +139,33 @@ function RsvpForm({
       </div>
 
       {rsvp === "No" && (
-        <textarea
-          className="w-full rounded border p-3 text-sm"
-          maxLength={2000}
-          onChange={(e) => {
-            setRsvpNote(e.target.value);
-          }}
-          placeholder="Let us know why (optional)..."
-          rows={3}
-          value={rsvpNote}
-        />
+        <div className="space-y-1">
+          <label htmlFor="public-rsvp-note">
+            Decline note{noteRequired ? " (required for rehearsals)" : " (optional)"}
+          </label>
+          <textarea
+            aria-required={noteRequired}
+            className="w-full rounded border p-3 text-sm"
+            id="public-rsvp-note"
+            maxLength={2000}
+            onChange={(e) => {
+              setRsvpNote(e.target.value);
+            }}
+            placeholder={
+              noteRequired
+                ? "Tell the Organization why you cannot attend..."
+                : "Let us know why (optional)..."
+            }
+            required={noteRequired}
+            rows={3}
+            value={rsvpNote}
+          />
+        </div>
       )}
 
       <button
         className={`button button--primary w-full ${busy ? "button--disabled" : ""}`}
-        disabled={busy || !details.canSubmit}
+        disabled={busy || (noteRequired && !rsvpNote.trim())}
         onClick={() => {
           onSubmit(rsvp, rsvpNote);
         }}

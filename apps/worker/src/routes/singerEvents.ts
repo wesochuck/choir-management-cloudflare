@@ -6,6 +6,7 @@ import {
   readOrganizationCalendarSettings,
   setOrganizationEventRsvp,
 } from "../calendar/organizationCalendar";
+import { queueRsvpDeclineNotice } from "../organization/rsvpDeclineNotifications";
 import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
 
 import type { Hono } from "hono";
@@ -116,6 +117,29 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         { profileId, rsvp: body.data.rsvp, rsvpNote: body.data.rsvpNote },
         true,
       );
+      if (rsvp.rsvp === "No") {
+        context.executionCtx.waitUntil(
+          queueRsvpDeclineNotice(context.env, {
+            actorUserId: authorization.userId,
+            eventId: rsvp.eventId,
+            organizationId: authorization.organizationId,
+            organizationOrigin: new URL(context.req.url).origin,
+            profileId: rsvp.profileId,
+            requestId: context.get("requestId"),
+            updatedAt: rsvp.updatedAt,
+          }).catch(() => {
+            console.error(
+              JSON.stringify({
+                event: "rsvp_decline_notice_queue_failed",
+                eventId: rsvp.eventId,
+                organizationId: authorization.organizationId,
+                profileId: rsvp.profileId,
+                requestId: context.get("requestId"),
+              }),
+            );
+          }),
+        );
+      }
       return context.json({ ...rsvp, requestId: context.get("requestId") });
     } catch (error: unknown) {
       if (error instanceof CalendarMutationError) {
@@ -125,7 +149,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             message:
               error.code === "rsvp_closed"
                 ? "The RSVP deadline has passed."
-                : "The RSVP could not be updated.",
+                : error.code === "rsvp_decline_note_required"
+                  ? "A note is required when declining a rehearsal."
+                  : "The RSVP could not be updated.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           setupFailureStatus(error.status),

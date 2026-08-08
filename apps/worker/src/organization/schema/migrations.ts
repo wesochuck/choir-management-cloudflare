@@ -1088,6 +1088,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "UPDATE event_rosters SET folder_returned_at = updated_at WHERE folder_number <> '' AND folder_returned = 1 AND folder_returned_at IS NULL",
     ],
   },
+  {
+    version: 65,
+    statements: [
+      "ALTER TABLE communication_messages ADD COLUMN dedupe_key TEXT",
+      "CREATE UNIQUE INDEX idx_communication_messages_dedupe ON communication_messages(dedupe_key) WHERE dedupe_key IS NOT NULL",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -11,6 +11,32 @@ const profileId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const seasonId = "12121212-1212-4121-8121-121212121212";
 const pollId = "34343434-3434-4343-8434-343434343434";
 
+const memberDashboardRehearsal = {
+  attendanceWarning: null,
+  callTime: "18:00",
+  details: "Bring your music.",
+  directRsvp: "Pending" as const,
+  durationMinutes: 120,
+  featuredAssignments: [],
+  id: eventId,
+  inheritedFromParent: false,
+  location: "Choir Room",
+  practice: { sourceEventId: null, status: "not_published" as const, trackCount: 0 },
+  resolvedRsvp: "Pending" as const,
+  rsvpDeadlineAt: null,
+  rsvpDeadlineDate: null,
+  rsvpDeadlinePassed: false,
+  rsvpNote: "",
+  rsvpSelfServiceOpen: true,
+  seating: { status: "not_published" as const },
+  setList: [],
+  startsAt: "2026-08-21T23:00:00.000Z",
+  title: "Weekly Rehearsal",
+  type: "Rehearsal" as const,
+  venueAddress: "",
+  venueName: "",
+};
+
 const session = {
   session: {
     activeOrganizationId: null,
@@ -317,7 +343,7 @@ async function handleDataRoute(route: Route): Promise<boolean> {
       activeSeasonState: "disabled",
       bulletins: [],
       bulletinsState: "ready",
-      events: [],
+      events: [memberDashboardRehearsal],
       modules: [
         { enabled: true, id: "events" },
         { enabled: true, id: "people" },
@@ -468,4 +494,56 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
       ).toBe(false);
     }
   }
+});
+
+test("member RSVP actions show feedback and use a decline modal", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (await handleShellRoute(route)) return;
+    if (url.pathname === `/api/singer/events/${eventId}/rsvp`) {
+      const body: unknown = route.request().postDataJSON();
+      const rsvp =
+        typeof body === "object" &&
+        body !== null &&
+        "rsvp" in body &&
+        (body.rsvp === "No" || body.rsvp === "Yes")
+          ? body.rsvp
+          : "Pending";
+      const rsvpNote =
+        typeof body === "object" &&
+        body !== null &&
+        "rsvpNote" in body &&
+        typeof body.rsvpNote === "string"
+          ? body.rsvpNote
+          : "";
+      await fulfillJson(route, {
+        eventId,
+        profileId,
+        requestId,
+        rsvp,
+        rsvpNote,
+        updatedAt: "2026-07-20T20:10:00.000Z",
+      });
+      return;
+    }
+    if (await handleDataRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/dashboard");
+  const eventCard = page
+    .locator("article.member-dashboard__event-card")
+    .filter({ hasText: "Weekly Rehearsal" });
+  await expect(eventCard).toBeVisible();
+  await eventCard.getByRole("button", { name: "Attend", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Your RSVP was updated.");
+
+  await eventCard.getByRole("button", { name: "Decline", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Decline rehearsal" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Decline rehearsal" })).toBeDisabled();
+  await dialog.getByLabel("Note").fill("Travel conflict");
+  await dialog.getByRole("button", { name: "Decline rehearsal" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("status")).toContainText("Your RSVP was updated.");
 });

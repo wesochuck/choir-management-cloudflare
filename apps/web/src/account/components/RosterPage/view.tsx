@@ -819,6 +819,19 @@ export function RosterPageView({
               />
               Receive administrator notifications, including audition emails
             </label>
+            <label className="checkbox-row">
+              <input
+                checked={profile.receiveRsvpDeclineNotices}
+                onChange={(event) => {
+                  setProfile((current) => ({
+                    ...current,
+                    receiveRsvpDeclineNotices: event.target.checked,
+                  }));
+                }}
+                type="checkbox"
+              />
+              Receive RSVP decline notices
+            </label>
             <div className="dialog__actions">
               <button className="button button--secondary" onClick={closeDialog} type="button">
                 Cancel

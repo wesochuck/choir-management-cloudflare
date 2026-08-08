@@ -1,4 +1,4 @@
-import { singerEventsResponseSchema } from "@choir/contracts";
+import { organizationRsvpSchema, singerEventsResponseSchema } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -8,8 +8,11 @@ import {
   readCapturedPlatformEmailsForTest,
 } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+import { queueRsvpDeclineNotice } from "../src/organization/rsvpDeclineNotifications";
 
 const USER_EMAIL = "self-rsvp@example.test";
+const ADMIN_EMAIL = "rsvp-admin@example.test";
+const ADMIN_PROFILE = "33333333-3333-4333-8333-333333333333";
 const ALPHA_PROFILE = "11111111-1111-4111-8111-111111111111";
 const BRAVO_PROFILE = "22222222-2222-4222-8222-222222222222";
 const PERFORMANCE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -22,6 +25,12 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 
 const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const signedLinkSecret = requireBinding(env.SIGNED_LINK_SECRET, "SIGNED_LINK_SECRET");
+const notificationEnv = {
+  CONTROL_DB: database,
+  ORGANIZATION_STORE: stores,
+  SIGNED_LINK_SECRET: signedLinkSecret,
+};
 
 function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
   const headers = new Headers(init?.headers);
@@ -122,6 +131,32 @@ async function provision(id: string, name: string, slug: string, profileId: stri
   });
 }
 
+async function provisionRsvpAdministrator(): Promise<void> {
+  const now = Date.now();
+  await database
+    .prepare(
+      `INSERT INTO member (id, organizationId, userId, role, createdAt, profileId)
+       VALUES ('member-rsvp-admin', 'organization-alpha', 'rsvp-admin-user', 'admin', ?, ?)`,
+    )
+    .bind(now, ADMIN_PROFILE)
+    .run();
+  await runInDurableObject<OrganizationStore, null>(
+    stores.get(stores.idFromName("organization-alpha")),
+    (_instance, state) => {
+      const createdAt = new Date().toISOString();
+      state.storage.sql.exec(
+        `INSERT INTO profiles
+          (id, display_name, voice_part, receive_rsvp_decline_notices, created_at, updated_at)
+         VALUES (?, 'RSVP Administrator', 'S1', 1, ?, ?)`,
+        ADMIN_PROFILE,
+        createdAt,
+        createdAt,
+      );
+      return null;
+    },
+  );
+}
+
 async function signIn(): Promise<string> {
   await exports.default.fetch(
     api("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
@@ -147,16 +182,25 @@ beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
   const now = Date.now();
-  await database
-    .prepare(
-      `INSERT INTO user
-        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-       VALUES ('self-rsvp-user', 'Self RSVP', ?, 0, ?, ?, 0)`,
-    )
-    .bind(USER_EMAIL, now, now)
-    .run();
+  await database.batch([
+    database
+      .prepare(
+        `INSERT INTO user
+          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+         VALUES ('self-rsvp-user', 'Self RSVP', ?, 0, ?, ?, 0)`,
+      )
+      .bind(USER_EMAIL, now, now),
+    database
+      .prepare(
+        `INSERT INTO user
+          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+         VALUES ('rsvp-admin-user', 'RSVP Administrator', ?, 1, ?, ?, 0)`,
+      )
+      .bind(ADMIN_EMAIL, now, now),
+  ]);
   await provision("organization-alpha", "Organization Alpha", "alpha", ALPHA_PROFILE);
   await provision("organization-bravo", "Organization Bravo", "bravo", BRAVO_PROFILE);
+  await provisionRsvpAdministrator();
 });
 
 afterEach(async () => {
@@ -227,13 +271,107 @@ describe("linked-Profile self-service RSVP", () => {
         body: JSON.stringify({
           profileId: BRAVO_PROFILE,
           rsvp: "No",
+          rsvpNote: "   ",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "rsvp_decline_note_required",
+    });
+
+    const validResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({
+          profileId: BRAVO_PROFILE,
+          rsvp: "No",
           rsvpNote: "Travel conflict",
         }),
         headers: { "content-type": "application/json" },
         method: "PUT",
       }),
     );
-    expect(response.status).toBe(200);
+    expect(validResponse.status).toBe(200);
+    const updatedRsvp = organizationRsvpSchema.parse(await validResponse.json());
+    expect(updatedRsvp).toMatchObject({
+      eventId: REHEARSAL_ID,
+      profileId: ALPHA_PROFILE,
+      rsvp: "No",
+      rsvpNote: "Travel conflict",
+    });
+
+    await queueRsvpDeclineNotice(notificationEnv, {
+      actorUserId: "self-rsvp-user",
+      eventId: REHEARSAL_ID,
+      organizationId: "organization-alpha",
+      organizationOrigin: "https://alpha.localhost",
+      profileId: ALPHA_PROFILE,
+      requestId: "66666666-6666-4666-8666-666666666666",
+      updatedAt: updatedRsvp.updatedAt,
+    });
+    await queueRsvpDeclineNotice(notificationEnv, {
+      actorUserId: "self-rsvp-user",
+      eventId: REHEARSAL_ID,
+      organizationId: "organization-alpha",
+      organizationOrigin: "https://alpha.localhost",
+      profileId: ALPHA_PROFILE,
+      requestId: "66666666-6666-4666-8666-666666666666",
+      updatedAt: updatedRsvp.updatedAt,
+    });
+    const notice = await runInDurableObject<
+      OrganizationStore,
+      { readonly content: string; readonly destination: string; readonly subject: string } | null
+    >(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{
+            readonly content: string;
+            readonly destination: string;
+            readonly subject: string;
+          }>(
+            `SELECT m.content_markdown AS content, d.destination, m.subject
+             FROM communication_messages m
+             JOIN communication_deliveries d ON d.message_id = m.id
+             WHERE d.profile_id = ? LIMIT 1`,
+            ADMIN_PROFILE,
+          )
+          .toArray()
+          .at(0) ?? null,
+    );
+    expect(notice).toMatchObject({
+      destination: ADMIN_EMAIL,
+      subject: "Organization Alpha Singer declined rehearsal: Alpha Rehearsal",
+    });
+    expect(notice?.content).toContain("Travel conflict");
+
+    const revisedNoteResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "Updated travel conflict" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(revisedNoteResponse.status).toBe(200);
+    await expect(revisedNoteResponse.json()).resolves.toMatchObject({
+      rsvpNote: "Updated travel conflict",
+    });
+    const revisedNote = await runInDurableObject<OrganizationStore, string>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly rsvpNote: string }>(
+            `SELECT rsvp_note AS rsvpNote FROM event_rosters
+             WHERE event_id = ? AND profile_id = ?`,
+            REHEARSAL_ID,
+            ALPHA_PROFILE,
+          )
+          .one().rsvpNote,
+    );
+    expect(revisedNote).toBe("Updated travel conflict");
+
     const updated = singerEventsResponseSchema.parse(
       await (
         await exports.default.fetch(api("alpha.localhost", "/api/singer/events", cookie))
@@ -243,7 +381,7 @@ describe("linked-Profile self-service RSVP", () => {
       directRsvp: "No",
       inheritedFromParent: false,
       resolvedRsvp: "No",
-      rsvpNote: "Travel conflict",
+      rsvpNote: "Updated travel conflict",
     });
     const bravo = singerEventsResponseSchema.parse(
       await (
@@ -270,7 +408,7 @@ describe("linked-Profile self-service RSVP", () => {
           .toArray()
           .at(0) ?? null,
     );
-    expect(alphaRsvp).toEqual({ note: "Travel conflict", rsvp: "No" });
+    expect(alphaRsvp).toEqual({ note: "Updated travel conflict", rsvp: "No" });
 
     const attendingResponse = await exports.default.fetch(
       api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
