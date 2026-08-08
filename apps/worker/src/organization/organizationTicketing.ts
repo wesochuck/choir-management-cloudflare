@@ -385,32 +385,11 @@ export async function listOrganizationTicketOrders(
     .parse(await response.json()).orders;
 }
 
-export async function refundFakeTicketPurchase(
-  env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE" | "STRIPE_SECRET_KEY">,
+async function refundFakeTicketPurchaseInStore(
+  env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,
   purchaseId: string,
 ): Promise<OrganizationTicketOrder> {
-  const current = (await listOrganizationTicketOrders(env, actor.organizationId)).find(
-    ({ id }) => id === purchaseId,
-  );
-  if (!current)
-    throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
-  let refundRequest: { readonly fake: boolean };
-  try {
-    refundRequest = await requestOrganizationProviderRefund(env, {
-      actorUserId: actor.actorUserId,
-      organizationId: actor.organizationId,
-      paymentType: current.bundleId ? "bundle" : "ticket",
-      requestId: actor.requestId,
-      resourceId: purchaseId,
-    });
-  } catch (error: unknown) {
-    if (error instanceof PaymentRefundError) {
-      throw new TicketingError(error.code, error.status, error.message);
-    }
-    throw error;
-  }
-  if (!refundRequest.fake) return { ...current, refundRequested: true };
   const response = await stub(env, actor.organizationId).fetch(
     "https://organization.internal/internal/ticketing/manage",
     {
@@ -428,6 +407,38 @@ export async function refundFakeTicketPurchase(
     throw new TicketingError(code, response.status, "The ticket order could not be refunded.");
   }
   return organizationTicketOrderSchema.parse(await response.json());
+}
+
+export async function refundFakeTicketPurchase(
+  env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE" | "STRIPE_SECRET_KEY">,
+  actor: ActorContext,
+  purchaseId: string,
+): Promise<OrganizationTicketOrder> {
+  const current = (await listOrganizationTicketOrders(env, actor.organizationId)).find(
+    ({ id }) => id === purchaseId,
+  );
+  if (!current)
+    throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
+  if (current.checkoutMode === "fake") {
+    return refundFakeTicketPurchaseInStore(env, actor, purchaseId);
+  }
+  let refundRequest: { readonly fake: boolean };
+  try {
+    refundRequest = await requestOrganizationProviderRefund(env, {
+      actorUserId: actor.actorUserId,
+      organizationId: actor.organizationId,
+      paymentType: current.bundleId ? "bundle" : "ticket",
+      requestId: actor.requestId,
+      resourceId: purchaseId,
+    });
+  } catch (error: unknown) {
+    if (error instanceof PaymentRefundError) {
+      throw new TicketingError(error.code, error.status, error.message);
+    }
+    throw error;
+  }
+  if (!refundRequest.fake) return { ...current, refundRequested: true };
+  return refundFakeTicketPurchaseInStore(env, actor, purchaseId);
 }
 
 export async function validateOrganizationTicketScan(
