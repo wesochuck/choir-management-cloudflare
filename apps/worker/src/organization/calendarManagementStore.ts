@@ -1148,6 +1148,7 @@ export function listMemberEventsFromStore(
        LEFT JOIN event_rosters parent
          ON parent.event_id = e.parent_performance_id AND parent.profile_id = ?
        WHERE e.is_archived = 0 AND e.is_canceled = 0 AND e.starts_at >= ? AND e.starts_at <= ?
+         AND (e.type <> 'Rehearsal' OR parent.rsvp IS NULL OR parent.rsvp <> 'No')
        ORDER BY e.starts_at ASC, e.id ASC LIMIT 500`,
       profileId.data,
       profileId.data,

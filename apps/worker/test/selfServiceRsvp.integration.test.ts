@@ -466,6 +466,34 @@ describe("linked-Profile self-service RSVP", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "rsvp_closed" });
   });
 
+  it("hides every linked rehearsal after the member declines its parent performance", async () => {
+    const cookie = await signIn();
+    const rehearsalResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(rehearsalResponse.status).toBe(200);
+
+    const performanceResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${PERFORMANCE_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(performanceResponse.status).toBe(200);
+
+    const schedule = singerEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/singer/events", cookie))
+      ).json(),
+    );
+    expect(schedule.events.map((event) => event.id)).toEqual([PERFORMANCE_ID]);
+  });
+
   it("hides past events unless the member asks to show them", async () => {
     await runInDurableObject<OrganizationStore, null>(
       stores.get(stores.idFromName("organization-alpha")),

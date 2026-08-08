@@ -37,6 +37,19 @@ const memberDashboardRehearsal = {
   venueName: "",
 };
 
+const memberSchedulePerformance = {
+  ...memberDashboardRehearsal,
+  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  title: "Schedule Performance",
+  type: "Performance" as const,
+};
+
+const memberScheduleRehearsal = {
+  ...memberDashboardRehearsal,
+  id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+  title: "Schedule Rehearsal",
+};
+
 const session = {
   session: {
     activeOrganizationId: null,
@@ -362,6 +375,15 @@ async function handleDataRoute(route: Route): Promise<boolean> {
     });
     return true;
   }
+  if (url.pathname === "/api/singer/events") {
+    await fulfillJson(route, {
+      events: [memberSchedulePerformance, memberScheduleRehearsal],
+      profileId,
+      requestId,
+      timezone: "America/New_York",
+    });
+    return true;
+  }
   return false;
 }
 
@@ -546,4 +568,81 @@ test("member RSVP actions show feedback and use a decline modal", async ({ page 
   await dialog.getByRole("button", { name: "Decline rehearsal" }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("status")).toContainText("Your RSVP was updated.");
+});
+
+test("member schedule uses Yes and No buttons for RSVP choices", async ({ page }) => {
+  let scheduleRsvp: "No" | "Pending" | "Yes" = "Pending";
+  let scheduleRsvpNote = "";
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (await handleShellRoute(route)) return;
+    if (url.pathname === "/api/singer/events") {
+      await fulfillJson(route, {
+        events: [
+          memberSchedulePerformance,
+          {
+            ...memberScheduleRehearsal,
+            directRsvp: scheduleRsvp,
+            inheritedFromParent: scheduleRsvp === "Pending",
+            resolvedRsvp: scheduleRsvp,
+            rsvpNote: scheduleRsvp === "No" ? scheduleRsvpNote : "",
+          },
+        ],
+        profileId,
+        requestId,
+        timezone: "America/New_York",
+      });
+      return;
+    }
+    if (url.pathname.endsWith("/rsvp")) {
+      const body: unknown = route.request().postDataJSON();
+      const rsvp =
+        typeof body === "object" &&
+        body !== null &&
+        "rsvp" in body &&
+        (body.rsvp === "No" || body.rsvp === "Yes")
+          ? body.rsvp
+          : "Pending";
+      scheduleRsvp = rsvp;
+      scheduleRsvpNote =
+        typeof body === "object" &&
+        body !== null &&
+        "rsvpNote" in body &&
+        typeof body.rsvpNote === "string"
+          ? body.rsvpNote
+          : "";
+      await fulfillJson(route, {
+        eventId: memberScheduleRehearsal.id,
+        profileId,
+        requestId,
+        rsvp,
+        rsvpNote: scheduleRsvpNote,
+        updatedAt: "2026-07-20T20:10:00.000Z",
+      });
+      return;
+    }
+    if (await handleDataRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/schedule");
+  const scheduleRehearsal = page
+    .locator(".schedule-list > li")
+    .filter({ hasText: "Schedule Rehearsal" });
+  await expect(scheduleRehearsal).toBeVisible();
+  await expect(page.locator(".schedule-rsvp select")).toHaveCount(0);
+  await expect(scheduleRehearsal.getByRole("button", { name: "Yes", exact: true })).toBeVisible();
+  await expect(scheduleRehearsal.getByRole("button", { name: "No", exact: true })).toBeVisible();
+
+  await scheduleRehearsal.getByRole("button", { name: "No", exact: true }).click();
+  const declineNote = scheduleRehearsal.getByLabel("Decline note (required)", { exact: true });
+  await expect(declineNote).toBeVisible();
+  await expect(scheduleRehearsal.getByRole("button", { name: "Save RSVP" })).toBeDisabled();
+  await declineNote.fill("Travel conflict");
+  await scheduleRehearsal.getByRole("button", { name: "Save RSVP" }).click();
+  await expect(page.getByRole("status")).toContainText("Your RSVP was updated.");
+  await expect(scheduleRehearsal.getByRole("button", { name: "No", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });

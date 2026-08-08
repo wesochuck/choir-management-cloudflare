@@ -12,6 +12,8 @@ type ScheduleState =
   | { readonly status: "missing" }
   | ({ readonly status: "ready" } & SingerEventsResponse);
 
+const RSVP_OPTIONS = ["Yes", "No"] as const;
+
 function displayDate(value: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "full",
@@ -52,6 +54,81 @@ function performerCredit(
   return `Featured: ${credits.join(", ")}`;
 }
 
+function ScheduleRsvpField({
+  busy,
+  event,
+  onChangeNote,
+  onSave,
+  onSelectRsvp,
+}: {
+  readonly busy: boolean;
+  readonly event: SingerEvent;
+  readonly onChangeNote: (note: string) => void;
+  readonly onSave: () => void;
+  readonly onSelectRsvp: (rsvp: "No" | "Yes") => void;
+}) {
+  return (
+    <div className="field schedule-rsvp">
+      <fieldset className="schedule-rsvp__choices">
+        <legend>Your RSVP</legend>
+        <div className="schedule-rsvp__buttons">
+          {RSVP_OPTIONS.map((rsvp) => (
+            <button
+              aria-pressed={event.directRsvp === rsvp}
+              className={
+                event.directRsvp === rsvp ? "button button--primary" : "button button--secondary"
+              }
+              disabled={busy || !event.rsvpSelfServiceOpen}
+              key={rsvp}
+              onClick={() => {
+                onSelectRsvp(rsvp);
+              }}
+              type="button"
+            >
+              {rsvp}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      {event.directRsvp === "Pending" ? (
+        <p className="field-help">Choose Yes or No before saving your RSVP.</p>
+      ) : null}
+      {event.directRsvp === "No" ? (
+        <>
+          <label htmlFor={`my-rsvp-note-${event.id}`}>
+            Decline note{event.type === "Rehearsal" ? " (required)" : ""}
+          </label>
+          <textarea
+            aria-required={event.type === "Rehearsal"}
+            disabled={busy || !event.rsvpSelfServiceOpen}
+            id={`my-rsvp-note-${event.id}`}
+            maxLength={2000}
+            onChange={(change) => {
+              onChangeNote(change.target.value);
+            }}
+            required={event.type === "Rehearsal"}
+            rows={3}
+            value={event.rsvpNote}
+          />
+        </>
+      ) : null}
+      <button
+        className="button button--secondary"
+        disabled={
+          busy ||
+          !event.rsvpSelfServiceOpen ||
+          event.directRsvp === "Pending" ||
+          (rsvpNoteRequired(event) && !event.rsvpNote.trim())
+        }
+        onClick={onSave}
+        type="button"
+      >
+        Save RSVP
+      </button>
+    </div>
+  );
+}
+
 export function MySchedule({ enabled }: { readonly enabled: boolean }) {
   const { performerLabelPlural } = useOrganizationTerminology();
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
@@ -87,24 +164,29 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
     setFeedback(null);
     try {
       const saved = await setMyEventRsvp(eventId, rsvp, rsvpNote);
-      setState((current) =>
-        current.status === "ready"
-          ? {
-              ...current,
-              events: current.events.map((event) =>
-                event.id === eventId
-                  ? {
-                      ...event,
-                      directRsvp: saved.rsvp,
-                      inheritedFromParent: false,
-                      resolvedRsvp: saved.rsvp,
-                      rsvpNote: saved.rsvpNote,
-                    }
-                  : event,
-              ),
-            }
-          : current,
-      );
+      try {
+        const refreshed = await getMySchedule(undefined, showPastEvents);
+        setState({ ...refreshed, status: "ready" });
+      } catch {
+        setState((current) =>
+          current.status === "ready"
+            ? {
+                ...current,
+                events: current.events.map((event) =>
+                  event.id === eventId
+                    ? {
+                        ...event,
+                        directRsvp: saved.rsvp,
+                        inheritedFromParent: false,
+                        resolvedRsvp: saved.rsvp,
+                        rsvpNote: saved.rsvpNote,
+                      }
+                    : event,
+                ),
+              }
+            : current,
+        );
+      }
       setFeedback("Your RSVP was updated.");
     } catch (error: unknown) {
       setFeedback(
@@ -113,6 +195,40 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
     } finally {
       setBusyEventId(null);
     }
+  }
+
+  function updateDraftRsvp(eventId: string, rsvp: "No" | "Yes"): void {
+    setState((current) =>
+      current.status === "ready"
+        ? {
+            ...current,
+            events: current.events.map((candidate) =>
+              candidate.id === eventId
+                ? {
+                    ...candidate,
+                    directRsvp: rsvp,
+                    inheritedFromParent: false,
+                    resolvedRsvp: rsvp,
+                    rsvpNote: rsvp === "No" ? candidate.rsvpNote : "",
+                  }
+                : candidate,
+            ),
+          }
+        : current,
+    );
+  }
+
+  function updateDraftRsvpNote(eventId: string, rsvpNote: string): void {
+    setState((current) =>
+      current.status === "ready"
+        ? {
+            ...current,
+            events: current.events.map((candidate) =>
+              candidate.id === eventId ? { ...candidate, rsvpNote } : candidate,
+            ),
+          }
+        : current,
+    );
   }
 
   return (
@@ -216,85 +332,19 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                       </div>
                     ) : null}
                   </div>
-                  <div className="field schedule-rsvp">
-                    <label htmlFor={`my-rsvp-${event.id}`}>Your RSVP</label>
-                    <select
-                      disabled={busyEventId !== null || !event.rsvpSelfServiceOpen}
-                      id={`my-rsvp-${event.id}`}
-                      onChange={(change) => {
-                        const value = change.target.value;
-                        const rsvp = value === "Yes" || value === "No" ? value : "Pending";
-                        setState((current) =>
-                          current.status === "ready"
-                            ? {
-                                ...current,
-                                events: current.events.map((candidate) =>
-                                  candidate.id === event.id
-                                    ? {
-                                        ...candidate,
-                                        directRsvp: rsvp,
-                                        inheritedFromParent: false,
-                                        resolvedRsvp: rsvp,
-                                        rsvpNote: rsvp === "No" ? candidate.rsvpNote : "",
-                                      }
-                                    : candidate,
-                                ),
-                              }
-                            : current,
-                        );
-                      }}
-                      value={event.directRsvp}
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                    {event.directRsvp === "No" ? (
-                      <>
-                        <label htmlFor={`my-rsvp-note-${event.id}`}>
-                          Decline note{event.type === "Rehearsal" ? " (required)" : ""}
-                        </label>
-                        <textarea
-                          aria-required={event.type === "Rehearsal"}
-                          disabled={busyEventId !== null || !event.rsvpSelfServiceOpen}
-                          id={`my-rsvp-note-${event.id}`}
-                          maxLength={2000}
-                          onChange={(change) => {
-                            const rsvpNote = change.target.value;
-                            setState((current) =>
-                              current.status === "ready"
-                                ? {
-                                    ...current,
-                                    events: current.events.map((candidate) =>
-                                      candidate.id === event.id
-                                        ? { ...candidate, rsvpNote }
-                                        : candidate,
-                                    ),
-                                  }
-                                : current,
-                            );
-                          }}
-                          required={event.type === "Rehearsal"}
-                          rows={3}
-                          value={event.rsvpNote}
-                        />
-                      </>
-                    ) : null}
-                    <button
-                      className="button button--secondary"
-                      disabled={
-                        busyEventId !== null ||
-                        !event.rsvpSelfServiceOpen ||
-                        (rsvpNoteRequired(event) && !event.rsvpNote.trim())
-                      }
-                      onClick={() => {
-                        void changeRsvp(event.id, event.directRsvp, event.rsvpNote);
-                      }}
-                      type="button"
-                    >
-                      Save RSVP
-                    </button>
-                  </div>
+                  <ScheduleRsvpField
+                    busy={busyEventId !== null}
+                    event={event}
+                    onChangeNote={(rsvpNote) => {
+                      updateDraftRsvpNote(event.id, rsvpNote);
+                    }}
+                    onSave={() => {
+                      void changeRsvp(event.id, event.directRsvp, event.rsvpNote);
+                    }}
+                    onSelectRsvp={(rsvp) => {
+                      updateDraftRsvp(event.id, rsvp);
+                    }}
+                  />
                 </li>
               );
             })}
