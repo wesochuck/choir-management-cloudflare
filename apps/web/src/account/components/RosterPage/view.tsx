@@ -455,7 +455,16 @@ export function RosterPageView({
         title={editingId ? "Edit Profile" : "Add Profile"}
       >
         {editingId ? (
-          <div className="roster-profile-tabs" role="tablist" aria-label="Profile sections">
+          <div
+            aria-label="Profile sections"
+            className="roster-profile-tabs"
+            onPointerDown={(event) => {
+              // Keep profile navigation inside the Radix dialog's dismissable layer while the
+              // selected panel replaces the editable form below it.
+              event.stopPropagation();
+            }}
+            role="tablist"
+          >
             <button
               aria-selected={profileTab === "info"}
               className={profileTab === "info" ? "is-active" : ""}
