@@ -34,7 +34,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     send,
     sendTestEmail,
     setActiveTab,
-    setAudience,
+    updateAudience,
     setChannel,
     setContentMarkdown,
     setPreviewOpen,
@@ -254,7 +254,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                       id="communication-event"
                       onChange={(event) => {
                         const eventId = event.target.value || null;
-                        setAudience((current) => ({
+                        updateAudience((current) => ({
                           ...current,
                           eventId,
                           rsvp: eventId ? current.rsvp : "All",
@@ -283,7 +283,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                       id="communication-rsvp"
                       onChange={(event) => {
                         const value = event.target.value;
-                        setAudience((current) => ({
+                        updateAudience((current) => ({
                           ...current,
                           rsvp:
                             value === "Yes" || value === "No" || value === "Pending"

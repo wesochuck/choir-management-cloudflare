@@ -18,7 +18,7 @@ import {
   type audienceOptions,
 } from "./utils";
 import type { CommunicationStage, CommunicationTab } from "./types";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteOrganizationCommunicationDraft,
   getOrganizationCommunicationDeliverySummary,
@@ -38,6 +38,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const draftId = new URLSearchParams(window.location.search).get("draftId");
   const requestedTab = communicationTabFromSearch(window.location.search);
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
+  const audienceRef = useRef<CommunicationAudienceRequest>(defaultAudience);
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
   const [contentMarkdown, setContentMarkdown] = useState("");
   const [subject, setSubject] = useState("");
@@ -64,7 +65,19 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  function resumeDraft(draft: CommunicationMessage) {
+  function replaceAudience(nextAudience: CommunicationAudienceRequest) {
+    audienceRef.current = nextAudience;
+    setAudience(nextAudience);
+  }
+
+  function updateAudience(
+    updater: (current: CommunicationAudienceRequest) => CommunicationAudienceRequest,
+  ) {
+    replaceAudience(updater(audienceRef.current));
+  }
+
+  const resumeDraft = useCallback((draft: CommunicationMessage) => {
+    audienceRef.current = draft.audience;
     setAudience(draft.audience);
     setChannel(draft.channel);
     setContentMarkdown(draft.contentMarkdown);
@@ -73,10 +86,10 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     setStage("compose");
     setActiveTab("compose");
     setSuccess("Draft loaded. Review the message and queue it when it is ready.");
-  }
+  }, []);
 
   function startNewMessage() {
-    setAudience(defaultAudience);
+    replaceAudience(defaultAudience);
     setChannel("Email");
     setContentMarkdown("");
     setSubject("");
@@ -114,7 +127,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     return () => {
       controller.abort();
     };
-  }, [draftId, enabled]);
+  }, [draftId, enabled, resumeDraft]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -157,7 +170,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
 
   function composeAudienceRequest(): CommunicationAudienceRequest {
     return {
-      ...audience,
+      ...audienceRef.current,
       voiceParts: voiceParts
         .split(",")
         .map((part) => part.trim())
@@ -303,7 +316,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   }
 
   function toggleStatus(status: "Active" | "Idle" | "Inactive", checked: boolean) {
-    setAudience((current) => ({
+    updateAudience((current) => ({
       ...current,
       globalStatuses: checked
         ? [...new Set([...current.globalStatuses, status])]
@@ -312,7 +325,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   }
 
   function toggleAudience(target: (typeof audienceOptions)[number], checked: boolean) {
-    setAudience((current) => ({
+    updateAudience((current) => ({
       ...current,
       targetAudiences: checked
         ? current.targetAudiences.includes(target)
@@ -377,7 +390,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     send,
     sendTestEmail,
     setActiveTab,
-    setAudience,
+    updateAudience,
     setChannel,
     setContentMarkdown,
     setPreviewOpen,
