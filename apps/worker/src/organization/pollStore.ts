@@ -103,11 +103,12 @@ export function listArchivedPollsFromStore(
     return Response.json({ error: "not_found" }, { status: 404 });
   }
   const rows = storage.sql
-    .exec<PollRow>(
-      `SELECT id, title, expires_at AS expiresAt, archived_at AS archivedAt,
-              created_at AS createdAt
-       FROM polls WHERE archived_at != ''
-       ORDER BY created_at DESC`,
+    .exec<PollRow & { responseCount: number }>(
+      `SELECT p.id, p.title, p.expires_at AS expiresAt, p.archived_at AS archivedAt,
+              p.created_at AS createdAt,
+              (SELECT COUNT(*) FROM poll_responses r WHERE r.poll_id = p.id) AS responseCount
+       FROM polls p WHERE p.archived_at != ''
+       ORDER BY p.created_at DESC`,
     )
     .toArray();
   return Response.json(rows);

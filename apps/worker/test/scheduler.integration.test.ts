@@ -310,7 +310,7 @@ describe("Organization scheduler", () => {
     );
     expect(archivedResponse.status).toBe(200);
     expect(await archivedResponse.json()).toEqual([
-      expect.objectContaining({ id: duePollId, title: "Due poll" }),
+      expect.objectContaining({ id: duePollId, responseCount: 0, title: "Due poll" }),
     ]);
 
     await expect(
