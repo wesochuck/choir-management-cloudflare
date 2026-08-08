@@ -148,22 +148,27 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
   return null;
 }
 
+const authenticatedExactRoutes: ReadonlySet<string> = new Set([
+  "/setup",
+  "/dashboard",
+  "/schedule",
+  "/profile",
+  "/directory",
+  "/dues",
+  "/practice",
+  "/member/resources",
+  "/calendar",
+  "/account",
+  "/admin",
+  "/platform",
+]);
+
 function isAuthenticatedRoute(pathname: string): boolean {
   return (
-    pathname === "/setup" ||
-    pathname === "/dashboard" ||
-    pathname === "/schedule" ||
-    pathname === "/profile" ||
-    pathname === "/directory" ||
-    pathname === "/practice" ||
-    pathname === "/member/resources" ||
-    pathname === "/calendar" ||
+    authenticatedExactRoutes.has(pathname) ||
     pathname.startsWith("/seating/") ||
-    pathname === "/account" ||
     pathname.startsWith("/account/") ||
-    pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
-    pathname === "/platform" ||
     pathname.startsWith("/platform/")
   );
 }

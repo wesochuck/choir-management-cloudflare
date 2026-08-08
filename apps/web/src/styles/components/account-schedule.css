@@ -110,11 +110,17 @@
 
   @media (max-width: 64rem) {
     .member-dues-row {
-      grid-template-columns: 1fr auto;
+      grid-template-columns: minmax(0, 1fr) auto;
     }
 
     .member-dues-row__amounts {
-      grid-column: 1 / -1;
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .member-dues-row__action {
+      grid-column: 2;
+      grid-row: 2;
     }
   }
 
@@ -126,6 +132,7 @@
     .member-dues-row__amounts,
     .member-dues-row__action {
       grid-column: auto;
+      grid-row: auto;
       justify-content: flex-start;
     }
   }

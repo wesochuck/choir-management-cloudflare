@@ -212,6 +212,23 @@ const events = [
 
 const responsiveManagerResponses: Record<string, unknown> = {
   "/api/organization/dues": { dues: [], requestId },
+  "/api/singer/dues": {
+    dues: [],
+    requestId,
+    seasons: [
+      {
+        createdAt: "2026-07-20T20:00:00.000Z",
+        duesAmountCents: 100,
+        endsAt: "2026-12-31T23:59:59.000Z",
+        id: seasonId,
+        isActive: true,
+        name: "Responsive dues season",
+        startsAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-07-20T20:00:00.000Z",
+      },
+    ],
+    transactionFeeSettings: { fixedCents: 0, passFeeToDonor: true, percentage: 33 },
+  },
   "/api/organization/donation-settings": {
     buttonText: "Give now",
     description: "Support our choir.",
@@ -515,6 +532,39 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
         `${label} @ ${String(width)}px overflows horizontally: ${audit.offenders.join(", ")}`,
       ).toBe(false);
     }
+  }
+});
+
+test("member dues keeps payment controls beside amounts at compact widths", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/dues");
+  await expect(page.locator(".signed-in-header")).toBeVisible();
+  const duesRow = page.locator(".member-dues-row");
+  await expect(duesRow).toBeVisible();
+
+  for (const width of [768, 900, 1024]) {
+    await page.setViewportSize({ height: 900, width });
+    const layout = await duesRow.evaluate((row) => {
+      const amounts = row.querySelector<HTMLElement>(".member-dues-row__amounts");
+      const action = row.querySelector<HTMLElement>(".member-dues-row__action");
+      if (!amounts || !action) return null;
+      const amountsRect = amounts.getBoundingClientRect();
+      const actionRect = action.getBoundingClientRect();
+      return {
+        actionBottom: actionRect.bottom,
+        actionTop: actionRect.top,
+        amountsBottom: amountsRect.bottom,
+        amountsTop: amountsRect.top,
+      };
+    });
+    expect(layout).not.toBeNull();
+    expect(layout?.actionTop).toBeLessThan(layout?.amountsBottom ?? 0);
+    expect(layout?.actionBottom).toBeGreaterThan(layout?.amountsTop ?? Number.POSITIVE_INFINITY);
   }
 });
 
