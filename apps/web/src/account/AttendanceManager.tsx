@@ -14,6 +14,7 @@ import {
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type AttendanceFilter = "All" | "Present" | "Absent" | "Pending";
+type AttendanceGroup = readonly [string, readonly OrganizationAttendanceRow[]];
 
 const nextAttendance: Record<OrganizationAttendanceStatus, OrganizationAttendanceStatus> = {
   Absent: "Pending",
@@ -54,6 +55,129 @@ function formatSyncTime(value: Date | null): string {
   return `Updated ${value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
+function groupRowsByVoicePart(
+  rows: readonly OrganizationAttendanceRow[],
+): readonly AttendanceGroup[] {
+  const groups = new Map<string, OrganizationAttendanceRow[]>();
+  [...rows]
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .forEach((row) => {
+      const label = row.voicePart || "Other";
+      const group = groups.get(label) ?? [];
+      group.push(row);
+      groups.set(label, group);
+    });
+  return [...groups.entries()];
+}
+
+interface AttendanceGroupProps {
+  readonly bulkBusy: boolean;
+  readonly group: AttendanceGroup;
+  readonly onChange: (profileId: string) => void;
+  readonly performerLabel: string;
+  readonly savingIds: ReadonlySet<string>;
+}
+
+function AttendanceGroup({
+  bulkBusy,
+  group,
+  onChange,
+  performerLabel,
+  savingIds,
+}: AttendanceGroupProps) {
+  const [voicePart, rows] = group;
+  return (
+    <div className="attendance-group" key={voicePart}>
+      <h3>{voicePart}</h3>
+      {rows.map((row) => {
+        const isSaving = savingIds.has(row.profileId) || bulkBusy;
+        return (
+          <div
+            className={`attendance-row attendance-row--${row.attendance.toLowerCase()}`}
+            key={row.profileId}
+          >
+            <button
+              aria-label={`${row.displayName}: ${attendanceLabel(row.attendance)}. Tap to change.`}
+              className="attendance-row__toggle"
+              disabled={isSaving}
+              onClick={() => {
+                onChange(row.profileId);
+              }}
+              type="button"
+            >
+              <span className="attendance-row__indicator" aria-hidden="true">
+                {row.attendance === "Present" ? "✓" : row.attendance === "Absent" ? "×" : ""}
+              </span>
+              <span className="attendance-row__identity">
+                <strong>{row.displayName}</strong>
+                <span>
+                  {row.voicePart || `${performerLabel} not set`} · {attendanceLabel(row.attendance)}
+                </span>
+              </span>
+              {row.rsvp !== "Yes" ? (
+                <span
+                  className={`attendance-row__rsvp attendance-row__rsvp--${row.rsvp.toLowerCase()}`}
+                >
+                  {row.rsvp === "No" ? "Declined" : "Not currently RSVP'd"}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+interface UnexpectedAttendanceDialogProps {
+  readonly busy: boolean;
+  readonly candidate: OrganizationAttendanceRow | null;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+}
+
+function UnexpectedAttendanceDialog({
+  busy,
+  candidate,
+  onClose,
+  onConfirm,
+}: UnexpectedAttendanceDialogProps) {
+  return (
+    <Dialog
+      description="Confirm the attendance and RSVP update before continuing."
+      onClose={onClose}
+      open={candidate !== null}
+      title="Mark unexpected attendee present?"
+    >
+      <div className="form-stack">
+        <p className="notice notice--warning" role="alert">
+          {candidate?.displayName ?? "This attendee"} is not currently RSVP&apos;d. Marking them
+          Present will RSVP them Yes for this event and, for a linked Rehearsal, its linked
+          Performance.
+        </p>
+        <div className="dialog__actions">
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="button button--primary"
+            disabled={busy}
+            onClick={onConfirm}
+            type="button"
+          >
+            {busy ? "Saving…" : "Mark present and RSVP"}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
@@ -64,6 +188,8 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [rescueCandidate, setRescueCandidate] = useState<OrganizationAttendanceRow | null>(null);
+  const [rescueBusy, setRescueBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const pendingIdsRef = useRef(new Set<string>());
@@ -166,26 +292,58 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
-  async function changeAttendance(profileId: string) {
-    const row = rows.find((candidate) => candidate.profileId === profileId);
-    if (!row || savingIds.has(profileId) || bulkBusy) return;
-    const next = nextAttendance[row.attendance];
+  async function applyAttendanceChange(
+    row: OrganizationAttendanceRow,
+    next: OrganizationAttendanceStatus,
+  ): Promise<boolean> {
     setRows((current) =>
       current.map((candidate) =>
-        candidate.profileId === profileId ? { ...candidate, attendance: next } : candidate,
+        candidate.profileId === row.profileId ? { ...candidate, attendance: next } : candidate,
       ),
     );
     try {
       await saveRow(row, { attendance: next });
+      return true;
     } catch {
       setRows((current) =>
         current.map((candidate) =>
-          candidate.profileId === profileId
+          candidate.profileId === row.profileId
             ? { ...candidate, attendance: row.attendance }
             : candidate,
         ),
       );
+      return false;
     }
+  }
+
+  function changeAttendance(profileId: string) {
+    const row = rows.find((candidate) => candidate.profileId === profileId);
+    if (!row || savingIds.has(profileId) || bulkBusy || rescueBusy) return;
+    const next = nextAttendance[row.attendance];
+    if (next === "Present" && row.rsvp !== "Yes") {
+      setRescueCandidate(row);
+      return;
+    }
+    void applyAttendanceChange(row, next);
+  }
+
+  async function confirmUnexpectedAttendance() {
+    const candidate = rescueCandidate;
+    if (!candidate || rescueBusy) return;
+    const row = rows.find((current) => current.profileId === candidate.profileId);
+    if (!row) {
+      setRescueCandidate(null);
+      return;
+    }
+    if (row.rsvp === "Yes") {
+      setRescueCandidate(null);
+      void applyAttendanceChange(row, "Present");
+      return;
+    }
+    setRescueBusy(true);
+    const saved = await applyAttendanceChange(row, "Present");
+    setRescueBusy(false);
+    if (saved) setRescueCandidate(null);
   }
 
   const markableRows = useMemo(
@@ -233,17 +391,18 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const counts = useMemo(() => {
     const expected = rows.filter((row) => row.rsvp === "Yes");
     return {
-      absent: expected.filter((row) => row.attendance === "Absent").length,
+      absent: rows.filter((row) => row.attendance === "Absent").length,
       expected: expected.length,
-      pending: expected.filter((row) => row.attendance === "Pending").length,
+      pending: rows.filter((row) => row.attendance === "Pending").length,
       present: expected.filter((row) => row.attendance === "Present").length,
+      presentTotal: rows.filter((row) => row.attendance === "Present").length,
+      roster: rows.length,
     };
   }, [rows]);
 
   const groupedRows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    const searchableRows = normalizedQuery ? rows : rows.filter((row) => row.rsvp === "Yes");
-    const filtered = searchableRows.filter((row) => {
+    const filtered = rows.filter((row) => {
       const matchesFilter =
         filter === "All" ||
         (filter === "Pending" && row.attendance === "Pending") ||
@@ -255,16 +414,10 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
         row.voicePart.toLocaleLowerCase().includes(normalizedQuery);
       return matchesFilter && matchesQuery;
     });
-    const groups = new Map<string, OrganizationAttendanceRow[]>();
-    filtered
-      .sort((a, b) => a.displayName.localeCompare(b.displayName))
-      .forEach((row) => {
-        const label = row.voicePart || "Other";
-        const group = groups.get(label) ?? [];
-        group.push(row);
-        groups.set(label, group);
-      });
-    return [...groups.entries()];
+    return {
+      notRsvped: groupRowsByVoicePart(filtered.filter((row) => row.rsvp !== "Yes")),
+      rsvped: groupRowsByVoicePart(filtered.filter((row) => row.rsvp === "Yes")),
+    };
   }, [filter, query, rows]);
 
   if (!enabled) return null;
@@ -331,8 +484,8 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           {(
             [
               ["Pending", `Unmarked ${String(counts.pending)}`],
-              ["All", `All ${String(counts.expected)}`],
-              ["Present", `Present ${String(counts.present)}`],
+              ["All", `All ${String(counts.roster)}`],
+              ["Present", `Present ${String(counts.presentTotal)}`],
               ["Absent", `Absent ${String(counts.absent)}`],
             ] as const
           ).map(([value, label]) => (
@@ -382,51 +535,52 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
       ) : null}
 
       {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
-      {rows.length > 0 && groupedRows.length === 0 ? (
+      {rows.length > 0 && groupedRows.rsvped.length + groupedRows.notRsvped.length === 0 ? (
         <p className="attendance-manager__empty">
           No {performerLabelPlural.toLowerCase()} match this filter.
         </p>
       ) : null}
       <div className="attendance-list">
-        {groupedRows.map(([voicePart, group]) => (
-          <div className="attendance-group" key={voicePart}>
-            <h3>{voicePart}</h3>
-            {group.map((row) => {
-              const isSaving = savingIds.has(row.profileId) || bulkBusy;
-              return (
-                <div
-                  className={`attendance-row attendance-row--${row.attendance.toLowerCase()}`}
-                  key={row.profileId}
-                >
-                  <button
-                    aria-label={`${row.displayName}: ${attendanceLabel(row.attendance)}. Tap to change.`}
-                    className="attendance-row__toggle"
-                    disabled={isSaving}
-                    onClick={() => {
-                      void changeAttendance(row.profileId);
-                    }}
-                    type="button"
-                  >
-                    <span className="attendance-row__indicator" aria-hidden="true">
-                      {row.attendance === "Present" ? "✓" : row.attendance === "Absent" ? "×" : ""}
-                    </span>
-                    <span className="attendance-row__identity">
-                      <strong>{row.displayName}</strong>
-                      <span>
-                        {row.voicePart || `${performerLabel} not set`} ·{" "}
-                        {attendanceLabel(row.attendance)}
-                      </span>
-                    </span>
-                    {row.rsvp === "No" ? (
-                      <span className="attendance-row__rsvp">Declined</span>
-                    ) : null}
-                  </button>
-                </div>
-              );
-            })}
+        {groupedRows.rsvped.map((group) => (
+          <AttendanceGroup
+            bulkBusy={bulkBusy}
+            group={group}
+            key={group[0]}
+            onChange={changeAttendance}
+            performerLabel={performerLabel}
+            savingIds={savingIds}
+          />
+        ))}
+        {groupedRows.notRsvped.length > 0 ? (
+          <div
+            aria-label="Not currently RSVP'd"
+            className="attendance-list__divider"
+            role="separator"
+          >
+            <span>Not currently RSVP&apos;d</span>
           </div>
+        ) : null}
+        {groupedRows.notRsvped.map((group) => (
+          <AttendanceGroup
+            bulkBusy={bulkBusy}
+            group={group}
+            key={`not-rsvped-${group[0]}`}
+            onChange={changeAttendance}
+            performerLabel={performerLabel}
+            savingIds={savingIds}
+          />
         ))}
       </div>
+      <UnexpectedAttendanceDialog
+        busy={rescueBusy}
+        candidate={rescueCandidate}
+        onClose={() => {
+          if (!rescueBusy) setRescueCandidate(null);
+        }}
+        onConfirm={() => {
+          void confirmUnexpectedAttendance();
+        }}
+      />
       <Dialog
         description="This action may be difficult to undo."
         onClose={() => {

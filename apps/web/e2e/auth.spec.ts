@@ -23,6 +23,36 @@ const currentUser = {
   updatedAt: "2026-07-20T20:00:00.000Z",
 } as const;
 
+type BrowserAttendanceStatus = "Absent" | "Pending" | "Present";
+type BrowserRsvpStatus = "No" | "Pending" | "Yes";
+
+interface BrowserAttendanceRow {
+  readonly attendance: BrowserAttendanceStatus;
+  readonly displayName: string;
+  readonly profileId: string;
+  readonly rsvp: BrowserRsvpStatus;
+  readonly updatedAt: string;
+  readonly voicePart: string;
+}
+
+interface BrowserAttendanceUpdate {
+  readonly attendance: BrowserAttendanceStatus;
+  readonly profileId: string;
+}
+
+function isBrowserAttendanceStatus(value: unknown): value is BrowserAttendanceStatus {
+  return value === "Absent" || value === "Pending" || value === "Present";
+}
+
+function parseBrowserAttendanceUpdate(value: unknown): BrowserAttendanceUpdate | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = Object.fromEntries(Object.entries(value));
+  if (typeof record.profileId !== "string" || !isBrowserAttendanceStatus(record.attendance)) {
+    return null;
+  }
+  return { attendance: record.attendance, profileId: record.profileId };
+}
+
 test.beforeEach(async ({ page }) => {
   const requestId = "99999999-9999-4999-8999-999999999999";
   let seatingCharts: Record<string, unknown>[] = [];
@@ -47,6 +77,30 @@ test.beforeEach(async ({ page }) => {
       },
     ],
   };
+  const attendanceRows = new Map<string, BrowserAttendanceRow>([
+    [
+      "11111111-1111-4111-8111-111111111111",
+      {
+        attendance: "Pending",
+        displayName: "Browser Singer",
+        profileId: "11111111-1111-4111-8111-111111111111",
+        rsvp: "Yes",
+        updatedAt: "2026-07-20T20:10:00.000Z",
+        voicePart: "S2",
+      },
+    ],
+    [
+      "33333333-3333-4333-8333-333333333333",
+      {
+        attendance: "Pending",
+        displayName: "Unexpected Singer",
+        profileId: "33333333-3333-4333-8333-333333333333",
+        rsvp: "Pending",
+        updatedAt: "2026-07-20T20:10:00.000Z",
+        voicePart: "A1",
+      },
+    ],
+  ]);
   await page.route("**/api/organization/profiles", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -67,6 +121,23 @@ test.beforeEach(async ({ page }) => {
             showInDirectory: true,
             updatedAt: "2026-07-20T20:00:00.000Z",
             voicePart: "S2",
+          },
+          {
+            createdAt: "2026-07-20T20:00:00.000Z",
+            displayName: "Unexpected Singer",
+            doNotEmail: false,
+            globalStatus: "Active",
+            id: "33333333-3333-4333-8333-333333333333",
+            isSectionLeader: false,
+            notes: "",
+            phone: "",
+            receiveAdminNotifications: true,
+            receiveAttendanceReports: true,
+            receiveFinancialAlerts: false,
+            receiveRsvpDeclineNotices: false,
+            showInDirectory: true,
+            updatedAt: "2026-07-20T20:00:00.000Z",
+            voicePart: "A1",
           },
         ],
         requestId,
@@ -196,35 +267,28 @@ test.beforeEach(async ({ page }) => {
     });
   });
   await page.route("**/api/organization/events/*/attendance", async (route) => {
-    let attendance = "Pending";
     if (route.request().method() === "PUT") {
       const body: unknown = route.request().postDataJSON();
-      if (
-        typeof body === "object" &&
-        body !== null &&
-        "updates" in body &&
-        Array.isArray(body.updates) &&
-        typeof body.updates[0] === "object" &&
-        body.updates[0] !== null &&
-        "attendance" in body.updates[0] &&
-        typeof body.updates[0].attendance === "string"
-      ) {
-        attendance = body.updates[0].attendance;
+      const record =
+        typeof body === "object" && body !== null ? Object.fromEntries(Object.entries(body)) : null;
+      const updates = record?.updates;
+      const update = Array.isArray(updates) ? parseBrowserAttendanceUpdate(updates[0]) : null;
+      if (update) {
+        const current = attendanceRows.get(update.profileId);
+        if (current) {
+          attendanceRows.set(update.profileId, {
+            ...current,
+            attendance: update.attendance,
+            rsvp: update.attendance === "Present" ? "Yes" : current.rsvp,
+          });
+        }
       }
     }
     await route.fulfill({
       body: JSON.stringify({
         eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         requestId,
-        rows: [
-          {
-            attendance,
-            displayName: "Browser Singer",
-            profileId: "11111111-1111-4111-8111-111111111111",
-            rsvp: "Yes",
-            updatedAt: "2026-07-20T20:10:00.000Z",
-          },
-        ],
+        rows: [...attendanceRows.values()],
       }),
       contentType: "application/json",
       status: 200,
@@ -1589,6 +1653,36 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await attendancePage.getByRole("button", { name: "Present 1", exact: true }).click();
   await expect(
     attendancePage.getByRole("button", { name: /Browser Singer: Present/ }),
+  ).toBeVisible();
+  await attendancePage.getByRole("button", { name: "All 2", exact: true }).click();
+  const unexpectedSinger = attendancePage.getByRole("button", {
+    name: /Unexpected Singer: Tap to check in/,
+  });
+  await expect(unexpectedSinger).toBeVisible();
+  await expect(unexpectedSinger).toContainText("Not currently RSVP'd");
+  await expect(
+    attendancePage.getByRole("separator", { name: "Not currently RSVP'd" }),
+  ).toBeVisible();
+  await attendancePage.getByRole("searchbox", { name: "Find a performer" }).fill("Unexpected");
+  await expect(unexpectedSinger).toBeVisible();
+  await expect(attendancePage.getByRole("dialog")).toHaveCount(0);
+  await unexpectedSinger.click();
+  const rescueConfirmation = page.getByRole("dialog", {
+    name: "Mark unexpected attendee present?",
+  });
+  await expect(rescueConfirmation).toBeVisible();
+  await expect(rescueConfirmation).toContainText("Unexpected Singer");
+  await expect(rescueConfirmation).toContainText("will RSVP them Yes");
+  await rescueConfirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(rescueConfirmation).toBeHidden();
+  await expect(unexpectedSinger).toContainText("Not currently RSVP'd");
+  await unexpectedSinger.click();
+  await rescueConfirmation
+    .getByRole("button", { name: "Mark present and RSVP", exact: true })
+    .click();
+  await expect(rescueConfirmation).toBeHidden();
+  await expect(
+    attendancePage.getByRole("button", { name: /Unexpected Singer: Present/ }),
   ).toBeVisible();
   await page.goto("/admin/events");
   await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
