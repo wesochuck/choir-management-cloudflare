@@ -11,7 +11,10 @@ import {
   saveOrganizationCommunicationTemplate,
   updateOrganizationCommunicationTemplate,
 } from "../../../auth/api";
-import { templateMatchesCommunicationContext } from "../../communicationPlaceholders";
+import {
+  communicationPlaceholderContext,
+  templateMatchesCommunicationContext,
+} from "../../communicationPlaceholders";
 import { failureMessage } from "./utils";
 
 export function CommunicationSectionPicker({
@@ -84,18 +87,113 @@ export function CommunicationSectionPicker({
   );
 }
 
-export function TemplateLibrary({
+function isAuditionSystemTemplate(template: CommunicationTemplate): boolean {
+  const text = `${template.title}\n${template.subject}\n${template.contentMarkdown}`;
+  return template.isSystem && communicationPlaceholderContext(text) === "audition";
+}
+
+export function CommunicationTemplatePicker({
   audience,
   channel,
   contentMarkdown,
   onApply,
+  subject,
+}: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly channel: CommunicationChannel;
+  readonly contentMarkdown: string;
+  readonly onApply: (template: CommunicationTemplate) => void;
+  readonly subject: string;
+}) {
+  const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    listOrganizationCommunicationTemplates(controller.signal)
+      .then(setTemplates)
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted) setError(failureMessage(failure));
+      });
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  const visibleTemplates = templates
+    .filter((template) => !isAuditionSystemTemplate(template))
+    .filter((template) => templateMatchesCommunicationContext(template, audience, channel));
+  const selectedTemplateIsAvailable = visibleTemplates.some(
+    (template) => template.id === selectedTemplateId,
+  );
+
+  function selectTemplate(templateId: string): void {
+    if (templateId === "") {
+      setSelectedTemplateId("");
+      return;
+    }
+    const template = visibleTemplates.find(({ id }) => id === templateId);
+    if (!template) return;
+    const replacingExistingDraft =
+      selectedTemplateIsAvailable || Boolean(contentMarkdown.trim() || subject.trim());
+    if (
+      replacingExistingDraft &&
+      !window.confirm("Switching templates will replace your current in-progress draft. Continue?")
+    ) {
+      return;
+    }
+    onApply(template);
+    setSelectedTemplateId(template.id);
+  }
+
+  return (
+    <div className="communication-template-picker form-stack">
+      <h3>Template</h3>
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="field">
+        <label htmlFor="communication-template-select">Choose a template (optional)</label>
+        <select
+          aria-describedby="communication-template-select-help"
+          id="communication-template-select"
+          onChange={(event) => {
+            selectTemplate(event.target.value);
+          }}
+          value={selectedTemplateIsAvailable ? selectedTemplateId : ""}
+        >
+          <option value="">No template selected</option>
+          {visibleTemplates.map((template) => (
+            <option key={template.id} value={template.id}>
+              {template.title} · {template.channel}
+            </option>
+          ))}
+        </select>
+        <p className="field-help" id="communication-template-select-help">
+          Selecting a different template replaces the current message draft. Audition templates are
+          managed separately because they are used only by automated audition messages.
+        </p>
+      </div>
+      {!error && visibleTemplates.length === 0 ? (
+        <p className="field-help">No templates match this channel and audience yet.</p>
+      ) : null}
+    </div>
+  );
+}
+
+export function TemplateLibrary({
+  audience,
+  channel,
+  contentMarkdown,
   subject,
   showAll = false,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly channel: CommunicationChannel;
   readonly contentMarkdown: string;
-  readonly onApply: (template: CommunicationTemplate) => void;
   readonly showAll?: boolean;
   readonly subject: string;
 }) {
@@ -216,16 +314,6 @@ export function TemplateLibrary({
                 </p>
               </div>
               <span className="button-row">
-                <button
-                  className="button button--secondary"
-                  disabled={busy}
-                  onClick={() => {
-                    onApply(template);
-                  }}
-                  type="button"
-                >
-                  Use template
-                </button>
                 <button
                   className="button button--secondary"
                   disabled={busy}

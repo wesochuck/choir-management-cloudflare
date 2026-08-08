@@ -3,6 +3,9 @@ import { expect, test, type Route } from "@playwright/test";
 const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const organizationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const eventId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const firstTemplateId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const secondTemplateId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const auditionTemplateId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
 const session = {
   session: {
@@ -85,6 +88,41 @@ async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void
     },
     "/api/organization/communications": { messages: [], requestId },
     "/api/organization/communications/scheduled": { messages: [], requestId },
+    "/api/organization/communications/templates": {
+      requestId,
+      templates: [
+        {
+          channel: "Email",
+          contentMarkdown: "Hello from the first template.",
+          createdAt: "2026-07-20T20:00:00.000Z",
+          id: firstTemplateId,
+          isSystem: false,
+          subject: "First template",
+          title: "First template",
+          updatedAt: "2026-07-20T20:00:00.000Z",
+        },
+        {
+          channel: "Email",
+          contentMarkdown: "Hello from the second template.",
+          createdAt: "2026-07-20T20:00:00.000Z",
+          id: secondTemplateId,
+          isSystem: false,
+          subject: "Second template",
+          title: "Second template",
+          updatedAt: "2026-07-20T20:00:00.000Z",
+        },
+        {
+          channel: "Email",
+          contentMarkdown: "Your audition is confirmed for {auditionDate}.",
+          createdAt: "2026-07-20T20:00:00.000Z",
+          id: auditionTemplateId,
+          isSystem: true,
+          subject: "Your audition is confirmed",
+          title: "Audition Confirmed",
+          updatedAt: "2026-07-20T20:00:00.000Z",
+        },
+      ],
+    },
     "/api/organization/events": {
       events: [
         {
@@ -208,4 +246,48 @@ test("preserves all selected audiences when reach preview follows quick selectio
     },
     channel: "Email",
   });
+});
+
+test("uses an optional template picker and confirms before replacing a draft", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+
+  await page.goto("/admin/communications");
+  await page.getByRole("button", { name: "Continue to compose" }).click();
+
+  const templatePicker = page.getByLabel("Choose a template (optional)");
+  await expect(templatePicker).toHaveValue("");
+  await expect(templatePicker).toContainText("First template");
+  await expect(templatePicker).not.toContainText("Audition Confirmed");
+
+  await templatePicker.selectOption(firstTemplateId);
+  await expect(templatePicker).toHaveValue(firstTemplateId);
+  await expect(page.getByLabel("Subject")).toHaveValue("First template");
+
+  let warningMessage = "";
+  page.once("dialog", async (dialog) => {
+    warningMessage = dialog.message();
+    await dialog.dismiss();
+  });
+  await templatePicker.selectOption(secondTemplateId);
+  expect(warningMessage).toContain("replace your current in-progress draft");
+  await expect(templatePicker).toHaveValue(firstTemplateId);
+  await expect(page.getByLabel("Subject")).toHaveValue("First template");
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  await templatePicker.selectOption(secondTemplateId);
+  await expect(templatePicker).toHaveValue(secondTemplateId);
+  await expect(page.getByLabel("Subject")).toHaveValue("Second template");
+});
+
+test("keeps audition system templates in the management tab only", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+
+  await page.goto("/admin/communications?tab=templates");
+  await expect(page.getByText("Audition Confirmed")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use template" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit wording" }).first()).toBeVisible();
 });

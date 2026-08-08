@@ -1,6 +1,6 @@
 import { Dialog } from "@choir/ui";
 import { audienceOptions, channelFromValue, displayDate, eventLabel } from "./utils";
-import { CommunicationSectionPicker, TemplateLibrary } from "./shared";
+import { CommunicationSectionPicker, CommunicationTemplatePicker, TemplateLibrary } from "./shared";
 import { CommunicationComposer } from "../../CommunicationComposer";
 import { renderCommunicationMarkdownPreview } from "../../communicationMarkdown";
 import type { CommunicationCenterModel } from "./hooks";
@@ -321,7 +321,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               </>
             ) : (
               <>
-                <TemplateLibrary
+                <CommunicationTemplatePicker
                   audience={audience}
                   channel={channel}
                   contentMarkdown={contentMarkdown}
@@ -612,14 +612,6 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
             audience={audience}
             channel={channel}
             contentMarkdown={contentMarkdown}
-            onApply={(template) => {
-              setChannel(template.channel);
-              setContentMarkdown(template.contentMarkdown);
-              setSubject(template.subject);
-              setReach(null);
-              setActiveTab("compose");
-              setStage("compose");
-            }}
             showAll
             subject={subject}
           />
