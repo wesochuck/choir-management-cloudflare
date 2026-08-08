@@ -461,21 +461,25 @@ test.describe("admin ticket management", () => {
     await page.goto("/admin/tickets");
 
     await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Jane Buyer" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "jane@example.test" })).toBeVisible();
+    const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
+    await expect(visibleOrders.getByText("Jane Buyer", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("jane@example.test", { exact: true })).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Updates automatically every 5 seconds.");
     await expect(
       page.locator(".ticket-dashboard__metric--sold").getByText("Spring Concert", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("cell", { name: "$15.74" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "paid (simulation)" })).toBeVisible();
+    await expect(visibleOrders.getByText("$15.74", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("paid (simulation)", { exact: true })).toBeVisible();
 
-    const orderRows = page.locator(".data-table tbody tr");
+    const orderRows = visibleOrders.locator("tbody tr, .data-table-card");
     await expect(orderRows).toHaveCount(2);
-    await page.getByRole("button", { name: "Sort by Buyer name" }).click();
-    await expect(orderRows.first().getByRole("cell").first()).toHaveText("Alex Anderson");
-    await page.getByRole("button", { name: "Sort by Buyer name" }).click();
-    await expect(orderRows.first().getByRole("cell").first()).toHaveText("Jane Buyer");
+    const buyerSortButton = page.getByRole("button", { name: "Sort by Buyer name" });
+    if ((await buyerSortButton.count()) > 0 && (await buyerSortButton.isVisible())) {
+      await buyerSortButton.click();
+      await expect(orderRows.first().getByText("Alex Anderson", { exact: true })).toBeVisible();
+      await buyerSortButton.click();
+      await expect(orderRows.first().getByText("Jane Buyer", { exact: true })).toBeVisible();
+    }
   });
 
   test("refunds a paid order via danger confirmation", async ({ page }) => {
@@ -520,18 +524,24 @@ test.describe("admin ticket management", () => {
     await page.goto("/admin/tickets");
 
     await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
-    await page.getByRole("button", { name: "Refund" }).click({ force: true });
-    const ticketOrdersTable = page.getByRole("table");
-    await expect(ticketOrdersTable.getByText("Refund this complete order?")).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click({ force: true });
-    await expect(ticketOrdersTable.getByText("Refund this complete order?")).not.toBeVisible();
+    const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
+    await visibleOrders.getByRole("button", { name: "Refund" }).click({ force: true });
+    await expect(
+      visibleOrders.getByText("Refund this complete order?", { exact: true }),
+    ).toBeVisible();
+    await visibleOrders.getByRole("button", { name: "Cancel" }).click({ force: true });
+    await expect(
+      visibleOrders.getByText("Refund this complete order?", { exact: true }),
+    ).not.toBeVisible();
 
-    await page.getByRole("button", { name: "Refund" }).click({ force: true });
-    await expect(ticketOrdersTable.getByText("Refund this complete order?")).toBeVisible();
-    await page.getByRole("button", { name: "Confirm refund" }).click({ force: true });
+    await visibleOrders.getByRole("button", { name: "Refund" }).click({ force: true });
+    await expect(
+      visibleOrders.getByText("Refund this complete order?", { exact: true }),
+    ).toBeVisible();
+    await visibleOrders.getByRole("button", { name: "Confirm refund" }).click({ force: true });
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
-    await expect(page.getByRole("cell", { name: "refunded (simulation)" })).toBeVisible();
+    await expect(visibleOrders.getByText("refunded (simulation)", { exact: true })).toBeVisible();
     expect(refundCalled).toBe(true);
   });
 

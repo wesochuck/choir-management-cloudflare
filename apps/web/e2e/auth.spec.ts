@@ -1209,6 +1209,20 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
       status: 200,
     });
   });
+  await page.route("**/api/setup/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        allModulesConfigured: true,
+        completedSteps: [],
+        currentStep: null,
+        launched: true,
+        organizationId: "organization-alpha",
+        organizationName: "Organization Alpha",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/platform/mfa/status", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -1351,18 +1365,20 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(profileDialog).toBeVisible();
   await profileDialog.getByLabel("Display name").fill("Changed profile");
   const firstDiscardPrompt = page.waitForEvent("dialog");
-  await page.keyboard.press("Escape");
+  const firstEscape = page.keyboard.press("Escape");
   const firstPrompt = await firstDiscardPrompt;
   expect(firstPrompt.message()).toBe(
     "You have unsaved changes. Discard them and close this dialog?",
   );
   await firstPrompt.dismiss();
+  await firstEscape;
   await expect(profileDialog).toBeVisible();
 
   const secondDiscardPrompt = page.waitForEvent("dialog");
-  await page.keyboard.press("Escape");
+  const secondEscape = page.keyboard.press("Escape");
   const secondPrompt = await secondDiscardPrompt;
   await secondPrompt.accept();
+  await secondEscape;
   await expect(profileDialog).toHaveCount(0);
   await expect(rosterPage.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
     "href",
@@ -1384,7 +1400,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     .getByRole("combobox", { name: "Day of week" })
     .selectOption({ label: "Wednesday" });
   await bulkRehearsalDialog.getByRole("button", { name: "Cancel" }).click();
-  await eventsPage.getByRole("row", { name: /Edit event Browser Concert/ }).click();
+  const browserConcertEdit = eventsPage.locator(
+    '[aria-label="Edit event Browser Concert"]:visible',
+  );
+  await expect(browserConcertEdit).toBeVisible();
+  await browserConcertEdit.getByRole("button", { name: "Edit", exact: true }).click();
   const eventEditor = page.getByRole("dialog", { name: "Edit event" });
   await expect(
     eventEditor.getByRole("link", { name: "Change RSVP expiry in Roster Settings" }),
