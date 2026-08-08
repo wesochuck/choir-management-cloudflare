@@ -41,6 +41,13 @@ import { recordProviderRefundRequestedInStore } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
 import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
 import { ensurePracticePlayerLinkInStore } from "../playerLinkStore";
+import {
+  exportMusicFolderReportFromStore,
+  readMusicFolderProfileDetailFromStore,
+  readMusicFolderReportFromStore,
+  updateMusicFolderNumbersInStore,
+  updateMusicFolderReturnStatusInStore,
+} from "../musicFolderReportStore";
 import { recordProviderEmailFeedback, releaseProviderEmailSuppression } from "./providerFeedback";
 
 import {
@@ -406,6 +413,7 @@ export async function dispatchAuditionPostRequest(
   }
 }
 
+// eslint-disable-next-line complexity -- dispatches the bounded internal mutation union without changing its routing semantics.
 export async function dispatchOperationalPostRequest(
   storage: DurableObjectStorage,
   pathname: string,
@@ -440,6 +448,16 @@ export async function dispatchOperationalPostRequest(
       return provisionOrganizationStore(storage, request);
     case "/internal/schema/prepare":
       return prepareOrganizationSchema(storage, request);
+    case "/internal/reports/music-folders/query":
+      return readMusicFolderReportFromStore(storage, request);
+    case "/internal/reports/music-folders/profile-detail":
+      return readMusicFolderProfileDetailFromStore(storage, request);
+    case "/internal/reports/music-folders/folder-numbers":
+      return updateMusicFolderNumbersInStore(storage, request);
+    case "/internal/reports/music-folders/return-status":
+      return updateMusicFolderReturnStatusInStore(storage, request);
+    case "/internal/reports/music-folders/export":
+      return exportMusicFolderReportFromStore(storage, request);
     default:
       return null;
   }

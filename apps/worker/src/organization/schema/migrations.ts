@@ -1080,6 +1080,14 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "CREATE INDEX idx_public_rate_limit_buckets_window ON public_rate_limit_buckets(window_started_at)",
     ],
   },
+  {
+    version: 64,
+    statements: [
+      "ALTER TABLE event_rosters ADD COLUMN folder_returned_at TEXT",
+      "UPDATE event_rosters SET folder_returned = 0 WHERE folder_number = '' AND folder_returned = 1",
+      "UPDATE event_rosters SET folder_returned_at = updated_at WHERE folder_number <> '' AND folder_returned = 1 AND folder_returned_at IS NULL",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -70,6 +70,11 @@ const expectedApiRoutes = [
   "DELETE /api/organization/auditions/:auditionId",
   "POST /api/organization/auditions/:auditionId/convert",
   "PUT /api/organization/auditions/:auditionId",
+  "POST /api/organization/reports/music-folders/query",
+  "POST /api/organization/reports/music-folders/profiles/:profileId",
+  "PUT /api/organization/reports/music-folders/folder-numbers",
+  "PUT /api/organization/profiles/:profileId/folder-numbers/:eventId/return-status",
+  "POST /api/organization/reports/music-folders/export.csv",
 ];
 const expectedBrowserRoutes = [
   "/",
@@ -141,6 +146,7 @@ const expectedCsvContracts = [
   "donations",
   "event-rsvp-roster",
   "music-library",
+  "music-folder-report",
   "repertoire-history",
   "roster",
   "will-call",

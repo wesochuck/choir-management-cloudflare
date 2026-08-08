@@ -17,8 +17,9 @@ import {
   listOrganizationMusic,
   listOrganizationProfiles,
 } from "../auth/api";
+import { MusicFolderReport } from "./components/MusicFolderReport/view";
 
-type ReportTab = "attendance" | "rsvp" | "repertoire" | "roster" | "donations";
+type ReportTab = "attendance" | "rsvp" | "repertoire" | "roster" | "donations" | "music-folders";
 type LoadState = "loading" | "ready" | "error";
 
 interface SingerAttendance {
@@ -36,6 +37,7 @@ const TAB_LABELS: readonly { id: ReportTab; label: string }[] = [
   { id: "repertoire", label: "Repertoire" },
   { id: "roster", label: "Roster" },
   { id: "donations", label: "Donations" },
+  { id: "music-folders", label: "Music Folder Report" },
 ];
 
 function formatDate(value: string | null | undefined, withTime = false): string {
@@ -771,6 +773,7 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   const [selectedPerformanceId, setSelectedPerformanceId] = useState("");
   const [donations, setDonations] = useState<readonly DonationRecord[]>([]);
   const [donationState, setDonationState] = useState<LoadState>("ready");
+  const [musicFolderUnsaved, setMusicFolderUnsaved] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -847,6 +850,15 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
             className={tab === item.id ? "is-active" : undefined}
             key={item.id}
             onClick={() => {
+              if (
+                tab === "music-folders" &&
+                musicFolderUnsaved &&
+                !window.confirm(
+                  "You have unsaved Folder Number changes. Discard them and change report tabs?",
+                )
+              ) {
+                return;
+              }
               setTab(item.id);
             }}
             role="tab"
@@ -879,6 +891,9 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
         ) : null}
         {tab === "donations" ? (
           <DonationsReport donations={donations} state={donationState} />
+        ) : null}
+        {tab === "music-folders" ? (
+          <MusicFolderReport enabled={enabled} onUnsavedChange={setMusicFolderUnsaved} />
         ) : null}
       </section>
     </section>

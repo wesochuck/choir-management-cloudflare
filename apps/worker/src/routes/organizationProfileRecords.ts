@@ -371,7 +371,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             message:
               error.code === "folder_number_requires_performance"
                 ? "Folder numbers can only be assigned to Performance events."
-                : "The profile folder number could not be saved.",
+                : error.code === "folder_number_conflict"
+                  ? "That Folder Number is already used for this Performance."
+                  : "The profile folder number could not be saved.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           status,

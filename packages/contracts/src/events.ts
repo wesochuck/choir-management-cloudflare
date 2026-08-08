@@ -108,6 +108,7 @@ export const organizationProfileFolderNumberSchema = z.object({
   folderNumber: z.string().max(50),
   folderReturned: z.boolean(),
   profileId: z.uuid(),
+  returnedAt: z.iso.datetime().nullable(),
   startsAt: z.iso.datetime(),
   updatedAt: z.iso.datetime().nullable(),
 });
