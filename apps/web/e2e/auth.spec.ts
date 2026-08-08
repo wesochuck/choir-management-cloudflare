@@ -756,7 +756,27 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   await expect(page.getByRole("heading", { name: "Start a seating chart" })).toBeVisible();
   await page.getByRole("button", { name: "Create chart" }).click();
   await page.getByLabel("Chart name").fill("Full Canvas Chart");
+  await expect(page.getByLabel("Singers to place")).toHaveValue("1");
+  await expect(page.getByLabel("Rows")).toHaveValue("1");
+  await expect(
+    page.getByText("1 singer across 1 row — 1 singer per row.", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Singers to place").fill("10");
+  await page.getByLabel("Rows").fill("3");
+  await expect(
+    page.getByText(
+      "10 singers across 3 rows — 3–4 singers per row, balanced as evenly as possible.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const createChartRequestPromise = page.waitForRequest(
+    (request) => request.method() === "POST" && request.url().includes("/seating-charts"),
+  );
   await page.getByRole("button", { name: "Create chart", exact: true }).click();
+  const createChartRequest = await createChartRequestPromise;
+  expect(createChartRequest.postDataJSON()).toEqual(
+    expect.objectContaining({ rowCounts: [4, 3, 3] }),
+  );
   await expect(page.getByLabel("Select seating chart")).toContainText("Full Canvas Chart");
   if ((page.viewportSize()?.width ?? 1000) <= 700) {
     await page.getByRole("button", { name: "Edit anyway" }).click();
@@ -768,12 +788,15 @@ test("renders the focused seating canvas with structural controls", async ({ pag
     await expect(navigationDialog).toHaveCount(0);
     await expect(openNavigation).toBeFocused();
   }
-  const firstSeat = page.getByRole("button", { name: "Seat 1, empty" }).first();
+  const firstSeat = page.locator(".seating-seat--empty").first();
   await expect(firstSeat).toBeVisible();
   if ((page.viewportSize()?.width ?? 1000) > 700) {
-    await page.locator(".seating-profile-chip").first().dragTo(firstSeat);
+    await firstSeat.click({ force: true });
+    const seatDialog = page.getByRole("dialog").filter({ hasText: "This seat is empty." });
+    await expect(seatDialog).toBeVisible();
+    await seatDialog.getByRole("button", { name: /Browser Singer/ }).click();
     await expect(
-      page.getByRole("button", { name: /Seat 1, assigned to Browser Singer/ }).first(),
+      page.locator(".seating-seat--assigned").filter({ hasText: "Browser Singer" }).first(),
     ).toBeVisible();
   }
   await expect(page.getByRole("button", { name: "+ Add row to back" })).toBeVisible();

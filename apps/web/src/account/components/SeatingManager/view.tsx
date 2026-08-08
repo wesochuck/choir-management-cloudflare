@@ -11,6 +11,7 @@ import {
   formatEventDate,
   groupSeatAssignmentProfiles,
   seatingProfileLabel,
+  seatingRowSummary,
   statusLabel,
 } from "./utils";
 import { SeatTile, UnassignedTray, ChartList } from "./chartParts";
@@ -24,6 +25,8 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
     autoSuggest,
     changeEvent,
     changeFormation,
+    changeNewChartRowCount,
+    changeNewChartSingerCount,
     chart,
     chartDialog,
     chartName,
@@ -61,6 +64,9 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
     lookupQuery,
     markNotAttending,
     mobileEditing,
+    newChartRowCount,
+    newChartSingerCount,
+    openCreateChartDialog,
     profileBusy,
     profileDialog,
     profileForm,
@@ -72,6 +78,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
     requestRemoveRow,
     requestRemoveSeat,
     resources,
+    rsvpYesCount,
     saveProfile,
     saveState,
     seatingDisplayNames,
@@ -155,6 +162,9 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
         resources.roster,
       )
     : [];
+  const createLayoutIsValid =
+    newChartSingerCount > 0 && newChartRowCount > 0 && newChartRowCount <= newChartSingerCount;
+  const maxNewChartRows = Math.max(1, Math.min(50, newChartSingerCount));
 
   return (
     <div
@@ -313,10 +323,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
             <div className="seating-toolbar__actions seating-toolbar__actions--chart">
               <button
                 className="button button--secondary button--small"
-                onClick={() => {
-                  setChartName("");
-                  setChartDialog("create");
-                }}
+                onClick={openCreateChartDialog}
                 type="button"
               >
                 New
@@ -522,10 +529,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
               <p>Give this Performance a chart name to begin.</p>
               <button
                 className="button button--primary"
-                onClick={() => {
-                  setChartName("Main Seating Chart");
-                  setChartDialog("create");
-                }}
+                onClick={openCreateChartDialog}
                 type="button"
               >
                 Create chart
@@ -758,7 +762,11 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
       />
 
       <Dialog
-        description="Use a short name that identifies this seating arrangement."
+        description={
+          chartDialog === "rename"
+            ? "Use a short name that identifies this seating arrangement."
+            : "Name the chart and set the singers and rows for its initial layout."
+        }
         onClose={() => {
           setChartDialog(null);
         }}
@@ -785,6 +793,45 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
               value={chartName}
             />
           </label>
+          {chartDialog === "create" ? (
+            <>
+              <div className="form-grid seating-chart-create-fields">
+                <label className="field">
+                  Singers to place
+                  <input
+                    aria-describedby="seating-chart-rsvp-help"
+                    max={4_000}
+                    min={0}
+                    onChange={(event) => {
+                      changeNewChartSingerCount(event.target.valueAsNumber);
+                    }}
+                    type="number"
+                    value={newChartSingerCount}
+                  />
+                </label>
+                <label className="field">
+                  Rows
+                  <input
+                    max={maxNewChartRows}
+                    min={1}
+                    onChange={(event) => {
+                      changeNewChartRowCount(event.target.valueAsNumber);
+                    }}
+                    type="number"
+                    value={newChartRowCount}
+                  />
+                </label>
+              </div>
+              <p className="field-help" id="seating-chart-rsvp-help">
+                {rsvpYesCount === 0
+                  ? "No singers have RSVP’d Yes yet. You can still set the number to place."
+                  : `${String(rsvpYesCount)} singer${rsvpYesCount === 1 ? " has" : "s have"} RSVP’d Yes for this Performance; this is the default.`}
+              </p>
+              <p aria-live="polite" className="seating-chart-layout-preview" role="status">
+                {seatingRowSummary(newChartSingerCount, newChartRowCount)}
+              </p>
+            </>
+          ) : null}
           <div className="form-actions">
             <button
               className="button button--secondary"
@@ -795,7 +842,11 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
             >
               Cancel
             </button>
-            <button className="button button--primary" type="submit">
+            <button
+              className="button button--primary"
+              disabled={chartDialog === "create" && !createLayoutIsValid}
+              type="submit"
+            >
               {chartDialog === "rename" ? "Save name" : "Create chart"}
             </button>
           </div>

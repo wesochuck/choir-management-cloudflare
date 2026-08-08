@@ -39,7 +39,13 @@ import {
   createOrganizationSeatingChart,
 } from "../../../auth/api";
 import { getUniqueDisplayNames } from "../../nameFormatting";
-import { emptyChart, emptyProfile, chartRequest } from "./utils";
+import {
+  chartRequest,
+  defaultSeatingRowCount,
+  distributeSeatsAcrossRows,
+  emptyChart,
+  emptyProfile,
+} from "./utils";
 import type { SeatingResources, ViewMode, SaveState, ConfirmState } from "./types";
 
 export function useIsNarrowScreen(): boolean {
@@ -96,6 +102,8 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [chartDialog, setChartDialog] = useState<"create" | "rename" | null>(null);
   const [chartName, setChartName] = useState("");
+  const [newChartSingerCount, setNewChartSingerCount] = useState(0);
+  const [newChartRowCount, setNewChartRowCount] = useState(1);
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyPerformanceId, setCopyPerformanceId] = useState("");
   const [copyCharts, setCopyCharts] = useState<readonly OrganizationSeatingChart[]>([]);
@@ -214,6 +222,10 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
         attending.has(profile.id),
     );
   }, [attendance, resources]);
+  const rsvpYesCount = useMemo(
+    () => attendance.filter(({ rsvp }) => rsvp === "Yes").length,
+    [attendance],
+  );
   const profilesById = useMemo(
     () => new Map((resources?.profiles ?? []).map((profile) => [profile.id, profile])),
     [resources?.profiles],
@@ -352,14 +364,49 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     updateUrl(nextEventId, null);
   }
 
+  function openCreateChartDialog(): void {
+    setError(null);
+    setChartName("Main Seating Chart");
+    setNewChartSingerCount(rsvpYesCount);
+    setNewChartRowCount(defaultSeatingRowCount(rsvpYesCount));
+    setChartDialog("create");
+  }
+
+  function changeNewChartSingerCount(nextValue: number): void {
+    const nextCount = Number.isFinite(nextValue)
+      ? Math.max(0, Math.min(4_000, Math.trunc(nextValue)))
+      : 0;
+    setNewChartSingerCount(nextCount);
+    setNewChartRowCount((current) => (nextCount > 0 ? Math.min(current, nextCount, 50) : 1));
+  }
+
+  function changeNewChartRowCount(nextValue: number): void {
+    const maxRows = Math.max(1, Math.min(50, newChartSingerCount));
+    const nextCount = Number.isFinite(nextValue) ? Math.trunc(nextValue) : 1;
+    setNewChartRowCount(Math.max(1, Math.min(maxRows, nextCount)));
+  }
+
   async function createChart(): Promise<void> {
     if (!eventId || !resources) return;
+    const rowCounts = distributeSeatsAcrossRows(newChartSingerCount, newChartRowCount);
+    if (rowCounts.length === 0) {
+      setError(
+        newChartSingerCount < 1
+          ? "At least one singer is required to create a seating layout."
+          : "Choose no more rows than singers before creating the chart.",
+      );
+      return;
+    }
     setSaveState("saving");
     try {
       const created = await createOrganizationSeatingChart(eventId, {
         ...chart,
+        assignments: {},
         name: chartName.trim() || "Main Seating Chart",
         formationId: chart.formationId || resources.seating.defaultFormationId,
+        rowCounts,
+        sectionSuggestions: {},
+        sortOrder: charts.length,
       });
       setCharts((current) =>
         [...current, created].toSorted((left, right) => left.sortOrder - right.sortOrder),
@@ -801,6 +848,9 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     lookupQuery,
     markNotAttending,
     mobileEditing,
+    newChartRowCount,
+    newChartSingerCount,
+    openCreateChartDialog,
     profileBusy,
     profileDialog,
     profileForm,
@@ -812,6 +862,7 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     requestRemoveRow,
     requestRemoveSeat,
     resources,
+    rsvpYesCount,
     saveProfile,
     saveState,
     seatingDisplayNames,
@@ -821,6 +872,8 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     setAttendance,
     setChartDialog,
     setChartName,
+    changeNewChartRowCount,
+    changeNewChartSingerCount,
     setConfirmState,
     setCopyChartId,
     setCopyCharts,

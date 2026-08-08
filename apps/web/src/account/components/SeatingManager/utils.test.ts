@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupSeatAssignmentProfiles } from "./utils";
+import { distributeSeatsAcrossRows, groupSeatAssignmentProfiles, seatingRowSummary } from "./utils";
 
 const roster = {
   sections: [
@@ -50,5 +50,25 @@ describe("seat assignment candidate ordering", () => {
 
     expect(groups.map(({ key }) => key)).toEqual(["A", "S", "T"]);
     expect(groups[0]?.profiles.map(({ displayName }) => displayName)).toEqual(["Ron Van Dyke"]);
+  });
+});
+
+describe("new seating chart layouts", () => {
+  it("distributes singers as evenly as possible across rows", () => {
+    expect(distributeSeatsAcrossRows(10, 3)).toEqual([4, 3, 3]);
+    expect(distributeSeatsAcrossRows(12, 3)).toEqual([4, 4, 4]);
+  });
+
+  it("describes the live per-row capacity", () => {
+    expect(seatingRowSummary(10, 3)).toBe(
+      "10 singers across 3 rows — 3–4 singers per row, balanced as evenly as possible.",
+    );
+  });
+
+  it("rejects layouts with no singers or more rows than singers", () => {
+    expect(distributeSeatsAcrossRows(0, 1)).toEqual([]);
+    expect(distributeSeatsAcrossRows(2, 3)).toEqual([]);
+    expect(seatingRowSummary(0, 1)).toBe("Add at least one singer to create a seating layout.");
+    expect(seatingRowSummary(2, 3)).toBe("Choose no more rows than singers.");
   });
 });

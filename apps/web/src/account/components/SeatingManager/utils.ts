@@ -11,6 +11,41 @@ import type { FormationOrderOption } from "./types";
 
 export const defaultRows = [8, 10, 12];
 
+export function defaultSeatingRowCount(singerCount: number): number {
+  return singerCount > 0 ? Math.min(defaultRows.length, singerCount) : 1;
+}
+
+export function distributeSeatsAcrossRows(singerCount: number, rowCount: number): number[] {
+  if (
+    !Number.isInteger(singerCount) ||
+    !Number.isInteger(rowCount) ||
+    singerCount < 1 ||
+    rowCount < 1 ||
+    rowCount > singerCount
+  ) {
+    return [];
+  }
+  const seatsPerRow = Math.floor(singerCount / rowCount);
+  const rowsWithExtraSeat = singerCount % rowCount;
+  return Array.from(
+    { length: rowCount },
+    (_, rowIndex) => seatsPerRow + (rowIndex < rowsWithExtraSeat ? 1 : 0),
+  );
+}
+
+export function seatingRowSummary(singerCount: number, rowCount: number): string {
+  const rowCounts = distributeSeatsAcrossRows(singerCount, rowCount);
+  if (singerCount < 1) return "Add at least one singer to create a seating layout.";
+  if (rowCounts.length === 0) return "Choose no more rows than singers.";
+  const smallestRow = Math.min(...rowCounts);
+  const largestRow = Math.max(...rowCounts);
+  const perRow =
+    smallestRow === largestRow
+      ? `${String(largestRow)} singer${largestRow === 1 ? "" : "s"} per row`
+      : `${String(smallestRow)}–${String(largestRow)} singers per row, balanced as evenly as possible`;
+  return `${String(singerCount)} singer${singerCount === 1 ? "" : "s"} across ${String(rowCount)} row${rowCount === 1 ? "" : "s"} — ${perRow}.`;
+}
+
 export const emptyChart: OrganizationSeatingChartRequest = {
   assignments: {},
   formationId: "columns-standard",
