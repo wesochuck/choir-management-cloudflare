@@ -1,10 +1,11 @@
 import type { DeliveryJob } from "../jobs/contracts";
-import { calculateRsvpDeadline } from "@choir/domain";
+import { calculateRsvpDeadline, POLL_ARCHIVE_DELAY_DAYS } from "@choir/domain";
 import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 import { readRosterAutomationConfiguration, runRosterAutomations } from "./statusAutomationStore";
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
+const POLL_ARCHIVE_BATCH_SIZE = 100;
 const RETRY_ALARM_DELAY_MS = 60_000;
 const ALARM_WAKE_DELAY_MS = 1_000;
 
@@ -24,6 +25,13 @@ interface ScheduledJobRow {
   readonly idempotencyKey: string;
   readonly jobId: string;
   readonly kind: DeliveryJob["kind"];
+}
+
+interface PollArchiveCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly expiresAt: string;
+  readonly id: string;
+  readonly title: string;
 }
 
 function nextSchedulerDue(now: Date): string {
@@ -374,6 +382,49 @@ function createPostEventReportJobs(
   }
 }
 
+function archiveDuePolls(storage: DurableObjectStorage, organizationId: string, now: Date): void {
+  const archiveBefore = new Date(
+    now.getTime() - POLL_ARCHIVE_DELAY_DAYS * 24 * 60 * 60 * 1_000,
+  ).toISOString();
+  const candidates = storage.sql
+    .exec<PollArchiveCandidateRow>(
+      `SELECT id, title, expires_at AS expiresAt
+       FROM polls
+       WHERE archived_at = '' AND expires_at != '' AND expires_at <= ?
+       ORDER BY expires_at, id
+       LIMIT ?`,
+      archiveBefore,
+      POLL_ARCHIVE_BATCH_SIZE,
+    )
+    .toArray();
+  if (candidates.length === 0) return;
+
+  const archivedAt = now.toISOString();
+  storage.transactionSync(() => {
+    for (const candidate of candidates) {
+      storage.sql.exec(
+        `UPDATE polls SET archived_at = ?, updated_at = ?
+         WHERE id = ? AND archived_at = ''`,
+        archivedAt,
+        archivedAt,
+        candidate.id,
+      );
+      storage.sql.exec(
+        `INSERT OR IGNORE INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_system', 'system:scheduler', 'poll.archived',
+           'poll', ?, ?, ?, ?)`,
+        `poll-auto-archived:${organizationId}:${candidate.id}`,
+        candidate.id,
+        `poll-auto-archived:${organizationId}:${candidate.id}`,
+        JSON.stringify({ expiresAt: candidate.expiresAt, reason: "expiration" }),
+        archivedAt,
+      );
+    }
+  });
+}
+
 function createDueJobs(storage: DurableObjectStorage, organizationId: string, now: Date): void {
   storage.transactionSync(() => {
     const scheduler = storage.sql
@@ -451,6 +502,7 @@ export async function runOrganizationAlarm(
     return { enqueuedJobCount: 0, organizationId: null };
   }
   runRosterAutomations(storage, organizationId, now);
+  archiveDuePolls(storage, organizationId, now);
   createDueJobs(storage, organizationId, now);
   const pendingJobs = readPendingJobs(storage);
   if (pendingJobs.length === 0) {

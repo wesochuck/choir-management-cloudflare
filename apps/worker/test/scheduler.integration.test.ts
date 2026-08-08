@@ -242,6 +242,92 @@ describe("Organization scheduler", () => {
     ).toBeNull();
   });
 
+  it("archives polls two days after expiration and separates archived listings", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const overdueAt = new Date(now - 1_000).toISOString();
+    const duePollId = "66666666-6666-4666-8666-666666666666";
+    const notDuePollId = "77777777-7777-4777-8777-777777777778";
+    const createdAt = new Date(now - 4 * 24 * 60 * 60 * 1_000).toISOString();
+    const dueExpiration = new Date(now - 2 * 24 * 60 * 60 * 1_000 - 60_000).toISOString();
+    const notDueExpiration = new Date(now - 2 * 24 * 60 * 60 * 1_000 + 60_000).toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      for (const [pollId, expiresAt] of [
+        [duePollId, dueExpiration],
+        [notDuePollId, notDueExpiration],
+      ] as const) {
+        state.storage.sql.exec(
+          `INSERT INTO polls
+            (id, title, description, multiple_choice, expires_at, archived_at,
+             created_by, created_at, updated_at)
+           VALUES (?, ?, '', 0, ?, '', 'scheduler-test', ?, ?)`,
+          pollId,
+          pollId === duePollId ? "Due poll" : "Not-yet-due poll",
+          expiresAt,
+          createdAt,
+          createdAt,
+        );
+      }
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+        overdueAt,
+        overdueAt,
+      );
+      return state.storage.setAlarm(now + 60_000).then(() => undefined);
+    });
+
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+
+    const pollStates = await runInDurableObject<
+      OrganizationStore,
+      readonly { readonly archivedAt: string; readonly id: string }[]
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ readonly archivedAt: string; readonly id: string }>(
+          `SELECT id, archived_at AS archivedAt FROM polls WHERE id IN (?, ?)
+           ORDER BY id`,
+          duePollId,
+          notDuePollId,
+        )
+        .toArray(),
+    );
+    expect(pollStates).toEqual([
+      { archivedAt: expect.any(String), id: duePollId },
+      { archivedAt: "", id: notDuePollId },
+    ]);
+
+    const activeResponse = await stub.fetch(
+      "https://organization.internal/internal/polls?organizationId=organization-scheduler",
+    );
+    expect(activeResponse.status).toBe(200);
+    expect(await activeResponse.json()).toEqual([
+      expect.objectContaining({ id: notDuePollId, title: "Not-yet-due poll" }),
+    ]);
+
+    const archivedResponse = await stub.fetch(
+      "https://organization.internal/internal/polls/archived?organizationId=organization-scheduler",
+    );
+    expect(archivedResponse.status).toBe(200);
+    expect(await archivedResponse.json()).toEqual([
+      expect.objectContaining({ id: duePollId, title: "Due poll" }),
+    ]);
+
+    await expect(
+      runInDurableObject<OrganizationStore, { readonly action: string; readonly targetId: string }>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly action: string; readonly targetId: string }>(
+              `SELECT action, target_id AS targetId FROM audit_events
+               WHERE id = ? LIMIT 1`,
+              `poll-auto-archived:organization-scheduler:${duePollId}`,
+            )
+            .one(),
+      ),
+    ).resolves.toEqual({ action: "poll.archived", targetId: duePollId });
+  });
+
   it("wakes the alarm promptly when delivery work is enqueued", async () => {
     const stub = await provisionScheduler();
     const duesProfileId = "88888888-8888-4888-8888-888888888890";

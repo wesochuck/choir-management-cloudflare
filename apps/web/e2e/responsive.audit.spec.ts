@@ -210,6 +210,17 @@ const events = [
   },
 ];
 
+const responsivePolls = [
+  {
+    archivedAt: "",
+    createdAt: "2026-07-20T20:00:00.000Z",
+    expiresAt: "2026-07-23T20:00:00.000Z",
+    id: pollId,
+    responseCount: 0,
+    title: "Responsive poll",
+  },
+];
+
 const responsiveManagerResponses: Record<string, unknown> = {
   "/api/organization/dues": { dues: [], requestId },
   "/api/singer/dues": {
@@ -237,19 +248,7 @@ const responsiveManagerResponses: Record<string, unknown> = {
   },
   "/api/organization/donations": { donations: [], requestId },
   "/api/organization/patrons": { patrons: [], requestId },
-  "/api/organization/polls": {
-    polls: [
-      {
-        archivedAt: "",
-        createdAt: "2026-07-20T20:00:00.000Z",
-        expiresAt: "2026-07-23T20:00:00.000Z",
-        id: pollId,
-        responseCount: 0,
-        title: "Responsive poll",
-      },
-    ],
-    requestId,
-  },
+  "/api/organization/polls": { polls: responsivePolls, requestId },
   "/api/organization/seasons": {
     requestId,
     seasons: [
@@ -284,6 +283,25 @@ async function handleDataRoute(route: Route): Promise<boolean> {
   }
   if (url.pathname === `/api/organization/events/${eventId}`) {
     await fulfillJson(route, events[0]);
+    return true;
+  }
+  if (url.pathname === "/api/organization/polls") {
+    await fulfillJson(route, {
+      polls:
+        url.searchParams.get("archived") === "true"
+          ? [
+              {
+                archivedAt: "2026-07-25T20:00:00.000Z",
+                createdAt: "2026-07-20T20:00:00.000Z",
+                expiresAt: "2026-07-23T20:00:00.000Z",
+                id: "45454545-4545-4454-8454-454545454545",
+                responseCount: 3,
+                title: "Archived responsive poll",
+              },
+            ]
+          : responsivePolls,
+      requestId,
+    });
     return true;
   }
   if (url.pathname === "/api/organization/music") {
@@ -572,6 +590,22 @@ test("poll creation requires and defaults an expiration date", async ({ page }) 
     value,
   );
   expect(Math.abs(expirationTime - Date.now() - 3 * 24 * 60 * 60 * 1_000)).toBeLessThan(60_000);
+});
+
+test("poll archive filter loads archived polls", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/admin/polls");
+  const archivedToggle = page.getByRole("checkbox", { name: "Show archived polls" });
+  await expect(archivedToggle).not.toBeChecked();
+  await archivedToggle.check();
+  await expect(archivedToggle).toBeChecked();
+  await expect(page.locator("body")).toContainText("Archived responsive poll");
+  await expect(page.locator("body")).not.toContainText("Responsive poll");
 });
 
 test("member dues keeps payment controls beside amounts at compact widths", async ({ page }) => {

@@ -1119,6 +1119,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [],
     version: 66,
   },
+  {
+    version: 67,
+    statements: [
+      `CREATE INDEX IF NOT EXISTS idx_polls_archive
+       ON polls(archived_at, expires_at, created_at DESC, id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

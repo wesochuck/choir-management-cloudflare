@@ -58,11 +58,15 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   const [sharingPollId, setSharingPollId] = useState<string | null>(null);
   const [communicationsDraftId, setCommunicationsDraftId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    fetch("/api/organization/polls", {
+    const endpoint = showArchived
+      ? "/api/organization/polls?archived=true"
+      : "/api/organization/polls";
+    fetch(endpoint, {
       credentials: "same-origin",
       signal: controller.signal,
     })
@@ -78,7 +82,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, showArchived]);
 
   function openCreateDialog(): void {
     setEditingPollId(null);
@@ -178,17 +182,19 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
                         }
                       : poll,
                   )
-                : [
-                    {
-                      archivedAt: saved.archivedAt,
-                      createdAt: saved.createdAt,
-                      expiresAt: saved.expiresAt,
-                      id: saved.id,
-                      responseCount: 0,
-                      title: saved.title,
-                    },
-                    ...current.polls,
-                  ],
+                : showArchived
+                  ? current.polls
+                  : [
+                      {
+                        archivedAt: saved.archivedAt,
+                        createdAt: saved.createdAt,
+                        expiresAt: saved.expiresAt,
+                        id: saved.id,
+                        responseCount: 0,
+                        title: saved.title,
+                      },
+                      ...current.polls,
+                    ],
               status: "ready",
             }
           : current,
@@ -260,7 +266,19 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   }
   return (
     <section className="manager-page" aria-label="Poll management">
-      <div className="page-toolbar page-toolbar--end">
+      <div className="page-toolbar">
+        <label className="checkbox-row" htmlFor="polls-show-archived">
+          <input
+            checked={showArchived}
+            id="polls-show-archived"
+            onChange={(event) => {
+              setState({ status: "loading" });
+              setShowArchived(event.target.checked);
+            }}
+            type="checkbox"
+          />
+          Show archived polls
+        </label>
         <button className="button button--primary" onClick={openCreateDialog} type="button">
           Create poll
         </button>
@@ -323,7 +341,11 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             ),
           },
         ]}
-        emptyMessage="No polls yet. Create the first poll for your Organization."
+        emptyMessage={
+          showArchived
+            ? "No archived polls yet. Polls are archived two days after they expire."
+            : "No polls yet. Create the first poll for your Organization."
+        }
         keySelector={(poll) => poll.id}
         onRowClick={(poll) => {
           void openEditDialog(poll);

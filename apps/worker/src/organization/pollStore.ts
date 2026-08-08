@@ -88,6 +88,7 @@ export function listPollsFromStore(
               p.created_at AS createdAt,
               (SELECT COUNT(*) FROM poll_responses r WHERE r.poll_id = p.id) AS responseCount
        FROM polls p
+       WHERE p.archived_at = ''
        ORDER BY p.created_at DESC`,
     )
     .toArray();

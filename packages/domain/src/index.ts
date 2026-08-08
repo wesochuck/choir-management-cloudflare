@@ -145,7 +145,12 @@ export {
   type AttendanceExportSort,
 } from "./attendanceReportCsv";
 export { donationExportFilename, renderDonationCsv, type DonationExportRow } from "./donationCsv";
-export { defaultPollExpirationAt, POLL_EXPIRATION_DEFAULT_DAYS } from "./polls";
+export {
+  defaultPollExpirationAt,
+  pollArchiveDueAt,
+  POLL_ARCHIVE_DELAY_DAYS,
+  POLL_EXPIRATION_DEFAULT_DAYS,
+} from "./polls";
 export {
   canTransitionDonation,
   type DonationInput,
