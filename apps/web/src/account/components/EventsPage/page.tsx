@@ -470,7 +470,8 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
         error={error}
         event={event}
         eventStart={eventStart}
-        key={`${dialogOpen ? "open" : "closed"}:${editingId ?? "new"}:${String(event.advancePriceCents)}:${String(event.dayOfPriceCents)}`}
+        graphicFile={graphicFile}
+        key={`${dialogOpen ? "open" : "closed"}:${editingId ?? "new"}`}
         onClose={closeDialog}
         onSubmit={(eventDraft) => {
           void saveEvent(eventDraft);

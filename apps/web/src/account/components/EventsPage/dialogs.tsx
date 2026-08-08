@@ -25,6 +25,7 @@ export function EventEditorDialog({
   error,
   event,
   eventStart,
+  graphicFile,
   onClose,
   onSubmit,
   setEvent,
@@ -38,6 +39,7 @@ export function EventEditorDialog({
   readonly error: string | null;
   readonly event: OrganizationEventRequest;
   readonly eventStart: string;
+  readonly graphicFile: File | null;
   readonly onClose: () => void;
   readonly onSubmit: (event: OrganizationEventRequest) => void;
   readonly setEvent: Dispatch<SetStateAction<OrganizationEventRequest>>;
@@ -51,6 +53,18 @@ export function EventEditorDialog({
   const [dayOfPriceDraft, setDayOfPriceDraft] = useState(
     currencyDraftFromCents(event.dayOfPriceCents),
   );
+  const [initialDraft] = useState(() => ({
+    advancePriceDraft: currencyDraftFromCents(event.advancePriceCents),
+    dayOfPriceDraft: currencyDraftFromCents(event.dayOfPriceCents),
+    event,
+    eventStart,
+  }));
+  const dirty =
+    JSON.stringify(event) !== JSON.stringify(initialDraft.event) ||
+    eventStart !== initialDraft.eventStart ||
+    advancePriceDraft !== initialDraft.advancePriceDraft ||
+    dayOfPriceDraft !== initialDraft.dayOfPriceDraft ||
+    graphicFile !== null;
   const followUpEnabled =
     event.rsvpFollowUpMode === "enabled" ||
     (event.rsvpFollowUpMode === "inherit" && state.status === "ready" && state.rsvpFollowUpEnabled);
@@ -64,6 +78,7 @@ export function EventEditorDialog({
   return (
     <Dialog
       description={eventDialogDescription(state)}
+      dirty={dirty}
       onClose={onClose}
       open={dialogOpen}
       title={eventDialogTitle(editingId, event.title)}
@@ -405,14 +420,19 @@ export function EventEditorDialog({
             ) : null}
           </div>
         ) : null}
-        <div className="dialog__actions">
-          <button className="button button--secondary" onClick={onClose} type="button">
-            Cancel
-          </button>
-          <button className="button button--primary" disabled={busy} type="submit">
-            {eventSaveLabel(busy, editingId)}
-          </button>
-        </div>
+        {dirty ? (
+          <div className="event-editor-save-bar" role="region" aria-label="Unsaved event changes">
+            <span className="event-editor-save-bar__message">Unsaved changes</span>
+            <div className="dialog__actions">
+              <button className="button button--secondary" onClick={onClose} type="button">
+                Cancel
+              </button>
+              <button className="button button--primary" disabled={busy} type="submit">
+                {eventSaveLabel(busy, editingId)}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </form>
     </Dialog>
   );

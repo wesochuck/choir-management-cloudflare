@@ -1484,6 +1484,14 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(eventEditor).toContainText(
     "This date is calculated from the event start using the organization's RSVP expiry setting.",
   );
+  await expect(eventEditor.getByRole("region", { name: "Unsaved event changes" })).toHaveCount(0);
+  await eventEditor.getByLabel("Title").fill("Browser Concert draft");
+  const eventSaveBar = eventEditor.getByRole("region", { name: "Unsaved event changes" });
+  await expect(eventSaveBar).toBeVisible();
+  await expect(eventSaveBar.getByText("Unsaved changes")).toBeVisible();
+  await expect(eventSaveBar.getByRole("button", { name: "Save event", exact: true })).toBeVisible();
+  await eventEditor.getByLabel("Title").fill("Browser Concert");
+  await expect(eventSaveBar).toHaveCount(0);
   await page.getByRole("button", { name: "Close" }).click();
   await expect(eventEditor).toHaveCount(0);
   await browserConcertEdit

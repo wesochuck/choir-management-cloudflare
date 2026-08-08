@@ -4,27 +4,32 @@ import { useEffect, useState, type ReactNode } from "react";
 interface DialogProps {
   readonly children: ReactNode;
   readonly description?: string;
+  readonly dirty?: boolean;
   readonly onClose: () => void;
   readonly open: boolean;
   readonly title: string;
 }
 
-export function Dialog({ children, description, onClose, open, title }: DialogProps) {
-  const [dirty, setDirty] = useState(false);
+export function Dialog({ children, description, dirty, onClose, open, title }: DialogProps) {
+  const [inputDirty, setInputDirty] = useState(false);
 
   useEffect(() => {
     if (open) {
       // Reset the per-open-session guard whenever a fresh dialog is shown.
       // eslint-disable-next-line react-hooks/set-state-in-effect -- this synchronizes the guard with the controlled open prop.
-      setDirty(false);
+      setInputDirty(false);
     }
   }, [open]);
 
   function requestClose(): void {
-    if (dirty && !window.confirm("You have unsaved changes. Discard them and close this dialog?")) {
+    const hasUnsavedChanges = dirty ?? inputDirty;
+    if (
+      hasUnsavedChanges &&
+      !window.confirm("You have unsaved changes. Discard them and close this dialog?")
+    ) {
       return;
     }
-    setDirty(false);
+    setInputDirty(false);
     onClose();
   }
 
@@ -47,7 +52,7 @@ export function Dialog({ children, description, onClose, open, title }: DialogPr
             window.setTimeout(requestClose, 0);
           }}
           onInput={() => {
-            setDirty(true);
+            setInputDirty(true);
           }}
         >
           <div className="dialog__header">
