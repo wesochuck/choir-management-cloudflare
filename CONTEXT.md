@@ -475,6 +475,26 @@ means the Profile is committed to that Performance. Attendance is the stronger e
 conflicts with an earlier RSVP response. Absent attendance does not rewrite RSVP Status; RSVP
 continues to represent the person's stated intention while attendance represents the outcome.
 
+## Folder Number
+
+The Organization's identifier for a physical music folder assigned to an Organization Profile for
+one Performance. It may contain letters or punctuation, is case-insensitively unique within that
+Performance, and may be reused for another Performance. _Avoid_: Folder ID
+
+## Folder Return Status
+
+The per-Performance state of an Organization Profile's assigned music folder: Returned, Outstanding,
+or Not Assigned. Returned is an Organization Administrator's confirmation of physical receipt; Not
+Assigned has no active return obligation and is excluded from return-rate calculations. _Avoid_:
+Missing folder as a synonym for Outstanding, member self-report
+
+## Music Folder Report
+
+A report over selected Performances that summarizes Folder Return Status by Organization Profile and
+exposes the underlying Performance-scoped assignments. Profiles without an assigned Folder Number in
+the selection do not appear, and totals count Profile-by-Performance assignments rather than unique
+Profiles. _Avoid_: Folder accountability report, complete roster folder census
+
 ## RSVP Balance
 
 A real-time breakdown of RSVP statuses grouped by voice parts. This allows directors to quickly

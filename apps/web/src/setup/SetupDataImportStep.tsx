@@ -23,6 +23,7 @@ import {
   type CsvImportColumnMapping,
   type CsvImportMappingOption,
 } from "../account/CsvImportDialog";
+import { useOrganizationTerminology } from "../account/organizationTerminologyContext";
 
 type ImportKind = "music" | "roster";
 type ImportInspection = MusicCsvInspection | RosterCsvInspection;
@@ -57,8 +58,8 @@ function importLabel(kind: ImportKind): string {
   return kind === "roster" ? "roster" : "Music Library";
 }
 
-function inspectImport(kind: ImportKind, csv: string): ImportInspection {
-  return kind === "roster" ? inspectRosterCsv(csv) : inspectMusicCsv(csv);
+function inspectImport(kind: ImportKind, csv: string, performerLabel: string): ImportInspection {
+  return kind === "roster" ? inspectRosterCsv(csv, performerLabel) : inspectMusicCsv(csv);
 }
 
 function mapImportColumns(
@@ -69,16 +70,25 @@ function mapImportColumns(
   return kind === "roster" ? mapRosterCsvColumns(csv, mappings) : mapMusicCsvColumns(csv, mappings);
 }
 
-function mapOptions(kind: ImportKind): readonly CsvImportMappingOption[] {
+function mapOptions(kind: ImportKind, performerLabel: string): readonly CsvImportMappingOption[] {
   const options = kind === "roster" ? rosterCsvColumnOptions : musicCsvColumnOptions;
-  return options.map((value) => ({ label: value, value }));
+  return options.map((value) => ({
+    label: value === "Voice Part" ? performerLabel : value,
+    value,
+  }));
 }
 
-function createMappings(kind: ImportKind, headers: readonly string[]): CsvColumnMapping[] {
+function createMappings(
+  kind: ImportKind,
+  headers: readonly string[],
+  performerLabel: string,
+): CsvColumnMapping[] {
   return headers.map((header, sourceIndex) => ({
     sourceIndex,
     targetHeader:
-      kind === "roster" ? rosterCsvColumnForHeader(header) : musicCsvColumnForHeader(header),
+      kind === "roster"
+        ? rosterCsvColumnForHeader(header, performerLabel)
+        : musicCsvColumnForHeader(header),
   }));
 }
 
@@ -90,6 +100,7 @@ function SetupDataImportDialog({
   onConfirmationChange,
   onFileChange,
   onImport,
+  performerLabel,
   state,
 }: {
   readonly importing: boolean;
@@ -99,6 +110,7 @@ function SetupDataImportDialog({
   readonly onConfirmationChange: (confirmed: boolean) => void;
   readonly onFileChange: (file: File | null) => void;
   readonly onImport: () => void;
+  readonly performerLabel: string;
   readonly state: ImportState;
 }) {
   return (
@@ -123,7 +135,7 @@ function SetupDataImportDialog({
           : "Existing catalog entries are retained. Practice tracks and publisher links can be added after import."
       }
       invalid={Boolean(state.inspection?.fatalError)}
-      mappingOptions={mapOptions(kind)}
+      mappingOptions={mapOptions(kind, performerLabel)}
       onClose={onClose}
       onConfirmationChange={onConfirmationChange}
       onFileChange={onFileChange}
@@ -136,6 +148,7 @@ function SetupDataImportDialog({
 }
 
 export function SetupDataImportStep() {
+  const { performerLabel } = useOrganizationTerminology();
   const [activeImport, setActiveImport] = useState<ImportKind | null>(null);
   const [importing, setImporting] = useState<ImportKind | null>(null);
   const [roster, setRoster] = useState<ImportState>(emptyImportState);
@@ -179,10 +192,14 @@ export function SetupDataImportStep() {
     void file
       .text()
       .then((csv) => {
-        const initialInspection = inspectImport(kind, csv);
+        const initialInspection = inspectImport(kind, csv, performerLabel);
         const headers = initialInspection.headers;
-        const mappings = createMappings(kind, headers);
-        const inspection = inspectImport(kind, mapImportColumns(kind, csv, mappings));
+        const mappings = createMappings(kind, headers, performerLabel);
+        const inspection = inspectImport(
+          kind,
+          mapImportColumns(kind, csv, mappings),
+          performerLabel,
+        );
         updateState(kind, (current) => ({
           ...current,
           csv,
@@ -212,7 +229,11 @@ export function SetupDataImportStep() {
       mapping.sourceIndex === sourceIndex ? { ...mapping, targetHeader } : mapping,
     );
     try {
-      const inspection = inspectImport(kind, mapImportColumns(kind, current.csv, mappings));
+      const inspection = inspectImport(
+        kind,
+        mapImportColumns(kind, current.csv, mappings),
+        performerLabel,
+      );
       updateState(kind, (state) => ({
         ...state,
         confirmed: false,
@@ -283,7 +304,10 @@ export function SetupDataImportStep() {
         <section className="setup-data-import__option" aria-labelledby="setup-roster-import-title">
           <div>
             <h3 id="setup-roster-import-title">Roster CSV</h3>
-            <p>Add Profiles, voice parts, statuses, notes, and section-leader assignments.</p>
+            <p>
+              Add Profiles, {performerLabel.toLowerCase()} assignments, statuses, notes, and
+              section-leader assignments.
+            </p>
             {roster.imported !== null ? (
               <p className="notice notice--success" role="status">
                 {String(roster.imported)} Profile(s) imported
@@ -344,6 +368,7 @@ export function SetupDataImportStep() {
           onImport={() => {
             void importData(activeImport);
           }}
+          performerLabel={performerLabel}
           state={stateFor(activeImport)}
         />
       ) : null}

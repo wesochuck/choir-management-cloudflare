@@ -16,6 +16,7 @@ interface PlayerDetails {
   readonly eventTitle: string;
   readonly eventStartsAt: string;
   readonly items: PlayerPlaylistItem[];
+  readonly performerLabel?: string;
   readonly profileName?: string;
 }
 
@@ -62,6 +63,7 @@ function isPlayerDetails(value: unknown): value is PlayerDetails {
     typeof value.eventStartsAt === "string" &&
     Array.isArray(value.items) &&
     value.items.every(isPlayerPlaylistItem) &&
+    (value.performerLabel === undefined || typeof value.performerLabel === "string") &&
     (value.profileName === undefined || typeof value.profileName === "string")
   );
 }
@@ -101,6 +103,7 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
     eventTitle: event.title,
     eventStartsAt: event.date,
     items: data.pieces,
+    performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
   };
 }
 
@@ -162,6 +165,7 @@ function PublicPracticePlayer({
   readonly details: PlayerDetails;
   readonly token: string;
 }) {
+  const performerLabel = details.performerLabel ?? "Performer";
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoplayRef = useRef(false);
   const gapTimerRef = useRef<number | null>(null);
@@ -338,15 +342,15 @@ function PublicPracticePlayer({
           ))}
           {voicePartKeys.length > 0 ? (
             <label className="public-player__voice-part-select">
-              <span className="sr-only">Add individual voice part</span>
+              <span className="sr-only">Add individual {performerLabel.toLowerCase()}</span>
               <select
-                aria-label="Add individual voice part"
+                aria-label={`Add individual ${performerLabel.toLowerCase()}`}
                 value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
                 onChange={(event) => {
                   if (event.target.value) selectTrackKey(event.target.value);
                 }}
               >
-                <option value="">Add voice part…</option>
+                <option value="">Add {performerLabel.toLowerCase()}…</option>
                 {voicePartKeys.map((key) => (
                   <option key={key} value={key}>
                     {formatTrackKey(key)}
@@ -381,15 +385,15 @@ function PublicPracticePlayer({
         ))}
         {voicePartKeys.length > 0 ? (
           <label className="public-player__voice-part-select">
-            <span className="sr-only">Add individual voice part</span>
+            <span className="sr-only">Add individual {performerLabel.toLowerCase()}</span>
             <select
-              aria-label="Add individual voice part"
+              aria-label={`Add individual ${performerLabel.toLowerCase()}`}
               value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
               onChange={(event) => {
                 if (event.target.value) selectTrackKey(event.target.value);
               }}
             >
-              <option value="">Add voice part…</option>
+              <option value="">Add {performerLabel.toLowerCase()}…</option>
               {voicePartKeys.map((key) => (
                 <option key={key} value={key}>
                   {formatTrackKey(key)}

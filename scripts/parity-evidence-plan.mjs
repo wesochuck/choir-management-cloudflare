@@ -80,6 +80,11 @@ export const probePlan = new Map([
   ["api.setup-claim", { kind: "skip-fixture" }],
   ["api.setup-complete", { kind: "skip-fixture" }],
   ["api.setup-progress", { kind: "skip-fixture" }],
+  ["api.organization.music-folder-report-query", { kind: "skip-fixture" }],
+  ["api.organization.music-folder-report-profile-detail", { kind: "skip-fixture" }],
+  ["api.organization.music-folder-report-folder-numbers", { kind: "skip-fixture" }],
+  ["api.organization.music-folder-return-status", { kind: "skip-fixture" }],
+  ["api.organization.music-folder-report-export", { kind: "skip-fixture" }],
 ]);
 
 export function buildProbePlan(matrix) {

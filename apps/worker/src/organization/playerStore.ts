@@ -1,5 +1,7 @@
 import type { DurableObjectStorage, SqlStorageValue } from "@cloudflare/workers-types";
 
+import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
+import { defaultRosterConfiguration } from "@choir/domain";
 import { z } from "zod";
 
 const setListItemSchema = z.object({
@@ -66,6 +68,23 @@ function parseTrackFileIds(value: string): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+function readPerformerLabel(storage: DurableObjectStorage): string {
+  try {
+    const raw = storage.sql
+      .exec<{ readonly configuration: string }>(
+        "SELECT roster_configuration_json AS configuration FROM organization_metadata LIMIT 1",
+      )
+      .one().configuration;
+    const parsed = organizationRosterConfigurationRequestSchema.safeParse(
+      JSON.parse(raw) as unknown,
+    );
+    if (parsed.success) return parsed.data.performerLabel;
+  } catch {
+    // Fall back for links issued against Organizations without stored roster settings.
+  }
+  return defaultRosterConfiguration.performerLabel;
 }
 
 /**
@@ -165,6 +184,7 @@ export function readPlayerDetailsFromStore(
     eventTitle: eventRow.title,
     eventStartsAt: eventRow.startsAt,
     items,
+    performerLabel: readPerformerLabel(storage),
     profileId,
     profileName: profileRow.displayName,
   });
@@ -219,5 +239,6 @@ export function readPlayerPlaylistFromStore(
     eventStartsAt: eventRow.startsAt,
     eventTitle: eventRow.title,
     items,
+    performerLabel: readPerformerLabel(storage),
   });
 }

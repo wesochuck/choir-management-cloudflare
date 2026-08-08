@@ -17,3 +17,4 @@ export * from "./api/resources";
 export * from "./api/auditions";
 export * from "./api/player";
 export * from "./api/memberDashboard";
+export * from "./api/musicFolderReports";

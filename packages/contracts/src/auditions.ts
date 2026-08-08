@@ -53,6 +53,7 @@ export const publicAuditionDetailsResponseSchema = z.object({
   createdAt: z.string(),
   id: z.string(),
   name: z.string(),
+  performerLabel: z.string().trim().min(1).max(50).default("Performer"),
   requestedSlots: z.array(z.iso.datetime()).max(20).default([]),
   scheduledTimeSlot: z.iso.datetime().nullable().optional(),
   slots: z.array(auditionSlotSchema),
@@ -176,6 +177,7 @@ export const publicAuditionSettingsSchema = z.object({
   confirmationMessage: z.string().max(5_000),
   defaultPerformanceId: z.uuid().nullable(),
   enabled: z.boolean(),
+  performerLabel: z.string().trim().min(1).max(50).default("Performer"),
   performance: z
     .object({
       id: z.uuid(),

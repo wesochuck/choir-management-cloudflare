@@ -24,7 +24,7 @@ describe("event RSVP CSV", () => {
     });
     expect(csv).toBe(
       [
-        "Name,Section,Voice Part,Event Title,RSVP Status",
+        "Name,Section,Performer,Event Title,RSVP Status",
         '"Attending (Yes)",,,,',
         '"John Doe","Sopranos","S1","Spring Concert 2026!","Yes"',
         "",
@@ -35,7 +35,7 @@ describe("event RSVP CSV", () => {
         '"No Voice","Unassigned","Not sure","Spring Concert 2026!","Pending"',
         "",
         "Section Leaders",
-        "Name,Section,Voice Part,Event Title,RSVP Status",
+        "Name,Section,Performer,Event Title,RSVP Status",
         '"John Doe","Sopranos","S1","Spring Concert 2026!","Yes"',
       ].join("\n"),
     );
@@ -53,7 +53,7 @@ describe("event RSVP CSV", () => {
         sort: "lastName",
         voiceParts: [],
       }),
-    ).toBe("Name,Section,Voice Part,Event Title,RSVP Status");
+    ).toBe("Name,Section,Performer,Event Title,RSVP Status");
   });
 
   it("normalizes compound surnames and suffixes with the shared export rule", () => {

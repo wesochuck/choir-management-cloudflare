@@ -6,6 +6,7 @@ import type {
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
+import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { emptyCreate, STATUS_OPTIONS } from "./utils";
 import type { ManagerState } from "./types";
 
@@ -51,6 +52,7 @@ export function EditAuditionForm({
     readonly voicePart: string;
   }) => Promise<void>;
 }) {
+  const { performerLabel } = useOrganizationTerminology();
   const [name, setName] = useState(audition.name);
   const [email, setEmail] = useState(audition.email);
   const [phone, setPhone] = useState(audition.phone ?? "");
@@ -123,7 +125,7 @@ export function EditAuditionForm({
           />
         </label>
         <label className="field">
-          Voice part
+          {performerLabel}
           <input
             value={voicePart}
             onChange={(event) => {
@@ -200,6 +202,7 @@ export function CreateAuditionForm({
   readonly onSave: (audition: OrganizationAuditionCreateRequest) => Promise<void>;
   readonly rosterConfiguration: OrganizationRosterConfiguration | null;
 }) {
+  const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [draft, setDraft] = useState(emptyCreate);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -262,7 +265,7 @@ export function CreateAuditionForm({
         />
       </label>
       <label className="field">
-        Voice part
+        {performerLabel}
         <select
           disabled={rosterConfiguration === null}
           value={draft.voicePart}
@@ -271,7 +274,9 @@ export function CreateAuditionForm({
           }}
         >
           <option value="">
-            {rosterConfiguration === null ? "Loading voice parts…" : "No voice part"}
+            {rosterConfiguration === null
+              ? `Loading ${performerLabelPlural.toLowerCase()}…`
+              : `No ${performerLabel.toLowerCase()}`}
           </option>
           {rosterConfiguration
             ? (() => {

@@ -3,6 +3,7 @@ import { addRow, addSeat, isSeatingSectionMismatch, moveAssignment } from "@choi
 import { Dialog } from "@choir/ui";
 import { type CSSProperties } from "react";
 import { setOrganizationEventRsvp } from "../../../auth/api";
+import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { ConfirmDialog, FormationEditor } from "./shared";
 import {
   defaultRows,
@@ -17,6 +18,7 @@ import type { SeatingManagerModel } from "./hooks";
 
 // eslint-disable-next-line complexity -- render composition preserves the existing seating workspace's independent tools and dialogs.
 export function SeatingManagerView({ model }: { readonly model: SeatingManagerModel }) {
+  const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const {
     applyChart,
     autoSuggest,
@@ -375,7 +377,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                   title="Available in List view"
                   type="checkbox"
                 />{" "}
-                Voice parts
+                {performerLabelPlural}
               </label>
             </div>
             <div className="seating-toolbar__actions seating-toolbar__primary-actions">
@@ -735,8 +737,8 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                       {draggingProfileId ? (
                         <small>
                           {draggingProfileVoicePart?.trim()
-                            ? `Voice part: ${draggingProfileVoicePart}`
-                            : "No voice part"}
+                            ? `${performerLabel}: ${draggingProfileVoicePart}`
+                            : `No ${performerLabel.toLowerCase()}`}
                         </small>
                       ) : null}
                     </div>
@@ -901,7 +903,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
             />
           </label>
           <label className="field">
-            Voice part
+            {performerLabel}
             <select
               onChange={(event) => {
                 setProfileForm((current) => ({ ...current, voicePart: event.target.value }));
@@ -909,7 +911,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
               required
               value={profileForm.voicePart}
             >
-              <option value="">Choose voice part</option>
+              <option value="">Choose {performerLabel.toLowerCase()}</option>
               {resources.roster.voiceParts.map(({ fullName, label }) => (
                 <option key={label} value={label}>
                   {fullName} ({label})
@@ -969,7 +971,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
               onChange={(event) => {
                 setLookupQuery(event.target.value);
               }}
-              placeholder="Name or voice part"
+              placeholder={`Name or ${performerLabel.toLowerCase()}`}
               type="search"
               value={lookupQuery}
             />
@@ -1001,7 +1003,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                   type="button"
                 >
                   <strong>{profile.displayName}</strong>
-                  <span>{profile.voicePart || "No voice part"}</span>
+                  <span>{profile.voicePart || `No ${performerLabel.toLowerCase()}`}</span>
                   <em>{statusLabel(profile.globalStatus)}</em>
                 </button>
               ))}
@@ -1053,7 +1055,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                       type="button"
                     >
                       <strong>{profile.displayName}</strong>
-                      <span>{profile.voicePart || "No voice part"}</span>
+                      <span>{profile.voicePart || `No ${performerLabel.toLowerCase()}`}</span>
                     </button>
                   ))}
                 </section>

@@ -12,6 +12,7 @@ import { registerRoutes as registerOrganizationFilesRoutes } from "./routes/orga
 import { registerRoutes as registerOrganizationProfilesRoutes } from "./routes/organizationProfiles";
 import { registerRoutes as registerAuthRoutes } from "./routes/auth";
 import { registerRoutes as registerOrganizationProfileRecordsRoutes } from "./routes/organizationProfileRecords";
+import { registerRoutes as registerOrganizationMusicFolderReportRoutes } from "./routes/organizationMusicFolderReports";
 import { registerRoutes as registerOrganizationExportRoutes } from "./routes/organizationExport";
 import { registerRoutes as registerOrganizationProfileMutationsRoutes } from "./routes/organizationProfileMutations";
 import { registerRoutes as registerSingerBillingRoutes } from "./routes/singerBilling";
@@ -155,6 +156,7 @@ registerOrganizationFilesRoutes(router);
 registerOrganizationProfilesRoutes(router);
 registerAuthRoutes(router);
 registerOrganizationProfileRecordsRoutes(router);
+registerOrganizationMusicFolderReportRoutes(router);
 registerOrganizationExportRoutes(router);
 registerOrganizationProfileMutationsRoutes(router);
 registerSingerBillingRoutes(router);

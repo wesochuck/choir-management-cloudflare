@@ -151,7 +151,7 @@ export function RosterConfiguration({ enabled }: Props) {
       setAssignmentMessage(
         replacementVoicePart
           ? `Updated ${String(affectedProfiles.length)} profiles to ${replacementVoicePart}.`
-          : `Cleared the voice-part assignment for ${String(affectedProfiles.length)} profiles.`,
+          : `Cleared the ${performerLabel.toLowerCase()} assignment for ${String(affectedProfiles.length)} profiles.`,
       );
       setReassigningLabel(null);
     } catch (caught: unknown) {

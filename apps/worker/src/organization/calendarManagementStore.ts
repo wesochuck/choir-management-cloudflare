@@ -14,6 +14,8 @@ import {
   datePartInTimeZone,
   defaultRosterConfiguration,
   isValidTimeZone,
+  normalizedFolderNumberKey,
+  normalizeFolderNumber,
   zonedLocalDateTimeToUtc,
 } from "@choir/domain";
 import { z } from "zod";
@@ -216,6 +218,7 @@ interface ProfileFolderNumberRow {
   readonly folderNumber: string;
   readonly folderReturned: number;
   readonly profileId: string;
+  readonly returnedAt: string | null;
   readonly startsAt: string;
   readonly updatedAt: string | null;
 }
@@ -757,6 +760,9 @@ export function listProfileFolderNumbersFromStore(
          e.starts_at AS startsAt, p.id AS profileId,
          COALESCE(r.folder_number, '') AS folderNumber,
          COALESCE(r.folder_returned, 0) AS folderReturned,
+         CASE WHEN COALESCE(r.folder_returned, 0) = 1
+           THEN COALESCE(r.folder_returned_at, r.updated_at)
+           ELSE NULL END AS returnedAt,
          r.updated_at AS updatedAt
        FROM events e
        JOIN profiles p ON p.id = ?
@@ -790,31 +796,68 @@ function updateProfileFolderNumber(
   if (!recordExists(storage, "profiles", operation.profileId)) {
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
+  const folderNumber = normalizeFolderNumber(operation.folder.folderNumber);
+  const current = storage.sql
+    .exec<{
+      readonly folderNumber: string;
+      readonly folderReturned: number;
+    }>(
+      `SELECT COALESCE(folder_number, '') AS folderNumber,
+         COALESCE(folder_returned, 0) AS folderReturned
+       FROM event_rosters WHERE event_id = ? AND profile_id = ? LIMIT 1`,
+      operation.eventId,
+      operation.profileId,
+    )
+    .toArray()
+    .at(0);
+  const normalizedNumber = normalizedFolderNumberKey(folderNumber);
+  if (normalizedNumber.length > 0) {
+    const conflict = storage.sql
+      .exec<{ readonly profileId: string }>(
+        `SELECT profile_id AS profileId FROM event_rosters
+         WHERE event_id = ? AND profile_id != ? AND lower(trim(folder_number)) = ? LIMIT 1`,
+        operation.eventId,
+        operation.profileId,
+        normalizedNumber,
+      )
+      .toArray()
+      .at(0);
+    if (conflict) return Response.json({ code: "folder_number_conflict" }, { status: 409 });
+  }
+  const numberChanged =
+    current !== undefined && normalizedFolderNumberKey(current.folderNumber) !== normalizedNumber;
+  const folderReturned =
+    folderNumber.length > 0 && (numberChanged ? false : operation.folder.folderReturned);
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO event_rosters
-        (event_id, profile_id, rsvp, attendance, folder_number, folder_returned, created_at, updated_at)
-       VALUES (?, ?, 'Pending', 'Pending', ?, ?, ?, ?)
+        (event_id, profile_id, rsvp, attendance, folder_number, folder_returned,
+         folder_returned_at, created_at, updated_at)
+       VALUES (?, ?, 'Pending', 'Pending', ?, ?, ?, ?, ?)
        ON CONFLICT(event_id, profile_id) DO UPDATE SET
          folder_number = excluded.folder_number,
          folder_returned = excluded.folder_returned,
+         folder_returned_at = excluded.folder_returned_at,
          updated_at = excluded.updated_at`,
       operation.eventId,
       operation.profileId,
-      operation.folder.folderNumber,
-      operation.folder.folderReturned ? 1 : 0,
+      folderNumber,
+      folderReturned ? 1 : 0,
+      folderReturned ? occurredAt : null,
       occurredAt,
       occurredAt,
     );
     insertAudit(
       storage,
       operation,
-      "event.folder_number.updated",
+      folderNumber.length === 0 ? "event.folder_number.cleared" : "event.folder_number.updated",
       "event_roster",
       `${operation.eventId}:${operation.profileId}`,
       {
-        folderReturned: operation.folder.folderReturned,
-        hasFolderNumber: operation.folder.folderNumber.length > 0,
+        previousHasFolderNumber:
+          current !== undefined && normalizedFolderNumberKey(current.folderNumber).length > 0,
+        folderReturned,
+        hasFolderNumber: folderNumber.length > 0,
       },
       occurredAt,
     );
@@ -825,6 +868,9 @@ function updateProfileFolderNumber(
          e.starts_at AS startsAt, p.id AS profileId,
          COALESCE(r.folder_number, '') AS folderNumber,
          COALESCE(r.folder_returned, 0) AS folderReturned,
+         CASE WHEN COALESCE(r.folder_returned, 0) = 1
+           THEN COALESCE(r.folder_returned_at, r.updated_at)
+           ELSE NULL END AS returnedAt,
          r.updated_at AS updatedAt
        FROM events e
        JOIN profiles p ON p.id = ?

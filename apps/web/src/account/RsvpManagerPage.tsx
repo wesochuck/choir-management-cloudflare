@@ -16,6 +16,7 @@ import {
   listOrganizationProfiles,
   setOrganizationEventRsvp,
 } from "../auth/api";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type RsvpState =
   | { readonly status: "error" }
@@ -86,6 +87,7 @@ export function RsvpManagerPage({
   readonly enabled: boolean;
   readonly eventId?: string | null;
 }) {
+  const { performerLabel } = useOrganizationTerminology();
   const [eventId, setEventId] = useState(initialEventId ?? "");
   const [state, setState] = useState<RsvpState>({ status: "loading" });
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
@@ -284,7 +286,7 @@ export function RsvpManagerPage({
         <div className="roster-balance__header">
           <div>
             <p className="eyebrow">Event response</p>
-            <h2 id="rsvp-balance-title">Voice part RSVP balance</h2>
+            <h2 id="rsvp-balance-title">{performerLabel} RSVP balance</h2>
             <label className="field rsvp-manager__performance">
               <span>Performance</span>
               <select
@@ -369,7 +371,7 @@ export function RsvpManagerPage({
               onChange={(event) => {
                 setQuery(event.target.value);
               }}
-              placeholder="Name or voice part"
+              placeholder={`Name or ${performerLabel.toLowerCase()}`}
               value={query}
             />
           </label>
@@ -386,7 +388,7 @@ export function RsvpManagerPage({
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Voice</th>
+                  <th>{performerLabel}</th>
                   <th>RSVP status</th>
                   <th>Actions</th>
                 </tr>

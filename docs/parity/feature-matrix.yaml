@@ -1895,6 +1895,91 @@
             "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
+      {
+        "id": "api.organization.music-folder-report-query",
+        "method": "POST",
+        "path": "/api/organization/reports/music-folders/query",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No aggregate legacy route; target-only extension accepted in the 2026-08-08 Music Folder
+          Report design.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationMusicFolderReports.ts",
+            "apps/worker/src/organization/musicFolderReportStore.ts",
+            "apps/worker/test/musicFolderReport.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.music-folder-report-profile-detail",
+        "method": "POST",
+        "path": "/api/organization/reports/music-folders/profiles/:profileId",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No aggregate legacy route; target-only extension accepted in the 2026-08-08 Music Folder
+          Report design.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationMusicFolderReports.ts",
+            "apps/worker/src/organization/musicFolderReportStore.ts",
+            "apps/worker/test/musicFolderReport.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.music-folder-report-folder-numbers",
+        "method": "PUT",
+        "path": "/api/organization/reports/music-folders/folder-numbers",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "The legacy/current per-Profile Folder Number editor is extended with an accepted bulk
+          Performance-scoped workflow.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationMusicFolderReports.ts",
+            "apps/worker/src/organization/musicFolderReportStore.ts",
+            "apps/worker/test/musicFolderReport.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.music-folder-return-status",
+        "method": "PUT",
+        "path": "/api/organization/profiles/:profileId/folder-numbers/:eventId/return-status",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "Existing per-Profile folder return editing is split into an immediate, concurrency-safe
+          target-only action.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationProfileRecords.ts",
+            "apps/worker/src/organization/musicFolderReportStore.ts",
+            "apps/worker/test/musicFolderReport.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.music-folder-report-export",
+        "method": "POST",
+        "path": "/api/organization/reports/music-folders/export.csv",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No aggregate legacy export; target-only extension accepted in the 2026-08-08 Music Folder
+          Report design.",
+        "targetEvidence":
+          [
+            "packages/domain/src/musicFolderReport.ts",
+            "apps/worker/src/routes/organizationMusicFolderReports.ts",
+            "apps/worker/test/musicFolderReport.integration.test.ts",
+          ],
+      },
     ],
   "recordHooks":
     [
@@ -2146,6 +2231,22 @@
             "apps/worker/test/ticketing.integration.test.ts",
           ],
       },
+      {
+        "id": "csv.music-folder-report",
+        "contract": "music-folder-report",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No aggregate legacy CSV; target-only extension accepted in the 2026-08-08 Music Folder
+          Report design.",
+        "targetEvidence":
+          [
+            "packages/domain/src/musicFolderReport.ts",
+            "packages/domain/src/musicFolderReport.test.ts",
+            "apps/worker/test/musicFolderReport.integration.test.ts",
+          ],
+      },
     ],
   "signedFlows":
     [
@@ -2267,6 +2368,27 @@
     ],
   "domainWorkflows":
     [
+      {
+        "id": "workflow.music-folder-report",
+        "workflow":
+          "multi-Performance music-folder accountability, number editing, return confirmation, and
+          export",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "Per-Profile folder editing exists; the aggregate workflow is a target-only extension
+          accepted in the 2026-08-08 Music Folder Report design.",
+        "targetEvidence":
+          [
+            "docs/2026-08-08-music-folder-report-implementation-plan.md",
+            "packages/domain/src/musicFolderReport.ts",
+            "apps/worker/src/organization/musicFolderReportStore.ts",
+            "apps/web/src/account/components/MusicFolderReport/controller.tsx",
+            "apps/worker/test/musicFolderReport.integration.test.ts",
+            "apps/web/e2e/reports.spec.ts",
+          ],
+      },
       {
         "id": "workflow.setup",
         "workflow": "resumable first-run setup, module readiness, and launch",
@@ -2788,6 +2910,24 @@
     ],
   "responsiveStates":
     [
+      {
+        "id": "responsive.music-folder-report",
+        "state":
+          "Music Folder Report selection, sortable summary, detail editing, confirmations, and
+          partial results remain keyboard-accessible and usable as labeled mobile cards",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "Target-only aggregate report governed by existing DataTable and dialog responsive
+          contracts.",
+        "targetEvidence":
+          [
+            "apps/web/src/account/components/MusicFolderReport/view.tsx",
+            "apps/web/src/styles/components/reports.css",
+            "apps/web/e2e/reports.spec.ts",
+          ],
+      },
       {
         "id": "responsive.public",
         "state": "public home/history/performance views at desktop and mobile",

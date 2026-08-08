@@ -27,8 +27,8 @@ const directoryStoreResponseSchema = z.object({
 export class OrganizationProfileMutationError extends Error {
   readonly code: "voice_part_not_configured";
 
-  constructor() {
-    super("The selected voice part is not configured for this Organization.");
+  constructor(performerLabel = "Performer") {
+    super(`The selected ${performerLabel} is not configured for this Organization.`);
     this.name = "OrganizationProfileMutationError";
     this.code = "voice_part_not_configured";
   }
@@ -46,7 +46,11 @@ async function assertProfileMutationAccepted(response: Response, operation: stri
       "code" in body &&
       body.code === "voice_part_not_configured"
     ) {
-      throw new OrganizationProfileMutationError();
+      const performerLabel =
+        "performerLabel" in body && typeof body.performerLabel === "string"
+          ? body.performerLabel
+          : "Performer";
+      throw new OrganizationProfileMutationError(performerLabel);
     }
   }
   if (!response.ok) throw new Error(`The Organization store rejected the Profile ${operation}.`);

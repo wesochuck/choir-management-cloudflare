@@ -30,7 +30,6 @@ export class RosterCsvError extends Error {
   }
 }
 
-const header = "Name,Email,Phone,Voice Part,Status";
 export const rosterCsvColumnOptions = [
   "Name",
   "Email",
@@ -91,12 +90,13 @@ function parseRows(csv: string): string[][] {
   return rows;
 }
 
-function headerIndex(headers: readonly string[], names: readonly string[]): number {
-  return headers.findIndex((candidate) => names.includes(candidate));
-}
-
-export function rosterCsvColumnForHeader(headerValue: string): string | null {
+export function rosterCsvColumnForHeader(
+  headerValue: string,
+  performerLabel = "Performer",
+): string | null {
   const normalized = headerValue.trim().toLowerCase();
+  const normalizedPerformerLabel = performerLabel.trim().toLowerCase();
+  if (normalizedPerformerLabel && normalized === normalizedPerformerLabel) return "Voice Part";
   if (["name", "singer", "singer name", "full name"].includes(normalized)) return "Name";
   if (["email", "e-mail", "email address"].includes(normalized)) return "Email";
   if (["phone", "cell", "mobile", "telephone"].includes(normalized)) return "Phone";
@@ -105,6 +105,12 @@ export function rosterCsvColumnForHeader(headerValue: string): string | null {
   if (["notes", "note", "comments"].includes(normalized)) return "Notes";
   if (["section leader", "is section leader"].includes(normalized)) return "Section Leader";
   return null;
+}
+
+function columnIndex(headers: readonly string[], column: string, performerLabel: string): number {
+  return headers.findIndex(
+    (candidate) => rosterCsvColumnForHeader(candidate, performerLabel) === column,
+  );
 }
 
 function valueAt(row: readonly string[], index: number): string {
@@ -123,19 +129,23 @@ function profileKey(name: string, email: string): string {
   return `${name.toLowerCase()}\0${email.toLowerCase()}`;
 }
 
-export function parseRosterCsv(csv: string, maximumRows = 500): RosterCsvImportProfile[] {
+export function parseRosterCsv(
+  csv: string,
+  maximumRows = 500,
+  performerLabel = "Performer",
+): RosterCsvImportProfile[] {
   const rows = parseRows(csv.replace(/^\uFEFF/, ""));
   const [headerRow, ...remaining] = rows;
   if (!headerRow) throw new RosterCsvError("The CSV is empty.");
   const headers = headerRow.map((value) => value.toLowerCase());
-  const nameIndex = headerIndex(headers, ["name", "singer", "singer name", "full name"]);
+  const nameIndex = columnIndex(headers, "Name", performerLabel);
   if (nameIndex < 0) throw new RosterCsvError("The CSV requires a Name column.");
-  const emailIndex = headerIndex(headers, ["email", "e-mail", "email address"]);
-  const phoneIndex = headerIndex(headers, ["phone", "cell", "mobile", "telephone"]);
-  const voicePartIndex = headerIndex(headers, ["voice part", "voice", "part", "section"]);
-  const statusIndex = headerIndex(headers, ["status", "global status"]);
-  const notesIndex = headerIndex(headers, ["notes", "note", "comments"]);
-  const leaderIndex = headerIndex(headers, ["section leader", "is section leader"]);
+  const emailIndex = columnIndex(headers, "Email", performerLabel);
+  const phoneIndex = columnIndex(headers, "Phone", performerLabel);
+  const voicePartIndex = columnIndex(headers, "Voice Part", performerLabel);
+  const statusIndex = columnIndex(headers, "Status", performerLabel);
+  const notesIndex = columnIndex(headers, "Notes", performerLabel);
+  const leaderIndex = columnIndex(headers, "Section Leader", performerLabel);
   const sectionLeaderMarker = remaining.findIndex(
     (row) => row.length === 1 && row[0]?.toLowerCase() === "section leaders",
   );
@@ -185,7 +195,7 @@ export interface RosterCsvInspection {
   readonly warnings: readonly RosterCsvColumnWarning[];
 }
 
-export function inspectRosterCsv(csv: string): RosterCsvInspection {
+export function inspectRosterCsv(csv: string, performerLabel = "Performer"): RosterCsvInspection {
   try {
     const rows = parseRows(csv.replace(/^\uFEFF/, ""));
     const [headerRow, ...remaining] = rows;
@@ -193,19 +203,14 @@ export function inspectRosterCsv(csv: string): RosterCsvInspection {
       return { fatalError: "The CSV is empty.", headers: [], rowCount: 0, warnings: [] };
     const headers = headerRow.map((value) => value.trim());
     const normalizedHeaders = headers.map((value) => value.toLowerCase());
-    const nameIndex = headerIndex(normalizedHeaders, [
-      "name",
-      "singer",
-      "singer name",
-      "full name",
-    ]);
+    const nameIndex = columnIndex(normalizedHeaders, "Name", performerLabel);
     const sectionLeaderMarker = remaining.findIndex(
       (row) => row.length === 1 && row[0]?.toLowerCase() === "section leaders",
     );
     const profileRows =
       sectionLeaderMarker < 0 ? remaining : remaining.slice(0, sectionLeaderMarker);
     const warnings: RosterCsvColumnWarning[] = headers.flatMap((header) =>
-      rosterCsvColumnForHeader(header)
+      rosterCsvColumnForHeader(header, performerLabel)
         ? []
         : [
             {
@@ -224,7 +229,7 @@ export function inspectRosterCsv(csv: string): RosterCsvInspection {
       };
     }
     try {
-      parseRosterCsv(csv);
+      parseRosterCsv(csv, 500, performerLabel);
     } catch (error: unknown) {
       return {
         fatalError: error instanceof RosterCsvError ? error.message : "The CSV could not be read.",
@@ -260,7 +265,11 @@ function profileRow(profile: RosterCsvProfile): string {
     .join(",");
 }
 
-export function renderRosterCsv(profiles: readonly RosterCsvProfile[]): string {
+export function renderRosterCsv(
+  profiles: readonly RosterCsvProfile[],
+  performerLabel = "Performer",
+): string {
+  const header = `Name,Email,Phone,${performerLabel},Status`;
   const rows = profiles.map(profileRow);
   const leaders = profiles.filter(({ isSectionLeader }) => isSectionLeader).map(profileRow);
   return leaders.length === 0

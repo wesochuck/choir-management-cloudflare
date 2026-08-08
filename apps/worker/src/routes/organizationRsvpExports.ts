@@ -1,7 +1,10 @@
 import { type ProblemDetails } from "@choir/contracts";
 import { z } from "zod";
 import { eventRsvpExportFilename, renderEventRsvpCsv } from "@choir/domain";
-import { readOrganizationEventRsvpExport } from "../calendar/organizationCalendar";
+import {
+  readOrganizationEventRsvpExport,
+  readOrganizationRosterConfiguration,
+} from "../calendar/organizationCalendar";
 
 import type { Hono } from "hono";
 
@@ -31,11 +34,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const data = await readOrganizationEventRsvpExport(
-        context.env,
-        authorization.organizationId,
-        eventId.data,
-      );
+      const [data, rosterConfiguration] = await Promise.all([
+        readOrganizationEventRsvpExport(context.env, authorization.organizationId, eventId.data),
+        readOrganizationRosterConfiguration(context.env, authorization.organizationId),
+      ]);
       if (!data) {
         return context.json(
           {
@@ -46,7 +48,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           404,
         );
       }
-      const csv = renderEventRsvpCsv({ ...data, sort });
+      const csv = renderEventRsvpCsv({
+        ...data,
+        performerLabel: rosterConfiguration.performerLabel,
+        sort,
+      });
       return context.body(csv, 200, {
         "cache-control": "private, no-store",
         "content-disposition": `attachment; filename="${eventRsvpExportFilename(data.eventTitle, data.eventType)}"`,

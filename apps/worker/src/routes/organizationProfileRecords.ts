@@ -10,6 +10,7 @@ import { renderRosterCsv } from "@choir/domain";
 import { createAuth, isCanonicalAuthHost } from "../auth/config";
 import {
   CalendarMutationError,
+  readOrganizationRosterConfiguration,
   listOrganizationProfilePerformanceHistory,
   listOrganizationProfileFolderNumbers,
   updateOrganizationProfileFolderNumber,
@@ -168,9 +169,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const [profiles, emails] = await Promise.all([
+      const [profiles, emails, rosterConfiguration] = await Promise.all([
         listOrganizationProfiles(context.env, authorization.organizationId),
         listOrganizationProfileEmails(context.env.CONTROL_DB, authorization.organizationId),
+        readOrganizationRosterConfiguration(context.env, authorization.organizationId),
       ]);
       const csv = renderRosterCsv(
         profiles.map((profile) => ({
@@ -181,6 +183,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           phone: profile.phone,
           voicePart: profile.voicePart,
         })),
+        rosterConfiguration.performerLabel,
       );
       return context.body(csv, 200, {
         "cache-control": "private, no-store",
@@ -368,7 +371,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             message:
               error.code === "folder_number_requires_performance"
                 ? "Folder numbers can only be assigned to Performance events."
-                : "The profile folder number could not be saved.",
+                : error.code === "folder_number_conflict"
+                  ? "That Folder Number is already used for this Performance."
+                  : "The profile folder number could not be saved.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           status,

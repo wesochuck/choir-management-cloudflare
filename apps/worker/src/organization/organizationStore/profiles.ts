@@ -189,6 +189,22 @@ export function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: 
   }
 }
 
+function performerLabel(storage: DurableObjectStorage): string {
+  try {
+    const raw = storage.sql
+      .exec<{ readonly configuration: string }>(
+        "SELECT roster_configuration_json AS configuration FROM organization_metadata LIMIT 1",
+      )
+      .one().configuration;
+    const parsed = organizationRosterConfigurationRequestSchema.safeParse(
+      JSON.parse(raw) as unknown,
+    );
+    return parsed.success ? parsed.data.performerLabel : "Performer";
+  } catch {
+    return "Performer";
+  }
+}
+
 export async function createProfile(
   storage: DurableObjectStorage,
   request: Request,
@@ -203,7 +219,10 @@ export async function createProfile(
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
   if (!isConfiguredVoicePart(storage, profile.voicePart)) {
-    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+    return Response.json(
+      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      { status: 400 },
+    );
   }
   storage.transactionSync(() => {
     storage.sql.exec(
@@ -266,7 +285,10 @@ export async function importProfiles(
   if (
     parsed.data.profiles.some(({ profile }) => !isConfiguredVoicePart(storage, profile.voicePart))
   ) {
-    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+    return Response.json(
+      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      { status: 400 },
+    );
   }
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
@@ -330,7 +352,10 @@ export async function updateProfile(
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
   if (!isConfiguredVoicePart(storage, profile.voicePart)) {
-    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+    return Response.json(
+      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      { status: 400 },
+    );
   }
   const existing = storage.sql
     .exec<{
@@ -424,27 +449,87 @@ export async function deleteProfile(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   const occurredAt = new Date().toISOString();
-  const deleted = storage.transactionSync(() => {
-    const existing = storage.sql
-      .exec("SELECT id FROM profiles WHERE id = ? LIMIT 1", parsed.data.profileId)
-      .toArray();
-    if (existing.length === 0) return false;
-    storage.sql.exec("DELETE FROM profiles WHERE id = ?", parsed.data.profileId);
-    storage.sql.exec(
-      `INSERT INTO audit_events
-        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
-       VALUES (?, 'organization_member', ?, 'profile.deleted', 'profile', ?, ?, '{}', ?)`,
-      crypto.randomUUID(),
-      parsed.data.actorUserId,
-      parsed.data.profileId,
-      parsed.data.requestId,
-      occurredAt,
-    );
-    return true;
-  });
+  let deleted: boolean;
+  try {
+    deleted = storage.transactionSync(() => {
+      const existing = storage.sql
+        .exec("SELECT id FROM profiles WHERE id = ? LIMIT 1", parsed.data.profileId)
+        .toArray();
+      if (existing.length === 0) return false;
+      const folderHistory = storage.sql
+        .exec<{ readonly count: number }>(
+          `SELECT COUNT(*) AS count FROM event_rosters
+           WHERE profile_id = ? AND (folder_number <> '' OR folder_returned = 1)`,
+          parsed.data.profileId,
+        )
+        .one().count;
+      const folderAuditHistory = storage.sql
+        .exec<{
+          readonly action: string;
+          readonly changeSummary: string;
+        }>(
+          `SELECT action, change_summary AS changeSummary FROM audit_events
+           WHERE target_type = 'event_roster'
+             AND target_id LIKE ?
+             AND action IN (
+               'event.folder_number.updated', 'event.folder_number.cleared',
+               'event.folder_return.marked_returned', 'event.folder_return.marked_outstanding'
+             )`,
+          `%:${parsed.data.profileId}`,
+        )
+        .toArray()
+        .some((audit) => {
+          if (audit.action.startsWith("event.folder_return.")) return true;
+          try {
+            const summary: unknown = JSON.parse(audit.changeSummary);
+            return (
+              typeof summary === "object" &&
+              summary !== null &&
+              (("hasFolderNumber" in summary && summary.hasFolderNumber === true) ||
+                ("previousHasFolderNumber" in summary && summary.previousHasFolderNumber === true))
+            );
+          } catch {
+            return false;
+          }
+        });
+      if (folderHistory > 0 || folderAuditHistory) {
+        throw new ProfileHistoryDeletionError();
+      }
+      storage.sql.exec("DELETE FROM profiles WHERE id = ?", parsed.data.profileId);
+      storage.sql.exec(
+        `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_member', ?, 'profile.deleted', 'profile', ?, ?, '{}', ?)`,
+        crypto.randomUUID(),
+        parsed.data.actorUserId,
+        parsed.data.profileId,
+        parsed.data.requestId,
+        occurredAt,
+      );
+      return true;
+    });
+  } catch (error: unknown) {
+    if (error instanceof ProfileHistoryDeletionError) {
+      return Response.json(
+        {
+          code: "profile_folder_history_requires_inactive",
+          message: error.message,
+        },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
   return deleted
     ? Response.json({ deleted: true, profileId: parsed.data.profileId })
     : Response.json({ code: "profile_not_found" }, { status: 404 });
+}
+
+class ProfileHistoryDeletionError extends Error {
+  constructor() {
+    super("Profiles with music-folder history must be marked Inactive instead of deleted.");
+    this.name = "ProfileHistoryDeletionError";
+  }
 }
 
 export async function updateMemberProfile(

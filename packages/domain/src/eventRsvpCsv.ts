@@ -17,6 +17,7 @@ interface EventRsvpExportConfiguration {
 
 interface RenderEventRsvpCsvInput extends EventRsvpExportConfiguration {
   readonly eventTitle: string;
+  readonly performerLabel?: string;
   readonly singers: readonly EventRsvpExportSinger[];
   readonly sort: EventRsvpExportSort;
 }
@@ -93,7 +94,7 @@ export function eventRsvpExportFilename(eventTitle: string, eventType: string): 
 }
 
 export function renderEventRsvpCsv(input: RenderEventRsvpCsvInput): string {
-  const header = "Name,Section,Voice Part,Event Title,RSVP Status";
+  const header = `Name,Section,${input.performerLabel ?? "Performer"},Event Title,RSVP Status`;
   const lines = [header];
   let firstGroup = true;
   for (const status of ["Yes", "No", "Pending"] as const) {

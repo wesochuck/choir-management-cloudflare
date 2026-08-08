@@ -2,6 +2,7 @@ import { organizationProfileRequestSchema, type ProblemDetails } from "@choir/co
 import { z } from "zod";
 import { parseRosterCsv, RosterCsvError } from "@choir/domain";
 import { createAuth } from "../auth/config";
+import { readOrganizationRosterConfiguration } from "../calendar/organizationCalendar";
 import {
   assertEmailProviderRecipientsAvailable,
   EmailRecipientSuppressedError,
@@ -57,7 +58,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           413,
         );
       }
-      const parsed = parseRosterCsv(csv);
+      const rosterConfiguration = await readOrganizationRosterConfiguration(
+        context.env,
+        authorization.organizationId,
+      );
+      const parsed = parseRosterCsv(csv, 500, rosterConfiguration.performerLabel);
       if (parsed.length === 0) throw new RosterCsvError("The CSV contains no Profiles.");
       await assertEmailProviderRecipientsAvailable(
         context.env.CONTROL_DB,

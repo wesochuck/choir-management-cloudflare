@@ -6,6 +6,7 @@ import type {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useMemo } from "react";
 import { getLastName } from "../../nameFormatting";
+import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
 import { UnassignedProfileChip } from "./shared";
 import { seatingProfileLabel } from "./utils";
@@ -22,6 +23,7 @@ export function SeatTile({
   seatKey,
   suggestion,
 }: SeatTileProps) {
+  const { performerLabel } = useOrganizationTerminology();
   const draggable = useDraggable({ id: `seat:${seatKey}`, disabled: !assigned });
   const droppable = useDroppable({ id: `seat:${seatKey}` });
   return (
@@ -63,7 +65,7 @@ export function SeatTile({
       <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>
       <strong>{assigned?.displayName ?? "Empty"}</strong>
       {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
-      {mismatch ? <span className="seating-seat__warning">Voice part mismatch</span> : null}
+      {mismatch ? <span className="seating-seat__warning">{performerLabel} mismatch</span> : null}
       <button
         aria-label={
           assigned ? `Remove ${assigned.displayName} from ${label}` : `Delete empty ${label}`

@@ -39,6 +39,13 @@ export function Dialog({ children, description, onClose, open, title }: DialogPr
         <DialogPrimitive.Overlay className="dialog__overlay" />
         <DialogPrimitive.Content
           className="dialog dialog--responsive"
+          onEscapeKeyDown={(event) => {
+            // Radix normally dismisses the dialog immediately after this event. Defer the
+            // controlled close request so the discard confirmation does not run inside Radix's
+            // Escape/focus handling, which can leave the modal in a close loop.
+            event.preventDefault();
+            window.setTimeout(requestClose, 0);
+          }}
           onInput={() => {
             setDirty(true);
           }}

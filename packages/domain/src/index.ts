@@ -60,6 +60,20 @@ export {
 export { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
 export type { EventRsvpExportSort, EventRsvpStatus } from "./eventRsvpCsv";
 export { lastNameSortKey } from "./name";
+export {
+  calculateMusicFolderCounts,
+  deriveMusicFolderStatus,
+  musicFolderReportFilename,
+  normalizeFolderNumber,
+  normalizedFolderNumberKey,
+  renderMusicFolderReportCsv,
+  sortMusicFolderProfiles,
+  type MusicFolderCountRow,
+  type MusicFolderCsvRow,
+  type MusicFolderProfileSortValue,
+  type MusicFolderReportCounts,
+  type MusicFolderReportStatus,
+} from "./musicFolderReport";
 export type { CsvColumnMapping } from "./csvMapping";
 export {
   MusicCsvError,

@@ -51,8 +51,8 @@ export function attendanceReportFilename(performanceTitle: string): string {
 
 export function renderAttendanceReportCsv(input: AttendanceReportInput): string {
   const header = [
+    "Name",
     input.performerLabel,
-    "Voice Part",
     "Absences",
     "Presence Count",
     "Total Rehearsals",

@@ -108,6 +108,7 @@ export const organizationProfileFolderNumberSchema = z.object({
   folderNumber: z.string().max(50),
   folderReturned: z.boolean(),
   profileId: z.uuid(),
+  returnedAt: z.iso.datetime().nullable(),
   startsAt: z.iso.datetime(),
   updatedAt: z.iso.datetime().nullable(),
 });
@@ -264,12 +265,12 @@ export const organizationRosterConfigurationRequestSchema = z
       context.addIssue({ code: "custom", message: "Section codes must be unique." });
     }
     if (voicePartLabels.size !== configuration.voiceParts.length) {
-      context.addIssue({ code: "custom", message: "Voice-part labels must be unique." });
+      context.addIssue({ code: "custom", message: "Performer labels must be unique." });
     }
     if (configuration.voiceParts.some(({ sectionCode }) => !sectionCodes.has(sectionCode))) {
       context.addIssue({
         code: "custom",
-        message: "Every voice part must reference an existing section.",
+        message: "Every Performer assignment must reference an existing section.",
       });
     }
   });
