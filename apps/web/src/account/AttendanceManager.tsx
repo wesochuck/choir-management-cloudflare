@@ -118,7 +118,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     void refreshRows(controller.signal, true);
     const interval = window.setInterval(() => {
       void refreshRows(controller.signal);
-    }, 5_000);
+    }, 30_000);
     return () => {
       controller.abort();
       window.clearInterval(interval);
@@ -276,7 +276,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             Tap a name to cycle Pending, Present, and Absent. Changes save immediately.
           </p>
           <p className="attendance-manager__sync" role="status">
-            <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
+            <span aria-hidden="true">●</span> Live updates every 30 seconds ·{" "}
             {formatSyncTime(lastUpdated)}
           </p>
         </div>
