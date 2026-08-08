@@ -165,16 +165,24 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify({
         events: [
           {
+            advancePriceCents: 1000,
             callTime: "18:00",
             createdAt: "2026-07-20T20:00:00.000Z",
+            dayOfPriceCents: 1200,
             details: "Black folders",
+            doorsOpenTime: "17:30",
             durationMinutes: 150,
             id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            isTicketingEnabled: true,
             location: "",
             parentPerformanceId: null,
+            publicDetails: "A Browser Concert for the choir.",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
             setList: [{ title: "Finale" }],
             setListApproved: true,
             startsAt: "2026-08-20T23:00:00.000Z",
+            ticketCapacity: 100,
             title: "Browser Concert",
             type: "Performance",
             updatedAt: "2026-07-20T20:00:00.000Z",
@@ -1495,6 +1503,34 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(eventEditor).toContainText(
     "This date is calculated from the event start using the organization's RSVP expiry setting.",
   );
+  await expect(eventEditor.getByText("Ticket page and QR code")).toBeVisible();
+  const ticketPageLink = eventEditor.locator(
+    'a[href$="/tickets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]',
+  );
+  await expect(ticketPageLink).toBeVisible();
+  await expect(ticketPageLink).toHaveAttribute("target", "_blank");
+  await expect(eventEditor.getByRole("button", { name: "Download QR code" })).toBeVisible();
+  await expect(eventEditor.locator(".event-graphic-dropzone")).toContainText(
+    "Drag and drop an image here",
+  );
+  await eventEditor.locator("#events-page-graphic").setInputFiles({
+    buffer: Buffer.from("browser concert graphic"),
+    mimeType: "image/png",
+    name: "browser-concert.png",
+  });
+  await expect(eventEditor.getByText("Selected: browser-concert.png")).toBeVisible();
+  await eventEditor.getByRole("button", { name: "Remove selected image" }).click();
+  await eventEditor.locator(".event-graphic-dropzone").evaluate((dropzone) => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(
+      new File(["dropped graphic"], "dropped-concert.png", { type: "image/png" }),
+    );
+    dropzone.dispatchEvent(
+      new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }),
+    );
+  });
+  await expect(eventEditor.getByText("Selected: dropped-concert.png")).toBeVisible();
+  await eventEditor.getByRole("button", { name: "Remove selected image" }).click();
   await expect(eventEditor.getByRole("region", { name: "Unsaved event changes" })).toHaveCount(0);
   await eventEditor.getByLabel("Title").fill("Browser Concert draft");
   const eventSaveBar = eventEditor.getByRole("region", { name: "Unsaved event changes" });

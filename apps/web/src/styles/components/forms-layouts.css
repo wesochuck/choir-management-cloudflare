@@ -33,6 +33,69 @@
     line-height: var(--line-height-normal);
   }
 
+  .event-graphic-dropzone {
+    display: grid;
+    min-height: 5rem;
+    place-items: center;
+    gap: 0.35rem;
+    padding: 1rem;
+    border: 1px dashed color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+    color: var(--color-text-muted);
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .event-graphic-dropzone:hover,
+  .event-graphic-dropzone:focus-within,
+  .event-graphic-dropzone.is-dragging {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-text);
+  }
+
+  .event-graphic-dropzone__title {
+    color: var(--color-text);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .event-graphic-dropzone__label {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .event-graphic-dropzone__browse {
+    color: var(--color-accent);
+    font-weight: var(--font-weight-extrabold);
+    text-decoration: underline;
+    text-underline-offset: 0.12em;
+  }
+
+  .event-ticketing-links {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+  }
+
+  .event-ticketing-links legend {
+    padding: 0;
+    color: var(--color-text);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .event-ticketing-links .field-help {
+    margin: 0;
+  }
+
+  .event-ticketing-links .public-link-share {
+    margin: 0;
+  }
+
   /* Ticketing manager */
 
   .ticketing-page-header {

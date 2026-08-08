@@ -1,7 +1,8 @@
 import type { OrganizationEvent, OrganizationEventRequest } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
-import { type Dispatch, type SetStateAction, useState } from "react";
+import { type Dispatch, type DragEvent, type SetStateAction, useState } from "react";
 import { dayOfPriceStartLabel } from "../../eventPricing";
+import { QRCodeShareCard } from "../../QRCodeShareCard";
 
 import {
   readRsvpFollowUpMode,
@@ -53,6 +54,8 @@ export function EventEditorDialog({
   const [dayOfPriceDraft, setDayOfPriceDraft] = useState(
     currencyDraftFromCents(event.dayOfPriceCents),
   );
+  const [graphicDragging, setGraphicDragging] = useState(false);
+  const [graphicError, setGraphicError] = useState<string | null>(null);
   const [initialDraft] = useState(() => ({
     advancePriceDraft: currencyDraftFromCents(event.advancePriceCents),
     dayOfPriceDraft: currencyDraftFromCents(event.dayOfPriceCents),
@@ -74,6 +77,22 @@ export function EventEditorDialog({
       : state.status === "ready"
         ? state.rsvpFollowUpLeadHours
         : null;
+
+  function handleGraphicFile(nextFile: File | null): void {
+    if (!nextFile) return;
+    if (!nextFile.type.startsWith("image/")) {
+      setGraphicError("Choose an image file for the public graphic.");
+      return;
+    }
+    setGraphicError(null);
+    setGraphicFile(nextFile);
+  }
+
+  function handleGraphicDrop(dropEvent: DragEvent<HTMLLabelElement>): void {
+    dropEvent.preventDefault();
+    setGraphicDragging(false);
+    handleGraphicFile(dropEvent.dataTransfer.files.item(0));
+  }
 
   return (
     <Dialog
@@ -326,15 +345,68 @@ export function EventEditorDialog({
             />
           </div>
           <div className="field form-grid__wide">
-            <label htmlFor="events-page-graphic">Public graphic</label>
-            <input
-              accept="image/*"
-              id="events-page-graphic"
-              onChange={(change) => {
-                setGraphicFile(change.target.files?.[0] ?? null);
+            <label
+              className={`event-graphic-dropzone${graphicDragging ? " is-dragging" : ""}`}
+              onDragEnter={(dragEvent) => {
+                dragEvent.preventDefault();
+                setGraphicDragging(true);
               }}
-              type="file"
-            />
+              onDragLeave={() => {
+                setGraphicDragging(false);
+              }}
+              onDragOver={(dragEvent) => {
+                dragEvent.preventDefault();
+                dragEvent.dataTransfer.dropEffect = "copy";
+                setGraphicDragging(true);
+              }}
+              onDrop={handleGraphicDrop}
+            >
+              <span className="event-graphic-dropzone__title">Public graphic</span>
+              <span className="event-graphic-dropzone__label">
+                {graphicFile ? (
+                  <>
+                    Selected: <strong>{graphicFile.name}</strong>
+                  </>
+                ) : (
+                  <>
+                    Drag and drop an image here, or{" "}
+                    <span className="event-graphic-dropzone__browse">browse</span>
+                  </>
+                )}
+              </span>
+              <span className="field-help">
+                {event.publicGraphicFileId && !graphicFile
+                  ? "An image is already saved. Choose another image to replace it."
+                  : "PNG, JPG, or WebP images are supported."}
+              </span>
+              <input
+                accept="image/*"
+                className="sr-only"
+                id="events-page-graphic"
+                onChange={(change) => {
+                  handleGraphicFile(change.target.files?.item(0) ?? null);
+                  change.target.value = "";
+                }}
+                type="file"
+              />
+            </label>
+            {graphicError ? (
+              <p className="notice notice--error" role="alert">
+                {graphicError}
+              </p>
+            ) : null}
+            {graphicFile ? (
+              <button
+                className="text-button"
+                onClick={() => {
+                  setGraphicError(null);
+                  setGraphicFile(null);
+                }}
+                type="button"
+              >
+                Remove selected image
+              </button>
+            ) : null}
           </div>
         </div>
         <label className="checkbox-row">
@@ -418,6 +490,24 @@ export function EventEditorDialog({
                   "Choose an event start to confirm when day-of pricing begins."}
               </p>
             ) : null}
+            <fieldset className="event-ticketing-links">
+              <legend>Ticket page and QR code</legend>
+              <p className="field-help">
+                Share the ticket page with your audience or download its QR code for printed
+                programs and signs.
+              </p>
+              {editingId ? (
+                <QRCodeShareCard
+                  description={`Tickets for ${event.title}.`}
+                  path={`/tickets/${editingId}`}
+                  title={`${event.title} tickets`}
+                />
+              ) : (
+                <p className="ticketing-price-note" role="status">
+                  Save this Performance to generate its ticket page and QR code.
+                </p>
+              )}
+            </fieldset>
           </div>
         ) : null}
         {dirty ? (
