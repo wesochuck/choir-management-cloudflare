@@ -1,4 +1,6 @@
 import {
+  memberEmailChangeConfirmationResponseSchema,
+  memberEmailChangeResponseSchema,
   memberProfileResponseSchema,
   organizationDirectoryResponseSchema,
   organizationMembershipsResponseSchema,
@@ -140,6 +142,25 @@ export async function updateMemberProfile(
     method: "PUT",
   });
   return memberProfileResponseSchema.parse(await response.json());
+}
+
+export async function requestMemberEmailChange(email: string): Promise<string> {
+  const response = await request("/api/singer/profile/email-change", {
+    body: JSON.stringify({ email }),
+    method: "POST",
+  });
+  return memberEmailChangeResponseSchema.parse(await response.json()).email;
+}
+
+export async function confirmMemberEmailChange(
+  token: string,
+): Promise<{ readonly email: string; readonly status: "confirmed" }> {
+  const response = await request("/api/account/email-change/confirm", {
+    body: JSON.stringify({ token }),
+    method: "POST",
+  });
+  const parsed = memberEmailChangeConfirmationResponseSchema.parse(await response.json());
+  return { email: parsed.email, status: parsed.status };
 }
 
 export async function listOrganizationDirectory(

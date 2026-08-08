@@ -37,6 +37,39 @@ export const accountSecurityResponseSchema = z.object({
 export type AccountPasswordRequest = z.infer<typeof accountPasswordRequestSchema>;
 export type AccountSecurityResponse = z.infer<typeof accountSecurityResponseSchema>;
 
+export const memberEmailChangeRequestSchema = z.object({
+  email: z.email().max(320),
+});
+
+export const memberEmailChangeResponseSchema = z.object({
+  email: z.email(),
+  requestId: requestIdSchema,
+  status: z.literal("pending"),
+});
+
+export const memberEmailChangeConfirmationRequestSchema = z.object({
+  token: z
+    .string()
+    .min(16)
+    .max(4096)
+    .regex(/^[A-Za-z0-9._-]+$/),
+});
+
+export const memberEmailChangeConfirmationResponseSchema = z.object({
+  email: z.email(),
+  requestId: requestIdSchema,
+  status: z.literal("confirmed"),
+});
+
+export type MemberEmailChangeRequest = z.infer<typeof memberEmailChangeRequestSchema>;
+export type MemberEmailChangeResponse = z.infer<typeof memberEmailChangeResponseSchema>;
+export type MemberEmailChangeConfirmationRequest = z.infer<
+  typeof memberEmailChangeConfirmationRequestSchema
+>;
+export type MemberEmailChangeConfirmationResponse = z.infer<
+  typeof memberEmailChangeConfirmationResponseSchema
+>;
+
 const authDateSchema = z.union([z.string().min(1), z.number()]);
 
 export const authUserSchema = z.object({

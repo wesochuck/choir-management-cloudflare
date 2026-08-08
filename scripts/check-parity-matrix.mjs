@@ -47,6 +47,8 @@ const expectedApiRoutes = [
   "GET /api/calendar/feed",
   "GET /api/singer/calendar-feed-url",
   "POST /api/singer/calendar-feed-url/reset",
+  "POST /api/singer/profile/email-change",
+  "POST /api/account/email-change/confirm",
   "GET /api/singer/seating-profiles",
   "GET /api/platform/maintenance/run",
   "POST /api/public/poll-details",
@@ -111,6 +113,7 @@ const expectedBrowserRoutes = [
   "/admin/website",
   "/auditions",
   "/calendar",
+  "/confirm-email-change",
   "/dashboard",
   "/directory",
   "/donate",
@@ -172,6 +175,7 @@ const expectedSignedFlows = [
   "rsvp-link",
   "ticket-scan",
   "unsubscribe-link",
+  "email-change-link",
 ];
 const allowedStatuses = new Set(["blocked", "implemented", "partial", "planned", "verified"]);
 

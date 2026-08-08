@@ -62,6 +62,7 @@ import { registerRoutes as registerOrganizationModulesRoutes } from "./routes/or
 import { registerRoutes as registerSetupRecoveryRoutes } from "./routes/setupRecovery";
 import { registerRoutes as registerPlatformMaintenanceRoutes } from "./routes/platformMaintenance";
 import { registerRoutes as registerPaymentsRoutes } from "./routes/payments";
+import { registerRoutes as registerMemberEmailChangeRoutes } from "./routes/memberEmailChange";
 
 export const router = new Hono<WorkerHonoEnvironment>();
 
@@ -206,6 +207,7 @@ registerOrganizationModulesRoutes(router);
 registerSetupRecoveryRoutes(router);
 registerPlatformMaintenanceRoutes(router);
 registerPaymentsRoutes(router);
+registerMemberEmailChangeRoutes(router);
 
 router.notFound((context) => {
   const problem: ProblemDetails = {

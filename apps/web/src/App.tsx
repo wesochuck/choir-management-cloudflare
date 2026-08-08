@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AuthenticatedShell } from "./account/components/AuthenticatedShell/shell";
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
+import { EmailChangeConfirmationView } from "./auth/EmailChangeConfirmationView";
 import { getCurrentSession } from "./auth/api";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
@@ -225,6 +226,13 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   if (pathname === "/unsubscribe") {
     return (
       <PublicUnsubscribeView token={new URLSearchParams(window.location.search).get("token")} />
+    );
+  }
+  if (pathname === "/confirm-email-change") {
+    return (
+      <EmailChangeConfirmationView
+        token={new URLSearchParams(window.location.search).get("token")}
+      />
     );
   }
   if (pathname === "/rsvp") {

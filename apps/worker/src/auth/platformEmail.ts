@@ -7,7 +7,12 @@ import {
 } from "../communications/emailFeedback";
 
 export type PlatformEmailKind =
-  "communication-test" | "email-one-time-code" | "organization-invitation" | "password-reset";
+  | "communication-test"
+  | "email-change-confirmation"
+  | "email-change-notice"
+  | "email-one-time-code"
+  | "organization-invitation"
+  | "password-reset";
 
 export interface PlatformEmailMessage {
   readonly kind: PlatformEmailKind;

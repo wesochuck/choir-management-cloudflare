@@ -1,4 +1,6 @@
 import {
+  memberEmailChangeConfirmationResponseSchema,
+  memberEmailChangeResponseSchema,
   memberProfileResponseSchema,
   organizationDirectoryResponseSchema,
   organizationProfileResponseSchema,
@@ -14,6 +16,7 @@ import {
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
 const USER_EMAIL = "member.profile@example.test";
+const NEW_USER_EMAIL = "member.profile.changed@example.test";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
   if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -281,5 +284,102 @@ describe("linked-member Profile and directory", () => {
       return { auditCount, ...profile };
     });
     expect(persisted).toEqual({ auditCount: 2, globalStatus: "Idle", notes: "Manager-only note" });
+  });
+
+  it("requires new-email confirmation, notifies both addresses, and binds the link to its host", async () => {
+    const cookie = await signIn();
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Member Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    await database.batch([
+      database
+        .prepare(
+          `UPDATE member SET profileId = ?, role = 'member'
+           WHERE organizationId = 'organization-alpha' AND userId = 'member-profile-user'`,
+        )
+        .bind(profile.id),
+      database.prepare(
+        `UPDATE member SET role = 'member'
+         WHERE organizationId = 'organization-bravo' AND userId = 'member-profile-user'`,
+      ),
+    ]);
+    clearCapturedPlatformEmailsForTest();
+
+    const request = memberEmailChangeResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/singer/profile/email-change", cookie, {
+          email: NEW_USER_EMAIL,
+        })
+      ).json(),
+    );
+    expect(request.status).toBe("pending");
+    expect(request.email).toBe(NEW_USER_EMAIL);
+
+    const requestMessages = readCapturedPlatformEmailsForTest().filter((message) =>
+      message.kind.startsWith("email-change-"),
+    );
+    expect(requestMessages.map(({ recipient }) => recipient).toSorted()).toEqual(
+      [NEW_USER_EMAIL, USER_EMAIL].toSorted(),
+    );
+    const confirmationMessage = requestMessages.find(
+      (message) =>
+        message.kind === "email-change-confirmation" && message.recipient === NEW_USER_EMAIL,
+    );
+    if (!confirmationMessage) throw new Error("The new-address confirmation message is missing.");
+    const confirmationUrl = /https?:\/\/\S+/.exec(confirmationMessage.text)?.[0];
+    if (!confirmationUrl) throw new Error("The confirmation link is missing from the message.");
+    const token = new URL(confirmationUrl).searchParams.get("token");
+    if (!token) throw new Error("The confirmation token is missing from the link.");
+
+    const wrongHost = await write("bravo.localhost", "/api/account/email-change/confirm", "", {
+      token,
+    });
+    expect(wrongHost.status).toBe(400);
+
+    const confirmed = memberEmailChangeConfirmationResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/account/email-change/confirm", "", { token })
+      ).json(),
+    );
+    expect(confirmed).toMatchObject({ email: NEW_USER_EMAIL, status: "confirmed" });
+
+    const replay = await write("alpha.localhost", "/api/account/email-change/confirm", "", {
+      token,
+    });
+    expect(replay.status).toBe(400);
+
+    const user = await database
+      .prepare("SELECT email, emailVerified FROM user WHERE id = 'member-profile-user'")
+      .first<{ readonly email: string; readonly emailVerified: number }>();
+    expect(user).toEqual({ email: NEW_USER_EMAIL, emailVerified: 1 });
+
+    const confirmedMessages = readCapturedPlatformEmailsForTest().filter((message) =>
+      message.kind.startsWith("email-change-"),
+    );
+    expect(confirmedMessages).toHaveLength(4);
+    expect(
+      confirmedMessages.filter(
+        ({ kind, recipient }) =>
+          kind === "email-change-notice" && [USER_EMAIL, NEW_USER_EMAIL].includes(recipient),
+      ),
+    ).toHaveLength(3);
+
+    const audit = await database
+      .prepare(
+        `SELECT action FROM platform_audit_events
+         WHERE organization_id = 'organization-alpha' AND target_id = 'member-profile-user'
+           AND action IN ('member.email_change_requested', 'member.email_changed')
+         ORDER BY occurred_at ASC`,
+      )
+      .all<{ readonly action: string }>();
+    expect(audit.results.map(({ action }) => action)).toEqual([
+      "member.email_change_requested",
+      "member.email_changed",
+    ]);
   });
 });

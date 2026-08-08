@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
+  requestMemberEmailChange,
   deleteOrganizationProfilePhoto,
   getMemberProfile,
   listOrganizationDirectory,
@@ -17,6 +18,8 @@ type ProfilePhotoTarget = Pick<MemberProfile, "displayName" | "id" | "photoFileI
 type ProfileState =
   | { readonly status: "error" | "loading" | "missing" }
   | { readonly profile: MemberProfile; readonly status: "ready" };
+
+type EmailChangeMessage = { readonly status: "error" | "success"; readonly text: string } | null;
 
 type DirectoryState =
   | { readonly status: "error" | "loading" }
@@ -450,6 +453,7 @@ export function ProfilePhotoEditor({
   );
 }
 
+// eslint-disable-next-line complexity -- the editor coordinates Profile fields and the verified email-change request state.
 function MemberProfileEditor({
   enabled,
   onSaved,
@@ -460,6 +464,9 @@ function MemberProfileEditor({
   const { performerLabel } = useOrganizationTerminology();
   const [state, setState] = useState<ProfileState>({ status: "loading" });
   const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMessage, setEmailMessage] = useState<EmailChangeMessage>(null);
   const [phone, setPhone] = useState("");
   const [showInDirectory, setShowInDirectory] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -472,6 +479,7 @@ function MemberProfileEditor({
       .then((profile) => {
         setState({ profile, status: "ready" });
         setDisplayName(profile.displayName);
+        setEmail(profile.email);
         setPhone(profile.phone);
         setShowInDirectory(profile.showInDirectory);
       })
@@ -508,6 +516,28 @@ function MemberProfileEditor({
     }
   }
 
+  async function requestEmailChange(): Promise<void> {
+    setEmailBusy(true);
+    setEmailMessage(null);
+    try {
+      await requestMemberEmailChange(email);
+      setEmailMessage({
+        status: "success",
+        text: "We sent a confirmation link to the new address and an alert to your current address.",
+      });
+    } catch (error: unknown) {
+      setEmailMessage({
+        status: "error",
+        text:
+          error instanceof AuthApiError
+            ? error.message
+            : "The email change could not be started. Please try again.",
+      });
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
   return (
     <section className="account-section" aria-labelledby="member-profile-title">
       <div className="section-heading section-heading--compact">
@@ -535,7 +565,7 @@ function MemberProfileEditor({
         >
           <div className="profile-facts" aria-label="Organization Profile details">
             <p>
-              <strong>Email:</strong> {state.profile.email}
+              <strong>Current sign-in email:</strong> {state.profile.email}
             </p>
             <p>
               <strong>{performerLabel}:</strong> {state.profile.voicePart || "Not assigned"}
@@ -555,6 +585,37 @@ function MemberProfileEditor({
               onSaved();
             }}
           />
+          <div className="field">
+            <label htmlFor="member-email">New sign-in email</label>
+            <input
+              autoComplete="email"
+              id="member-email"
+              maxLength={320}
+              required
+              type="email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
+            />
+            <p className="field-help">
+              We will email the new address a confirmation link and notify your current address. The
+              change takes effect only after the new address confirms.
+            </p>
+            <button
+              className="button button--secondary"
+              disabled={emailBusy}
+              onClick={() => void requestEmailChange()}
+              type="button"
+            >
+              {emailBusy ? "Sending confirmation…" : "Change email"}
+            </button>
+            {emailMessage ? (
+              <p className={`notice notice--${emailMessage.status}`} role="status">
+                {emailMessage.text}
+              </p>
+            ) : null}
+          </div>
           <label className="field">
             Display name
             <input
@@ -588,8 +649,8 @@ function MemberProfileEditor({
             Show me in the Organization directory
           </label>
           <p className="field-help">
-            Change your sign-in email from account security. Organization managers control{" "}
-            {performerLabel.toLowerCase()} assignments and lifecycle status.
+            Organization managers control {performerLabel.toLowerCase()} assignments and lifecycle
+            status.
           </p>
           <button className="button button--primary" disabled={busy} type="submit">
             {busy ? "Saving Profile…" : "Save my Profile"}

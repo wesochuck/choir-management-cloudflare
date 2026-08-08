@@ -85,6 +85,8 @@ export const probePlan = new Map([
   ["api.organization.music-folder-report-folder-numbers", { kind: "skip-fixture" }],
   ["api.organization.music-folder-return-status", { kind: "skip-fixture" }],
   ["api.organization.music-folder-report-export", { kind: "skip-fixture" }],
+  ["api.singer.profile-email-change", { kind: "skip-fixture" }],
+  ["api.account.email-change-confirm", { kind: "skip-fixture" }],
 ]);
 
 export function buildProbePlan(matrix) {

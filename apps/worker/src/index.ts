@@ -3,6 +3,7 @@ import {
   processEmailProviderQueue,
   reconcileEmailProviderEvents,
 } from "./communications/emailFeedback";
+import { reconcileEmailChangeNotifications } from "./auth/emailChange";
 import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
 import { router } from "./router";
@@ -34,7 +35,10 @@ const worker = {
   scheduled(event: ScheduledController, env: Env, executionContext: ExecutionContext): void {
     executionContext.waitUntil(
       Promise.resolve().then(() => {
-        return reconcileEmailProviderEvents(env).then(() => {
+        return Promise.all([
+          reconcileEmailChangeNotifications(env),
+          reconcileEmailProviderEvents(env),
+        ]).then(() => {
           console.info(
             JSON.stringify({
               environment: env.APP_ENV,

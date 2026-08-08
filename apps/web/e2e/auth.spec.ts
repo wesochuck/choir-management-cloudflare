@@ -560,6 +560,19 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
       status: 200,
     });
   });
+  await page.route("**/api/singer/profile/email-change", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    expect(body).toEqual({ email: "updated.browser@example.test" });
+    await route.fulfill({
+      body: JSON.stringify({
+        email: "updated.browser@example.test",
+        requestId: "44444444-4444-4444-8444-444444444444",
+        status: "pending",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/platform/mfa/status", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -575,12 +588,16 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await page.route("**/api/organization/auth-status", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
-        code: "not_found",
-        message: "No canonical Organization hostname is active.",
+        mfaRequired: false,
+        mfaVerifiedUntil: null,
+        organizationId: "organization-alpha",
         requestId: "55555555-5555-4555-8555-555555555555",
+        role: "member",
+        twoFactorEnabled: false,
+        twoFactorVerified: false,
       }),
       contentType: "application/json",
-      status: 404,
+      status: 200,
     });
   });
 
@@ -595,6 +612,14 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/profile");
+  await expect(page.getByRole("heading", { name: "My Profile" })).toBeVisible();
+  const memberProfileForm = page.locator(".member-profile-form");
+  await expect(page.getByRole("heading", { name: "My Organization Profile" })).toBeVisible();
+  await memberProfileForm.getByLabel("New sign-in email").fill("updated.browser@example.test");
+  await memberProfileForm.getByRole("button", { name: "Change email" }).click();
+  await expect(memberProfileForm.getByRole("status")).toContainText("confirmation link");
+
   await page.goto("/account/organizations");
   await expect(page.getByRole("heading", { name: "Welcome, Invited Member." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Organization Alpha" })).toBeVisible();
@@ -746,6 +771,45 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   await expect(page.getByRole("button", { name: "+ Add row to back" })).toBeVisible();
   await expect(page.getByRole("button", { name: "+ Add row to front" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Unassigned Profiles" })).toBeVisible();
+});
+
+test("confirms a member email change from the one-time link", async ({ page }) => {
+  const token = "browser-email-change-token-123456";
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
+  });
+  await page.route("**/api/account/email-change/confirm", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ token });
+    await route.fulfill({
+      body: JSON.stringify({
+        email: "updated.browser@example.test",
+        requestId: "44444444-4444-4444-8444-444444444444",
+        status: "confirmed",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto(`/confirm-email-change?token=${token}`);
+  await expect(page).toHaveURL(/\/confirm-email-change$/);
+  await expect(page.getByRole("heading", { name: "Confirm your email address" })).toBeVisible();
+  await expect(page.locator(".auth-card").getByRole("status")).toContainText(
+    "updated.browser@example.test",
+  );
 });
 
 test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page }) => {

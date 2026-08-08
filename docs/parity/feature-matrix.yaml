@@ -252,6 +252,21 @@
           ],
       },
       {
+        "id": "route.auth.confirm-email-change",
+        "path": "/confirm-email-change",
+        "owner": "apps/web",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No equivalent verified member email-change confirmation route existed.",
+        "targetEvidence":
+          [
+            "apps/web/src/App.tsx",
+            "apps/web/src/auth/EmailChangeConfirmationView.tsx",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
         "id": "route.setup",
         "path": "/setup",
         "owner": "apps/web",
@@ -1896,6 +1911,40 @@
           ],
       },
       {
+        "id": "api.singer.profile-email-change",
+        "method": "POST",
+        "path": "/api/singer/profile/email-change",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent verified member email-change request flow existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/memberEmailChange.ts",
+            "apps/worker/src/auth/emailChange.ts",
+            "apps/worker/src/control/migrations/0014_email_change.sql",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "apps/web/src/account/MemberProfileDirectory.tsx",
+          ],
+      },
+      {
+        "id": "api.account.email-change-confirm",
+        "method": "POST",
+        "path": "/api/account/email-change/confirm",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent verified member email-change confirmation flow existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/memberEmailChange.ts",
+            "apps/worker/src/auth/emailChange.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "apps/web/src/auth/EmailChangeConfirmationView.tsx",
+            "apps/web/e2e/auth.spec.ts",
+          ],
+      },
+      {
         "id": "api.organization.music-folder-report-query",
         "method": "POST",
         "path": "/api/organization/reports/music-folders/query",
@@ -2363,6 +2412,22 @@
             "apps/worker/src/security/signedLinks.ts",
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "signed.email-change",
+        "flow": "email-change-link",
+        "owner": "packages/domain",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "AGENTS.md signed-token contract; no equivalent member email-change flow existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/security/signedLinks.ts",
+            "apps/worker/src/auth/emailChange.ts",
+            "apps/worker/test/memberProfiles.integration.test.ts",
+            "apps/web/src/auth/EmailChangeConfirmationView.tsx",
           ],
       },
     ],
