@@ -1,9 +1,9 @@
 # Music Folder Report Implementation Plan
 
-**Status:** Accepted product design; ready for implementation
-**Date:** 2026-08-08
-**Milestone:** 5 — authenticated Organization workflows
-**Route:** `/admin/reports`, `Music Folder Report` tab
+- **Status:** Accepted product design; ready for implementation
+- **Date:** 2026-08-08
+- **Milestone:** 5 — authenticated Organization workflows
+- **Route:** `/admin/reports`, `Music Folder Report` tab
 
 ## 1. Outcome
 
