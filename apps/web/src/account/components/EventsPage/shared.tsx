@@ -130,9 +130,9 @@ export function EventList({
             <div className="table-actions">
               <a
                 className="text-button"
-                href={`/admin/events/${encodeURIComponent(candidate.id)}/roster`}
+                href={`/admin/rsvp?eventId=${encodeURIComponent(candidate.id)}`}
               >
-                Roster
+                RSVP
               </a>
               <button
                 className="text-button"

@@ -70,6 +70,7 @@ export function renderOrganizationPage(
       ? requestedRosterSection
       : "roster";
   const musicPieceId = routeParams.get("pieceId");
+  const rsvpEventId = routeParams.get("eventId");
   const route =
     pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
       ? "event-roster"
@@ -113,7 +114,7 @@ export function renderOrganizationPage(
         initialProfileTab={rosterProfileTabFromSearch(routeState.search)}
       />
     ),
-    "/admin/rsvp": <RsvpManagerPage enabled={focusedEnabled} />,
+    "/admin/rsvp": <RsvpManagerPage enabled={focusedEnabled} eventId={rsvpEventId} />,
     "/admin/settings": <OrganizationSettingsPage enabled={focusedEnabled} />,
     "/admin/settings/invitations": <OrganizationAccess section="invitations" />,
     "/admin/settings/modules": <ModuleSettingsView />,

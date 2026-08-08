@@ -1453,10 +1453,21 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const eventsPage = page.getByRole("main");
   await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
   await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
-  await expect(eventsPage.getByRole("link", { name: "Roster" })).toHaveAttribute(
+  const eventRsvpLink = eventsPage.getByRole("link", { name: "RSVP", exact: true }).first();
+  await expect(eventRsvpLink).toHaveAttribute(
     "href",
-    "/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster",
+    "/admin/rsvp?eventId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   );
+  await eventRsvpLink.click();
+  await expect(page).toHaveURL(/\/admin\/rsvp\?eventId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa$/);
+  const linkedRsvpPage = page.getByRole("main");
+  await expect(
+    linkedRsvpPage.locator(".rsvp-manager__balance").getByRole("combobox", { name: "Performance" }),
+  ).toHaveValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  await expect(linkedRsvpPage.getByRole("heading", { name: "RSVP roster" })).toBeVisible();
+  await page.goto("/admin/events");
+  const eventsPageAfterRsvp = page.getByRole("main");
+  await expect(eventsPageAfterRsvp.getByRole("heading", { name: "Events" })).toBeVisible();
   await eventsPage.getByRole("button", { name: "Bulk add rehearsals" }).click();
   const bulkRehearsalDialog = page.getByRole("dialog", { name: "Bulk add rehearsals" });
   await expect(bulkRehearsalDialog.getByRole("combobox", { name: "Day of week" })).toHaveValue("");
@@ -1468,7 +1479,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     '[aria-label="Edit event Browser Concert"]:visible',
   );
   await expect(browserConcertEdit).toBeVisible();
-  await expect(browserConcertEdit.getByRole("link", { name: "Roster", exact: true })).toBeVisible();
+  await expect(browserConcertEdit.getByRole("link", { name: "RSVP", exact: true })).toBeVisible();
   await expect(browserConcertEdit.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
   await expect(
     browserConcertEdit.getByRole("button", { name: "More actions for Browser Concert" }),
