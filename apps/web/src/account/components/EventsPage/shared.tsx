@@ -3,7 +3,7 @@ import type {
   OrganizationEventRequest,
   OrganizationVenue,
 } from "@choir/contracts";
-import { DataTable } from "@choir/ui";
+import { DataTable, DropdownMenu } from "@choir/ui";
 import {
   calculateRsvpDeadline,
   isRsvpDeadlinePassed,
@@ -143,34 +143,35 @@ export function EventList({
               >
                 Edit
               </button>
-              <button
-                className="text-button"
-                onClick={() => {
-                  onClone(candidate);
-                }}
-                type="button"
-              >
-                Clone
-              </button>
-              <button
-                className="text-button text-button--danger"
-                disabled={candidate.isCanceled}
-                onClick={() => {
-                  onCancel(candidate);
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="text-button text-button--danger"
-                onClick={() => {
-                  onArchive(candidate);
-                }}
-                type="button"
-              >
-                Archive
-              </button>
+              <DropdownMenu
+                accessibleLabel={`More actions for ${candidate.title}`}
+                items={[
+                  {
+                    label: "Clone",
+                    onSelect: () => {
+                      onClone(candidate);
+                    },
+                  },
+                  {
+                    disabled: candidate.isCanceled,
+                    label: "Cancel",
+                    onSelect: () => {
+                      onCancel(candidate);
+                    },
+                  },
+                  {
+                    label: "Archive",
+                    onSelect: () => {
+                      onArchive(candidate);
+                    },
+                  },
+                ]}
+                trigger={
+                  <button className="text-button table-actions__overflow" type="button">
+                    <span aria-hidden="true">⋮</span>
+                  </button>
+                }
+              />
             </div>
           ),
         },

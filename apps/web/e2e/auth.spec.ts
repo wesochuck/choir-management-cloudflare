@@ -1468,6 +1468,14 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     '[aria-label="Edit event Browser Concert"]:visible',
   );
   await expect(browserConcertEdit).toBeVisible();
+  await expect(browserConcertEdit.getByRole("link", { name: "Roster", exact: true })).toBeVisible();
+  await expect(browserConcertEdit.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+  await expect(
+    browserConcertEdit.getByRole("button", { name: "More actions for Browser Concert" }),
+  ).toBeVisible();
+  await expect(browserConcertEdit.getByRole("button", { name: "Clone", exact: true })).toHaveCount(
+    0,
+  );
   await browserConcertEdit.getByRole("button", { name: "Edit", exact: true }).click();
   const eventEditor = page.getByRole("dialog", { name: "Edit event" });
   await expect(
@@ -1477,10 +1485,19 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     "This date is calculated from the event start using the organization's RSVP expiry setting.",
   );
   await page.getByRole("button", { name: "Close" }).click();
-  await eventsPage.locator('button:has-text("Clone"):visible').click();
-  await expect(page.getByRole("dialog", { name: "Clone event" })).toBeVisible();
-  await page.getByRole("button", { name: "Close" }).click();
-  await eventsPage.locator('button:has-text("Archive"):visible').click();
+  await expect(eventEditor).toHaveCount(0);
+  await browserConcertEdit
+    .getByRole("button", { name: "More actions for Browser Concert" })
+    .click();
+  await page.getByRole("menuitem", { name: "Clone", exact: true }).click();
+  const cloneDialog = page.getByRole("dialog", { name: "Clone event" });
+  await expect(cloneDialog).toBeVisible();
+  await cloneDialog.getByRole("button", { name: "Close" }).click();
+  await expect(cloneDialog).toHaveCount(0);
+  await browserConcertEdit
+    .getByRole("button", { name: "More actions for Browser Concert" })
+    .click();
+  await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Archive event?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
 
