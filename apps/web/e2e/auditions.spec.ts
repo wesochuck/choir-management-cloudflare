@@ -150,7 +150,7 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
   await page.getByLabel("Name *").fill("Jane Singer");
   await page.getByLabel("Email *").fill("jane.singer@example.test");
   await page.getByLabel("Phone").fill("555-0200");
-  await page.getByLabel("Voice Part").selectOption({ label: "Unsure" });
+  await page.getByLabel("Performer").selectOption({ label: "Unsure" });
   await page.getByLabel("Musical Experience").fill("Five years of choir experience.");
   await page.getByRole("button", { name: "Submit Inquiry" }).click();
 

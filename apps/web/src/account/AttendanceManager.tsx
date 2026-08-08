@@ -303,7 +303,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             onChange={(event) => {
               setQuery(event.target.value);
             }}
-            placeholder="Search name or voice part"
+            placeholder={`Search name or ${performerLabel.toLowerCase()}`}
             type="search"
             value={query}
           />
@@ -405,7 +405,8 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
                     <span className="attendance-row__identity">
                       <strong>{row.displayName}</strong>
                       <span>
-                        {row.voicePart || "Voice part not set"} · {attendanceLabel(row.attendance)}
+                        {row.voicePart || `${performerLabel} not set`} ·{" "}
+                        {attendanceLabel(row.attendance)}
                       </span>
                     </span>
                     {row.rsvp === "No" ? (

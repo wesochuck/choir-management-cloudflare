@@ -8,6 +8,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { Dialog } from "@choir/ui";
 import { useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
+import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { normalizeFormationOrder, formationOrderOptions, moveFormationOrderItem } from "./utils";
 import { seatingProfileLabel } from "./utils";
 import type { ConfirmState } from "./types";
@@ -52,6 +53,7 @@ export function FormationOrderEditor({
   readonly onChange: (sectionOrder: readonly string[]) => void;
   readonly roster: OrganizationRosterConfiguration;
 }) {
+  const { performerLabel } = useOrganizationTerminology();
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const options = formationOrderOptions(formation, roster);
@@ -73,13 +75,13 @@ export function FormationOrderEditor({
   return (
     <div className="formation-order-editor">
       <div className="formation-order-editor__heading">
-        <span>Section or voice-part order</span>
+        <span>Section or {performerLabel.toLowerCase()} order</span>
         <small>
           Drag the handles to set the order. The highlighted line shows where it will land.
         </small>
       </div>
       <div
-        aria-label={`${formation.isVoicePartLayout ? "Voice-part" : "Section"} order`}
+        aria-label={`${formation.isVoicePartLayout ? performerLabel : "Section"} order`}
         className={`formation-order-list${formation.strategy === "horizontal_row" ? " formation-order-list--rows" : ""}`}
         role="list"
       >
@@ -152,7 +154,7 @@ export function FormationOrderEditor({
       </div>
       {options.some(({ value }) => !order.includes(value)) ? (
         <label className="formation-order-editor__add">
-          <span>Add {formation.isVoicePartLayout ? "voice part" : "section"}</span>
+          <span>Add {formation.isVoicePartLayout ? performerLabel.toLowerCase() : "section"}</span>
           <select
             value=""
             onChange={(event) => {
@@ -184,6 +186,7 @@ export function FormationEditor({
   readonly onSaved: (next: SeatingConfiguration) => void;
   readonly roster: OrganizationRosterConfiguration;
 }) {
+  const { performerLabelPlural } = useOrganizationTerminology();
   const [configuration, setConfiguration] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -288,7 +291,7 @@ export function FormationEditor({
                   });
                 }}
               />
-              Arrange individual voice parts
+              Arrange individual {performerLabelPlural.toLowerCase()}
             </label>
             <FormationOrderEditor
               formation={formation}

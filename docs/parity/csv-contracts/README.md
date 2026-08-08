@@ -4,17 +4,18 @@ These contracts were captured from committed baseline source at
 `6874d43a3c3698ae53218a44d17649bc454ca9ac`. They are behavior to preserve in the Cloudflare rebuild
 and later become part of Organization Export. CSV writers must use RFC 4180-style double-quote
 escaping for dynamic text and retain the stored value `Idle`; the UI may display that value as “On
-Break.”
+Break.” Roster-related exports use the Organization's configured Performer label, with `Performer`
+as the fallback; imports continue to recognize legacy `Voice Part` aliases.
 
-| Contract           | Header order                                                                                          | Baseline evidence                                    |
-| ------------------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Roster             | `Name,Email,Phone,Voice Part,Status`                                                                  | `src/services/profileService.ts`, related tests      |
-| Music library      | `Title,Composer,Arranger,Copies,Catalog ID,Duration,Voicing,Applies To,Genres,Purchase Date,Notes`    | `src/lib/music/csv.ts`, related tests                |
-| Event RSVP roster  | `Name,Section,Voice Part,Event Title,RSVP Status`                                                     | `src/lib/eventRoster/exportCsv.ts`, related tests    |
-| Donations          | `ID,Donor Name,Donor Email,Amount,Tribute,Tribute Name,Anonymous,Status,Date`                         | `src/views/admin/DonationsView.tsx`                  |
-| Attendance report  | dynamic performer label, then `Voice Part,Absences,Presence Count,Total Rehearsals,Attendance Rate %` | `src/views/admin/ReportsView.tsx`                    |
-| Repertoire history | `Title,Composer,Arranger,Catalog ID,Total Performances,Last Performed`                                | `src/views/admin/ReportsView.tsx`                    |
-| Will call          | `ID,Buyer Name,Buyer Email,Quantity,Paid,Status,Created,Type`                                         | `src/views/admin/ticketing/TicketingWillCallTab.tsx` |
+| Contract           | Header order                                                                                       | Baseline evidence                                    |
+| ------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Roster             | `Name,Email,Phone,<Performer label>,Status`                                                        | `src/services/profileService.ts`, related tests      |
+| Music library      | `Title,Composer,Arranger,Copies,Catalog ID,Duration,Voicing,Applies To,Genres,Purchase Date,Notes` | `src/lib/music/csv.ts`, related tests                |
+| Event RSVP roster  | `Name,Section,<Performer label>,Event Title,RSVP Status`                                           | `src/lib/eventRoster/exportCsv.ts`, related tests    |
+| Donations          | `ID,Donor Name,Donor Email,Amount,Tribute,Tribute Name,Anonymous,Status,Date`                      | `src/views/admin/DonationsView.tsx`                  |
+| Attendance report  | `Name,<Performer label>,Absences,Presence Count,Total Rehearsals,Attendance Rate %`                | `src/views/admin/ReportsView.tsx`                    |
+| Repertoire history | `Title,Composer,Arranger,Catalog ID,Total Performances,Last Performed`                             | `src/views/admin/ReportsView.tsx`                    |
+| Will call          | `ID,Buyer Name,Buyer Email,Quantity,Paid,Status,Created,Type`                                      | `src/views/admin/ticketing/TicketingWillCallTab.tsx` |
 
 ## Structural behavior
 

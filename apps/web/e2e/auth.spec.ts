@@ -1347,8 +1347,23 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const rosterPage = page.getByRole("main");
   await expect(rosterPage.getByRole("button", { name: "Add Profile" })).toBeVisible();
   await rosterPage.getByRole("button", { name: "Add Profile" }).click();
-  await expect(page.getByRole("dialog", { name: "Add Profile" })).toBeVisible();
-  await page.getByRole("button", { name: "Close" }).click();
+  const profileDialog = page.getByRole("dialog", { name: "Add Profile" });
+  await expect(profileDialog).toBeVisible();
+  await profileDialog.getByLabel("Display name").fill("Changed profile");
+  const firstDiscardPrompt = page.waitForEvent("dialog");
+  await page.keyboard.press("Escape");
+  const firstPrompt = await firstDiscardPrompt;
+  expect(firstPrompt.message()).toBe(
+    "You have unsaved changes. Discard them and close this dialog?",
+  );
+  await firstPrompt.dismiss();
+  await expect(profileDialog).toBeVisible();
+
+  const secondDiscardPrompt = page.waitForEvent("dialog");
+  await page.keyboard.press("Escape");
+  const secondPrompt = await secondDiscardPrompt;
+  await secondPrompt.accept();
+  await expect(profileDialog).toHaveCount(0);
   await expect(rosterPage.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
     "href",
     "/api/organization/profiles/export.csv",

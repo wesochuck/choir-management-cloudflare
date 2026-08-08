@@ -26,12 +26,12 @@ describe("roster CSV", () => {
       ]),
     ).toBe(
       [
-        "Name,Email,Phone,Voice Part,Status",
+        "Name,Email,Phone,Performer,Status",
         '"Alex ""Ace"", Singer","alex@example.test","555-0100","T2","Idle"',
         '"Sam Singer","","","B2","Active"',
         "",
         "Section Leaders",
-        "Name,Email,Phone,Voice Part,Status",
+        "Name,Email,Phone,Performer,Status",
         '"Alex ""Ace"", Singer","alex@example.test","555-0100","T2","Idle"',
       ].join("\n"),
     );
@@ -89,6 +89,23 @@ describe("roster CSV", () => {
         voicePart: "S1",
       },
     ]);
+  });
+
+  it("round-trips an export using the configured performer label", () => {
+    const csv = renderRosterCsv(
+      [
+        {
+          displayName: "Singer One",
+          email: "one@example.test",
+          globalStatus: "Active",
+          isSectionLeader: false,
+          phone: "",
+          voicePart: "S1",
+        },
+      ],
+      "Singer",
+    );
+    expect(parseRosterCsv(csv, 500, "Singer")[0]?.voicePart).toBe("S1");
   });
 
   it("handles escaped quotes and multiline notes with header aliases", () => {

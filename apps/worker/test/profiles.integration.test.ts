@@ -317,11 +317,11 @@ describe("Organization Profiles", () => {
     );
     expect(await rosterExport.text()).toBe(
       [
-        "Name,Email,Phone,Voice Part,Status",
+        "Name,Email,Phone,Performer,Status",
         '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
         "",
         "Section Leaders",
-        "Name,Email,Phone,Voice Part,Status",
+        "Name,Email,Phone,Performer,Status",
         '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
       ].join("\n"),
     );

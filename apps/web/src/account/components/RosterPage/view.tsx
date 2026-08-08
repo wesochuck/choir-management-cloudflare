@@ -843,7 +843,7 @@ export function RosterPageView({
         helpText="Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
         invalid={Boolean(rosterImportInspection?.fatalError)}
         mappingOptions={rosterCsvColumnOptions.map((value) => ({
-          label: value,
+          label: value === "Voice Part" ? performerLabel : value,
           required: value === "Name",
           value,
         }))}

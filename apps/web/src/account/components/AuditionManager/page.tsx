@@ -38,7 +38,7 @@ import { SettingsForm } from "./settings";
 import { AuditionTable, AuditionDialogs } from "./tableAndDialogs";
 
 export function AuditionManager({ enabled }: Props) {
-  const { performerLabelPlural } = useOrganizationTerminology();
+  const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [state, setState] = useState<ManagerState>({ status: "loading" });
   const [settings, setSettings] = useState<OrganizationAuditionSettings>(fallbackSettings);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -356,7 +356,7 @@ export function AuditionManager({ enabled }: Props) {
             <label className="field">
               Search
               <input
-                placeholder="Name, email, voice part"
+                placeholder={`Name, email, ${performerLabel.toLowerCase()}`}
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);

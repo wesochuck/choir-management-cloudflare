@@ -242,6 +242,7 @@ function storedAuditionSettings(storage: DurableObjectStorage): OrganizationAudi
 }
 
 function publicAuditionRosterOptions(storage: DurableObjectStorage): {
+  readonly performerLabel: string;
   readonly sections: readonly { readonly code: string; readonly name: string }[];
   readonly voiceParts: readonly {
     readonly fullName: string;
@@ -272,7 +273,7 @@ function publicAuditionRosterOptions(storage: DurableObjectStorage): {
   const voiceParts = configuration.voiceParts
     .filter(({ sectionCode }) => sectionCodes.has(sectionCode))
     .map(({ fullName, label, sectionCode }) => ({ fullName, label, sectionCode }));
-  return { sections, voiceParts };
+  return { performerLabel: configuration.performerLabel, sections, voiceParts };
 }
 
 function readAuditionSystemCommunicationTemplate(
@@ -512,11 +513,13 @@ function responseForRow(storage: DurableObjectStorage, row: AuditionRow): Respon
 }
 
 function publicResponseForRow(storage: DurableObjectStorage, row: AuditionRow): Response {
+  const rosterOptions = publicAuditionRosterOptions(storage);
   return Response.json({
     availabilityNotes: row.availabilityNotes || undefined,
     createdAt: row.createdAt,
     id: row.id,
     name: row.name,
+    performerLabel: rosterOptions.performerLabel,
     requestedSlots: parseRequestedSlots(row.requestedSlotsJson),
     scheduledTimeSlot: row.scheduledTimeSlot,
     slots: readSlotsForAudition(storage, row.id),
@@ -906,6 +909,7 @@ export function readPublicAuditionSettingsFromStore(
     confirmationMessage: settings.confirmationMessage,
     defaultPerformanceId: settings.defaultPerformanceId,
     enabled: settings.enabled,
+    performerLabel: rosterOptions.performerLabel,
     performance: performance ?? null,
     sections: rosterOptions.sections,
     slots: settings.slots,

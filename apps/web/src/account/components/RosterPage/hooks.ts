@@ -385,15 +385,15 @@ export function useRosterPageController({
     void file
       .text()
       .then((csv) => {
-        const initialInspection = inspectRosterCsv(csv);
+        const initialInspection = inspectRosterCsv(csv, performerLabel);
         const mappings = initialInspection.headers.map((header, sourceIndex) => ({
           sourceIndex,
-          targetHeader: rosterCsvColumnForHeader(header),
+          targetHeader: rosterCsvColumnForHeader(header, performerLabel),
         }));
         setRosterImportCsv(csv);
         setRosterImportHeaders(initialInspection.headers);
         setRosterImportMappings(mappings);
-        const inspection = inspectRosterCsv(mapRosterCsvColumns(csv, mappings));
+        const inspection = inspectRosterCsv(mapRosterCsvColumns(csv, mappings), performerLabel);
         setRosterImportInspection(inspection);
         if (inspection.fatalError) setError(inspection.fatalError);
       })
@@ -411,7 +411,9 @@ export function useRosterPageController({
     );
     setRosterImportMappings(nextMappings);
     setRosterImportConfirmed(false);
-    setRosterImportInspection(inspectRosterCsv(mapRosterCsvColumns(rosterImportCsv, nextMappings)));
+    setRosterImportInspection(
+      inspectRosterCsv(mapRosterCsvColumns(rosterImportCsv, nextMappings), performerLabel),
+    );
   }
 
   function openCreate() {

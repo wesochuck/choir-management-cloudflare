@@ -130,7 +130,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       return context.json(
         {
           code: "validation_failed",
-          message: "Valid, uniquely labeled sections and voice parts are required.",
+          message: "Valid, uniquely labeled sections and Performer assignments are required.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         400,
@@ -150,8 +150,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         return context.json(
           {
             code: "voice_part_in_use",
-            message:
-              "A voice part assigned to an Organization Profile cannot be removed or renamed.",
+            message: `A ${body.data.performerLabel} assignment on an Organization Profile cannot be removed or renamed.`,
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           409,

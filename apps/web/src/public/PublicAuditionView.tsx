@@ -35,6 +35,7 @@ interface AuditionDetails {
   readonly id: string;
   readonly createdAt: string;
   readonly name: string;
+  readonly performerLabel?: string;
   readonly voicePart?: string;
   readonly availabilityNotes?: string;
   readonly requestedSlots?: readonly string[];
@@ -47,6 +48,7 @@ interface PublicAuditionSettings {
   readonly confirmationMessage: string;
   readonly defaultPerformanceId: string | null;
   readonly enabled: boolean;
+  readonly performerLabel: string;
   readonly performance: PublicAuditionPerformance | null;
   readonly sections: readonly PublicAuditionSection[];
   readonly slots: readonly AuditionSlot[];
@@ -59,6 +61,7 @@ const fallbackPublicAuditionSettings: PublicAuditionSettings = {
   confirmationMessage: "Thank you for your interest. We will be in touch soon.",
   defaultPerformanceId: null,
   enabled: true,
+  performerLabel: "Performer",
   performance: null,
   sections: [],
   slots: [],
@@ -86,7 +89,10 @@ function isAuditionDetails(value: unknown): value is AuditionDetails {
     value !== null &&
     "id" in value &&
     "name" in value &&
-    "status" in value
+    "status" in value &&
+    (!("performerLabel" in value) ||
+      value.performerLabel === undefined ||
+      typeof value.performerLabel === "string")
   );
 }
 
@@ -285,7 +291,7 @@ function AuditionForm({
         />
       </label>
       <label className="field" htmlFor="audition-voice-part">
-        Voice part
+        {settings.performerLabel}
         <select
           id="audition-voice-part"
           onChange={(e) => {
@@ -308,7 +314,9 @@ function AuditionForm({
             );
           })}
         </select>
-        <span className="field-help">Choose a voice part, or select Unsure if you need help.</span>
+        <span className="field-help">
+          Choose a {settings.performerLabel.toLowerCase()}, or select Unsure if you need help.
+        </span>
       </label>
       <label className="field" htmlFor="audition-experience">
         Musical experience
@@ -380,6 +388,7 @@ function AuditionDetailView({
   readonly token: string;
 }) {
   const [voicePart, setVoicePart] = useState(details.voicePart ?? "");
+  const performerLabel = details.performerLabel ?? "Performer";
   const [availabilityNotes, setAvailabilityNotes] = useState(details.availabilityNotes ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -436,7 +445,7 @@ function AuditionDetailView({
 
       <div>
         <label className="block text-sm font-medium" htmlFor="update-voice-part">
-          Voice Part
+          {performerLabel}
         </label>
         <input
           className="mt-1 w-full rounded border p-2"

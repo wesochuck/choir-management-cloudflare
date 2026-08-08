@@ -23,17 +23,19 @@ describe("renderAttendanceReportCsv", () => {
     });
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(
-      '"Performer","Voice Part","Absences","Presence Count","Total Rehearsals","Attendance Rate %"',
+      '"Name","Performer","Absences","Presence Count","Total Rehearsals","Attendance Rate %"',
     );
     expect(lines[1]).toBe("");
   });
 
-  it("uses the configured performerLabel in the first column header", () => {
+  it("uses the configured performerLabel for the performer column header", () => {
     const csv = renderAttendanceReportCsv({
       performerLabel: "Singer",
       singers: [baseSinger],
     });
-    expect(csv.split("\r\n")[0]).toContain('"Singer"');
+    expect(csv.split("\r\n")[0]).toBe(
+      '"Name","Singer","Absences","Presence Count","Total Rehearsals","Attendance Rate %"',
+    );
   });
 
   it("renders a single singer row with correct values including 1-decimal rate", () => {

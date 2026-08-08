@@ -189,6 +189,22 @@ export function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: 
   }
 }
 
+function performerLabel(storage: DurableObjectStorage): string {
+  try {
+    const raw = storage.sql
+      .exec<{ readonly configuration: string }>(
+        "SELECT roster_configuration_json AS configuration FROM organization_metadata LIMIT 1",
+      )
+      .one().configuration;
+    const parsed = organizationRosterConfigurationRequestSchema.safeParse(
+      JSON.parse(raw) as unknown,
+    );
+    return parsed.success ? parsed.data.performerLabel : "Performer";
+  } catch {
+    return "Performer";
+  }
+}
+
 export async function createProfile(
   storage: DurableObjectStorage,
   request: Request,
@@ -203,7 +219,10 @@ export async function createProfile(
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
   if (!isConfiguredVoicePart(storage, profile.voicePart)) {
-    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+    return Response.json(
+      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      { status: 400 },
+    );
   }
   storage.transactionSync(() => {
     storage.sql.exec(
@@ -266,7 +285,10 @@ export async function importProfiles(
   if (
     parsed.data.profiles.some(({ profile }) => !isConfiguredVoicePart(storage, profile.voicePart))
   ) {
-    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+    return Response.json(
+      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      { status: 400 },
+    );
   }
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
@@ -330,7 +352,10 @@ export async function updateProfile(
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
   if (!isConfiguredVoicePart(storage, profile.voicePart)) {
-    return Response.json({ code: "voice_part_not_configured" }, { status: 400 });
+    return Response.json(
+      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      { status: 400 },
+    );
   }
   const existing = storage.sql
     .exec<{
