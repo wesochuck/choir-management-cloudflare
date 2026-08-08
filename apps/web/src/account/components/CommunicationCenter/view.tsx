@@ -10,6 +10,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
   const {
     activeTab,
     audience,
+    audienceFieldsetRef,
     busy,
     channel,
     contentMarkdown,
@@ -188,7 +189,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                     <option>Both</option>
                   </select>
                 </div>
-                <fieldset>
+                <fieldset ref={audienceFieldsetRef}>
                   <legend>Audience</legend>
                   <p className="field-help">
                     Donors and ticket buyers include paid contacts who opted into updates. An
@@ -199,6 +200,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                       <label key={target} className="checkbox-row">
                         <input
                           checked={audience.targetAudiences.includes(target)}
+                          data-communication-audience={target}
                           disabled={
                             audience.targetAudiences.length === 1 &&
                             audience.targetAudiences.includes(target)

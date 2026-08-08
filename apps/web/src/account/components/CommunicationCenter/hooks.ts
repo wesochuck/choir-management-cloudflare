@@ -15,7 +15,7 @@ import {
   defaultTestEmailSubject,
   failureMessage,
   communicationTabFromSearch,
-  type audienceOptions,
+  audienceOptions,
 } from "./utils";
 import type { CommunicationStage, CommunicationTab } from "./types";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,6 +39,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const requestedTab = communicationTabFromSearch(window.location.search);
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
   const audienceRef = useRef<CommunicationAudienceRequest>(defaultAudience);
+  const audienceFieldsetRef = useRef<HTMLFieldSetElement | null>(null);
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
   const [contentMarkdown, setContentMarkdown] = useState("");
   const [subject, setSubject] = useState("");
@@ -168,9 +169,30 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     };
   }
 
+  function audienceFromVisibleForm(): CommunicationAudienceRequest {
+    const fieldset = audienceFieldsetRef.current;
+    if (!fieldset) return audienceRef.current;
+    const checkedTargets = new Set(
+      Array.from(fieldset.querySelectorAll<HTMLInputElement>("[data-communication-audience]"))
+        .filter((input) => input.checked)
+        .map((input) => input.dataset.communicationAudience),
+    );
+    const targetAudiences = audienceOptions.filter((target) => checkedTargets.has(target));
+    if (targetAudiences.length === 0) return audienceRef.current;
+    const currentTargets = audienceRef.current.targetAudiences;
+    const targetsChanged =
+      currentTargets.length !== targetAudiences.length ||
+      currentTargets.some((target, index) => target !== targetAudiences[index]);
+    if (!targetsChanged) return audienceRef.current;
+    const nextAudience = { ...audienceRef.current, targetAudiences };
+    replaceAudience(nextAudience);
+    return nextAudience;
+  }
+
   function composeAudienceRequest(): CommunicationAudienceRequest {
+    const currentAudience = audienceFromVisibleForm();
     return {
-      ...audienceRef.current,
+      ...currentAudience,
       voiceParts: voiceParts
         .split(",")
         .map((part) => part.trim())
@@ -366,6 +388,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   return {
     activeTab,
     audience,
+    audienceFieldsetRef,
     busy,
     channel,
     contentMarkdown,
