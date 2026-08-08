@@ -242,7 +242,7 @@ const responsiveManagerResponses: Record<string, unknown> = {
       {
         archivedAt: "",
         createdAt: "2026-07-20T20:00:00.000Z",
-        expiresAt: "",
+        expiresAt: "2026-07-23T20:00:00.000Z",
         id: pollId,
         responseCount: 0,
         title: "Responsive poll",
@@ -533,6 +533,45 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
       ).toBe(false);
     }
   }
+});
+
+test("poll creation requires and defaults an expiration date", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (await handleShellRoute(route)) return;
+    if (url.pathname === "/api/organization/polls" && route.request().method() === "POST") {
+      await fulfillJson(route, {
+        archivedAt: "",
+        createdAt: "2026-08-08T12:34:56.000Z",
+        createdBy: "user-responsive-admin",
+        description: "",
+        expiresAt: "2026-08-11T12:34:56.000Z",
+        id: pollId,
+        multipleChoice: false,
+        options: [
+          { id: "a0000000-0000-4000-8000-000000000001", label: "Yes", sortOrder: 0 },
+          { id: "a0000000-0000-4000-8000-000000000002", label: "No", sortOrder: 1 },
+        ],
+        title: "New poll",
+        updatedAt: "2026-08-08T12:34:56.000Z",
+      });
+      return;
+    }
+    if (await handleDataRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/admin/polls");
+  await page.getByRole("button", { name: "Create poll", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Create poll" });
+  const expiration = dialog.locator('input[type="datetime-local"]');
+  await expect(expiration).toHaveAttribute("required", "");
+  const value = await expiration.inputValue();
+  const expirationTime = await page.evaluate(
+    (dateTimeLocal) => new Date(dateTimeLocal).getTime(),
+    value,
+  );
+  expect(Math.abs(expirationTime - Date.now() - 3 * 24 * 60 * 60 * 1_000)).toBeLessThan(60_000);
 });
 
 test("member dues keeps payment controls beside amounts at compact widths", async ({ page }) => {

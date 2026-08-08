@@ -1,4 +1,8 @@
-import { defaultRosterConfiguration, defaultSeatingConfiguration } from "@choir/domain";
+import {
+  defaultPollExpirationAt,
+  defaultRosterConfiguration,
+  defaultSeatingConfiguration,
+} from "@choir/domain";
 
 import { seedPaymentSystemCommunicationTemplates } from "../paymentMessageTemplates";
 import {
@@ -1094,6 +1098,26 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE communication_messages ADD COLUMN dedupe_key TEXT",
       "CREATE UNIQUE INDEX idx_communication_messages_dedupe ON communication_messages(dedupe_key) WHERE dedupe_key IS NOT NULL",
     ],
+  },
+  {
+    apply: (sql) => {
+      const rows = [
+        ...sql.exec<{ readonly createdAt: string; readonly id: string }>(
+          "SELECT id, created_at AS createdAt FROM polls WHERE expires_at = ''",
+        ),
+      ];
+      for (const row of rows) {
+        const createdAt = new Date(row.createdAt);
+        const baseDate = Number.isNaN(createdAt.getTime()) ? new Date() : createdAt;
+        sql.exec(
+          "UPDATE polls SET expires_at = ? WHERE id = ? AND expires_at = ''",
+          defaultPollExpirationAt(baseDate),
+          row.id,
+        );
+      }
+    },
+    statements: [],
+    version: 66,
   },
 ] as const;
 

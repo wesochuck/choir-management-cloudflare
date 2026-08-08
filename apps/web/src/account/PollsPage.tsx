@@ -5,6 +5,7 @@ import {
   type OrganizationPoll,
   type OrganizationPollSummary,
 } from "@choir/contracts";
+import { defaultPollExpirationAt } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
@@ -27,6 +28,10 @@ function toIsoDateTime(value: string): string {
   if (!value) return "";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function defaultExpirationDateTimeLocal(): string {
+  return toDateTimeLocal(defaultPollExpirationAt(new Date()));
 }
 
 function formatExpiry(value: string): string {
@@ -79,7 +84,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     setEditingPollId(null);
     setTitle("");
     setDescription("");
-    setExpiresAt("");
+    setExpiresAt(defaultExpirationDateTimeLocal());
     setArchivedAt("");
     setMultipleChoice(false);
     setOptions(["Yes", "No"]);
@@ -138,7 +143,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     });
     if (!request.success) {
       setSaving(false);
-      setMessage("Add a title and at least two poll options.");
+      setMessage("Add a title, expiration date, and at least two poll options.");
       return;
     }
     try {
@@ -360,11 +365,12 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             />
           </label>
           <label>
-            Expiration date and time (optional)
+            Expiration date and time
             <input
               onChange={(event) => {
                 setExpiresAt(event.target.value);
               }}
+              required
               type="datetime-local"
               value={expiresAt}
             />

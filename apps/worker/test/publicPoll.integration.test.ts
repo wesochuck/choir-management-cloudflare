@@ -3,6 +3,7 @@ import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { issueSignedLink } from "../src/security/signedLinks";
+import { migrateOrganization } from "../src/organization/migrations";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
 const ALPHA_PROFILE = "11111111-1111-4111-8111-111111111111";
@@ -82,8 +83,9 @@ async function provision(
     );
     state.storage.sql.exec(
       `INSERT INTO polls (id, title, description, multiple_choice, expires_at, archived_at, created_by, created_at, updated_at)
-       VALUES (?, 'Favorite color?', 'Pick your favorite', 0, '', '', 'bootstrap', ?, ?)`,
+       VALUES (?, 'Favorite color?', 'Pick your favorite', 0, ?, '', 'bootstrap', ?, ?)`,
       pollId,
+      new Date(Date.parse(now) + 3 * 24 * 60 * 60 * 1_000).toISOString(),
       now,
       now,
     );
@@ -140,6 +142,30 @@ afterEach(async () => {
 });
 
 describe("public poll signed flow", () => {
+  it("backfills legacy poll expirations from the creation time", async () => {
+    const row = await runInDurableObject<
+      OrganizationStore,
+      { createdAt: string; expiresAt: string } | null
+    >(stores.get(stores.idFromName("organization-alpha")), (_instance, state) => {
+      state.storage.sql.exec("UPDATE polls SET expires_at = '' WHERE id = ?", ALPHA_POLL);
+      state.storage.sql.exec("DELETE FROM organization_schema_migrations WHERE version = ?", 66);
+      migrateOrganization(state.storage.sql);
+      return (
+        state.storage.sql
+          .exec<{ createdAt: string; expiresAt: string }>(
+            "SELECT created_at AS createdAt, expires_at AS expiresAt FROM polls WHERE id = ?",
+            ALPHA_POLL,
+          )
+          .toArray()
+          .at(0) ?? null
+      );
+    });
+    expect(row).not.toBeNull();
+    expect(row?.expiresAt).toBe(
+      new Date(Date.parse(row?.createdAt ?? "") + 3 * 24 * 60 * 60 * 1_000).toISOString(),
+    );
+  });
+
   it("resolves poll details for a valid token", async () => {
     const token = await issuePollToken("organization-alpha", ALPHA_POLL, ALPHA_PROFILE);
     const response = await exports.default.fetch(

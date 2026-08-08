@@ -54,7 +54,7 @@ export type OrganizationPollOption = z.infer<typeof organizationPollOptionSchema
 export const organizationPollRequestSchema = z.object({
   archivedAt: z.union([z.literal(""), z.iso.datetime()]).default(""),
   description: z.string().trim().max(10_000).default(""),
-  expiresAt: z.union([z.literal(""), z.iso.datetime()]).default(""),
+  expiresAt: z.iso.datetime(),
   multipleChoice: z.boolean().default(false),
   options: z.array(organizationPollOptionSchema).min(2).max(100),
   title: z.string().trim().min(1).max(500),
@@ -74,7 +74,7 @@ export type OrganizationPoll = z.infer<typeof organizationPollSchema>;
 export const organizationPollSummarySchema = z.object({
   archivedAt: z.string(),
   createdAt: z.iso.datetime(),
-  expiresAt: z.string(),
+  expiresAt: z.iso.datetime(),
   id: z.uuid(),
   responseCount: z.number().int().nonnegative(),
   title: z.string(),
@@ -101,7 +101,7 @@ export type OrganizationPollResponse = z.infer<typeof organizationPollResponseSc
 export const publicPollDetailsResponseSchema = z.object({
   canSubmit: z.boolean(),
   description: z.string(),
-  expiresAt: z.string(),
+  expiresAt: z.iso.datetime(),
   multipleChoice: z.boolean(),
   options: z.array(organizationPollOptionSchema),
   pollId: z.uuid(),
