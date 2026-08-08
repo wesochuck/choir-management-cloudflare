@@ -92,6 +92,12 @@ function isAuditionSystemTemplate(template: CommunicationTemplate): boolean {
   return template.isSystem && communicationPlaceholderContext(text) === "audition";
 }
 
+function isDonationSystemTemplate(template: CommunicationTemplate): boolean {
+  if (!template.isSystem) return false;
+  const text = `${template.title}\n${template.subject}\n${template.contentMarkdown}`.toLowerCase();
+  return /\bdonation\b|\bdonor\b/.test(text);
+}
+
 export function CommunicationTemplatePicker({
   audience,
   channel,
@@ -123,6 +129,7 @@ export function CommunicationTemplatePicker({
 
   const visibleTemplates = templates
     .filter((template) => !isAuditionSystemTemplate(template))
+    .filter((template) => !isDonationSystemTemplate(template))
     .filter((template) => templateMatchesCommunicationContext(template, audience, channel));
   const selectedTemplateIsAvailable = visibleTemplates.some(
     (template) => template.id === selectedTemplateId,
@@ -173,8 +180,8 @@ export function CommunicationTemplatePicker({
           ))}
         </select>
         <p className="field-help" id="communication-template-select-help">
-          Selecting a different template replaces the current message draft. Audition templates are
-          managed separately because they are used only by automated audition messages.
+          Selecting a different template replaces the current message draft. Audition and donation
+          receipt templates are managed separately because they are used only by automated messages.
         </p>
       </div>
       {!error && visibleTemplates.length === 0 ? (

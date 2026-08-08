@@ -6,6 +6,7 @@ const eventId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const firstTemplateId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const secondTemplateId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 const auditionTemplateId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const donationTemplateId = "11111111-1111-4111-8111-111111111111";
 
 const session = {
   session: {
@@ -119,6 +120,16 @@ async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void
           isSystem: true,
           subject: "Your audition is confirmed",
           title: "Audition Confirmed",
+          updatedAt: "2026-07-20T20:00:00.000Z",
+        },
+        {
+          channel: "Email",
+          contentMarkdown: "Thank you for your donation to {organizationName}.",
+          createdAt: "2026-07-20T20:00:00.000Z",
+          id: donationTemplateId,
+          isSystem: true,
+          subject: "Donation receipt from {organizationName}",
+          title: "Donation Payment Receipt",
           updatedAt: "2026-07-20T20:00:00.000Z",
         },
       ],
@@ -259,6 +270,7 @@ test("uses an optional template picker and confirms before replacing a draft", a
   await expect(templatePicker).toHaveValue("");
   await expect(templatePicker).toContainText("First template");
   await expect(templatePicker).not.toContainText("Audition Confirmed");
+  await expect(templatePicker).not.toContainText("Donation Payment Receipt");
 
   await templatePicker.selectOption(firstTemplateId);
   await expect(templatePicker).toHaveValue(firstTemplateId);
@@ -288,6 +300,7 @@ test("keeps audition system templates in the management tab only", async ({ page
 
   await page.goto("/admin/communications?tab=templates");
   await expect(page.getByText("Audition Confirmed")).toBeVisible();
+  await expect(page.getByText("Donation Payment Receipt")).toBeVisible();
   await expect(page.getByRole("button", { name: "Use template" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit wording" }).first()).toBeVisible();
 });
