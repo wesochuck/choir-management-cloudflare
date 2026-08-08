@@ -1505,6 +1505,31 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(eventSaveBar).toHaveCount(0);
   await page.getByRole("button", { name: "Close" }).click();
   await expect(eventEditor).toHaveCount(0);
+  await page.goto("/admin/attendance");
+  const attendancePage = page.getByRole("main");
+  await expect(attendancePage.getByRole("heading", { name: "Attendance" })).toBeVisible();
+  const markRemainingPresent = attendancePage.getByRole("button", {
+    name: "Mark remaining present",
+    exact: true,
+  });
+  await expect(markRemainingPresent).toBeEnabled();
+  await markRemainingPresent.click();
+  const attendanceConfirmation = page.getByRole("dialog", { name: "Mark remaining present?" });
+  await expect(attendanceConfirmation).toBeVisible();
+  await expect(attendanceConfirmation).toContainText("This will mark 1 performer");
+  await attendanceConfirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(attendanceConfirmation).toBeHidden();
+  await markRemainingPresent.click();
+  await attendanceConfirmation
+    .getByRole("button", { name: "Mark remaining present", exact: true })
+    .click();
+  await expect(attendanceConfirmation).toBeHidden();
+  await attendancePage.getByRole("button", { name: "Present 1", exact: true }).click();
+  await expect(
+    attendancePage.getByRole("button", { name: /Browser Singer: Present/ }),
+  ).toBeVisible();
+  await page.goto("/admin/events");
+  await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
   await browserConcertEdit
     .getByRole("button", { name: "More actions for Browser Concert" })
     .click();

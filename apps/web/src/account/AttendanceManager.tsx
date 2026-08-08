@@ -3,6 +3,7 @@ import type {
   OrganizationAttendanceStatus,
   OrganizationEvent,
 } from "@choir/contracts";
+import { Dialog } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -62,6 +63,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const [query, setQuery] = useState("");
   const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const pendingIdsRef = useRef(new Set<string>());
@@ -186,19 +188,25 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  const markableRows = useMemo(
+    () =>
+      rows.filter(
+        (row) =>
+          row.rsvp === "Yes" && row.attendance !== "Present" && !savingIds.has(row.profileId),
+      ),
+    [rows, savingIds],
+  );
+
   async function markRemainingPresent() {
-    const targetRows = rows.filter(
-      (row) => row.rsvp === "Yes" && row.attendance !== "Present" && !savingIds.has(row.profileId),
-    );
+    const targetRows = markableRows;
     if (!eventId || targetRows.length === 0 || bulkBusy) return;
     setBulkBusy(true);
     setMessage(null);
     targetRows.forEach((row) => pendingIdsRef.current.add(row.profileId));
+    const targetProfileIds = new Set(targetRows.map((row) => row.profileId));
     setRows((current) =>
       current.map((row) =>
-        targetRows.some((target) => target.profileId === row.profileId)
-          ? { ...row, attendance: "Present" }
-          : row,
+        targetProfileIds.has(row.profileId) ? { ...row, attendance: "Present" } : row,
       ),
     );
     try {
@@ -346,9 +354,9 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
         </div>
         <button
           className="button button--primary attendance-manager__bulk"
-          disabled={bulkBusy || counts.pending + counts.absent === 0}
+          disabled={bulkBusy || markableRows.length === 0}
           onClick={() => {
-            void markRemainingPresent();
+            setBulkConfirmOpen(true);
           }}
           type="button"
         >
@@ -419,6 +427,45 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           </div>
         ))}
       </div>
+      <Dialog
+        description="This action may be difficult to undo."
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirmOpen(false);
+        }}
+        open={bulkConfirmOpen}
+        title="Mark remaining present?"
+      >
+        <div className="form-stack">
+          <p className="notice notice--warning" role="alert">
+            This will mark {String(markableRows.length)}{" "}
+            {markableRows.length === 1
+              ? performerLabel.toLowerCase()
+              : performerLabelPlural.toLowerCase()}{" "}
+            who RSVP&apos;d Yes and are not currently Present as Present.
+          </p>
+          <div className="dialog__actions">
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setBulkConfirmOpen(false);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="button button--danger"
+              onClick={() => {
+                setBulkConfirmOpen(false);
+                void markRemainingPresent();
+              }}
+              type="button"
+            >
+              Mark remaining present
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </section>
   );
 }
