@@ -1,19 +1,26 @@
-import { ticketScanRequestSchema, type ProblemDetails } from "@choir/contracts";
+import {
+  discountCodeRequestSchema,
+  ticketScanRequestSchema,
+  type ProblemDetails,
+} from "@choir/contracts";
 import { z } from "zod";
 import {
   deleteOrganizationTicketBundle,
+  deactivateOrganizationDiscountCode,
+  listOrganizationDiscountCodes,
   listOrganizationTicketBundles,
   listOrganizationTicketOrders,
   readOrganizationTicketWillCallCsv,
+  saveOrganizationDiscountCode,
   TicketingError,
   validateOrganizationTicketScan,
 } from "../organization/organizationTicketing";
 
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { authorizeCalendarRoute, saveTicketBundleRoute } from "./helpers";
+import { authorizeCalendarRoute, saveTicketBundleRoute, setupFailureStatus } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/tickets/orders", async (context) => {
@@ -35,6 +42,142 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,
+      );
+    }
+  });
+
+  router.get("/api/organization/tickets/discount-codes", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    try {
+      const codes = await listOrganizationDiscountCodes(context.env, authorization.organizationId);
+      return context.json({ codes, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      return context.json(
+        {
+          code: error instanceof TicketingError ? error.code : "discount_codes_unavailable",
+          message:
+            error instanceof TicketingError
+              ? error.message
+              : "Discount codes are temporarily unavailable.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        error instanceof TicketingError && error.status === 404 ? 404 : 503,
+      );
+    }
+  });
+
+  async function saveDiscountCode(
+    context: Context<WorkerHonoEnvironment>,
+    codeId: string,
+    allowCreate: boolean,
+  ) {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const body = discountCodeRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!body.success || !z.uuid().safeParse(codeId).success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Valid discount code details are required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const saved = await saveOrganizationDiscountCode(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        codeId,
+        body.data,
+        allowCreate,
+      );
+      return context.json({ ...saved, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      const status =
+        error instanceof TicketingError && [400, 404, 409].includes(error.status)
+          ? setupFailureStatus(error.status)
+          : 503;
+      return context.json(
+        {
+          code: error instanceof TicketingError ? error.code : "discount_code_unavailable",
+          message:
+            error instanceof TicketingError
+              ? error.message
+              : "The discount code could not be saved.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+  }
+
+  router.post("/api/organization/tickets/discount-codes", (context) =>
+    saveDiscountCode(context, crypto.randomUUID(), true),
+  );
+
+  router.put("/api/organization/tickets/discount-codes/:codeId", (context) =>
+    saveDiscountCode(context, context.req.param("codeId"), false),
+  );
+
+  router.post("/api/organization/tickets/discount-codes/:codeId/deactivate", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const codeId = z.uuid().safeParse(context.req.param("codeId"));
+    if (!codeId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid discount code is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const deactivated = await deactivateOrganizationDiscountCode(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        codeId.data,
+      );
+      return context.json({ ...deactivated, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      return context.json(
+        {
+          code: error instanceof TicketingError ? error.code : "discount_code_unavailable",
+          message:
+            error instanceof TicketingError
+              ? error.message
+              : "The discount code could not be deactivated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        error instanceof TicketingError && error.status === 404 ? 404 : 503,
       );
     }
   });

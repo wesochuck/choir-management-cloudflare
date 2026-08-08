@@ -1,7 +1,14 @@
 import {
+  discountCodeListResponseSchema,
+  discountCodeRequestSchema,
+  discountCodeSchema,
   organizationTicketOrderSchema,
   organizationTicketOrdersResponseSchema,
+  publicTicketDiscountAvailabilityRequestSchema,
+  publicTicketDiscountAvailabilityResponseSchema,
   publicTicketPurchaseResponseSchema,
+  ticketCheckoutQuoteRequestSchema,
+  ticketCheckoutQuoteSchema,
   ticketCheckoutResponseSchema,
   ticketBundleSchema,
   ticketBundlesResponseSchema,
@@ -11,6 +18,10 @@ import {
   type OrganizationTicketOrder,
   type PublicTicketReceipt,
   type TicketCheckoutRequest,
+  type TicketCheckoutQuote,
+  type TicketCheckoutQuoteRequest,
+  type DiscountCode,
+  type DiscountCodeRequest,
   type TicketBundle,
   type TicketBundleRequest,
   type TicketScanRequest,
@@ -27,6 +38,40 @@ export async function createPublicTicketCheckout(checkout: TicketCheckoutRequest
   });
   if (!response.ok) throw await responseError(response);
   return ticketCheckoutResponseSchema.parse(await response.json());
+}
+
+export async function getPublicTicketDiscountAvailability(
+  target: { readonly bundleId?: string; readonly eventId?: string },
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const parsedTarget = publicTicketDiscountAvailabilityRequestSchema.parse({
+    bundleId: target.bundleId ?? null,
+    eventId: target.eventId ?? null,
+  });
+  const search = new URLSearchParams();
+  if (parsedTarget.bundleId) search.set("bundleId", parsedTarget.bundleId);
+  if (parsedTarget.eventId) search.set("eventId", parsedTarget.eventId);
+  const response = await fetch(`/api/public/tickets/discount-availability?${search.toString()}`, {
+    headers: { accept: "application/json" },
+    signal: signal ?? null,
+  });
+  if (!response.ok) throw await responseError(response);
+  return publicTicketDiscountAvailabilityResponseSchema.parse(await response.json())
+    .hasRedeemableCode;
+}
+
+export async function quotePublicTicketCheckout(
+  quote: TicketCheckoutQuoteRequest,
+  signal?: AbortSignal,
+): Promise<TicketCheckoutQuote> {
+  const response = await fetch("/api/public/tickets/quote", {
+    body: JSON.stringify(ticketCheckoutQuoteRequestSchema.parse(quote)),
+    headers: { accept: "application/json", "content-type": "application/json" },
+    method: "POST",
+    signal: signal ?? null,
+  });
+  if (!response.ok) throw await responseError(response);
+  return ticketCheckoutQuoteSchema.parse(await response.json());
 }
 
 export async function getPublicTicketPurchase(
@@ -78,6 +123,39 @@ export async function listOrganizationTicketOrders(
 ): Promise<readonly OrganizationTicketOrder[]> {
   const response = await request("/api/organization/tickets/orders", { signal: signal ?? null });
   return organizationTicketOrdersResponseSchema.parse(await response.json()).orders;
+}
+
+export async function listOrganizationDiscountCodes(
+  signal?: AbortSignal,
+): Promise<readonly DiscountCode[]> {
+  const response = await request("/api/organization/tickets/discount-codes", {
+    signal: signal ?? null,
+  });
+  return discountCodeListResponseSchema.parse(await response.json()).codes;
+}
+
+export async function saveOrganizationDiscountCode(
+  code: DiscountCodeRequest,
+  codeId?: string,
+): Promise<DiscountCode> {
+  const response = await request(
+    codeId
+      ? `/api/organization/tickets/discount-codes/${encodeURIComponent(codeId)}`
+      : "/api/organization/tickets/discount-codes",
+    {
+      body: JSON.stringify(discountCodeRequestSchema.parse(code)),
+      method: codeId ? "PUT" : "POST",
+    },
+  );
+  return discountCodeSchema.parse(await response.json());
+}
+
+export async function deactivateOrganizationDiscountCode(codeId: string): Promise<DiscountCode> {
+  const response = await request(
+    `/api/organization/tickets/discount-codes/${encodeURIComponent(codeId)}/deactivate`,
+    { method: "POST" },
+  );
+  return discountCodeSchema.parse(await response.json());
 }
 
 export async function refundOrganizationTicketOrder(

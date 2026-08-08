@@ -1,7 +1,9 @@
 import type {
   PublishedOrganizationProjection,
   PublicTicketReceipt,
+  TicketCheckoutQuote,
   TicketConfirmationSettings,
+  TicketCheckoutQuoteRequest,
   TransactionFeeSettings,
 } from "@choir/contracts";
 import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
@@ -9,11 +11,13 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 
 import {
   createPublicTicketCheckout,
+  getPublicTicketDiscountAvailability,
   getPublicCommerceProjection,
   getPublicTicketConfirmationSettings,
   getPublicTransactionFeeSettings,
   getPublicTicketPurchase,
   getPublishedOrganizationProjection,
+  quotePublicTicketCheckout,
 } from "../auth/api";
 import { OrganizationLayout } from "./PublicOrganizationSite";
 
@@ -56,6 +60,178 @@ function publicDate(value: string, timezone: string): string {
   }).format(new Date(value));
 }
 
+interface TicketDiscountTarget {
+  readonly bundleId?: string;
+  readonly eventId?: string;
+}
+
+interface TicketDiscountState {
+  readonly appliedCode: string | null;
+  readonly applyCode: () => void;
+  readonly clearCode: () => void;
+  readonly codeInput: string;
+  readonly displayQuote: TicketCheckoutQuote;
+  readonly hasRedeemableCode: boolean;
+  readonly quoteBusy: boolean;
+  readonly quoteError: string | null;
+  readonly setCodeInput: (value: string) => void;
+}
+
+function useTicketDiscountQuote({
+  feeSettings,
+  quantity,
+  target,
+  unitPriceCents,
+}: {
+  readonly feeSettings: TransactionFeeSettings;
+  readonly quantity: number;
+  readonly target: TicketDiscountTarget;
+  readonly unitPriceCents: number;
+}): TicketDiscountState {
+  const [hasRedeemableCode, setHasRedeemableCode] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [appliedCode, setAppliedCode] = useState<string | null>(null);
+  const [quote, setQuote] = useState<TicketCheckoutQuote | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const bundleId = target.bundleId;
+  const eventId = target.eventId;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void getPublicTicketDiscountAvailability(
+      {
+        ...(bundleId ? { bundleId } : {}),
+        ...(eventId ? { eventId } : {}),
+      },
+      controller.signal,
+    )
+      .then((available) => {
+        if (!controller.signal.aborted) setHasRedeemableCode(available);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setHasRedeemableCode(false);
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [bundleId, eventId]);
+
+  useEffect(() => {
+    if (!appliedCode) return;
+    const controller = new AbortController();
+    void quotePublicTicketCheckout(
+      {
+        bundleId: bundleId ?? null,
+        discountCode: appliedCode,
+        eventId: eventId ?? null,
+        quantity,
+      } satisfies TicketCheckoutQuoteRequest,
+      controller.signal,
+    )
+      .then((nextQuote) => {
+        if (controller.signal.aborted) return;
+        setQuote(nextQuote);
+        setQuoteError(null);
+      })
+      .catch((failure: unknown) => {
+        if (controller.signal.aborted) return;
+        setQuote(null);
+        setAppliedCode(null);
+        setQuoteError(
+          failure instanceof Error ? failure.message : "This code is not valid for this purchase.",
+        );
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [appliedCode, bundleId, eventId, quantity]);
+
+  const localQuote: TicketCheckoutQuote = {
+    discountAmountCents: 0,
+    discountCode: null,
+    discountType: null,
+    discountValue: null,
+    discountedSubtotalCents: unitPriceCents * quantity,
+    feeCents: ticketProcessingFeeCents(unitPriceCents, quantity, feeSettings),
+    originalSubtotalCents: unitPriceCents * quantity,
+    originalUnitPriceCents: unitPriceCents,
+    quantity,
+    totalCents:
+      unitPriceCents * quantity + ticketProcessingFeeCents(unitPriceCents, quantity, feeSettings),
+  };
+
+  return {
+    appliedCode,
+    applyCode: () => {
+      const nextCode = codeInput.trim();
+      setQuoteError(null);
+      if (!nextCode) {
+        setAppliedCode(null);
+        setQuote(null);
+        return;
+      }
+      setAppliedCode(nextCode);
+    },
+    clearCode: () => {
+      setCodeInput("");
+      setAppliedCode(null);
+      setQuote(null);
+      setQuoteError(null);
+    },
+    codeInput,
+    displayQuote: quote ?? localQuote,
+    hasRedeemableCode,
+    quoteBusy: Boolean(appliedCode && quote?.quantity !== quantity),
+    quoteError,
+    setCodeInput,
+  };
+}
+
+function TicketDiscountControls({ state }: { readonly state: TicketDiscountState }) {
+  if (!state.hasRedeemableCode) return null;
+  return (
+    <div className="field">
+      <label htmlFor="ticket-discount-code">Discount code (optional)</label>
+      <div className="form-actions">
+        <input
+          id="ticket-discount-code"
+          maxLength={64}
+          onChange={(event) => {
+            state.setCodeInput(event.target.value);
+          }}
+          value={state.codeInput}
+        />
+        {state.appliedCode ? (
+          <button className="button button--secondary" onClick={state.clearCode} type="button">
+            Remove
+          </button>
+        ) : (
+          <button
+            className="button button--secondary"
+            disabled={!state.codeInput.trim() || state.quoteBusy}
+            onClick={state.applyCode}
+            type="button"
+          >
+            {state.quoteBusy ? "Checking…" : "Apply code"}
+          </button>
+        )}
+      </div>
+      <p className="field-help" id="ticket-discount-code-help">
+        {state.quoteBusy
+          ? "Checking this code against the current price…"
+          : state.appliedCode
+            ? `Code ${state.displayQuote.discountCode ?? state.appliedCode} applied.`
+            : "One code may be applied to this purchase."}
+      </p>
+      {state.quoteError ? (
+        <p className="field-help field-help--error" role="alert">
+          {state.quoteError}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function TicketReceipt({ token }: { readonly token: string }) {
   const [purchase, setPurchase] = useState<PublicTicketReceipt | null>(null);
   const [confirmationSettings, setConfirmationSettings] = useState(
@@ -95,7 +271,9 @@ function TicketReceipt({ token }: { readonly token: string }) {
           ? confirmationSettings.pendingMessage
           : confirmationSettings.successMessage}
       </p>
-      {purchase.checkoutMode === "fake" ? (
+      {purchase.checkoutMode === "free" ? (
+        <p className="notice notice--info">Complimentary order — no payment was collected.</p>
+      ) : purchase.checkoutMode === "fake" ? (
         <p className="notice notice--warning">Staging simulation: no payment card was charged.</p>
       ) : null}
       <div className="panel">
@@ -117,9 +295,30 @@ function TicketReceipt({ token }: { readonly token: string }) {
         <p>
           Quantity: <strong>{purchase.quantity}</strong>
         </p>
-        <p>
-          Total: <strong>{money(purchase.amountPaidCents)}</strong>
-        </p>
+        {purchase.discountCode ? (
+          <div className="ticket-price-summary">
+            <p>
+              Original subtotal: <strong>{money(purchase.originalSubtotalCents)}</strong>
+            </p>
+            <p>
+              Discount ({purchase.discountCode}):{" "}
+              <strong>-{money(purchase.discountAmountCents)}</strong>
+            </p>
+            <p>
+              Discounted subtotal: <strong>{money(purchase.discountedSubtotalCents)}</strong>
+            </p>
+            <p>
+              Processing fee: <strong>{money(purchase.feeCents)}</strong>
+            </p>
+            <p>
+              Total: <strong>{money(purchase.amountPaidCents)}</strong>
+            </p>
+          </div>
+        ) : (
+          <p>
+            Total: <strong>{money(purchase.amountPaidCents)}</strong>
+          </p>
+        )}
         <p>{confirmationSettings.willCallInstructions}</p>
         <details>
           <summary>Door credential</summary>
@@ -160,8 +359,13 @@ function TicketPurchaseForm({
     startsAt: event.startsAt,
     timezone: projection.payload.timezone,
   });
-  const feeCents = ticketProcessingFeeCents(unitPriceCents, quantity, feeSettings);
-  const totalCents = unitPriceCents * quantity + feeCents;
+  const discount = useTicketDiscountQuote({
+    feeSettings,
+    quantity,
+    target: { eventId: event.id },
+    unitPriceCents,
+  });
+  const displayedQuote = discount.displayQuote;
 
   async function submit(formEvent: SyntheticEvent<HTMLFormElement>) {
     formEvent.preventDefault();
@@ -179,6 +383,7 @@ function TicketPurchaseForm({
         eventId: event.id,
         marketingOptIn,
         quantity,
+        ...(discount.appliedCode ? { discountCode: discount.appliedCode } : {}),
       });
       window.location.assign(result.url);
     } catch (failure: unknown) {
@@ -248,6 +453,7 @@ function TicketPurchaseForm({
             }}
           />
         </label>
+        <TicketDiscountControls state={discount} />
         <label>
           <input
             checked={marketingOptIn}
@@ -259,10 +465,15 @@ function TicketPurchaseForm({
           Keep me informed about future Organization events
         </label>
         <div>
-          <p>Tickets: {money(unitPriceCents * quantity)}</p>
-          <p>Processing fee: {money(feeCents)}</p>
+          <p>Original subtotal: {money(displayedQuote.originalSubtotalCents)}</p>
+          {displayedQuote.discountCode ? (
+            <p>
+              Discount ({displayedQuote.discountCode}): -{money(displayedQuote.discountAmountCents)}
+            </p>
+          ) : null}
+          <p>Processing fee: {money(displayedQuote.feeCents)}</p>
           <p>
-            <strong>Total: {money(totalCents)}</strong>
+            <strong>Total: {money(displayedQuote.totalCents)}</strong>
           </p>
         </div>
         <button className="button button--primary" disabled={busy} type="submit">
@@ -290,7 +501,13 @@ function TicketBundlePurchaseForm({
   const [checkoutRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const feeCents = ticketProcessingFeeCents(bundle.priceCents, quantity, feeSettings);
+  const discount = useTicketDiscountQuote({
+    feeSettings,
+    quantity,
+    target: { bundleId: bundle.id },
+    unitPriceCents: bundle.priceCents,
+  });
+  const displayedQuote = discount.displayQuote;
   const includedEvents = bundle.eventIds
     .map((eventId) => projection.payload.performances.find(({ id }) => id === eventId))
     .filter((event) => event !== undefined);
@@ -311,6 +528,7 @@ function TicketBundlePurchaseForm({
         checkoutRequestId,
         marketingOptIn,
         quantity,
+        ...(discount.appliedCode ? { discountCode: discount.appliedCode } : {}),
       });
       window.location.assign(result.url);
     } catch (failure: unknown) {
@@ -385,6 +603,7 @@ function TicketBundlePurchaseForm({
             }}
           />
         </label>
+        <TicketDiscountControls state={discount} />
         <label>
           <input
             checked={marketingOptIn}
@@ -396,10 +615,15 @@ function TicketBundlePurchaseForm({
           Keep me informed about future Organization events
         </label>
         <div>
-          <p>Passes: {money(bundle.priceCents * quantity)}</p>
-          <p>Processing fee: {money(feeCents)}</p>
+          <p>Original subtotal: {money(displayedQuote.originalSubtotalCents)}</p>
+          {displayedQuote.discountCode ? (
+            <p>
+              Discount ({displayedQuote.discountCode}): -{money(displayedQuote.discountAmountCents)}
+            </p>
+          ) : null}
+          <p>Processing fee: {money(displayedQuote.feeCents)}</p>
           <p>
-            <strong>Total: {money(bundle.priceCents * quantity + feeCents)}</strong>
+            <strong>Total: {money(displayedQuote.totalCents)}</strong>
           </p>
         </div>
         <button className="button button--primary" disabled={busy} type="submit">

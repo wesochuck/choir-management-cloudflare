@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { TicketCheckoutUnavailableError, ticketCheckoutMode } from "./ticketCheckout";
+import {
+  TicketCheckoutUnavailableError,
+  ticketCheckoutLineItems,
+  ticketCheckoutMode,
+} from "./ticketCheckout";
 
 describe("ticket checkout provider boundary", () => {
   it("permits deterministic fake checkout outside production", () => {
@@ -35,5 +39,28 @@ describe("ticket checkout provider boundary", () => {
         STRIPE_PAYMENTS_ENABLED: "true",
       }),
     ).toBe("stripe");
+  });
+
+  it("passes the authoritative discounted subtotal and fee to Stripe", () => {
+    expect(
+      ticketCheckoutLineItems({
+        discountedSubtotalCents: 1_600,
+        feeCents: 77,
+        productName: "Concert ticket",
+      }),
+    ).toEqual([
+      { productName: "Concert ticket", quantity: 1, unitAmountCents: 1_600 },
+      { productName: "Processing fee", quantity: 1, unitAmountCents: 77 },
+    ]);
+  });
+
+  it("omits provider line items for a fully complimentary order", () => {
+    expect(
+      ticketCheckoutLineItems({
+        discountedSubtotalCents: 0,
+        feeCents: 0,
+        productName: "Concert ticket",
+      }),
+    ).toEqual([]);
   });
 });

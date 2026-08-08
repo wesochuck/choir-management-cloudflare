@@ -6,6 +6,13 @@ import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import { renderTicketLinks, ticketNotificationJobSchema } from "./shared";
 
+function money(cents: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: currency.toUpperCase(),
+    style: "currency",
+  }).format(cents / 100);
+}
+
 export async function deliverTicketNotificationJob(
   env: JobConsumerEnv,
   job: DeliveryJob,
@@ -33,6 +40,14 @@ export async function deliverTicketNotificationJob(
       currency: notification.data.currency.toUpperCase(),
       style: "currency",
     }).format(notification.data.amountPaidCents / 100),
+    ticketDiscount: money(notification.data.discountAmountCents, notification.data.currency),
+    ticketDiscountCode: notification.data.discountCode ?? "",
+    ticketFee: money(notification.data.feeCents, notification.data.currency),
+    ticketOriginalSubtotal: money(
+      notification.data.originalSubtotalCents,
+      notification.data.currency,
+    ),
+    ticketSubtotal: money(notification.data.discountedSubtotalCents, notification.data.currency),
     ticketBundleName: notification.data.bundleTitle ?? "",
     ticketQuantity: String(notification.data.quantity),
   };
@@ -48,6 +63,20 @@ export async function deliverTicketNotificationJob(
     notification.data.purchaseId,
     notification.data.eventStartsAt,
   );
+  const discountSummary = notification.data.discountCode
+    ? [
+        "",
+        "",
+        "Discount code: " + notification.data.discountCode,
+        "Original subtotal: " +
+          money(notification.data.originalSubtotalCents, notification.data.currency),
+        "Discount: -" + money(notification.data.discountAmountCents, notification.data.currency),
+        "Discounted subtotal: " +
+          money(notification.data.discountedSubtotalCents, notification.data.currency),
+        "Processing fee: " + money(notification.data.feeCents, notification.data.currency),
+        "Total: " + money(notification.data.amountPaidCents, notification.data.currency),
+      ].join("\n")
+    : "";
   const credential = await issueOrganizationTicketScanCredential(
     env,
     job.organizationId,
@@ -65,7 +94,8 @@ export async function deliverTicketNotificationJob(
   });
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
-    contentMarkdown: `${contentWithTicketLink}\n\nTicket credential: ${scanToken}`,
+    contentMarkdown:
+      contentWithTicketLink + discountSummary + "\n\nTicket credential: " + scanToken,
     deliveryId: notification.data.id,
     destination: notification.data.destination,
     messageId: notification.data.id,

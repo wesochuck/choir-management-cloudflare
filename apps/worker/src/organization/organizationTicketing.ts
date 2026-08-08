@@ -1,13 +1,22 @@
 import {
+  discountCodeListResponseSchema,
+  discountCodeRequestSchema,
+  discountCodeSchema,
   organizationTicketOrderSchema,
   organizationTicketOrdersResponseSchema,
+  publicTicketDiscountAvailabilityRequestSchema,
+  publicTicketDiscountAvailabilityResponseSchema,
   publicTicketPurchaseSchema,
+  ticketCheckoutQuoteRequestSchema,
+  ticketCheckoutQuoteSchema,
   ticketBundleRequestSchema,
   ticketBundleSchema,
   ticketBundlesResponseSchema,
   ticketScanResultSchema,
   ticketCheckoutRequestSchema,
   type OrganizationTicketOrder,
+  type DiscountCode,
+  type DiscountCodeRequest,
   type TicketBundle,
   type TicketBundleRequest,
   type TicketScanResult,
@@ -17,7 +26,7 @@ import { renderTicketWillCallCsv, ticketWillCallFilename } from "@choir/domain";
 import { z } from "zod";
 
 import type { Env } from "../env";
-import { ticketCheckoutMode } from "../payments/ticketCheckout";
+import { ticketCheckoutLineItems, ticketCheckoutMode } from "../payments/ticketCheckout";
 import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/stripeConnect";
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
@@ -98,6 +107,10 @@ async function errorCode(response: Response): Promise<string> {
     : "ticketing_error";
 }
 
+function ticketCheckoutFailureMessage(code: string, fallback: string): string {
+  return code === "discount_code_invalid" ? "This code is not valid for this purchase." : fallback;
+}
+
 async function expirePendingTicketCheckout(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
@@ -147,8 +160,61 @@ export async function createPublicTicketCheckout(
   const checkoutMode = ticketCheckoutMode(env);
   const purchaseId = crypto.randomUUID();
   if (checkoutMode === "stripe") {
+    const pendingSessionId = `pending_${purchaseId}`;
+    const pendingResponse = await stub(env, organizationId).fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "create_stripe_pending",
+          checkout: validated,
+          organizationId,
+          providerSessionId: pendingSessionId,
+          purchaseId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    if (!pendingResponse.ok) {
+      const code = await errorCode(pendingResponse);
+      throw new TicketingError(
+        code,
+        pendingResponse.status,
+        ticketCheckoutFailureMessage(code, "The ticket order could not be reserved."),
+      );
+    }
+    const pendingPurchase = organizationTicketOrderSchema.parse(await pendingResponse.json());
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const eventEndsAt = Math.floor(purchaseEndsAt(pendingPurchase) / 1000) + 24 * 60 * 60;
+    const successToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+      algorithm: "HS256",
+      expiresAt: Math.max(issuedAt + 7 * 24 * 60 * 60, eventEndsAt),
+      issuedAt,
+      nonce: crypto.randomUUID(),
+      organizationId,
+      purpose: "ticket_receipt",
+      resourceId: pendingPurchase.id,
+      version: 1,
+    });
+    const successUrl = new URL("/tickets/order/success", origin);
+    successUrl.searchParams.set("token", successToken);
+    if (pendingPurchase.checkoutMode === "free") {
+      return {
+        checkoutMode: "free" as const,
+        purchase: publicTicketPurchaseSchema.parse(pendingPurchase),
+        successToken,
+        url: successUrl.href,
+      };
+    }
     const settings = await readOrganizationPaymentActivations(env, organizationId);
     if (!settings.activations.tickets) {
+      await expirePendingTicketCheckout(
+        env,
+        organizationId,
+        purchaseId,
+        validated.checkoutRequestId,
+        pendingSessionId,
+      );
       throw new TicketingError(
         "payments_not_activated",
         409,
@@ -169,6 +235,13 @@ export async function createPublicTicketCheckout(
       .safeParse(await stripeStatusResponse.json().catch(() => null));
     const secretKey = env.STRIPE_SECRET_KEY?.trim() ?? "";
     if (!stripeStatusResponse.ok || !stripeStatus.success || stripeStatus.data.status !== "ready") {
+      await expirePendingTicketCheckout(
+        env,
+        organizationId,
+        purchaseId,
+        validated.checkoutRequestId,
+        pendingSessionId,
+      );
       throw new TicketingError(
         "stripe_account_not_ready",
         409,
@@ -176,65 +249,26 @@ export async function createPublicTicketCheckout(
       );
     }
     if (!secretKey || !stripeStatus.data.accountId) {
+      await expirePendingTicketCheckout(
+        env,
+        organizationId,
+        purchaseId,
+        validated.checkoutRequestId,
+        pendingSessionId,
+      );
       throw new TicketingError(
         "stripe_not_configured",
         503,
         "Online ticket payments are not configured for this Organization.",
       );
     }
-    const pendingSessionId = `pending_${purchaseId}`;
-    const pendingResponse = await stub(env, organizationId).fetch(
-      "https://organization.internal/internal/ticketing/manage",
-      {
-        body: JSON.stringify({
-          action: "create_stripe_pending",
-          checkout: validated,
-          organizationId,
-          providerSessionId: pendingSessionId,
-          purchaseId,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      },
-    );
-    if (!pendingResponse.ok) {
-      throw new TicketingError(
-        await errorCode(pendingResponse),
-        pendingResponse.status,
-        "The ticket order could not be reserved.",
-      );
-    }
-    const pendingPurchase = organizationTicketOrderSchema.parse(await pendingResponse.json());
-    const issuedAt = Math.floor(Date.now() / 1000);
-    const eventEndsAt = Math.floor(purchaseEndsAt(pendingPurchase) / 1000) + 24 * 60 * 60;
-    const successToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-      algorithm: "HS256",
-      expiresAt: Math.max(issuedAt + 7 * 24 * 60 * 60, eventEndsAt),
-      issuedAt,
-      nonce: crypto.randomUUID(),
-      organizationId,
-      purpose: "ticket_receipt",
-      resourceId: pendingPurchase.id,
-      version: 1,
+    const lineItems = ticketCheckoutLineItems({
+      discountedSubtotalCents: pendingPurchase.discountedSubtotalCents,
+      feeCents: pendingPurchase.feeCents,
+      productName: pendingPurchase.bundleId
+        ? `${pendingPurchase.bundleTitle} tickets`
+        : `${pendingPurchase.eventTitle} ticket`,
     });
-    const successUrl = new URL("/tickets/order/success", origin);
-    successUrl.searchParams.set("token", successToken);
-    const lineItems = [
-      {
-        productName: pendingPurchase.bundleId
-          ? `${pendingPurchase.bundleTitle} tickets`
-          : `${pendingPurchase.eventTitle} ticket`,
-        quantity: pendingPurchase.quantity,
-        unitAmountCents: pendingPurchase.unitPriceCents,
-      },
-    ];
-    if (pendingPurchase.feeCents > 0) {
-      lineItems.push({
-        productName: "Processing fee",
-        quantity: 1,
-        unitAmountCents: pendingPurchase.feeCents,
-      });
-    }
     let stripeSession: { readonly id: string; readonly url: string };
     try {
       stripeSession = await createStripeCheckoutSession(secretKey, stripeStatus.data.accountId, {
@@ -320,7 +354,11 @@ export async function createPublicTicketCheckout(
   );
   if (!response.ok) {
     const code = await errorCode(response);
-    throw new TicketingError(code, response.status, "The ticket order could not be completed.");
+    throw new TicketingError(
+      code,
+      response.status,
+      ticketCheckoutFailureMessage(code, "The ticket order could not be completed."),
+    );
   }
   const purchase = organizationTicketOrderSchema.parse(await response.json());
   const issuedAt = Math.floor(Date.now() / 1000);
@@ -338,7 +376,7 @@ export async function createPublicTicketCheckout(
   const url = new URL("/tickets/order/success", origin);
   url.searchParams.set("token", successToken);
   return {
-    checkoutMode,
+    checkoutMode: purchase.checkoutMode,
     purchase: publicTicketPurchaseSchema.parse(purchase),
     successToken,
     url: url.href,
@@ -385,6 +423,135 @@ export async function listOrganizationTicketOrders(
     .parse(await response.json()).orders;
 }
 
+export async function readPublicTicketDiscountAvailability(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  target: z.input<typeof publicTicketDiscountAvailabilityRequestSchema>,
+): Promise<boolean> {
+  const parsedTarget = publicTicketDiscountAvailabilityRequestSchema.parse({
+    bundleId: target.bundleId ?? null,
+    eventId: target.eventId ?? null,
+  });
+  const url = new URL("https://organization.internal/internal/ticketing/discount-availability");
+  url.searchParams.set("organizationId", organizationId);
+  if (parsedTarget.eventId) url.searchParams.set("eventId", parsedTarget.eventId);
+  if (parsedTarget.bundleId) url.searchParams.set("bundleId", parsedTarget.bundleId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) {
+    throw new TicketingError(
+      await errorCode(response),
+      response.status,
+      "Discount availability is temporarily unavailable.",
+    );
+  }
+  return publicTicketDiscountAvailabilityResponseSchema.parse(await response.json())
+    .hasRedeemableCode;
+}
+
+export async function quotePublicTicketCheckout(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  quote: z.input<typeof ticketCheckoutQuoteRequestSchema>,
+) {
+  const response = await stub(env, organizationId).fetch(
+    "https://organization.internal/internal/ticketing/manage",
+    {
+      body: JSON.stringify({
+        action: "quote_ticket_checkout",
+        checkout: ticketCheckoutQuoteRequestSchema.parse(quote),
+        organizationId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    const code = await errorCode(response);
+    throw new TicketingError(
+      code,
+      response.status,
+      ticketCheckoutFailureMessage(code, "The ticket price could not be calculated."),
+    );
+  }
+  return ticketCheckoutQuoteSchema.parse(await response.json());
+}
+
+export async function listOrganizationDiscountCodes(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+): Promise<readonly DiscountCode[]> {
+  const url = new URL("https://organization.internal/internal/ticketing/discount-codes");
+  url.searchParams.set("organizationId", organizationId);
+  const response = await stub(env, organizationId).fetch(url);
+  if (!response.ok) {
+    throw new TicketingError(
+      await errorCode(response),
+      503,
+      "Discount codes are temporarily unavailable.",
+    );
+  }
+  return discountCodeListResponseSchema.omit({ requestId: true }).parse(await response.json())
+    .codes;
+}
+
+export async function saveOrganizationDiscountCode(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: ActorContext,
+  codeId: string,
+  code: DiscountCodeRequest,
+  allowCreate: boolean,
+): Promise<DiscountCode> {
+  const response = await stub(env, actor.organizationId).fetch(
+    "https://organization.internal/internal/ticketing/manage",
+    {
+      body: JSON.stringify({
+        action: "upsert_discount_code",
+        allowCreate,
+        code: discountCodeRequestSchema.parse(code),
+        codeId: z.uuid().parse(codeId),
+        ...actor,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    throw new TicketingError(
+      await errorCode(response),
+      response.status,
+      "The discount code could not be saved.",
+    );
+  }
+  return discountCodeSchema.parse(await response.json());
+}
+
+export async function deactivateOrganizationDiscountCode(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: ActorContext,
+  codeId: string,
+): Promise<DiscountCode> {
+  const response = await stub(env, actor.organizationId).fetch(
+    "https://organization.internal/internal/ticketing/manage",
+    {
+      body: JSON.stringify({
+        action: "deactivate_discount_code",
+        codeId: z.uuid().parse(codeId),
+        ...actor,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    throw new TicketingError(
+      await errorCode(response),
+      response.status,
+      "The discount code could not be deactivated.",
+    );
+  }
+  return discountCodeSchema.parse(await response.json());
+}
+
 async function refundFakeTicketPurchaseInStore(
   env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,
@@ -419,7 +586,7 @@ export async function refundFakeTicketPurchase(
   );
   if (!current)
     throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
-  if (current.checkoutMode === "fake") {
+  if (current.checkoutMode === "fake" || current.checkoutMode === "free") {
     return refundFakeTicketPurchaseInStore(env, actor, purchaseId);
   }
   let refundRequest: { readonly fake: boolean };

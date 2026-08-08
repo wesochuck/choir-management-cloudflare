@@ -56,8 +56,10 @@ import {
   readPublicWebsiteSettingsFromStore,
 } from "../publicWebsiteStore";
 import {
+  listDiscountCodesFromStore,
   listTicketBundlesFromStore,
   listTicketOrdersFromStore,
+  readPublicDiscountAvailabilityFromStore,
   readTicketNotificationJobFromStore,
   readTicketPurchaseFromStore,
   readTicketWillCallFromStore,
@@ -175,6 +177,13 @@ export const contentGetHandlers: Record<
     }),
   "/internal/ticketing/orders": (storage, _url, organizationId) =>
     listTicketOrdersFromStore(storage, organizationId),
+  "/internal/ticketing/discount-codes": (storage, _url, organizationId) =>
+    listDiscountCodesFromStore(storage, organizationId),
+  "/internal/ticketing/discount-availability": (storage, url, organizationId) =>
+    readPublicDiscountAvailabilityFromStore(storage, organizationId, {
+      bundleId: url.searchParams.get("bundleId"),
+      eventId: url.searchParams.get("eventId"),
+    }),
   "/internal/ticketing/bundles": (storage, _url, organizationId) =>
     listTicketBundlesFromStore(storage, organizationId),
   "/internal/ticketing/purchase": (

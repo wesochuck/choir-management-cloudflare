@@ -209,6 +209,29 @@ const adminBundle = {
   updatedAt: "2026-07-01T00:00:00.000Z",
 };
 
+const adminDiscountCode = {
+  active: true,
+  bundleId: null,
+  code: "SPRING10",
+  createdAt: "2026-07-01T00:00:00.000Z",
+  deactivatedAt: null,
+  discountAmountCents: 0,
+  discountType: "percentage",
+  discountValue: 10,
+  editable: true,
+  eventId,
+  firstRedeemedAt: null,
+  id: "b5cba6a0-6c8f-44a8-8c6e-20a1b1c6b3a1",
+  itemTitle: "Spring Concert",
+  itemType: "performance",
+  originalRevenueCents: 0,
+  pendingReservationCount: 0,
+  redemptionCount: 0,
+  redemptionLimit: 10,
+  revenueCents: 0,
+  updatedAt: "2026-07-01T00:00:00.000Z",
+};
+
 const adminEvent = {
   advancePriceCents: 1500,
   callTime: "",
@@ -356,6 +379,58 @@ test.describe("public ticket pages", () => {
     await page.getByRole("button", { name: "Complete bundle order" }).click();
 
     await page.waitForURL("**/tickets/order/success*");
+  });
+
+  test("shows eligible discount entry and submits the authoritative code", async ({ page }) => {
+    await routePublicBasics(page);
+    let checkoutBody: unknown = null;
+    await page.route("**/api/public/tickets/discount-availability*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ hasRedeemableCode: true }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/public/tickets/quote", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          discountAmountCents: 150,
+          discountCode: "SPRING10",
+          discountType: "percentage",
+          discountValue: 10,
+          discountedSubtotalCents: 1350,
+          feeCents: 69,
+          originalSubtotalCents: 1500,
+          originalUnitPriceCents: 1500,
+          quantity: 1,
+          totalCents: 1419,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/public/tickets/checkout", async (route) => {
+      checkoutBody = route.request().postDataJSON();
+      await route.fulfill({
+        body: JSON.stringify(checkoutResponse),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/tickets/" + eventId);
+    await expect(page.getByLabel("Discount code (optional)")).toBeVisible();
+    await page.getByLabel("Discount code (optional)").fill(" spring10 ");
+    await page.getByRole("button", { name: "Apply code" }).click();
+    await expect(page.getByText("Code SPRING10 applied.")).toBeVisible();
+    await expect(page.getByText("Discount (SPRING10): -$1.50")).toBeVisible();
+
+    await page.getByLabel("Name for will call").fill("Discount Buyer");
+    await page.getByLabel("Email", { exact: true }).fill("discount@example.test");
+    await page.getByLabel("Confirm email").fill("discount@example.test");
+    await page.getByRole("button", { name: "Complete ticket order" }).click();
+    await page.waitForURL("**/tickets/order/success*");
+    expect(checkoutBody).toMatchObject({ discountCode: "spring10" });
   });
 
   test("shows ticket receipt after purchase", async ({ page }) => {
@@ -662,6 +737,74 @@ test.describe("admin ticket management", () => {
     ).toBeVisible();
     await expect(page.getByText("VIP Pass")).toBeVisible();
     expect(bundleSaved).toBe(true);
+  });
+
+  test("creates and reports a discount code", async ({ page }) => {
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ orders: [], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    let savedBody: unknown = null;
+    await page.route("**/api/organization/tickets/discount-codes", async (route) => {
+      if (route.request().method() === "POST") {
+        savedBody = route.request().postDataJSON();
+        await route.fulfill({
+          body: JSON.stringify({ ...adminDiscountCode, requestId }),
+          contentType: "application/json",
+          status: 200,
+        });
+        return;
+      }
+      await route.fulfill({
+        body: JSON.stringify({ codes: [], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/admin/tickets");
+    await page.getByRole("tab", { name: "Discount Codes" }).click();
+    await expect(page.getByText("No discount codes yet.")).toBeVisible();
+    await page.getByRole("button", { name: "New discount code" }).click();
+    const dialog = page.getByRole("dialog", { name: "New discount code" });
+    await dialog.getByRole("textbox", { name: "Code" }).fill("SPRING10");
+    await dialog.getByLabel("Eligible item").selectOption({ label: "Spring Concert" });
+    await dialog.getByLabel("Percentage (1–100)").fill("10");
+    await dialog.getByLabel("Redemption limit (blank is unlimited)").fill("10");
+    await dialog.getByRole("button", { name: "Save discount code" }).click();
+
+    await expect(page.getByText("Discount code saved.")).toBeVisible();
+    const discountResults = page.locator(".data-table:visible, .data-table-cards:visible");
+    await expect(discountResults.getByText("SPRING10", { exact: true }).first()).toBeVisible();
+    await expect(discountResults.getByText("10%", { exact: true }).first()).toBeVisible();
+    expect(savedBody).toMatchObject({
+      code: "SPRING10",
+      discountType: "percentage",
+      discountValue: 10,
+      eventId,
+    });
   });
 
   test("edits an existing ticket bundle", async ({ page }) => {

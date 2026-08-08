@@ -16,6 +16,8 @@ const EXPORT_TABLES = [
   "communication_suppressions",
   "public_website_settings",
   "ticket_purchases",
+  "discount_codes",
+  "discount_code_redemptions",
   "ticket_bundles",
   "ticket_bundle_events",
   "ticket_bundle_allocations",

@@ -1,10 +1,20 @@
 import {
+  discountCodeRequestSchema,
+  discountCodeSchema,
+  publicTicketDiscountAvailabilityRequestSchema,
+  ticketCheckoutQuoteRequestSchema,
+  ticketCheckoutQuoteSchema,
   ticketBundleRequestSchema,
   ticketBundleSchema,
   ticketCheckoutRequestSchema,
   ticketScanResultSchema,
 } from "@choir/contracts";
-import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
+import {
+  isValidTicketDiscountValue,
+  normalizeDiscountCode,
+  ticketOrderQuote,
+  ticketUnitPriceCents,
+} from "@choir/domain";
 import { z } from "zod";
 
 import { transactionFeeSettingsFromStore } from "./transactionFeeSettingsStore";
@@ -26,6 +36,11 @@ const createPendingCheckoutOperationSchema = organizationContextSchema.extend({
   checkout: ticketCheckoutRequestSchema,
   purchaseId: z.uuid(),
   providerSessionId: z.string().min(1).max(256),
+});
+
+const quoteTicketCheckoutOperationSchema = organizationContextSchema.extend({
+  action: z.literal("quote_ticket_checkout"),
+  checkout: ticketCheckoutQuoteRequestSchema,
 });
 
 const attachStripeSessionOperationSchema = organizationContextSchema.extend({
@@ -93,6 +108,18 @@ const resendConfirmationOperationSchema = bundleActorSchema.extend({
   recipientEmail: z.email().optional(),
 });
 
+const upsertDiscountCodeOperationSchema = bundleActorSchema.extend({
+  allowCreate: z.boolean(),
+  action: z.literal("upsert_discount_code"),
+  code: discountCodeRequestSchema,
+  codeId: z.uuid(),
+});
+
+const deactivateDiscountCodeOperationSchema = bundleActorSchema.extend({
+  action: z.literal("deactivate_discount_code"),
+  codeId: z.uuid(),
+});
+
 const stripeTicketCompletedOperationSchema = stripeTicketOperationSchema.extend({
   action: z.literal("stripe_ticket_completed"),
 });
@@ -108,6 +135,7 @@ const stripeTicketRefundedOperationSchema = organizationContextSchema.extend({
 const operationSchema = z.discriminatedUnion("action", [
   createFakeCheckoutOperationSchema,
   createPendingCheckoutOperationSchema,
+  quoteTicketCheckoutOperationSchema,
   attachStripeSessionOperationSchema,
   refundOperationSchema,
   validateScanOperationSchema,
@@ -116,6 +144,8 @@ const operationSchema = z.discriminatedUnion("action", [
   deleteBundleOperationSchema,
   ticketNotificationResultOperationSchema,
   resendConfirmationOperationSchema,
+  upsertDiscountCodeOperationSchema,
+  deactivateDiscountCodeOperationSchema,
   stripeTicketCompletedOperationSchema,
   stripeTicketExpiredOperationSchema,
   stripeTicketRefundedOperationSchema,
@@ -153,10 +183,18 @@ interface TicketPurchaseRow {
   readonly eventId: string;
   readonly eventStartsAt: string;
   readonly eventTitle: string;
+  readonly discountAmountCents: number;
+  readonly discountCode: string;
+  readonly discountCodeId: string | null;
+  readonly discountType: string;
+  readonly discountValue: number;
+  readonly discountedSubtotalCents: number;
   readonly feeCents: number;
   readonly id: string;
   readonly includedEventsJson: string;
   readonly marketingOptIn: number;
+  readonly originalSubtotalCents: number;
+  readonly originalUnitPriceCents: number;
   readonly providerPaymentId: string;
   readonly providerSessionId: string;
   readonly quantity: number;
@@ -201,6 +239,28 @@ interface TicketBundleRow {
   readonly updatedAt: string;
 }
 
+interface DiscountCodeRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly active: number;
+  readonly bundleId: string | null;
+  readonly code: string;
+  readonly createdAt: string;
+  readonly deactivatedAt: string | null;
+  readonly discountType: "fixed" | "percentage";
+  readonly discountValue: number;
+  readonly eventId: string | null;
+  readonly firstRedeemedAt: string | null;
+  readonly id: string;
+  readonly itemTitle: string;
+  readonly itemType: "performance" | "bundle";
+  readonly originalRevenueCents: number;
+  readonly pendingReservationCount: number;
+  readonly redemptionCount: number;
+  readonly redemptionLimit: number | null;
+  readonly revenueCents: number;
+  readonly updatedAt: string;
+}
+
 const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS eventTitle,
   event_starts_at AS eventStartsAt, event_timezone AS timezone,
   bundle_id AS bundleId, bundle_title AS bundleTitle,
@@ -208,6 +268,12 @@ const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS eventTitl
   buyer_name AS buyerName, buyer_email AS buyerEmail,
   quantity, unit_price_cents AS unitPriceCents, fee_cents AS feeCents,
   amount_paid_cents AS amountPaidCents, currency,
+  discount_code_id AS discountCodeId, discount_code AS discountCode,
+  discount_type AS discountType, discount_value AS discountValue,
+  original_unit_price_cents AS originalUnitPriceCents,
+  original_subtotal_cents AS originalSubtotalCents,
+  discount_amount_cents AS discountAmountCents,
+  discounted_subtotal_cents AS discountedSubtotalCents,
   provider_session_id AS providerSessionId, provider_payment_id AS providerPaymentId,
   status, marketing_opt_in AS marketingOptIn,
   EXISTS (SELECT 1 FROM payment_attempts pa
@@ -229,6 +295,7 @@ function identity(storage: DurableObjectStorage): IdentityRow | undefined {
     .at(0);
 }
 
+// eslint-disable-next-line complexity -- maps the immutable checkout snapshot to public/admin DTOs.
 function purchaseResult(row: TicketPurchaseRow) {
   const parsedIncludedEvents = (() => {
     try {
@@ -247,12 +314,56 @@ function purchaseResult(row: TicketPurchaseRow) {
     parsedIncludedEvents.length > 0
       ? parsedIncludedEvents
       : [{ id: row.eventId, startsAt: row.eventStartsAt, title: row.eventTitle }];
+  const hasDiscountSnapshot = row.discountCode.trim().length > 0;
+  const originalUnitPriceCents =
+    row.originalUnitPriceCents > 0 || row.unitPriceCents === 0
+      ? row.originalUnitPriceCents || row.unitPriceCents
+      : row.unitPriceCents;
+  const originalSubtotalCents =
+    row.originalSubtotalCents > 0 || originalUnitPriceCents === 0
+      ? row.originalSubtotalCents || originalUnitPriceCents * row.quantity
+      : originalUnitPriceCents * row.quantity;
+  const discountedSubtotalCents =
+    row.discountedSubtotalCents > 0 || row.amountPaidCents - row.feeCents === 0
+      ? row.discountedSubtotalCents || Math.max(0, row.amountPaidCents - row.feeCents)
+      : Math.max(0, row.amountPaidCents - row.feeCents);
   return {
-    ...row,
+    amountPaidCents: row.amountPaidCents,
+    buyerEmail: row.buyerEmail,
+    buyerName: row.buyerName,
+    bundleId: row.bundleId,
+    bundleTitle: row.bundleTitle,
+    checkoutMode: row.providerSessionId.startsWith("free_session_")
+      ? "free"
+      : row.providerSessionId.startsWith("fake_session_")
+        ? "fake"
+        : "stripe",
+    currency: row.currency,
+    createdAt: row.createdAt,
+    discountAmountCents: hasDiscountSnapshot
+      ? row.discountAmountCents
+      : Math.max(0, originalSubtotalCents - discountedSubtotalCents),
+    discountCode: hasDiscountSnapshot ? row.discountCode : null,
+    discountType: hasDiscountSnapshot ? row.discountType : null,
+    discountValue: hasDiscountSnapshot ? row.discountValue : null,
+    discountedSubtotalCents,
+    eventId: row.eventId,
+    eventStartsAt: row.eventStartsAt,
+    eventTitle: row.eventTitle,
+    feeCents: row.feeCents,
+    id: row.id,
     includedEvents,
-    checkoutMode: row.providerSessionId.startsWith("fake_session_") ? "fake" : "stripe",
     marketingOptIn: row.marketingOptIn === 1,
+    originalSubtotalCents,
+    originalUnitPriceCents,
+    providerPaymentId: row.providerPaymentId,
+    providerSessionId: row.providerSessionId,
+    quantity: row.quantity,
     refundRequested: row.refundRequested === 1,
+    status: row.status,
+    timezone: row.timezone,
+    unitPriceCents: row.unitPriceCents,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -298,7 +409,8 @@ function sameCheckoutRequest(
     existing.buyerName === checkout.buyerName &&
     existing.buyerEmail === checkout.buyerEmail.toLowerCase() &&
     existing.quantity === checkout.quantity &&
-    existing.marketingOptIn === (checkout.marketingOptIn ? 1 : 0)
+    existing.marketingOptIn === (checkout.marketingOptIn ? 1 : 0) &&
+    existing.discountCode === normalizeDiscountCode(checkout.discountCode ?? "")
   );
 }
 
@@ -345,35 +457,63 @@ function readTicketEvent(
     .at(0);
 }
 
-// Checkout atomically coordinates idempotency, two product types, and shared event capacity.
-// eslint-disable-next-line complexity
-function createFakeCheckout(
-  storage: DurableObjectStorage,
-  operation:
-    | z.infer<typeof createFakeCheckoutOperationSchema>
-    | z.infer<typeof createPendingCheckoutOperationSchema>,
-  organization: IdentityRow,
-): Response {
-  const existing = purchaseByRequest(storage, operation.checkout.checkoutRequestId);
-  if (existing) {
-    return sameCheckoutRequest(existing, operation.checkout)
-      ? Response.json(purchaseResult(existing))
-      : Response.json({ code: "checkout_request_conflict" }, { status: 409 });
+interface CheckoutResolution {
+  readonly bundleCapacity: number | null;
+  readonly bundleId: string | null;
+  readonly bundleTitle: string;
+  readonly events: readonly (TicketEventRow & { readonly id: string })[];
+  readonly unitPriceCents: number;
+}
+
+interface DiscountCodeDefinition {
+  readonly [column: string]: SqlStorageValue;
+  readonly active: number;
+  readonly bundleId: string | null;
+  readonly displayCode: string;
+  readonly discountType: "fixed" | "percentage";
+  readonly discountValue: number;
+  readonly eventId: string | null;
+  readonly id: string;
+  readonly redemptionLimit: number | null;
+}
+
+class DiscountCodeRejectedError extends Error {
+  constructor() {
+    super("This code is not valid for this purchase.");
+    this.name = "DiscountCodeRejectedError";
   }
-  const now = new Date();
-  const pending = operation.action === "create_stripe_pending";
+}
+
+class CheckoutCapacityExceededError extends Error {
+  constructor() {
+    super("Ticket capacity was exceeded.");
+    this.name = "CheckoutCapacityExceededError";
+  }
+}
+
+// eslint-disable-next-line complexity -- validates one performance or bundle and its capacity.
+function resolveCheckoutItem(
+  storage: DurableObjectStorage,
+  checkout:
+    | z.infer<typeof createFakeCheckoutOperationSchema>["checkout"]
+    | z.infer<typeof quoteTicketCheckoutOperationSchema>["checkout"],
+  organization: IdentityRow,
+  now: Date,
+  checkCapacity: boolean,
+): CheckoutResolution | Response {
   let bundleId: string | null = null;
+  let bundleCapacity: number | null = null;
   let bundleTitle = "";
   let events: readonly (TicketEventRow & { readonly id: string })[];
   let unitPriceCents: number;
-  if ("bundleId" in operation.checkout) {
+  if ("bundleId" in checkout && checkout.bundleId) {
     const bundle = storage.sql
       .exec<TicketBundleRow>(
         `SELECT id, title, price_cents AS priceCents, capacity,
           sale_end_at AS saleEndAt, is_active AS isActive,
           created_at AS createdAt, updated_at AS updatedAt
          FROM ticket_bundles WHERE id = ? LIMIT 1`,
-        operation.checkout.bundleId,
+        checkout.bundleId,
       )
       .toArray()
       .at(0);
@@ -393,41 +533,42 @@ function createFakeCheckout(
     ) {
       return Response.json({ code: "ticket_sales_closed" }, { status: 409 });
     }
-    const bundleCommitted = storage.sql
+    const bundleReservedQuantity = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly quantity: number }>(
         `SELECT COALESCE(SUM(quantity), 0) AS quantity FROM ticket_purchases
          WHERE bundle_id = ? AND status IN ('pending', 'paid')`,
         bundle.id,
       )
       .one().quantity;
-    if (
-      (bundle.capacity !== null &&
-        bundleCommitted + operation.checkout.quantity > bundle.capacity) ||
-      events.some(
-        (event) =>
-          event.ticketCapacity !== null &&
-          committedEventQuantity(storage, event.id) + operation.checkout.quantity >
-            event.ticketCapacity,
-      )
-    ) {
+    const bundleCapacityExceeded =
+      bundle.capacity !== null && bundleReservedQuantity + checkout.quantity > bundle.capacity;
+    const eventCapacityExceeded = events.some(
+      (event) =>
+        event.ticketCapacity !== null &&
+        committedEventQuantity(storage, event.id) + checkout.quantity > event.ticketCapacity,
+    );
+    if (checkCapacity && (bundleCapacityExceeded || eventCapacityExceeded)) {
       return Response.json({ code: "ticket_capacity_exceeded" }, { status: 409 });
     }
     bundleId = bundle.id;
+    bundleCapacity = bundle.capacity;
     bundleTitle = bundle.title;
     unitPriceCents = bundle.priceCents;
   } else {
-    const event = readTicketEvent(storage, operation.checkout.eventId);
+    const eventId = "eventId" in checkout ? checkout.eventId : null;
+    if (!eventId) return Response.json({ code: "ticket_sales_closed" }, { status: 409 });
+    const event = eventId ? readTicketEvent(storage, eventId) : undefined;
     if (!ticketEventIsOpen(event, now)) {
       return Response.json({ code: "ticket_sales_closed" }, { status: 409 });
     }
     if (
+      checkCapacity &&
       event.ticketCapacity !== null &&
-      committedEventQuantity(storage, operation.checkout.eventId) + operation.checkout.quantity >
-        event.ticketCapacity
+      committedEventQuantity(storage, eventId) + checkout.quantity > event.ticketCapacity
     ) {
       return Response.json({ code: "ticket_capacity_exceeded" }, { status: 409 });
     }
-    events = [{ ...event, id: operation.checkout.eventId }];
+    events = [{ ...event, id: eventId }];
     unitPriceCents = ticketUnitPriceCents({
       advancePriceCents: event.advancePriceCents,
       dayOfPriceCents: event.dayOfPriceCents,
@@ -436,130 +577,343 @@ function createFakeCheckout(
       timezone: organization.timezone,
     });
   }
-  const primaryEvent = events[0];
+  return { bundleCapacity, bundleId, bundleTitle, events, unitPriceCents };
+}
+
+function discountCodeDefinition(
+  storage: DurableObjectStorage,
+  normalizedCode: string,
+  resolution: CheckoutResolution,
+): DiscountCodeDefinition | undefined {
+  return storage.sql
+    .exec<DiscountCodeDefinition>(
+      `SELECT id, display_code AS displayCode, item_type AS itemType,
+        event_id AS eventId, bundle_id AS bundleId,
+        discount_type AS discountType, discount_value AS discountValue,
+        redemption_limit AS redemptionLimit, active
+       FROM discount_codes
+       WHERE normalized_code = ?
+         AND ((item_type = 'performance' AND event_id = ?)
+           OR (item_type = 'bundle' AND bundle_id = ?))
+       LIMIT 1`,
+      normalizedCode,
+      resolution.bundleId ? null : (resolution.events[0]?.id ?? null),
+      resolution.bundleId,
+    )
+    .toArray()
+    .at(0);
+}
+
+function redemptionReservationCount(storage: DurableObjectStorage, codeId: string): number {
+  return storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      `SELECT COUNT(*) AS count FROM discount_code_redemptions
+       WHERE discount_code_id = ? AND status IN ('pending', 'confirmed')`,
+      codeId,
+    )
+    .one().count;
+}
+
+function redeemableDiscountCode(
+  storage: DurableObjectStorage,
+  normalizedCode: string,
+  resolution: CheckoutResolution,
+): DiscountCodeDefinition | undefined {
+  const code = discountCodeDefinition(storage, normalizedCode, resolution);
+  if (!code) return undefined;
+  if (code.active !== 1 || !isValidTicketDiscountValue(code.discountType, code.discountValue)) {
+    return undefined;
+  }
+  if (
+    code.redemptionLimit !== null &&
+    redemptionReservationCount(storage, code.id) >= code.redemptionLimit
+  ) {
+    return undefined;
+  }
+  return code;
+}
+
+function checkoutQuote(
+  storage: DurableObjectStorage,
+  checkout:
+    | z.infer<typeof createFakeCheckoutOperationSchema>["checkout"]
+    | z.infer<typeof quoteTicketCheckoutOperationSchema>["checkout"],
+  resolution: CheckoutResolution,
+): z.infer<typeof ticketCheckoutQuoteSchema> {
+  const requestedCode = normalizeDiscountCode(checkout.discountCode ?? "");
+  const code = requestedCode
+    ? redeemableDiscountCode(storage, requestedCode, resolution)
+    : undefined;
+  if (requestedCode && !code) throw new DiscountCodeRejectedError();
+  const quote = ticketOrderQuote(
+    {
+      discountType: code?.discountType ?? "fixed",
+      discountValue: code?.discountValue ?? 0,
+      quantity: checkout.quantity,
+      unitPriceCents: resolution.unitPriceCents,
+    },
+    transactionFeeSettingsFromStore(storage),
+  );
+  return ticketCheckoutQuoteSchema.parse({
+    discountAmountCents: quote.discountAmountCents,
+    discountCode: code?.displayCode ?? null,
+    discountType: code?.discountType ?? null,
+    discountValue: code?.discountValue ?? null,
+    discountedSubtotalCents: quote.discountedSubtotalCents,
+    feeCents: quote.feeCents,
+    originalSubtotalCents: quote.originalSubtotalCents,
+    originalUnitPriceCents: quote.unitPriceCents,
+    quantity: quote.quantity,
+    totalCents: quote.totalCents,
+  });
+}
+
+function reserveDiscountCode(
+  storage: DurableObjectStorage,
+  normalizedCode: string,
+  resolution: CheckoutResolution,
+  checkoutRequestId: string,
+  purchaseId: string,
+  status: "pending" | "confirmed",
+  occurredAt: string,
+): DiscountCodeDefinition | undefined {
+  if (!normalizedCode) return undefined;
+  const code = redeemableDiscountCode(storage, normalizedCode, resolution);
+  if (!code) throw new DiscountCodeRejectedError();
+  storage.sql.exec(
+    `INSERT INTO discount_code_redemptions
+      (id, discount_code_id, checkout_request_id, purchase_id, status, created_at, updated_at,
+       confirmed_at, released_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+    crypto.randomUUID(),
+    code.id,
+    checkoutRequestId,
+    purchaseId,
+    status,
+    occurredAt,
+    occurredAt,
+    status === "confirmed" ? occurredAt : null,
+  );
+  if (status === "confirmed") {
+    storage.sql.exec(
+      `UPDATE discount_codes SET first_redeemed_at = COALESCE(first_redeemed_at, ?), updated_at = ?
+       WHERE id = ?`,
+      occurredAt,
+      occurredAt,
+      code.id,
+    );
+  }
+  return code;
+}
+
+// Checkout atomically coordinates idempotency, two product types, and shared event capacity.
+// eslint-disable-next-line complexity
+function createFakeCheckout(
+  storage: DurableObjectStorage,
+  operation:
+    | z.infer<typeof createFakeCheckoutOperationSchema>
+    | z.infer<typeof createPendingCheckoutOperationSchema>,
+  organization: IdentityRow,
+): Response {
+  const existing = purchaseByRequest(storage, operation.checkout.checkoutRequestId);
+  if (existing) {
+    return sameCheckoutRequest(existing, operation.checkout)
+      ? Response.json(purchaseResult(existing))
+      : Response.json({ code: "checkout_request_conflict" }, { status: 409 });
+  }
+  const now = new Date();
+  const resolution = resolveCheckoutItem(storage, operation.checkout, organization, now, true);
+  if (resolution instanceof Response) return resolution;
+  let quote: z.infer<typeof ticketCheckoutQuoteSchema>;
+  try {
+    quote = checkoutQuote(storage, operation.checkout, resolution);
+  } catch (error: unknown) {
+    if (error instanceof DiscountCodeRejectedError) {
+      return Response.json({ code: "discount_code_invalid" }, { status: 422 });
+    }
+    throw error;
+  }
+  const pending = operation.action === "create_stripe_pending" && quote.totalCents > 0;
+  const primaryEvent = resolution.events[0];
   if (!primaryEvent) return Response.json({ code: "ticket_sales_closed" }, { status: 409 });
-  const includedEvents = events.map((event) => ({
+  const normalizedCode = normalizeDiscountCode(operation.checkout.discountCode ?? "");
+  const includedEvents = resolution.events.map((event) => ({
     id: event.id,
     startsAt: event.startsAt,
     title: event.title,
   }));
-  const feeCents = ticketProcessingFeeCents(
-    unitPriceCents,
-    operation.checkout.quantity,
-    transactionFeeSettingsFromStore(storage),
-  );
-  const amountPaidCents = unitPriceCents * operation.checkout.quantity + feeCents;
+  const effectiveProviderSessionId =
+    quote.totalCents === 0 ? `free_session_${operation.purchaseId}` : operation.providerSessionId;
+  const providerPaymentId = pending
+    ? ""
+    : quote.totalCents === 0
+      ? ""
+      : `fake_payment_${operation.purchaseId}`;
+  const status = pending ? "pending" : "paid";
   const occurredAt = now.toISOString();
   const confirmationId = crypto.randomUUID();
   const confirmationJobId = crypto.randomUUID();
   const notificationTemplate = readTicketMessageTemplate(
     storage,
-    bundleId ? "bundle_confirmation" : "confirmation",
+    resolution.bundleId ? "bundle_confirmation" : "confirmation",
   );
-  storage.transactionSync(() => {
-    storage.sql.exec(
-      `INSERT INTO ticket_purchases
+  let reservedCode: DiscountCodeDefinition | undefined;
+  try {
+    // eslint-disable-next-line complexity -- atomically reserves capacity, redemption, payment, and audit rows.
+    storage.transactionSync(() => {
+      reservedCode = reserveDiscountCode(
+        storage,
+        normalizedCode,
+        resolution,
+        operation.checkout.checkoutRequestId,
+        operation.purchaseId,
+        pending ? "pending" : "confirmed",
+        occurredAt,
+      );
+      for (const event of resolution.events) {
+        if (
+          event.ticketCapacity !== null &&
+          committedEventQuantity(storage, event.id) + operation.checkout.quantity >
+            event.ticketCapacity
+        ) {
+          throw new CheckoutCapacityExceededError();
+        }
+      }
+      if (resolution.bundleId && resolution.bundleCapacity !== null) {
+        const committedBundles = storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly quantity: number }>(
+            `SELECT COALESCE(SUM(quantity), 0) AS quantity FROM ticket_purchases
+             WHERE bundle_id = ? AND status IN ('pending', 'paid')`,
+            resolution.bundleId,
+          )
+          .one().quantity;
+        if (committedBundles + operation.checkout.quantity > resolution.bundleCapacity) {
+          throw new CheckoutCapacityExceededError();
+        }
+      }
+      storage.sql.exec(
+        `INSERT INTO ticket_purchases
         (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
          bundle_id, bundle_title, included_events_json,
          buyer_name, buyer_email, quantity, unit_price_cents, fee_cents,
          amount_paid_cents, currency, provider_session_id, provider_payment_id,
-         status, marketing_opt_in, created_at, updated_at, fulfilled_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, ?, ?, ?, ?, ?)`,
-      operation.purchaseId,
-      operation.checkout.checkoutRequestId,
-      primaryEvent.id,
-      primaryEvent.title,
-      primaryEvent.startsAt,
-      organization.timezone,
-      bundleId,
-      bundleTitle,
-      JSON.stringify(includedEvents),
-      operation.checkout.buyerName,
-      operation.checkout.buyerEmail.toLowerCase(),
-      operation.checkout.quantity,
-      unitPriceCents,
-      feeCents,
-      amountPaidCents,
-      operation.providerSessionId,
-      pending ? "" : `fake_payment_${operation.purchaseId}`,
-      pending ? "pending" : "paid",
-      operation.checkout.marketingOptIn ? 1 : 0,
-      occurredAt,
-      occurredAt,
-      pending ? null : occurredAt,
-    );
-    storage.sql.exec(
-      `INSERT INTO payment_attempts
+         status, marketing_opt_in, created_at, updated_at, fulfilled_at,
+         discount_code_id, discount_code, discount_type, discount_value,
+         original_unit_price_cents, original_subtotal_cents, discount_amount_cents,
+         discounted_subtotal_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        operation.purchaseId,
+        operation.checkout.checkoutRequestId,
+        primaryEvent.id,
+        primaryEvent.title,
+        primaryEvent.startsAt,
+        organization.timezone,
+        resolution.bundleId,
+        resolution.bundleTitle,
+        JSON.stringify(includedEvents),
+        operation.checkout.buyerName,
+        operation.checkout.buyerEmail.toLowerCase(),
+        operation.checkout.quantity,
+        resolution.unitPriceCents,
+        quote.feeCents,
+        quote.totalCents,
+        effectiveProviderSessionId,
+        providerPaymentId,
+        status,
+        operation.checkout.marketingOptIn ? 1 : 0,
+        occurredAt,
+        occurredAt,
+        pending ? null : occurredAt,
+        reservedCode?.id ?? null,
+        quote.discountCode ?? "",
+        quote.discountType ?? "",
+        quote.discountValue ?? 0,
+        quote.originalUnitPriceCents,
+        quote.originalSubtotalCents,
+        quote.discountAmountCents,
+        quote.discountedSubtotalCents,
+      );
+      storage.sql.exec(
+        `INSERT INTO payment_attempts
         (id, payment_type, resource_id, checkout_request_id, provider_session_id,
          provider_payment_id, status, amount_cents, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      `payment-attempt:${operation.purchaseId}`,
-      bundleId ? "bundle" : "ticket",
-      operation.purchaseId,
-      operation.checkout.checkoutRequestId,
-      operation.providerSessionId,
-      pending ? "" : `fake_payment_${operation.purchaseId}`,
-      pending ? "pending" : "paid",
-      amountPaidCents,
-      occurredAt,
-      occurredAt,
-    );
-    if (bundleId) {
-      for (const event of events) {
-        storage.sql.exec(
-          `INSERT INTO ticket_bundle_allocations (purchase_id, event_id, quantity)
+        `payment-attempt:${operation.purchaseId}`,
+        resolution.bundleId ? "bundle" : "ticket",
+        operation.purchaseId,
+        operation.checkout.checkoutRequestId,
+        effectiveProviderSessionId,
+        providerPaymentId,
+        status,
+        quote.totalCents,
+        occurredAt,
+        occurredAt,
+      );
+      if (resolution.bundleId) {
+        for (const event of resolution.events) {
+          storage.sql.exec(
+            `INSERT INTO ticket_bundle_allocations (purchase_id, event_id, quantity)
            VALUES (?, ?, ?)`,
-          operation.purchaseId,
-          event.id,
-          operation.checkout.quantity,
-        );
+            operation.purchaseId,
+            event.id,
+            operation.checkout.quantity,
+          );
+        }
       }
-    }
-    if (!pending) {
-      storage.sql.exec(
-        `INSERT INTO ticket_notifications
+      if (!pending) {
+        storage.sql.exec(
+          `INSERT INTO ticket_notifications
           (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
            content_markdown, status, scheduled_for, created_at, updated_at)
          VALUES (?, ?, ?, ?, 'confirmation', ?, ?, ?, 'queued', ?, ?, ?)`,
-        confirmationId,
-        operation.purchaseId,
-        bundleId ? null : primaryEvent.id,
-        `ticket-confirmation:${operation.purchaseId}`,
-        operation.checkout.buyerEmail.toLowerCase(),
-        notificationTemplate.subject,
-        notificationTemplate.contentMarkdown,
-        occurredAt,
-        occurredAt,
-        occurredAt,
-      );
-      storage.sql.exec(
-        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+          confirmationId,
+          operation.purchaseId,
+          resolution.bundleId ? null : primaryEvent.id,
+          `ticket-confirmation:${operation.purchaseId}`,
+          operation.checkout.buyerEmail.toLowerCase(),
+          notificationTemplate.subject,
+          notificationTemplate.contentMarkdown,
+          occurredAt,
+          occurredAt,
+          occurredAt,
+        );
+        storage.sql.exec(
+          `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
          VALUES (?, 'ticket_notification', ?, ?, ?)`,
-        confirmationJobId,
-        `ticket-notification:${confirmationId}`,
-        occurredAt,
-        occurredAt,
-      );
-    }
-    storage.sql.exec(
-      `INSERT INTO audit_events
+          confirmationJobId,
+          `ticket-notification:${confirmationId}`,
+          occurredAt,
+          occurredAt,
+        );
+      }
+      storage.sql.exec(
+        `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
        VALUES (?, 'public_visitor', 'anonymous', ?,
         'ticket_purchase', ?, ?, ?, ?)`,
-      `ticket-purchase:${operation.checkout.checkoutRequestId}`,
-      pending ? "ticket.purchase.pending" : "ticket.purchase.fulfilled",
-      operation.purchaseId,
-      operation.checkout.checkoutRequestId,
-      JSON.stringify({
-        amountPaidCents,
-        bundleId,
-        eventId: primaryEvent.id,
-        quantity: operation.checkout.quantity,
-      }),
-      occurredAt,
-    );
-  });
+        `ticket-purchase:${operation.checkout.checkoutRequestId}`,
+        pending ? "ticket.purchase.pending" : "ticket.purchase.fulfilled",
+        operation.purchaseId,
+        operation.checkout.checkoutRequestId,
+        JSON.stringify({
+          amountPaidCents: quote.totalCents,
+          bundleId: resolution.bundleId,
+          eventId: primaryEvent.id,
+          quantity: operation.checkout.quantity,
+        }),
+        occurredAt,
+      );
+    });
+  } catch (error: unknown) {
+    if (error instanceof DiscountCodeRejectedError) {
+      return Response.json({ code: "discount_code_invalid" }, { status: 422 });
+    }
+    if (error instanceof CheckoutCapacityExceededError) {
+      return Response.json({ code: "ticket_capacity_exceeded" }, { status: 409 });
+    }
+    throw error;
+  }
   const created = purchaseByRequest(storage, operation.checkout.checkoutRequestId);
   return created
     ? Response.json(purchaseResult(created), { status: 201 })
@@ -733,6 +1087,21 @@ function completeStripeTicketPurchase(
         occurredAt,
         row.id,
       );
+      storage.sql.exec(
+        `UPDATE discount_code_redemptions
+         SET status = 'confirmed', confirmed_at = ?, updated_at = ?
+         WHERE purchase_id = ? AND status = 'pending'`,
+        occurredAt,
+        occurredAt,
+        row.id,
+      );
+      storage.sql.exec(
+        `UPDATE discount_codes SET first_redeemed_at = COALESCE(first_redeemed_at, ?), updated_at = ?
+         WHERE id IN (SELECT discount_code_id FROM discount_code_redemptions WHERE purchase_id = ?)`,
+        occurredAt,
+        occurredAt,
+        row.id,
+      );
       queueTicketConfirmation(storage, row, occurredAt);
     }
     storage.sql.exec(
@@ -805,6 +1174,14 @@ function expireStripeTicketPurchase(
          SET provider_session_id = ?, status = 'expired', expired_at = ?, updated_at = ?
          WHERE resource_id = ? AND status = 'pending'`,
         operation.providerSessionId,
+        occurredAt,
+        occurredAt,
+        row.id,
+      );
+      storage.sql.exec(
+        `UPDATE discount_code_redemptions
+         SET status = 'released', released_at = ?, updated_at = ?
+         WHERE purchase_id = ? AND status = 'pending'`,
         occurredAt,
         occurredAt,
         row.id,
@@ -1169,6 +1546,343 @@ function deleteTicketBundle(
   return Response.json({ deleted: true });
 }
 
+function discountCodeRows(storage: DurableObjectStorage): DiscountCodeRow[] {
+  return storage.sql
+    .exec<DiscountCodeRow>(
+      `SELECT c.id, c.display_code AS code, c.item_type AS itemType,
+        c.event_id AS eventId, c.bundle_id AS bundleId,
+        c.discount_type AS discountType, c.discount_value AS discountValue,
+        c.redemption_limit AS redemptionLimit, c.active,
+        c.first_redeemed_at AS firstRedeemedAt, c.deactivated_at AS deactivatedAt,
+        c.created_at AS createdAt, c.updated_at AS updatedAt,
+        COALESCE(e.title, b.title, '') AS itemTitle,
+        COALESCE((SELECT COUNT(*) FROM discount_code_redemptions r
+          WHERE r.discount_code_id = c.id AND r.status = 'confirmed'), 0) AS redemptionCount,
+        COALESCE((SELECT COUNT(*) FROM discount_code_redemptions r
+          WHERE r.discount_code_id = c.id AND r.status = 'pending'), 0) AS pendingReservationCount,
+        COALESCE((SELECT SUM(p.original_subtotal_cents)
+          FROM discount_code_redemptions r JOIN ticket_purchases p ON p.id = r.purchase_id
+          WHERE r.discount_code_id = c.id AND r.status = 'confirmed' AND p.status = 'paid'), 0)
+          AS originalRevenueCents,
+        COALESCE((SELECT SUM(p.discount_amount_cents)
+          FROM discount_code_redemptions r JOIN ticket_purchases p ON p.id = r.purchase_id
+          WHERE r.discount_code_id = c.id AND r.status = 'confirmed' AND p.status = 'paid'), 0)
+          AS discountAmountCents,
+        COALESCE((SELECT SUM(p.amount_paid_cents)
+          FROM discount_code_redemptions r JOIN ticket_purchases p ON p.id = r.purchase_id
+          WHERE r.discount_code_id = c.id AND r.status = 'confirmed' AND p.status = 'paid'), 0)
+          AS revenueCents
+       FROM discount_codes c
+       LEFT JOIN events e ON e.id = c.event_id
+       LEFT JOIN ticket_bundles b ON b.id = c.bundle_id
+       ORDER BY c.updated_at DESC, c.id DESC
+       LIMIT 500`,
+    )
+    .toArray();
+}
+
+function discountCodeResult(row: DiscountCodeRow) {
+  return discountCodeSchema.parse({
+    ...row,
+    active: row.active === 1,
+    editable: row.redemptionCount === 0,
+    itemType: row.itemType,
+  });
+}
+
+function discountCodeItemExists(
+  storage: DurableObjectStorage,
+  code: z.infer<typeof discountCodeRequestSchema>,
+): boolean {
+  if (code.eventId) {
+    return (
+      storage.sql
+        .exec(
+          `SELECT id FROM events
+           WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+           LIMIT 1`,
+          code.eventId,
+        )
+        .toArray().length > 0
+    );
+  }
+  return (
+    code.bundleId !== null &&
+    storage.sql.exec("SELECT id FROM ticket_bundles WHERE id = ? LIMIT 1", code.bundleId).toArray()
+      .length > 0
+  );
+}
+
+// eslint-disable-next-line complexity -- enforces target, uniqueness, immutability, persistence, and audit rules.
+function upsertDiscountCode(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof upsertDiscountCodeOperationSchema>,
+): Response {
+  if (!discountCodeItemExists(storage, operation.code)) {
+    return Response.json({ code: "discount_code_target_invalid" }, { status: 409 });
+  }
+  const normalizedCode = normalizeDiscountCode(operation.code.code);
+  if (
+    !normalizedCode ||
+    !isValidTicketDiscountValue(operation.code.discountType, operation.code.discountValue)
+  ) {
+    return Response.json({ code: "discount_code_invalid" }, { status: 400 });
+  }
+  const existing = storage.sql
+    .exec<{
+      readonly active: number;
+      readonly bundleId: string | null;
+      readonly discountType: "fixed" | "percentage";
+      readonly discountValue: number;
+      readonly eventId: string | null;
+      readonly firstRedeemedAt: string | null;
+      readonly id: string;
+      readonly normalizedCode: string;
+      readonly redemptionLimit: number | null;
+      readonly createdAt: string;
+    }>(
+      `SELECT id, normalized_code AS normalizedCode, event_id AS eventId,
+        bundle_id AS bundleId, discount_type AS discountType, discount_value AS discountValue,
+        redemption_limit AS redemptionLimit, active, first_redeemed_at AS firstRedeemedAt,
+        created_at AS createdAt
+       FROM discount_codes WHERE id = ? LIMIT 1`,
+      operation.codeId,
+    )
+    .toArray()
+    .at(0);
+  if (!operation.allowCreate && !existing) {
+    return Response.json({ code: "discount_code_not_found" }, { status: 404 });
+  }
+  const duplicate = storage.sql
+    .exec<{ readonly id: string }>(
+      "SELECT id FROM discount_codes WHERE normalized_code = ? AND id != ? LIMIT 1",
+      normalizedCode,
+      operation.codeId,
+    )
+    .toArray()
+    .at(0);
+  if (duplicate) return Response.json({ code: "discount_code_duplicate" }, { status: 409 });
+  const confirmedCount = existing
+    ? storage.sql
+        .exec<{ readonly count: number }>(
+          `SELECT COUNT(*) AS count FROM discount_code_redemptions
+           WHERE discount_code_id = ? AND status = 'confirmed'`,
+          operation.codeId,
+        )
+        .one().count
+    : 0;
+  if (
+    existing &&
+    confirmedCount > 0 &&
+    ((existing.active === 0 && operation.code.active) ||
+      existing.normalizedCode !== normalizedCode ||
+      existing.eventId !== operation.code.eventId ||
+      existing.bundleId !== operation.code.bundleId ||
+      existing.discountType !== operation.code.discountType ||
+      existing.discountValue !== operation.code.discountValue ||
+      existing.redemptionLimit !== operation.code.redemptionLimit)
+  ) {
+    return Response.json({ code: "discount_code_immutable" }, { status: 409 });
+  }
+  const occurredAt = new Date().toISOString();
+  const itemType = operation.code.eventId ? "performance" : "bundle";
+  const deactivatedAt = operation.code.active ? null : occurredAt;
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT INTO discount_codes
+        (id, normalized_code, display_code, item_type, event_id, bundle_id,
+         discount_type, discount_value, redemption_limit, active, first_redeemed_at,
+         deactivated_at, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         normalized_code = excluded.normalized_code,
+         display_code = excluded.display_code,
+         item_type = excluded.item_type,
+         event_id = excluded.event_id,
+         bundle_id = excluded.bundle_id,
+         discount_type = excluded.discount_type,
+         discount_value = excluded.discount_value,
+         redemption_limit = excluded.redemption_limit,
+         active = excluded.active,
+         deactivated_at = excluded.deactivated_at,
+         updated_at = excluded.updated_at`,
+      operation.codeId,
+      normalizedCode,
+      operation.code.code,
+      itemType,
+      operation.code.eventId,
+      operation.code.bundleId,
+      operation.code.discountType,
+      operation.code.discountValue,
+      operation.code.redemptionLimit,
+      operation.code.active ? 1 : 0,
+      deactivatedAt,
+      operation.actorUserId,
+      existing?.createdAt ?? occurredAt,
+      occurredAt,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'ticket.discount_code.saved',
+        'discount_code', ?, ?, ?, ?)`,
+      `discount-code-saved:${operation.requestId}`,
+      operation.actorUserId,
+      operation.codeId,
+      operation.requestId,
+      JSON.stringify({
+        active: operation.code.active,
+        discountType: operation.code.discountType,
+        discountValue: operation.code.discountValue,
+        itemType,
+        redemptionLimit: operation.code.redemptionLimit,
+      }),
+      occurredAt,
+    );
+  });
+  const saved = discountCodeRows(storage).find(({ id }) => id === operation.codeId);
+  return saved
+    ? Response.json(discountCodeResult(saved))
+    : Response.json({ code: "discount_code_not_found" }, { status: 404 });
+}
+
+function deactivateDiscountCode(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof deactivateDiscountCodeOperationSchema>,
+): Response {
+  const existing = storage.sql
+    .exec<{ readonly id: string; readonly active: number }>(
+      "SELECT id, active FROM discount_codes WHERE id = ? LIMIT 1",
+      operation.codeId,
+    )
+    .toArray()
+    .at(0);
+  if (!existing) return Response.json({ code: "discount_code_not_found" }, { status: 404 });
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE discount_codes SET active = 0, deactivated_at = COALESCE(deactivated_at, ?),
+       updated_at = ? WHERE id = ?`,
+      occurredAt,
+      occurredAt,
+      operation.codeId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'ticket.discount_code.deactivated',
+        'discount_code', ?, ?, '{}', ?)`,
+      `discount-code-deactivated:${operation.requestId}`,
+      operation.actorUserId,
+      operation.codeId,
+      operation.requestId,
+      occurredAt,
+    );
+  });
+  const saved = discountCodeRows(storage).find(({ id }) => id === operation.codeId);
+  return saved
+    ? Response.json(discountCodeResult(saved))
+    : Response.json({ code: "discount_code_not_found" }, { status: 404 });
+}
+
+export function listDiscountCodesFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (identity(storage)?.organizationId !== organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  return Response.json({
+    codes: discountCodeRows(storage).map(discountCodeResult),
+  });
+}
+
+// eslint-disable-next-line complexity -- evaluates item availability and redeemable-code limits.
+export function readPublicDiscountAvailabilityFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  target: unknown,
+): Response {
+  if (identity(storage)?.organizationId !== organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const parsedTarget = publicTicketDiscountAvailabilityRequestSchema.safeParse(target);
+  if (!parsedTarget.success) return Response.json({ code: "validation_failed" }, { status: 400 });
+  const now = new Date();
+  if (parsedTarget.data.eventId) {
+    const event = readTicketEvent(storage, parsedTarget.data.eventId);
+    if (!ticketEventIsOpen(event, now)) return Response.json({ hasRedeemableCode: false });
+  } else if (parsedTarget.data.bundleId) {
+    const bundle = storage.sql
+      .exec<TicketBundleRow>(
+        `SELECT id, title, price_cents AS priceCents, capacity,
+          sale_end_at AS saleEndAt, is_active AS isActive,
+          created_at AS createdAt, updated_at AS updatedAt
+         FROM ticket_bundles WHERE id = ? LIMIT 1`,
+        parsedTarget.data.bundleId,
+      )
+      .toArray()
+      .at(0);
+    const eventIds = bundle ? bundleEventIds(storage, bundle.id) : [];
+    if (!bundle) return Response.json({ hasRedeemableCode: false });
+    if (
+      bundle.isActive !== 1 ||
+      new Date(bundle.saleEndAt).getTime() <= now.getTime() ||
+      eventIds.length === 0 ||
+      eventIds.some((eventId) => !ticketEventIsOpen(readTicketEvent(storage, eventId), now))
+    ) {
+      return Response.json({ hasRedeemableCode: false });
+    }
+  }
+  const itemType = parsedTarget.data.eventId ? "performance" : "bundle";
+  const itemId = parsedTarget.data.eventId ?? parsedTarget.data.bundleId;
+  const codes = storage.sql
+    .exec<DiscountCodeDefinition>(
+      `SELECT id, display_code AS displayCode, item_type AS itemType,
+        event_id AS eventId, bundle_id AS bundleId,
+        discount_type AS discountType, discount_value AS discountValue,
+        redemption_limit AS redemptionLimit, active
+       FROM discount_codes
+       WHERE active = 1 AND item_type = ? AND ${itemType === "performance" ? "event_id" : "bundle_id"} = ?`,
+      itemType,
+      itemId,
+    )
+    .toArray();
+  return Response.json({
+    hasRedeemableCode: codes.some(
+      (code) =>
+        isValidTicketDiscountValue(code.discountType, code.discountValue) &&
+        (code.redemptionLimit === null ||
+          redemptionReservationCount(storage, code.id) < code.redemptionLimit),
+    ),
+  });
+}
+
+function quoteTicketCheckout(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof quoteTicketCheckoutOperationSchema>,
+  organization: IdentityRow,
+): Response {
+  const resolution = resolveCheckoutItem(
+    storage,
+    operation.checkout,
+    organization,
+    new Date(),
+    true,
+  );
+  if (resolution instanceof Response) return resolution;
+  try {
+    return Response.json(checkoutQuote(storage, operation.checkout, resolution));
+  } catch (error: unknown) {
+    if (error instanceof DiscountCodeRejectedError) {
+      return Response.json({ code: "discount_code_invalid" }, { status: 422 });
+    }
+    throw error;
+  }
+}
+
 function recordTicketNotificationResult(
   storage: DurableObjectStorage,
   operation: z.infer<typeof ticketNotificationResultOperationSchema>,
@@ -1414,12 +2128,17 @@ export function readTicketNotificationJobFromStore(
       readonly contentMarkdown: string;
       readonly currency: string;
       readonly destination: string;
+      readonly discountAmountCents: number;
+      readonly discountCode: string | null;
+      readonly discountedSubtotalCents: number;
       readonly eventStartsAt: string;
       readonly eventTitle: string;
+      readonly feeCents: number;
       readonly id: string;
       readonly kind: "confirmation" | "reminder";
       readonly purchaseId: string;
       readonly quantity: number;
+      readonly originalSubtotalCents: number;
       readonly status: string;
       readonly subject: string;
       readonly timezone: string;
@@ -1434,6 +2153,11 @@ export function readTicketNotificationJobFromStore(
         n.provider_reason AS providerReason, n.provider_status AS providerStatus,
         COALESCE(e.title, p.event_title) AS eventTitle,
         p.quantity, p.amount_paid_cents AS amountPaidCents,
+        p.original_subtotal_cents AS originalSubtotalCents,
+        p.discount_code AS discountCode,
+        p.discount_amount_cents AS discountAmountCents,
+        p.discounted_subtotal_cents AS discountedSubtotalCents,
+        p.fee_cents AS feeCents,
         p.currency, p.bundle_title AS bundleTitle, p.event_timezone AS timezone,
         COALESCE(e.starts_at,
           (SELECT MAX(bundle_event.starts_at)
@@ -1502,6 +2226,8 @@ export async function manageTicketingInStore(
       if (response.ok) await storage.setAlarm(Date.now() + 1);
       return response;
     }
+    case "quote_ticket_checkout":
+      return quoteTicketCheckout(storage, operation.data, organization);
     case "attach_stripe_session":
       return attachStripeSession(storage, operation.data);
     case "issue_ticket_scan_credential":
@@ -1514,6 +2240,10 @@ export async function manageTicketingInStore(
       return upsertTicketBundle(storage, operation.data);
     case "delete_ticket_bundle":
       return deleteTicketBundle(storage, operation.data);
+    case "upsert_discount_code":
+      return upsertDiscountCode(storage, operation.data);
+    case "deactivate_discount_code":
+      return deactivateDiscountCode(storage, operation.data);
     case "record_ticket_notification_result":
       return recordTicketNotificationResult(storage, operation.data);
     case "resend_ticket_confirmation": {

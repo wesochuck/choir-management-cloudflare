@@ -24,6 +24,7 @@ export const probePlan = new Map([
   ["api.calendar-feed-url", { kind: "read-auth", expected: 200 }],
   ["api.singer-dashboard", { kind: "read-auth", expected: 200 }],
   ["api.seating-profiles", { kind: "read-auth", expected: 200 }],
+  ["api.list-ticket-discount-codes", { kind: "read-auth", expected: 200 }],
 
   // Empty-body validation probes (schemas require fields, so 400 precedes any side effect)
   ["api.organization.audition-create", { kind: "validation", expected: 400 }],
@@ -42,6 +43,8 @@ export const probePlan = new Map([
   ["api.quick-rsvp", { kind: "validation", expected: 400 }],
   ["api.rsvp-details", { kind: "validation", expected: 400 }],
   ["api.checkout-ticket", { kind: "validation", expected: 400 }],
+  ["api.ticket-quote", { kind: "validation", expected: 400 }],
+  ["api.create-ticket-discount-code", { kind: "validation", expected: 400 }],
   ["api.unsubscribe", { kind: "validation", expected: 400 }],
   ["api.checkout-dues", { kind: "validation", expected: 400 }],
 
@@ -76,6 +79,9 @@ export const probePlan = new Map([
   ["api.refund-dues", { kind: "skip-fixture" }],
   ["api.refund-ticket", { kind: "skip-fixture" }],
   ["api.resend-ticket", { kind: "skip-fixture" }],
+  ["api.ticket-discount-availability", { kind: "skip-fixture" }],
+  ["api.update-ticket-discount-code", { kind: "skip-fixture" }],
+  ["api.deactivate-ticket-discount-code", { kind: "skip-fixture" }],
   ["api.singer-rsvp", { kind: "skip-fixture" }],
   ["api.setup-claim", { kind: "skip-fixture" }],
   ["api.setup-complete", { kind: "skip-fixture" }],

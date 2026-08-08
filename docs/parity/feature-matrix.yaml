@@ -1378,6 +1378,106 @@
           ],
       },
       {
+        "id": "api.ticket-discount-availability",
+        "method": "GET",
+        "path": "/api/public/tickets/discount-availability",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No equivalent Discount Code availability workflow existed in the baseline.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/publicCommerce.ts",
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.ticket-quote",
+        "method": "POST",
+        "path": "/api/public/tickets/quote",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No equivalent authoritative ticket quote workflow existed in the baseline.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/publicCommerce.ts",
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.list-ticket-discount-codes",
+        "method": "GET",
+        "path": "/api/organization/tickets/discount-codes",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No equivalent Discount Code administration workflow existed in the baseline.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationTicketing.ts",
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.create-ticket-discount-code",
+        "method": "POST",
+        "path": "/api/organization/tickets/discount-codes",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No equivalent Discount Code administration workflow existed in the baseline.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.update-ticket-discount-code",
+        "method": "PUT",
+        "path": "/api/organization/tickets/discount-codes/:codeId",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No equivalent Discount Code administration workflow existed in the baseline.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.deactivate-ticket-discount-code",
+        "method": "POST",
+        "path": "/api/organization/tickets/discount-codes/:codeId/deactivate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "No equivalent Discount Code administration workflow existed in the baseline.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationTicketing.ts",
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
+      },
+      {
         "id": "api.checkout-dues",
         "method": "POST",
         "path": "/api/singer/dues/checkout",

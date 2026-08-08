@@ -45,6 +45,14 @@ export function expireStalePaymentsInStore(
         now,
         ticket.id,
       );
+      storage.sql.exec(
+        `UPDATE discount_code_redemptions
+         SET status = 'released', released_at = ?, updated_at = ?
+         WHERE purchase_id = ? AND status = 'pending'`,
+        now,
+        now,
+        ticket.id,
+      );
     }
     const donations = storage.sql
       .exec<{ readonly id: string }>(

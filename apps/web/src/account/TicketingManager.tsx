@@ -1,4 +1,6 @@
 import type {
+  DiscountCode,
+  DiscountCodeRequest,
   OrganizationEvent,
   OrganizationTicketOrder,
   TicketBundle,
@@ -9,13 +11,16 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 
 import {
   deleteTicketBundle,
+  deactivateOrganizationDiscountCode,
   getOrganizationTicketConfirmationSettings,
   listOrganizationEvents,
   listOrganizationTicketOrders,
+  listOrganizationDiscountCodes,
   listTicketBundles,
   refundOrganizationTicketOrder,
   resendTicketConfirmation,
   saveTicketBundle,
+  saveOrganizationDiscountCode,
   updateOrganizationTicketConfirmationSettings,
 } from "../auth/api";
 import { TicketScanner } from "./TicketScanner";
@@ -26,7 +31,27 @@ type OrderState =
   | { readonly status: "loading" }
   | { readonly orders: readonly OrganizationTicketOrder[]; readonly status: "ready" };
 
-type TicketingTab = "willcall" | "bundles" | "orders" | "share" | "confirmation";
+type TicketingTab = "willcall" | "bundles" | "orders" | "share" | "confirmation" | "discounts";
+
+interface DiscountDraft {
+  readonly active: boolean;
+  readonly bundleId: string | null;
+  readonly code: string;
+  readonly discountType: DiscountCodeRequest["discountType"];
+  readonly discountValue: string;
+  readonly eventId: string | null;
+  readonly redemptionLimit: string;
+}
+
+const EMPTY_DISCOUNT_DRAFT: DiscountDraft = {
+  active: true,
+  bundleId: null,
+  code: "",
+  discountType: "percentage",
+  discountValue: "",
+  eventId: null,
+  redemptionLimit: "",
+};
 
 function money(cents: number): string {
   return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
@@ -83,6 +108,21 @@ export function TicketingManager({
   const [confirmationLoadError, setConfirmationLoadError] = useState<string | null>(null);
   const [confirmationSaving, setConfirmationSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TicketingTab>("willcall");
+  const [discountCodes, setDiscountCodes] = useState<readonly DiscountCode[]>([]);
+  const [discountCodesLoading, setDiscountCodesLoading] = useState(false);
+  const [discountCodesLoadError, setDiscountCodesLoadError] = useState<string | null>(null);
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [editingDiscountCodeId, setEditingDiscountCodeId] = useState<string | null>(null);
+  const [discountDraft, setDiscountDraft] = useState<DiscountDraft>(EMPTY_DISCOUNT_DRAFT);
+  const [deactivateDiscountCodeId, setDeactivateDiscountCodeId] = useState<string | null>(null);
+
+  function selectTicketingTab(value: TicketingTab): void {
+    setActiveTab(value);
+    if (value === "discounts") {
+      setDiscountCodesLoading(true);
+      setDiscountCodesLoadError(null);
+    }
+  }
 
   useEffect(() => {
     if (!enabled) return;
@@ -136,6 +176,26 @@ export function TicketingManager({
       controller.abort();
     };
   }, [enabled, scanOnly]);
+
+  useEffect(() => {
+    if (!enabled || scanOnly || activeTab !== "discounts") return;
+    const controller = new AbortController();
+    void listOrganizationDiscountCodes(controller.signal)
+      .then((codes) => {
+        if (!controller.signal.aborted) setDiscountCodes(codes);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDiscountCodesLoadError("Discount codes could not be loaded.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDiscountCodesLoading(false);
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [activeTab, enabled, scanOnly]);
 
   useEffect(() => {
     if (!enabled || scanOnly) return;
@@ -290,6 +350,87 @@ export function TicketingManager({
     }
   }
 
+  function openNewDiscountCode(): void {
+    setEditingDiscountCodeId(null);
+    setDiscountDraft({
+      ...EMPTY_DISCOUNT_DRAFT,
+      eventId: ticketEvents[0]?.id ?? null,
+    });
+    setDiscountDialogOpen(true);
+    setMessage(null);
+  }
+
+  function editDiscountCode(code: DiscountCode): void {
+    if (!code.editable) return;
+    setEditingDiscountCodeId(code.id);
+    setDiscountDraft({
+      active: code.active,
+      bundleId: code.bundleId,
+      code: code.code,
+      discountType: code.discountType,
+      discountValue: String(code.discountValue),
+      eventId: code.eventId,
+      redemptionLimit: code.redemptionLimit === null ? "" : String(code.redemptionLimit),
+    });
+    setDiscountDialogOpen(true);
+    setMessage(null);
+  }
+
+  function closeDiscountDialog(): void {
+    if (busy) return;
+    setDiscountDialogOpen(false);
+    setEditingDiscountCodeId(null);
+    setDiscountDraft(EMPTY_DISCOUNT_DRAFT);
+  }
+
+  async function saveDiscountCode(formEvent: SyntheticEvent<HTMLFormElement>): Promise<void> {
+    formEvent.preventDefault();
+    const discountValue = Number(discountDraft.discountValue);
+    const redemptionLimit = discountDraft.redemptionLimit
+      ? Number(discountDraft.redemptionLimit)
+      : null;
+    const request: DiscountCodeRequest = {
+      active: discountDraft.active,
+      bundleId: discountDraft.bundleId,
+      code: discountDraft.code,
+      discountType: discountDraft.discountType,
+      discountValue,
+      eventId: discountDraft.eventId,
+      redemptionLimit,
+    };
+    setBusy(true);
+    setMessage(null);
+    try {
+      const saved = await saveOrganizationDiscountCode(request, editingDiscountCodeId ?? undefined);
+      setDiscountCodes((current) => [saved, ...current.filter(({ id }) => id !== saved.id)]);
+      closeDiscountDialog();
+      setMessage("Discount code saved.");
+    } catch (failure: unknown) {
+      setMessage(
+        failure instanceof Error ? failure.message : "The discount code could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deactivateDiscountCode(codeId: string): Promise<void> {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const saved = await deactivateOrganizationDiscountCode(codeId);
+      setDiscountCodes((current) => current.map((code) => (code.id === saved.id ? saved : code)));
+      setDeactivateDiscountCodeId(null);
+      setMessage("Discount code deactivated.");
+    } catch (failure: unknown) {
+      setMessage(
+        failure instanceof Error ? failure.message : "The discount code could not be deactivated.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const selectedPerformance = ticketEvents.find(({ id }) => id === selectedPerformanceId);
   const performanceOrders =
     state.status === "ready"
@@ -352,6 +493,7 @@ export function TicketingManager({
             ["willcall", "Concert Will Call"],
             ["bundles", "Season Bundles"],
             ["orders", "Bundle Orders"],
+            ["discounts", "Discount Codes"],
             ["share", "Share & QR Codes"],
             ["confirmation", "Confirmation Page"],
           ] as const
@@ -361,7 +503,7 @@ export function TicketingManager({
             className={activeTab === value ? "is-active" : undefined}
             key={value}
             onClick={() => {
-              setActiveTab(value);
+              selectTicketingTab(value);
             }}
             role="tab"
             type="button"
@@ -491,6 +633,294 @@ export function TicketingManager({
         <p className="notice notice--info" role="status">
           {message}
         </p>
+      ) : null}
+      {activeTab === "discounts" ? (
+        <div className="ticketing-tab-panel">
+          <div className="ticketing-page-header">
+            <div>
+              <p className="eyebrow">Discount codes</p>
+              <h3>Create and monitor ticket discounts</h3>
+              <p>
+                Codes apply to one performance or bundle. After the first confirmed redemption,
+                their terms can only be deactivated.
+              </p>
+            </div>
+            <button className="button button--primary" onClick={openNewDiscountCode} type="button">
+              New discount code
+            </button>
+          </div>
+          <Dialog
+            description="Set the eligible item, discount, and optional Organization-wide redemption limit."
+            onClose={closeDiscountDialog}
+            open={discountDialogOpen}
+            title={editingDiscountCodeId ? "Edit discount code" : "New discount code"}
+          >
+            <form className="form-stack" onSubmit={(event) => void saveDiscountCode(event)}>
+              <label className="field">
+                Code
+                <input
+                  required
+                  maxLength={64}
+                  value={discountDraft.code}
+                  onChange={(event) => {
+                    setDiscountDraft((current) => ({ ...current, code: event.target.value }));
+                  }}
+                />
+              </label>
+              <label className="field">
+                Eligible item
+                <select
+                  required
+                  value={
+                    discountDraft.eventId
+                      ? "event:" + discountDraft.eventId
+                      : discountDraft.bundleId
+                        ? "bundle:" + discountDraft.bundleId
+                        : ""
+                  }
+                  onChange={(event) => {
+                    const [kind, id] = event.target.value.split(":");
+                    setDiscountDraft((current) => ({
+                      ...current,
+                      bundleId: kind === "bundle" ? (id ?? null) : null,
+                      eventId: kind === "event" ? (id ?? null) : null,
+                    }));
+                  }}
+                >
+                  <option value="">Choose a performance or bundle</option>
+                  <optgroup label="Performances">
+                    {ticketEvents.map((event) => (
+                      <option key={event.id} value={"event:" + event.id}>
+                        {event.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Ticket bundles">
+                    {bundles.map((bundle) => (
+                      <option key={bundle.id} value={"bundle:" + bundle.id}>
+                        {bundle.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </label>
+              <div className="form-grid form-grid--two">
+                <label className="field">
+                  Discount type
+                  <select
+                    value={discountDraft.discountType}
+                    onChange={(event) => {
+                      const type = event.target.value === "fixed" ? "fixed" : "percentage";
+                      setDiscountDraft((current) => ({
+                        ...current,
+                        discountType: type,
+                      }));
+                    }}
+                  >
+                    <option value="percentage">Percentage</option>
+                    <option value="fixed">Fixed amount per unit</option>
+                  </select>
+                </label>
+                <label className="field">
+                  {discountDraft.discountType === "percentage"
+                    ? "Percentage (1–100)"
+                    : "Amount per unit (USD)"}
+                  <input
+                    required
+                    min={discountDraft.discountType === "percentage" ? 1 : 0}
+                    max={discountDraft.discountType === "percentage" ? 100 : undefined}
+                    step={discountDraft.discountType === "percentage" ? 1 : 0.01}
+                    type="number"
+                    value={
+                      discountDraft.discountType === "fixed" &&
+                      discountDraft.discountValue &&
+                      !discountDraft.discountValue.includes(".")
+                        ? (Number(discountDraft.discountValue) / 100).toFixed(2)
+                        : discountDraft.discountValue
+                    }
+                    onChange={(event) => {
+                      setDiscountDraft((current) => ({
+                        ...current,
+                        discountValue:
+                          current.discountType === "fixed"
+                            ? String(Math.round(Number(event.target.value) * 100))
+                            : event.target.value,
+                      }));
+                    }}
+                  />
+                </label>
+              </div>
+              <label className="field">
+                Redemption limit (blank is unlimited)
+                <input
+                  min="1"
+                  step="1"
+                  type="number"
+                  value={discountDraft.redemptionLimit}
+                  onChange={(event) => {
+                    setDiscountDraft((current) => ({
+                      ...current,
+                      redemptionLimit: event.target.value,
+                    }));
+                  }}
+                />
+              </label>
+              <label>
+                <input
+                  checked={discountDraft.active}
+                  type="checkbox"
+                  onChange={(event) => {
+                    setDiscountDraft((current) => ({
+                      ...current,
+                      active: event.target.checked,
+                    }));
+                  }}
+                />{" "}
+                Available for redemption
+              </label>
+              <div className="form-actions">
+                <button
+                  className="button button--primary"
+                  disabled={
+                    busy ||
+                    (!discountDraft.eventId && !discountDraft.bundleId) ||
+                    !discountDraft.discountValue
+                  }
+                  type="submit"
+                >
+                  {busy ? "Saving…" : "Save discount code"}
+                </button>
+                <button
+                  className="button button--secondary"
+                  disabled={busy}
+                  onClick={closeDiscountDialog}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </Dialog>
+          {discountCodesLoading ? <p>Loading discount codes…</p> : null}
+          {discountCodesLoadError ? (
+            <p className="notice notice--error" role="alert">
+              {discountCodesLoadError}
+            </p>
+          ) : null}
+          {!discountCodesLoading && !discountCodesLoadError && discountCodes.length === 0 ? (
+            <p className="empty-state">No discount codes yet.</p>
+          ) : null}
+          {discountCodes.length > 0 ? (
+            <DataTable
+              columns={[
+                {
+                  header: "Code",
+                  id: "code",
+                  render: (code) => <strong>{code.code}</strong>,
+                  sortValue: (code) => code.code,
+                },
+                {
+                  header: "Eligible item",
+                  id: "item",
+                  render: (code) => code.itemTitle + " (" + code.itemType + ")",
+                  sortValue: (code) => code.itemTitle,
+                },
+                {
+                  header: "Discount",
+                  id: "discount",
+                  render: (code) =>
+                    code.discountType === "percentage"
+                      ? String(code.discountValue) + "%"
+                      : money(code.discountValue),
+                  sortValue: (code) => code.discountValue,
+                },
+                {
+                  header: "Redemptions",
+                  id: "redemptions",
+                  render: (code) =>
+                    String(code.redemptionCount) +
+                    (code.redemptionLimit === null ? "" : "/" + String(code.redemptionLimit)),
+                  sortValue: (code) => code.redemptionCount,
+                },
+                {
+                  header: "Discounted revenue",
+                  id: "revenue",
+                  render: (code) => money(code.revenueCents),
+                  sortValue: (code) => code.revenueCents,
+                },
+                {
+                  header: "Status",
+                  id: "status",
+                  render: (code) => (code.active ? "Active" : "Inactive"),
+                  sortValue: (code) => (code.active ? 1 : 0),
+                },
+                {
+                  header: "Actions",
+                  id: "actions",
+                  render: (code) =>
+                    deactivateDiscountCodeId === code.id ? (
+                      <div className="danger-confirmation">
+                        <p>Deactivate this code?</p>
+                        <div className="form-actions">
+                          <button
+                            className="button button--secondary"
+                            disabled={busy}
+                            onClick={() => {
+                              setDeactivateDiscountCodeId(null);
+                            }}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className="button button--danger"
+                            disabled={busy}
+                            onClick={() => void deactivateDiscountCode(code.id)}
+                            type="button"
+                          >
+                            {busy ? "Deactivating…" : "Confirm"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="form-actions">
+                        <button
+                          className="text-button"
+                          disabled={busy || !code.editable}
+                          onClick={() => {
+                            editDiscountCode(code);
+                          }}
+                          title={
+                            code.editable
+                              ? undefined
+                              : "Terms are locked after the first confirmed redemption."
+                          }
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                        {code.active ? (
+                          <button
+                            className="text-button text-button--danger"
+                            disabled={busy}
+                            onClick={() => {
+                              setDeactivateDiscountCodeId(code.id);
+                            }}
+                            type="button"
+                          >
+                            Deactivate
+                          </button>
+                        ) : null}
+                      </div>
+                    ),
+                },
+              ]}
+              initialSort={{ columnId: "code", direction: "asc" }}
+              keySelector={(code) => code.id}
+              rows={discountCodes}
+            />
+          ) : null}
+        </div>
       ) : null}
       {activeTab === "willcall" ? (
         <>

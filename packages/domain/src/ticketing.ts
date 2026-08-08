@@ -11,10 +11,63 @@ export interface TransactionFeeSettings {
   readonly percentage: number;
 }
 
+export type TicketDiscountType = "fixed" | "percentage";
+
+export interface TicketDiscountInput {
+  readonly discountType: TicketDiscountType;
+  readonly discountValue: number;
+  readonly quantity: number;
+  readonly unitPriceCents: number;
+}
+
+export interface TicketOrderQuote extends TicketDiscountInput {
+  readonly discountAmountCents: number;
+  readonly discountedSubtotalCents: number;
+  readonly feeCents: number;
+  readonly originalSubtotalCents: number;
+  readonly totalCents: number;
+}
+
 export const defaultTransactionFeeSettings = {
   fixedCents: 30,
   percentage: 2.9,
 } as const;
+
+export function normalizeDiscountCode(value: string): string {
+  return value.trim().toLocaleUpperCase("en-US");
+}
+
+export function isValidTicketDiscountValue(
+  discountType: TicketDiscountType,
+  discountValue: number,
+): boolean {
+  if (!Number.isInteger(discountValue) || discountValue < 0) return false;
+  return discountType === "percentage"
+    ? discountValue >= 1 && discountValue <= 100
+    : discountValue >= 0;
+}
+
+export function ticketOrderQuote(
+  input: TicketDiscountInput,
+  settings: TransactionFeeSettings = defaultTransactionFeeSettings,
+): TicketOrderQuote {
+  const originalSubtotalCents = input.unitPriceCents * input.quantity;
+  const rawDiscountCents =
+    input.discountType === "percentage"
+      ? Math.round((originalSubtotalCents * input.discountValue) / 100)
+      : Math.min(input.unitPriceCents, input.discountValue) * input.quantity;
+  const discountAmountCents = Math.min(originalSubtotalCents, Math.max(0, rawDiscountCents));
+  const discountedSubtotalCents = Math.max(0, originalSubtotalCents - discountAmountCents);
+  const feeCents = transactionProcessingFeeCents(discountedSubtotalCents, settings);
+  return {
+    ...input,
+    discountAmountCents,
+    discountedSubtotalCents,
+    feeCents,
+    originalSubtotalCents,
+    totalCents: discountedSubtotalCents + feeCents,
+  };
+}
 
 function calendarDate(value: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", {

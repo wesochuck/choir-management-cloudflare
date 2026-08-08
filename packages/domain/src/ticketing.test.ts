@@ -2,15 +2,58 @@ import { describe, expect, it } from "vitest";
 
 import {
   canTransitionTicketPurchase,
+  isValidTicketDiscountValue,
+  normalizeDiscountCode,
   remainingTicketCapacity,
   renderTicketWillCallCsv,
   ticketWillCallFilename,
   ticketProcessingFeeCents,
+  ticketOrderQuote,
   transactionProcessingFeeCents,
   ticketUnitPriceCents,
 } from "./ticketing";
 
 describe("ticketing rules", () => {
+  it("normalizes discount codes and validates whole percentage values", () => {
+    expect(normalizeDiscountCode("  spring-25 ")).toBe("SPRING-25");
+    expect(isValidTicketDiscountValue("percentage", 1)).toBe(true);
+    expect(isValidTicketDiscountValue("percentage", 100)).toBe(true);
+    expect(isValidTicketDiscountValue("percentage", 0)).toBe(false);
+    expect(isValidTicketDiscountValue("percentage", 25.5)).toBe(false);
+    expect(isValidTicketDiscountValue("fixed", 0)).toBe(true);
+    expect(isValidTicketDiscountValue("fixed", -1)).toBe(false);
+  });
+
+  it("calculates fixed per-unit and percentage discounts with fees after discount", () => {
+    expect(
+      ticketOrderQuote({
+        discountType: "fixed",
+        discountValue: 200,
+        quantity: 3,
+        unitPriceCents: 1_000,
+      }),
+    ).toMatchObject({
+      discountAmountCents: 600,
+      discountedSubtotalCents: 2_400,
+      feeCents: 100,
+      originalSubtotalCents: 3_000,
+      totalCents: 2_500,
+    });
+    expect(
+      ticketOrderQuote({
+        discountType: "percentage",
+        discountValue: 100,
+        quantity: 2,
+        unitPriceCents: 1_000,
+      }),
+    ).toMatchObject({
+      discountAmountCents: 2_000,
+      discountedSubtotalCents: 0,
+      feeCents: 0,
+      totalCents: 0,
+    });
+  });
+
   it("uses the Organization-local show date for day-of pricing", () => {
     const common = {
       advancePriceCents: 2_000,

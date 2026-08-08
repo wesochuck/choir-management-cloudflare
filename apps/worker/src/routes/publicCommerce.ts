@@ -1,6 +1,8 @@
 import {
   publicQuickRsvpRequestSchema,
   publicPollSubmitRequestSchema,
+  publicTicketDiscountAvailabilityRequestSchema,
+  ticketCheckoutQuoteRequestSchema,
   ticketCheckoutRequestSchema,
   donationCheckoutRequestSchema,
   donationSettingsSchema,
@@ -23,6 +25,8 @@ import { verifySignedLinkScope } from "../security/signedLinks";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import {
   createPublicTicketCheckout,
+  quotePublicTicketCheckout,
+  readPublicTicketDiscountAvailability,
   readPublicTicketPurchase,
   TicketingError,
 } from "../organization/organizationTicketing";
@@ -397,7 +401,106 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
               : "Online ticket checkout is not available right now.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        error instanceof TicketingError && error.status === 409 ? 409 : 503,
+        error instanceof TicketingError && (error.status === 409 || error.status === 422)
+          ? error.status
+          : 503,
+      );
+    }
+  });
+
+  router.get("/api/public/tickets/discount-availability", async (context) => {
+    validateStartupConfig(context.env);
+    const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+    const target = publicTicketDiscountAvailabilityRequestSchema.safeParse({
+      bundleId: context.req.query("bundleId") ?? null,
+      eventId: context.req.query("eventId") ?? null,
+    });
+    if (!resolved.ok) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "Ticket sales are not available for this hostname.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    if (!target.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid ticket item is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const available = await readPublicTicketDiscountAvailability(
+        context.env,
+        resolved.value.organizationId,
+        target.data,
+      );
+      return context.json({ hasRedeemableCode: available });
+    } catch (error: unknown) {
+      return context.json(
+        {
+          code: error instanceof TicketingError ? error.code : "discount_availability_unavailable",
+          message:
+            error instanceof TicketingError
+              ? error.message
+              : "Discount availability is temporarily unavailable.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        error instanceof TicketingError && error.status === 404 ? 404 : 503,
+      );
+    }
+  });
+
+  router.post("/api/public/tickets/quote", async (context) => {
+    validateStartupConfig(context.env);
+    const resolved = await resolveOrganization(new URL(context.req.url), context.env);
+    const quote = ticketCheckoutQuoteRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!resolved.ok) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "Ticket sales are not available for this hostname.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    if (!quote.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid ticket price request is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      return context.json(
+        await quotePublicTicketCheckout(context.env, resolved.value.organizationId, quote.data),
+      );
+    } catch (error: unknown) {
+      return context.json(
+        {
+          code: error instanceof TicketingError ? error.code : "ticket_quote_unavailable",
+          message:
+            error instanceof TicketingError
+              ? error.message
+              : "The ticket price could not be calculated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        error instanceof TicketingError &&
+          (error.status === 400 || error.status === 409 || error.status === 422)
+          ? error.status
+          : 503,
       );
     }
   });

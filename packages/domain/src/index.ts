@@ -126,14 +126,20 @@ export {
 } from "./communications";
 export {
   canTransitionTicketPurchase,
+  isValidTicketDiscountValue,
+  normalizeDiscountCode,
   remainingTicketCapacity,
   renderTicketWillCallCsv,
+  ticketOrderQuote,
   ticketProcessingFeeCents,
   ticketUnitPriceCents,
   defaultTransactionFeeSettings,
   transactionProcessingFeeCents,
   ticketWillCallFilename,
   type TicketPriceInput,
+  type TicketDiscountInput,
+  type TicketDiscountType,
+  type TicketOrderQuote,
   type TransactionFeeSettings,
   type TicketWillCallRow,
 } from "./ticketing";

@@ -1126,6 +1126,58 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON polls(archived_at, expires_at, created_at DESC, id)`,
     ],
   },
+  {
+    version: 68,
+    statements: [
+      "ALTER TABLE ticket_purchases ADD COLUMN discount_code_id TEXT",
+      "ALTER TABLE ticket_purchases ADD COLUMN discount_code TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE ticket_purchases ADD COLUMN discount_type TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE ticket_purchases ADD COLUMN discount_value INTEGER NOT NULL DEFAULT 0 CHECK (discount_value >= 0)",
+      "ALTER TABLE ticket_purchases ADD COLUMN original_unit_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (original_unit_price_cents >= 0)",
+      "ALTER TABLE ticket_purchases ADD COLUMN original_subtotal_cents INTEGER NOT NULL DEFAULT 0 CHECK (original_subtotal_cents >= 0)",
+      "ALTER TABLE ticket_purchases ADD COLUMN discount_amount_cents INTEGER NOT NULL DEFAULT 0 CHECK (discount_amount_cents >= 0)",
+      "ALTER TABLE ticket_purchases ADD COLUMN discounted_subtotal_cents INTEGER NOT NULL DEFAULT 0 CHECK (discounted_subtotal_cents >= 0)",
+      `CREATE TABLE discount_codes (
+        id TEXT PRIMARY KEY,
+        normalized_code TEXT NOT NULL UNIQUE,
+        display_code TEXT NOT NULL,
+        item_type TEXT NOT NULL CHECK (item_type IN ('performance', 'bundle')),
+        event_id TEXT,
+        bundle_id TEXT,
+        discount_type TEXT NOT NULL CHECK (discount_type IN ('fixed', 'percentage')),
+        discount_value INTEGER NOT NULL CHECK (discount_value >= 0),
+        redemption_limit INTEGER CHECK (redemption_limit IS NULL OR redemption_limit > 0),
+        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+        first_redeemed_at TEXT,
+        deactivated_at TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (
+          (item_type = 'performance' AND event_id IS NOT NULL AND bundle_id IS NULL) OR
+          (item_type = 'bundle' AND event_id IS NULL AND bundle_id IS NOT NULL)
+        )
+      ) STRICT`,
+      `CREATE INDEX idx_discount_codes_item
+       ON discount_codes(item_type, event_id, bundle_id, active, updated_at DESC, id)`,
+      `CREATE TABLE discount_code_redemptions (
+        id TEXT PRIMARY KEY,
+        discount_code_id TEXT NOT NULL,
+        checkout_request_id TEXT NOT NULL UNIQUE,
+        purchase_id TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'released')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        confirmed_at TEXT,
+        released_at TEXT
+      ) STRICT`,
+      `CREATE INDEX idx_discount_code_redemptions_code_status
+       ON discount_code_redemptions(discount_code_id, status, created_at, id)`,
+      `CREATE INDEX idx_discount_code_redemptions_purchase
+       ON discount_code_redemptions(purchase_id, status)`,
+      "CREATE INDEX idx_ticket_purchases_discount_code ON ticket_purchases(discount_code_id, status, created_at, id)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
