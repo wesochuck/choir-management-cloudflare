@@ -1,6 +1,18 @@
-import { donationSettingsResponseSchema, type DonationSettings } from "@choir/contracts";
+import {
+  donationRecordsResponseSchema,
+  donationSettingsResponseSchema,
+  type DonationRecord,
+  type DonationSettings,
+} from "@choir/contracts";
 
 import { request } from "./client";
+
+export async function listOrganizationDonations(
+  signal?: AbortSignal,
+): Promise<readonly DonationRecord[]> {
+  const response = await request("/api/organization/donations", { signal: signal ?? null });
+  return donationRecordsResponseSchema.parse(await response.json()).donations;
+}
 
 export async function getOrganizationDonationSettings(
   signal?: AbortSignal,

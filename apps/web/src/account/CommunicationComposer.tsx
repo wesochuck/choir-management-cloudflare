@@ -95,8 +95,10 @@ export function CommunicationComposer({
     <div className="communication-composer">
       <div className="communication-composer__tabs" role="tablist" aria-label="Message editor">
         <button
+          aria-controls="communication-composer-write-panel"
           aria-selected={!preview}
           className={!preview ? "is-active" : ""}
+          id="communication-composer-write-tab"
           onClick={() => {
             setPreview(false);
           }}
@@ -106,8 +108,10 @@ export function CommunicationComposer({
           Write
         </button>
         <button
+          aria-controls="communication-composer-preview-panel"
           aria-selected={preview}
           className={preview ? "is-active" : ""}
+          id="communication-composer-preview-tab"
           onClick={() => {
             setPreview(true);
           }}
@@ -118,7 +122,12 @@ export function CommunicationComposer({
         </button>
       </div>
       {!preview ? (
-        <>
+        <div
+          aria-labelledby="communication-composer-write-tab"
+          className="communication-composer__panel"
+          id="communication-composer-write-panel"
+          role="tabpanel"
+        >
           <div className="communication-composer__toolbar" aria-label="Formatting tools">
             <button
               onClick={() => {
@@ -200,12 +209,15 @@ export function CommunicationComposer({
               They can listen without signing in.
             </p>
           ) : null}
-        </>
+        </div>
       ) : (
         <div
+          aria-labelledby="communication-composer-preview-tab"
           aria-label="Formatted message preview"
           className="communication-composer__preview"
           dangerouslySetInnerHTML={{ __html: renderCommunicationMarkdownPreview(contentMarkdown) }}
+          id="communication-composer-preview-panel"
+          role="tabpanel"
         />
       )}
       <aside className="communication-placeholders" aria-label="Available placeholders">

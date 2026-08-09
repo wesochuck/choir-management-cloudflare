@@ -1,13 +1,19 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 
 export type DataTableSortDirection = "asc" | "desc";
+
+export type DataTablePresentation = "table" | "card";
+
+export interface DataTableRenderContext {
+  readonly presentation: DataTablePresentation;
+}
 
 export interface DataTableColumn<T> {
   readonly header: string;
   readonly headerContent?: ReactNode;
   readonly id: string;
   readonly mobileLabel?: string;
-  readonly render: (row: T) => ReactNode;
+  readonly render: (row: T, context: DataTableRenderContext) => ReactNode;
   readonly sortValue?: (row: T) => boolean | number | string | null | undefined;
 }
 
@@ -19,9 +25,11 @@ export interface DataTableSort {
 interface DataTableProps<T> {
   readonly columns: readonly DataTableColumn<T>[];
   readonly emptyMessage?: string;
+  readonly expandedRowId?: string | null;
   readonly initialSort?: DataTableSort;
   readonly keySelector: (row: T) => string;
   readonly onRowClick?: (row: T) => void;
+  readonly renderExpandedRow?: (row: T, presentation: DataTablePresentation) => ReactNode;
   readonly rowLabel?: (row: T) => string;
   readonly rows: readonly T[];
 }
@@ -61,9 +69,11 @@ function compareValues(
 export function DataTable<T>({
   columns,
   emptyMessage = "No results.",
+  expandedRowId = null,
   initialSort,
   keySelector,
   onRowClick,
+  renderExpandedRow,
   rowLabel,
   rows,
 }: DataTableProps<T>) {
@@ -139,73 +149,95 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => (
-            <tr
-              className={onRowClick ? "data-table__row--interactive" : undefined}
-              key={keySelector(row)}
-              onClick={(event) => {
-                if (!onRowClick || isInteractiveTarget(event.target)) return;
-                onRowClick(row);
-              }}
-              onKeyDown={(event) => {
-                if (!onRowClick || isInteractiveTarget(event.target)) return;
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                onRowClick(row);
-              }}
-              tabIndex={onRowClick ? 0 : undefined}
-              aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
-            >
-              {columns.map((column) => (
-                <td
-                  className={isActionColumn(column) ? "data-table__cell--actions" : undefined}
-                  key={column.id}
+          {sortedRows.map((row) => {
+            const rowId = keySelector(row);
+            const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
+            return (
+              <Fragment key={rowId}>
+                <tr
+                  className={onRowClick ? "data-table__row--interactive" : undefined}
+                  onClick={(event) => {
+                    if (!onRowClick || isInteractiveTarget(event.target)) return;
+                    onRowClick(row);
+                  }}
+                  onKeyDown={(event) => {
+                    if (!onRowClick || isInteractiveTarget(event.target)) return;
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    onRowClick(row);
+                  }}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
                 >
-                  {column.render(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
+                  {columns.map((column) => (
+                    <td
+                      className={isActionColumn(column) ? "data-table__cell--actions" : undefined}
+                      key={column.id}
+                    >
+                      {column.render(row, { presentation: "table" })}
+                    </td>
+                  ))}
+                </tr>
+                {isExpanded ? (
+                  <tr className="data-table__expanded-row">
+                    <td className="data-table__expanded-cell" colSpan={columns.length}>
+                      {renderExpandedRow(row, "table")}
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
       <div className="data-table-cards">
-        {sortedRows.map((row) => (
-          <div
-            aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
-            className={
-              onRowClick ? "data-table-card data-table-card--interactive" : "data-table-card"
-            }
-            key={keySelector(row)}
-            onClick={(event) => {
-              if (!onRowClick || isInteractiveTarget(event.target)) return;
-              onRowClick(row);
-            }}
-            onKeyDown={(event) => {
-              if (!onRowClick || isInteractiveTarget(event.target)) return;
-              if (event.key !== "Enter" && event.key !== " ") return;
-              event.preventDefault();
-              onRowClick(row);
-            }}
-            role={onRowClick ? "button" : undefined}
-            tabIndex={onRowClick ? 0 : undefined}
-          >
-            {columns.map((column) => (
+        {sortedRows.map((row) => {
+          const rowId = keySelector(row);
+          const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
+          return (
+            <Fragment key={rowId}>
               <div
+                aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
                 className={
-                  isActionColumn(column)
-                    ? "data-table-card__field data-table-card__field--actions"
-                    : "data-table-card__field"
+                  onRowClick ? "data-table-card data-table-card--interactive" : "data-table-card"
                 }
-                key={column.id}
+                onClick={(event) => {
+                  if (!onRowClick || isInteractiveTarget(event.target)) return;
+                  onRowClick(row);
+                }}
+                onKeyDown={(event) => {
+                  if (!onRowClick || isInteractiveTarget(event.target)) return;
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  onRowClick(row);
+                }}
+                role={onRowClick ? "button" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
               >
-                <span className="data-table-card__label">
-                  {column.mobileLabel ?? column.header}
-                </span>
-                <span className="data-table-card__value">{column.render(row)}</span>
+                {columns.map((column) => (
+                  <div
+                    className={
+                      isActionColumn(column)
+                        ? "data-table-card__field data-table-card__field--actions"
+                        : "data-table-card__field"
+                    }
+                    key={column.id}
+                  >
+                    <span className="data-table-card__label">
+                      {column.mobileLabel ?? column.header}
+                    </span>
+                    <span className="data-table-card__value">
+                      {column.render(row, { presentation: "card" })}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ))}
+              {isExpanded ? (
+                <div className="data-table-card__expanded">{renderExpandedRow(row, "card")}</div>
+              ) : null}
+            </Fragment>
+          );
+        })}
       </div>
     </div>
   );

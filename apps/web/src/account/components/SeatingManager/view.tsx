@@ -214,8 +214,10 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
 
       <div className="seating-tabs no-print" role="tablist" aria-label="Seating tools">
         <button
+          aria-controls="seating-chart-panel"
           aria-selected={formationTab === "chart"}
           className={formationTab === "chart" ? "is-active" : ""}
+          id="seating-chart-tab"
           onClick={() => {
             setFormationTab("chart");
           }}
@@ -225,8 +227,10 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
           Chart
         </button>
         <button
+          aria-controls="seating-formations-panel"
           aria-selected={formationTab === "formations"}
           className={formationTab === "formations" ? "is-active" : ""}
+          id="seating-formations-tab"
           onClick={() => {
             setFormationTab("formations");
           }}
@@ -238,16 +242,28 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
       </div>
 
       {formationTab === "formations" ? (
-        <FormationEditor
-          key={JSON.stringify(resources.seating)}
-          initial={resources.seating}
-          onSaved={(seating) => {
-            setResources((current) => (current ? { ...current, seating } : current));
-          }}
-          roster={resources.roster}
-        />
+        <div
+          aria-labelledby="seating-formations-tab"
+          className="seating-tab-panel"
+          id="seating-formations-panel"
+          role="tabpanel"
+        >
+          <FormationEditor
+            key={JSON.stringify(resources.seating)}
+            initial={resources.seating}
+            onSaved={(seating) => {
+              setResources((current) => (current ? { ...current, seating } : current));
+            }}
+            roster={resources.roster}
+          />
+        </div>
       ) : (
-        <>
+        <div
+          aria-labelledby="seating-chart-tab"
+          className="seating-tab-panel"
+          id="seating-chart-panel"
+          role="tabpanel"
+        >
           <div className="seating-toolbar no-print">
             <label className="field field--compact">
               Performance
@@ -751,7 +767,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
               </DndContext>
             </>
           ) : null}
-        </>
+        </div>
       )}
 
       <ConfirmDialog

@@ -226,6 +226,7 @@ export function MusicCatalogView({
                   aria-controls="music-piece-details"
                   aria-selected={editorTab === "details"}
                   className={editorTab === "details" ? "is-active" : undefined}
+                  id="music-piece-details-tab"
                   onClick={() => {
                     setEditorTab("details");
                   }}
@@ -239,6 +240,7 @@ export function MusicCatalogView({
                   aria-selected={editorTab === "tracks"}
                   className={editorTab === "tracks" ? "is-active" : undefined}
                   disabled={!selectedPiece}
+                  id="music-piece-tracks-tab"
                   onClick={() => {
                     setEditorTab("tracks");
                   }}
@@ -255,6 +257,7 @@ export function MusicCatalogView({
                   aria-selected={editorTab === "performances"}
                   className={editorTab === "performances" ? "is-active" : undefined}
                   disabled={!selectedPiece}
+                  id="music-piece-performances-tab"
                   onClick={() => {
                     setEditorTab("performances");
                   }}
@@ -268,7 +271,11 @@ export function MusicCatalogView({
                 </button>
               </div>
               {editorTab === "details" ? (
-                <div id="music-piece-details" role="tabpanel">
+                <div
+                  aria-labelledby="music-piece-details-tab"
+                  id="music-piece-details"
+                  role="tabpanel"
+                >
                   <div className="music-fields-grid">
                     <label className="field music-field--wide">
                       Title
@@ -434,7 +441,11 @@ export function MusicCatalogView({
                 </div>
               ) : editorTab === "tracks" ? (
                 selectedPiece ? (
-                  <div id="music-piece-tracks" role="tabpanel">
+                  <div
+                    aria-labelledby="music-piece-tracks-tab"
+                    id="music-piece-tracks"
+                    role="tabpanel"
+                  >
                     <MusicAudioTracks
                       configuration={roster}
                       key={selectedPiece.id}
@@ -455,7 +466,11 @@ export function MusicCatalogView({
                   <p className="notice">Save the piece first, then add practice tracks.</p>
                 )
               ) : selectedPiece ? (
-                <div id="music-piece-performances" role="tabpanel">
+                <div
+                  aria-labelledby="music-piece-performances-tab"
+                  id="music-piece-performances"
+                  role="tabpanel"
+                >
                   <MusicPiecePerformances
                     allEvents={events}
                     allPieces={pieces}

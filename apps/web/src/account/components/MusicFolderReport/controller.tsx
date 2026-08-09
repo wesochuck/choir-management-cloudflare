@@ -10,7 +10,8 @@ import type {
   MusicFolderReportProfileDetailResponse,
   MusicFolderReportQueryResponse,
 } from "@choir/contracts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useConfirmation, type ConfirmationOptions } from "@choir/ui";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
   changedFolderEdits,
@@ -23,6 +24,8 @@ export type MusicFolderReportLoadState = "loading" | "ready" | "error";
 
 export interface MusicFolderReportController {
   readonly actionError: string | null;
+  readonly confirm: (options: ConfirmationOptions) => Promise<boolean>;
+  readonly confirmationDialog: ReactNode;
   readonly detail: MusicFolderReportProfileDetailResponse | null;
   readonly detailState: MusicFolderReportLoadState;
   readonly drafts: Readonly<Record<string, string>>;
@@ -64,6 +67,7 @@ export function useMusicFolderReportController(enabled: boolean): MusicFolderRep
   const [rowErrors, setRowErrors] = useState<Readonly<Record<string, string>>>({});
   const [pendingReturnKey, setPendingReturnKey] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -132,24 +136,31 @@ export function useMusicFolderReportController(enabled: boolean): MusicFolderRep
     [detail?.rows, drafts],
   );
 
+  const applySelection = useCallback((eventIds: readonly string[]): void => {
+    setSelectedEventIds([...eventIds]);
+    setExpandedProfileId(null);
+    setDetail(null);
+    setDrafts({});
+    setRowErrors({});
+    setActionError(null);
+  }, []);
+
   const changeSelection = useCallback(
     (eventIds: readonly string[]) => {
-      if (
-        hasUnsaved &&
-        !window.confirm(
-          "You have unsaved Folder Number changes. Discard them and change selection?",
-        )
-      ) {
+      if (hasUnsaved) {
+        void confirm({
+          confirmLabel: "Change selection",
+          description: "Your unsaved Folder Number changes will be discarded.",
+          destructive: true,
+          title: "Discard Folder Number changes?",
+        }).then((shouldChange) => {
+          if (shouldChange) applySelection(eventIds);
+        });
         return;
       }
-      setSelectedEventIds([...eventIds]);
-      setExpandedProfileId(null);
-      setDetail(null);
-      setDrafts({});
-      setRowErrors({});
-      setActionError(null);
+      applySelection(eventIds);
     },
-    [hasUnsaved],
+    [applySelection, confirm, hasUnsaved],
   );
 
   const togglePerformance = useCallback(
@@ -289,6 +300,8 @@ export function useMusicFolderReportController(enabled: boolean): MusicFolderRep
 
   return {
     actionError,
+    confirm,
+    confirmationDialog,
     changeSelection,
     clearSelection,
     detail,

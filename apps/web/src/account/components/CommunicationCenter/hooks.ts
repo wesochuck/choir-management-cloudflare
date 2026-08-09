@@ -9,6 +9,7 @@ import type {
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { useConfirmation } from "@choir/ui";
 import {
   defaultAudience,
   defaultTestEmailContent,
@@ -65,6 +66,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   function replaceAudience(nextAudience: CommunicationAudienceRequest) {
     audienceRef.current = nextAudience;
@@ -323,7 +325,13 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   }
 
   async function deleteDraft(message: CommunicationMessage) {
-    if (!window.confirm("Delete this communication draft?")) return;
+    const shouldDelete = await confirm({
+      confirmLabel: "Delete draft",
+      description: "This will permanently remove the saved communication draft.",
+      destructive: true,
+      title: "Delete communication draft?",
+    });
+    if (!shouldDelete) return;
     setBusy(true);
     setError(null);
     try {
@@ -392,6 +400,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     busy,
     channel,
     contentMarkdown,
+    confirmationDialog,
     deleteDraft,
     draftMessages,
     enabled,

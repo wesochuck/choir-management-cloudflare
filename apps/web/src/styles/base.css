@@ -68,6 +68,15 @@
     color-scheme: inherit;
   }
 
+  /* Native option menus do not reliably inherit the themed select colors,
+   * especially when the select uses a custom appearance. Keep the popup rows
+   * readable in both themes anywhere the shared select control is used. */
+  select option {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    color-scheme: inherit;
+  }
+
   :where(input, textarea)::placeholder {
     color: var(--color-text-muted);
     opacity: 1;

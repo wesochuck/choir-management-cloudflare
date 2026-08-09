@@ -6,7 +6,7 @@ import type {
 import { lastNameSortKey } from "@choir/domain";
 import { useEffect, useState } from "react";
 
-import { DataTable } from "@choir/ui";
+import { DataTable, type DataTablePresentation } from "@choir/ui";
 
 import { useMusicFolderReportController } from "./controller";
 import {
@@ -129,12 +129,10 @@ function PerformancePicker({
 }
 
 function SummaryTable({
-  expandedProfileId,
+  controller,
   summaries,
-  onOpen,
 }: {
-  readonly expandedProfileId: string | null;
-  readonly onOpen: (profileId: string) => void;
+  readonly controller: ReturnType<typeof useMusicFolderReportController>;
   readonly summaries: readonly MusicFolderReportSummary[];
 }) {
   return (
@@ -186,35 +184,52 @@ function SummaryTable({
         {
           header: "Details",
           id: "actions",
-          render: (row) => (
-            <button
-              aria-controls="music-folder-report-detail-panel"
-              aria-expanded={expandedProfileId === row.profileId}
-              className="button button--small button--secondary"
-              onClick={() => {
-                onOpen(row.profileId);
-              }}
-              type="button"
-            >
-              Open
-            </button>
-          ),
+          render: (row, context) => {
+            const expanded = controller.expandedProfileId === row.profileId;
+            return (
+              <button
+                aria-controls={musicFolderDetailPanelId(row.profileId, context.presentation)}
+                aria-expanded={expanded}
+                aria-label={`${expanded ? "Collapse" : "Expand"} ${row.displayName}`}
+                className="music-folder-report__expand-button"
+                onClick={() => {
+                  controller.setExpandedProfileId(expanded ? null : row.profileId);
+                }}
+                type="button"
+              >
+                <span aria-hidden="true" className="music-folder-report__expand-chevron">
+                  ⌃
+                </span>
+              </button>
+            );
+          },
         },
       ]}
       emptyMessage="No Profiles match the current filters."
+      expandedRowId={controller.expandedProfileId}
       initialSort={{ columnId: "profile", direction: "asc" }}
       keySelector={(row) => row.profileId}
+      renderExpandedRow={(row, presentation) => (
+        <div id={musicFolderDetailPanelId(row.profileId, presentation)}>
+          <ExpandedDetail controller={controller} presentation={presentation} />
+        </div>
+      )}
       rows={summaries}
     />
   );
 }
 
+function musicFolderDetailPanelId(profileId: string, presentation: DataTablePresentation): string {
+  return `music-folder-report-detail-${profileId}-${presentation}`;
+}
+
 function DetailPanel({
   controller,
+  presentation,
 }: {
   readonly controller: ReturnType<typeof useMusicFolderReportController>;
+  readonly presentation: DataTablePresentation;
 }) {
-  const [clearCandidate, setClearCandidate] = useState<MusicFolderReportDetailRow | null>(null);
   const detail = controller.detail;
   if (!detail) return null;
   const currentDraft = (row: MusicFolderReportDetailRow): string =>
@@ -222,20 +237,29 @@ function DetailPanel({
   const requestClear = (row: MusicFolderReportDetailRow, value: string): void => {
     const current = currentDraft(row);
     if (current.trim().length > 0 && value.trim().length === 0) {
-      setClearCandidate(row);
+      void controller
+        .confirm({
+          confirmLabel: "Clear Folder Number",
+          description:
+            "This changes the row to Not Assigned and removes it from the return-rate denominator.",
+          destructive: true,
+          title: "Clear this Folder Number?",
+        })
+        .then((shouldClear) => {
+          if (shouldClear) controller.setDraft(row, "");
+        });
       return;
     }
     controller.setDraft(row, value);
   };
   return (
     <section
-      id="music-folder-report-detail-panel"
-      aria-labelledby="music-folder-report-detail-heading"
-      className="music-folder-report__detail"
+      aria-labelledby={`music-folder-report-detail-heading-${presentation}`}
+      className="music-folder-report__detail music-folder-report__detail--expanded"
     >
       <div className="reports-toolbar">
         <div>
-          <h3 id="music-folder-report-detail-heading">{detail.displayName}</h3>
+          <h3 id={`music-folder-report-detail-heading-${presentation}`}>{detail.displayName}</h3>
           <p>{profileStatusLabel(detail.globalStatus)} · selected Performance history</p>
         </div>
         {controller.hasUnsavedDrafts ? (
@@ -264,40 +288,6 @@ function DetailPanel({
         <p className="notice notice--error" role="alert">
           {controller.actionError}
         </p>
-      ) : null}
-      {clearCandidate ? (
-        <div
-          aria-labelledby="music-folder-clear-heading"
-          aria-modal="true"
-          className="music-folder-report__confirm"
-          role="alertdialog"
-        >
-          <strong id="music-folder-clear-heading">Clear this Folder Number?</strong>
-          <p>
-            This changes the row to Not Assigned and removes it from the return-rate denominator.
-          </p>
-          <div className="music-folder-report__confirm-actions">
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                setClearCandidate(null);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="button button--danger"
-              onClick={() => {
-                controller.setDraft(clearCandidate, "");
-                setClearCandidate(null);
-              }}
-              type="button"
-            >
-              Clear Folder Number
-            </button>
-          </div>
-        </div>
       ) : null}
       <DataTable
         columns={[
@@ -396,6 +386,30 @@ function DetailPanel({
       />
     </section>
   );
+}
+
+function ExpandedDetail({
+  controller,
+  presentation,
+}: {
+  readonly controller: ReturnType<typeof useMusicFolderReportController>;
+  readonly presentation: DataTablePresentation;
+}) {
+  if (controller.detailState === "loading" || !controller.detail) {
+    return (
+      <p className="empty-state" role="status">
+        Loading selected Performance details…
+      </p>
+    );
+  }
+  if (controller.detailState === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        The Profile details could not be loaded. Try again.
+      </p>
+    );
+  }
+  return <DetailPanel controller={controller} presentation={presentation} />;
 }
 
 export function MusicFolderReport({
@@ -519,30 +533,12 @@ export function MusicFolderReport({
                   </select>
                 </label>
               </div>
-              <SummaryTable
-                expandedProfileId={controller.expandedProfileId}
-                onOpen={(profileId) => {
-                  controller.setExpandedProfileId(
-                    controller.expandedProfileId === profileId ? null : profileId,
-                  );
-                }}
-                summaries={summaries}
-              />
-              {controller.detailState === "loading" ? (
-                <p className="empty-state" role="status">
-                  Loading selected Performance details…
-                </p>
-              ) : controller.detailState === "error" ? (
-                <p className="notice notice--error" role="alert">
-                  The Profile details could not be loaded. Try again.
-                </p>
-              ) : (
-                <DetailPanel controller={controller} />
-              )}
+              <SummaryTable controller={controller} summaries={summaries} />
             </>
           )}
         </>
       )}
+      {controller.confirmationDialog}
     </div>
   );
 }

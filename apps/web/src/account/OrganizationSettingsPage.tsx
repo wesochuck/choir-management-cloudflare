@@ -17,6 +17,7 @@ import type {
   TransactionFeeSettings,
 } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
+import { useConfirmation } from "@choir/ui";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
 
 const fallbackTimeZones = [
@@ -78,6 +79,7 @@ function OrganizationPaymentSettingsPanel() {
   const [busyModule, setBusyModule] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,12 +104,6 @@ function OrganizationPaymentSettingsPanel() {
   }, []);
 
   async function toggle(moduleId: (typeof paymentModules)[number]["id"], enabled: boolean) {
-    if (
-      enabled &&
-      !window.confirm("Enable this online payment type after reviewing the readiness checklist?")
-    ) {
-      return;
-    }
     setBusyModule(moduleId);
     setError(null);
     setSuccess(null);
@@ -126,6 +122,22 @@ function OrganizationPaymentSettingsPanel() {
     } finally {
       setBusyModule(null);
     }
+  }
+
+  async function requestToggle(
+    moduleId: (typeof paymentModules)[number]["id"],
+    enabled: boolean,
+  ): Promise<void> {
+    if (
+      enabled &&
+      !(await confirm({
+        description: "Review the readiness checklist before enabling online payment collection.",
+        title: "Enable online payments?",
+      }))
+    ) {
+      return;
+    }
+    await toggle(moduleId, enabled);
   }
 
   return (
@@ -183,7 +195,7 @@ function OrganizationPaymentSettingsPanel() {
                   checked={settings.activations[module.id]}
                   disabled={busyModule !== null}
                   onChange={(event) => {
-                    void toggle(module.id, event.target.checked);
+                    void requestToggle(module.id, event.target.checked);
                   }}
                   type="checkbox"
                 />
@@ -210,6 +222,7 @@ function OrganizationPaymentSettingsPanel() {
           </details>
         </>
       ) : null}
+      {confirmationDialog}
     </section>
   );
 }

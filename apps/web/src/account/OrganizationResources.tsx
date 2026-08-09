@@ -1,5 +1,5 @@
 import type { OrganizationResource, OrganizationResourceRequest } from "@choir/contracts";
-import { DataTable, Dialog } from "@choir/ui";
+import { DataTable, Dialog, useConfirmation } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -34,6 +34,7 @@ export function OrganizationResources({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   function resetForm(): void {
     setEditingResource(null);
@@ -127,7 +128,13 @@ export function OrganizationResources({
   }
 
   async function remove(resource: OrganizationResource) {
-    if (!window.confirm(`Delete “${resource.title}”?`)) return;
+    const shouldDelete = await confirm({
+      confirmLabel: "Delete resource",
+      description: `This will permanently remove “${resource.title}” from the Organization resources.`,
+      destructive: true,
+      title: "Delete resource?",
+    });
+    if (!shouldDelete) return;
     setBusy(true);
     setError(null);
     try {
@@ -339,6 +346,7 @@ export function OrganizationResources({
               </div>
             </form>
           </Dialog>
+          {confirmationDialog}
         </>
       ) : null}
     </section>

@@ -52,10 +52,86 @@ export interface WorkerHonoEnvironment {
   };
 }
 
+export const MAX_JSON_BODY_BYTES = 1_048_576;
+const JSON_BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+interface JsonRequestContext {
+  req: {
+    method: string;
+    header(name: string): string | undefined;
+    raw: Request;
+  };
+}
+
+function jsonContentType(contentType: string | undefined): boolean {
+  if (!contentType) return true;
+  const mediaType = contentType.split(";", 1)[0]?.trim().toLowerCase();
+  return mediaType === "application/json" || mediaType?.endsWith("+json") === true;
+}
+
+async function readBoundedBody(
+  body: ReadableStream<Uint8Array>,
+  maxBytes: number,
+): Promise<ArrayBuffer | null> {
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    let result = await reader.read();
+    while (!result.done) {
+      totalBytes += result.value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel("json_body_too_large");
+        return null;
+      }
+      chunks.push(result.value);
+      result = await reader.read();
+    }
+  } catch {
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
+
+  const buffer = new ArrayBuffer(totalBytes);
+  const bytes = new Uint8Array(buffer);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return buffer;
+}
+
+export async function boundJsonRequestBody(context: JsonRequestContext): Promise<boolean> {
+  const method = context.req.method.toUpperCase();
+  if (!JSON_BODY_METHODS.has(method)) return true;
+  if (!jsonContentType(context.req.header("content-type"))) return true;
+
+  const contentLengthHeader = context.req.header("content-length");
+  if (contentLengthHeader !== undefined) {
+    const contentLength = Number(contentLengthHeader);
+    if (!Number.isSafeInteger(contentLength) || contentLength < 0) return false;
+    if (contentLength > MAX_JSON_BODY_BYTES) return false;
+  }
+
+  const body = context.req.raw.body;
+  if (!body) return true;
+  const boundedBody = await readBoundedBody(body, MAX_JSON_BODY_BYTES);
+  if (!boundedBody) return false;
+  context.req.raw = new Request(context.req.raw, { body: boundedBody });
+  return true;
+}
+
+export async function readJsonValue(context: Context<WorkerHonoEnvironment>): Promise<unknown> {
+  const value: unknown = await context.req.json<unknown>().catch(() => null);
+  return value;
+}
+
 export async function readJsonObject(
   context: Context<WorkerHonoEnvironment>,
 ): Promise<Record<string, unknown> | null> {
-  const value: unknown = await context.req.json<unknown>().catch(() => null);
+  const value = await readJsonValue(context);
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   return Object.fromEntries(Object.entries(value));
 }

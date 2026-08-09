@@ -841,7 +841,31 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   expect(createChartRequest.postDataJSON()).toEqual(
     expect.objectContaining({ rowCounts: [4, 3, 3] }),
   );
-  await expect(page.getByLabel("Select seating chart")).toContainText("Full Canvas Chart");
+  const chartSelect = page.getByLabel("Select seating chart");
+  await expect(chartSelect).toContainText("Full Canvas Chart");
+  const darkThemeButton = page.getByRole("button", { name: "Switch to dark theme" });
+  if (await darkThemeButton.isVisible()) {
+    await darkThemeButton.click();
+  }
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const optionColors = await chartSelect
+    .locator("option")
+    .first()
+    .evaluate((option) => {
+      const styles = getComputedStyle(option);
+      return { backgroundColor: styles.backgroundColor, color: styles.color };
+    });
+  const themeColors = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.backgroundColor = "var(--color-surface)";
+    probe.style.color = "var(--color-text)";
+    document.body.append(probe);
+    const styles = getComputedStyle(probe);
+    const colors = { backgroundColor: styles.backgroundColor, color: styles.color };
+    probe.remove();
+    return colors;
+  });
+  expect(optionColors).toEqual(themeColors);
   if ((page.viewportSize()?.width ?? 1000) <= 700) {
     await page.getByRole("button", { name: "Edit anyway" }).click();
     const openNavigation = page.getByRole("button", { name: "Open workspace navigation" });
@@ -1523,21 +1547,15 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const profileDialog = page.getByRole("dialog", { name: "Add Profile" });
   await expect(profileDialog).toBeVisible();
   await profileDialog.getByLabel("Display name").fill("Changed profile");
-  const firstDiscardPrompt = page.waitForEvent("dialog");
-  const firstEscape = page.keyboard.press("Escape");
-  const firstPrompt = await firstDiscardPrompt;
-  expect(firstPrompt.message()).toBe(
-    "You have unsaved changes. Discard them and close this dialog?",
-  );
-  await firstPrompt.dismiss();
-  await firstEscape;
+  const discardDialog = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+  await page.keyboard.press("Escape");
+  await expect(discardDialog).toBeVisible();
+  await discardDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(profileDialog).toBeVisible();
 
-  const secondDiscardPrompt = page.waitForEvent("dialog");
-  const secondEscape = page.keyboard.press("Escape");
-  const secondPrompt = await secondDiscardPrompt;
-  await secondPrompt.accept();
-  await secondEscape;
+  await page.keyboard.press("Escape");
+  await expect(discardDialog).toBeVisible();
+  await discardDialog.getByRole("button", { name: "Discard changes" }).click();
   await expect(profileDialog).toHaveCount(0);
   await expect(rosterPage.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
     "href",
@@ -1721,7 +1739,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await openNavigation.click();
   const navigationDrawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(navigationDrawer).toBeVisible();
-  await navigationDrawer.getByRole("button", { name: "Pin navigation open" }).click();
+  const pinNavigation = navigationDrawer.getByRole("button", { name: "Pin navigation open" });
+  await expect(pinNavigation).toHaveClass(/sidebar-drawer__pin/);
+  await expect(pinNavigation).toHaveCSS("width", "36px");
+  await expect(pinNavigation.locator("svg")).toHaveCSS("overflow", "visible");
+  await pinNavigation.click();
   await expect(navigationDrawer).toHaveCount(0);
   await expect(collapseNavigation).toBeVisible();
   await page.reload();

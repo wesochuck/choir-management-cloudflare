@@ -322,7 +322,7 @@ export function RsvpManagerPage({
             ) : null}
           </div>
         </div>
-        <div className="rsvp-status-filters" role="tablist" aria-label="RSVP filters">
+        <div className="rsvp-status-filters" role="group" aria-label="RSVP filters">
           {(
             [
               ["active", `All active (${String(counts.active)})`],
@@ -332,13 +332,12 @@ export function RsvpManagerPage({
             ] as const
           ).map(([value, label]) => (
             <button
-              aria-selected={filter === value}
+              aria-pressed={filter === value}
               className={filter === value ? "is-active" : undefined}
               key={value}
               onClick={() => {
                 setFilter(value);
               }}
-              role="tab"
               type="button"
             >
               {label}

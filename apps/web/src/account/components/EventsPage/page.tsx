@@ -373,8 +373,10 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
           ] as const
         ).map(([value, label]) => (
           <button
+            aria-controls={`events-${value}-panel`}
             aria-selected={eventTab === value}
             className={eventTab === value ? "is-active" : undefined}
+            id={`events-${value}-tab`}
             key={value}
             onClick={() => {
               setEventTab(value);
@@ -386,83 +388,89 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
           </button>
         ))}
       </nav>
-      <div className="page-toolbar event-manager-toolbar">
-        <label className="checkbox-label event-manager-toolbar__past">
-          <input
-            checked={showPastEvents}
-            onChange={(change) => {
-              setShowPastEvents(change.target.checked);
-            }}
-            type="checkbox"
-          />
-          Show past events
-        </label>
-        <div className="page-toolbar__actions">
-          <button
-            className="button button--secondary"
-            disabled={
-              state.status !== "ready" ||
-              !state.events.some((candidate) => candidate.type === "Performance")
-            }
-            onClick={openBulkRehearsals}
-            type="button"
-          >
-            Bulk add rehearsals
-          </button>
-          <button className="button button--primary" onClick={openCreate} type="button">
-            Single event
-          </button>
+      <div
+        aria-labelledby={`events-${eventTab}-tab`}
+        id={`events-${eventTab}-panel`}
+        role="tabpanel"
+      >
+        <div className="page-toolbar event-manager-toolbar">
+          <label className="checkbox-label event-manager-toolbar__past">
+            <input
+              checked={showPastEvents}
+              onChange={(change) => {
+                setShowPastEvents(change.target.checked);
+              }}
+              type="checkbox"
+            />
+            Show past events
+          </label>
+          <div className="page-toolbar__actions">
+            <button
+              className="button button--secondary"
+              disabled={
+                state.status !== "ready" ||
+                !state.events.some((candidate) => candidate.type === "Performance")
+              }
+              onClick={openBulkRehearsals}
+              type="button"
+            >
+              Bulk add rehearsals
+            </button>
+            <button className="button button--primary" onClick={openCreate} type="button">
+              Single event
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="page-toolbar event-manager-search">
-        <label className="search-field">
-          <span className="sr-only">Search events</span>
-          <input
-            onChange={(change) => {
-              setQuery(change.target.value);
+        <div className="page-toolbar event-manager-search">
+          <label className="search-field">
+            <span className="sr-only">Search events</span>
+            <input
+              onChange={(change) => {
+                setQuery(change.target.value);
+              }}
+              placeholder="Search events"
+              type="search"
+              value={query}
+            />
+          </label>
+        </div>
+        {shouldShowPageError(error, dialogOpen, archiveCandidate, cancelCandidate) ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {success ? (
+          <p className="notice notice--success" role="status">
+            {success}
+          </p>
+        ) : null}
+        {state.status === "loading" ? <p role="status">Loading events…</p> : null}
+        {state.status === "error" ? (
+          <p className="notice notice--error" role="alert">
+            Events could not be loaded.
+          </p>
+        ) : null}
+        {readyState ? (
+          <EventList
+            events={readyState.events}
+            filteredEvents={filteredEvents}
+            onArchive={(candidate) => {
+              setError(null);
+              setSuccess(null);
+              setArchiveCandidate(candidate);
             }}
-            placeholder="Search events"
-            type="search"
-            value={query}
+            onCancel={(candidate) => {
+              setError(null);
+              setSuccess(null);
+              setCancelCandidate(candidate);
+            }}
+            onClone={openClone}
+            onEdit={openEdit}
+            timezone={readyState.timezone}
+            venues={readyState.venues}
           />
-        </label>
+        ) : null}
       </div>
-      {shouldShowPageError(error, dialogOpen, archiveCandidate, cancelCandidate) ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="notice notice--success" role="status">
-          {success}
-        </p>
-      ) : null}
-      {state.status === "loading" ? <p role="status">Loading events…</p> : null}
-      {state.status === "error" ? (
-        <p className="notice notice--error" role="alert">
-          Events could not be loaded.
-        </p>
-      ) : null}
-      {readyState ? (
-        <EventList
-          events={readyState.events}
-          filteredEvents={filteredEvents}
-          onArchive={(candidate) => {
-            setError(null);
-            setSuccess(null);
-            setArchiveCandidate(candidate);
-          }}
-          onCancel={(candidate) => {
-            setError(null);
-            setSuccess(null);
-            setCancelCandidate(candidate);
-          }}
-          onClone={openClone}
-          onEdit={openEdit}
-          timezone={readyState.timezone}
-          venues={readyState.venues}
-        />
-      ) : null}
       <EventEditorDialog
         busy={busy}
         dialogOpen={dialogOpen}

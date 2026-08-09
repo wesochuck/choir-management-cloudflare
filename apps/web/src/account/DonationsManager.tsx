@@ -8,7 +8,7 @@ import {
   type PatronRecord,
 } from "@choir/contracts";
 import { datePartInTimeZone } from "@choir/domain";
-import { Dialog } from "@choir/ui";
+import { Dialog, useConfirmation } from "@choir/ui";
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 
 import {
@@ -104,6 +104,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   const [portalButtonText, setPortalButtonText] = useState("");
   const [portalDescription, setPortalDescription] = useState("");
   const [timezone, setTimezone] = useState("UTC");
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -200,7 +201,16 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
 
   async function deleteLevel(levelId: string): Promise<void> {
     if (settingsState.status !== "ready") return;
-    if (!window.confirm("Delete this donation level?")) return;
+    if (
+      !(await confirm({
+        confirmLabel: "Delete level",
+        description: "This donor level will be permanently removed from the public donation page.",
+        destructive: true,
+        title: "Delete donation level?",
+      }))
+    ) {
+      return;
+    }
     await saveSettings({
       ...settingsState.settings,
       levels: settingsState.settings.levels.filter((level) => level.id !== levelId),
@@ -276,8 +286,10 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       </header>
       <nav aria-label="Donation sections" className="ticketing-tabs" role="tablist">
         <button
+          aria-controls="donation-history-panel"
           aria-selected={tab === "history"}
           className={tab === "history" ? "is-active" : undefined}
+          id="donation-history-tab"
           onClick={() => {
             setTab("history");
           }}
@@ -287,8 +299,10 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           Donation History
         </button>
         <button
+          aria-controls="donation-levels-panel"
           aria-selected={tab === "levels"}
           className={tab === "levels" ? "is-active" : undefined}
+          id="donation-levels-tab"
           onClick={() => {
             setTab("levels");
           }}
@@ -298,8 +312,10 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           Donor levels
         </button>
         <button
+          aria-controls="donation-portal-panel"
           aria-selected={tab === "portal"}
           className={tab === "portal" ? "is-active" : undefined}
+          id="donation-portal-tab"
           onClick={() => {
             setTab("portal");
           }}
@@ -309,8 +325,10 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           Public portal
         </button>
         <button
+          aria-controls="donation-page-settings-panel"
           aria-selected={tab === "pageSettings"}
           className={tab === "pageSettings" ? "is-active" : undefined}
+          id="donation-page-settings-tab"
           onClick={() => {
             setTab("pageSettings");
           }}
@@ -320,37 +338,43 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           Page settings
         </button>
       </nav>
-      {tab === "history" ? (
-        <DonationHistoryTab
-          busy={busy}
-          donationState={donationState}
-          patronState={patronState}
-          refund={refund}
-          refundId={refundId}
-          setRefundId={setRefundId}
-          timezone={timezone}
-        />
-      ) : tab === "levels" ? (
-        <DonationLevelsTab
-          busy={busy}
-          deleteLevel={deleteLevel}
-          editLevel={openEditLevel}
-          newLevel={openNewLevel}
-          settingsState={settingsState}
-        />
-      ) : tab === "portal" ? (
-        <DonationPortalTab settingsState={settingsState} />
-      ) : (
-        <DonationPageSettingsTab
-          busy={busy}
-          savePortalSettings={savePortalSettings}
-          settingsState={settingsState}
-          portalButtonText={portalButtonText}
-          portalDescription={portalDescription}
-          setPortalButtonText={setPortalButtonText}
-          setPortalDescription={setPortalDescription}
-        />
-      )}
+      <div
+        aria-labelledby={`donation-${tab === "pageSettings" ? "page-settings" : tab}-tab`}
+        id={`donation-${tab === "pageSettings" ? "page-settings" : tab}-panel`}
+        role="tabpanel"
+      >
+        {tab === "history" ? (
+          <DonationHistoryTab
+            busy={busy}
+            donationState={donationState}
+            patronState={patronState}
+            refund={refund}
+            refundId={refundId}
+            setRefundId={setRefundId}
+            timezone={timezone}
+          />
+        ) : tab === "levels" ? (
+          <DonationLevelsTab
+            busy={busy}
+            deleteLevel={deleteLevel}
+            editLevel={openEditLevel}
+            newLevel={openNewLevel}
+            settingsState={settingsState}
+          />
+        ) : tab === "portal" ? (
+          <DonationPortalTab settingsState={settingsState} />
+        ) : (
+          <DonationPageSettingsTab
+            busy={busy}
+            savePortalSettings={savePortalSettings}
+            settingsState={settingsState}
+            portalButtonText={portalButtonText}
+            portalDescription={portalDescription}
+            setPortalButtonText={setPortalButtonText}
+            setPortalDescription={setPortalDescription}
+          />
+        )}
+      </div>
       <Dialog
         description="Set the recognition label, suggested amount, and benefit shown to donors."
         onClose={() => {
@@ -412,6 +436,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           </div>
         </form>
       </Dialog>
+      {confirmationDialog}
     </section>
   );
 }

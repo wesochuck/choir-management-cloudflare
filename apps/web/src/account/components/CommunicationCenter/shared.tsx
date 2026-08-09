@@ -4,6 +4,7 @@ import type {
   CommunicationTemplate,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { useConfirmation } from "@choir/ui";
 import { useEffect, useState } from "react";
 import {
   deleteOrganizationCommunicationTemplate,
@@ -114,6 +115,7 @@ export function CommunicationTemplatePicker({
   const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -144,10 +146,16 @@ export function CommunicationTemplatePicker({
     if (!template) return;
     const replacingExistingDraft =
       selectedTemplateIsAvailable || Boolean(contentMarkdown.trim() || subject.trim());
-    if (
-      replacingExistingDraft &&
-      !window.confirm("Switching templates will replace your current in-progress draft. Continue?")
-    ) {
+    if (replacingExistingDraft) {
+      void confirm({
+        confirmLabel: "Replace draft",
+        description: "Your current message draft will be replaced by the selected template.",
+        title: "Replace current draft?",
+      }).then((shouldApply) => {
+        if (!shouldApply) return;
+        onApply(template);
+        setSelectedTemplateId(template.id);
+      });
       return;
     }
     onApply(template);
@@ -187,6 +195,7 @@ export function CommunicationTemplatePicker({
       {!error && visibleTemplates.length === 0 ? (
         <p className="field-help">No templates match this channel and audience yet.</p>
       ) : null}
+      {confirmationDialog}
     </div>
   );
 }
@@ -212,6 +221,7 @@ export function TemplateLibrary({
   const [editingContent, setEditingContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -251,7 +261,13 @@ export function TemplateLibrary({
   }
 
   async function remove(template: CommunicationTemplate) {
-    if (!window.confirm(`Delete template “${template.title}”?`)) return;
+    const shouldDelete = await confirm({
+      confirmLabel: "Delete template",
+      description: `This will permanently remove the “${template.title}” template.`,
+      destructive: true,
+      title: "Delete template?",
+    });
+    if (!shouldDelete) return;
     setBusy(true);
     setError(null);
     try {
@@ -437,6 +453,7 @@ export function TemplateLibrary({
       >
         Save template
       </button>
+      {confirmationDialog}
     </div>
   );
 }

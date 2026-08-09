@@ -1,4 +1,5 @@
 import type { DuesRecord, OrganizationProfileFolderNumber, Season } from "@choir/contracts";
+import { useConfirmation } from "@choir/ui";
 import { useState } from "react";
 import {
   AuthApiError,
@@ -152,10 +153,18 @@ export function ProfileDues({
   const [cashPaymentSeasonId, setCashPaymentSeasonId] = useState<string | null>(null);
   const [cashPaymentError, setCashPaymentError] = useState<string | null>(null);
   const [cashPaymentSuccess, setCashPaymentSuccess] = useState<string | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   async function markCashPayment(season: Season, record: DuesRecord | undefined): Promise<void> {
     if (record?.status === "paid" || record?.status === "refunded") return;
-    if (!window.confirm(`Mark ${season.name} dues as paid in cash?`)) return;
+    if (
+      !(await confirm({
+        description: `This will record ${season.name} dues as paid without a checkout payment.`,
+        title: "Mark dues paid in cash?",
+      }))
+    ) {
+      return;
+    }
     setCashPaymentSeasonId(season.id);
     setCashPaymentError(null);
     setCashPaymentSuccess(null);
@@ -252,6 +261,7 @@ export function ProfileDues({
           );
         })}
       </div>
+      {confirmationDialog}
     </div>
   );
 }

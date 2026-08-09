@@ -420,20 +420,24 @@ export function AuthenticatedShell({
         restoreFocusRef={mobileNavTriggerRef}
         title="Workspace navigation"
       >
-        <div className="sheet__header">
-          <span className="eyebrow">Workspace</span>
-          <strong>{workspaceLabel(selectedWorkspace)}</strong>
+        <div className="sheet__header sidebar-drawer__header">
+          <div className="sidebar-drawer__context">
+            <span className="eyebrow">Workspace</span>
+            <strong>{workspaceLabel(selectedWorkspace)}</strong>
+          </div>
           {!sidebarPinned ? (
             <button
+              aria-label="Pin navigation open"
               aria-pressed="false"
               className="sidebar-drawer__pin"
               onClick={pinWorkspaceNavigation}
+              title="Pin navigation open"
               type="button"
             >
               <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
                 <path d="m8 4 8 8m-8-8v5l-3 3h14l-3-3V4M12 12v8" />
               </svg>
-              <span>Pin navigation open</span>
+              <span className="sr-only">Pin navigation open</span>
             </button>
           ) : null}
         </div>

@@ -230,6 +230,12 @@ test("preserves all selected audiences when reach preview follows quick selectio
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
   await page.goto("/admin/communications");
+  const composeTab = page.getByRole("tab", { exact: true, name: "Compose" });
+  await expect(composeTab).toHaveAttribute("aria-controls", "communication-compose-panel");
+  await expect(page.locator("#communication-compose-panel")).toHaveAttribute(
+    "aria-labelledby",
+    "communication-compose-tab",
+  );
   const audience = page.getByRole("group", { name: "Audience" });
   const ticketBuyers = audience.getByRole("checkbox", { name: "Ticket Buyers" });
   const donors = audience.getByRole("checkbox", { name: "Donors" });
@@ -276,20 +282,17 @@ test("uses an optional template picker and confirms before replacing a draft", a
   await expect(templatePicker).toHaveValue(firstTemplateId);
   await expect(page.getByLabel("Subject")).toHaveValue("First template");
 
-  let warningMessage = "";
-  page.once("dialog", async (dialog) => {
-    warningMessage = dialog.message();
-    await dialog.dismiss();
-  });
   await templatePicker.selectOption(secondTemplateId);
-  expect(warningMessage).toContain("replace your current in-progress draft");
+  const replaceDialog = page.getByRole("dialog", { name: "Replace current draft?" });
+  await expect(replaceDialog).toBeVisible();
+  await expect(replaceDialog).toContainText("current message draft will be replaced");
+  await replaceDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(templatePicker).toHaveValue(firstTemplateId);
   await expect(page.getByLabel("Subject")).toHaveValue("First template");
 
-  page.once("dialog", async (dialog) => {
-    await dialog.accept();
-  });
   await templatePicker.selectOption(secondTemplateId);
+  await expect(replaceDialog).toBeVisible();
+  await replaceDialog.getByRole("button", { name: "Replace draft" }).click();
   await expect(templatePicker).toHaveValue(secondTemplateId);
   await expect(page.getByLabel("Subject")).toHaveValue("Second template");
 });

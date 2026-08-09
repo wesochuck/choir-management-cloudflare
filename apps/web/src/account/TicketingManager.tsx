@@ -499,8 +499,10 @@ export function TicketingManager({
           ] as const
         ).map(([value, label]) => (
           <button
+            aria-controls={`ticketing-${value}-panel`}
             aria-selected={activeTab === value}
             className={activeTab === value ? "is-active" : undefined}
+            id={`ticketing-${value}-tab`}
             key={value}
             onClick={() => {
               selectTicketingTab(value);
@@ -513,7 +515,12 @@ export function TicketingManager({
         ))}
       </nav>
       {activeTab === "share" ? (
-        <div className="ticketing-tab-panel">
+        <div
+          aria-labelledby="ticketing-share-tab"
+          className="ticketing-tab-panel"
+          id="ticketing-share-panel"
+          role="tabpanel"
+        >
           <div>
             <p className="eyebrow">Share & QR codes</p>
             <h3>Public ticketing links</h3>
@@ -549,10 +556,13 @@ export function TicketingManager({
       {activeTab === "confirmation" ? (
         confirmationLoaded ? (
           <form
+            aria-labelledby="ticketing-confirmation-tab"
             className="ticket-confirmation-settings"
+            id="ticketing-confirmation-panel"
             onSubmit={(event) => {
               void saveConfirmationSettings(event);
             }}
+            role="tabpanel"
           >
             <div>
               <p className="eyebrow">Confirmation page</p>
@@ -624,9 +634,15 @@ export function TicketingManager({
             </div>
           </form>
         ) : (
-          <p className="notice notice--error" role="alert">
-            {confirmationLoadError ?? "Loading ticket confirmation wording…"}
-          </p>
+          <div
+            aria-labelledby="ticketing-confirmation-tab"
+            id="ticketing-confirmation-panel"
+            role="tabpanel"
+          >
+            <p className="notice notice--error" role="alert">
+              {confirmationLoadError ?? "Loading ticket confirmation wording…"}
+            </p>
+          </div>
         )
       ) : null}
       {message ? (
@@ -635,7 +651,12 @@ export function TicketingManager({
         </p>
       ) : null}
       {activeTab === "discounts" ? (
-        <div className="ticketing-tab-panel">
+        <div
+          aria-labelledby="ticketing-discounts-tab"
+          className="ticketing-tab-panel"
+          id="ticketing-discounts-panel"
+          role="tabpanel"
+        >
           <div className="ticketing-page-header">
             <div>
               <p className="eyebrow">Discount codes</p>
@@ -924,7 +945,12 @@ export function TicketingManager({
       ) : null}
       {activeTab === "willcall" ? (
         <>
-          <div className="ticket-dashboard">
+          <div
+            aria-labelledby="ticketing-willcall-tab"
+            className="ticket-dashboard"
+            id="ticketing-willcall-panel"
+            role="tabpanel"
+          >
             <div className="ticket-dashboard__intro">
               <div>
                 <h3>Performance summary</h3>
@@ -1108,7 +1134,12 @@ export function TicketingManager({
         </>
       ) : null}
       {activeTab === "bundles" ? (
-        <div className="split-panel">
+        <div
+          aria-labelledby="ticketing-bundles-tab"
+          className="split-panel"
+          id="ticketing-bundles-panel"
+          role="tabpanel"
+        >
           <div>
             <h3>Ticket bundles</h3>
             <p>Create a bundle, pass, or ticket tier for one or more performances.</p>
@@ -1260,7 +1291,12 @@ export function TicketingManager({
         </div>
       ) : null}
       {activeTab === "orders" ? (
-        <div className="ticketing-tab-panel">
+        <div
+          aria-labelledby="ticketing-orders-tab"
+          className="ticketing-tab-panel"
+          id="ticketing-orders-panel"
+          role="tabpanel"
+        >
           <div>
             <p className="eyebrow">Bundle orders</p>
             <h3>Season bundle orders</h3>

@@ -770,8 +770,48 @@ The higher price charged for a ticket purchased online on the day of the perform
 
 ## Discount Code
 
-A code entered by a buyer at checkout to apply a percentage or fixed discount to their ticket
-purchase, leveraging Stripe's native Checkout Promotion Codes.
+A buyer-entered code that applies either a whole-percentage discount from 1% through 100% or a fixed
+per-unit currency discount to exactly one Performance's tickets or one Ticket Bundle. A fixed
+discount applies to each ticket or purchased Bundle, never to each admission within a Bundle; a
+Performance code applies to the active advance or day-of price. _Avoid_: Site-wide discount,
+multi-item code, stacked discount
+
+## Discount Code Availability
+
+The redeemability of a Discount Code while its linked sellable item is available, including a code
+prepared before sales open. Deactivation blocks new checkouts but preserves the quoted terms of an
+already pending checkout; codes are case-insensitive, ignore surrounding whitespace, and are unique
+in normalized form within an Organization. _Avoid_: Independent discount sale window
+
+## Discount Code Redemption
+
+One confirmed checkout's use of a Discount Code, regardless of the number of ticket or Bundle units
+purchased. A code may have an optional Organization-wide total limit; a limited redemption is
+reserved during pending checkout, confirmed on paid or complimentary completion, released when
+checkout fails or expires, and not restored by a refund. _Avoid_: Per-person anonymous-code limit,
+per-ticket redemption count
+
+## Discounted Ticket Order
+
+A Ticket Order with one Discount Code applied; it preserves immutable code and pricing details,
+including the original subtotal, discount, discounted subtotal, fee, and final total. Fees are based
+on the discounted subtotal, every unit floors at $0, and a $0 order is a capacity-consuming
+Complimentary Ticket Order with no processing fee. _Avoid_: Credit, negative ticket price
+
+## Discount Code Management
+
+The Organization Owner and Organization Administrator capability to create, edit, deactivate, and
+report on Discount Codes, with every change in Organization Audit History. A code is editable until
+its first confirmed redemption and then may only be deactivated; management reports redemption count
+and discounted revenue, while door-facing will-call lists omit discount details. _Avoid_: Buyer code
+administration
+
+## Discount Code Checkout
+
+The ticket or Bundle checkout affordance that shows a code field only when the linked sellable item
+has a currently redeemable code, without exposing code values or redemption data. At most one code
+applies per checkout; all rejected codes present the same buyer-facing message, and confirmations
+and receipts itemize the code, original subtotal, discount, fee, and final total.
 
 ## System Configuration
 

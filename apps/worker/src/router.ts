@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { requestId } from "hono/request-id";
 import type { ProblemDetails } from "@choir/contracts";
 import type { WorkerHonoEnvironment } from "./routes/helpers";
+import { boundJsonRequestBody, MAX_JSON_BODY_BYTES } from "./routes/helpers";
 import { registerRoutes as registerPublicRoutes } from "./routes/public";
 import { registerRoutes as registerPlatformSetupRoutes } from "./routes/platformSetup";
 import { registerRoutes as registerPublicCommerceRoutes } from "./routes/publicCommerce";
@@ -65,6 +66,9 @@ import { registerRoutes as registerPaymentsRoutes } from "./routes/payments";
 import { registerRoutes as registerMemberEmailChangeRoutes } from "./routes/memberEmailChange";
 
 export const router = new Hono<WorkerHonoEnvironment>();
+
+export const CONTENT_SECURITY_POLICY =
+  "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'";
 
 router.use("*", requestId());
 router.use("*", async (context, next) => {
@@ -135,6 +139,7 @@ router.use("*", async (context, next) => {
   );
   context.header("x-content-type-options", "nosniff");
   context.header("x-frame-options", "DENY");
+  context.header("content-security-policy", CONTENT_SECURITY_POLICY);
   context.res.headers.set(
     "access-control-allow-origin",
     context.env.PRODUCT_BASE_DOMAIN === "localhost"
@@ -145,6 +150,19 @@ router.use("*", async (context, next) => {
   context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
   context.res.headers.set("access-control-allow-credentials", "true");
   context.res.headers.set("access-control-max-age", "86400");
+});
+router.use("*", async (context, next) => {
+  if (!(await boundJsonRequestBody(context))) {
+    return context.json(
+      {
+        code: "request_body_too_large",
+        message: `JSON request bodies must be ${String(MAX_JSON_BODY_BYTES)} bytes or smaller.`,
+        requestId: context.get("requestId"),
+      } satisfies ProblemDetails,
+      413,
+    );
+  }
+  await next();
 });
 
 registerPublicRoutes(router);

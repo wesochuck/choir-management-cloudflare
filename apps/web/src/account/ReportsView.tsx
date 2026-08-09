@@ -1,26 +1,34 @@
 import {
-  donationRecordsResponseSchema,
   type DonationRecord,
   type OrganizationAttendanceRow,
   type OrganizationEvent,
   type OrganizationMusicPiece,
   type OrganizationProfile,
+  type OrganizationTicketOrder,
 } from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
 
-import { DataTable } from "@choir/ui";
+import { DataTable, useConfirmation } from "@choir/ui";
 
 import {
   getOrganizationRosterConfiguration,
+  listOrganizationDonations,
   listOrganizationEventAttendance,
   listOrganizationEvents,
   listOrganizationMusic,
   listOrganizationProfiles,
+  listOrganizationTicketOrders,
 } from "../auth/api";
 import { MusicFolderReport } from "./components/MusicFolderReport/view";
 
-type ReportTab = "attendance" | "rsvp" | "repertoire" | "roster" | "donations" | "music-folders";
+type ReportTab =
+  "attendance" | "rsvp" | "repertoire" | "roster" | "donations-tickets" | "music-folders";
 type LoadState = "loading" | "ready" | "error";
+type CommerceFilter = "all" | "donations" | "tickets";
+
+type CommerceRow =
+  | { readonly kind: "donation"; readonly record: DonationRecord }
+  | { readonly kind: "ticket"; readonly record: OrganizationTicketOrder };
 
 interface SingerAttendance {
   readonly absences: number;
@@ -36,7 +44,7 @@ const TAB_LABELS: readonly { id: ReportTab; label: string }[] = [
   { id: "rsvp", label: "RSVP" },
   { id: "repertoire", label: "Repertoire" },
   { id: "roster", label: "Roster" },
-  { id: "donations", label: "Donations" },
+  { id: "donations-tickets", label: "Donations & Ticket Sales" },
   { id: "music-folders", label: "Music Folder Report" },
 ];
 
@@ -650,36 +658,115 @@ function RosterReport({
   );
 }
 
-function DonationsReport({
+function commerceRowDate(row: CommerceRow): string {
+  return row.record.createdAt;
+}
+
+function commerceRowAmount(row: CommerceRow): number {
+  return row.kind === "donation" ? row.record.amountCents : row.record.amountPaidCents;
+}
+
+function commerceRowDetails(row: CommerceRow): string {
+  return row.kind === "donation"
+    ? row.record.tributeName || "—"
+    : `${row.record.eventTitle}${row.record.bundleTitle ? ` · ${row.record.bundleTitle}` : ""}`;
+}
+
+function commerceRowEmail(row: CommerceRow): string {
+  return row.kind === "donation" && row.record.anonymous ? "" : row.record.buyerEmail;
+}
+
+function commerceRowFee(row: CommerceRow): number {
+  return row.record.feeCents;
+}
+
+function commerceRowName(row: CommerceRow): string {
+  return row.kind === "donation" && row.record.anonymous ? "Anonymous" : row.record.buyerName;
+}
+
+function commerceRowQuantity(row: CommerceRow): number | null {
+  return row.kind === "ticket" ? row.record.quantity : null;
+}
+
+function commerceRowType(row: CommerceRow): string {
+  return row.kind === "donation" ? "Donation" : "Ticket sale";
+}
+
+function commerceRows(
+  donations: readonly DonationRecord[],
+  ticketOrders: readonly OrganizationTicketOrder[],
+  filter: CommerceFilter,
+): readonly CommerceRow[] {
+  const rows: CommerceRow[] = [];
+  if (filter !== "tickets") {
+    rows.push(...donations.map((record) => ({ kind: "donation" as const, record })));
+  }
+  if (filter !== "donations") {
+    rows.push(...ticketOrders.map((record) => ({ kind: "ticket" as const, record })));
+  }
+  return rows.toSorted((left, right) =>
+    commerceRowDate(right).localeCompare(commerceRowDate(left)),
+  );
+}
+
+function CommerceReport({
   donations,
   state,
+  ticketOrders,
 }: {
   readonly donations: readonly DonationRecord[];
   readonly state: LoadState;
+  readonly ticketOrders: readonly OrganizationTicketOrder[];
 }) {
-  const total = donations.reduce((sum, donation) => sum + donation.amountCents, 0);
-  const fees = donations.reduce((sum, donation) => sum + donation.feeCents, 0);
+  const [filter, setFilter] = useState<CommerceFilter>("all");
+  const rows = useMemo(
+    () => commerceRows(donations, ticketOrders, filter),
+    [donations, filter, ticketOrders],
+  );
+  const visibleDonations = filter === "tickets" ? [] : donations;
+  const visibleTicketOrders = filter === "donations" ? [] : ticketOrders;
+  const total = rows.reduce((sum, row) => sum + commerceRowAmount(row), 0);
+  const fees = rows.reduce((sum, row) => sum + commerceRowFee(row), 0);
+  const ticketsSold = visibleTicketOrders.reduce((sum, order) => sum + order.quantity, 0);
+  const emptyMessage =
+    filter === "donations"
+      ? "No donations have been recorded."
+      : filter === "tickets"
+        ? "No ticket sales have been recorded."
+        : "No donations or ticket sales have been recorded.";
   return (
     <>
       <div className="reports-toolbar">
         <div>
-          <h2>Donation report</h2>
-          <p>Review donation history, processing fees, and tribute details.</p>
+          <h2>Donations &amp; Ticket Sales report</h2>
+          <p>Review donations, ticket sales, processing fees, and related details.</p>
         </div>
         <button
           className="button button--secondary"
-          disabled={!donations.length}
+          disabled={!rows.length || state !== "ready"}
           onClick={() => {
-            downloadCsv("donation-report.csv", [
-              ["Donor", "Email", "Amount", "Processing fee", "Status", "Date", "Tribute"],
-              ...donations.map((donation) => [
-                donation.anonymous ? "Anonymous" : donation.buyerName,
-                donation.anonymous ? "" : donation.buyerEmail,
-                money(donation.amountCents),
-                money(donation.feeCents),
-                donation.status,
-                donation.createdAt,
-                donation.tributeName || "",
+            downloadCsv("donations-and-ticket-sales-report.csv", [
+              [
+                "Type",
+                "Donor / buyer",
+                "Email",
+                "Event / tribute",
+                "Quantity",
+                "Amount",
+                "Processing fee",
+                "Status",
+                "Date",
+              ],
+              ...rows.map((row) => [
+                commerceRowType(row),
+                commerceRowName(row),
+                commerceRowEmail(row),
+                commerceRowDetails(row),
+                commerceRowQuantity(row) ?? "",
+                money(commerceRowAmount(row)),
+                money(commerceRowFee(row)),
+                row.record.status,
+                commerceRowDate(row),
               ]),
             ]);
           }}
@@ -688,16 +775,52 @@ function DonationsReport({
           Export CSV
         </button>
       </div>
+      <div aria-label="Commerce report source" className="reports-source-filter" role="group">
+        <span className="field-label">Show</span>
+        <div className="reports-source-filter__buttons">
+          {(
+            [
+              ["all", "Both"],
+              ["donations", "Donations"],
+              ["tickets", "Ticket sales"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              aria-pressed={filter === value}
+              className={filter === value ? "is-active" : undefined}
+              key={value}
+              onClick={() => {
+                setFilter(value);
+              }}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       {state !== "ready" ? (
         <Status state={state} />
-      ) : donations.length === 0 ? (
-        <Status state="ready" empty="No donations have been recorded." />
+      ) : rows.length === 0 ? (
+        <Status state="ready" empty={emptyMessage} />
       ) : (
         <>
-          <div className="reports-kpi-grid reports-kpi-grid--compact">
+          <div className="reports-kpi-grid reports-kpi-grid--commerce">
             <div className="reports-kpi">
-              <strong>{donations.length}</strong>
+              <strong>{rows.length}</strong>
+              <span>Transactions</span>
+            </div>
+            <div className="reports-kpi">
+              <strong>{visibleDonations.length}</strong>
               <span>Donations</span>
+            </div>
+            <div className="reports-kpi">
+              <strong>{visibleTicketOrders.length}</strong>
+              <span>Ticket orders</span>
+            </div>
+            <div className="reports-kpi">
+              <strong>{ticketsSold}</strong>
+              <span>Tickets sold</span>
             </div>
             <div className="reports-kpi">
               <strong>{money(total)}</strong>
@@ -711,51 +834,63 @@ function DonationsReport({
           <DataTable
             columns={[
               {
-                header: "Donor",
-                id: "donor",
-                render: (donation) => (
+                header: "Type",
+                id: "type",
+                render: (row) => commerceRowType(row),
+                sortValue: (row) => commerceRowType(row),
+              },
+              {
+                header: "Donor / buyer",
+                id: "person",
+                render: (row) => (
                   <>
-                    <strong>{donation.anonymous ? "Anonymous" : donation.buyerName}</strong>
+                    <strong>{commerceRowName(row)}</strong>
                     <br />
-                    <small>{donation.anonymous ? "" : donation.buyerEmail}</small>
+                    <small>{commerceRowEmail(row)}</small>
                   </>
                 ),
-                sortValue: (donation) => (donation.anonymous ? "Anonymous" : donation.buyerName),
+                sortValue: (row) => commerceRowName(row),
+              },
+              {
+                header: "Event / tribute",
+                id: "details",
+                render: (row) => commerceRowDetails(row),
+                sortValue: (row) => commerceRowDetails(row),
+              },
+              {
+                header: "Quantity",
+                id: "quantity",
+                render: (row) => commerceRowQuantity(row) ?? "—",
+                sortValue: (row) => commerceRowQuantity(row) ?? 0,
               },
               {
                 header: "Amount",
                 id: "amount",
-                render: (donation) => money(donation.amountCents),
-                sortValue: (donation) => donation.amountCents,
+                render: (row) => money(commerceRowAmount(row)),
+                sortValue: (row) => commerceRowAmount(row),
               },
               {
                 header: "Fee",
                 id: "fee",
-                render: (donation) => (donation.feeCents ? money(donation.feeCents) : "Covered"),
-                sortValue: (donation) => donation.feeCents,
+                render: (row) => (commerceRowFee(row) ? money(commerceRowFee(row)) : "Covered"),
+                sortValue: (row) => commerceRowFee(row),
               },
               {
                 header: "Status",
                 id: "status",
-                render: (donation) => donation.status,
-                sortValue: (donation) => donation.status,
+                render: (row) => row.record.status,
+                sortValue: (row) => row.record.status,
               },
               {
                 header: "Date",
                 id: "date",
-                render: (donation) => formatDate(donation.createdAt, true),
-                sortValue: (donation) => donation.createdAt,
-              },
-              {
-                header: "Tribute",
-                id: "tribute",
-                render: (donation) => donation.tributeName || "—",
-                sortValue: (donation) => donation.tributeName,
+                render: (row) => formatDate(commerceRowDate(row), true),
+                sortValue: (row) => commerceRowDate(row),
               },
             ]}
             initialSort={{ columnId: "date", direction: "desc" }}
-            keySelector={(donation) => donation.id}
-            rows={donations}
+            keySelector={(row) => `${row.kind}-${row.record.id}`}
+            rows={rows}
           />
         </>
       )}
@@ -772,8 +907,10 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   const [performerLabel, setPerformerLabel] = useState("Performer");
   const [selectedPerformanceId, setSelectedPerformanceId] = useState("");
   const [donations, setDonations] = useState<readonly DonationRecord[]>([]);
-  const [donationState, setDonationState] = useState<LoadState>("ready");
+  const [ticketOrders, setTicketOrders] = useState<readonly OrganizationTicketOrder[]>([]);
+  const [commerceState, setCommerceState] = useState<LoadState>("ready");
   const [musicFolderUnsaved, setMusicFolderUnsaved] = useState(false);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -807,22 +944,23 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled || tab !== "donations") return;
+    if (!enabled || tab !== "donations-tickets") return;
     const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDonationState("loading");
-    fetch("/api/organization/donations", { credentials: "same-origin", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("donations_request_failed");
-        const parsed = donationRecordsResponseSchema.parse(await response.json());
-        if (!controller.signal.aborted) {
-          setDonations(parsed.donations);
-          setDonationState("ready");
-        }
+    setCommerceState("loading");
+    Promise.all([
+      listOrganizationDonations(controller.signal),
+      listOrganizationTicketOrders(controller.signal),
+    ])
+      .then(([nextDonations, nextTicketOrders]) => {
+        if (controller.signal.aborted) return;
+        setDonations(nextDonations);
+        setTicketOrders(nextTicketOrders);
+        setCommerceState("ready");
       })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError"))
-          setDonationState("error");
+          setCommerceState("error");
       });
     return () => {
       controller.abort();
@@ -834,6 +972,20 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   if (state === "loading") return <p className="empty-state">Loading reports…</p>;
   if (state === "error")
     return <p className="notice notice--error">Reports could not be loaded. Try again.</p>;
+  function selectReportTab(nextTab: ReportTab): void {
+    if (tab === "music-folders" && musicFolderUnsaved) {
+      void confirm({
+        confirmLabel: "Change report",
+        description: "Your unsaved Folder Number changes will be discarded.",
+        destructive: true,
+        title: "Discard Folder Number changes?",
+      }).then((shouldChange) => {
+        if (shouldChange) setTab(nextTab);
+      });
+      return;
+    }
+    setTab(nextTab);
+  }
   return (
     <section className="reports-view" aria-label="Reports and insights">
       <div className="reports-intro">
@@ -846,20 +998,13 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
       <nav className="ticketing-tabs reports-tabs" aria-label="Report types" role="tablist">
         {TAB_LABELS.map((item) => (
           <button
+            aria-controls={`report-${item.id}-panel`}
             aria-selected={tab === item.id}
             className={tab === item.id ? "is-active" : undefined}
+            id={`report-${item.id}-tab`}
             key={item.id}
             onClick={() => {
-              if (
-                tab === "music-folders" &&
-                musicFolderUnsaved &&
-                !window.confirm(
-                  "You have unsaved Folder Number changes. Discard them and change report tabs?",
-                )
-              ) {
-                return;
-              }
-              setTab(item.id);
+              selectReportTab(item.id);
             }}
             role="tab"
             type="button"
@@ -868,7 +1013,12 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
           </button>
         ))}
       </nav>
-      <section className="panel reports-panel" role="tabpanel">
+      <section
+        aria-labelledby={`report-${tab}-tab`}
+        className="panel reports-panel"
+        id={`report-${tab}-panel`}
+        role="tabpanel"
+      >
         {tab === "attendance" ? (
           <AttendanceReport
             events={events}
@@ -889,13 +1039,14 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
         {tab === "roster" ? (
           <RosterReport performerLabel={performerLabel} profiles={profiles} />
         ) : null}
-        {tab === "donations" ? (
-          <DonationsReport donations={donations} state={donationState} />
+        {tab === "donations-tickets" ? (
+          <CommerceReport donations={donations} state={commerceState} ticketOrders={ticketOrders} />
         ) : null}
         {tab === "music-folders" ? (
           <MusicFolderReport enabled={enabled} onUnsavedChange={setMusicFolderUnsaved} />
         ) : null}
       </section>
+      {confirmationDialog}
     </section>
   );
 }

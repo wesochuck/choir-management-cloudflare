@@ -1,4 +1,5 @@
 import type { MemberProfile, OrganizationDirectoryProfile } from "@choir/contracts";
+import { useConfirmation } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -33,6 +34,7 @@ export function ProfilePhotoEditor({
   readonly onChanged: (fileId: string | null) => void;
   readonly profile: ProfilePhotoTarget;
 }) {
+  const { confirm, confirmationDialog } = useConfirmation();
   const [busy, setBusy] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraLoading, setCameraLoading] = useState(false);
@@ -270,7 +272,17 @@ export function ProfilePhotoEditor({
   }
 
   async function removePhoto(): Promise<void> {
-    if (!profile.photoFileId || !window.confirm("Remove this Profile photo?")) return;
+    if (!profile.photoFileId) return;
+    if (
+      !(await confirm({
+        confirmLabel: "Remove photo",
+        description: "The current Profile photo will be permanently removed.",
+        destructive: true,
+        title: "Remove Profile photo?",
+      }))
+    ) {
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -449,6 +461,7 @@ export function ProfilePhotoEditor({
           </div>
         </div>
       ) : null}
+      {confirmationDialog}
     </>
   );
 }

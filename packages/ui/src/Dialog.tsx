@@ -1,6 +1,8 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { useConfirmation } from "./useConfirmation";
+
 interface DialogProps {
   readonly children: ReactNode;
   readonly description?: string;
@@ -12,6 +14,7 @@ interface DialogProps {
 
 export function Dialog({ children, description, dirty, onClose, open, title }: DialogProps) {
   const [inputDirty, setInputDirty] = useState(false);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     if (open) {
@@ -21,58 +24,61 @@ export function Dialog({ children, description, dirty, onClose, open, title }: D
     }
   }, [open]);
 
-  function requestClose(): void {
+  async function requestClose(): Promise<void> {
     const hasUnsavedChanges = dirty ?? inputDirty;
-    if (
-      hasUnsavedChanges &&
-      !window.confirm("You have unsaved changes. Discard them and close this dialog?")
-    ) {
-      return;
+    if (hasUnsavedChanges) {
+      const shouldDiscard = await confirm({
+        confirmLabel: "Discard changes",
+        description: "Your unsaved changes will be lost if you close this dialog.",
+        destructive: true,
+        title: "Discard unsaved changes?",
+      });
+      if (!shouldDiscard) return;
     }
     setInputDirty(false);
     onClose();
   }
 
   return (
-    <DialogPrimitive.Root
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) requestClose();
-      }}
-      open={open}
-    >
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="dialog__overlay" />
-        <DialogPrimitive.Content
-          className="dialog dialog--responsive"
-          onEscapeKeyDown={(event) => {
-            // Radix normally dismisses the dialog immediately after this event. Defer the
-            // controlled close request so the discard confirmation does not run inside Radix's
-            // Escape/focus handling, which can leave the modal in a close loop.
-            event.preventDefault();
-            window.setTimeout(requestClose, 0);
-          }}
-          onInput={() => {
-            setInputDirty(true);
-          }}
-        >
-          <div className="dialog__header">
-            <div>
-              <DialogPrimitive.Title className="dialog__title">{title}</DialogPrimitive.Title>
-              {description ? (
-                <DialogPrimitive.Description className="dialog__description">
-                  {description}
-                </DialogPrimitive.Description>
-              ) : null}
+    <>
+      <DialogPrimitive.Root
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) void requestClose();
+        }}
+        open={open}
+      >
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="dialog__overlay" />
+          <DialogPrimitive.Content
+            className="dialog dialog--responsive"
+            onEscapeKeyDown={(event) => {
+              event.preventDefault();
+              void requestClose();
+            }}
+            onInput={() => {
+              setInputDirty(true);
+            }}
+          >
+            <div className="dialog__header">
+              <div>
+                <DialogPrimitive.Title className="dialog__title">{title}</DialogPrimitive.Title>
+                {description ? (
+                  <DialogPrimitive.Description className="dialog__description">
+                    {description}
+                  </DialogPrimitive.Description>
+                ) : null}
+              </div>
+              <DialogPrimitive.Close asChild>
+                <button className="dialog__close" type="button" aria-label="Close">
+                  &times;
+                </button>
+              </DialogPrimitive.Close>
             </div>
-            <DialogPrimitive.Close asChild>
-              <button className="dialog__close" type="button" aria-label="Close">
-                &times;
-              </button>
-            </DialogPrimitive.Close>
-          </div>
-          <div className="dialog__body">{children}</div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+            <div className="dialog__body">{children}</div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+      {confirmationDialog}
+    </>
   );
 }

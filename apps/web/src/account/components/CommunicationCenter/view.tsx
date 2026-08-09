@@ -14,6 +14,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     busy,
     channel,
     contentMarkdown,
+    confirmationDialog,
     deleteDraft,
     draftMessages,
     enabled,
@@ -90,7 +91,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           </a>
         </p>
       ) : null}
-      <nav className="communication-tabs" aria-label="Communication sections">
+      <nav aria-label="Communication sections" className="communication-tabs" role="tablist">
         {(
           [
             ["compose", "Compose"],
@@ -102,8 +103,10 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           ] as const
         ).map(([value, label]) => (
           <button
+            aria-controls={`communication-${value}-panel`}
             aria-selected={activeTab === value}
             className={activeTab === value ? "is-active" : ""}
+            id={`communication-${value}-tab`}
             key={value}
             onClick={() => {
               setActiveTab(value);
@@ -138,7 +141,11 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
         ))}
       </nav>
       {activeTab === "compose" ? (
-        <>
+        <div
+          aria-labelledby="communication-compose-tab"
+          id="communication-compose-panel"
+          role="tabpanel"
+        >
           <ol className="communication-stepper" aria-label="Message workflow">
             <li className={stage === "audience" ? "is-active" : "is-complete"}>
               <span>1</span> Audience
@@ -448,11 +455,16 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               </button>
             </div>
           </Dialog>
-        </>
+        </div>
       ) : null}
 
       {activeTab === "drafts" ? (
-        <div className="communication-tab-panel" role="tabpanel">
+        <div
+          aria-labelledby="communication-drafts-tab"
+          className="communication-tab-panel"
+          id="communication-drafts-panel"
+          role="tabpanel"
+        >
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Drafts</h2>
@@ -502,7 +514,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
       ) : null}
 
       {activeTab === "history" ? (
-        <div className="communication-tab-panel" role="tabpanel">
+        <div
+          aria-labelledby="communication-history-tab"
+          className="communication-tab-panel"
+          id="communication-history-panel"
+          role="tabpanel"
+        >
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Message history</h2>
@@ -601,7 +618,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
       ) : null}
 
       {activeTab === "templates" ? (
-        <div className="communication-tab-panel" role="tabpanel">
+        <div
+          aria-labelledby="communication-templates-tab"
+          className="communication-tab-panel"
+          id="communication-templates-panel"
+          role="tabpanel"
+        >
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Message templates</h2>
@@ -619,7 +641,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
       ) : null}
 
       {activeTab === "upcoming" ? (
-        <div className="communication-tab-panel" role="tabpanel">
+        <div
+          aria-labelledby="communication-upcoming-tab"
+          className="communication-tab-panel"
+          id="communication-upcoming-panel"
+          role="tabpanel"
+        >
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Upcoming sends</h2>
@@ -653,7 +680,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
       ) : null}
 
       {activeTab === "settings" ? (
-        <div className="communication-tab-panel" role="tabpanel">
+        <div
+          aria-labelledby="communication-settings-tab"
+          className="communication-tab-panel"
+          id="communication-settings-panel"
+          role="tabpanel"
+        >
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Communication settings</h2>
@@ -746,6 +778,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           </fieldset>
         </div>
       ) : null}
+      {confirmationDialog}
     </section>
   );
 }

@@ -4,6 +4,8 @@ const requestId = "99999999-9999-4999-8999-999999999999";
 const profileId = "11111111-1111-4111-8111-111111111111";
 const firstEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const secondEventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const donationId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const ticketOrderId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const selectedEventIds = [firstEventId, secondEventId];
 
 const currentSession = {
@@ -219,6 +221,78 @@ test.beforeEach(async ({ page }) => {
       status: 200,
     });
   });
+  await page.route("**/api/organization/donations", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        donations: [
+          {
+            amountCents: 2500,
+            anonymous: false,
+            buyerEmail: "donor@example.test",
+            buyerName: "Dana Donor",
+            createdAt: "2026-07-21T20:00:00.000Z",
+            expiredAt: null,
+            feeCents: 50,
+            id: donationId,
+            marketingConsent: false,
+            patronId: null,
+            refundRequested: false,
+            status: "paid",
+            tributeName: "In honor of the choir",
+            tributeNotifyEmail: "",
+            tributeType: "honor",
+            updatedAt: "2026-07-21T20:00:00.000Z",
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/tickets/orders", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        orders: [
+          {
+            amountPaidCents: 3000,
+            bundleId: null,
+            bundleTitle: "",
+            buyerEmail: "buyer@example.test",
+            buyerName: "Beatrice Buyer",
+            checkoutMode: "fake",
+            createdAt: "2026-07-22T20:00:00.000Z",
+            currency: "usd",
+            discountAmountCents: 0,
+            discountCode: null,
+            discountType: null,
+            discountValue: null,
+            discountedSubtotalCents: 3000,
+            eventId: firstEventId,
+            eventStartsAt: "2026-05-01T23:00:00.000Z",
+            eventTitle: "Spring Concert",
+            feeCents: 75,
+            id: ticketOrderId,
+            includedEvents: [],
+            marketingOptIn: false,
+            originalSubtotalCents: 3000,
+            originalUnitPriceCents: 1500,
+            providerPaymentId: "payment-test",
+            providerSessionId: "session-test",
+            quantity: 2,
+            refundRequested: false,
+            status: "paid",
+            timezone: "America/New_York",
+            unitPriceCents: 1500,
+            updatedAt: "2026-07-22T20:00:00.000Z",
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/organization/reports/music-folders/query", async (route) => {
     const body: unknown = route.request().postDataJSON();
     const eventIds =
@@ -366,12 +440,44 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test("combines donations and ticket sales and filters each source", async ({ page }) => {
+  await page.goto("/admin/reports");
+  const commerceTab = page.getByRole("tab", { name: "Donations & Ticket Sales" });
+  await expect(commerceTab).toHaveAttribute("aria-controls", "report-donations-tickets-panel");
+  await commerceTab.click();
+
+  await expect(
+    page.getByRole("heading", { name: "Donations & Ticket Sales report" }),
+  ).toBeVisible();
+  const filterGroup = page.getByRole("group", { name: "Commerce report source" });
+  await expect(filterGroup.getByRole("button", { name: "Both", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.locator("strong:visible", { hasText: "Dana Donor" }).first()).toBeVisible();
+  await expect(page.locator("strong:visible", { hasText: "Beatrice Buyer" }).first()).toBeVisible();
+
+  await filterGroup.getByRole("button", { name: "Donations", exact: true }).click();
+  await expect(page.locator("strong:visible", { hasText: "Dana Donor" }).first()).toBeVisible();
+  await expect(page.locator("strong:visible", { hasText: "Beatrice Buyer" })).toHaveCount(0);
+
+  await filterGroup.getByRole("button", { name: "Ticket sales", exact: true }).click();
+  await expect(page.locator("strong:visible", { hasText: "Dana Donor" })).toHaveCount(0);
+  await expect(page.locator("strong:visible", { hasText: "Beatrice Buyer" }).first()).toBeVisible();
+});
+
 test("supports multi-Performance history, staged edits, and immediate return updates", async ({
   page,
 }) => {
   await page.goto("/admin/reports");
   await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
-  await page.getByRole("tab", { name: "Music Folder Report" }).click();
+  const musicFolderTab = page.getByRole("tab", { name: "Music Folder Report" });
+  await expect(musicFolderTab).toHaveAttribute("aria-controls", "report-music-folders-panel");
+  await musicFolderTab.click();
+  await expect(page.locator("#report-music-folders-panel")).toHaveAttribute(
+    "aria-labelledby",
+    "report-music-folders-tab",
+  );
   await expect(page.getByRole("heading", { name: "Music Folder Report" })).toBeVisible();
   await expect(
     page.getByText("Choose one or more Performances to see who has returned"),
@@ -383,9 +489,13 @@ test("supports multi-Performance history, staged edits, and immediate return upd
   await performanceCheckboxes.nth(0).check();
   await performanceCheckboxes.nth(1).check();
 
-  await expect(page.getByRole("button", { name: "Open", exact: true }).first()).toBeVisible();
+  const expandAda = page.locator('button[aria-label="Expand Ada Adams"]:visible').first();
+  await expect(expandAda).toBeVisible();
   await expect(page.locator("strong:visible", { hasText: "Ada Adams" }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Open", exact: true }).first().click();
+  await expandAda.click();
+  await expect(
+    page.locator('button[aria-label="Collapse Ada Adams"]:visible').first(),
+  ).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("heading", { name: "Ada Adams" })).toBeVisible();
   await expect(
     page.locator(".music-folder-report__status:visible", { hasText: "Outstanding" }).first(),
@@ -404,7 +514,7 @@ test("supports multi-Performance history, staged edits, and immediate return upd
   await expect(page.getByRole("button", { name: "Mark outstanding" }).first()).toBeVisible();
 
   await folderNumber.fill("");
-  const clearDialog = page.getByRole("alertdialog", { name: "Clear this Folder Number?" });
+  const clearDialog = page.getByRole("dialog", { name: "Clear this Folder Number?" });
   await expect(clearDialog).toBeVisible();
   await clearDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(folderNumber).toHaveValue("B-4");

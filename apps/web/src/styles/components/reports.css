@@ -50,6 +50,41 @@
     font-size: var(--font-size-xl);
   }
 
+  .reports-source-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .reports-source-filter__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .reports-source-filter__buttons button {
+    min-height: var(--control-height);
+    padding: 0.45rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+  }
+
+  .reports-source-filter__buttons button:hover,
+  .reports-source-filter__buttons button:focus-visible,
+  .reports-source-filter__buttons button.is-active {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    color: var(--color-text);
+  }
+
   .reports-search {
     max-width: 34rem;
   }
@@ -82,6 +117,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .reports-kpi-grid--commerce {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
   .reports-panel .table-scroll {
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
@@ -93,6 +132,52 @@
 
   .reports-panel .data-table tbody tr:hover td {
     background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  }
+
+  .music-folder-report .data-table__expanded-row > td {
+    padding: 0 0.75rem;
+    background: color-mix(in srgb, var(--color-surface) 72%, var(--color-primary));
+  }
+
+  .music-folder-report .data-table__expanded-cell {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .music-folder-report__expand-button {
+    display: inline-flex;
+    width: 2.3rem;
+    min-height: 2.3rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-primary);
+    cursor: pointer;
+  }
+
+  .music-folder-report__expand-button:hover,
+  .music-folder-report__expand-button:focus-visible {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  }
+
+  .music-folder-report__expand-chevron {
+    display: inline-block;
+    transform: rotate(180deg);
+    transition: transform 120ms ease;
+  }
+
+  .music-folder-report__expand-button[aria-expanded="true"] .music-folder-report__expand-chevron {
+    transform: rotate(0deg);
+  }
+
+  .music-folder-report .data-table-card__expanded {
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-top: 0;
+    border-radius: 0 0 var(--radius-control) var(--radius-control);
+    background: color-mix(in srgb, var(--color-surface) 72%, var(--color-primary));
   }
 
   .music-folder-report {
@@ -150,8 +235,7 @@
   }
 
   .music-folder-report__picker-actions,
-  .music-folder-report__edit-actions,
-  .music-folder-report__confirm-actions {
+  .music-folder-report__edit-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
@@ -202,6 +286,12 @@
     margin-top: 0.5rem;
     padding-top: 1rem;
     border-top: 1px solid var(--color-border);
+  }
+
+  .music-folder-report__detail--expanded {
+    margin-top: 0;
+    padding-block: 1rem;
+    border-top: 0;
   }
 
   .music-folder-report__detail h3,
@@ -256,20 +346,6 @@
     color: var(--color-text-muted);
   }
 
-  .music-folder-report__confirm {
-    display: grid;
-    gap: 0.5rem;
-    padding: 0.9rem;
-    border: 1px solid var(--color-danger);
-    border-left-width: 0.3rem;
-    border-radius: var(--radius-card);
-    background: var(--color-danger-bg);
-  }
-
-  .music-folder-report__confirm p {
-    color: var(--color-danger-text);
-  }
-
   @media (max-width: 48rem) {
     .reports-toolbar {
       flex-direction: column;
@@ -280,7 +356,8 @@
     }
 
     .reports-kpi-grid,
-    .reports-kpi-grid--compact {
+    .reports-kpi-grid--compact,
+    .reports-kpi-grid--commerce {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
