@@ -203,4 +203,53 @@
     overflow-wrap: anywhere;
     font-size: var(--font-size-base);
   }
+
+  /* Workspace navigation */
+
+  .workspace-nav {
+    display: grid;
+    gap: 1.35rem;
+  }
+
+  .workspace-nav__group {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .workspace-nav__items {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .workspace-nav__items a {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 2.5rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--radius-control);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+    text-decoration: none;
+  }
+
+  .workspace-nav__items a:hover,
+  .workspace-nav__items a[aria-current="page"] {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-text);
+  }
+
+  .workspace-nav__items a[href="/dashboard"],
+  .workspace-nav__items a[href="/admin"] {
+    color: var(--color-text);
+  }
+
+  .workspace-nav__dot {
+    width: 0.38rem;
+    height: 0.38rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--color-border);
+  }
 }
