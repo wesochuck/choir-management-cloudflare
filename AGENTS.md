@@ -2,47 +2,99 @@
 
 Mandatory instructions for AI coding agents working in this repository.
 
-## 1. Mission and Sources of Truth
+## 1. Current Mission and Scope
 
-- Execute `docs/2026-07-20-cloudflare-multitenant-rebuild-plan.md` milestone by milestone.
+- The user's current request defines the immediate task scope. The rebuild plan governs how in-scope
+  work is implemented; it does not authorize unrelated milestone work.
+- The Cloudflare rebuild is nearing completion. Treat legacy parity as a focused source for the
+  remaining documented gaps, not as a reason to restart broad legacy discovery or rebuild completed
+  areas.
+- Execute the applicable work in milestones 0–6 of
+  `docs/2026-07-20-cloudflare-multitenant-rebuild-plan.md`. Milestone 7, production launch, is out
+  of scope unless the user explicitly authorizes it and the goal contract is updated.
+- The active deployment target is permanent staging. Do not launch or modify production.
 - Treat `docs/goal/GOAL.md` as the durable goal contract and `docs/goal/READINESS.md` as the
   machine/environment handoff.
-- The immutable behavioral baseline is legacy commit `6874d43a3c3698ae53218a44d17649bc454ca9ac` in
-  the read-only sibling Parity Bridge.
-- Use evidence in this order: executable baseline code/tests; these instructions; `CONTEXT.md` and
-  ADRs 0003–0015; historical plans as supporting intent only.
-- Keep this repository fully standalone. Never import legacy source in builds, tests, CI,
+- Keep this repository fully standalone. Never import legacy source into builds, tests, CI,
   deployments, or runtime.
-- Do not launch production. The active goal ends at a production-ready permanent staging deployment
-  with every required gate passing.
 
-## 2. Critical Engineering Rules
+## 2. Sources of Truth
+
+Within repository evidence, apply this order:
+
+1. Current security, tenancy, architecture, and environment decisions in this file,
+   `docs/goal/GOAL.md`, and accepted ADRs 0003–0015.
+2. Current executable contracts, code, tests, migrations, and parity gates.
+3. For unresolved behavioral-parity questions only, legacy commit
+   `6874d43a3c3698ae53218a44d17649bc454ca9ac` in the read-only sibling Parity Bridge.
+4. `CONTEXT.md` for product language and historical plans for supporting intent.
+
+An explicit current decision may intentionally supersede legacy behavior. Record that outcome in the
+parity ledger or an ADR instead of reproducing unsafe or obsolete behavior.
+
+## 3. Scoped Instructions
+
+More specific instructions inherit this file and apply by directory:
+
+- `apps/web/AGENTS.md` — React, browser behavior, accessibility, and styling.
+- `apps/worker/AGENTS.md` — Worker, Durable Object, tenancy, queue, and provider rules.
+- `packages/AGENTS.md` — domain, contract, UI primitive, and testkit boundaries.
+
+Operational procedures belong in `docs/runbooks/`, not in this root policy. Verify time-sensitive
+provider instructions against current authoritative documentation before changing hosted resources.
+
+## 4. Non-Negotiable Engineering Rules
 
 - Use strict TypeScript. Do not use `any`, `as any`, `// @ts-ignore`, or blanket lint suppression
   without explicit user approval. Use `unknown` and narrow it.
 - Never log or commit secrets, credentials, one-time codes, recovery codes, full signed tokens, or
-  provider payloads containing sensitive data.
+  sensitive provider payloads.
 - One Organization is one tenant. Operational data, files, jobs, tokens, caches, and audit events
   must never cross Organization boundaries.
 - Resolve the Organization from the validated hostname and authoritative registry before
   authorization. A client-supplied Organization ID must never select storage.
-- Keep operational data in the Organization Durable Object. D1 is control-plane only; KV is derived
-  routing cache only; R2 keys must be Organization-scoped.
-- All external work is bounded, retryable, idempotent, and attributable to exactly one Organization.
-- Prevent O(N^2) bottlenecks. Do not call linear scans inside tight loops or sort comparators;
-  precompute `Map` or `Set` lookups.
-- Preserve raw provider error details for typed formatters while redacting secrets from logs and
-  user-visible output.
+- D1 is control-plane only. Each Organization Durable Object owns that Organization's operational
+  data. KV is derived routing cache only, and every R2 key must be Organization-scoped.
+- All external work must be bounded, retryable, idempotent, and attributable to exactly one
+  Organization.
+- Keep provider calls outside Durable Object transactions.
 - Every schema change is forward-only. Never rewrite an applied migration. Use expand/contract
   changes compatible with rollback.
+- Preserve raw provider errors for typed internal formatters while redacting secrets from logs and
+  user-visible output.
+- Prevent O(N^2) bottlenecks. Do not run linear scans inside tight loops or sort comparators;
+  precompute `Map` or `Set` lookups.
 - Do not weaken a quality, size, security, isolation, accessibility, parity, or migration gate
   merely to make it pass.
 
-## 3. Commands and Verification
+## 5. Worktree and Git Safety
 
-Use standard project commands directly. Do not require a machine-specific command wrapper.
+- Inspect Git status before editing. Existing changes belong to the user unless the task clearly
+  places them in scope.
+- Preserve unrelated modifications and untracked files. Never discard, rewrite, stage, or commit
+  unrelated work merely to obtain a clean tree.
+- Group a change with its regression tests and required parity evidence in one cohesive commit.
+- Always stage `package-lock.json` with a `package.json` change. The pre-commit hook and CI enforce
+  lockfile synchronization.
+- Do not use destructive Git or filesystem commands unless the user explicitly requests the exact
+  operation and target.
 
-The initial scaffold must provide root scripts for at least:
+## 6. Change Classes and Verification
+
+Classify work by its actual risk:
+
+- **Routine:** documentation, copy, isolated styling, or a tightly scoped behavior change without a
+  contract, route, schema, provider, queue, authentication, or tenancy boundary. Run focused checks
+  plus formatting, lint, or typecheck as relevant.
+- **Material:** changes to application behavior, shared components, contracts, Worker logic,
+  persistence, authentication, payments, communications, queues, or tenant-scoped data. Run focused
+  tests and the affected build/integration gates. Report risks and rollback implications.
+- **Release-bound:** anything being pushed to `main` or promoted to staging. Run the complete local
+  release gate described below.
+
+When uncertain, treat the change as material.
+
+Required root scripts must remain available:
 
 ```bash
 npm run format:check
@@ -55,257 +107,77 @@ npm run build
 npm audit --audit-level=high
 ```
 
-Run focused checks while iterating and the complete milestone gate before declaring a milestone
-complete. Run `npm ci`, not `npm install`, in CI after the lockfile exists.
+Additional rules:
 
-- Build the deployable web and Worker artifact before running prepared Workerd integration tests in
-  CI. Use `npm run test:integration:prepared` only after the build it exercises has completed;
-  convenience scripts may build first for local use.
-- Treat bundle-size and build-output warnings as actionable. Preserve route-level code splitting,
-  inspect the generated output, and do not weaken a size or build gate to make it pass.
+- Use standard project commands directly; do not require a machine-specific wrapper.
+- In CI, use `npm ci`, not `npm install`, after the lockfile exists.
+- Run focused checks while iterating.
+- After any route or parity-ledger change, run both `npm run check:parity` and
+  `npm run check:parity:implementation`.
+- Build the deployable artifact before `npm run test:integration:prepared`.
+- Before pushing `main`, run `npm run check:ci`. If browser-visible behavior changed, ensure
+  Chromium is installed and then run `npm run test:e2e`.
+- Treat bundle-size and build-output warnings as actionable. Preserve route-level code splitting and
+  inspect generated output.
 
-Before finishing any material change, report:
+Before finishing a material or release-bound change, report:
 
-- what changed and which plan/parity entries it satisfies;
-- which checks ran and their results;
-- any check that could not run and the exact reason;
+- what changed and which goal, plan, or parity entries it satisfies;
+- checks run, results, and exact reasons for any skipped check;
 - migration and rollback implications;
 - tenant-isolation, external-effect, accessibility, and performance risks;
-- any generated artifact and how it was regenerated;
-- remaining work in the milestone File Responsibility Map.
+- generated artifacts and how they were regenerated;
+- remaining milestone work only when the task is part of active milestone execution.
 
-### CI failure-prevention checklist
+## 7. Plan and Parity Maintenance
 
-- Run `npm run check:ci` before pushing `main`. It mirrors the CI job sequence locally (audit,
-  lockfile sync, formatting, lint, typecheck, contracts exports, both parity checks, unit tests, the
-  deployable build, the release-artifact round-trip, and prepared Workerd integration tests) and
-  stops at the first failing step. The browser E2E job is not covered: run
-  `npx playwright install chromium && npm run test:e2e` after `check:ci` when a push touches
-  browser-visible flows.
-- Always stage `package-lock.json` with any `package.json` change — the pre-commit hook
-  (`.githooks/pre-commit`, enabled via `git config core.hooksPath .githooks`) blocks a manifest
-  staged without its lockfile update, and `check:ci` verifies the working tree matches. CI's
-  `npm ci` fails the same way but only after a slow remote cycle.
-- Treat route removals and parity evidence as one atomic change. When a Worker route is renamed or
-  removed, update `docs/parity/feature-matrix.yaml`, the route inventory in
-  `scripts/check-parity-matrix.mjs`, and any route-level tests in the same commit. Do not push an
-  intermediate commit that leaves an `implemented` parity entry pointing at a route that no longer
-  exists.
-- Run both `npm run check:parity` and `npm run check:parity:implementation` after every route or
-  parity-ledger edit. The first validates the ledger shape and baseline inventory; the second
-  resolves every implemented API entry against the actual Worker route source.
-- A passing focused test is not sufficient for a push. Before committing a material Worker or
-  scheduler change, run the deployable build followed by `npm run test:integration:prepared`; the
-  Workerd/SQLite runtime can reject SQL patterns (for example, an overly complex `LIKE`/`GLOB`
-  pattern) that do not fail in a narrower local test.
-- Group related fixes and their regression tests into one commit, then run the complete CI command
-  sequence locally before pushing `main`. This avoids repeated red builds caused by a fix landing
-  one commit after the change that exposed it.
-- CI builds one immutable release artifact and records the commit, lockfile, Worker bundle, and web
-  asset hashes in `release-manifest.json`. Deployment workflows must download and verify that
-  artifact; do not rebuild or use direct `wrangler deploy` in a promotion workflow.
-- Promote code with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
-  non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly, and keep those
-  changes backward-compatible with the previously deployed Worker Version.
-- Deployment qualification is intentionally API-only: direct Worker health/readiness, exact
-  `BUILD_VERSION`, and seeded Organization-host resolution. Do not add browser smoke tests to CI or
-  promotion. Direct Worker failures remain hard failures. If Cloudflare blocks every custom-domain
-  probe for the CI runner with HTTP 403 while the direct Worker probes pass, qualification may
-  succeed with an explicit degraded warning; recheck those custom domains from an allowlisted or
-  interactive network before relying on the routing result. If every Worker probe reports a healthy
-  previous version for the whole qualification window, the rollout is treated as still propagating:
-  qualification succeeds with a degraded warning and staging is not rolled back; recheck the
-  deployed version from an interactive network. Real Worker failures (non-200, unhealthy state, or a
-  broken current version) remain hard failures and do trigger the rollback.
-
-## 4. Plan Execution and Parity
-
-- Expand the plan's File Responsibility Map before implementing files not already represented there.
-- Verify every file assigned to a milestone before declaring its gate complete.
+- Update the plan's File Responsibility Map when milestone work introduces a responsibility not
+  represented there. Routine fixes do not require map edits unless ownership changes.
 - Maintain `docs/parity/feature-matrix.yaml` as executable evidence, not a prose checklist.
-- Every baseline route, public flow, signed flow, service workflow, export, file behavior, scheduled
-  task, responsive state, and accessibility-critical interaction needs a parity entry.
-- A historical plan is not proof of implemented behavior. Confirm it against baseline code or tests
-  and classify it as implemented, partial, proposed, superseded, or irrelevant.
+- Every remaining baseline route, public or signed flow, service workflow, export, file behavior,
+  scheduled task, responsive state, and accessibility-critical interaction needs parity evidence.
+- When a Worker route is renamed or removed, update the parity matrix, route inventory, and
+  route-level tests atomically.
+- A historical plan is not proof of behavior. Confirm it against executable evidence and classify it
+  as implemented, partial, proposed, superseded, or irrelevant.
 - Copy only approved contracts, fixtures, screenshots, CSV specifications, glossary entries, and
   ADRs from the Parity Bridge.
 - New signed-link bytes need not match PocketBase, but purpose, authorization, Organization binding,
-  expiry/revocation behavior, and constant-time verification must be covered.
+  expiry, revocation, and constant-time verification must be covered.
 
-## 5. Tenancy, Authorization, and Audit
+## 8. Staging Deployment Contract
 
-- D1 owns global identity, Better Auth state, Organization registry, memberships, invitations,
-  domains, Platform Administrator grants, and integration routing metadata only.
-- One SQLite-backed Durable Object owns each Organization's operational records and scheduler state.
-- Verify membership or scoped Platform Administrator elevation before invoking operational methods.
-- Platform Administrator access is Organization-at-a-time, never impersonated, visibly elevated for
-  edits, time-bounded, and attributed to the actual actor.
-- Audit events are append-only through application APIs and include safe actor, Organization,
-  action, target, request, timestamp, and change-summary fields.
-- Add adversarial isolation tests for host alteration, Organization-ID alteration, cross-membership
-  use, cross-host token replay, R2 key substitution, stale invitations, revoked elevation, queue
-  replay, and webhook-account mismatch.
-
-## 6. Schema and Data Notes
-
-- `organization_memberships` is a legacy unused table — do not query or write to it. Authorization
-  and membership listing use Better Auth's `member` table (camelCase columns: `organizationId`,
-  `userId`, `role`, `createdAt`, `profileId`). Do not remove `organization_memberships` without a
-  rollback-safe migration.
-
-- Use versioned D1 and Organization-store migrations with explicit schema registries.
-- Durable Object transactions must remain short; provider calls never occur inside them.
-- Organization alarms transactionally create stable jobs and advance the next alarm.
-- Do not broadly swallow Worker, Workflow, Durable Object, alarm, or queue errors. Handle only
-  explicitly typed terminal conditions; preserve unexpected failures and test both successful and
-  terminal/error paths.
-- Queue delivery is at-least-once. Record a stable idempotency key before any repeated delivery can
-  create another external effect.
-- Use bounded concurrency, exponential backoff, jitter, attempt records, terminal states, and
-  dead-letter visibility.
-- Public traffic reads versioned Published Projections from R2/edge cache; it must not serialize
-  through the Organization object during bursts.
-- Private R2 downloads require authorization. Public assets use immutable versioned URLs.
-- Validate every untrusted HTTP, queue, webhook, provider, import, and export boundary with Zod and
-  explicit size limits.
-- Enforce cross-field and referential business rules at the UI, shared contract, and Organization
-  Durable Object/store layers as appropriate. The UI is an affordance, not an authorization or
-  integrity boundary; add integration coverage for both valid operations and direct invalid API
-  requests.
-- Define reusable unrefined Zod object schemas before applying `superRefine` or other checks. Do not
-  call composition methods such as `.omit()` on refined objects unless the runtime supports it; test
-  the browser client’s request/response parsing as well as the server endpoint.
-
-## 7. TypeScript, React, and Tests
-
-- Keep business rules in `packages/domain`, contracts in `packages/contracts`, and infrastructure
-  details out of React.
-- Do not import React only for JSX; use type-only imports when needed.
-- Follow Hook purity and exhaustive-dependency rules. Do not place hooks below early returns or call
-  impure functions directly during render.
-- Do not blindly synchronize query data into local state; background refetches must not erase
-  unsaved input.
-- Do not render an editable form from fallback query values while its initial data is loading. Show
-  an explicit loading state, initialize the local draft from confirmed data, and avoid later
-  synchronization that could erase unsaved edits.
-- Preserve typed mutation errors from the API through the browser client to the UI. Prefer a stable
-  error code plus an actionable user message over a generic fallback that hides the reason a save
-  failed; test success, validation, authorization, and operational failure paths.
-- Normalize browser date/time input before timezone conversion. Keep localized display values,
-  control values, and ISO timestamps distinct; use deterministic timezone tests for conversions.
-- For camera features, wait for `loadedmetadata` and successful `video.play()` before enabling
-  capture, and always stop media tracks when the camera closes or the component unmounts.
-- Shared query keys belong in one typed registry.
-- Tests must cover success, authorization failure, validation failure, retry/replay, rollback
-  compatibility, and tenant isolation where applicable.
-- Use deterministic clocks, provider fakes, and local Cloudflare bindings. Do not wait on real
-  timers in unit tests.
-
-## 8. UI, Accessibility, and Product Language
-
-- Use repository-owned shadcn-style components built on Radix primitives. Do not copy Shoelace/Web
-  Awesome implementation dependencies.
-- Styles use Tailwind CSS v4 (`@tailwindcss/vite`, imported from `apps/web/src/main.css`) alongside
-  the layered BEM component files in `apps/web/src/styles/`. Design tokens live in the `@theme`
-  block in `main.css` (colors, type scale, radii, elevation) — Tailwind utilities and BEM `var()`
-  references resolve to the same values. `theme.css` is the manifest for `tokens.css` (aliases,
-  control geometry, and the `:root[data-theme="dark"]` / `prefers-color-scheme` dark overrides),
-  `base.css`, and the `components/*.css` files. Prefer Tailwind utilities for new UI; keep BEM
-  classes for existing components. Avoid raw dark-mode overrides: redefine tokens in the
-  `:root[data-theme="dark"]` block in `tokens.css` instead.
-- Typography uses the token scale in `main.css` — never new raw values. Pick from `--font-size-*`
-  (3xs through 4xl, plus the `hero`/`hero-compact`/`section` clamp tokens), `--line-height-*` (none
-  through relaxed), and `--font-weight-*` (regular through black) for every font-size, line-height,
-  and font-weight in component styles. Use the `--radius-*` (sm/md/lg/xl/full) and `--shadow-*`
-  (sm/md/lg/xl) scales instead of hardcoded radii or shadows. Raw values are allowed only for
-  em-relative context; when a token step is genuinely wrong for a role, adjust the nearest step in
-  `main.css` instead of adding a one-off value.
-- Preserve responsive table/card layouts, mobile dialogs, focus management, keyboard use,
-  destructive confirmation patterns, and meaningful loading/error/empty states.
-- Destructive actions require danger-styled confirmations with a visible Cancel action.
-- Icon-only controls require accessible labels; decorative icons are hidden from assistive
-  technology.
-- Use `DataTable` for tabular data and preserve mobile-card behavior for complex rows.
-- Every data table must expose sortable, keyboard-accessible column headers for all displayed data
-  columns unless a documented product reason makes a column genuinely non-sortable. Prefer the
-  shared `DataTable` so headers include visible direction indicators and `aria-sort`.
-- Use the exact product language in `CONTEXT.md`: Organization, Organization Profile, Organization
-  Membership, Platform Administrator, On Break in the UI, and `Idle` in storage/API/CSV.
-- Performer eligibility is a non-empty `voicePart`, not an authorization role.
-- For custom `<details>` dropdowns, use the shared upward chevron glyph (`⌃`) and rotate it 180
-  degrees while closed, returning it to 0 degrees when open. Match the existing
-  `.music-genre-filter summary::after` pattern; do not introduce the visually inconsistent downward
-  glyph (`⌄`). Native `<select>` controls should keep their browser-provided chevron.
-
-## 9. Security, Providers, and Environments
-
-- There is no public registration. Email one-time code is primary sign-in; users may set their own
-  password; Platform Administrators require MFA and recovery codes.
-- Custom public domains never host authenticated administration, member, account-management, or
-  Platform Administrator routes.
-- Stripe uses Organization-owned connected accounts and direct charges. The platform takes no
-  application fee and has no subscription system.
-- Platform transactional email and Organization campaign/SMS delivery are separate provider lanes.
 - Local and preview environments must not send real messages or create real charges.
-- Staging and production use isolated resources and secrets. Production promotes the identical
-  staging-qualified commit and lockfile.
-- Store developer OAuth credentials in supported keyrings. Store deployed secrets in Worker/GitHub
-  environment secret stores, never tracked files.
+- Staging uses isolated resources and secrets. Store developer credentials in supported keyrings and
+  deployed secrets in Worker or GitHub environment secret stores, never tracked files.
+- CI builds one immutable release artifact containing commit, lockfile, Worker bundle, and web asset
+  hashes. Promotion must download and verify that artifact; do not rebuild it or use direct
+  `wrangler deploy` in a promotion workflow.
+- Promote with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
+  non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly and keep them
+  backward compatible with the previously deployed Worker Version.
+- Qualification is API-only: direct Worker health/readiness, exact `BUILD_VERSION`, and seeded
+  Organization-host resolution. Browser smoke tests do not belong in CI promotion.
+- A custom-domain HTTP 403 may be reported as degraded only when direct Worker probes pass. A
+  healthy previous version throughout the qualification window may be reported as propagation delay.
+  Real Worker failures remain hard failures and trigger rollback.
 - Do not modify hosted resources, domains, data, or provider configuration without authenticated
-  environment context and authorization consistent with the active goal.
+  environment context and explicit in-scope authorization.
+- Production requires a separate explicit user decision, updated goal contract, independently
+  resolved resources and secrets, and release approval. It must promote the identical
+  staging-qualified commit and lockfile. Staging authorization never implies production
+  authorization.
 
-### Cloudflare Email Sending event subscriptions
-
-- For native Cloudflare Email Sending, provider event subscriptions are the authoritative
-  delivery-feedback path. Do not add an inbound `email()` bounce handler, DSN parser, heuristic
-  bounce detector, catch-all bounce route, or obsolete bounce endpoint for this purpose. The
-  `email()` handler is reserved for explicitly requested Email Routing/inbound-mail behavior and
-  must not be used as a substitute for Email Sending events.
-- Treat Email Sending queue subscriptions as account-level provider configuration, separate from
-  `wrangler.jsonc`. Configure them programmatically through the Cloudflare API rather than relying
-  on the dashboard flow or the generic Wrangler create command; the Email Sending source requires a
-  sending-domain selector and the current CLI/dashboard flow may not expose the required zone field.
-- Create subscriptions with `POST /accounts/{account_id}/event_subscriptions/subscriptions` and this
-  source/destination shape:
-
-  ```json
-  {
-    "source": {
-      "type": "email.sending",
-      "zone_id": "<sending-zone-id>",
-      "domain": "<verified-sending-domain>"
-    },
-    "destination": {
-      "type": "queues.queue",
-      "queue_id": "<feedback-queue-id>"
-    },
-    "events": [
-      "message.delivered",
-      "message.deferred",
-      "message.bounced",
-      "message.failed",
-      "message.rejected",
-      "message.complained"
-    ]
-  }
-  ```
-
-- Use a scoped API token from the approved secret store or an authenticated Wrangler session; never
-  print, commit, or place the token in a tracked file. Read the subscription back from the API and
-  with `npx wrangler queues subscription list <queue-name>` before qualifying the worker.
-- For production, require explicit release approval and resolve the production account, zone,
-  verified sending domain, queue, and dead-letter queue independently. Never reuse staging IDs,
-  domains, allowlists, subscriptions, or credentials.
-
-## 10. Pause Conditions
+## 9. Pause Conditions
 
 Continue autonomously through safe, in-scope implementation and verification. Pause only when:
 
 - interactive account authorization is required;
-- a secret must be entered by the user through a secure provider flow;
-- a genuinely product-changing decision is absent from the accepted plan/ADRs;
+- a secret must be entered through a secure provider flow;
+- a genuinely product-changing decision is absent from the accepted goal or ADRs;
 - an external account lacks a required paid product, entitlement, zone, or permission;
 - production launch or a destructive hosted-data operation would be required.
 
-When paused, record the exact blocker and completed work in `docs/goal/READINESS.md` before
-reporting it.
+Update `docs/goal/READINESS.md` only when a blocker affects active milestone completion or must
+survive a handoff. For a temporary question or local-only interruption, report the blocker without
+creating an unrelated documentation change.

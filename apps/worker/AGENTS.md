@@ -1,0 +1,61 @@
+# Worker Agent Instructions
+
+These instructions inherit the repository root `AGENTS.md` and apply under `apps/worker/`.
+
+## Tenancy and Authorization
+
+- D1 owns global identity, Better Auth state, Organization registry, memberships, invitations,
+  domains, Platform Administrator grants, and integration-routing metadata only.
+- One SQLite-backed Durable Object owns each Organization's operational records and scheduler state.
+- Verify Organization Membership or scoped Platform Administrator elevation before invoking
+  operational methods.
+- Platform Administrator access is Organization-at-a-time, never impersonated, visibly elevated for
+  edits, time-bounded, and attributed to the actual actor.
+- Audit events are append-only through application APIs and include safe actor, Organization,
+  action, target, request, timestamp, and change-summary fields.
+- Add adversarial isolation coverage where relevant: host or Organization-ID alteration,
+  cross-membership access, cross-host token replay, R2 key substitution, stale invitations, revoked
+  elevation, queue replay, and webhook-account mismatch.
+
+## Data and Migrations
+
+- `organization_memberships` is a legacy unused table. Do not query or write it. Authorization and
+  membership listing use Better Auth's `member` table with camelCase columns: `organizationId`,
+  `userId`, `role`, `createdAt`, and `profileId`.
+- Do not remove `organization_memberships` without a rollback-safe forward migration.
+- Use versioned D1 and Organization-store migrations with explicit schema registries.
+- Keep Durable Object transactions short. Provider calls never occur inside them.
+- Organization alarms transactionally create stable jobs and advance the next alarm.
+- Public traffic reads versioned Published Projections from R2 or edge cache; bursts must not
+  serialize through the Organization object.
+- Private R2 downloads require authorization. Public assets use immutable versioned URLs.
+- Validate every untrusted HTTP, queue, webhook, provider, import, and export boundary with Zod and
+  explicit size limits.
+- Enforce cross-field and referential rules at the shared contract and Organization store layers,
+  with UI validation as an affordance rather than an integrity boundary.
+
+## Queues, Workflows, and Providers
+
+- Queue delivery is at-least-once. Persist a stable idempotency key before a replay can create
+  another external effect.
+- Use bounded concurrency, exponential backoff, jitter, attempt records, terminal states, and
+  dead-letter visibility.
+- Do not broadly swallow Worker, Workflow, Durable Object, alarm, or queue errors. Handle explicitly
+  typed terminal conditions and preserve unexpected failures.
+- Test success, authorization and validation failures, retry/replay, rollback compatibility, and
+  tenant isolation as applicable.
+- Use deterministic clocks, provider fakes, and local Cloudflare bindings. Unit tests must not wait
+  on real timers.
+
+## Authentication and Provider Boundaries
+
+- There is no public registration. Email one-time code is the primary sign-in method; users may set
+  passwords; Platform Administrators require MFA and recovery codes.
+- Custom public domains never host authenticated administration, member, account-management, or
+  Platform Administrator routes.
+- Stripe uses Organization-owned connected accounts and direct charges. The platform takes no
+  application fee and has no subscription system.
+- Platform transactional email and Organization campaign/SMS delivery are separate provider lanes.
+- Cloudflare Email Sending feedback uses provider event subscriptions, not an inbound `email()`
+  bounce parser. Follow `docs/runbooks/cloudflare-email-feedback.md` and verify current Cloudflare
+  documentation before changing the subscription.
