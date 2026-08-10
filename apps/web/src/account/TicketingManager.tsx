@@ -6,7 +6,6 @@ import type {
   TicketBundle,
   TicketConfirmationSettings,
 } from "@choir/contracts";
-import { DataTable, Dialog } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
 import {
@@ -23,57 +22,21 @@ import {
   saveOrganizationDiscountCode,
   updateOrganizationTicketConfirmationSettings,
 } from "../auth/api";
+import { BundleOrdersPanel } from "./components/Ticketing/BundleOrdersPanel";
+import { BundlePanel } from "./components/Ticketing/BundlePanel";
+import { ConfirmationPanel } from "./components/Ticketing/ConfirmationPanel";
+import { DiscountCodesPanel } from "./components/Ticketing/DiscountCodesPanel";
+import { SharePanel } from "./components/Ticketing/SharePanel";
+import { WillCallPanel } from "./components/Ticketing/WillCallPanel";
+import {
+  DEFAULT_TICKET_CONFIRMATION_SETTINGS,
+  EMPTY_DISCOUNT_DRAFT,
+  WILL_CALL_REFRESH_INTERVAL_MS,
+  type DiscountDraft,
+  type OrderState,
+  type TicketingTab,
+} from "./components/Ticketing/shared";
 import { TicketScanner } from "./TicketScanner";
-import { QRCodeShareCard } from "./QRCodeShareCard";
-
-type OrderState =
-  | { readonly status: "error" }
-  | { readonly status: "loading" }
-  | { readonly orders: readonly OrganizationTicketOrder[]; readonly status: "ready" };
-
-type TicketingTab = "willcall" | "bundles" | "orders" | "share" | "confirmation" | "discounts";
-
-interface DiscountDraft {
-  readonly active: boolean;
-  readonly bundleId: string | null;
-  readonly code: string;
-  readonly discountType: DiscountCodeRequest["discountType"];
-  readonly discountValue: string;
-  readonly eventId: string | null;
-  readonly redemptionLimit: string;
-}
-
-const EMPTY_DISCOUNT_DRAFT: DiscountDraft = {
-  active: true,
-  bundleId: null,
-  code: "",
-  discountType: "percentage",
-  discountValue: "",
-  eventId: null,
-  redemptionLimit: "",
-};
-
-function money(cents: number): string {
-  return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
-    cents / 100,
-  );
-}
-
-function buyerLastName(name: string): string {
-  return name.trim().split(/\s+/).slice(-1)[0] ?? name;
-}
-
-const DEFAULT_TICKET_CONFIRMATION_SETTINGS: TicketConfirmationSettings = {
-  pendingMessage:
-    "We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.",
-  qrCodeInstructions:
-    "Print or screenshot this entire page and bring it with you. We also sent a confirmation email with a link back to this page.",
-  successMessage: "Your purchase has been successfully processed.",
-  willCallInstructions:
-    "A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.",
-};
-
-const WILL_CALL_REFRESH_INTERVAL_MS = 5_000;
 
 // This component coordinates three intentionally co-located manager tools and their shared state.
 // eslint-disable-next-line complexity
@@ -499,10 +462,10 @@ export function TicketingManager({
           ] as const
         ).map(([value, label]) => (
           <button
-            aria-controls={`ticketing-${value}-panel`}
+            aria-controls={"ticketing-" + value + "-panel"}
             aria-selected={activeTab === value}
             className={activeTab === value ? "is-active" : undefined}
-            id={`ticketing-${value}-tab`}
+            id={"ticketing-" + value + "-tab"}
             key={value}
             onClick={() => {
               selectTicketingTab(value);
@@ -514,136 +477,18 @@ export function TicketingManager({
           </button>
         ))}
       </nav>
-      {activeTab === "share" ? (
-        <div
-          aria-labelledby="ticketing-share-tab"
-          className="ticketing-tab-panel"
-          id="ticketing-share-panel"
-          role="tabpanel"
-        >
-          <div>
-            <p className="eyebrow">Share & QR codes</p>
-            <h3>Public ticketing links</h3>
-            <p>Share these links with your audience. Each page includes a ready-to-scan QR code.</p>
-          </div>
-          <div className="ticketing-share-grid">
-            <QRCodeShareCard
-              description="Share this page so your audience can see available performances and buy tickets."
-              path="/tickets"
-              title="All ticketing"
-            />
-            {ticketEvents.map((event) => (
-              <QRCodeShareCard
-                description={`Tickets for ${event.title}.`}
-                key={event.id}
-                path={`/tickets/${event.id}`}
-                title={event.title}
-              />
-            ))}
-            {bundles
-              .filter((bundle) => bundle.isActive)
-              .map((bundle) => (
-                <QRCodeShareCard
-                  description={`${money(bundle.priceCents)} bundle covering ${String(bundle.eventIds.length)} performance${bundle.eventIds.length === 1 ? "" : "s"}.`}
-                  key={bundle.id}
-                  path={`/tickets/bundles/${bundle.id}`}
-                  title={bundle.title}
-                />
-              ))}
-          </div>
-        </div>
-      ) : null}
+      {activeTab === "share" ? <SharePanel bundles={bundles} ticketEvents={ticketEvents} /> : null}
       {activeTab === "confirmation" ? (
-        confirmationLoaded ? (
-          <form
-            aria-labelledby="ticketing-confirmation-tab"
-            className="ticket-confirmation-settings"
-            id="ticketing-confirmation-panel"
-            onSubmit={(event) => {
-              void saveConfirmationSettings(event);
-            }}
-            role="tabpanel"
-          >
-            <div>
-              <p className="eyebrow">Confirmation page</p>
-              <h3>Ticket sales wording</h3>
-              <p>Customize the messages shown to buyers after they purchase tickets.</p>
-            </div>
-            <div className="ticket-confirmation-settings__grid">
-              <label className="field">
-                Success Message
-                <textarea
-                  onChange={(event) => {
-                    setConfirmationDraft((current) => ({
-                      ...current,
-                      successMessage: event.target.value,
-                    }));
-                  }}
-                  rows={3}
-                  value={confirmationDraft.successMessage}
-                />
-              </label>
-              <label className="field">
-                Pending / Unverified Message
-                <textarea
-                  onChange={(event) => {
-                    setConfirmationDraft((current) => ({
-                      ...current,
-                      pendingMessage: event.target.value,
-                    }));
-                  }}
-                  rows={3}
-                  value={confirmationDraft.pendingMessage}
-                />
-              </label>
-              <label className="field">
-                Will Call Instructions
-                <textarea
-                  onChange={(event) => {
-                    setConfirmationDraft((current) => ({
-                      ...current,
-                      willCallInstructions: event.target.value,
-                    }));
-                  }}
-                  rows={4}
-                  value={confirmationDraft.willCallInstructions}
-                />
-              </label>
-              <label className="field">
-                QR Code Instructions
-                <textarea
-                  onChange={(event) => {
-                    setConfirmationDraft((current) => ({
-                      ...current,
-                      qrCodeInstructions: event.target.value,
-                    }));
-                  }}
-                  rows={4}
-                  value={confirmationDraft.qrCodeInstructions}
-                />
-              </label>
-            </div>
-            <div className="form-actions">
-              <button
-                className="button button--primary"
-                disabled={confirmationSaving}
-                type="submit"
-              >
-                {confirmationSaving ? "Saving…" : "Save ticket wording"}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div
-            aria-labelledby="ticketing-confirmation-tab"
-            id="ticketing-confirmation-panel"
-            role="tabpanel"
-          >
-            <p className="notice notice--error" role="alert">
-              {confirmationLoadError ?? "Loading ticket confirmation wording…"}
-            </p>
-          </div>
-        )
+        <ConfirmationPanel
+          confirmationDraft={confirmationDraft}
+          confirmationLoadError={confirmationLoadError}
+          confirmationLoaded={confirmationLoaded}
+          confirmationSaving={confirmationSaving}
+          onSubmit={(event) => {
+            void saveConfirmationSettings(event);
+          }}
+          setConfirmationDraft={setConfirmationDraft}
+        />
       ) : null}
       {message ? (
         <p className="notice notice--info" role="status">
@@ -651,747 +496,86 @@ export function TicketingManager({
         </p>
       ) : null}
       {activeTab === "discounts" ? (
-        <div
-          aria-labelledby="ticketing-discounts-tab"
-          className="ticketing-tab-panel"
-          id="ticketing-discounts-panel"
-          role="tabpanel"
-        >
-          <div className="ticketing-page-header">
-            <div>
-              <p className="eyebrow">Discount codes</p>
-              <h3>Create and monitor ticket discounts</h3>
-              <p>
-                Codes apply to one performance or bundle. After the first confirmed redemption,
-                their terms can only be deactivated.
-              </p>
-            </div>
-            <button className="button button--primary" onClick={openNewDiscountCode} type="button">
-              New discount code
-            </button>
-          </div>
-          <Dialog
-            description="Set the eligible item, discount, and optional Organization-wide redemption limit."
-            onClose={closeDiscountDialog}
-            open={discountDialogOpen}
-            title={editingDiscountCodeId ? "Edit discount code" : "New discount code"}
-          >
-            <form className="form-stack" onSubmit={(event) => void saveDiscountCode(event)}>
-              <label className="field">
-                Code
-                <input
-                  required
-                  maxLength={64}
-                  value={discountDraft.code}
-                  onChange={(event) => {
-                    setDiscountDraft((current) => ({ ...current, code: event.target.value }));
-                  }}
-                />
-              </label>
-              <label className="field">
-                Eligible item
-                <select
-                  required
-                  value={
-                    discountDraft.eventId
-                      ? "event:" + discountDraft.eventId
-                      : discountDraft.bundleId
-                        ? "bundle:" + discountDraft.bundleId
-                        : ""
-                  }
-                  onChange={(event) => {
-                    const [kind, id] = event.target.value.split(":");
-                    setDiscountDraft((current) => ({
-                      ...current,
-                      bundleId: kind === "bundle" ? (id ?? null) : null,
-                      eventId: kind === "event" ? (id ?? null) : null,
-                    }));
-                  }}
-                >
-                  <option value="">Choose a performance or bundle</option>
-                  <optgroup label="Performances">
-                    {ticketEvents.map((event) => (
-                      <option key={event.id} value={"event:" + event.id}>
-                        {event.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Ticket bundles">
-                    {bundles.map((bundle) => (
-                      <option key={bundle.id} value={"bundle:" + bundle.id}>
-                        {bundle.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </label>
-              <div className="form-grid form-grid--two">
-                <label className="field">
-                  Discount type
-                  <select
-                    value={discountDraft.discountType}
-                    onChange={(event) => {
-                      const type = event.target.value === "fixed" ? "fixed" : "percentage";
-                      setDiscountDraft((current) => ({
-                        ...current,
-                        discountType: type,
-                      }));
-                    }}
-                  >
-                    <option value="percentage">Percentage</option>
-                    <option value="fixed">Fixed amount per unit</option>
-                  </select>
-                </label>
-                <label className="field">
-                  {discountDraft.discountType === "percentage"
-                    ? "Percentage (1–100)"
-                    : "Amount per unit (USD)"}
-                  <input
-                    required
-                    min={discountDraft.discountType === "percentage" ? 1 : 0}
-                    max={discountDraft.discountType === "percentage" ? 100 : undefined}
-                    step={discountDraft.discountType === "percentage" ? 1 : 0.01}
-                    type="number"
-                    value={
-                      discountDraft.discountType === "fixed" &&
-                      discountDraft.discountValue &&
-                      !discountDraft.discountValue.includes(".")
-                        ? (Number(discountDraft.discountValue) / 100).toFixed(2)
-                        : discountDraft.discountValue
-                    }
-                    onChange={(event) => {
-                      setDiscountDraft((current) => ({
-                        ...current,
-                        discountValue:
-                          current.discountType === "fixed"
-                            ? String(Math.round(Number(event.target.value) * 100))
-                            : event.target.value,
-                      }));
-                    }}
-                  />
-                </label>
-              </div>
-              <label className="field">
-                Redemption limit (blank is unlimited)
-                <input
-                  min="1"
-                  step="1"
-                  type="number"
-                  value={discountDraft.redemptionLimit}
-                  onChange={(event) => {
-                    setDiscountDraft((current) => ({
-                      ...current,
-                      redemptionLimit: event.target.value,
-                    }));
-                  }}
-                />
-              </label>
-              <label>
-                <input
-                  checked={discountDraft.active}
-                  type="checkbox"
-                  onChange={(event) => {
-                    setDiscountDraft((current) => ({
-                      ...current,
-                      active: event.target.checked,
-                    }));
-                  }}
-                />{" "}
-                Available for redemption
-              </label>
-              <div className="form-actions">
-                <button
-                  className="button button--primary"
-                  disabled={
-                    busy ||
-                    (!discountDraft.eventId && !discountDraft.bundleId) ||
-                    !discountDraft.discountValue
-                  }
-                  type="submit"
-                >
-                  {busy ? "Saving…" : "Save discount code"}
-                </button>
-                <button
-                  className="button button--secondary"
-                  disabled={busy}
-                  onClick={closeDiscountDialog}
-                  type="button"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </Dialog>
-          {discountCodesLoading ? <p>Loading discount codes…</p> : null}
-          {discountCodesLoadError ? (
-            <p className="notice notice--error" role="alert">
-              {discountCodesLoadError}
-            </p>
-          ) : null}
-          {!discountCodesLoading && !discountCodesLoadError && discountCodes.length === 0 ? (
-            <p className="empty-state">No discount codes yet.</p>
-          ) : null}
-          {discountCodes.length > 0 ? (
-            <DataTable
-              columns={[
-                {
-                  header: "Code",
-                  id: "code",
-                  render: (code) => <strong>{code.code}</strong>,
-                  sortValue: (code) => code.code,
-                },
-                {
-                  header: "Eligible item",
-                  id: "item",
-                  render: (code) => code.itemTitle + " (" + code.itemType + ")",
-                  sortValue: (code) => code.itemTitle,
-                },
-                {
-                  header: "Discount",
-                  id: "discount",
-                  render: (code) =>
-                    code.discountType === "percentage"
-                      ? String(code.discountValue) + "%"
-                      : money(code.discountValue),
-                  sortValue: (code) => code.discountValue,
-                },
-                {
-                  header: "Redemptions",
-                  id: "redemptions",
-                  render: (code) =>
-                    String(code.redemptionCount) +
-                    (code.redemptionLimit === null ? "" : "/" + String(code.redemptionLimit)),
-                  sortValue: (code) => code.redemptionCount,
-                },
-                {
-                  header: "Discounted revenue",
-                  id: "revenue",
-                  render: (code) => money(code.revenueCents),
-                  sortValue: (code) => code.revenueCents,
-                },
-                {
-                  header: "Status",
-                  id: "status",
-                  render: (code) => (code.active ? "Active" : "Inactive"),
-                  sortValue: (code) => (code.active ? 1 : 0),
-                },
-                {
-                  header: "Actions",
-                  id: "actions",
-                  render: (code) =>
-                    deactivateDiscountCodeId === code.id ? (
-                      <div className="danger-confirmation">
-                        <p>Deactivate this code?</p>
-                        <div className="form-actions">
-                          <button
-                            className="button button--secondary"
-                            disabled={busy}
-                            onClick={() => {
-                              setDeactivateDiscountCodeId(null);
-                            }}
-                            type="button"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            className="button button--danger"
-                            disabled={busy}
-                            onClick={() => void deactivateDiscountCode(code.id)}
-                            type="button"
-                          >
-                            {busy ? "Deactivating…" : "Confirm"}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="form-actions">
-                        <button
-                          className="text-button"
-                          disabled={busy || !code.editable}
-                          onClick={() => {
-                            editDiscountCode(code);
-                          }}
-                          title={
-                            code.editable
-                              ? undefined
-                              : "Terms are locked after the first confirmed redemption."
-                          }
-                          type="button"
-                        >
-                          Edit
-                        </button>
-                        {code.active ? (
-                          <button
-                            className="text-button text-button--danger"
-                            disabled={busy}
-                            onClick={() => {
-                              setDeactivateDiscountCodeId(code.id);
-                            }}
-                            type="button"
-                          >
-                            Deactivate
-                          </button>
-                        ) : null}
-                      </div>
-                    ),
-                },
-              ]}
-              initialSort={{ columnId: "code", direction: "asc" }}
-              keySelector={(code) => code.id}
-              rows={discountCodes}
-            />
-          ) : null}
-        </div>
+        <DiscountCodesPanel
+          bundles={bundles}
+          busy={busy}
+          closeDiscountDialog={closeDiscountDialog}
+          deactivateDiscountCode={deactivateDiscountCode}
+          deactivateDiscountCodeId={deactivateDiscountCodeId}
+          discountCodes={discountCodes}
+          discountCodesLoadError={discountCodesLoadError}
+          discountCodesLoading={discountCodesLoading}
+          discountDialogOpen={discountDialogOpen}
+          discountDraft={discountDraft}
+          editDiscountCode={editDiscountCode}
+          editingDiscountCodeId={editingDiscountCodeId}
+          openNewDiscountCode={openNewDiscountCode}
+          saveDiscountCode={saveDiscountCode}
+          setDeactivateDiscountCodeId={setDeactivateDiscountCodeId}
+          setDiscountDraft={setDiscountDraft}
+          ticketEvents={ticketEvents}
+        />
       ) : null}
       {activeTab === "willcall" ? (
-        <>
-          <div
-            aria-labelledby="ticketing-willcall-tab"
-            className="ticket-dashboard"
-            id="ticketing-willcall-panel"
-            role="tabpanel"
-          >
-            <div className="ticket-dashboard__intro">
-              <div>
-                <h3>Performance summary</h3>
-                <p>Choose a performance to view ticket sales, revenue, and will-call activity.</p>
-              </div>
-              <label className="field">
-                Select performance
-                <select
-                  onChange={(event) => {
-                    setSelectedPerformanceId(event.target.value);
-                  }}
-                  value={selectedPerformanceId}
-                >
-                  <option value="all">All ticketed performances</option>
-                  {ticketEvents.map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="ticket-dashboard__metrics">
-              <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sold">
-                <span className="summary-card__label">Tickets sold</span>
-                <strong>{ticketSoldLabel}</strong>
-                <small>
-                  {selectedPerformance ? selectedPerformance.title : "All performances"}
-                </small>
-              </article>
-              <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sales">
-                <span className="summary-card__label">Ticket sales</span>
-                <strong>{money(ticketSalesCents)}</strong>
-                <small>Before processing fees</small>
-              </article>
-              <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--fees">
-                <span className="summary-card__label">Fees collected</span>
-                <strong>{money(feesCollectedCents)}</strong>
-                <small>Paid orders</small>
-              </article>
-              <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--revenue">
-                <span className="summary-card__label">Total revenue</span>
-                <strong>{money(totalRevenueCents)}</strong>
-                <small>Including processing fees</small>
-              </article>
-            </div>
-          </div>
-          <div className="ticket-dashboard__will-call">
-            <div className="ticket-dashboard__section-heading">
-              <div>
-                <h3>Will call checklist</h3>
-                <p>Search ticket buyers, confirm payment status, and process refunds.</p>
-              </div>
-              <span className="field-help" role="status">
-                {lastOrderRefreshAt ? "Updates automatically every 5 seconds." : "Loading updates…"}
-              </span>
-            </div>
-            <div className="ticket-dashboard__filters ticket-dashboard__filters--search">
-              <label className="field">
-                Search
-                <input
-                  onChange={(event) => {
-                    setWillCallSearch(event.target.value);
-                  }}
-                  placeholder="Search buyer name or email…"
-                  type="search"
-                  value={willCallSearch}
-                />
-              </label>
-            </div>
-            {state.status === "loading" ? <p>Loading ticket orders…</p> : null}
-            {state.status === "error" ? (
-              <p className="notice notice--error">Ticket orders could not be loaded.</p>
-            ) : null}
-            {state.status === "ready" && performanceOrders.length === 0 ? (
-              <p className="empty-state">No ticket orders yet.</p>
-            ) : null}
-            {state.status === "ready" &&
-            performanceOrders.length > 0 &&
-            visibleOrders.length === 0 ? (
-              <p className="empty-state">No ticket buyers match this search.</p>
-            ) : null}
-            {visibleOrders.length > 0 ? (
-              <DataTable
-                columns={[
-                  {
-                    header: "Buyer name",
-                    id: "buyerName",
-                    render: (order) => <strong>{order.buyerName}</strong>,
-                    sortValue: (order) => buyerLastName(order.buyerName),
-                  },
-                  {
-                    header: "Email",
-                    id: "email",
-                    render: (order) => order.buyerEmail,
-                    sortValue: (order) => order.buyerEmail,
-                  },
-                  {
-                    header: "Sale date",
-                    id: "saleDate",
-                    render: (order) => new Date(order.createdAt).toLocaleString(),
-                    sortValue: (order) => order.createdAt,
-                  },
-                  {
-                    header: "Qty",
-                    id: "quantity",
-                    render: (order) => order.quantity,
-                    sortValue: (order) => order.quantity,
-                  },
-                  {
-                    header: "Amount paid",
-                    id: "amountPaid",
-                    render: (order) => money(order.amountPaidCents),
-                    sortValue: (order) => order.amountPaidCents,
-                  },
-                  {
-                    header: "Status",
-                    id: "status",
-                    render: (order) =>
-                      `${order.status}${order.checkoutMode === "fake" ? " (simulation)" : ""}`,
-                    sortValue: (order) => order.status,
-                  },
-                  {
-                    header: "Actions",
-                    id: "actions",
-                    render: (order) =>
-                      refundId === order.id ? (
-                        <div className="danger-confirmation">
-                          <p>Refund this complete order?</p>
-                          <div className="form-actions">
-                            <button
-                              className="button button--secondary"
-                              disabled={busy}
-                              onClick={() => {
-                                setRefundId(null);
-                              }}
-                              type="button"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              className="button button--danger"
-                              disabled={busy}
-                              onClick={() => void refund(order.id)}
-                              type="button"
-                            >
-                              {busy ? "Refunding…" : "Confirm refund"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : order.status === "paid" ? (
-                        <div className="form-actions">
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => void resendConfirmation(order.id)}
-                            type="button"
-                          >
-                            Resend
-                          </button>
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => {
-                              setRefundId(order.id);
-                            }}
-                            type="button"
-                          >
-                            Refund
-                          </button>
-                        </div>
-                      ) : null,
-                  },
-                ]}
-                initialSort={{ columnId: "saleDate", direction: "desc" }}
-                keySelector={(order) => order.id}
-                rows={visibleOrders}
-              />
-            ) : null}
-          </div>
-        </>
+        <WillCallPanel
+          busy={busy}
+          feesCollectedCents={feesCollectedCents}
+          lastOrderRefreshAt={lastOrderRefreshAt}
+          performanceOrders={performanceOrders}
+          refund={refund}
+          refundId={refundId}
+          resendConfirmation={resendConfirmation}
+          selectedPerformance={selectedPerformance}
+          selectedPerformanceId={selectedPerformanceId}
+          setRefundId={setRefundId}
+          setSelectedPerformanceId={setSelectedPerformanceId}
+          setWillCallSearch={setWillCallSearch}
+          state={state}
+          ticketEvents={ticketEvents}
+          ticketSalesCents={ticketSalesCents}
+          ticketSoldLabel={ticketSoldLabel}
+          totalRevenueCents={totalRevenueCents}
+          visibleOrders={visibleOrders}
+          willCallSearch={willCallSearch}
+        />
       ) : null}
       {activeTab === "bundles" ? (
-        <div
-          aria-labelledby="ticketing-bundles-tab"
-          className="split-panel"
-          id="ticketing-bundles-panel"
-          role="tabpanel"
-        >
-          <div>
-            <h3>Ticket bundles</h3>
-            <p>Create a bundle, pass, or ticket tier for one or more performances.</p>
-            <button className="button button--primary" onClick={openNewBundle} type="button">
-              New ticket bundle
-            </button>
-          </div>
-          <Dialog
-            description="Set pricing, capacity, sale timing, and included performances."
-            onClose={closeBundleDialog}
-            open={bundleDialogOpen}
-            title={editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}
-          >
-            <form className="form-stack" onSubmit={(formEvent) => void saveBundle(formEvent)}>
-              <h3>{editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}</h3>
-              <label className="field">
-                Bundle title
-                <input
-                  required
-                  maxLength={500}
-                  value={bundleTitle}
-                  onChange={(event) => {
-                    setBundleTitle(event.target.value);
-                  }}
-                />
-              </label>
-              <div className="form-grid form-grid--two">
-                <label className="field">
-                  Price (USD)
-                  <input
-                    required
-                    min="0"
-                    step="0.01"
-                    type="number"
-                    value={bundlePrice}
-                    onChange={(event) => {
-                      setBundlePrice(event.target.value);
-                    }}
-                  />
-                </label>
-                <label className="field">
-                  Capacity (blank is unlimited)
-                  <input
-                    min="1"
-                    step="1"
-                    type="number"
-                    value={bundleCapacity}
-                    onChange={(event) => {
-                      setBundleCapacity(event.target.value);
-                    }}
-                  />
-                </label>
-              </div>
-              <label className="field">
-                Sale ends
-                <input
-                  required
-                  type="datetime-local"
-                  value={bundleSaleEnd}
-                  onChange={(event) => {
-                    setBundleSaleEnd(event.target.value);
-                  }}
-                />
-              </label>
-              <label>
-                <input
-                  checked={bundleIsActive}
-                  type="checkbox"
-                  onChange={(event) => {
-                    setBundleIsActive(event.target.checked);
-                  }}
-                />{" "}
-                Active for public sale
-              </label>
-              <fieldset className="field">
-                <legend>Included performances</legend>
-                {ticketEvents.length === 0 ? <p>Create ticketed performances first.</p> : null}
-                {ticketEvents.map((event) => (
-                  <label key={event.id}>
-                    <input
-                      checked={bundleEventIds.includes(event.id)}
-                      type="checkbox"
-                      onChange={(change) => {
-                        setBundleEventIds((current) =>
-                          change.target.checked
-                            ? [...current, event.id]
-                            : current.filter((id) => id !== event.id),
-                        );
-                      }}
-                    />{" "}
-                    {event.title}
-                  </label>
-                ))}
-              </fieldset>
-              <div className="form-actions">
-                <button
-                  className="button button--primary"
-                  disabled={busy || bundleEventIds.length === 0}
-                  type="submit"
-                >
-                  {busy ? "Saving…" : "Save bundle"}
-                </button>
-                {editingBundleId ? (
-                  <button
-                    className="button button--secondary"
-                    disabled={busy}
-                    onClick={closeBundleDialog}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
-                ) : null}
-              </div>
-            </form>
-          </Dialog>
-          <div>
-            {bundles.length === 0 ? <p>No bundles yet.</p> : null}
-            {bundles.map((bundle) => (
-              <article className="compact-card" key={bundle.id}>
-                <h4>{bundle.title}</h4>
-                <p>
-                  {money(bundle.priceCents)} · {bundle.eventIds.length} performance
-                  {bundle.eventIds.length === 1 ? "" : "s"} ·{" "}
-                  {bundle.isActive ? "active" : "inactive"}
-                </p>
-                <div className="form-actions">
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      editBundle(bundle);
-                    }}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="text-button text-button--danger"
-                    disabled={busy}
-                    onClick={() => void removeBundle(bundle.id)}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
+        <BundlePanel
+          bundleCapacity={bundleCapacity}
+          bundleDialogOpen={bundleDialogOpen}
+          bundleEventIds={bundleEventIds}
+          bundleIsActive={bundleIsActive}
+          bundlePrice={bundlePrice}
+          bundleSaleEnd={bundleSaleEnd}
+          bundleTitle={bundleTitle}
+          bundles={bundles}
+          busy={busy}
+          closeBundleDialog={closeBundleDialog}
+          editBundle={editBundle}
+          editingBundleId={editingBundleId}
+          openNewBundle={openNewBundle}
+          removeBundle={removeBundle}
+          saveBundle={saveBundle}
+          setBundleCapacity={setBundleCapacity}
+          setBundleEventIds={setBundleEventIds}
+          setBundleIsActive={setBundleIsActive}
+          setBundlePrice={setBundlePrice}
+          setBundleSaleEnd={setBundleSaleEnd}
+          setBundleTitle={setBundleTitle}
+          ticketEvents={ticketEvents}
+        />
       ) : null}
       {activeTab === "orders" ? (
-        <div
-          aria-labelledby="ticketing-orders-tab"
-          className="ticketing-tab-panel"
-          id="ticketing-orders-panel"
-          role="tabpanel"
-        >
-          <div>
-            <p className="eyebrow">Bundle orders</p>
-            <h3>Season bundle orders</h3>
-            <p>Review bundle purchases, resend confirmations, or issue refunds.</p>
-          </div>
-          {state.status === "loading" ? <p>Loading bundle orders…</p> : null}
-          {state.status === "error" ? (
-            <p className="notice notice--error">Bundle orders could not be loaded.</p>
-          ) : null}
-          {state.status === "ready" && bundleOrders.length === 0 ? (
-            <p className="empty-state">No bundle orders yet.</p>
-          ) : null}
-          {bundleOrders.length > 0 ? (
-            <div className="table-scroll">
-              <table className="table--actions">
-                <thead>
-                  <tr>
-                    <th>Buyer</th>
-                    <th>Email</th>
-                    <th>Sale date</th>
-                    <th>Bundle</th>
-                    <th>Qty</th>
-                    <th>Amount paid</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bundleOrders.map((order) => {
-                    const bundle = bundles.find(({ id }) => id === order.bundleId);
-                    return (
-                      <tr key={order.id}>
-                        <td>{order.buyerName}</td>
-                        <td>{order.buyerEmail}</td>
-                        <td>{new Date(order.createdAt).toLocaleString()}</td>
-                        <td>{bundle?.title ?? order.bundleTitle}</td>
-                        <td>{order.quantity}</td>
-                        <td>{money(order.amountPaidCents)}</td>
-                        <td>{order.status}</td>
-                        <td>
-                          {refundId === order.id ? (
-                            <div className="danger-confirmation">
-                              <p>Refund this complete order?</p>
-                              <div className="form-actions">
-                                <button
-                                  className="button button--secondary"
-                                  disabled={busy}
-                                  onClick={() => {
-                                    setRefundId(null);
-                                  }}
-                                  type="button"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  className="button button--danger"
-                                  disabled={busy}
-                                  onClick={() => void refund(order.id)}
-                                  type="button"
-                                >
-                                  {busy ? "Refunding…" : "Confirm refund"}
-                                </button>
-                              </div>
-                            </div>
-                          ) : order.status === "paid" ? (
-                            <div className="form-actions">
-                              <button
-                                className="text-button"
-                                disabled={busy}
-                                onClick={() => void resendConfirmation(order.id)}
-                                type="button"
-                              >
-                                Resend
-                              </button>
-                              <button
-                                className="text-button"
-                                disabled={busy}
-                                onClick={() => {
-                                  setRefundId(order.id);
-                                }}
-                                type="button"
-                              >
-                                Refund
-                              </button>
-                            </div>
-                          ) : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
+        <BundleOrdersPanel
+          bundleOrders={bundleOrders}
+          bundles={bundles}
+          busy={busy}
+          refund={refund}
+          refundId={refundId}
+          resendConfirmation={resendConfirmation}
+          setRefundId={setRefundId}
+          state={state}
+        />
       ) : null}
     </section>
   );

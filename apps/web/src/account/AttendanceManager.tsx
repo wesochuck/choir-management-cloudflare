@@ -391,12 +391,12 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const counts = useMemo(() => {
     const expected = rows.filter((row) => row.rsvp === "Yes");
     return {
-      absent: rows.filter((row) => row.attendance === "Absent").length,
+      absent: expected.filter((row) => row.attendance === "Absent").length,
       expected: expected.length,
-      pending: rows.filter((row) => row.attendance === "Pending").length,
+      pending: expected.filter((row) => row.attendance === "Pending").length,
       present: expected.filter((row) => row.attendance === "Present").length,
-      presentTotal: rows.filter((row) => row.attendance === "Present").length,
-      roster: rows.length,
+      presentTotal: expected.filter((row) => row.attendance === "Present").length,
+      roster: expected.length,
     };
   }, [rows]);
 
@@ -412,7 +412,8 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
         !normalizedQuery ||
         row.displayName.toLocaleLowerCase().includes(normalizedQuery) ||
         row.voicePart.toLocaleLowerCase().includes(normalizedQuery);
-      return matchesFilter && matchesQuery;
+      const isSearchResult = normalizedQuery.length > 0;
+      return matchesFilter && matchesQuery && (isSearchResult || row.rsvp === "Yes");
     });
     return {
       notRsvped: groupRowsByVoicePart(filtered.filter((row) => row.rsvp !== "Yes")),

@@ -6,23 +6,42 @@ const routerDirectoryUrl = new URL("../apps/worker/src/", import.meta.url);
 const routeModulesDirectoryUrl = new URL("../apps/worker/src/routes/", import.meta.url);
 
 const routeFileNames = ["router.ts"];
+
+async function collectRouteFiles(directory, prefix) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const relativePath = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) {
+      files.push(...(await collectRouteFiles(`${directory}/${entry.name}`, relativePath)));
+    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      files.push(relativePath);
+    }
+  }
+  return files;
+}
+
 try {
-  const routeModuleNames = (await readdir(routeModulesDirectoryUrl.pathname))
-    .filter((fileName) => fileName.endsWith(".ts"))
-    .toSorted();
-  routeFileNames.push(...routeModuleNames.map((fileName) => `routes/${fileName}`));
+  routeFileNames.push(...(await collectRouteFiles(routeModulesDirectoryUrl.pathname, "routes")));
 } catch (error) {
   if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
 }
+routeFileNames.sort();
 
-const routeUrls = routeFileNames.map((fileName) => new URL(fileName, routerDirectoryUrl));
+const routeUrls = routeFileNames
+  .filter(
+    (fileName) =>
+      fileName !== "routes/helpers.ts" &&
+      !fileName.startsWith("routes/helpers/") &&
+      fileName !== "routes/platformAdministration/shared.ts",
+  )
+  .map((fileName) => new URL(fileName, routerDirectoryUrl));
 for (const routeUrl of routeUrls) {
   try {
     const source = await readFile(routeUrl, "utf8");
     if (
       routeUrl.pathname.includes("/routes/") &&
-      !routeUrl.pathname.endsWith("/routes/helpers.ts") &&
-      !/registerRoutes\(router:\s*Hono<WorkerHonoEnvironment>\)/.test(source)
+      !/register[A-Za-z0-9]*Routes\(router:\s*Hono<WorkerHonoEnvironment>\)/.test(source)
     ) {
       throw new Error(
         "route module must export registerRoutes(router: Hono<WorkerHonoEnvironment>)",

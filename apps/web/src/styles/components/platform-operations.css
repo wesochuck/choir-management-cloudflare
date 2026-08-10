@@ -1,0 +1,931 @@
+/* Platform operations and setup monitor. */
+@layer components {
+  /* Platform operations and setup monitor */
+
+  .platform-operations {
+    margin-top: 1.5rem;
+  }
+
+  .platform-setup-monitor {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .platform-setup-monitor__heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .platform-setup-monitor__heading h2,
+  .platform-setup-monitor__heading p {
+    margin: 0;
+  }
+
+  .platform-setup-monitor__heading p:not(.eyebrow) {
+    max-width: 56rem;
+    margin-top: 0.35rem;
+    color: var(--color-text-muted);
+  }
+
+  .platform-setup-monitor__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .platform-setup-monitor__error {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .platform-setup-monitor__error .notice {
+    margin: 0;
+  }
+
+  .platform-setup-monitor__error .button {
+    justify-self: start;
+  }
+
+  .platform-setup-checks {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .platform-setup-check {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .platform-setup-check--provider {
+    align-items: flex-start;
+  }
+
+  .platform-setup-check--provider .platform-setup-check__copy {
+    flex: 1 1 auto;
+  }
+
+  .platform-setup-check__copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+
+  .platform-setup-check__copy span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .platform-setup-check__status {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.7rem;
+    text-align: right;
+  }
+
+  .platform-setup-check__status a {
+    color: var(--color-primary);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .platform-setup-check__guide {
+    margin-top: 0.75rem;
+  }
+
+  .platform-setup-check__guide > div {
+    margin-top: 0.75rem;
+  }
+
+  .platform-setup-check__guide code {
+    overflow-wrap: anywhere;
+  }
+
+  .platform-setup-status {
+    display: inline-flex;
+    min-width: 6.5rem;
+    justify-content: center;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .platform-setup-status--ok {
+    background: color-mix(in srgb, var(--color-success) 16%, transparent);
+    color: var(--color-success);
+  }
+
+  .platform-setup-status--attention {
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    color: var(--color-accent);
+  }
+
+  .platform-setup-status--error {
+    background: color-mix(in srgb, var(--color-danger) 18%, transparent);
+    color: var(--color-danger);
+  }
+
+  .section-heading--nested h3,
+  .section-heading--nested p,
+  .platform-directory h4 {
+    margin-top: 0;
+  }
+
+  .section-heading--nested p {
+    color: var(--color-text-muted);
+    line-height: var(--line-height-relaxed);
+  }
+
+  /* Provisioning, schema status, and organization list */
+
+  .platform-provisioning-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+    gap: 1rem;
+    max-width: 48rem;
+    margin-top: 1.5rem;
+  }
+
+  .platform-provisioning-form .button {
+    justify-self: start;
+  }
+
+  .platform-directory {
+    margin-top: 2rem;
+  }
+
+  .platform-schema-status {
+    justify-self: start;
+    background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+    color: var(--color-success);
+  }
+
+  .platform-organization-list h5,
+  .platform-organization-list p {
+    margin: 0;
+  }
+
+  .platform-organization-list h5 {
+    font-size: var(--font-size-body);
+  }
+
+  .platform-organization-list .status-pill {
+    display: inline-block;
+    margin-top: 0.65rem;
+  }
+
+  .platform-organization-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
+  }
+
+  .platform-organization-domains {
+    flex: 1 1 100%;
+    margin-top: 0.9rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.75rem;
+  }
+
+  .platform-organization-domains summary {
+    color: var(--color-primary);
+    cursor: pointer;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .platform-organization-domains__content {
+    max-width: 52rem;
+    margin-top: 0.8rem;
+  }
+
+  .platform-domain-list {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0.8rem 0 1rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .platform-domain-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+  }
+
+  .platform-domain-list li > span {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .platform-domain-list .status-pill {
+    margin: 0;
+  }
+
+  .platform-domain-form {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .platform-domain-form > div {
+    display: flex;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .platform-domain-form input {
+    min-width: 0;
+    flex: 1;
+  }
+
+  @media (max-width: 48rem) {
+    .platform-domain-form > div {
+      flex-direction: column;
+    }
+  }
+
+  .platform-load-more {
+    margin-top: 1rem;
+  }
+
+  .platform-email-suppressions__intro {
+    margin: 0 0 1.25rem;
+    color: var(--color-text-muted);
+  }
+
+  .platform-email-suppressions__filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.45fr) auto;
+    align-items: end;
+    gap: 0.8rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .platform-email-suppressions__filter-actions {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  .platform-email-suppressions__detail {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 14rem;
+  }
+
+  .platform-email-suppressions__detail small {
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 48rem) {
+    .platform-email-suppressions__filters {
+      grid-template-columns: 1fr;
+    }
+
+    .platform-email-suppressions__filter-actions {
+      flex-wrap: wrap;
+    }
+  }
+
+  .platform-elevation-form {
+    max-width: 40rem;
+    margin-top: 1.5rem;
+  }
+
+  .platform-elevation-form .status-pill {
+    justify-self: start;
+    margin: 0;
+  }
+
+  .platform-elevation-form textarea {
+    resize: vertical;
+  }
+
+  .platform-elevation-active .notice {
+    margin: 0;
+  }
+
+  .organization-security-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .organization-security-status .notice {
+    margin: 0;
+  }
+
+  .organization-policy {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .organization-policy h3,
+.organization-policy .section-description,
+
+/* Organization enrollment, security, and invitations */
+
+.organization-enrollment-start h3,
+.organization-enrollment-start p,
+.organization-verification h3 {
+    margin-top: 0;
+  }
+
+  .danger-confirmation {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .danger-confirmation p {
+    margin: 0;
+    font-weight: var(--font-weight-bold);
+  }
+
+  .organization-mfa-enrollment,
+  .organization-verification,
+  .organization-enrollment-start {
+    margin-top: 1.5rem;
+  }
+
+  .organization-verification {
+    max-width: 40rem;
+    margin-top: 1.5rem;
+  }
+
+  .organization-invitation-form {
+    max-width: 40rem;
+  }
+
+  .organization-pending-invitations {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .organization-pending-invitations > h3,
+  .organization-invitation-list h4,
+  .organization-invitation-list p {
+    margin-top: 0;
+  }
+
+  .organization-invitation-list h4 {
+    margin-bottom: 0.25rem;
+    overflow-wrap: anywhere;
+  }
+
+  .organization-invitation-list .danger-confirmation {
+    flex: 0 1 28rem;
+  }
+
+  .organization-invitation-list .form-actions {
+    align-items: flex-end;
+  }
+
+  .auth-card > .danger-confirmation,
+  .auth-card > .button + .button {
+    margin-top: 1rem;
+  }
+
+  .invitation-details {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+
+  .invitation-details div {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
+    gap: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .invitation-details dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .invitation-details dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .section-heading--compact h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  .organization-payment-settings__heading {
+    max-width: none;
+  }
+
+  .section-description {
+    margin: 1rem 0 1.5rem;
+  }
+
+  @media (min-width: 64rem) {
+    .organization-payment-settings__heading .section-description {
+      white-space: nowrap;
+    }
+  }
+
+  .account-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .account-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .account-list h3,
+  .account-list p {
+    margin: 0;
+  }
+
+  .account-list h3 {
+    font-size: var(--font-size-body);
+  }
+
+  .account-list p {
+    margin-top: 0.25rem;
+    font-size: var(--font-size-md);
+  }
+
+  /* Platform workspace composition */
+
+  .signed-in-main.signed-in-main--platform {
+    width: min(100%, 92rem);
+    padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2.5rem) 4rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .page-heading {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.9rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .page-heading h1 {
+    font-size: var(--font-size-3xl);
+  }
+
+  .signed-in-main.signed-in-main--platform .account-section.account-section--platform {
+    display: grid;
+    gap: 1.25rem;
+    max-width: none;
+    margin: 0;
+    padding: clamp(1rem, 2vw, 1.5rem);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-section__heading {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    max-width: none;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-section__heading .eyebrow,
+  .signed-in-main.signed-in-main--platform .platform-section__heading h2 {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-section__heading h2 {
+    font-size: var(--font-size-2xl);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-access-status {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-operations {
+    display: grid;
+    gap: 1.25rem;
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-operation__heading {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-operation__heading h3,
+  .signed-in-main.signed-in-main--platform .platform-operation__heading p {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-operation__heading h3 {
+    font-size: var(--font-size-xl);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-operation__heading p {
+    max-width: 60rem;
+    color: var(--color-text-muted);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-operations > .notice {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-provisioning-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 60rem;
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-provisioning-form .button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-directory {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-directory > h4 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-directory > p:not(.notice):not(.empty-state) {
+    margin: 0;
+    color: var(--color-text-muted);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-directory > .notice,
+  .signed-in-main.signed-in-main--platform .platform-directory > .empty-state {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-list--directory {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-list--directory > li {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.85fr) minmax(0, 1.5fr) minmax(10rem, 0.75fr);
+    align-items: start;
+    gap: 1rem;
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-card__identity {
+    display: grid;
+    align-content: start;
+    min-width: 0;
+    gap: 0.3rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-card__identity h5,
+  .signed-in-main.signed-in-main--platform .platform-organization-card__identity p {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-card__identity h5 {
+    font-size: var(--font-size-base);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-card__identity p {
+    overflow-wrap: anywhere;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-card__identity .status-pill {
+    justify-self: start;
+    margin: 0.3rem 0 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-domains {
+    grid-column: 2;
+    min-width: 0;
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-domains summary {
+    display: flex;
+    align-items: center;
+    min-height: 2.35rem;
+    padding: 0.45rem 0;
+    color: var(--color-primary);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-domains__content {
+    display: grid;
+    gap: 0.75rem;
+    max-width: none;
+    margin: 0.35rem 0 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-domains__content .field-help {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-domains__content .notice {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-list {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-list li {
+    background: var(--color-surface);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-form {
+    gap: 0.45rem;
+    margin-top: 0.1rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-form > label {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-form__controls {
+    display: flex;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-form__controls input {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: start;
+    grid-column: 3;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-actions .button {
+    width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-load-more {
+    justify-self: start;
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-toolbar {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-toolbar .field {
+    min-width: 14rem;
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list > li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 1rem;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list h5,
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list p {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list h5 {
+    font-size: var(--font-size-base);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list p {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.3rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__meta,
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__hint {
+    overflow-wrap: anywhere;
+    font-size: var(--font-size-sm);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__hint {
+    color: var(--color-text);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list .status-pill {
+    justify-self: start;
+    margin: 0.25rem 0 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    justify-content: end;
+    gap: 0.5rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions .button {
+    white-space: nowrap;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-elevation-form,
+  .signed-in-main.signed-in-main--platform .platform-verification {
+    max-width: 40rem;
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-verification,
+  .signed-in-main.signed-in-main--platform .mfa-start-form {
+    padding: 1.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+
+  .signed-in-main.signed-in-main--platform .mfa-start-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
+    gap: 1.25rem;
+    max-width: 60rem;
+  }
+
+  .signed-in-main.signed-in-main--platform .mfa-start-form > div:first-child h3,
+  .signed-in-main.signed-in-main--platform .mfa-start-form > div:first-child p {
+    margin-top: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .mfa-start-form__controls {
+    width: auto;
+  }
+
+  .signed-in-main.signed-in-main--platform .mfa-enrollment {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-elevation-active {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-elevation-active .notice {
+    margin: 0;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-setup-monitor {
+    margin-top: 1.25rem;
+    padding: 1.25rem;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  @media (max-width: 60rem) {
+    .signed-in-main.signed-in-main--platform .platform-organization-list--directory > li {
+      grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.55fr);
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-organization-domains {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-organization-actions {
+      grid-column: 2;
+      grid-row: 1;
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .signed-in-main.signed-in-main--platform .platform-provisioning-form,
+    .signed-in-main.signed-in-main--platform .mfa-start-form {
+      grid-template-columns: 1fr;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-provisioning-form .button {
+      grid-column: auto;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-domain-form__controls {
+      flex-direction: column;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-elevation-active {
+      grid-template-columns: 1fr;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-elevation-active .button {
+      justify-self: start;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-dead-letter-list > li {
+      grid-template-columns: 1fr;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions {
+      justify-content: start;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .signed-in-main.signed-in-main--platform .platform-organization-list--directory > li {
+      grid-template-columns: 1fr;
+    }
+
+    .signed-in-main.signed-in-main--platform .platform-organization-domains,
+    .signed-in-main.signed-in-main--platform .platform-organization-actions {
+      grid-column: 1;
+      grid-row: auto;
+    }
+  }
+}

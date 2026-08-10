@@ -1,0 +1,581 @@
+/* Communication sender details and provider status. */
+@layer components {
+  /* Communication sender details and provider status */
+
+  .communication-sender-details {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 1.25rem 0;
+  }
+
+  .communication-sender-details > div {
+    min-width: 0;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-muted);
+  }
+
+  .communication-sender-details dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .communication-sender-details dd {
+    margin: 0.35rem 0 0;
+    overflow-wrap: anywhere;
+  }
+
+  .communication-sender-setup {
+    display: grid;
+    gap: 0.65rem;
+    margin: 1rem 0;
+    padding: 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-muted);
+  }
+
+  .communication-sender-setup h3,
+  .communication-sender-setup p {
+    margin: 0;
+  }
+
+  .communication-sender-setup h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .communication-sender-setup dl {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+  }
+
+  .communication-sender-setup dl > div {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.35fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+
+  .communication-sender-setup dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .communication-sender-setup dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .provider-status-card {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .provider-status-card .section-heading,
+  .provider-status-card .section-description {
+    margin-bottom: 0;
+  }
+
+  .provider-status-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .provider-status-card__rows {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .provider-status-card__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .provider-status-card__row strong {
+    display: block;
+  }
+
+  .provider-status-card__row p {
+    max-width: 58rem;
+    margin: 0.2rem 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-normal);
+  }
+
+  .provider-status-card__connect {
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .provider-status-card__connect h3 {
+    margin: 0.15rem 0 0.35rem;
+    font-size: var(--font-size-body);
+  }
+
+  .provider-status-card__connect p:not(.eyebrow):not(.field-help):not(.notice) {
+    max-width: 68rem;
+    margin: 0 0 0.65rem;
+    color: var(--color-text-muted);
+    line-height: var(--line-height-normal);
+  }
+
+  .provider-status-card__guide,
+  .platform-setup-guide {
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .provider-status-card__guide summary,
+  .platform-setup-guide summary {
+    cursor: pointer;
+    color: var(--color-primary);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .provider-status-card__guide > div,
+  .platform-setup-guide > div {
+    max-width: 68rem;
+    margin-top: 0.85rem;
+    color: var(--color-text-muted);
+    line-height: var(--line-height-relaxed);
+  }
+
+  .provider-status-card__guide h3,
+  .platform-setup-guide h3 {
+    margin: 1rem 0 0.3rem;
+    color: var(--color-text);
+    font-size: var(--font-size-body);
+  }
+
+  .provider-status-card__guide ol,
+  .platform-setup-guide ol {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  .provider-status-card__guide code,
+  .platform-setup-guide code {
+    padding: 0.08rem 0.25rem;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-text);
+    font-size: 0.9em;
+  }
+
+  /* Composer, stepper, and tabs */
+
+  .communication-preview dl {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0 0 1rem;
+  }
+
+  .communication-preview dl > div {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .communication-preview dt {
+    color: var(--color-muted);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .communication-preview dd {
+    margin: 0;
+  }
+
+  .communication-preview__message {
+    max-height: 18rem;
+    overflow: auto;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    white-space: pre-wrap;
+  }
+
+  .communication-stepper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0 0 1.25rem;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-muted);
+  }
+
+  .communication-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    margin: 1rem 0 1.35rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .communication-tabs button {
+    display: inline-flex;
+    min-height: 2.7rem;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.8rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .communication-tabs button:hover,
+  .communication-tabs button:focus-visible,
+  .communication-tabs button.is-active {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-text);
+  }
+
+  .communication-tabs__count {
+    display: inline-grid;
+    min-width: 1.25rem;
+    min-height: 1.25rem;
+    place-items: center;
+    padding-inline: 0.25rem;
+    border-radius: 999px;
+    background: var(--color-info-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-xs);
+  }
+
+  .communication-tabs__status-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+  }
+
+  .communication-tabs__status-dot--attention {
+    background: var(--color-accent);
+    box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-accent) 18%, transparent);
+  }
+
+  .communication-tabs__status-dot--error {
+    background: var(--color-danger);
+    box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-danger) 18%, transparent);
+  }
+
+  .communication-center__provider-warning {
+    margin-top: -0.35rem;
+  }
+
+  .communication-tab-panel {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .communication-template-help {
+    max-width: 52rem;
+    margin: -0.35rem 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-relaxed);
+  }
+
+  .communication-template-editor {
+    margin: 0.5rem 0 0;
+    padding: 1rem;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .communication-template-editor legend {
+    padding-inline: 0.35rem;
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .communication-template-editor__intro {
+    max-width: 52rem;
+    margin: -0.25rem 0 0;
+  }
+
+  .communication-history-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .communication-history-group h3 {
+    margin: 0;
+    font-size: var(--font-size-body);
+  }
+
+  .communication-history-group .account-list {
+    margin-top: 0.25rem;
+  }
+
+  .communication-tab-panel__heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .communication-tab-panel__heading h2 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+  }
+
+  .communication-tab-panel__heading p {
+    margin: 0.35rem 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .communication-stepper li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .communication-stepper li + li::before {
+    margin-right: 0.1rem;
+    color: var(--color-text-muted);
+    content: "→";
+  }
+
+  .communication-stepper li span {
+    display: inline-grid;
+    width: 1.65rem;
+    height: 1.65rem;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-size: var(--font-size-md);
+  }
+
+  .communication-stepper li.is-active,
+  .communication-stepper li.is-complete {
+    color: var(--color-text);
+  }
+
+  .communication-stepper li.is-active span {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-background);
+  }
+
+  .communication-stepper li.is-complete span {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+
+  .communication-composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+    gap: 1rem;
+  }
+
+  .communication-composer__tabs {
+    display: flex;
+    grid-column: 1 / -1;
+    gap: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .communication-composer__tabs button {
+    min-height: 2.5rem;
+    padding: 0.55rem 0.9rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .communication-composer__tabs button.is-active {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-text);
+  }
+
+  .communication-composer__tabs button:hover {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-text);
+  }
+
+  .communication-composer__tabs button:focus-visible {
+    border-radius: var(--radius-sm);
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+  }
+
+  .communication-composer__toolbar button {
+    min-height: 2.25rem;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--color-text-muted);
+  }
+
+  .communication-composer__toolbar button:hover {
+    border-color: var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .communication-composer__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1;
+    gap: 0.35rem;
+  }
+
+  .communication-composer__textarea,
+  .communication-composer__preview {
+    grid-column: 1;
+    min-height: 20rem;
+    width: 100%;
+    padding: 0.9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .communication-composer__textarea {
+    resize: vertical;
+  }
+
+  .communication-composer__preview {
+    overflow: auto;
+  }
+
+  .communication-composer__preview p:first-child,
+  .communication-composer__preview h3:first-child,
+  .communication-composer__preview h4:first-child,
+  .communication-composer__preview h5:first-child {
+    margin-top: 0;
+  }
+
+  .communication-composer__preview code {
+    padding: 0.1rem 0.25rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-background);
+  }
+
+  /* Placeholders and poll links */
+
+  .communication-poll-link-placeholder {
+    color: var(--color-accent);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .communication-placeholders {
+    grid-column: 2;
+    grid-row: 2 / span 3;
+    align-self: start;
+    padding: 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-background);
+  }
+
+  .communication-placeholders__list {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+  }
+
+  .communication-placeholders__group {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .communication-placeholders__group + .communication-placeholders__group {
+    margin-top: 0.35rem;
+  }
+
+  .communication-placeholders__group h4 {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .communication-placeholders__group-list {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .communication-placeholder {
+    display: grid;
+    gap: 0.15rem;
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text);
+    text-align: left;
+  }
+
+  .communication-placeholder:hover {
+    border-color: var(--color-accent);
+  }
+
+  .communication-placeholder code {
+    overflow-wrap: anywhere;
+    color: var(--color-accent);
+    font-size: var(--font-size-md);
+  }
+
+  .communication-placeholder span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .communication-placeholders__event-help {
+    margin-top: 0.75rem;
+  }
+
+  .communication-placeholders__event-help .field-help {
+    margin: 0;
+  }
+
+  .communication-placeholders__event-help .text-button {
+    display: block;
+    margin-top: 0.35rem;
+    padding-left: 0;
+    text-align: left;
+  }
+}

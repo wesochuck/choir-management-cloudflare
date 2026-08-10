@@ -294,6 +294,40 @@ test.beforeEach(async ({ page }) => {
       status: 200,
     });
   });
+  await page.route("**/api/organization/events/*/rsvp-history", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        entries: [
+          {
+            actorType: "organization_member",
+            automatic: false,
+            displayName: "Browser Singer",
+            eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            newRsvp: "Yes",
+            occurredAt: "2026-07-20T20:10:00.000Z",
+            previousRsvp: "Pending",
+            profileId: "11111111-1111-4111-8111-111111111111",
+            reason: "Member updated RSVP.",
+          },
+          {
+            actorType: "system",
+            automatic: true,
+            displayName: "Unexpected Singer",
+            eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            newRsvp: "No",
+            occurredAt: "2026-07-20T20:05:00.000Z",
+            previousRsvp: "Pending",
+            profileId: "33333333-3333-4333-8333-333333333333",
+            reason: "RSVP deadline passed.",
+          },
+        ],
+        eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/organization/calendar-settings", async (route) => {
     await route.fulfill({
       body: JSON.stringify({ requestId, timezone: "America/New_York" }),
@@ -1672,17 +1706,21 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(
     attendancePage.getByRole("button", { name: /Browser Singer: Present/ }),
   ).toBeVisible();
-  await attendancePage.getByRole("button", { name: "All 2", exact: true }).click();
+  await expect(attendancePage.getByRole("button", { name: "All 1", exact: true })).toBeVisible();
+  await attendancePage.getByRole("button", { name: "All 1", exact: true }).click();
   const unexpectedSinger = attendancePage.getByRole("button", {
     name: /Unexpected Singer: Tap to check in/,
   });
+  await expect(unexpectedSinger).toHaveCount(0);
+  await expect(attendancePage.getByRole("separator", { name: "Not currently RSVP'd" })).toHaveCount(
+    0,
+  );
+  await attendancePage.getByRole("searchbox", { name: "Find a performer" }).fill("Unexpected");
   await expect(unexpectedSinger).toBeVisible();
   await expect(unexpectedSinger).toContainText("Not currently RSVP'd");
   await expect(
     attendancePage.getByRole("separator", { name: "Not currently RSVP'd" }),
   ).toBeVisible();
-  await attendancePage.getByRole("searchbox", { name: "Find a performer" }).fill("Unexpected");
-  await expect(unexpectedSinger).toBeVisible();
   await expect(attendancePage.getByRole("dialog")).toHaveCount(0);
   await unexpectedSinger.click();
   const rescueConfirmation = page.getByRole("dialog", {
@@ -1750,14 +1788,46 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(collapseNavigation).toBeVisible();
 
   const rsvpPage = page.getByRole("main");
-  await expect(
-    rsvpPage.locator(".rsvp-manager__balance").getByRole("combobox", { name: "Performance" }),
-  ).toHaveValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  const performanceSelect = rsvpPage
+    .locator(".rsvp-manager__balance")
+    .getByRole("combobox", { name: "Performance" });
+  await expect(performanceSelect).toHaveValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  await expect(performanceSelect).toHaveCSS("appearance", "auto");
   await expect(rsvpPage.locator(".rsvp-manager__roster").getByRole("combobox")).toHaveCount(0);
   await expect(rsvpPage.getByRole("textbox", { name: "Search active singers" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
     "href",
     "/api/organization/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-export.csv?sort=lastName",
+  );
+  const historyTab = rsvpPage.getByRole("tab", { name: "History", exact: true });
+  await historyTab.click({ force: true });
+  const historySection = rsvpPage.locator(".rsvp-manager__history");
+  await expect(historySection.getByRole("heading", { name: "Event RSVP History" })).toHaveCount(1);
+  const historySearch = historySection.getByRole("searchbox", { name: "Search history" });
+  await expect(historySearch).toBeVisible();
+  await expect(historySection.getByRole("columnheader", { name: /Changed/ })).toHaveAttribute(
+    "aria-sort",
+    "descending",
+  );
+  await historySearch.fill("Browser Singer");
+  await expect(
+    historySection.locator("strong:visible").filter({ hasText: "Browser Singer" }),
+  ).toBeVisible();
+  await expect(
+    historySection.locator("strong:visible").filter({ hasText: "Unexpected Singer" }),
+  ).toHaveCount(0);
+  await historySearch.fill("");
+  await historySection.getByRole("combobox", { name: "Filter new RSVP" }).selectOption("No");
+  await expect(
+    historySection.locator("strong:visible").filter({ hasText: "Unexpected Singer" }),
+  ).toBeVisible();
+  await expect(
+    historySection.locator("strong:visible").filter({ hasText: "Browser Singer" }),
+  ).toHaveCount(0);
+  await historySection.getByRole("button", { name: "Sort by Performer" }).click();
+  await expect(historySection.getByRole("columnheader", { name: /Performer/ })).toHaveAttribute(
+    "aria-sort",
+    "ascending",
   );
 
   await page.goto("/admin/settings/invitations");

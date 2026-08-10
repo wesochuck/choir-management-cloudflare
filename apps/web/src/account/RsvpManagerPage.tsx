@@ -5,6 +5,7 @@ import type {
   OrganizationProfile,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { DataTable, type DataTableColumn } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -29,6 +30,12 @@ type RsvpState =
     };
 
 type RsvpFilter = "active" | "Yes" | "No" | "Pending";
+type RsvpView = "roster" | "history";
+type HistoryFilter = "All" | "Yes" | "No" | "Pending";
+
+function isHistoryFilter(value: string): value is HistoryFilter {
+  return value === "All" || value === "Yes" || value === "No" || value === "Pending";
+}
 
 function displayEventDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -56,6 +63,62 @@ function statusText(status: "Yes" | "No" | "Pending"): string {
   if (status === "No") return "Declined";
   return "No response";
 }
+
+function historySource(entry: OrganizationEventRsvpHistoryEntry): string {
+  return entry.automatic ? "Automation" : "Manual update";
+}
+
+function formatHistoryDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function historyStatusBadge(status: "Yes" | "No" | "Pending") {
+  return (
+    <span className={`rsvp-status-badge rsvp-status-badge--${status}`}>{statusText(status)}</span>
+  );
+}
+
+const rsvpHistoryColumns: readonly DataTableColumn<OrganizationEventRsvpHistoryEntry>[] = [
+  {
+    header: "Performer",
+    id: "profile",
+    render: (entry) => <strong>{entry.displayName}</strong>,
+    sortValue: (entry) => lastName(entry.displayName),
+  },
+  {
+    header: "Previous RSVP",
+    id: "previousRsvp",
+    render: (entry) => historyStatusBadge(entry.previousRsvp),
+    sortValue: (entry) => entry.previousRsvp,
+  },
+  {
+    header: "New RSVP",
+    id: "newRsvp",
+    render: (entry) => historyStatusBadge(entry.newRsvp),
+    sortValue: (entry) => entry.newRsvp,
+  },
+  {
+    header: "Reason",
+    id: "reason",
+    render: (entry) => entry.reason,
+    sortValue: (entry) => entry.reason,
+  },
+  {
+    header: "Source",
+    id: "source",
+    render: (entry) => historySource(entry),
+    sortValue: (entry) => historySource(entry),
+  },
+  {
+    header: "Changed",
+    id: "occurredAt",
+    render: (entry) => formatHistoryDate(entry.occurredAt),
+    sortValue: (entry) => entry.occurredAt,
+  },
+];
 
 function reportableSections(roster: OrganizationRosterConfiguration) {
   return roster.sections.filter(({ trackOnly }) => !trackOnly);
@@ -95,7 +158,10 @@ export function RsvpManagerPage({
   const [rowsLoading, setRowsLoading] = useState(false);
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [filter, setFilter] = useState<RsvpFilter>("active");
+  const [view, setView] = useState<RsvpView>("roster");
   const [query, setQuery] = useState("");
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("All");
+  const [historyQuery, setHistoryQuery] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -227,6 +293,23 @@ export function RsvpManagerPage({
         return byLastName === 0 ? left.displayName.localeCompare(right.displayName) : byLastName;
       });
   }, [activeRows, filter, query]);
+  const filteredHistory = useMemo(() => {
+    const normalized = historyQuery.trim().toLocaleLowerCase();
+    return history.filter((entry) => {
+      const matchesFilter = historyFilter === "All" || entry.newRsvp === historyFilter;
+      const searchText = [
+        entry.displayName,
+        entry.previousRsvp,
+        entry.newRsvp,
+        entry.reason,
+        entry.actorType,
+        historySource(entry),
+      ]
+        .join(" ")
+        .toLocaleLowerCase();
+      return matchesFilter && (!normalized || searchText.includes(normalized));
+    });
+  }, [history, historyFilter, historyQuery]);
 
   async function updateRsvp(profileId: string, next: "Yes" | "No" | "Pending") {
     const current = rows.find((row) => row.profileId === profileId);
@@ -294,6 +377,9 @@ export function RsvpManagerPage({
                   setEventId(event.target.value);
                   setRows([]);
                   setFeedback(null);
+                  setView("roster");
+                  setHistoryFilter("All");
+                  setHistoryQuery("");
                 }}
                 value={eventId}
               >
@@ -322,7 +408,7 @@ export function RsvpManagerPage({
             ) : null}
           </div>
         </div>
-        <div className="rsvp-status-filters" role="group" aria-label="RSVP filters">
+        <div className="rsvp-status-filters" role="tablist" aria-label="RSVP views">
           {(
             [
               ["active", `All active (${String(counts.active)})`],
@@ -332,17 +418,30 @@ export function RsvpManagerPage({
             ] as const
           ).map(([value, label]) => (
             <button
-              aria-pressed={filter === value}
-              className={filter === value ? "is-active" : undefined}
+              aria-selected={view === "roster" && filter === value}
+              className={view === "roster" && filter === value ? "is-active" : undefined}
               key={value}
               onClick={() => {
                 setFilter(value);
+                setView("roster");
               }}
+              role="tab"
               type="button"
             >
               {label}
             </button>
           ))}
+          <button
+            aria-selected={view === "history"}
+            className={view === "history" ? "is-active" : undefined}
+            onClick={() => {
+              setView("history");
+            }}
+            role="tab"
+            type="button"
+          >
+            History
+          </button>
         </div>
         <div className="roster-balance__sections">
           {reportableSections(state.roster).map((section) => (
@@ -362,118 +461,154 @@ export function RsvpManagerPage({
         </div>
       </section>
 
-      <section className="surface-card rsvp-manager__roster" aria-labelledby="rsvp-roster-title">
-        <div className="rsvp-manager__controls">
-          <label className="field rsvp-manager__search">
-            <span>Search active singers</span>
-            <input
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
-              placeholder={`Name or ${performerLabel.toLowerCase()}`}
-              value={query}
-            />
-          </label>
-        </div>
-        <div className="rsvp-manager__table-heading">
-          <h2 id="rsvp-roster-title">RSVP roster</h2>
-          <span>{rowsLoading ? "Loading…" : `${String(visibleRows.length)} shown`}</span>
-        </div>
-        {visibleRows.length === 0 ? (
-          <p className="empty-state">No active profiles match this RSVP filter.</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table rsvp-manager__table table--actions">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>{performerLabel}</th>
-                  <th>RSVP status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row) => (
-                  <tr key={row.profileId}>
-                    <td>
-                      <strong>{row.displayName}</strong>
-                    </td>
-                    <td>{row.voicePart || "—"}</td>
-                    <td>
-                      <span className={`rsvp-status-badge rsvp-status-badge--${row.rsvp}`}>
-                        {statusText(row.rsvp)}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="rsvp-row-actions">
-                        <button
-                          className={
-                            row.rsvp === "Yes"
-                              ? "button button--sm"
-                              : "button button--secondary button--sm"
-                          }
-                          disabled={savingId !== null}
-                          onClick={() => void updateRsvp(row.profileId, "Yes")}
-                          type="button"
-                        >
-                          Attending
-                        </button>
-                        <button
-                          className={
-                            row.rsvp === "No"
-                              ? "button button--danger button--sm"
-                              : "button button--secondary button--sm"
-                          }
-                          disabled={savingId !== null}
-                          onClick={() => void updateRsvp(row.profileId, "No")}
-                          type="button"
-                        >
-                          Declined
-                        </button>
-                        <button
-                          className="button button--secondary button--sm"
-                          disabled={savingId !== null || row.rsvp === "Pending"}
-                          onClick={() => void updateRsvp(row.profileId, "Pending")}
-                          type="button"
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <>
+        <section
+          className="surface-card rsvp-manager__roster"
+          aria-labelledby="rsvp-roster-title"
+          hidden={view !== "roster"}
+        >
+          <div className="rsvp-manager__controls">
+            <label className="field rsvp-manager__search">
+              <span>Search active singers</span>
+              <input
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                }}
+                placeholder={`Name or ${performerLabel.toLowerCase()}`}
+                value={query}
+              />
+            </label>
           </div>
-        )}
-      </section>
-
-      <section className="surface-card rsvp-manager__history" aria-labelledby="rsvp-history-title">
-        <div className="section-heading section-heading--compact">
-          <p className="eyebrow">Audit trail</p>
-          <h2 id="rsvp-history-title">Event RSVP History</h2>
-          <p className="section-description">
-            Actual RSVP changes are shown here separately from Profile Status History.
-          </p>
-        </div>
-        {history.length === 0 ? (
-          <p className="empty-state">No RSVP changes recorded for this event yet.</p>
-        ) : (
-          <ol className="compact-list">
-            {history.slice(0, 20).map((entry) => (
-              <li key={`${entry.occurredAt}-${entry.profileId}-${entry.newRsvp}`}>
-                <strong>{entry.displayName}</strong>: {statusText(entry.previousRsvp)} →{" "}
-                {statusText(entry.newRsvp)} · {entry.reason} ·{" "}
-                {entry.automatic ? "Automation" : "Administrator or member"} ·{" "}
-                {new Intl.DateTimeFormat(undefined, {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }).format(new Date(entry.occurredAt))}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+          <div className="rsvp-manager__table-heading">
+            <h2 id="rsvp-roster-title">RSVP roster</h2>
+            <span>{rowsLoading ? "Loading…" : `${String(visibleRows.length)} shown`}</span>
+          </div>
+          {visibleRows.length === 0 ? (
+            <p className="empty-state">No active profiles match this RSVP filter.</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table rsvp-manager__table table--actions">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>{performerLabel}</th>
+                    <th>RSVP status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((row) => (
+                    <tr key={row.profileId}>
+                      <td>
+                        <strong>{row.displayName}</strong>
+                      </td>
+                      <td>{row.voicePart || "—"}</td>
+                      <td>
+                        <span className={`rsvp-status-badge rsvp-status-badge--${row.rsvp}`}>
+                          {statusText(row.rsvp)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="rsvp-row-actions">
+                          <button
+                            className={
+                              row.rsvp === "Yes"
+                                ? "button button--sm"
+                                : "button button--secondary button--sm"
+                            }
+                            disabled={savingId !== null}
+                            onClick={() => void updateRsvp(row.profileId, "Yes")}
+                            type="button"
+                          >
+                            Attending
+                          </button>
+                          <button
+                            className={
+                              row.rsvp === "No"
+                                ? "button button--danger button--sm"
+                                : "button button--secondary button--sm"
+                            }
+                            disabled={savingId !== null}
+                            onClick={() => void updateRsvp(row.profileId, "No")}
+                            type="button"
+                          >
+                            Declined
+                          </button>
+                          <button
+                            className="button button--secondary button--sm"
+                            disabled={savingId !== null || row.rsvp === "Pending"}
+                            onClick={() => void updateRsvp(row.profileId, "Pending")}
+                            type="button"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+        <section
+          className="surface-card rsvp-manager__history"
+          aria-labelledby="rsvp-history-title"
+          hidden={view !== "history"}
+        >
+          <div className="section-heading section-heading--compact">
+            <p className="eyebrow">Audit trail</p>
+            <h2 id="rsvp-history-title">Event RSVP History</h2>
+            <p className="section-description">
+              Actual RSVP changes are shown here separately from Profile Status History.
+            </p>
+          </div>
+          <div className="rsvp-manager__controls rsvp-manager__history-controls">
+            <label className="field">
+              <span>Search history</span>
+              <input
+                onChange={(event) => {
+                  setHistoryQuery(event.target.value);
+                }}
+                placeholder="Name, reason, or source"
+                type="search"
+                value={historyQuery}
+              />
+            </label>
+            <label className="field">
+              <span>Filter new RSVP</span>
+              <select
+                onChange={(event) => {
+                  const nextFilter = event.target.value;
+                  if (isHistoryFilter(nextFilter)) setHistoryFilter(nextFilter);
+                }}
+                value={historyFilter}
+              >
+                <option value="All">All statuses</option>
+                <option value="Yes">Attending</option>
+                <option value="No">Declined</option>
+                <option value="Pending">No response</option>
+              </select>
+            </label>
+          </div>
+          <div className="rsvp-manager__table-heading">
+            <span aria-live="polite">{`${String(filteredHistory.length)} shown`}</span>
+          </div>
+          <DataTable
+            columns={rsvpHistoryColumns}
+            emptyMessage={
+              history.length === 0
+                ? "No RSVP changes recorded for this event yet."
+                : "No history entries match these filters."
+            }
+            initialSort={{ columnId: "occurredAt", direction: "desc" }}
+            keySelector={(entry) =>
+              `${entry.occurredAt}-${entry.profileId}-${entry.previousRsvp}-${entry.newRsvp}-${entry.reason}`
+            }
+            rows={filteredHistory}
+          />
+        </section>
+      </>
     </div>
   );
 }
