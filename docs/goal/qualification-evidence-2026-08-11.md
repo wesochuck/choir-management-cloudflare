@@ -5,12 +5,12 @@ a production launch.
 
 ## Current exact-release and classification audit — August 11, 2026
 
-The latest exact runtime release recorded here is `fc0e40d9a778b1fcfb9b9e5f87c539ba37041c18`
-(`record qualification classification audit`). Hosted CI run `31546810957` and staging release run
-`31547025751` both completed successfully. Deployment `f0a6c8e3-06d8-49f2-8cef-f1eef35a3147` serves
-Worker version `1f13b243-786c-4913-a724-0f4e084dfcc3` at 100% traffic, with the commit recorded as
+The latest exact runtime release recorded here is `0d4d9e7253e2e9d0363dd472d0d33efd63760845`
+(`refresh qualification release provenance`). Hosted CI run `31547239564` and staging release run
+`31547439614` both completed successfully. Deployment `bff1c054-abd8-4d41-b608-cb3e92640301` serves
+Worker version `cfff7bbd-779c-4a9b-b972-9c81183d2557` at 100% traffic, with the commit recorded as
 its annotation.
-`STAGING_EXPECTED_VERSION=fc0e40d9a778b1fcfb9b9e5f87c539ba37041c18 npm run qualify:staging` passed
+`STAGING_EXPECTED_VERSION=0d4d9e7253e2e9d0363dd472d0d33efd63760845 npm run qualify:staging` passed
 the exact Worker health/readiness probes. A fresh anonymous boundary sweep passed 148 safe requests
 across both seeded Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1.
 
@@ -39,10 +39,10 @@ The 23 provider-independent IDs still needing permanent-staging success or isola
 `signed.unsubscribe`, `workflow.roster`, `workflow.roster-status-automation`,
 `workflow.rsvp-attendance`, `workflow.rehearsal-parent`, `workflow.custom-domains`, and
 `file.profile-photo`. The current blockers are explicit: the preserved Platform Security tab still
-requires a fresh factor; the separate authenticated member runner still waits at its secure sign-in
-prompt; the browser URL policy blocks the old-calendar-token rejection navigation; and the in-app
-browser does not expose the hidden profile-photo file chooser. No staging data was changed by the
-failed chooser or blocked calendar probe.
+requires a fresh factor after the Verify action; the separate authenticated member runner still
+waits at its secure sign-in prompt; the browser URL policy blocks the old-calendar-token rejection
+navigation; and the in-app browser does not expose the hidden profile-photo file chooser. No staging
+data was changed by the failed chooser or blocked calendar probe.
 
 ## Latest provider-independent file qualification batch — August 11, 2026
 

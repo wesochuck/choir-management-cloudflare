@@ -11,10 +11,10 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current exact-release and classification audit — August 11, 2026
 
-The latest exact runtime release recorded here is `fc0e40d9a778b1fcfb9b9e5f87c539ba37041c18`
-(`record qualification classification audit`). Hosted CI run `31546810957` and staging release run
-`31547025751` completed successfully. Deployment `f0a6c8e3-06d8-49f2-8cef-f1eef35a3147` serves
-Worker version `1f13b243-786c-4913-a724-0f4e084dfcc3` at 100% traffic. Exact direct qualification
+The latest exact runtime release recorded here is `0d4d9e7253e2e9d0363dd472d0d33efd63760845`
+(`refresh qualification release provenance`). Hosted CI run `31547239564` and staging release run
+`31547439614` completed successfully. Deployment `bff1c054-abd8-4d41-b608-cb3e92640301` serves
+Worker version `cfff7bbd-779c-4a9b-b972-9c81183d2557` at 100% traffic. Exact direct qualification
 passed, and the fresh anonymous boundary sweep passed 148 safe requests across both seeded
 Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. Read-only staging
 inventory found all four staging queues with active consumers, the staging R2 bucket, and both
@@ -29,10 +29,11 @@ The 23 provider-deferred IDs are `route.auth.confirm-email-change`, `api.test-em
 `workflow.donations`, and `workflow.seasons-dues`. The remaining 23 are provider-independent but
 still require authenticated or signed-fixture staging evidence: setup, RSVP links, queue/platform
 controls, reconciliation/maintenance, calendar revocation, cleanup, signed RSVP/audition/unsubscribe
-flows, roster/status/attendance/rehearsal/domain workflows, and profile-photo upload. Platform
-factor, member sign-in, browser URL policy, and the hidden file chooser are the currently observed
-external interaction blockers. No Stripe or SMS credential was requested or configured, and
-production was not changed.
+flows, roster/status/attendance/rehearsal/domain workflows, and profile-photo upload. The Platform
+Security tab still reports the factor gate after Verify, the separate member sign-in runner still
+waits for its secure code, browser URL policy blocks the old calendar-token rejection navigation,
+and the hidden file chooser is unavailable in the in-app browser. No Stripe or SMS credential was
+requested or configured, and production was not changed.
 
 ## Latest provider-independent file qualification — August 11, 2026
 
