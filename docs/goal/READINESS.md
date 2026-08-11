@@ -4,10 +4,31 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-157 are `verified` and 48 are `implemented`. Per the matrix definitions, `implemented` means that
+159 are `verified` and 46 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
+
+## Latest provider-independent file qualification — August 11, 2026
+
+The latest provider-independent evidence batch was exercised against source commit
+`af585d572e3dc206db5e409b2de0f2cc091f5537` (`record provider-independent staging qualification`),
+deployed by hosted CI run `31542978888` and staging release run `31543236494` as Worker version
+`3dbe8508-625e-4b2f-bcf2-a4b5b3163027` at 100% traffic. Exact direct Worker qualification and the
+148-request anonymous Organization boundary sweep passed; the hosted custom-domain probes retained
+the documented Cloudflare edge warning. The current commit records this evidence and does not alter
+runtime behavior.
+
+The LCC Music Library successfully uploaded, played, exposed for download, and removed a temporary
+Organization-scoped learning track. The LCC Public Website editor successfully uploaded, saved, and
+published temporary logo and hero media, confirmed the published logo on the public host, then
+removed both fixtures and republished a clean site. These checks promote `file.music-audio` and
+`file.public-media`. The profile-photo file chooser remains an interactive-browser limitation and
+`file.profile-photo` remains implemented pending a successful chooser/upload/delete/render cycle.
+
+The Platform Security page still visibly requires a fresh factor, and the separate authenticated
+email runner remains at its secure six-digit sign-in prompt. No Stripe or SMS credential was
+requested or configured, and production was not changed.
 
 The latest exact permanent-staging artifact is source commit
 `aecc94e07d6006093bf97f8231b36fd71717cfe1` (`record deployed staging provenance`), deployed by

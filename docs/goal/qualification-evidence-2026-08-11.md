@@ -3,6 +3,32 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
+## Latest provider-independent file qualification batch — August 11, 2026
+
+This batch was exercised against source commit `af585d572e3dc206db5e409b2de0f2cc091f5537`
+(`record provider-independent staging qualification`), deployed by hosted CI run `31542978888` and
+staging release run `31543236494` as Worker version `3dbe8508-625e-4b2f-bcf2-a4b5b3163027` at 100%
+traffic. The exact direct Worker qualification reported the expected source commit, and the
+anonymous boundary sweep passed 148 safe requests across both seeded Organization hosts. The hosted
+custom-domain probes retained the documented Cloudflare edge warning. No provider credential or
+production resource was changed.
+
+The LCC Organization Admin Music Library uploaded a temporary audio fixture to a section learning
+track, showed the second track in the Practice tracks editor, exposed the Organization-scoped
+download link, and exercised the track player. The temporary track was removed afterward, restoring
+the original catalog state. Together with the existing member offline-player evidence and the
+focused file/music integration coverage, this promotes `file.music-audio`.
+
+The LCC Public Website editor uploaded the same non-sensitive staging fixture as the Organization
+logo and hero image, saved a draft, published an immutable public version, and confirmed the
+published logo rendered on `lcc.staging.musicsite.org`. Both media entries were then removed and a
+clean draft was republished; the public site is clean. This promotes `file.public-media`.
+
+The profile-photo chooser could not be exercised because the in-app browser did not expose the
+hidden label-backed file input's chooser event. `file.profile-photo` therefore remains implemented
+and is not being promoted from local tests alone. The current matrix snapshot is 205 entries: 159
+`verified` and 46 `implemented`.
+
 ## Latest follow-up batch — RSVP, audition, ticket, and attendance workflows
 
 This batch was exercised against source commit `aecc94e07d6006093bf97f8231b36fd71717cfe1`
