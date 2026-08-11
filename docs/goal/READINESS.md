@@ -4,12 +4,31 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-149 are `verified` and 56 are `implemented`. Per the matrix definitions, `implemented` means that
+153 are `verified` and 52 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
 The latest exact permanent-staging artifact is source commit
+`f132af327198b55e410ec55b7198adfe654ff3f6` (`record current staging deployment`), deployed as Worker
+version `193bbcc7-137a-481e-8dc8-9c1bdff172ed`. The preceding CI and staging release gates passed
+for this exact artifact. An interactive Platform Administrator factor verification was accepted; the
+Platform overview and Queue dead-letter workspace loaded, and one existing dead-letter was retried
+through its custom confirmation flow with a recorded fresh queue attempt. The LCC member dashboard
+generated and redeemed a signed poll response, opened the authorized practice player, and saved then
+removed a learning track offline. The temporary RSVP voice-part fixture was restored to
+`Not assigned`; no new event, provider credential, or production resource was created.
+
+This follow-up promotes four entries: `api.organization.poll-tokens`,
+`api.platform.job-dead-letters.retry`, `api.singer-practice-link`, and `workflow.player-offline`.
+The matrix now contains 205 entries: 153 `verified` and 52 `implemented`. Calendar reset rendered a
+replacement address, but its direct old-token rejection probe was blocked by the browser client, so
+`api.calendar-feed-reset` remains implemented. The goal remains active because the remaining
+implemented entries include the explicitly provider-deferred Stripe/SMS/email paths and additional
+fixture, Platform API, signed-link, file, queue, domain, scale, and rollback evidence still listed
+below.
+
+The prior exact permanent-staging artifact was source commit
 `f7ee50d59ac19054023480a4c3c1236e2afc91a1` (`record exact calendar qualification`). Hosted CI run
 `31530391876` and release-ready artifact run `93909611878` passed. Staging release run `31530681787`
 deployed Worker version `b346cffe-34c7-49a7-adb5-9a2bf8a159dd` at 100% traffic, and exact direct

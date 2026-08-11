@@ -3,9 +3,44 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
+## Latest follow-up batch — platform elevation and member links
+
+The current exact staging runtime is source commit `f132af327198b55e410ec55b7198adfe654ff3f6`
+(`record current staging deployment`), deployed as Worker version
+`193bbcc7-137a-481e-8dc8-9c1bdff172ed`. The prior hosted CI and staging release gates passed for
+this exact artifact. No application code, provider secret, or production resource was changed by
+this follow-up.
+
+An interactive Platform Administrator factor verification was accepted during this pass. The
+Platform overview loaded the deployed build and configuration checks, and the Queue dead-letter
+workspace loaded the existing records. One existing dead-letter record was retried through the
+custom confirmation flow with an explicit staging qualification reason; the UI reported that a fresh
+queue attempt was created and recorded the retry once. This promotes
+`api.platform.job-dead-letters.retry`.
+
+The LCC member dashboard generated a personalized poll link for the active qualification poll. The
+link opened the signed poll surface, a Yes response was submitted, and the UI reported that the vote
+was recorded. This confirms the deployed member-dashboard token generation path for
+`api.organization.poll-tokens`; `signed.poll` was already verified.
+
+The LCC member dashboard opened the authorized practice player from an event. The player rendered
+the approved set list and an available learning track. The member Practice page then saved the track
+offline, showed `Saved offline`, and removed the local copy successfully. These interactions promote
+`api.singer-practice-link` and `workflow.player-offline`. The temporary voice-part fixture used
+while inspecting RSVP eligibility was restored to `Not assigned`; no new event was created.
+
+The current matrix snapshot is 205 entries: 153 `verified` and 52 `implemented`. The four newly
+promoted entries are `api.organization.poll-tokens`, `api.platform.job-dead-letters.retry`,
+`api.singer-practice-link`, and `workflow.player-offline`.
+
+The calendar reset control accepted its danger confirmation and rendered a replacement calendar
+address. The browser client blocked direct API navigation for the old-address revocation probe, so
+`api.calendar-feed-reset` remains implemented pending a direct old-token rejection observation;
+existing local calendar integration coverage remains green.
+
 ## Current follow-up context
 
-- The latest exact permanent-staging artifact is source commit
+- The prior exact permanent-staging artifact is source commit
   `f7ee50d59ac19054023480a4c3c1236e2afc91a1` (`record exact calendar qualification`). Hosted CI run
   `31530391876` and release-ready artifact run `93909611878` passed, and staging release run
   `31530681787` deployed Worker version `b346cffe-34c7-49a7-adb5-9a2bf8a159dd` at 100% traffic.
@@ -14,7 +49,7 @@ a production launch.
   edge rule and recorded as the allowed degraded warning. This record-only release carries the
   behavior qualified by `51caefeb9748530665030b3c650fc8726e64cc61`; it has no provider credential or
   production effect.
-- The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
+- An earlier permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
   (`record signed poll staging qualification`), promoted as Worker version
   `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and staging release run
   `31522215667` passed; the exact immutable artifact is at 100% traffic. This commit contains only
@@ -27,9 +62,9 @@ a production launch.
   passed. The GitHub-hosted custom-domain probes were blocked by the known Cloudflare edge rule, and
   the interactive LCC recheck below passed. The release contains no Stripe or SMS credential changes
   and does not touch production.
-- The current matrix snapshot after this calendar follow-up is 205 entries: 149 `verified` and 56
-  `implemented`. The earlier qualification batch narrative below ends at 144 `verified` / 61
-  `implemented` and remains historical evidence.
+- The historical matrix snapshot after the calendar follow-up was 205 entries: 149 `verified` and 56
+  `implemented`. The earlier qualification batch narrative below remains historical evidence; the
+  latest follow-up batch above records the current 153/52 snapshot.
 - The latest qualified runtime before this record-only evidence update is source commit `54c423b`
   (`Fix scoped Platform access routing`), promoted to staging as Worker version
   `4b70c369-8b65-48a0-bcc7-1dde2cce97b0`. Hosted CI run `31513358856` and staging release run
@@ -38,7 +73,7 @@ a production launch.
 - This follow-up started from the prior recorded 119 `verified` / 86 `implemented` matrix and, after
   the evidence below, reaches 144 `verified` / 61 `implemented`.
 
-## Current working sets and follow-up evidence
+## Historical working sets and follow-up evidence
 
 - The current exact staging artifact is source commit `f7ee50d59ac19054023480a4c3c1236e2afc91a1`
   (`record exact calendar qualification`), deployed as Worker version
@@ -68,25 +103,26 @@ a production launch.
   sender/recipient; payment entries require an isolated Stripe test account, connected-account
   setup, signed webhook fixtures, and refund/replay evidence. No such credentials were requested or
   configured.
-- The 33 provider-independent entries that remain to qualify are `api.setup-claim`,
+- The 29 provider-independent entries that remain to qualify are `api.setup-claim`,
   `api.setup-progress`, `api.setup-complete`, `api.setup-recover-admin`, `api.rsvp-details`,
-  `api.singer-rsvp`, `api.singer-practice-link`, `api.quick-rsvp`, `api.unsubscribe`,
-  `api.generate-rsvp-tokens`, `api.queue-settings`, `api.queue-settings-generate`,
-  `api.platform.reconciliation-report`, `api.platform.job-dead-letters.retry`,
+  `api.singer-rsvp`, `api.quick-rsvp`, `api.unsubscribe`, `api.generate-rsvp-tokens`,
+  `api.queue-settings`, `api.queue-settings-generate`, `api.platform.reconciliation-report`,
   `api.ticket-validate`, `api.calendar-feed-reset`, `api.maintenance`,
-  `api.organization.poll-tokens`, `api.organization.audition-convert`, `task.cleanup`,
-  `signed.rsvp`, `signed.audition`, `signed.unsubscribe`, `signed.ticket-scan`, `workflow.roster`,
+  `api.organization.audition-convert`, `task.cleanup`, `signed.rsvp`, `signed.audition`,
+  `signed.unsubscribe`, `signed.ticket-scan`, `workflow.roster`,
   `workflow.roster-status-automation`, `workflow.rsvp-attendance`, `workflow.rehearsal-parent`,
-  `workflow.player-offline`, `workflow.custom-domains`, `file.profile-photo`, `file.music-audio`,
-  and `file.public-media`.
-- A fresh staging browser review found that the current Platform Security page still requires a
-  fresh factor, so Platform-only entries remain pending an active 15-minute elevation. The current
-  LMC Organization member fixture is signed in but has no assigned voice part, so singer RSVP
-  success cannot be claimed without changing that staging fixture. Both Organizations currently have
-  no ticket orders, so ticket validation requires a deliberate staging purchase-like fixture. The
-  browser file-chooser flow also did not expose a usable chooser for a non-sensitive repository
-  image, so upload success remains unverified. These are evidence/fixture blockers, not provider
-  claims. The calendar signed-flow evidence above is the only matrix promotion from this inspection.
+  `workflow.custom-domains`, `file.profile-photo`, `file.music-audio`, and `file.public-media`.
+- At the earlier inspection before the latest interactive factor assertion, a staging browser review
+  found that the Platform Security page required a fresh factor. The latest pass accepted that
+  factor and exercised the Platform overview and one queue retry, while direct reconciliation API
+  navigation remains unavailable through the browser client. The current LMC Organization member
+  fixture is signed in but has no assigned voice part, so singer RSVP success cannot be claimed
+  without changing that staging fixture. Both Organizations currently have no ticket orders, so
+  ticket validation requires a deliberate staging purchase-like fixture. The browser file-chooser
+  flow also did not expose a usable chooser for a non-sensitive repository image, so upload success
+  remains unverified. These are evidence/fixture blockers, not provider claims. The calendar
+  signed-flow evidence was the only matrix promotion from that earlier inspection; the latest
+  follow-up batch is recorded above.
 
 ## Release and starting point
 
@@ -310,11 +346,11 @@ retains the token after removing it from the visible URL so a rendered link can 
 This promotes `api.public.poll-details`, `api.public.poll-vote`, and `signed.poll` to `verified`. No
 schema, route, migration, provider credential, or external-effect behavior changed.
 
-The matrix now contains 205 entries: 149 `verified` and 56 `implemented`. This is not a claim that
-all provider-independent qualification is complete: valid signed-link expiry/revocation for flows
-other than the poll and calendar links, scheduler/queue replay, the remaining file upload contracts,
-the remaining Platform API operations, and other fixture-backed API/workflow entries still require
-evidence below.
+The historical matrix snapshot at this point contained 205 entries: 149 `verified` and 56
+`implemented`. This is not a claim that all provider-independent qualification is complete: valid
+signed-link expiry/revocation for flows other than the poll and calendar links, scheduler/queue
+replay, the remaining file upload contracts, the remaining Platform API operations, and other
+fixture-backed API/workflow entries still require evidence below.
 
 ## Provider-deferred work
 
@@ -351,8 +387,8 @@ a route rendered or an anonymous request failed closed.
 
 The earlier record ended at 119 `verified` and 86 `implemented`; the qualification batches above
 reached 144 `verified` and 61 `implemented`, the signed-poll follow-up reached 147 `verified` and 58
-`implemented`, and this calendar follow-up brings the current matrix to 149 `verified` and 56
-`implemented`. Provider-deferred entries remain in the latter count.
+`implemented`, and that historical calendar follow-up brought the matrix to 149 `verified` and 56
+`implemented`. Provider-deferred entries remained in the latter count at that time.
 
 - A valid calendar subscription address was present in the member UI. An in-memory fetch returned a
   valid Organization-scoped calendar, while the same signed value on the other Organization host and

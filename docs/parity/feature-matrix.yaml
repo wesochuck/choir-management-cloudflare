@@ -1194,7 +1194,7 @@
         "path": "/api/singer/practice-links/:eventId",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "Legacy no-login member practice-player link flow",
         "targetEvidence":
           [
@@ -1323,7 +1323,7 @@
         "path": "/api/platform/job-dead-letters/:deadLetterId/retry",
         "owner": "apps/worker",
         "milestone": 6,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "No equivalent source-aware queue retry action existed.",
         "targetEvidence":
           [
@@ -1758,7 +1758,7 @@
         "path": "/api/organization/poll-tokens",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
         "targetEvidence":
           [
@@ -2821,7 +2821,7 @@
         "workflow": "authorized player playlists and offline media",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/services/playerService.ts; src/services/offlineMediaStore.ts;
           test/offlineMediaStore.test.ts",
