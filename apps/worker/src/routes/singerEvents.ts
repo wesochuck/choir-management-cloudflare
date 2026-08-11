@@ -151,7 +151,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
                 ? "The RSVP deadline has passed."
                 : error.code === "rsvp_decline_note_required"
                   ? "A note is required when declining a rehearsal."
-                  : "The RSVP could not be updated.",
+                  : error.code === "rsvp_voice_part_required"
+                    ? "Assign a voice part before submitting an RSVP."
+                    : "The RSVP could not be updated.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           setupFailureStatus(error.status),

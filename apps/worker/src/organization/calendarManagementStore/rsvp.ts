@@ -1,5 +1,6 @@
 import {
   decorateEventWithRsvpDeadline,
+  profileHasVoicePart,
   recalculateProfileStatuses,
   recordEventRsvpChange,
   readRosterAutomationConfiguration,
@@ -19,6 +20,9 @@ export function updateEventRsvp(
   }
   if (!recordExists(storage, "profiles", rsvpOperation.rsvp.profileId)) {
     return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  if (!profileHasVoicePart(storage, rsvpOperation.rsvp.profileId)) {
+    return Response.json({ code: "rsvp_voice_part_required" }, { status: 422 });
   }
   const event = storage.sql
     .exec<{

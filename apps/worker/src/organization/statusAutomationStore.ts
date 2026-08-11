@@ -11,6 +11,7 @@ import {
   defaultRosterConfiguration,
   evaluateProfileStatus,
   isRsvpDeadlinePassed,
+  isPerformer,
   type PerformanceAutomationRecord,
 } from "@choir/domain";
 
@@ -137,6 +138,17 @@ function readProfiles(storage: DurableObjectStorage): readonly StoredProfileRow[
        FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
     .toArray();
+}
+
+export function profileHasVoicePart(storage: DurableObjectStorage, profileId: string): boolean {
+  const profile = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly voicePart: string;
+    }>("SELECT COALESCE(voice_part, '') AS voicePart FROM profiles WHERE id = ? LIMIT 1", profileId)
+    .toArray()
+    .at(0);
+  return profile !== undefined && isPerformer(profile);
 }
 
 function readPerformances(storage: DurableObjectStorage): readonly StoredPerformanceRow[] {
@@ -375,6 +387,7 @@ export function recordEventRsvpChange(
   storage: DurableObjectStorage,
   change: EventRsvpChange,
 ): boolean {
+  if (!profileHasVoicePart(storage, change.profileId)) return false;
   const existing = storage.sql
     .exec<{
       readonly [column: string]: SqlStorageValue;

@@ -520,6 +520,11 @@
     gap: 0.4rem;
   }
 
+  .rsvp-row-actions__message {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
   .rsvp-status-badge {
     display: inline-flex;
     align-items: center;

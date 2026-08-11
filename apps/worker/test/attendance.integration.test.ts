@@ -147,6 +147,13 @@ describe("Organization attendance", () => {
         })
       ).json(),
     );
+    const unassignedProfile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Unassigned Profile",
+        })
+      ).json(),
+    );
     const bravoProfile = organizationProfileResponseSchema.parse(
       await (
         await write("bravo.localhost", "/api/organization/profiles", cookie, {
@@ -176,6 +183,18 @@ describe("Organization attendance", () => {
         ).json(),
       ).rsvp,
     ).toBe("No");
+
+    const unassignedRsvp = await write(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}/rsvp`,
+      cookie,
+      { profileId: unassignedProfile.id, rsvp: "Yes" },
+      "PUT",
+    );
+    expect(unassignedRsvp.status).toBe(422);
+    await expect(unassignedRsvp.json()).resolves.toMatchObject({
+      code: "rsvp_voice_part_required",
+    });
 
     const rejected = await write(
       "alpha.localhost",
@@ -344,6 +363,9 @@ describe("Organization attendance", () => {
         '"Declined (No)",,,,',
         '"Alice Smith","Altos","A1","Attendance Rehearsal","No"',
         "",
+        '"No Response (Pending)",,,,',
+        '"Unassigned Profile","Unassigned","Not sure","Attendance Rehearsal","Pending"',
+        "",
         "Section Leaders",
         "Name,Section,Performer,Event Title,RSVP Status",
         '"John Doe","Sopranos","S1","Attendance Rehearsal","Yes"',
@@ -377,7 +399,10 @@ describe("Organization attendance", () => {
     async function createProfile(displayName: string) {
       return organizationProfileResponseSchema.parse(
         await (
-          await write("alpha.localhost", "/api/organization/profiles", cookie, { displayName })
+          await write("alpha.localhost", "/api/organization/profiles", cookie, {
+            displayName,
+            voicePart: "S1",
+          })
         ).json(),
       );
     }

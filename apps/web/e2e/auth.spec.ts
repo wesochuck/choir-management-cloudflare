@@ -101,45 +101,75 @@ test.beforeEach(async ({ page }) => {
       },
     ],
   ]);
+  const unassignedRsvpRow: BrowserAttendanceRow = {
+    attendance: "Pending",
+    displayName: "Unassigned Singer",
+    profileId: "44444444-4444-4444-8444-444444444444",
+    rsvp: "Pending",
+    updatedAt: "2026-07-20T20:10:00.000Z",
+    voicePart: "",
+  };
   await page.route("**/api/organization/profiles", async (route) => {
+    const profiles = [
+      {
+        createdAt: "2026-07-20T20:00:00.000Z",
+        displayName: "Browser Singer",
+        doNotEmail: false,
+        globalStatus: "Active",
+        id: "11111111-1111-4111-8111-111111111111",
+        isSectionLeader: false,
+        notes: "",
+        phone: "",
+        receiveAdminNotifications: true,
+        receiveAttendanceReports: true,
+        receiveFinancialAlerts: false,
+        receiveRsvpDeclineNotices: false,
+        showInDirectory: true,
+        updatedAt: "2026-07-20T20:00:00.000Z",
+        voicePart: "S2",
+      },
+      {
+        createdAt: "2026-07-20T20:00:00.000Z",
+        displayName: "Unexpected Singer",
+        doNotEmail: false,
+        globalStatus: "Active",
+        id: "33333333-3333-4333-8333-333333333333",
+        isSectionLeader: false,
+        notes: "",
+        phone: "",
+        receiveAdminNotifications: true,
+        receiveAttendanceReports: true,
+        receiveFinancialAlerts: false,
+        receiveRsvpDeclineNotices: false,
+        showInDirectory: true,
+        updatedAt: "2026-07-20T20:00:00.000Z",
+        voicePart: "A1",
+      },
+      ...(page.url().includes("/admin/rsvp")
+        ? [
+            {
+              createdAt: "2026-07-20T20:00:00.000Z",
+              displayName: "Unassigned Singer",
+              doNotEmail: false,
+              globalStatus: "Active",
+              id: "44444444-4444-4444-8444-444444444444",
+              isSectionLeader: false,
+              notes: "",
+              phone: "",
+              receiveAdminNotifications: true,
+              receiveAttendanceReports: true,
+              receiveFinancialAlerts: false,
+              receiveRsvpDeclineNotices: false,
+              showInDirectory: true,
+              updatedAt: "2026-07-20T20:00:00.000Z",
+              voicePart: "",
+            },
+          ]
+        : []),
+    ];
     await route.fulfill({
       body: JSON.stringify({
-        profiles: [
-          {
-            createdAt: "2026-07-20T20:00:00.000Z",
-            displayName: "Browser Singer",
-            doNotEmail: false,
-            globalStatus: "Active",
-            id: "11111111-1111-4111-8111-111111111111",
-            isSectionLeader: false,
-            notes: "",
-            phone: "",
-            receiveAdminNotifications: true,
-            receiveAttendanceReports: true,
-            receiveFinancialAlerts: false,
-            receiveRsvpDeclineNotices: false,
-            showInDirectory: true,
-            updatedAt: "2026-07-20T20:00:00.000Z",
-            voicePart: "S2",
-          },
-          {
-            createdAt: "2026-07-20T20:00:00.000Z",
-            displayName: "Unexpected Singer",
-            doNotEmail: false,
-            globalStatus: "Active",
-            id: "33333333-3333-4333-8333-333333333333",
-            isSectionLeader: false,
-            notes: "",
-            phone: "",
-            receiveAdminNotifications: true,
-            receiveAttendanceReports: true,
-            receiveFinancialAlerts: false,
-            receiveRsvpDeclineNotices: false,
-            showInDirectory: true,
-            updatedAt: "2026-07-20T20:00:00.000Z",
-            voicePart: "A1",
-          },
-        ],
+        profiles,
         requestId,
       }),
       contentType: "application/json",
@@ -288,7 +318,9 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify({
         eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         requestId,
-        rows: [...attendanceRows.values()],
+        rows: page.url().includes("/admin/rsvp")
+          ? [...attendanceRows.values(), unassignedRsvpRow]
+          : [...attendanceRows.values()],
       }),
       contentType: "application/json",
       status: 200,
@@ -1635,6 +1667,12 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await rsvpBalance.getByRole("button", { name: "A1 1", exact: true }).click();
   await expectVisibleRsvpName("Browser Singer");
   await expectVisibleRsvpName("Unexpected Singer");
+  await expectVisibleRsvpName("Unassigned Singer");
+  const unassignedRsvpEntry = visibleRsvpContent
+    .locator("tr, .data-table-card")
+    .filter({ hasText: "Unassigned Singer" });
+  await expect(unassignedRsvpEntry).toContainText("Assign a voice part before managing RSVP.");
+  await expect(unassignedRsvpEntry.getByRole("button")).toHaveCount(0);
   await page.goto("/admin/events");
   const eventsPageAfterRsvp = page.getByRole("main");
   await expect(eventsPageAfterRsvp.getByRole("heading", { name: "Events" })).toBeVisible();

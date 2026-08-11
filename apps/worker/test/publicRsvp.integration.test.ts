@@ -68,7 +68,9 @@ async function provision(
   await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
     const startsAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1_000).toISOString();
     state.storage.sql.exec(
-      `INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO profiles
+        (id, display_name, voice_part, created_at, updated_at)
+       VALUES (?, ?, 'S1', ?, ?)`,
       profileId,
       `${slug} Singer`,
       now,

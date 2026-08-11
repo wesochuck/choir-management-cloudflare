@@ -83,7 +83,9 @@ async function provision(id: string, name: string, slug: string, profileId: stri
     const createdAt = new Date().toISOString();
     const startsAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1_000).toISOString();
     state.storage.sql.exec(
-      `INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO profiles
+        (id, display_name, voice_part, created_at, updated_at)
+       VALUES (?, ?, 'S1', ?, ?)`,
       profileId,
       `${name} Singer`,
       createdAt,
@@ -208,6 +210,28 @@ afterEach(async () => {
 });
 
 describe("linked-Profile self-service RSVP", () => {
+  it("rejects self-service RSVP when the linked Profile has no voice part", async () => {
+    const cookie = await signIn();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec("UPDATE profiles SET voice_part = '' WHERE id = ?", ALPHA_PROFILE);
+        return null;
+      },
+    );
+    const response = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${PERFORMANCE_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "rsvp_voice_part_required",
+    });
+  });
+
   it("shows inherited status and updates only the caller's hostname-linked Profile", async () => {
     expect(await exports.default.fetch(api("alpha.localhost", "/api/singer/events"))).toMatchObject(
       { status: 401 },

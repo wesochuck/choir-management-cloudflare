@@ -1027,6 +1027,7 @@ describe("Organization calendar management", () => {
       await (
         await post("alpha.localhost", "/api/organization/profiles", cookie, {
           displayName: "Singer",
+          voicePart: "S1",
         })
       ).json(),
     );

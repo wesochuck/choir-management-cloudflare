@@ -283,7 +283,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         return context.json(
           {
             code: error.code,
-            message: "The Organization RSVP could not be updated.",
+            message: calendarMutationMessage(error.code),
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           setupFailureStatus(error.status),

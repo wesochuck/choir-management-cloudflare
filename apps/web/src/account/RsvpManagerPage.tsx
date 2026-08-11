@@ -326,7 +326,7 @@ export function RsvpManagerPage({
 
   async function updateRsvp(profileId: string, next: "Yes" | "No" | "Pending") {
     const current = rows.find((row) => row.profileId === profileId);
-    if (!current || savingId) return;
+    if (!current?.voicePart.trim() || savingId) return;
     setSavingId(profileId);
     setFeedback(null);
     setRows((existing) =>
@@ -383,40 +383,51 @@ export function RsvpManagerPage({
     {
       header: "Actions",
       id: "actions",
-      render: (row) => (
-        <div className="rsvp-row-actions">
-          <button
-            className={
-              row.rsvp === "Yes" ? "button button--sm" : "button button--secondary button--sm"
-            }
-            disabled={savingId !== null}
-            onClick={() => void updateRsvp(row.profileId, "Yes")}
-            type="button"
-          >
-            Attending
-          </button>
-          <button
-            className={
-              row.rsvp === "No"
-                ? "button button--danger button--sm"
-                : "button button--secondary button--sm"
-            }
-            disabled={savingId !== null}
-            onClick={() => void updateRsvp(row.profileId, "No")}
-            type="button"
-          >
-            Declined
-          </button>
-          <button
-            className="button button--secondary button--sm"
-            disabled={savingId !== null || row.rsvp === "Pending"}
-            onClick={() => void updateRsvp(row.profileId, "Pending")}
-            type="button"
-          >
-            Reset
-          </button>
-        </div>
-      ),
+      render: (row) => {
+        if (!row.voicePart.trim()) {
+          return (
+            <div className="rsvp-row-actions">
+              <span className="rsvp-row-actions__message">
+                Assign a voice part before managing RSVP.
+              </span>
+            </div>
+          );
+        }
+        return (
+          <div className="rsvp-row-actions">
+            <button
+              className={
+                row.rsvp === "Yes" ? "button button--sm" : "button button--secondary button--sm"
+              }
+              disabled={savingId !== null}
+              onClick={() => void updateRsvp(row.profileId, "Yes")}
+              type="button"
+            >
+              Attending
+            </button>
+            <button
+              className={
+                row.rsvp === "No"
+                  ? "button button--danger button--sm"
+                  : "button button--secondary button--sm"
+              }
+              disabled={savingId !== null}
+              onClick={() => void updateRsvp(row.profileId, "No")}
+              type="button"
+            >
+              Declined
+            </button>
+            <button
+              className="button button--secondary button--sm"
+              disabled={savingId !== null || row.rsvp === "Pending"}
+              onClick={() => void updateRsvp(row.profileId, "Pending")}
+              type="button"
+            >
+              Reset
+            </button>
+          </div>
+        );
+      },
     },
   ];
 

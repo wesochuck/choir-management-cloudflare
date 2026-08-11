@@ -33,7 +33,8 @@
 
   .data-table td.data-table__cell--actions > .table-actions,
   .data-table td.data-table__cell--actions > .button-row,
-  .data-table td.data-table__cell--actions > .form-actions {
+  .data-table td.data-table__cell--actions > .form-actions,
+  .data-table td.data-table__cell--actions > .rsvp-row-actions {
     justify-content: flex-end;
     margin-left: auto;
   }
