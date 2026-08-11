@@ -2342,7 +2342,7 @@
         "contract": "roster",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/services/profileService.ts:368; test/profileService.test.ts",
         "targetEvidence":
           [
@@ -2356,7 +2356,7 @@
         "contract": "music-library",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/lib/music/csv.ts:67; test/musicPieceUtils.test.ts",
         "targetEvidence":
           [
@@ -2373,7 +2373,7 @@
         "contract": "event-rsvp-roster",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/lib/eventRoster/exportCsv.ts:96; test/eventRosterExport.test.ts",
         "targetEvidence":
           [
@@ -2410,7 +2410,7 @@
         "contract": "repertoire-history",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/views/admin/ReportsView.tsx:246",
         "targetEvidence":
           [
@@ -3157,7 +3157,7 @@
         "state": "public home/history/performance views at desktop and mobile",
         "owner": "apps/web",
         "milestone": 4,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "test/views/PublicLandingView.test.tsx; test/views/PublicPastPerformancesView.test.tsx",
         "targetEvidence":
@@ -3172,7 +3172,7 @@
         "state": "administrative tables become labeled mobile cards without duplicate controls",
         "owner": "packages/ui",
         "milestone": 4,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/components/ui/DataTable.tsx; test/DataTable.test.tsx",
         "targetEvidence":
           [
@@ -3205,7 +3205,7 @@
         "state": "first-run setup remains usable and resumable on narrow screens",
         "owner": "apps/web",
         "milestone": 4,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/views/setup/SetupView.tsx; test/components/setup",
         "targetEvidence":
           [
@@ -3220,7 +3220,7 @@
         "state": "communication wizard supports the baseline mobile send flow",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "docs/2026-07-13-communications-phase-1-mobile-send-flow.md;
           test/CommunicationTabs.test.tsx",

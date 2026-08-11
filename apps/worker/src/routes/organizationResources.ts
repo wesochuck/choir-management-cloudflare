@@ -143,7 +143,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     try {
-      const resource = await updateOrganizationResource(
+      const result = await updateOrganizationResource(
         context.env,
         {
           actorUserId: authorization.userId,
@@ -153,7 +153,15 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         resourceId.data,
         body.data,
       );
-      return context.json({ ...resource, requestId: context.get("requestId") });
+      if (result.previousFileId && result.previousFileId !== result.resource.fileId) {
+        await reclaimPrivateOrganizationFile(context.env, {
+          actorUserId: authorization.userId,
+          fileId: result.previousFileId,
+          organizationId: authorization.organizationId,
+          requestId: crypto.randomUUID(),
+        });
+      }
+      return context.json({ ...result.resource, requestId: context.get("requestId") });
     } catch (error: unknown) {
       const result = resourceProblem(
         error,

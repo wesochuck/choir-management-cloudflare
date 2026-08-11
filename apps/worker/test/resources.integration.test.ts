@@ -194,6 +194,46 @@ describe("Organization resources", () => {
     );
     expect(bravo.resources).toEqual([]);
 
+    const replacementFileId = crypto.randomUUID();
+    const replacementBytes = new TextEncoder().encode("replacement handbook");
+    expect(
+      (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/files/${replacementFileId}`, cookie, {
+            body: replacementBytes,
+            headers: {
+              "content-length": String(replacementBytes.length),
+              "content-type": "application/pdf",
+              "x-file-name": encodeURIComponent("replacement-handbook.pdf"),
+            },
+            method: "PUT",
+          }),
+        )
+      ).status,
+    ).toBe(201);
+    const replacedResource = organizationResourceResponseSchema.parse(
+      await (
+        await json(
+          "alpha.localhost",
+          `/api/organization/resources/${fileResource.id}`,
+          cookie,
+          {
+            fileId: replacementFileId,
+            sortOrder: fileResource.sortOrder,
+            title: "Replacement handbook",
+            url: null,
+          },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(replacedResource.fileId).toBe(replacementFileId);
+    expect(replacedResource.title).toBe("Replacement handbook");
+    expect(await files.head(privateOrganizationFileKey("organization-alpha", fileId))).toBeNull();
+    expect(
+      await files.head(privateOrganizationFileKey("organization-alpha", replacementFileId)),
+    ).not.toBeNull();
+
     expect(
       (
         await exports.default.fetch(
@@ -204,6 +244,9 @@ describe("Organization resources", () => {
       ).status,
     ).toBe(200);
     expect(await files.head(privateOrganizationFileKey("organization-alpha", fileId))).toBeNull();
+    expect(
+      await files.head(privateOrganizationFileKey("organization-alpha", replacementFileId)),
+    ).toBeNull();
     const actions = await runInDurableObject<OrganizationStore, string[]>(
       stores.get(stores.idFromName("organization-alpha")),
       (_instance, state) =>

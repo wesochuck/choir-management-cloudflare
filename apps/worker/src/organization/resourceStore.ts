@@ -203,13 +203,6 @@ export async function manageResourceInStore(
   }
   if (operation.action === "update" && !existing)
     return Response.json({ code: "resource_not_found" }, { status: 404 });
-  if (
-    operation.action === "update" &&
-    existing &&
-    (existing.fileId !== operation.resource.fileId || existing.url !== operation.resource.url)
-  ) {
-    return Response.json({ code: "resource_target_immutable" }, { status: 409 });
-  }
   const fileError = validateFile(storage, operation.resource.fileId);
   if (fileError) return fileError;
   storage.transactionSync(() => {
@@ -248,5 +241,8 @@ export async function manageResourceInStore(
       occurredAt,
     );
   });
-  return Response.json(readResource(storage, operation.resourceId));
+  const updated = readResource(storage, operation.resourceId);
+  return operation.action === "update"
+    ? Response.json({ previousFileId: existing?.fileId ?? null, resource: updated })
+    : Response.json(updated);
 }

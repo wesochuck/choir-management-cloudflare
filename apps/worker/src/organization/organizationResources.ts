@@ -4,6 +4,7 @@ import {
   type OrganizationResource,
   type OrganizationResourceRequest,
 } from "@choir/contracts";
+import { z } from "zod";
 
 import type { Env } from "../env";
 
@@ -93,14 +94,20 @@ export async function updateOrganizationResource(
   context: Context,
   resourceId: string,
   resource: OrganizationResourceRequest,
-): Promise<OrganizationResource> {
+): Promise<{ readonly previousFileId: string | null; readonly resource: OrganizationResource }> {
   const response = await mutate(env, context.organizationId, {
     action: "update",
     ...context,
     resource,
     resourceId,
   });
-  return organizationResourceSchema.parse(await response.json());
+  const result = z
+    .object({
+      previousFileId: z.uuid().nullable(),
+      resource: organizationResourceSchema,
+    })
+    .parse(await response.json());
+  return result;
 }
 
 export async function deleteOrganizationResource(

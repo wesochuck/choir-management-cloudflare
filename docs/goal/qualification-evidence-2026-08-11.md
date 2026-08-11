@@ -5,8 +5,8 @@ a production launch.
 
 ## Release and starting point
 
-- Repository commit: `0f4a9f861379dd231661ee1f69126479226ffdd9`
-- Worker version: `64cf3d93-bfe8-4cc2-b288-9b037287598a`
+- Qualified runtime source commit: `f39bdd6b38b1c2eccc67ced8caed2f3960233226`
+- Worker version: `5d122ffe-eb4b-4a4f-941e-24674c88c3e1`
 - Environment: staging
 - Canonical hosts checked: `staging.musicsite.org`, `lcc.staging.musicsite.org`, and
   `lmc.staging.musicsite.org`
@@ -14,9 +14,9 @@ a production launch.
 - No Stripe or SMS credentials were requested, entered, stored, or changed. Production resources
   were not accessed or modified.
 
-The runtime code for this release is the RSVP fix commit `6343f2f`; the current commit adds the
-final release/readiness record. CI run `31498257876` and staging deployment run `31498547472`
-verified the exact immutable artifact and promoted it to 100% traffic. A fresh
+The runtime code for this release is the RSVP fix commit `6343f2f`; the qualified source commit also
+contains release-record documentation only. CI run `31499155863` and staging deployment run
+`31499466302` verified the exact immutable artifact and promoted it to 100% traffic. A fresh
 `npm run qualify:staging` run passed all six exact-version API health/readiness probes. The
 GitHub-hosted runner's custom-domain probes were blocked by the expected Cloudflare edge rule, so
 those probes remain an interactive-network follow-up rather than a claimed failure.
@@ -66,6 +66,18 @@ those probes remain an interactive-network follow-up rather than a claimed failu
 - CSV/report surfaces: the current staging UI exposed the authorized export controls and the
   existing dated evidence captured roster, music-library, repertoire, donations, RSVP, and music
   folder report headers/row counts without retaining member or payment values.
+- Follow-up CSV artifacts from the qualified staging runtime produced populated, authorized
+  downloads for roster (98 non-empty lines; `Name,Email,Phone,Performer,Status`), music library (36
+  non-empty lines; the 11-column baseline header), RSVP (100 non-empty lines; the five-column event
+  roster header plus the `Section Leaders` marker), and repertoire (36 non-empty lines; the
+  five-column repertoire header). The local contract and authorization/isolation tests passed in the
+  same CI gate. Attendance remained intentionally unpromoted because every available performance
+  reported no linked rehearsals and kept its export disabled; the empty music-folder export likewise
+  remains unpromoted.
+- At a 390px staging viewport, public home/history/performance, the authenticated roster DataTable,
+  setup, and communications pages had no horizontal overflow or persistent alert. The roster
+  rendered mobile cards rather than a desktop table. The responsive browser suite also passed its
+  breakpoint ladder and setup continuation checks in CI.
 - Responsive/read-only surfaces: the dated staging browser evidence covers 390px checks for the
   Organization Admin, member, public, communications, ticketing, reports, seating, poll, and setup
   surfaces. Known layout candidates remain recorded in `READINESS.md`; they are not hidden by this
@@ -96,11 +108,16 @@ external prerequisite. These are deferred rather than treated as code failures:
 ## Still requiring provider-independent evidence
 
 The remaining entries are not automatically deferred: valid signed-link success/expiry/revocation,
-queue/alarm replay, record-hook effects, authorized file upload/replacement and R2 isolation,
-complete CSV contract checks, export completion/download, and Platform Administrator operations
-still need their success plus failure/isolation evidence. Platform operations specifically require a
-fresh user-entered factor in the open staging browser. No parity status is promoted merely because a
-route rendered or an anonymous request failed closed.
+queue/alarm replay, record-hook effects, authorized file upload/replacement and R2 isolation, the
+remaining attendance/donations/will-call/music-folder CSV contracts, export completion/download, and
+Platform Administrator operations still need their success plus failure/isolation evidence. Platform
+operations specifically require a fresh user-entered factor in the staging browser. No parity status
+is promoted merely because a route rendered or an anonymous request failed closed.
+
+This follow-up batch promotes these eight entries to `verified`: `csv.roster`, `csv.music-library`,
+`csv.event-rsvp`, `csv.repertoire`, `responsive.public`, `responsive.data-table`,
+`responsive.setup`, and `responsive.communications`. The ending matrix is therefore 82 `verified`
+and 123 `implemented`; the provider-deferred entries remain in the latter count.
 
 - A valid calendar subscription address was present in the member UI, but the browser client blocks
   direct `/api/calendar/feed` navigation; the signed calendar feed therefore remains unpromoted and

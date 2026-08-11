@@ -4,15 +4,16 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-74 are `verified` and 131 are `implemented`. Per the matrix definitions, `implemented` means that
+82 are `verified` and 123 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current repository `main` HEAD is `0f4a9f8` (`Record final staging release`). Its runtime is the
-RSVP fix from `6343f2f`; the exact release passed the remote CI release gate and was promoted to
-permanent staging as Worker version `64cf3d93-bfe8-4cc2-b288-9b037287598a`. The focused current
-qualification record is
+The current qualified runtime source release is `f39bdd6` (`Record final staging release`). Its
+runtime is the RSVP fix from `6343f2f`; it passed the remote CI release gate and was promoted to
+permanent staging as Worker version `5d122ffe-eb4b-4a4f-941e-24674c88c3e1`. Later
+qualification-record commits may update this document without changing that runtime. The focused
+current qualification record is
 [`docs/goal/qualification-evidence-2026-08-11.md`](qualification-evidence-2026-08-11.md); this does
 not make the whole-product goal complete.
 
@@ -51,6 +52,11 @@ The current release evidence is:
   the exact artifact, and a fresh `npm run qualify:staging` run passed all six exact-version API
   health/readiness probes. The GitHub-hosted runner again blocked custom-domain probes with the
   expected Cloudflare edge warning; no Worker failure was observed.
+- Qualified runtime source commit `f39bdd6b38b1c2eccc67ced8caed2f3960233226` passed CI run
+  `31499155863` and staging deployment run `31499466302`; Worker version
+  `5d122ffe-eb4b-4a4f-941e-24674c88c3e1` is at 100% traffic. The exact-version recheck passed all
+  six API probes. The current anonymous evidence sweep passed 148 safe requests across LCC and LMC
+  with the expected 200/400/401/404/503 boundary results.
 - Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
   browser-E2E jobs for `11e3f71`.
 - A fresh August 10 local `npm run check:ci` rerun passed all 13 mirrored CI steps: high-severity
@@ -730,10 +736,11 @@ The current release evidence is:
   controls without creating an audio element until playback is activated. No file was selected or
   uploaded, no website draft was saved, and no track playback was started.
 
-Verified coverage is concentrated in browser routes and a small number of API, workflow, and
-responsive entries: 63/64 browser routes, 7/79 API routes, 1/23 domain workflows, and 3/9 responsive
-states. The remaining 131 entries include the unverified API, signed-flow, CSV, file, record-hook,
-background-task, workflow, and responsive evidence required by the staging gate.
+Verified coverage is concentrated in browser routes and a growing set of API, CSV, workflow, and
+responsive entries: 63/64 browser routes, 7/79 API routes, 1/23 domain workflows, and 7/9 responsive
+states. Four of eight CSV contracts are now verified. The remaining 123 entries include the
+unverified API, signed-flow, CSV, file, record-hook, background-task, workflow, and responsive
+evidence required by the staging gate.
 
 The current evidence-family inventory is:
 
@@ -742,9 +749,9 @@ The current evidence-family inventory is:
 | Browser routes    |       63 |         1 | Valid email-change success                                                        |
 | API routes        |        7 |        72 | Authenticated sessions, fixtures, elevation, signed inputs, and provider paths    |
 | Domain workflows  |        1 |        22 | End-to-end staging behavior, retry/tenant-isolation, and external-effect evidence |
-| Responsive states |        3 |         6 | Representative staging visual/accessibility captures                              |
+| Responsive states |        7 |         2 | Representative staging visual/accessibility captures                              |
 | Signed flows      |        0 |         8 | Valid, expired, revoked, cross-host, and cross-Organization tokens                |
-| CSV contracts     |        0 |         8 | Real authorized exports and byte/header/date/enumeration comparison               |
+| CSV contracts     |        4 |         4 | Remaining attendance, donations, will-call, and music-folder export contracts     |
 | File behaviors    |        0 |         5 | Authorized upload/download/replacement and R2 isolation probes                    |
 | Record hooks      |        0 |         4 | Hook-triggered writes and audit/idempotency evidence                              |
 | Background tasks  |        0 |         5 | Scheduler, queue, retry, dead-letter, and workflow resume evidence                |
