@@ -11,10 +11,10 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current exact-release and classification audit — August 11, 2026
 
-The current clean commit is `9dfade394d8628b67e06b4b71fcf9ba393867865`
-(`record file qualification evidence`). Hosted CI run `31545427104` and staging release run
-`31545632080` completed successfully. Deployment `ca10fe62-a097-4f6e-887d-ba14c65539bd` serves
-Worker version `a9c592f3-c49d-4efa-82d1-7cb19dedd127` at 100% traffic. Exact direct qualification
+The latest exact runtime release recorded here is `fc0e40d9a778b1fcfb9b9e5f87c539ba37041c18`
+(`record qualification classification audit`). Hosted CI run `31546810957` and staging release run
+`31547025751` completed successfully. Deployment `f0a6c8e3-06d8-49f2-8cef-f1eef35a3147` serves
+Worker version `1f13b243-786c-4913-a724-0f4e084dfcc3` at 100% traffic. Exact direct qualification
 passed, and the fresh anonymous boundary sweep passed 148 safe requests across both seeded
 Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. Read-only staging
 inventory found all four staging queues with active consumers, the staging R2 bucket, and both
