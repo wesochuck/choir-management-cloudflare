@@ -9,10 +9,11 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current repository `main` HEAD is `dec2776` (`Improve resource ordering and RSVP filters`). That
-exact commit passed the remote CI release gate and was promoted to permanent staging as Worker
-version `2ef37eba-37a3-4de2-bc6c-d1cf41ea07f7`. The current qualification evidence is recorded
-below; this does not make the whole-product goal complete.
+The current repository `main` HEAD is `6343f2f`
+(`Fix RSVP action alignment and voice-part eligibility`). That exact commit passed the remote CI
+release gate and was promoted to permanent staging as Worker version
+`10690acb-3e7a-446d-933d-149419f9707f`. The current qualification evidence is recorded below; this
+does not make the whole-product goal complete.
 
 The current parity checks pass:
 
@@ -27,11 +28,11 @@ semantics remain covered.
 
 The current release evidence is:
 
-- Remote CI run `31492017672` passed all static, contract/parity, unit, build-artifact, Workerd, and
-  browser-E2E jobs for `dec2776ec896933f0c5a37a9a6891b6208cfdd30`.
-- Staging release run `31492269399` verified the immutable artifact and staging Email Sending
+- Remote CI run `31494149953` passed all static, contract/parity, unit, build-artifact, Workerd, and
+  browser-E2E jobs for `6343f2fe233ec4a50322de40322f27d9b8dcbaf0`.
+- Staging release run `31494416456` verified the immutable artifact and staging Email Sending
   subscription, applied migrations and non-versioned triggers, deployed Worker version
-  `2ef37eba-37a3-4de2-bc6c-d1cf41ea07f7` at 100% traffic, and qualified the exact `BUILD_VERSION`.
+  `10690acb-3e7a-446d-933d-149419f9707f` at 100% traffic, and qualified the exact `BUILD_VERSION`.
   Direct Worker probes and an interactive-network recheck of `staging.musicsite.org`, `lcc`, and
   `lmc` all reported the new release.
 - Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
@@ -42,9 +43,10 @@ The current release evidence is:
   verification, and 192 prepared Workerd integration tests. The browser E2E job is not part of this
   mirror; a fresh August 10 local Chromium run passed all 90 desktop/mobile tests.
 - A fresh August 11 local `npm run check:ci` rerun again passed all 13 mirrored CI steps, including
-  206 unit tests, the deployable build and release-manifest round-trip, and 192 prepared Workerd
+  206 unit tests, the deployable build and release-manifest round-trip, and 193 prepared Workerd
   integration tests. The follow-up `npx playwright install chromium && npm run test:e2e` run passed
-  all 90 desktop/mobile Chromium tests. No hosted resource or deployment was changed.
+  all 92 desktop/mobile Chromium tests. No hosted resource or deployment was changed by the local
+  verification run.
 - After the user reported completing Platform Administrator verification, a read-only reinspection
   of the preserved Platform Security tab still showed the factor gate and `Verify Platform access`,
   with no active-session status. No factor was entered or exposed in this run; Platform-only
