@@ -9,11 +9,12 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current repository `main` HEAD is `6343f2f`
-(`Fix RSVP action alignment and voice-part eligibility`). That exact commit passed the remote CI
-release gate and was promoted to permanent staging as Worker version
-`10690acb-3e7a-446d-933d-149419f9707f`. The current qualification evidence is recorded below; this
-does not make the whole-product goal complete.
+The current repository `main` HEAD is `7187b3e` (`Record current RSVP staging release`). Its runtime
+is the RSVP fix from `6343f2f`; the exact release passed the remote CI release gate and was promoted
+to permanent staging as Worker version `20c9fcac-5ea8-491f-97da-22b085b0d0b3`. The focused current
+qualification record is
+[`docs/goal/qualification-evidence-2026-08-11.md`](qualification-evidence-2026-08-11.md); this does
+not make the whole-product goal complete.
 
 The current parity checks pass:
 
@@ -35,6 +36,10 @@ The current release evidence is:
   `10690acb-3e7a-446d-933d-149419f9707f` at 100% traffic, and qualified the exact `BUILD_VERSION`.
   Direct Worker probes and an interactive-network recheck of `staging.musicsite.org`, `lcc`, and
   `lmc` all reported the new release.
+- Docs-only release commit `7187b3ee06616e02ab80ec17544ed1c5fbd8db76` passed CI run `31494669993`
+  and staging deployment run `31494952424`; the immutable Worker version
+  `20c9fcac-5ea8-491f-97da-22b085b0d0b3` is at 100% traffic. A fresh `npm run qualify:staging` run
+  passed all six exact-version health/readiness probes.
 - Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
   browser-E2E jobs for `11e3f71`.
 - A fresh August 10 local `npm run check:ci` rerun passed all 13 mirrored CI steps: high-severity
