@@ -3088,7 +3088,7 @@
         "behavior": "ordered private resource upload/link and member download",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/services/resourceService.ts; test/resourceService.test.ts",
         "targetEvidence":
           [
@@ -3120,7 +3120,7 @@
           names; legacy keys remain valid; private substitutions are rejected",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "accepted ADR 0004 and legacy file authorization rules",
         "targetEvidence":
           [

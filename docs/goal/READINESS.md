@@ -4,16 +4,16 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-82 are `verified` and 123 are `implemented`. Per the matrix definitions, `implemented` means that
+84 are `verified` and 121 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current qualified runtime source release is `f39bdd6` (`Record final staging release`). Its
-runtime is the RSVP fix from `6343f2f`; it passed the remote CI release gate and was promoted to
-permanent staging as Worker version `5d122ffe-eb4b-4a4f-941e-24674c88c3e1`. Later
-qualification-record commits may update this document without changing that runtime. The focused
-current qualification record is
+The current qualified runtime source release is `44e3f36`
+(`Fix resource file replacement qualification`). It includes the RSVP eligibility fix from `6343f2f`
+and was promoted to permanent staging as Worker version `b1abb7c9-293e-47ef-9bb9-ca48e9a714b0`.
+Later qualification-record commits may update this document without changing that runtime. The
+focused current qualification record is
 [`docs/goal/qualification-evidence-2026-08-11.md`](qualification-evidence-2026-08-11.md); this does
 not make the whole-product goal complete.
 
@@ -57,6 +57,11 @@ The current release evidence is:
   `5d122ffe-eb4b-4a4f-941e-24674c88c3e1` is at 100% traffic. The exact-version recheck passed all
   six API probes. The current anonymous evidence sweep passed 148 safe requests across LCC and LMC
   with the expected 200/400/401/404/503 boundary results.
+- Qualification release `44e3f36b247b8a04b33bb15c8307ab83ee7fc095` passed CI run `31502437584` and
+  staging deployment run `31502710837`; Worker version `b1abb7c9-293e-47ef-9bb9-ca48e9a714b0` is at
+  100% traffic. The exact-version API qualification passed, with only the expected GitHub-hosted
+  runner custom-domain warning. The live LCC resource replacement check succeeded and the temporary
+  fixture was removed.
 - Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
   browser-E2E jobs for `11e3f71`.
 - A fresh August 10 local `npm run check:ci` rerun passed all 13 mirrored CI steps: high-severity
@@ -736,11 +741,11 @@ The current release evidence is:
   controls without creating an audio element until playback is activated. No file was selected or
   uploaded, no website draft was saved, and no track playback was started.
 
-Verified coverage is concentrated in browser routes and a growing set of API, CSV, workflow, and
-responsive entries: 63/64 browser routes, 7/79 API routes, 1/23 domain workflows, and 7/9 responsive
-states. Four of eight CSV contracts are now verified. The remaining 123 entries include the
-unverified API, signed-flow, CSV, file, record-hook, background-task, workflow, and responsive
-evidence required by the staging gate.
+Verified coverage is concentrated in browser routes and a growing set of API, CSV, file, workflow,
+and responsive entries: 63/64 browser routes, 7/79 API routes, 1/23 domain workflows, and 7/9
+responsive states. Four of eight CSV contracts and two of five file behaviors are now verified. The
+remaining 121 entries include the unverified API, signed-flow, CSV, file, record-hook,
+background-task, workflow, and responsive evidence required by the staging gate.
 
 The current evidence-family inventory is:
 
@@ -752,7 +757,7 @@ The current evidence-family inventory is:
 | Responsive states |        7 |         2 | Representative staging visual/accessibility captures                              |
 | Signed flows      |        0 |         8 | Valid, expired, revoked, cross-host, and cross-Organization tokens                |
 | CSV contracts     |        4 |         4 | Remaining attendance, donations, will-call, and music-folder export contracts     |
-| File behaviors    |        0 |         5 | Authorized upload/download/replacement and R2 isolation probes                    |
+| File behaviors    |        2 |         3 | Profile, music-audio, and public-media upload/rendering probes                    |
 | Record hooks      |        0 |         4 | Hook-triggered writes and audit/idempotency evidence                              |
 | Background tasks  |        0 |         5 | Scheduler, queue, retry, dead-letter, and workflow resume evidence                |
 

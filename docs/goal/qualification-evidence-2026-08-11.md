@@ -5,21 +5,24 @@ a production launch.
 
 ## Release and starting point
 
-- Qualified runtime source commit: `f39bdd6b38b1c2eccc67ced8caed2f3960233226`
-- Worker version: `5d122ffe-eb4b-4a4f-941e-24674c88c3e1`
+- Qualified runtime source commit: `44e3f36b247b8a04b33bb15c8307ab83ee7fc095`
+- Worker version: `b1abb7c9-293e-47ef-9bb9-ca48e9a714b0`
 - Environment: staging
 - Canonical hosts checked: `staging.musicsite.org`, `lcc.staging.musicsite.org`, and
   `lmc.staging.musicsite.org`
-- Starting parity inventory: 205 entries — 74 `verified`, 131 `implemented`.
+- Starting parity inventory for this follow-up qualification: 205 entries — 82 `verified`, 123
+  `implemented` (the initial record began at 74 `verified`, 131 `implemented`).
+- Ending parity inventory: 205 entries — 84 `verified`, 121 `implemented`.
 - No Stripe or SMS credentials were requested, entered, stored, or changed. Production resources
   were not accessed or modified.
 
-The runtime code for this release is the RSVP fix commit `6343f2f`; the qualified source commit also
-contains release-record documentation only. CI run `31499155863` and staging deployment run
-`31499466302` verified the exact immutable artifact and promoted it to 100% traffic. A fresh
-`npm run qualify:staging` run passed all six exact-version API health/readiness probes. The
-GitHub-hosted runner's custom-domain probes were blocked by the expected Cloudflare edge rule, so
-those probes remain an interactive-network follow-up rather than a claimed failure.
+The runtime includes the RSVP eligibility fix from `6343f2f` and the Organization resource file
+replacement fix in this release. CI run `31502437584` and staging deployment run `31502710837`
+verified the exact immutable artifact and promoted it to 100% traffic as Worker version
+`b1abb7c9-293e-47ef-9bb9-ca48e9a714b0`. A fresh `npm run qualify:staging` run passed all six
+exact-version API health/readiness probes. The GitHub-hosted runner's custom-domain probes were
+blocked by the expected Cloudflare edge rule, so those probes remain an interactive-network
+follow-up rather than a claimed failure.
 
 ## Qualifiable now
 
@@ -74,6 +77,13 @@ those probes remain an interactive-network follow-up rather than a claimed failu
   same CI gate. Attendance remained intentionally unpromoted because every available performance
   reported no linked rehearsals and kept its export disabled; the empty music-folder export likewise
   remains unpromoted.
+- Organization resources: in the authenticated LCC staging UI, a non-sensitive fixture upload was
+  replaced successfully after the backend fix, the resource pointed to the new private file, and
+  deleting the resource reclaimed the fixture. The existing authorized private-resource download
+  path was exercised separately. The prepared `resources.integration.test.ts` and
+  `files.integration.test.ts` suites also verified replacement cleanup, Organization-scoped R2 keys,
+  cross-Organization substitution rejection, and poisoned metadata rejection. The fixture records
+  and objects were removed after verification.
 - At a 390px staging viewport, public home/history/performance, the authenticated roster DataTable,
   setup, and communications pages had no horizontal overflow or persistent alert. The roster
   rendered mobile cards rather than a desktop table. The responsive browser suite also passed its
@@ -108,16 +118,18 @@ external prerequisite. These are deferred rather than treated as code failures:
 ## Still requiring provider-independent evidence
 
 The remaining entries are not automatically deferred: valid signed-link success/expiry/revocation,
-queue/alarm replay, record-hook effects, authorized file upload/replacement and R2 isolation, the
-remaining attendance/donations/will-call/music-folder CSV contracts, export completion/download, and
-Platform Administrator operations still need their success plus failure/isolation evidence. Platform
-operations specifically require a fresh user-entered factor in the staging browser. No parity status
-is promoted merely because a route rendered or an anonymous request failed closed.
+queue/alarm replay, record-hook effects, the remaining attendance/donations/will-call/music-folder
+CSV contracts, export completion/download, the three remaining profile/audio/public-media file
+behaviors, and Platform Administrator operations still need their success plus failure/isolation
+evidence. Platform operations specifically require a fresh user-entered factor in the staging
+browser. No parity status is promoted merely because a route rendered or an anonymous request failed
+closed.
 
-This follow-up batch promotes these eight entries to `verified`: `csv.roster`, `csv.music-library`,
-`csv.event-rsvp`, `csv.repertoire`, `responsive.public`, `responsive.data-table`,
-`responsive.setup`, and `responsive.communications`. The ending matrix is therefore 82 `verified`
-and 123 `implemented`; the provider-deferred entries remain in the latter count.
+This follow-up qualification promotes these ten entries to `verified`: `csv.roster`,
+`csv.music-library`, `csv.event-rsvp`, `csv.repertoire`, `responsive.public`,
+`responsive.data-table`, `responsive.setup`, `responsive.communications`, `file.singer-resource`,
+and `file.r2-isolation`. The ending matrix is therefore 84 `verified` and 121 `implemented`; the
+provider-deferred entries remain in the latter count.
 
 - A valid calendar subscription address was present in the member UI, but the browser client blocks
   direct `/api/calendar/feed` navigation; the signed calendar feed therefore remains unpromoted and
