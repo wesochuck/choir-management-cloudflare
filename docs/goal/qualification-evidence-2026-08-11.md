@@ -37,11 +37,17 @@ at 100% traffic. It contains no application behavior or schema change beyond the
 classification and the evidence-plan regression guard. Exact-version direct Worker qualification
 passed; the hosted runner again reported only the expected custom-domain edge warning.
 
-The current record-only release commit `126c6471b4a21d0c1cfc78e16947ed888a9d3d0f` passed CI run
+The previous record-only release commit `126c6471b4a21d0c1cfc78e16947ed888a9d3d0f` passed CI run
 `31508287775` and staging deployment run `31508576957`; Worker version
 `7b31bef2-bb19-45bd-9a48-4211cdf4de96` is at 100% traffic. It contains no application behavior or
 schema change beyond this provenance correction. Exact-version direct Worker qualification passed;
 the hosted runner again reported only the expected custom-domain edge warning.
+
+The current record-only release commit `5112ba4fe15cf75a9916664b6d3636589cd75f08` passed CI run
+`31509036866` and staging deployment run `31509962666`; Worker version
+`05778a29-469c-4c41-99d1-195c3961288b` is at 100% traffic. It contains no application behavior or
+schema change beyond this final provenance alignment. Exact-version direct Worker qualification
+passed; the hosted runner again reported only the expected custom-domain edge warning.
 
 ## Qualifiable now
 
