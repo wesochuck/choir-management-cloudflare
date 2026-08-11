@@ -1,22 +1,7 @@
+import { publicPollDetailsResponseSchema, type PublicPollDetailsResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
-interface PollOption {
-  readonly id: string;
-  readonly label: string;
-  readonly sortOrder: number;
-}
-
-interface PollDetails {
-  readonly canSubmit: boolean;
-  readonly description: string;
-  readonly expiresAt: string;
-  readonly multipleChoice: boolean;
-  readonly options: PollOption[];
-  readonly title: string;
-  readonly profileId: string;
-  readonly profileName: string;
-  readonly existingOptionIds: string[];
-}
+type PollDetails = PublicPollDetailsResponse;
 
 type PageStatus =
   | { type: "loading" }
@@ -29,18 +14,6 @@ type PageStatus =
   | { type: "submit_error"; details: PollDetails }
   | { type: "submitted"; details: PollDetails };
 
-function isPollDetails(value: unknown): value is PollDetails {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "canSubmit" in value &&
-    "options" in value &&
-    "title" in value &&
-    "profileId" in value &&
-    "profileName" in value
-  );
-}
-
 function fetchPollDetails(token: string): Promise<PollDetails> {
   return fetch("/api/public/poll-details", {
     body: JSON.stringify({ token }),
@@ -49,7 +22,8 @@ function fetchPollDetails(token: string): Promise<PollDetails> {
   }).then((response) => {
     if (!response.ok) throw new Error("not_found");
     return response.json().then((data: unknown) => {
-      if (isPollDetails(data)) return data;
+      const parsed = publicPollDetailsResponseSchema.safeParse(data);
+      if (parsed.success) return parsed.data;
       throw new Error("invalid_response");
     });
   });
@@ -88,7 +62,7 @@ function PollForm({
   readonly details: PollDetails;
   readonly onSubmit: (optionIds: string[]) => void;
 }) {
-  const [selected, setSelected] = useState<string[]>(details.existingOptionIds);
+  const [selected, setSelected] = useState<string[]>(details.responseOptionIds);
 
   function toggleOption(optionId: string) {
     if (details.multipleChoice) {
@@ -162,10 +136,12 @@ function PollForm({
 }
 
 export function PublicPollView() {
-  const token = new URLSearchParams(window.location.search).get("token");
-  const [pageStatus, setPageStatus] = useState<PageStatus>({
+  const [token] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("token"),
+  );
+  const [pageStatus, setPageStatus] = useState<PageStatus>(() => ({
     type: token ? "loading" : "no_token",
-  });
+  }));
 
   useEffect(() => {
     window.history.replaceState(null, "", "/poll");

@@ -182,6 +182,7 @@ describe("public poll signed flow", () => {
       title: "Favorite color?",
       profileId: ALPHA_PROFILE,
       profileName: "alpha Singer",
+      responseOptionIds: [],
     });
   });
 
