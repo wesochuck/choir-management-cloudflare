@@ -10,9 +10,9 @@ entries currently classified as `planned`, `partial`, or `blocked`, so the remai
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
 The latest exact permanent-staging artifact is source commit
-`f66bc3619071842ffebdbd51a49f7a9a358be675` (`record platform and member qualification evidence`),
-deployed by hosted CI run `31534172241` and staging release run `31534447033` as Worker version
-`0aa0e7e1-6975-45f5-8689-92efd49f5ab0` at 100% traffic. Direct qualification of the exact Worker
+`22c4453d434cb21ee709b6b315ed03c06ecb8bb9` (`record final staging qualification artifact`), deployed
+by hosted CI run `31534839702` and staging release run `31535094317` as Worker version
+`e8b1b0d0-4f22-46fe-b028-5fa0507ac681` at 100% traffic. Direct qualification of the exact Worker
 version passed. The GitHub-hosted custom-domain probes received the known Cloudflare edge 403 and
 were recorded as the allowed degraded warning; recheck those domains from an allowlisted or
 interactive network. An interactive Platform Administrator factor verification was accepted; the
