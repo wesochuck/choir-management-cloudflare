@@ -9,10 +9,10 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current repository `main` HEAD is `11e3f71` (`Document scoped agent guidance`). That exact
-commit passed the remote CI release gate and was promoted to permanent staging as Worker version
-`ae0f0e9f-d32b-4da6-abbf-e49716aa3fa8`. The current qualification evidence is recorded below; this
-does not make the whole-product goal complete.
+The current repository `main` HEAD is `dec2776` (`Improve resource ordering and RSVP filters`). That
+exact commit passed the remote CI release gate and was promoted to permanent staging as Worker
+version `2ef37eba-37a3-4de2-bc6c-d1cf41ea07f7`. The current qualification evidence is recorded
+below; this does not make the whole-product goal complete.
 
 The current parity checks pass:
 
@@ -27,6 +27,13 @@ semantics remain covered.
 
 The current release evidence is:
 
+- Remote CI run `31492017672` passed all static, contract/parity, unit, build-artifact, Workerd, and
+  browser-E2E jobs for `dec2776ec896933f0c5a37a9a6891b6208cfdd30`.
+- Staging release run `31492269399` verified the immutable artifact and staging Email Sending
+  subscription, applied migrations and non-versioned triggers, deployed Worker version
+  `2ef37eba-37a3-4de2-bc6c-d1cf41ea07f7` at 100% traffic, and qualified the exact `BUILD_VERSION`.
+  Direct Worker probes and an interactive-network recheck of `staging.musicsite.org`, `lcc`, and
+  `lmc` all reported the new release.
 - Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
   browser-E2E jobs for `11e3f71`.
 - A fresh August 10 local `npm run check:ci` rerun passed all 13 mirrored CI steps: high-severity
@@ -1048,8 +1055,8 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `ae0f0e9f-d32b-4da6-abbf-e49716aa3fa8` (commit `11e3f71`). The
-  immutable release was promoted by staging run `31350509541`; the lockfile hash recorded for the
+- Current verified Worker version: `2ef37eba-37a3-4de2-bc6c-d1cf41ea07f7` (commit `dec2776`). The
+  immutable release was promoted by staging run `31492269399`; the lockfile hash recorded for the
   artifact is `0c2504af557e7c47a791896fa33ea2bc593b60c0358e4442e2991c7b3b98c97d`.
 - D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migrations
   `0001_initial.sql` through `0014_email_change.sql` applied; no migrations pending
