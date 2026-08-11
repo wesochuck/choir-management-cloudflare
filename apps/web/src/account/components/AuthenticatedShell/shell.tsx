@@ -161,15 +161,21 @@ export function AuthenticatedShell({
     };
   }, []);
 
-  // Platform administration is served only from the product base hostname;
-  // visiting it from an Organization subdomain redirects to the base host
-  // instead of rendering a broken page.
+  // Platform administration is served from the product base hostname, except
+  // for scoped Organization access. That page must remain on the validated
+  // Organization hostname so the server can bind the elevation to exactly one
+  // tenant before any edit capability is granted.
   useEffect(() => {
-    if (selectedWorkspace !== "platform" || baseHostname === null) return;
+    if (
+      selectedWorkspace !== "platform" ||
+      route.pathname === "/platform/access" ||
+      baseHostname === null
+    )
+      return;
     if (window.location.hostname !== baseHostname) {
       window.location.replace(`https://${baseHostname}/platform`);
     }
-  }, [baseHostname, selectedWorkspace]);
+  }, [baseHostname, route.pathname, selectedWorkspace]);
 
   useEffect(() => {
     if (access.status !== "ready") return;
