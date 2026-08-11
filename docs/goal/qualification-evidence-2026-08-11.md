@@ -11,7 +11,7 @@ a production launch.
   `31513630409` passed; the exact immutable artifact is at 100% traffic. The release includes no
   Stripe or SMS credential changes and does not touch production.
 - This follow-up started from the prior recorded 119 `verified` / 86 `implemented` matrix and, after
-  the evidence below, reaches 143 `verified` / 62 `implemented`.
+  the evidence below, reaches 144 `verified` / 61 `implemented`.
 
 ## Release and starting point
 
@@ -208,13 +208,22 @@ An earlier authenticated Platform Administrator session also read the Email supp
 dead letters surfaces, exercised their sort/filter controls, and dismissed one staging dead-letter
 record with an audit reason. Retry and provider-release actions were intentionally not invoked. This
 supports `api.platform.email-suppressions`, `api.platform.job-dead-letters`, and
-`api.platform.job-dead-letters.dismiss`; scoped Organization elevation and the remaining mutating
-Platform operations still require a fresh factor assertion.
+`api.platform.job-dead-letters.dismiss`; the remaining mutating Platform operations still require
+their own focused evidence.
 
-The matrix now contains 205 entries: 143 `verified` and 62 `implemented`. This is not a claim that
-all provider-independent qualification is complete: scoped Platform elevation, valid signed-link
-success and revocation, scheduler/queue replay, the remaining file upload contracts, and other
-fixture-backed API/workflow entries still require evidence below.
+The fresh factor assertion then loaded Platform Organizations on the product base hostname. The LMC
+Manage access link stayed on `https://lmc.staging.musicsite.org/platform/access`; after the initial
+workspace data settled, the page showed the selected Organization, read-only Platform access, and a
+bounded 15-minute edit control. Enabling edits with a staging-only reason reported
+`Platform edits enabled.`; ending access returned the page to `Read-only Platform access`. No
+Organization provisioning, queue retry, provider release, or production action was performed. This
+verifies `workflow.platform-admin` for its bounded scoped-elevation behavior; the remaining Platform
+API operations below still require their own focused evidence.
+
+The matrix now contains 205 entries: 144 `verified` and 61 `implemented`. This is not a claim that
+all provider-independent qualification is complete: valid signed-link success and revocation,
+scheduler/queue replay, the remaining file upload contracts, the remaining Platform API operations,
+and other fixture-backed API/workflow entries still require evidence below.
 
 ## Provider-deferred work
 
@@ -242,15 +251,15 @@ external prerequisite. These are deferred rather than treated as code failures:
 
 The remaining entries are not automatically deferred: valid success/expiry/revocation evidence for
 the signed flows other than the player link, queue/alarm replay, the remaining message record-hook
-effects, the three remaining profile/audio/public-media file behaviors, and Platform Administrator
-operations still need success plus failure/isolation evidence. The remaining implemented API and
-workflow entries need the same focused fixture evidence unless they are listed under
-Provider-deferred work. Platform operations specifically require a fresh user-entered factor in the
-staging browser. No parity status is promoted merely because a route rendered or an anonymous
-request failed closed.
+effects, the three remaining profile/audio/public-media file behaviors, and the remaining Platform
+Administrator API operations still need success plus failure/isolation evidence. The remaining
+implemented API and workflow entries need the same focused fixture evidence unless they are listed
+under Provider-deferred work. The remaining Platform operations require their own focused evidence
+even though the scoped elevation flow has been verified. No parity status is promoted merely because
+a route rendered or an anonymous request failed closed.
 
 The earlier record ended at 119 `verified` and 86 `implemented`; the follow-up batches above bring
-the current matrix to 143 `verified` and 62 `implemented`. Provider-deferred entries remain in the
+the current matrix to 144 `verified` and 61 `implemented`. Provider-deferred entries remain in the
 latter count.
 
 - A valid calendar subscription address was present in the member UI, but the browser client blocks

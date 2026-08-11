@@ -3011,7 +3011,7 @@
           "single-Organization delegated platform administration with visible bounded elevation",
         "owner": "apps/worker",
         "milestone": 2,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "legacy Application Administrator behavior plus accepted ADR 0007",
         "targetEvidence":
           [
