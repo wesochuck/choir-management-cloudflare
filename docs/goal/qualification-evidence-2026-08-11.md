@@ -5,8 +5,8 @@ a production launch.
 
 ## Release and starting point
 
-- Repository commit: `d6892ce55bd05ebcb02b38b81455c13b282dc749`
-- Worker version: `6ec0a177-4334-4834-a339-bc5990b82e08`
+- Repository commit: `0f4a9f861379dd231661ee1f69126479226ffdd9`
+- Worker version: `64cf3d93-bfe8-4cc2-b288-9b037287598a`
 - Environment: staging
 - Canonical hosts checked: `staging.musicsite.org`, `lcc.staging.musicsite.org`, and
   `lmc.staging.musicsite.org`
@@ -15,9 +15,11 @@ a production launch.
   were not accessed or modified.
 
 The runtime code for this release is the RSVP fix commit `6343f2f`; the current commit adds the
-release/readiness record. CI run `31497559435` and staging deployment run `31497846290` qualified
-the exact immutable artifact and promoted it to 100% traffic. The interactive recheck passed the
-direct Worker and seeded custom-domain health/readiness probes.
+final release/readiness record. CI run `31498257876` and staging deployment run `31498547472`
+verified the exact immutable artifact and promoted it to 100% traffic. A fresh
+`npm run qualify:staging` run passed all six exact-version API health/readiness probes. The
+GitHub-hosted runner's custom-domain probes were blocked by the expected Cloudflare edge rule, so
+those probes remain an interactive-network follow-up rather than a claimed failure.
 
 ## Qualifiable now
 

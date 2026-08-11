@@ -9,10 +9,10 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current repository `main` HEAD is `d6892ce`
-(`Record provider-independent staging qualification`). Its runtime is the RSVP fix from `6343f2f`;
-the exact release passed the remote CI release gate and was promoted to permanent staging as Worker
-version `6ec0a177-4334-4834-a339-bc5990b82e08`. The focused current qualification record is
+The current repository `main` HEAD is `0f4a9f8` (`Record final staging release`). Its runtime is the
+RSVP fix from `6343f2f`; the exact release passed the remote CI release gate and was promoted to
+permanent staging as Worker version `64cf3d93-bfe8-4cc2-b288-9b037287598a`. The focused current
+qualification record is
 [`docs/goal/qualification-evidence-2026-08-11.md`](qualification-evidence-2026-08-11.md); this does
 not make the whole-product goal complete.
 
@@ -45,6 +45,12 @@ The current release evidence is:
   `6ec0a177-4334-4834-a339-bc5990b82e08` is at 100% traffic. The deployment applied the exact
   artifact, passed the release gate and exact-version API qualification, and the interactive recheck
   passed all six direct/custom-domain health/readiness probes.
+- Final release commit `0f4a9f861379dd231661ee1f69126479226ffdd9` passed CI run `31498257876` and
+  staging deployment run `31498547472`; the immutable Worker version
+  `64cf3d93-bfe8-4cc2-b288-9b037287598a` is at 100% traffic. The deployment verified and promoted
+  the exact artifact, and a fresh `npm run qualify:staging` run passed all six exact-version API
+  health/readiness probes. The GitHub-hosted runner again blocked custom-domain probes with the
+  expected Cloudflare edge warning; no Worker failure was observed.
 - Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
   browser-E2E jobs for `11e3f71`.
 - A fresh August 10 local `npm run check:ci` rerun passed all 13 mirrored CI steps: high-severity
