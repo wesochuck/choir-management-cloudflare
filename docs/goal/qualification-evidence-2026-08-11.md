@@ -3,6 +3,16 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
+## Current follow-up context
+
+- The latest qualified runtime before this record-only evidence update is source commit `54c423b`
+  (`Fix scoped Platform access routing`), promoted to staging as Worker version
+  `4b70c369-8b65-48a0-bcc7-1dde2cce97b0`. Hosted CI run `31513358856` and staging release run
+  `31513630409` passed; the exact immutable artifact is at 100% traffic. The release includes no
+  Stripe or SMS credential changes and does not touch production.
+- This follow-up started from the prior recorded 119 `verified` / 86 `implemented` matrix and, after
+  the evidence below, reaches 143 `verified` / 62 `implemented`.
+
 ## Release and starting point
 
 - Qualified runtime source commit: `44e3f36b247b8a04b33bb15c8307ab83ee7fc095`
@@ -157,6 +167,55 @@ session. Profile-photo, music-audio, and public-media upload success paths were 
 the browser file chooser was not available for a safe fixture upload. No status was inferred from
 either limitation.
 
+### Follow-up Organization workflow qualification batch
+
+After the scoped Platform routing fix was deployed, an authenticated LMC Organization Admin session
+completed and cleaned up these provider-independent staging workflows:
+
+- Communications saved a temporary draft, updated its subject, and removed both temporary draft
+  records through the custom confirmation. The UI reported `Draft saved.` after both writes. No
+  message was queued, delivered, or sent.
+- Events cloned the existing Performance, reported `Event created.`, and archived the temporary
+  clone through the destructive confirmation. The clone no longer appeared in the active event list.
+- Seating opened the new-chart dialog, used the default RSVP-Yes singer count, changed the row
+  count, observed the live per-row summary, created `Qualification seating`, opened Profile lookup,
+  and deleted the temporary chart through its confirmation. The selected chart returned to its prior
+  state.
+- Set lists inserted a temporary custom entry, edited its title, saved it, approved the set list,
+  removed the entry, and restored the prior unapproved empty state. The UI reported
+  `Set list saved.` and no temporary item remained.
+- Music Catalog created a temporary catalog piece, saved it, opened its editor, and deleted it
+  through the confirmation. No audio file was selected and no catalog fixture remained.
+- Public Website saved and published a temporary hero headline, confirmed the live public host
+  rendered the published text, then restored and republished the original headline. The public
+  projection now again reads `Welcome to Our Choir`.
+
+This batch promotes `api.list-ticket-discount-codes`, `api.create-ticket-discount-code`,
+`api.update-ticket-discount-code`, and `api.deactivate-ticket-discount-code` from the earlier
+staging discount-code lifecycle fixture; `hook.message-create` and `hook.message-update` from the
+draft create/update writes; and `workflow.event-clone`, `workflow.music`, `workflow.setlists`,
+`workflow.seating`, and `workflow.public-site`. The separate `file.music-audio` entry remains
+unpromoted because this batch did not select or upload an audio file.
+
+The same authenticated Organization session also loaded the setup checklist, module-state page,
+member dashboard, calendar subscription page, seating profile data, and Polls list without a load
+error. Existing staging poll create/update/archive evidence was retained. This promotes
+`api.setup-status`, `api.module-state`, `api.setup-health`, `api.singer-dashboard`,
+`api.calendar-feed-url`, `api.seating-profiles`, `api.organization.polls`,
+`api.organization.poll-create`, `api.organization.poll-update`, and `api.organization.poll-archive`.
+
+An earlier authenticated Platform Administrator session also read the Email suppressions and Queue
+dead letters surfaces, exercised their sort/filter controls, and dismissed one staging dead-letter
+record with an audit reason. Retry and provider-release actions were intentionally not invoked. This
+supports `api.platform.email-suppressions`, `api.platform.job-dead-letters`, and
+`api.platform.job-dead-letters.dismiss`; scoped Organization elevation and the remaining mutating
+Platform operations still require a fresh factor assertion.
+
+The matrix now contains 205 entries: 143 `verified` and 62 `implemented`. This is not a claim that
+all provider-independent qualification is complete: scoped Platform elevation, valid signed-link
+success and revocation, scheduler/queue replay, the remaining file upload contracts, and other
+fixture-backed API/workflow entries still require evidence below.
+
 ## Provider-deferred work
 
 The following work cannot be honestly promoted from this staging session without the corresponding
@@ -190,11 +249,9 @@ Provider-deferred work. Platform operations specifically require a fresh user-en
 staging browser. No parity status is promoted merely because a route rendered or an anonymous
 request failed closed.
 
-Together with the ten entries promoted in the prior record (`csv.roster`, `csv.music-library`,
-`csv.event-rsvp`, `csv.repertoire`, `responsive.public`, `responsive.data-table`,
-`responsive.setup`, `responsive.communications`, `file.singer-resource`, and `file.r2-isolation`),
-the current matrix is 119 `verified` and 86 `implemented`. The provider-deferred entries remain in
-the latter count.
+The earlier record ended at 119 `verified` and 86 `implemented`; the follow-up batches above bring
+the current matrix to 143 `verified` and 62 `implemented`. Provider-deferred entries remain in the
+latter count.
 
 - A valid calendar subscription address was present in the member UI, but the browser client blocks
   direct `/api/calendar/feed` navigation; the signed calendar feed therefore remains unpromoted and

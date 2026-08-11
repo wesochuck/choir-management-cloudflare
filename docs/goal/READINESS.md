@@ -4,14 +4,15 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-119 are `verified` and 86 are `implemented`. Per the matrix definitions, `implemented` means that
+143 are `verified` and 62 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current qualified runtime source release is `44e3f36`
-(`Fix resource file replacement qualification`). It includes the RSVP eligibility fix from `6343f2f`
-and was promoted to permanent staging as Worker version `b1abb7c9-293e-47ef-9bb9-ca48e9a714b0`. The
+The current qualified runtime source release is `54c423b` (`Fix scoped Platform access routing`). It
+includes the RSVP eligibility fix from `6343f2f` and was promoted to permanent staging as Worker
+version `4b70c369-8b65-48a0-bcc7-1dde2cce97b0`. The hosted CI run `31513358856` and staging
+deployment run `31513630409` passed, and the exact immutable artifact is at 100% traffic. The
 record-only release commit `177799328bdd4b70c5012b07326a949a7f6b79c0` passed CI run `31503643685`
 and staging deployment run `31503941589`; Worker version `16bf8eff-e170-4a06-9f3e-26aa022458eb` is
 at 100% traffic. It reused the qualified application behavior and passed exact-version direct Worker

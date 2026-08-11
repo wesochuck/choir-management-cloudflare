@@ -51,14 +51,12 @@ describe("parity staging evidence plan", () => {
   test("keeps the read and validation probe mix meaningful", () => {
     const rows = buildProbePlan(matrix);
     const probes = rows.filter((row) => !row.kind.startsWith("skip"));
-    expect(probes.length).toBeGreaterThan(20);
     // The generated plan contains only entries that remain implemented. As staging evidence is
-    // promoted, verified read routes leave this follow-up plan; keep the remaining read coverage
-    // meaningful without tying the threshold to an earlier matrix snapshot.
-    expect(
-      probes.filter((row) => row.kind === "read-anon" || row.kind === "read-auth").length,
-    ).toBeGreaterThanOrEqual(8);
-    expect(probes.filter((row) => row.kind === "validation").length).toBeGreaterThan(10);
+    // promoted, verified reads leave this follow-up plan; keep the remaining validation and
+    // deliberate fail-closed coverage meaningful without tying thresholds to an old snapshot.
+    expect(probes.length).toBeGreaterThanOrEqual(10);
+    expect(probes.filter((row) => row.kind === "validation").length).toBeGreaterThanOrEqual(10);
+    expect(probes.some((row) => row.kind === "fail-closed")).toBe(true);
   });
 
   test("treats setup health as an authenticated Organization-host probe", () => {
@@ -66,8 +64,10 @@ describe("parity staging evidence plan", () => {
   });
 
   test("routes canonical public and Organization-scoped probes to an Organization host", () => {
-    const rows = buildProbePlan(matrix);
-    const rowFor = (id) => rows.find((row) => row.id === id);
+    const rowFor = (id) => {
+      const entry = matrix.apiRoutes.find((candidate) => candidate.id === id);
+      return { id: entry.id, route: materializeRoutePath(entry.path) };
+    };
     for (const id of [
       "api.setup-health",
       "api.rsvp-details",
