@@ -1,6 +1,13 @@
 import type { OrganizationResource, OrganizationResourceRequest } from "@choir/contracts";
 import { DataTable, Dialog, useConfirmation } from "@choir/ui";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 
 import {
   AuthApiError,
@@ -16,6 +23,61 @@ function message(error: unknown): string {
   return error instanceof AuthApiError
     ? error.message
     : "Organization resources could not be updated.";
+}
+
+function dropBoundaryForPosition(
+  target: HTMLElement,
+  clientY: number,
+  resourceIndex: number,
+): number {
+  const bounds = target.getBoundingClientRect();
+  return clientY < bounds.top + bounds.height / 2 ? resourceIndex : resourceIndex + 1;
+}
+
+function dropBoundaryForEvent(event: DragEvent<HTMLElement>, resourceIndex: number): number {
+  return dropBoundaryForPosition(event.currentTarget, event.clientY, resourceIndex);
+}
+
+function dropBoundaryForPointerEvent(
+  event: PointerEvent<HTMLElement>,
+  resourceIndex: number,
+): number {
+  return dropBoundaryForPosition(event.currentTarget, event.clientY, resourceIndex);
+}
+
+function canDropAtBoundary(boundary: number, dragIndex: number | null): boolean {
+  return dragIndex !== null && boundary !== dragIndex && boundary !== dragIndex + 1;
+}
+
+function moveResource(
+  resources: readonly OrganizationResource[],
+  fromIndex: number,
+  toIndex: number,
+): readonly OrganizationResource[] {
+  const next = [...resources];
+  const [moved] = next.splice(fromIndex, 1);
+  if (!moved) return resources;
+  next.splice(toIndex, 0, moved);
+  return next.map((resource, sortOrder) => ({ ...resource, sortOrder }));
+}
+
+function resourceOrdersMatch(
+  left: readonly OrganizationResource[],
+  right: readonly OrganizationResource[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((resource, index) => resource.id === right[index]?.id)
+  );
+}
+
+function reorderHandleLabel(
+  title: string,
+  index: number,
+  resourceCount: number,
+  keyboardDragging: boolean,
+): string {
+  return `${keyboardDragging ? "Reordering" : "Reorder"} ${title}, position ${String(index + 1)} of ${String(resourceCount)}`;
 }
 
 export function OrganizationResources({
@@ -34,6 +96,14 @@ export function OrganizationResources({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverBoundary, setDragOverBoundary] = useState<number | null>(null);
+  const [keyboardDragIndex, setKeyboardDragIndex] = useState<number | null>(null);
+  const [keyboardDragOriginResources, setKeyboardDragOriginResources] = useState<
+    readonly OrganizationResource[] | null
+  >(null);
+  const [recentlyMovedResourceId, setRecentlyMovedResourceId] = useState<string | null>(null);
+  const movedFlashTimerRef = useRef<number | null>(null);
   const { confirm, confirmationDialog } = useConfirmation();
 
   function resetForm(): void {
@@ -78,6 +148,14 @@ export function OrganizationResources({
       controller.abort();
     };
   }, [enabled]);
+
+  useEffect(() => {
+    return () => {
+      if (movedFlashTimerRef.current !== null) {
+        window.clearTimeout(movedFlashTimerRef.current);
+      }
+    };
+  }, []);
 
   // eslint-disable-next-line complexity -- add/edit source validation and cleanup are intentionally co-located.
   async function saveResource() {
@@ -147,24 +225,151 @@ export function OrganizationResources({
     }
   }
 
-  async function move(index: number, delta: -1 | 1) {
-    const next = [...resources];
-    const target = index + delta;
-    if (target < 0 || target >= next.length) return;
-    const currentResource = next[index];
-    const targetResource = next[target];
-    if (!currentResource || !targetResource) return;
-    next[index] = targetResource;
-    next[target] = currentResource;
+  function flashMovedResource(resourceId: string): void {
+    setRecentlyMovedResourceId(resourceId);
+    setSuccess("Resources reordered.");
+    if (movedFlashTimerRef.current !== null) {
+      window.clearTimeout(movedFlashTimerRef.current);
+    }
+    movedFlashTimerRef.current = window.setTimeout(() => {
+      setRecentlyMovedResourceId((current) => (current === resourceId ? null : current));
+      movedFlashTimerRef.current = null;
+    }, 900);
+  }
+
+  async function persistResourceOrder(
+    next: readonly OrganizationResource[],
+    rollbackResources?: readonly OrganizationResource[],
+    movedResourceId?: string,
+  ): Promise<void> {
+    const previousResources = rollbackResources ?? resources;
+    if (next.length < 2 || resourceOrdersMatch(previousResources, next)) {
+      setResources(next.map((resource, sortOrder) => ({ ...resource, sortOrder })));
+      setSuccess("Resource order unchanged.");
+      return;
+    }
     setBusy(true);
     setError(null);
+    setSuccess(null);
     try {
       await reorderOrganizationResources(next.map(({ id }) => id));
       setResources(next.map((item, sortOrder) => ({ ...item, sortOrder })));
+      if (movedResourceId) flashMovedResource(movedResourceId);
     } catch (failure: unknown) {
+      if (rollbackResources) setResources(rollbackResources);
       setError(message(failure));
     } finally {
       setBusy(false);
+    }
+  }
+
+  function clearPointerReorder(): void {
+    setDragIndex(null);
+    setDragOverBoundary(null);
+  }
+
+  function dropResourceAtBoundary(boundary: number): void {
+    const currentDragIndex = dragIndex;
+    if (!canDropAtBoundary(boundary, currentDragIndex) || currentDragIndex === null) {
+      clearPointerReorder();
+      return;
+    }
+    const movedResource = resources[currentDragIndex];
+    const next = moveResource(
+      resources,
+      currentDragIndex,
+      boundary > currentDragIndex ? boundary - 1 : boundary,
+    );
+    clearPointerReorder();
+    void persistResourceOrder(next, undefined, movedResource?.id);
+  }
+
+  function startResourceDrag(index: number): void {
+    if (busy) return;
+    setKeyboardDragIndex(null);
+    setKeyboardDragOriginResources(null);
+    setRecentlyMovedResourceId(null);
+    setDragIndex(index);
+    setDragOverBoundary(null);
+    setSuccess(null);
+  }
+
+  function handleResourceDragStart(event: DragEvent<HTMLButtonElement>, index: number): void {
+    if (busy) {
+      event.preventDefault();
+      return;
+    }
+    startResourceDrag(index);
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleResourcePointerDown(event: PointerEvent<HTMLButtonElement>, index: number): void {
+    if (event.pointerType === "touch") startResourceDrag(index);
+  }
+
+  function moveKeyboardResource(direction: -1 | 1): void {
+    if (keyboardDragIndex === null) return;
+    const movedResource = resources[keyboardDragIndex];
+    const targetIndex = keyboardDragIndex + direction;
+    if (!movedResource || targetIndex < 0 || targetIndex >= resources.length) return;
+    setResources((current) => [...moveResource(current, keyboardDragIndex, targetIndex)]);
+    setKeyboardDragIndex(targetIndex);
+    setSuccess(
+      `${movedResource.title} moved to position ${String(targetIndex + 1)}. Use the arrow keys to continue, or press Space or Enter to drop.`,
+    );
+  }
+
+  function cancelKeyboardReorder(): void {
+    if (keyboardDragIndex === null) return;
+    const movedResource = resources[keyboardDragIndex];
+    if (keyboardDragOriginResources) setResources(keyboardDragOriginResources);
+    setKeyboardDragIndex(null);
+    setKeyboardDragOriginResources(null);
+    setSuccess(`${movedResource?.title ?? "Resource"} reordering canceled.`);
+  }
+
+  function toggleKeyboardReorder(index: number, isActive: boolean): void {
+    if (keyboardDragIndex === null) {
+      const resource = resources[index];
+      if (!resource) return;
+      setKeyboardDragIndex(index);
+      setKeyboardDragOriginResources(resources);
+      setSuccess(
+        `Picked up ${resource.title}, position ${String(index + 1)} of ${String(resources.length)}. Use the arrow keys to move, or press Space or Enter to drop.`,
+      );
+      return;
+    }
+    if (!isActive) return;
+    const resource = resources[index];
+    const originResources = keyboardDragOriginResources;
+    setKeyboardDragIndex(null);
+    setKeyboardDragOriginResources(null);
+    if (originResources && resourceOrdersMatch(originResources, resources)) {
+      setSuccess(`${resource?.title ?? "Resource"} dropped at position ${String(index + 1)}.`);
+      return;
+    }
+    void persistResourceOrder(resources, originResources ?? undefined, resource?.id);
+  }
+
+  function handleKeyboardReorderKeyDown(
+    index: number,
+    event: KeyboardEvent<HTMLButtonElement>,
+  ): void {
+    if (busy) return;
+    const isActive = keyboardDragIndex === index;
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      toggleKeyboardReorder(index, isActive);
+      return;
+    }
+    if (event.key === "Escape" && isActive) {
+      event.preventDefault();
+      cancelKeyboardReorder();
+      return;
+    }
+    if ((event.key === "ArrowUp" || event.key === "ArrowDown") && isActive) {
+      event.preventDefault();
+      moveKeyboardResource(event.key === "ArrowUp" ? -1 : 1);
     }
   }
 
@@ -188,89 +393,162 @@ export function OrganizationResources({
       {resources.length === 0 ? (
         <p>No resources have been shared yet.</p>
       ) : (
-        <DataTable
-          columns={[
-            {
-              header: "Resource",
-              id: "title",
-              render: (resource) => (
-                <a
-                  href={
-                    resource.fileId
-                      ? `/api/organization/files/${encodeURIComponent(resource.fileId)}`
-                      : (resource.url ?? "#")
-                  }
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <strong>{resource.title}</strong>
-                </a>
-              ),
-              sortValue: (resource) => resource.title,
-            },
-            {
-              header: "Source",
-              id: "source",
-              render: (resource) => (resource.fileId ? "Shared file" : "HTTPS link"),
-              sortValue: (resource) => (resource.fileId ? "Shared file" : "HTTPS link"),
-            },
-            ...(manager
-              ? [
-                  {
-                    header: "Actions",
-                    id: "actions",
-                    mobileLabel: "Manage",
-                    render: (resource: OrganizationResource) => {
-                      const index = resourceIndex(resource);
-                      return (
-                        <div className="table-actions">
-                          <button
-                            className="button button--secondary button--small"
-                            disabled={busy || index <= 0}
-                            onClick={() => void move(index, -1)}
-                            type="button"
-                          >
-                            Move up
-                          </button>
-                          <button
-                            className="button button--secondary button--small"
-                            disabled={busy || index < 0 || index === resources.length - 1}
-                            onClick={() => void move(index, 1)}
-                            type="button"
-                          >
-                            Move down
-                          </button>
-                          <button
-                            className="button button--secondary button--small"
-                            disabled={busy}
-                            onClick={() => {
-                              openEdit(resource);
-                            }}
-                            type="button"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="button button--danger button--small"
-                            disabled={busy}
-                            onClick={() => void remove(resource)}
-                            type="button"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      );
-                    },
+        <>
+          {manager ? (
+            <>
+              <p className="field-help" aria-live="polite">
+                Drag a resource by its handle to reorder it, or focus the handle and press Space or
+                Enter to pick it up. Use the arrow keys to move it, then press Space or Enter to
+                drop; Escape cancels.
+              </p>
+              <p className="sr-only" id="organization-resources-reorder-help">
+                Press Space or Enter to pick up this resource. Use Arrow Up or Arrow Down to move
+                it. Press Space or Enter to drop it, or Escape to cancel.
+              </p>
+            </>
+          ) : null}
+          <DataTable
+            {...(manager
+              ? {
+                  getRowProps: (
+                    _resource: OrganizationResource,
+                    context: { readonly index: number },
+                  ) => {
+                    const index = context.index;
+                    const isKeyboardDragging = keyboardDragIndex === index;
+                    const isDragging = dragIndex === index || isKeyboardDragging;
+                    const dropBefore =
+                      dragOverBoundary === index && canDropAtBoundary(index, dragIndex);
+                    const dropAfter =
+                      dragOverBoundary === index + 1 && canDropAtBoundary(index + 1, dragIndex);
+                    const recentlyMoved = recentlyMovedResourceId === _resource.id;
+                    return {
+                      className: `organization-resource-row${isDragging ? " organization-resource-row--dragging" : ""}${dropBefore ? " organization-resource-row--drop-before" : ""}${dropAfter ? " organization-resource-row--drop-after" : ""}${recentlyMoved ? " organization-resource-row--moved" : ""}`,
+                      onDragEnd: () => {
+                        clearPointerReorder();
+                      },
+                      onDragOver: (event) => {
+                        if (dragIndex === null || busy) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDragOverBoundary(dropBoundaryForEvent(event, index));
+                      },
+                      onDrop: (event) => {
+                        event.preventDefault();
+                        dropResourceAtBoundary(dropBoundaryForEvent(event, index));
+                      },
+                      onPointerCancel: (event) => {
+                        if (event.pointerType === "touch") clearPointerReorder();
+                      },
+                      onPointerUp: (event) => {
+                        if (event.pointerType === "touch" && dragIndex !== null) {
+                          dropResourceAtBoundary(dropBoundaryForPointerEvent(event, index));
+                        }
+                      },
+                    };
                   },
-                ]
-              : []),
-          ]}
-          emptyMessage="No resources have been shared yet."
-          keySelector={(resource) => resource.id}
-          rowLabel={(resource) => `Edit resource ${resource.title}`}
-          rows={resources}
-          {...(manager ? { onRowClick: openEdit } : {})}
-        />
+                }
+              : {})}
+            columns={[
+              {
+                header: "Resource",
+                id: "title",
+                // Resource order is an explicit user-controlled order, so sorting this column
+                // would conflict with the drag position shown to the user.
+                render: (resource) => {
+                  const index = resourceIndex(resource);
+                  const keyboardDragging = keyboardDragIndex === index;
+                  return (
+                    <div className="organization-resource-title">
+                      {manager ? (
+                        <button
+                          aria-describedby="organization-resources-reorder-help"
+                          aria-label={reorderHandleLabel(
+                            resource.title,
+                            index,
+                            resources.length,
+                            keyboardDragging,
+                          )}
+                          aria-pressed={keyboardDragging}
+                          className="set-list-drag-handle organization-resource-drag-handle"
+                          disabled={busy}
+                          draggable={!busy}
+                          onDragStart={(event) => {
+                            handleResourceDragStart(event, index);
+                          }}
+                          onKeyDown={(event) => {
+                            handleKeyboardReorderKeyDown(index, event);
+                          }}
+                          onPointerDown={(event) => {
+                            handleResourcePointerDown(event, index);
+                          }}
+                          title="Drag to reorder, or press Space or Enter for keyboard control"
+                          type="button"
+                        >
+                          <span aria-hidden="true" />
+                        </button>
+                      ) : null}
+                      <a
+                        href={
+                          resource.fileId
+                            ? `/api/organization/files/${encodeURIComponent(resource.fileId)}`
+                            : (resource.url ?? "#")
+                        }
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <strong>{resource.title}</strong>
+                      </a>
+                    </div>
+                  );
+                },
+              },
+              {
+                header: "Source",
+                id: "source",
+                render: (resource) => (resource.fileId ? "Shared file" : "HTTPS link"),
+              },
+              ...(manager
+                ? [
+                    {
+                      header: "Actions",
+                      id: "actions",
+                      mobileLabel: "Manage",
+                      render: (resource: OrganizationResource) => {
+                        return (
+                          <div className="table-actions">
+                            <button
+                              className="button button--secondary button--small"
+                              disabled={busy}
+                              onClick={() => {
+                                openEdit(resource);
+                              }}
+                              type="button"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="button button--danger button--small"
+                              disabled={busy}
+                              onClick={() => void remove(resource)}
+                              type="button"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        );
+                      },
+                    },
+                  ]
+                : []),
+            ]}
+            emptyMessage="No resources have been shared yet."
+            keySelector={(resource) => resource.id}
+            rowLabel={(resource) => `Edit resource ${resource.title}`}
+            rows={resources}
+            {...(manager ? { onRowClick: openEdit } : {})}
+          />
+        </>
       )}
       {manager ? (
         <>

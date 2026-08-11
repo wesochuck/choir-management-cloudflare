@@ -1,14 +1,734 @@
 # Goal Readiness and Operating State
 
-**Prepared:** August 1, 2026 **Status:** The Stripe payment lifecycle implementation is committed on
-`main`, deployed to permanent staging, and has passed the local quality gates and anonymous staging
-qualification. Provider-backed sandbox checkout, webhook, refund, dispute, and Brevo delivery
-qualification remains outstanding only because the isolated provider secrets and verified sender
-have not been provisioned. Production is isolated with `EXTERNAL_EFFECTS_MODE=disabled`,
-`PLATFORM_EMAIL_MODE=disabled`, and no routes or bindings configured. Production launch remains
-outside the active goal per GOAL.md.
+**Prepared:** August 11, 2026
 
-## August 3 release-pipeline redesign
+**Current status:** The repository contains implementation and focused-test evidence for the planned
+Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
+74 are `verified` and 131 are `implemented`. Per the matrix definitions, `implemented` means that
+target behavior and focused tests exist; permanent-staging proof may still remain. There are no
+entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
+Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
+
+The current repository `main` HEAD is `11e3f71` (`Document scoped agent guidance`). That exact
+commit passed the remote CI release gate and was promoted to permanent staging as Worker version
+`ae0f0e9f-d32b-4da6-abbf-e49716aa3fa8`. The current qualification evidence is recorded below; this
+does not make the whole-product goal complete.
+
+The current parity checks pass:
+
+- `npm run check:parity`: 205 entries validated across 9 sections.
+- `npm run check:parity:implementation`: 79 API entries checked against 66 Worker route files.
+
+The parity ledger is a behavioral coverage and evidence inventory, not a requirement to reproduce
+every legacy API method or route verbatim. Legacy source establishes observable intent and boundary
+cases; new implementation may consolidate or reshape internal/API methods when the required
+capability, authorization, Organization isolation, auditability, idempotency, and external-effect
+semantics remain covered.
+
+The current release evidence is:
+
+- Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
+  browser-E2E jobs for `11e3f71`.
+- A fresh August 10 local `npm run check:ci` rerun passed all 13 mirrored CI steps: high-severity
+  dependency audit, lockfile verification, formatting, lint, strict workspace typecheck, contract
+  export snapshot, both parity checks, 206 unit tests, deployable build, release-manifest
+  verification, and 192 prepared Workerd integration tests. The browser E2E job is not part of this
+  mirror; a fresh August 10 local Chromium run passed all 90 desktop/mobile tests.
+- A fresh August 11 local `npm run check:ci` rerun again passed all 13 mirrored CI steps, including
+  206 unit tests, the deployable build and release-manifest round-trip, and 192 prepared Workerd
+  integration tests. The follow-up `npx playwright install chromium && npm run test:e2e` run passed
+  all 90 desktop/mobile Chromium tests. No hosted resource or deployment was changed.
+- After the user reported completing Platform Administrator verification, a read-only reinspection
+  of the preserved Platform Security tab still showed the factor gate and `Verify Platform access`,
+  with no active-session status. No factor was entered or exposed in this run; Platform-only
+  qualification remains open until the tab visibly reports an active session.
+- Staging release run `31350509541` uploaded and deployed the immutable artifact at 100% traffic,
+  verified the Email Sending subscription, applied migrations and non-versioned triggers, and
+  qualified the exact `BUILD_VERSION` with direct Worker probes. Its four custom-domain probes were
+  blocked by the GitHub-hosted runner's Cloudflare edge rule; the same product, `lcc`, and `lmc`
+  probes passed from an interactive network with the exact current version.
+- The staging Email Sending subscription read-back is enabled as `staging-email-feedback`, uses the
+  `email.sending` source for `mail.staging.musicsite.org`, targets a queue, and contains all six
+  delivery-feedback events: delivered, deferred, bounced, failed, rejected, and complained. The
+  staging feedback queue and dead-letter queue each have an active Worker consumer. This verifies
+  configuration and routing, not the full provider event matrix.
+- A read-only remote D1 check found two active Organizations (`lcc` and `lmc`), both at operational
+  schema 39, all 14 control-plane migrations applied, and active canonical domains. No migration or
+  production resource was changed by this verification pass.
+- The documented read-only Parity Bridge checkout is absent from this execution environment. The
+  pinned baseline hash remains recorded, but no new baseline source comparison was performed in this
+  pass.
+- The staging evidence plan maps all 72 implemented API entries into 14 authenticated reads, 19
+  validation probes, one intentional fail-closed Stripe probe, 27 fixture-backed flows, and 11
+  Platform Administrator/elevation flows. The live authenticated probe run was not started because
+  no staging session cookie was supplied to the shell; no cookie was copied from the browser or
+  recorded. A fresh staging browser tab also resolved to the sign-in boundary, so no OTP or other
+  credential was entered. No matrix status was promoted on plan-only evidence.
+- A fresh local traceability audit found all 314 concrete File Responsibility Map paths and all 238
+  unique parity target-evidence paths present in the repository. The map contains 328 references
+  total; fourteen are intentionally grouped brace/glob patterns rather than individual files and
+  were retained as documentation patterns. The audit corrected one stale RSVP target path in the
+  matrix; no runtime behavior was changed.
+- A source, dependency, and URL scan across `apps`, `packages`, `scripts`, manifests, and build
+  configuration found no PocketBase/legacy-platform imports, dependencies, legacy API calls, or
+  legacy hostnames in the executable build. The only remaining legacy term is a non-executable
+  baseline-ordering comment in the donation CSV domain helper. This confirms standalone runtime
+  coupling is absent; it does not replace behavioral parity evidence.
+- A strict-source scan found no `any` type escapes, `as any`, `@ts-ignore`, or `@ts-nocheck` in
+  executable code. The only file-wide lint disable is in Wrangler-generated type declarations;
+  application suppressions are line-scoped rule exceptions. The three `dangerouslySetInnerHTML` uses
+  all consume the shared escaped Markdown renderer, whose focused security tests passed for markup
+  escaping and rejection of non-HTTP links. This supports the source-hygiene gate without replacing
+  a broader browser security review.
+- On August 10, an authenticated browser session verified the Platform Administrator TOTP factor and
+  loaded the read-only `/platform`, `/platform/organizations`, `/platform/access`,
+  `/platform/dead-letters`, and `/platform/email-suppressions` surfaces. The Platform overview
+  refresh reported the exact deployed build, two Organizations, completed Platform Administrator
+  MFA, sandbox Email Sending, eight existing background jobs requiring review, and the expected
+  unavailable Stripe configuration. The two dead-letter and email-suppression route entries are now
+  promoted to `verified`. The same session loaded Account overview, Organization memberships,
+  password settings, active sessions, and the LCC/LMC Organization Admin summaries on their
+  hostname-scoped hosts without a cross-host data response. The first Platform overview navigation
+  briefly rendered its loading-time access-denied state before settling on the correct overview
+  after the auth check completed; no persistent access failure remained on refresh.
+- The current August 11 Platform Security tab still shows the fresh-factor form after reload rather
+  than an active 15-minute Platform Administrator session. No one-time code was copied into the
+  repository or entered by the agent, so additional Platform-only verification remains pending an
+  interactive factor assertion in that tab.
+- The same Platform factor-gate UI has one labeled `one-time-code` input, a visible Verify control,
+  no alert, and no horizontal overflow at 390px (375px document/body width). The empty control was
+  not submitted.
+- An August 11 LCC Account Security validation pass entered local-only dummy credentials with a
+  seven-character new password. Change password returned the typed error
+  `Use a password between 12 and 128 characters.` on the same route, with no password mutation or
+  external authentication effect.
+- An August 11 signed-in Account Organizations pass showed exactly two Organization Membership
+  entries, each linking to its own canonical Organization host. No membership or Organization switch
+  was activated; at 390px the account page remained within the 375px document/body width.
+- An August 11 signed-in Account Sessions pass rendered the active-session list with the explicit
+  notice that session tokens are not displayed or saved, plus separate Revoke session and current
+  browser sign-out controls. No session action was invoked; the page had no alert or horizontal
+  overflow at 390px.
+- An August 11 LCC password-recovery validation pass entered a local-only malformed email. Send
+  reset link left the recovery route in place, marked the email invalid, and showed no generic
+  alert, reset request, or outbound notification.
+- A fresh August 10 read-only browser sweep loaded all 26 static Organization Admin routes on both
+  `lcc.staging.musicsite.org` and `lmc.staging.musicsite.org` without router errors or visible alert
+  states. LCC seating settled into its populated workspace after a longer initial load, and a
+  follow-up read-only member/public sweep loaded 19 static routes on each host. The expected
+  no-projection `Website unavailable` states appeared for `/history` and `/performances`, invalid
+  `/unsubscribe` links showed their typed invalid/expired state, and LCC's audition page settled
+  from loading to the inquiry form after the data request completed. No form submission, upload,
+  export, payment, refund, message, or other state-changing action was triggered.
+- The same authenticated LMC session exercised the read-only Reports tabs (including Music Folder
+  Report), Ticketing panels (bundles, orders, discounts, sharing, and confirmation), and
+  Communications panels (drafts, history, templates, upcoming sends, and settings). Each tab panel
+  rendered its expected heading or empty state without a load-error alert. These are UI/query
+  observations only; no report export, message send, ticket action, or settings save was attempted.
+- An August 11 LCC export-control pass found an enabled `Start Organization export` control with no
+  active export status, an enabled RSVP `Export CSV` control, and an enabled RSVP report export tab.
+  Music Folder Report `Export CSV` remained disabled until a Performance is selected. No export job,
+  download, or report action was activated.
+- A read-only August 11 LCC RSVP pass activated the existing `Export CSV` link from the signed-in
+  manager. The browser stayed on the RSVP page with no alert or record change; the browser surface
+  did not expose the downloaded bytes or response headers, so CSV byte/header/date/enumeration
+  compliance remains unverified and no CSV evidence was promoted.
+- A subsequent August 11 LCC RSVP export pass captured the browser download in a temporary
+  authenticated tab and inspected only its metadata. The CSV contained 100 data rows plus a header
+  with the expected five columns (`Name`, `Section`, `Performer`, `Event Title`, and `RSVP Status`).
+  The generated local copy was moved to the system Trash after inspection; no member values were
+  recorded, and the full CSV contract remains unpromoted.
+- A subsequent August 11 LCC Roster export pass captured the manager-visible CSV download and
+  inspected only its metadata. It contained 97 data rows plus a header with the expected five
+  columns (`Name`, `Email`, `Phone`, `Performer`, and `Status`). The generated local copy was moved
+  to the system Trash after inspection; no member values were recorded, and the full roster CSV
+  contract remains unpromoted.
+- A subsequent August 11 LCC Music Library export pass captured the manager-visible CSV download and
+  inspected only its metadata. It contained 34 data rows plus a header with the expected 11 catalog
+  columns (`Title`, `Composer`, `Arranger`, `Copies`, `Catalog ID`, `Duration`, `Voicing`,
+  `Applies To`, `Genres`, `Purchase Date`, and `Notes`). The generated local copy was moved to the
+  system Trash after inspection; no catalog values were recorded, and the full library CSV contract
+  remains unpromoted.
+- An August 11 LCC Repertoire report export pass also produced a temporary CSV with 34 data rows
+  plus the expected five-column header (`Title`, `Composer`, `Arranger`, `Performances`, and
+  `Last performed`). The generated local copy was moved to the system Trash after inspection; no
+  repertoire values were recorded, and the full repertoire CSV contract remains unpromoted.
+- An August 11 LCC Donations export pass produced a header-only CSV because the staging Organization
+  has no donation rows. Its seven columns were `Donor`, `Email`, `Amount`, `Processing fee`,
+  `Tribute`, `Status`, and `Date`; the generated local copy was moved to the system Trash after
+  inspection, and the populated donation CSV contract remains unpromoted.
+- An August 11 LCC Roster and Music Library import validation pass opened both CSV dialogs. With no
+  file chosen, each `Import CSV` action was disabled; Cancel closed each dialog without an alert or
+  record change. No local file was uploaded and no import transaction was started.
+- A direct authenticated API sweep was not promoted from this browser pass: the browser's read-only
+  page evaluator does not expose `fetch`, and direct navigation to an API URL is blocked by the
+  browser client. No cookies were inspected, no API response body was copied, and no API status was
+  inferred from this failed probe.
+- An August 10 responsive staging pass at a 390px viewport loaded LMC Reports, Music Folder Report,
+  Ticketing Discount Codes, Communications Templates, and Seating panels with their expected
+  headings and tab panels, no visible load-error alerts, and a 375px document/body width within the
+  390px viewport. The explicit viewport override was reset afterward. This is narrow-layout evidence
+  only; full keyboard, touch, focus, and form-flow responsive coverage remains represented by the
+  local browser tests until broader staging capture is available.
+- An August 11 responsive pass at the same temporary 390px viewport loaded LCC Organization
+  Settings, Roster, Attendance, Ticketing, My Profile, Dashboard, and My Schedule with a main
+  landmark and no alert on every route. Each route remained within a 375px document/body width, with
+  no horizontal overflow; the viewport override was reset and the temporary tab closed afterward.
+- A further August 11 LCC responsive pass loaded Resources, Set lists, Auditions, Polls, and Events
+  at 390px with main landmarks, no alerts, and 375px document/body widths. Public Website rendered
+  without an alert but extended to 416px: the public-site panel/form overflow was caused by a
+  visible `white-space: nowrap` label (`Use this header and footer on public transaction pages`). No
+  control or draft was changed, and the viewport override was reset afterward.
+- An August 11 LCC public responsive pass loaded Home, History, Performances, Tickets, Donations,
+  Auditions, and the invalid RSVP-link boundary at 390px without alerts or horizontal overflow. The
+  expected `Website unavailable`, `Tickets`, `Support our Music`, `Audition Inquiry`, and
+  `RSVP Link Required` headings rendered; the Donations page had no native `<main>` or
+  `[role="main"]` landmark, so that remains a public accessibility candidate. No public form was
+  submitted.
+- An August 11 LCC public checkout-label pass found all visible Donation and Audition fields labeled
+  and no alerts. Auditions had no overflow; Tickets had no available event form. Donations exposed
+  an internal 12px overflow in the level grid: the `Benefactor` option's 177px content width
+  exceeded its 165.5px card, and the narrow section scrolled to 355px from a 343px client width. No
+  donation, inquiry, or ticket submission was made.
+- An August 11 LCC public donation-checkout validation pass clicked `Complete donation` with the
+  default level selected and donor fields empty. Native required validation marked Name, Email, and
+  Confirm email invalid with no alert, navigation, payment, or notification. At 390px the page
+  remained 375px wide; the previously noted donation-level internal overflow remained present.
+- An August 11 LMC ticket-catalog pass found an existing `Buy tickets` link and opened its event
+  form at 390px. Name for will call, Email, Confirm email, Quantity, and the updates checkbox were
+  all labeled; `Complete ticket order` was present, with no alert or horizontal overflow. No order
+  data was entered and checkout was not submitted.
+- An August 11 LMC public ticket-checkout validation pass clicked `Complete ticket order` with all
+  buyer fields empty. Native required validation marked Name, Email, and Confirm email invalid, kept
+  the event URL in place, and showed no generic alert or external submission. At 390px the form
+  stayed within a 375px document/body width and the checkout button fit the viewport.
+- An August 11 LCC direct public RSVP-route probe at 390px rendered the public home shell rather
+  than an RSVP form, with no alert, controls, or overflow. Because no valid public RSVP invitation
+  link was exposed by the current staging data, the responsive RSVP form remains unverified; no RSVP
+  action was taken.
+- An August 11 LCC Communications mobile pass loaded the audience step at 390px with labeled
+  channel, audience, status, voice-part, and event controls and no overflow or alert. Continuing
+  locally to Compose exposed a responsive defect: the 314px composer grid allocated only about 10px
+  to `.communication-composer__panel` while the placeholder aside received 288px, collapsing the
+  message editor and toolbar. The source grid still requires a 14rem minimum second column; no
+  draft, preview, or send action was used.
+- An August 11 LMC Season Dues measurement found the dues card at 80px tall at the normal viewport
+  and 249px tall at 390px, where its grid intentionally stacks the title, amounts, and action into
+  one column. The narrow view had no horizontal overflow or alert; the viewport override was reset
+  afterward. The height increase is a responsive presentation tradeoff rather than a layout
+  overflow.
+- Existing-link inspection found the public audition page and internal event RSVP links, but no
+  already-issued valid player, poll, calendar, unsubscribe, or email-change signed link exposed by
+  the current admin data. No token was generated and no signed-flow status was promoted.
+- An existing ticket-sales-enabled Performance exposed its public ticket-page link, Copy link
+  control, QR-code image, and Download QR code control in the read-only event editor. Opening the
+  public ticket page rendered the Performance title, quantity control, and Complete ticket order
+  action on desktop and at 390px with a 375px document/body width inside the viewport. No order was
+  submitted and the QR artifact was not downloaded.
+- An August 11 LCC Ticketing Share & QR Codes pass exposed public ticket links for the ticketing
+  landing page and an event, with accessible QR images and Copy link/Download QR code controls. No
+  link was copied, QR artifact downloaded, or ticket setting changed.
+- An August 11 LCC Ticketing Confirmation Page pass exposed four labeled buyer-facing wording fields
+  and an enabled Save ticket wording control. The panel had no alert or overflow; no wording was
+  edited or saved.
+- A read-only LMC interaction pass confirmed the Roster profile dialog remains open when switching
+  to Messages and Folder numbers, with the expected empty-message state and per-event folder-number
+  controls. Escape closed the dialog without saving. Roster search/sort, RSVP No response and
+  History search/sort, and Attendance Present/search filters all updated their visible rows without
+  changing RSVP or attendance state.
+- A staging Polls pass toggled `Show archived polls` without the previously reported load-error
+  alert and retained the poll table. The Events list exposed Edit as the primary action and an
+  accessible overflow menu containing Clone, Cancel, and Archive; Escape closed that menu without
+  triggering an action.
+- The signed-in LMC Profile page exposed the email-change form and explicitly stated that the new
+  address receives a confirmation link, the current address receives a notification, and the change
+  takes effect only after confirmation. The form was not submitted. LMC Setup Checklist reported
+  setup complete, sandbox external effects, Stripe not configured, and Cloudflare Email Sending
+  configured; the Stripe connect action remained disabled pending Platform-managed credentials.
+- An August 11 LCC Profile pass showed the required `New sign-in email` field populated with the
+  current address, the old/new-address confirmation guidance, and an available Change email control.
+  The request was not submitted because it would send staging notifications and require a real
+  confirmation link; the valid email-change success path remains unverified.
+- An August 11 LCC mobile Profile pass at 390px kept the required New sign-in email field, current
+  address guidance, and Change email control labeled and within the 375px document/body width. The
+  new-address confirmation/current-address notification explanation was visible; no email change was
+  submitted.
+- An August 11 LCC Profile validation pass entered a local-only malformed email value and activated
+  Change email. The browser kept the Profile route in place, marked the email control invalid, and
+  showed no generic alert, confirmation dialog, notification, or account change. The original local
+  draft value was restored before closing the temporary tab.
+- An August 11 LMC member-dashboard pass found an enabled Decline control on the first upcoming
+  rehearsal while older/closed events remained disabled. Opening the decline dialog placed focus
+  inside a labeled/described dialog; its required note left `Decline rehearsal` disabled when empty,
+  enabled it after local-only text entry, and Cancel closed the dialog without an alert or RSVP
+  change. No attendance or RSVP submission was made.
+- Malformed signed-link probes on LCC Player, RSVP, Poll, Unsubscribe, and email-change routes, plus
+  the LMC RSVP route, all failed closed with their typed invalid/expired-link alerts and no form,
+  input, audio, or video surface. No valid token was generated, entered, or recorded.
+- Roster automation, Auditions inquiries/settings, and Seasons & Dues records/settings rendered
+  their expected controls and empty states without load errors. Auditions also exposed its public
+  signup link and QR image. No Save, Delete, Generate, Invite, Schedule, or other state-changing
+  action was used during this pass.
+- A console health scan of 14 representative signed-in pages across both seeded Organization hosts
+  (`/admin`, Reports, Ticketing, Communications, Seating, Polls, and Profile) recorded zero console
+  errors and zero warnings. Only counts and source URLs were inspected; console payloads were not
+  copied or recorded.
+- A browser tenant-isolation check opened the known LMC ticket page successfully, then opened the
+  same event path on LCC. LMC rendered its event-specific ticket page; LCC rendered only its generic
+  `Ticket sales are closed for this performance` boundary without the LMC title or ticket details.
+  Both reads produced zero console errors and warnings, and no checkout was started.
+- Later in the same browser session, the bounded 15-minute Platform Administrator elevation expired:
+  `/platform/security` returned to its fresh-factor form and `/platform` reported that setup status
+  could not be loaded until MFA is verified again. Organization-host access remained signed in and
+  loaded normally. No MFA code was entered or recorded by the agent; further Platform-only checks
+  require a fresh user-entered factor.
+- On the resumed August 10 session, the user supplied a fresh TOTP factor in the browser. Platform
+  overview refresh, security, Organization directory, scoped-access boundary, dead letters, and
+  email suppressions all loaded with Platform access ready and no actual alert/error state. Email
+  suppression sorting worked, and dead-letter Retry/Dismiss controls were present; neither action
+  was invoked.
+- The same Platform session exercised dead-letter Refresh and the `All records` display filter, plus
+  email-suppression Updated sorting and the `All records` filter. Each read-only interaction
+  completed without an alert; Retry, Dismiss, and Release block actions were left untouched. The
+  temporary Platform filter tab recorded zero console errors and warnings.
+- Platform Organization operations reported deployed schema version 68, latest preparation
+  completed, and two Organizations prepared. The scoped-access page correctly displayed its
+  host-selection boundary while on the product base host. Organization name/hostname creation,
+  schema preparation, and scoped access selection were not invoked; the operations page recorded
+  zero console errors and warnings.
+- Requests for `/platform` from both `lcc.staging.musicsite.org` and `lmc.staging.musicsite.org`
+  redirected to the product base host before rendering Platform Admin. Neither Organization host
+  rendered Platform content, and both redirects recorded zero console errors or warnings.
+- On August 11, the signed-in LCC Set lists surface rendered the selected Performance,
+  copy-from-previous selector, approval controls, three ordered items with keyboard movement
+  actions, and the `All changes saved.` status. A screenshot check at the current viewport showed
+  the workspace navigation in a single grouped column with the active Set lists entry; no Save,
+  reorder, copy, approval, player, print, or other state-changing action was invoked.
+- On August 11, the signed-in LCC Reports surface loaded 93 RSVP responses with sortable report
+  columns and an enabled `Export CSV` control. Its Music Folder Report accepted two visible
+  Performance selections, showed `2 Performances selected`, enabled its export control, and
+  displayed the expected zero-assigned-folder summary without an alert. The selections were cleared
+  afterward. The browser client did not expose a download event for the CSV, so no CSV contract or
+  file-behavior status was promoted from this interaction.
+- The same signed-in LCC Reports session rendered the combined `Donations & Ticket Sales` panel. Its
+  `Donations`, `Ticket sales`, and `Both` filters each became active and displayed the corresponding
+  empty state (`No donations have been recorded`, `No ticket sales have been recorded`, or the
+  combined message) without an alert. No payment, refund, or export action was invoked.
+- An August 11 LCC mobile Donations & Ticket Sales pass at 390px kept the `Both`, `Donations`, and
+  `Ticket sales` filters within the report width with no alert or overflow. Each filter became
+  active in turn and displayed its matching empty state; no payment, refund, or export action was
+  invoked.
+- An August 11 LCC Music Folder Report default-state pass showed three available Performances in
+  reverse chronological order, each visibly marked `No assigned folder`. None was selected and the
+  report export remained disabled until selection; no folder or report state was changed.
+- An August 11 LMC Music Folder Report pass selected both available Performances and showed the
+  expected summary of 2 assigned, 1 returned, 1 outstanding, 0 not assigned, and a 50.0% return
+  rate. The profile row used a chevron control labeled `Expand test 1`; its `aria-expanded` state
+  toggled true and back to false when expanded and collapsed. No profile or folder data was edited.
+- An August 11 LMC Music Folder Report mobile default-state pass at 390px showed two unchecked
+  Performance options (one assigned folder each), a disabled `Export CSV` control until selection, a
+  375px document/body width, and no alert or overflow. No performance was selected or edited in this
+  mobile read.
+- An August 11 LMC Music Folder Report export pass opened the Performance picker, selected one
+  Performance with an assigned folder, and captured a CSV containing one data row plus the expected
+  seven-column header (`Profile`, `Performance`, `Performance Start`, `Performance State`,
+  `Folder Number`, `Folder Return Status`, and `Returned At`). The generated local copy was moved to
+  the system Trash after inspection; no profile or folder values were recorded, and the full report
+  CSV contract remains unpromoted.
+- A follow-up LMC Music Folder Report interaction probe found the visible Select all/Clear all
+  action bar extending about 15px below its report panel; the button center resolved to the wrapping
+  panel in the browser hit-test, and the temporary browser could not activate either selection
+  control. No performance, folder, or export state changed. This is a candidate layout/interaction
+  defect for visual review, not a promoted report-behavior result.
+- The signed-in LCC Attendance surface opened a custom confirmation for `Mark remaining present`;
+  the warning stated that five RSVP-Yes performers would be changed and that the action may be
+  difficult to undo. Cancel closed the dialog with no alert and preserved `Unmarked 5`, `All 9`,
+  `Present 4`, and `Absent 0`.
+- An August 11 LMC Attendance pass kept non-RSVP performers hidden while the search was empty. A
+  search for the known test performer revealed one row under the `Not currently RSVP'd` divider;
+  activating its attendance toggle opened the custom `Mark unexpected attendee present?` reminder
+  explaining that Present will also RSVP the performer Yes; Cancel closed it with the row still
+  non-RSVP. Keyboard-clearing the search hid that row again, and no alert appeared.
+- An August 11 LMC Attendance mobile pass reproduced the same rescue boundary at 390px: the empty
+  search showed zero rows, `test 1` revealed one labeled non-RSVP row, and keyboard-clearing
+  restored zero visible rows. The document/body remained 375px wide with no alert; no attendance
+  toggle was activated.
+- The signed-in LCC Events editor showed no save bar until a local title draft was changed; the edit
+  then revealed a sticky bottom `event-editor-save-bar` with Cancel and Save event controls. Cancel
+  discarded the local draft, closed the modal, preserved the event title `test`, and left no alert.
+  No server save occurred.
+- An August 11 LCC mobile Event editor pass changed only a local title draft at 390px and exposed a
+  309px-wide sticky save bar 112px tall with visible Cancel and Save event controls. The dialog and
+  document had no actionable overflow or alert; Cancel discarded the draft and closed the editor. No
+  event save occurred.
+- An August 11 LCC Event editor pass found the Public graphic control rendered as a styled
+  `.event-graphic-dropzone` label with a dashed border, pointer cursor, and explicit
+  `Drag and drop an image here, or browse` guidance. Its helper text listed PNG, JPG, and WebP
+  support. Escape closed the editor without selecting a file or saving.
+- The signed-in LCC Events list opened the first row’s overflow menu and exposed Clone, Cancel, and
+  Archive. Choosing Cancel opened the destructive confirmation with `Keep event` and `Cancel event`
+  actions; Keep event dismissed it with no alert or state change. Choosing Archive likewise opened
+  an `Archive event?` confirmation with `Archive event` and Cancel; Cancel left the row unchanged
+  with no alert. Neither action changed event state.
+- An August 11 LCC Events action-link pass found the primary event action labeled `RSVP`; its target
+  was `/admin/rsvp?eventId=...` with a non-empty originating event identifier. The link was
+  inspected without opening it, and no event or RSVP state was changed.
+- An August 11 LCC RSVP selector pass found the Performance control rendered with the browser-native
+  select appearance and pointer affordance, with four performance options and a visible enclosing
+  `Performance`/`Choose performance` label. The route had no alert; no performance selection
+  changed.
+- The signed-in LCC Communications compose step opened with `No template selected`; its template
+  dropdown contained only Dues Payment Notice, Dues Payment Receipt, and General Announcement.
+  Audition and donation receipt templates were absent from the compose options while remaining
+  visible in the separate Templates tab as system templates for automated messages. No draft was
+  edited, saved, queued, or sent.
+- An August 11 LCC Communications audience-preview check selected Members, Ticket Buyers, and
+  Donors, invoked only `Preview audience reach`, and retained all three selections afterward while
+  showing the zero-reachable summary. Continuing to Compose and returning to Audience also retained
+  all three selections. No message draft, queue, send, or other external effect was triggered.
+- An August 11 LCC Communications compose check entered local-only subject/message text, then
+  selecting a template opened the custom `Replace current draft?` warning. Cancel preserved the
+  unsaved draft and left `No template selected`; no draft was saved or sent.
+- The signed-in LCC Polls create form required an expiration and defaulted it to three days from the
+  current time. The form was cancelled without saving. Toggling `Show archived polls` displayed six
+  archived poll rows without an alert; returning the checkbox to unchecked restored the active view
+  with no rows and no load error.
+- An August 11 LCC mobile Poll create-dialog pass at 390px fit at 358px wide with a 16px inset, kept
+  focus inside, exposed labeled required Title, Expiration, Option 1, and Option 2 fields, and
+  defaulted expiration to August 14—three days after the August 11 check. No alert or internal
+  overflow appeared; Cancel closed it without saving.
+- An August 11 LCC archive-filter read showed all six archived rows carrying an expiration of July
+  29, 2026, while the active view remained empty. The dates are consistent with the two-day archive
+  retention rule, but the browser has no creation/closure timeline proving the exact scheduler
+  transition; no archive status was promoted from this corroborating read.
+- The signed-in LCC RSVP manager showed the separate `No response (0)` view with an empty filtered
+  roster and exposed an 85-record History table with search and sortable headers. Searching for
+  `Nathan` reduced History to one row, keyboard-clearing restored all 85 rows, and sorting changed
+  the `Previous RSVP` header to ascending. The LCC Ticketing page had no order rows, so no refund
+  confirmation was available to inspect.
+- An August 11 LCC RSVP manager mobile pass loaded the No response tab and History at 390px with no
+  alert or overflow. History rendered 85 labeled cards; searching `Anna` reduced the result to four
+  cards and Meta-clearing restored all 85. The mobile History view exposed the filter but no visible
+  sortable header/button or `aria-sort` control, so mobile sortability remains a candidate while
+  desktop sorting is verified. No RSVP state changed.
+- A read-only LMC Ticketing pass also loaded without an alert but exposed zero order rows and no
+  refund controls. The refund confirmation and free-order behavior therefore remain unverified
+  because the current staging data has no order to inspect; no refund action was attempted.
+- An August 11 LMC mobile Ticketing pass at 390px also rendered the Ticketing surface at a 375px
+  document/body width with no alert or horizontal overflow. It exposed the expected ticketing panels
+  but still had zero order rows and no refund control, so no refund action was attempted.
+- An August 11 LCC Season Bundles validation pass opened New ticket bundle and attempted Save bundle
+  with all required fields empty. Title, price, and sale-end controls remained invalid, the dialog
+  stayed open, and its close control dismissed it with zero bundle rows and no alert.
+- An August 11 ticketing pass opened the LCC Discount Codes tab without an alert; it showed no
+  existing codes and exposed a New discount code form with required code, performance, and value
+  fields plus percentage/fixed and activation controls. Cancel closed the form without saving. The
+  existing LMC public ticket page rendered the ticket form and Complete ticket order control without
+  a discount field because no redeemable code is published for that performance; no checkout was
+  submitted.
+- A follow-up LCC Discount Codes validation pass selected a local-only eligible item, entered an
+  invalid percentage of zero, and attempted Save discount code. Native validation kept the dialog
+  open with the percentage control invalid; Cancel closed it with zero rows and no alert or saved
+  code.
+- The signed-in LCC Seating surface loaded five chart options without an alert. The selected native
+  chart control and its options used light text on a dark background (`rgb(248, 250, 252)` on
+  `rgb(30, 41, 59)`), and a screenshot confirmed readable dark-mode selector text. No chart was
+  created, renamed, deleted, reordered, or otherwise changed.
+- An August 11 LMC New seating chart dialog defaulted `Singers to place` to the two RSVP-Yes singers
+  for the Performance and `Rows` to two, then updated the live summary to two singers per row after
+  changing rows to one. Editing the singer count to one also updated the summary immediately. Cancel
+  closed the dialog with no alert or new chart; no chart was created.
+- An August 11 LCC Seating New-chart dialog check at 390px fit within a 358px dialog with a 16px
+  inset, kept focus inside, and had no alert or internal overflow. It defaulted to nine RSVP-Yes
+  singers across three rows; local changes to eight singers and two rows updated the live summary to
+  four singers per row. Cancel closed it without creating a chart.
+- An August 11 dark-mode native-select scan across LCC RSVP, Seating, Communications, Polls,
+  Seasons, Schedule, and Dues found 13 visible selects. Every control had a label/ARIA association,
+  every route was alert-free, and all inspected option text used the readable light-on-dark palette;
+  no additional dropdown contrast defect was found. No selection was changed.
+- A follow-up LCC Seating read inspected the selected chart control and its native options directly;
+  both used the dark color scheme with light text and a dark option background. The selected chart
+  remained unchanged and the route had no alert or overflow.
+- The signed-in LCC Roster profile dialog showed three separate Folder numbers rows, one per event,
+  each with its own folder-number field, returned checkbox, and Save control; no bulk mark-all
+  action was present. Switching to Messages kept the dialog open and showed its empty state. Closing
+  the dialog left no alert and no save.
+- An August 11 LCC Roster pass opened with `Name ↑` as the default sort across 93 interactive rows.
+  The first profile’s Folder numbers tab listed three event rows newest-first (Aug 11, Aug 9, and
+  Jul 31), each with independent folder-number text, returned checkbox, and Save control. Escape
+  closed the profile without changing any folder state.
+- A fresh LCC Roster Settings pass exposed separate Settings and Roster automation tabs. The
+  automation tab selected normally and showed scheduling/status content without an alert; no roster
+  or automation control was changed.
+- The signed-in LCC Music Library search reduced 35 catalog pieces to one `America` result and
+  restored the full list after clearing. Its genre picker exposed OR/AND modes and per-genre counts;
+  selecting Patriotic showed exactly five matching pieces, and Clear restored all 35 without an
+  alert. No piece editor, import, upload, or export action was used.
+- The signed-in LCC Organization Security page loaded without an alert and stated that the
+  Organization is selected by the validated hostname and that MFA assertions are bound to the
+  Organization, identity, and browser session. Its current policy was `MFA not required`; the
+  `Require MFA for this Organization` control was visible but not invoked.
+- The signed-in LCC Auditions surface loaded the public signup link, QR controls, inquiry table, and
+  Settings tab without an alert. Settings showed the target Performance, venue, confirmation
+  message, four existing time slots, administrator-notification checkbox, and Cancel/Save controls;
+  Generate, Add, Remove, and Save actions were not invoked.
+- The signed-in LCC Seasons & Dues surface loaded the active `testing` season with two refunded
+  `$0.00` covered records without an alert. Searching `Abby` reduced the dues table to one row and
+  keyboard-clearing restored both records. Settings exposed sortable season columns and Edit/Delete
+  controls; none was invoked.
+- An August 11 LCC Season Settings pass opened Add season and attempted Create season with all
+  fields empty. The name control remained invalid and the typed `Enter a season name.` validation
+  appeared; Cancel closed the dialog with the existing season row unchanged and no alert afterward.
+- The signed-in LCC Resources page showed one Organization-shared file with move, edit, and delete
+  controls. Its edit dialog enforced exactly one source—HTTPS link or replacement file—and Cancel
+  closed it without changing the row or showing an alert. No file was downloaded, uploaded,
+  replaced, or deleted.
+- The signed-in LCC Public Website editor loaded without an alert and showed private draft fields,
+  font selectors, optional logo/hero uploads, public navigation-module toggles, and separate Save
+  draft/Publish saved draft controls. No draft or publication action was invoked.
+- The signed-in LCC Modules page loaded without an alert and showed People, Events, and Programs
+  enabled. All three module checkboxes remained unchanged.
+- An August 11 read-only LCC Setup Checklist pass loaded without an alert and reported four of five
+  steps complete, with optional existing-data import remaining available, staging sandbox provider
+  status, configured Email & SMS, and a not-connected Organization Stripe account. No import or
+  payment-connection action was invoked; at 390px the document and body remained 375px wide with no
+  horizontal overflow.
+- The signed-in LCC Organization Settings page loaded without an alert and showed Stripe
+  `not started`, a webhook needing setup, Organization email `Ready`, the three payment module
+  statuses, transaction-fee values, and timezone `America/New_York`. No settings or export action
+  was invoked.
+- The signed-in LCC Membership Invitations page loaded without an alert. It exposed the invite email
+  and Organization Membership role controls, stated the eight-day expiration and invited-email
+  sign-in requirement, showed no pending invitations, and rendered the Organization Profile-link
+  list with the current Owner role and a disabled Link Profile control until a profile is chosen. No
+  invitation, role change, profile link, or other state-changing action was invoked.
+- An August 11 LCC Membership Invitations validation pass entered a local-only malformed email and
+  activated Create invitation. The invitation email control was marked invalid on the same route
+  with no generic alert, pending invitation, or outbound email.
+- The signed-in LCC Setup Checklist loaded without an alert and reported four of five steps
+  complete, with the remaining CSV import explicitly optional. Its provider boundary showed staging
+  sandbox effects, Cloudflare Email Sending configured, Stripe not configured, and a disabled Stripe
+  Connect control with the explanation that Platform Administrator credentials are required. No
+  import, provider setup, or payment action was invoked.
+- The same signed-in LCC session loaded the Organization Admin overview and confirmed its
+  hostname-scoped navigation, summary counts, quick actions, and linked management surfaces. The
+  read-only `/admin/patrons` route rendered the Donations and Giving manager and its empty Patron
+  summaries disclosure; `/admin/donations` rendered the same manager with the expected Donation
+  History tabs, zero-record summary, sortable date selector, and empty-state text. Expanding the
+  patron summary remained read-only and showed `No patrons yet.`; no export, payment, refund, or
+  settings action was invoked. The attempted non-canonical `/admin/overview` path correctly showed
+  the typed workspace not-found state, while the linked `/admin` route loaded normally.
+- A read-only LCC Member workspace pass loaded Dashboard, My schedule, My Profile, and Season dues
+  without an alert. Dashboard showed the declined/closed-RSVP state with Attend and Decline
+  disabled; My schedule showed disabled Yes/No/Save RSVP controls, the closed-deadline explanation,
+  and calendar subscription copy/reset controls. Profile showed the email-change form and
+  confirmation guidance; Season dues showed one dues row and the pay-through-Stripe control. No
+  RSVP, email, calendar-reset, payment, or upload action was invoked, and no signed-link bytes were
+  recorded.
+- The LCC schedule exposed both webcal and HTTPS calendar-subscription controls. A temporary
+  read-only navigation to the existing signed feed was not loadable by the browser client, so this
+  remains an unpromoted signed-flow probe rather than a validity claim; the token and calendar
+  contents were not recorded, and the temporary tab was closed.
+- A read-only LCC public-host pass loaded `/`, `/history`, `/performances`, and `/auditions` with a
+  main landmark, no alert or not-found state, and no horizontal overflow at the current viewport. No
+  public RSVP, audition inquiry, upload, or other submission was made.
+- An August 11 LCC Audition Inquiry validation pass found required, labeled Name and Email fields;
+  the empty form kept Submit Inquiry disabled and marked both fields invalid without navigation, a
+  generic alert, or an external submission. The existing informational notice remained unchanged.
+- From the signed-in LCC tab, opening the corresponding LMC Organization host resolved to the Men’s
+  Chorus Organization Admin workspace and showed no LCC/Community Organization content. The
+  cross-host read was read-only, produced no alert, and did not invoke any Organization action; the
+  LCC tab was then restored.
+- The LCC `/confirm-email-change` route with no token rendered its typed
+  invalid/expired/already-used link message and no form or input. This records the failure boundary
+  only; no email-change request was submitted and the valid confirmation path remains unverified.
+- Tokenless LCC `/unsubscribe`, `/rsvp`, `/poll`, and `/player` requests failed closed. Unsubscribe
+  exposed its typed alert; the RSVP, Poll, and Player surfaces rendered their link/token states with
+  no form, input, media element, or not-found route. These are failure-path observations only; no
+  valid signed token was generated, entered, or recorded.
+- The same LCC member session loaded Practice, Member Resources, and Directory without an alert.
+  Practice exposed an audio track element without playback being started; Resources exposed two
+  organization-file links without opening or downloading either one; Directory exposed its search
+  control but no visible profile rows in the current opt-in dataset. No media, file, or directory
+  state was changed.
+- An August 11 read-only LCC Member Resources pass exposed one shared-file link with an accessible
+  resource label. Activating the authorized file link returned to the Resources page with no alert
+  or horizontal overflow and opened a separate private-file browser tab. File contents and response
+  bytes were not recorded; that probe-created tab was closed without inspecting its content, and no
+  resource record changed. This verifies the UI access boundary only, not the full R2 isolation
+  contract.
+- An August 11 LCC Practice playback pass loaded one ready private audio track with a source and no
+  alert. Activating Play changed the control to Pause, kept the audio element ready and unpaused,
+  and produced no overflow; playback was stopped before closing the temporary tab. No catalog,
+  resource, or member record changed, and audio content was not recorded.
+- A follow-up August 11 LCC Music Library playback pass activated an existing catalog Play control.
+  The hidden audio element became ready with a finite duration, advanced current time while
+  unpaused, and exposed no media error, alert, or overflow; playback was paused before closing the
+  temporary tab. No catalog or resource record changed, and audio content was not recorded.
+- The signed-in LCC Organization Admin Venues surface loaded without an alert and exposed its
+  venue-management view and add control; no venue was created or edited. The Ticket Scanner surface
+  also loaded without an alert with its scanner input and validation control present; no ticket
+  credential was entered or scanned.
+- An August 11 LCC Ticket Scanner validation pass submitted a local-only invalid credential. The
+  scanner displayed the typed `Invalid ticket` / `Ticket not found or the QR code is not valid.`
+  result without a generic alert, ticket-state change, or overflow.
+- An August 11 LCC venue-confirmation pass opened the existing venue's custom `Delete venue?`
+  confirmation. It exposed visible Delete and Cancel actions; Cancel closed the dialog with the row
+  unchanged and no alert. The dialog did not expose `aria-modal`, matching the existing shared modal
+  accessibility candidate; deletion was not attempted.
+- A fresh read-only sweep of 23 LCC Organization Admin routes found a main landmark on every route,
+  no persistent alert, and no not-found state. Twenty-two routes fit the viewport; `/admin/settings`
+  is a concrete UI overflow finding: at `innerWidth` 1280, the document scroll width was 1352px and
+  the overflow traced to the `#payments-settings` surface and its payment-settings
+  heading/description content. The computed cause is `white-space: nowrap` on the payment
+  description, matching the `.organization-payment-settings__heading .section-description` rule in
+  `apps/web/src/styles/components/platform-operations.css`. No code or settings were changed while
+  isolating this finding. The same route on LMC at the same viewport had no overflow because its
+  available main-content width was larger, so this is specifically a narrow/pinned-navigation
+  responsive defect rather than Organization data.
+- A targeted internal-overflow scan found the LCC Music Library table uses an intentional
+  `overflow-x: auto` container, and the long schedule calendar URL is confined to its input. Seating
+  has a second UI finding: `.seating-toolbar__view-actions` and its idle save-status span extend
+  about 51px past the `.seating-workspace` card while `overflow-x` remains `visible`, so view
+  controls/status may be clipped with the pinned navigation. LMC has the same rule but enough
+  available width to avoid overflow, confirming the narrow/pinned-navigation layout cause. No
+  seating control was changed.
+- A current August 11 LCC Seating recheck at a 940px viewport found document/body width 1,259px
+  against a 925px client width. The seating workspace and secondary toolbar each retained roughly
+  367px of child overflow while their parent `overflow-x` remained `visible`; the inner canvas had
+  its own horizontal scroller, but that scroller did not contain the full layout overflow. At
+  1,280px the residual document overflow was 6px. No chart or seat control was changed.
+- A targeted internal-overflow scan of LCC Attendance, Roster, Membership Invitations,
+  Communications, and Reports found no visible overflowing elements or document overflow. No control
+  was activated during this layout check.
+- An August 11 LCC mobile overflow sweep covered Venues, Directory, Membership Invitations, Patrons,
+  Donations, Organization Settings, Organization Security, Modules, and Library Settings. All had
+  375px document/body widths and no alerts except Organization Settings, whose Payments surface had
+  a 3–19px internal overflow from `checkbox-row { white-space: nowrap; }` on the Tickets, Donations,
+  and Dues descriptions. No setting was changed.
+- A read-only accessibility scan of LCC Organization Settings, Seating, Roster, Communications, My
+  Schedule, and My Profile found no unlabeled buttons and no unlabeled form controls by native label
+  or ARIA association. No control was activated.
+- An August 11 expanded accessibility scan of LCC Admin overview, Events, Auditions, Resources,
+  Music Library, Ticketing, Polls, Seasons, Donations, Patrons, Public Website, and Set lists found
+  zero unlabeled visible buttons and zero unlabeled visible form controls, with no alert on any
+  route. No control was activated.
+- An August 11 LCC workspace-navigation layout pass found the sidebar and each navigation group
+  using a single-column CSS grid. All 23 visible admin links occupied distinct vertical rows aside
+  from intentional section spacing, with no alert; the previously reported flattened-row formatting
+  did not reproduce. No pin/open preference was changed.
+- An August 11 LCC mobile workspace-sheet pass at 390px opened a 352px sheet with a 32px Close
+  control inset 16px from the top/right and no alert. The unpinned sheet exposed no visible pin
+  button, `aria-label`, title, or `Pin navigation open` text, so the ability to re-pin from this
+  mobile state remains a candidate. Close dismissed the sheet without changing navigation state.
+- A follow-up August 11 desktop unpinned-navigation pass opened the 352px sheet, found the
+  `Pin navigation open` control fully inside the top inset, and confirmed one-column links, one
+  active `aria-current` entry, and no horizontal overflow. The navigation was re-pinned afterward;
+  no route or Organization state changed.
+- The LCC Event editor modal had a valid dialog label/description, placed focus inside the dialog,
+  and dismissed cleanly with Escape. Its `role="dialog"` lacked `aria-modal="true"` and no sibling
+  was marked inert; this remains a candidate modal-accessibility finding for review. No event change
+  was saved.
+- A read-only LCC Roster profile dialog also had a valid label/description, placed focus inside the
+  dialog, and dismissed cleanly with Escape. It likewise lacked `aria-modal="true"` and did not mark
+  background content inert, so the modal-accessibility candidate is shared by at least these two
+  profile/editor dialogs rather than isolated to the Event editor. No profile state was changed.
+- The August 11 Discount Codes create dialog also had a valid label/description and placed focus
+  inside the dialog, but lacked `aria-modal="true"` and did not mark background content inert.
+  Cancel dismissed it cleanly with no alert or saved code, extending the shared modal-accessibility
+  finding to a third dialog family.
+- The August 11 Seating chart creation dialog also had a valid label/description and placed focus
+  inside the dialog, but lacked `aria-modal="true"` and did not mark background content inert.
+  Cancel dismissed it cleanly, extending the shared modal-accessibility finding to a fourth dialog
+  family.
+- The August 11 Communications template-replacement warning also had a valid label/description and
+  placed focus inside the dialog, but lacked `aria-modal="true"` and did not mark background content
+  inert. Cancel dismissed it cleanly, extending the shared modal-accessibility finding to a fifth
+  dialog family.
+- An August 11 LCC Resources edit dialog had a valid label/description and placed focus inside the
+  dialog, but likewise lacked `aria-modal="true"` and did not mark background content inert. Its
+  Cancel action closed the dialog with no alert and left the single resource row unchanged,
+  extending the shared modal-accessibility finding to a sixth dialog family.
+- An August 11 LCC Event editor check at 390px fit the dialog within the viewport (341px wide, 16px
+  side inset), kept focus inside, and showed no alert or document overflow. The dialog content was
+  much taller than its 365px viewport (1,757px scroll height), with only the Close control in the
+  initial view; this remains a mobile dialog affordance candidate alongside the missing
+  `aria-modal="true"`. Close dismissed it without saving.
+- An August 11 LCC Resources editor check at 390px also fit at 341px wide with a 16px inset, kept
+  focus inside, exposed labeled Title, HTTPS link, and replacement-file fields plus visible Cancel
+  and Save changes controls, and had no alert or overflow. Its 576px content still lacks
+  `aria-modal="true"`/background inerting; Cancel closed it without saving.
+- An August 11 LCC Add venue dialog check at 390px fit at 358px wide with a 16px inset, kept focus
+  inside, exposed labeled Name and Address fields plus Cancel/Create venue controls, and had no
+  alert or internal overflow. Its 455px content still lacks `aria-modal="true"`/background inerting;
+  Cancel closed it without creating a venue.
+- An August 11 LCC Roster profile dialog check at 390px kept focus inside and had no alert, but its
+  five-tab `roster-profile-tabs` row stayed `flex-wrap: nowrap`: the 309px tab container had 427px
+  of content, placing the Messages tab at about 460px—outside the 374px dialog edge. This is a
+  mobile tab-overflow candidate in addition to the shared missing `aria-modal="true"`; Close
+  dismissed the dialog without changing profile, folder, or message data.
+- A current August 11 Roster dialog recheck confirmed that activating Messages now keeps the dialog
+  open and sets the tab's `aria-selected` state to true, showing the expected empty-message state.
+  The 358px dialog still has a 309px tab row with 427px of content and no `aria-modal` attribute;
+  the dialog was closed without changing profile data.
+- A table accessibility scan found sortable metadata on all 11 Music Library headers, all 7 Seasons
+  headers, and all 6 RSVP History headers. The separate RSVP roster table has four headers (`Name`,
+  `Performer`, `RSVP status`, and `Actions`) across 92 rows but exposes no `aria-sort` or sortable
+  header control; this remains a candidate finding pending an intentional non-sortable-table
+  rationale. No table was interacted with during the scan.
+- A current August 11 RSVP manager recheck reproduced that distinction: the active roster's four
+  headers remain plain non-sortable cells, while switching to History exposed six button-backed
+  headers with `aria-sort` values and no alert. No RSVP response was changed.
+- An August 11 broader LCC admin table scan found complete sortable metadata on Resources (3/3
+  headers), Music Library (11/11), and Seasons (7/7), with no alerts. The 92-row RSVP roster remains
+  the only visible data table in this batch without sortable headers; card-based Donations, Patrons,
+  Communications, Reports, Events, Attendance, and Auditions surfaces exposed no HTML tables. No row
+  or table action was activated.
+- An August 11 LCC mobile data-table pass at 390px rendered Music Library as 35 labeled cards and
+  Seasons & Dues as two labeled cards, while the RSVP roster remained its custom responsive list.
+  All three routes stayed within a 375px document/body width with no alert or horizontal overflow;
+  no card action, row, or filter was activated.
+- A read-only LCC member/public layout scan covered 18 routes at the same viewport. Every route had
+  a main landmark and no horizontal overflow or not-found state; the only alerts were the expected
+  tokenless/error-boundary states for `/unsubscribe`, `/confirm-email-change`, and
+  `/reset-password`. No member or public form was submitted.
+- An August 11 LMC Schedule pass showed eight event cards using separate Yes and No RSVP buttons; no
+  event-level RSVP dropdown was present. Linked rehearsals displayed the parent-performance
+  inheritance status, and no RSVP or Save RSVP control was activated.
+- An August 11 LMC mobile Dashboard decline-dialog pass at 390px fit the required Note flow inside
+  the 358px dialog. An empty required note kept Decline rehearsal disabled; entering a local note
+  enabled it, and Cancel closed the dialog with no alert, overflow, RSVP change, decline, or
+  notification. The decline and email effects were intentionally not submitted.
+- An August 11 LCC file/media-boundary pass found no alert, horizontal overflow, or unlabeled native
+  control on My Profile, Public Website, or Music Library. Profile photo and public-site logo/hero
+  inputs each accepted one JPEG, PNG, or WebP file; Music Library showed 35 rows and 12 visible Play
+  controls without creating an audio element until playback is activated. No file was selected or
+  uploaded, no website draft was saved, and no track playback was started.
+
+Verified coverage is concentrated in browser routes and a small number of API, workflow, and
+responsive entries: 63/64 browser routes, 7/79 API routes, 1/23 domain workflows, and 3/9 responsive
+states. The remaining 131 entries include the unverified API, signed-flow, CSV, file, record-hook,
+background-task, workflow, and responsive evidence required by the staging gate.
+
+The current evidence-family inventory is:
+
+| Evidence family   | Verified | Remaining | Main missing proof                                                                |
+| ----------------- | -------: | --------: | --------------------------------------------------------------------------------- |
+| Browser routes    |       63 |         1 | Valid email-change success                                                        |
+| API routes        |        7 |        72 | Authenticated sessions, fixtures, elevation, signed inputs, and provider paths    |
+| Domain workflows  |        1 |        22 | End-to-end staging behavior, retry/tenant-isolation, and external-effect evidence |
+| Responsive states |        3 |         6 | Representative staging visual/accessibility captures                              |
+| Signed flows      |        0 |         8 | Valid, expired, revoked, cross-host, and cross-Organization tokens                |
+| CSV contracts     |        0 |         8 | Real authorized exports and byte/header/date/enumeration comparison               |
+| File behaviors    |        0 |         5 | Authorized upload/download/replacement and R2 isolation probes                    |
+| Record hooks      |        0 |         4 | Hook-triggered writes and audit/idempotency evidence                              |
+| Background tasks  |        0 |         5 | Scheduler, queue, retry, dead-letter, and workflow resume evidence                |
+
+The dated sections below are an append-only historical record. Their parity counts, deployment
+versions, and checkpoint claims describe the state at those dates; the current snapshot above and
+the completion backlog near the end of this document are authoritative for present readiness.
+
+## Release pipeline (implemented; first recorded August 3)
 
 The local release pipeline now builds the Worker bundle and web assets once in CI, records the
 commit, lockfile, and file hashes in an immutable manifest, and reuses that artifact for Workerd
@@ -25,7 +745,7 @@ and promotes the same verified artifact into the isolated production Worker; Clo
 environment-scoped version ID without changing the artifact bytes. No hosted resource or production
 deployment was modified while preparing this redesign.
 
-## August 1 refactor and legacy-removal checkpoint
+## Historical checkpoint: August 1 refactor and legacy removal
 
 The Worker is now the only application host for the active code path. PocketBase-era forwarding,
 dead aliases, synchronous `organization/export.json`, legacy payload fallbacks, and the unused
@@ -50,7 +770,7 @@ remaining readiness blocker is provider-backed staging qualification, which stil
 Stripe/Brevo credentials and a verified sender through the secure environment flow; production
 launch remains out of scope.
 
-## July 31 payment lifecycle implementation
+## Historical checkpoint: July 31 payment lifecycle implementation
 
 The shared Stripe payment slice now covers Organization-owned direct-charge checkout for tickets,
 ticket bundles, donations, and dues. Checkout reserves a pending Organization record before the
@@ -75,7 +795,7 @@ state. Staging qualification remains the only outstanding gate because no isolat
 signed webhook secret, or Brevo sandbox sender is available in this workspace; no placeholder
 credentials were created and no hosted resource was modified.
 
-## August 1 verification checkpoint
+## Historical checkpoint: August 1 verification
 
 The read-only Parity Bridge remains at the immutable baseline commit
 `6874d43a3c3698ae53218a44d17649bc454ca9ac`. Its worktree contains one pre-existing user change in
@@ -91,7 +811,7 @@ Brevo sandbox sender is available. The deployed Stripe endpoint fails closed wit
 `stripe_webhook_unavailable` response. No payment sandbox charge, webhook, email, or SMS effect was
 attempted.
 
-## July 26 parity recheck
+## Historical checkpoint: July 26 parity recheck
 
 The structural parity checker validates all 190 inventory entries and all target-evidence paths, but
 it does not prove behavior. The source, contract, Durable Object, and test review closed the prior
@@ -149,7 +869,7 @@ authorization, validation, retry, or tenant-isolation path before promoting matr
 `verified`. Staging remains in fake external-effects mode and all fixtures must remain
 Organization-scoped.
 
-## Route-contract repair checkpoint
+## Historical checkpoint: route-contract repair
 
 The setup-recovery and Stripe webhook entries are now implemented. Recovery requires a recent
 Platform Administrator MFA assertion and active Organization elevation, creates or upgrades only the
@@ -223,7 +943,7 @@ counts and five next events in under one second, confirming bounded `COUNT`/`LIM
 serializing the full dataset. This evidence is local only; the equivalent deployed scale run remains
 part of the open Milestone 6 staging gate.
 
-## July 28 current staging qualification
+## Historical checkpoint: July 28 staging qualification
 
 The authoritative `main` commit `9eb4075` passed the GitHub CI workflow and its automatic staging
 deployment completed successfully. The current 100%-traffic Worker version is
@@ -285,22 +1005,24 @@ R2, KV, queues, or Workflow state.
 
 ## Repository topology
 
-- Writable target: `/Users/wesandlaura/Downloads/choir-management-cloudflare`
+- Authoritative checkout: `/Users/wesandlaura/Projects/choir-management-cloudflare`
 - Retired task mirror (stale after `bd190db`; do not use or sync it over the authoritative target):
   `/Users/wesandlaura/Documents/Codex/2026-07-20/prior-conversation-with-codex-conversation-role/choir-management-cloudflare-work`
-- Legacy planning checkout: `/Users/wesandlaura/Downloads/choir-management-tool`
-- Read-only parity worktree: `/Users/wesandlaura/Downloads/choir-management-tool-parity`
+- Legacy planning checkout (documented historical path):
+  `/Users/wesandlaura/Downloads/choir-management-tool`
+- Read-only parity worktree (documented historical path):
+  `/Users/wesandlaura/Downloads/choir-management-tool-parity`
 - Immutable parity commit: `6874d43a3c3698ae53218a44d17649bc454ca9ac`
 - Local parity tag: `parity-baseline-2026-07-20`
 
-The Downloads target remains authoritative and is directly writable. The retired mirror is not a
-source of truth and must not be synced back over newer commits. Never implement in the parity
-worktree.
+The Projects checkout above remains authoritative and is directly writable. The retired mirror and
+legacy/parity paths are historical references only; they are not sources of truth and must not be
+synced over newer commits. Never implement in the parity worktree.
 
-The parity worktree is detached at the correct commit, but `pocketbase/pb_hooks/main.pb.js` contains
-four added/two removed generated lines from a prior regeneration. Source and test files are clean.
-Use committed Git objects for generated-hook evidence; do not reset, edit, or treat the changed
-generated file as baseline truth.
+The documented legacy planning checkout and parity worktree are not present in the current execution
+environment. No replacement checkout was created, and no legacy source was used in this verification
+pass. The baseline commit hash and prior committed-object caveat above remain historical evidence;
+re-establish the read-only Parity Bridge before any new baseline comparison or screenshot capture.
 
 ## Verified tooling and authentication
 
@@ -326,9 +1048,11 @@ secrets, or signing secrets in this file.
 - Canonical Organization namespace: `{slug}.staging.musicsite.org` (proxied wildcard DNS and Worker
   route active)
 - Worker: `choir-management-cloudflare-staging`
-- Current verified Worker version: `ef560011-c078-4acb-92c1-c2f0eee49029` (commit `9eb4075`)
-- D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migration
-  `0001_initial.sql` through `0007_fleet_schema.sql` applied; no migrations pending
+- Current verified Worker version: `ae0f0e9f-d32b-4da6-abbf-e49716aa3fa8` (commit `11e3f71`). The
+  immutable release was promoted by staging run `31350509541`; the lockfile hash recorded for the
+  artifact is `0c2504af557e7c47a791896fa33ea2bc593b60c0358e4442e2991c7b3b98c97d`.
+- D1: `choir-management-control-staging` (`9f543949-192f-49a7-aa59-7cf589b4a62f`), migrations
+  `0001_initial.sql` through `0014_email_change.sql` applied; no migrations pending
 - Durable Object: declarative SQLite export `OrganizationStore`
 - R2: `choir-management-staging`
 - KV: `choir-management-routing-staging` (`9c7f20b2c8024b1b98d17a682c70cf97`)
@@ -336,10 +1060,194 @@ secrets, or signing secrets in this file.
 - Dead-letter queue: `choir-management-jobs-dlq-staging`
 - Workflow: `choir-management-provisioning-staging`
 - Fleet schema Workflow: `choir-management-fleet-schema-staging`
-- External effects: `fake`
-- Platform email: native Cloudflare Email Sending in staging sandbox mode; sender
-  `auth@mail.staging.musicsite.org`, with `cwosborn@gmail.com` as the sole allowlisted recipient
+- External effects: staging is configured for `sandbox` mode in the current Worker configuration;
+  provider-backed qualification remains incomplete until isolated provider credentials and test
+  identities are supplied through the secure environment flow.
+- Platform email: native Cloudflare Email Sending in staging sandbox mode from
+  `auth@mail.staging.musicsite.org`. The tracked staging configuration currently uses a
+  non-deliverable test identity for the ordinary staging recipient allowlist. One interactive OTP
+  request was accepted during this pass, but no code was entered and no provider delivery event or
+  completed sign-in was observed; no current real-recipient delivery is claimed here. The earlier
+  allowlisted auth-email result remains a dated historical checkpoint.
 - Signed-link secret: configured independently in the staging Worker secret store
+
+Current qualification pass — August 9–10, 2026, refreshed August 10:
+
+- Cache-busted `GET /api/health` and `GET /api/ready` returned HTTP 200 from the direct Worker and
+  from `staging.musicsite.org`, with the health payload reporting release
+  `11e3f71893df6625b9f1dcd183ac24f0fdc2c171`.
+- A fresh `npm run qualify:staging` run supplied with that exact release and the diagnostic Worker
+  URL passed all six direct/custom-domain health and readiness probes, with no rollout or edge
+  qualification warning.
+- The same read-only qualification returned HTTP 200 health/readiness from the active canonical
+  `lcc.staging.musicsite.org` and `lmc.staging.musicsite.org` hosts. Unauthenticated Organization
+  API requests on both hosts returned the expected typed HTTP 401, while the product base and an
+  unregistered wildcard host returned the expected hostname-first HTTP 404 for Organization
+  authentication state.
+- A fresh post-midnight recheck returned the exact current release from `/api/health` and
+  `status: ready` from `/api/ready` on the workers.dev diagnostic host, product host, both seeded
+  Organization hosts, and an unregistered wildcard host. This confirms deployment convergence and
+  health/readiness only; it does not establish authenticated tenant access.
+- A fresh August 10 security-header probe confirmed that API responses include the repository CSP,
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, referrer policy, product-origin CORS
+  restriction, and request IDs. The deployed SPA HTML shell currently returns none of those headers
+  because it is served through the static-assets path. This is an open defense-in-depth finding
+  (`SEC-STATIC-HEADERS`, severity to confirm in the security review); it is not being marked as
+  fixed or hidden by the API-only evidence. `Strict-Transport-Security` was absent from both probe
+  classes; any zone-level HSTS setting remains unverified. A hostile `Origin` on GET and OPTIONS
+  probes was not reflected; CORS continued to allow only the product origin. The health response's
+  JSON `requestId` matched its `X-Request-ID` header.
+- Wrangler read-only inspection confirmed four staging queues: jobs, jobs dead-letter, Email Sending
+  feedback, and Email Sending feedback dead-letter. The jobs queue has a producer and consumer; each
+  dead-letter and Email Sending feedback queue has a consumer.
+- Fresh Wrangler Email Sending read-back confirmed `mail.staging.musicsite.org` is enabled on the
+  staging account. The `staging-email-feedback` queue subscription is enabled, uses the
+  `email.sending` source for that exact domain, targets the staging feedback queue, and selects all
+  six lifecycle events: delivered, deferred, bounced, failed, rejected, and complained. This is
+  configuration/routing evidence only; no live message was sent because the tracked staging
+  recipient allowlist is a non-deliverable `.test` identity and no real recipient authorization was
+  supplied.
+- A fresh read-only DNS check found the staging sending domain's SPF record and `p=reject` DMARC
+  policy, with the parent zone also publishing `p=reject`. This confirms the visible DNS policy for
+  the configured sender; it does not qualify DKIM propagation or end-to-end message delivery.
+- A fresh read-only deployment/resource recheck confirmed the 100%-traffic staging deployment is
+  Worker version `ae0f0e9f-d32b-4da6-abbf-e49716aa3fa8` for release
+  `11e3f71893df6625b9f1dcd183ac24f0fdc2c171`, all four staging queues have the expected
+  producer/consumer relationships, and the Email Sending feedback queue and dead-letter queue each
+  have one consumer. A second Wrangler read-only recheck on August 10 reconfirmed the enabled
+  `mail.staging.musicsite.org` sending domain and the enabled `staging-email-feedback` subscription,
+  including all six configured lifecycle events and its destination queue. Remote D1 `SELECT`
+  queries confirmed two active Organizations at operational schema 39, two active canonical domains,
+  all 14 control migrations, and one active Platform Administrator; every query reported zero
+  writes.
+- Wrangler startup analysis from the Worker project completed with a 116.5 ms local profile window
+  for the 4,044.67 KiB / 643.35 KiB gzip bundle. This is a local startup signal only, not a
+  Cloudflare edge CPU qualification; the generated profile was removed after inspection.
+- Focused local Email Sending coverage passed: 25 parser/provider/platform-email unit tests and 9
+  prepared Workerd email-feedback integration tests. The integration evidence covers route
+  ownership, duplicate idempotency, pending route reconciliation, deferred/non-suppressing behavior,
+  recipient mismatch rejection, recipient-versus-sender rejection policy, malformed dead-letter
+  recording, and global suppression. It does not substitute for observing every provider event on
+  permanent staging.
+- The Worker source contains no inbound `email()` handler for feedback; Email Sending lifecycle
+  processing is routed through the dedicated provider-event parser, ingestion, and queue consumer.
+  The full local gate includes the platform-email, provider, and email-feedback unit/integration
+  coverage.
+- A fresh focused local run passed 147 tests across signed public flows and communications (61),
+  files, publication, scheduler, queue jobs, and Music Folder Report integration (19), plus domain
+  CSV, ticketing, reporting, seating, and set-list contracts (67). The queue/scheduler stderr lines
+  were deliberate failure/retry injections; the separate Better Auth IP-resolution messages are
+  existing test-runtime warnings. All selected files passed.
+- New focused setup, financial-boundary, and poll-route tests passed as part of the 11-test
+  calendar-management integration file. They cover claiming a provisioning Organization, saving
+  module progress, reading module state, completing setup, observing the launched state, confirming
+  the append-only setup audit event, reading empty seasons/dues/donation/patron lists, and rejecting
+  malformed refund identifiers before store access. This strengthens local route and transaction
+  evidence without creating payment records or provider effects; it does not replace authenticated
+  permanent-staging proof.
+- A focused Platform Administrator route test passed as part of the 7-test Platform integration
+  file. It covers ordinary-user denial, queue settings and generation, fake-mode SMTP/SMS responses,
+  and the absence of additional captured platform email effects. It uses local capture/fake bindings
+  only and creates no external provider effect.
+- New focused route coverage passed 21 tests across calendar-management and dues integration files.
+  It covers linked-member fake dues checkout idempotency, fake donation refund with
+  cross-Organization denial, and audition conversion with repeated-conversion rejection. These tests
+  use local fake payment state and do not create external provider effects.
+- The local Organization export integration path now also parses the downloaded JSON archive and
+  checks its Organization-bound manifest, payload identity, record map, byte count, and checksum
+  against the completed export status. This is local R2/Workerd evidence; a real staging export,
+  authorized download, and scale/resume proof remain open.
+- A focused adversarial-isolation run passed 113 tests across 17 Workerd integration files. It
+  covers host-derived Organization authorization, altered Organization IDs and memberships, Platform
+  elevation revocation, wrong-host/expired/purpose-mismatched signed links, private-file and R2-key
+  substitution, published-projection isolation, queue deduplication/replay/dead letters, unmatched
+  payment/refund events, and provider-event route/recipient mismatch. These are local
+  fake/capture-mode proofs; the equivalent permanent-staging cross-tenant and real-queue probes
+  remain open.
+- A fresh `npm run test:e2e` run passed all 90 desktop/mobile Chromium tests. It exercised
+  email-change confirmation, Platform Administrator MFA and scoped elevation, invitations, ticketing
+  and discount codes, reports, communications, auditions, roster automation, set lists, seating,
+  first-run setup continuation, DataTable card behavior, and responsive accessibility audits. These
+  are local browser proofs; permanent-staging authenticated and visual evidence remains required for
+  the still-implemented browser and responsive entries.
+- Remote control-plane counts showed one existing provider event, zero email-feedback dead letters,
+  and eight existing job dead-letter records. These are observations only; no queue message,
+  provider effect, migration, or hosted data was created or changed.
+- A read-only `npx wrangler workflows list` check was rejected by the Cloudflare Workflows API with
+  authentication error `10000` from the current local OAuth context. No deployed Workflow resource
+  or instance state is claimed from that failed read; local Workflow tests and the deployment
+  configuration remain the available evidence until a permitted Workflow read context is supplied.
+- A cache-busted empty-body validation sweep against the active LMC Organization host returned the
+  expected typed HTTP 400 for 11 public contracts: RSVP details and quick RSVP, unsubscribe,
+  audition inquiry/details/submit, poll details/vote, ticket checkout/quote, and donation checkout.
+  These requests fail validation before stateful work; they do not promote the corresponding matrix
+  entries without successful, authorization, isolation, and retry-path evidence. The unconfigured
+  Stripe webhook also returned its expected typed HTTP 503 fail-closed response.
+- The staging evidence tooling now classifies `/api/setup/health` as an authenticated
+  Organization-host probe and routes it to the seeded Organization host. Its regression test passes;
+  the earlier product-base HTTP 404 was an evidence-plan classification error, while the correct
+  Organization-host boundary returned the expected HTTP 401 without a session.
+- A fresh August 10 `node scripts/qualify-staging-evidence.mjs --anonymous` no-session sweep made
+  148 safe requests for all 79 API entries, exercising both seeded Organization hosts for every
+  Organization-scoped route, the product host for Platform routes, and safe zero-UUID path
+  placeholders for dynamic routes. It returned 3 HTTP 200 responses, 28 validation 400 responses,
+  112 authorization 401 responses, four typed invalid-link/not-found 404 responses for missing
+  player and calendar credentials, and the expected typed Stripe configuration 503. There were no
+  unexpected 5xx responses or router-level 404s. This is boundary evidence only: it does not promote
+  entries without successful, authorized, isolation, retry, and external-effect evidence.
+- An August 11 rerun of the same anonymous staging boundary sweep reproduced all 148 expected passes
+  across both seeded Organization hosts: 3 HTTP 200 responses, 28 validation 400 responses, 112
+  authorization 401 responses, four typed invalid-link/not-found 404 responses, and the expected
+  typed Stripe configuration 503. No unexpected 5xx response or router-level 404 was observed.
+- Two interactive `npm run qualify:staging:auth:login` attempts requested staging sign-in codes, but
+  no code was entered into the waiting process before either terminal prompt was canceled. No
+  session cookie was produced, no authenticated probe ran, and no parity status was promoted;
+  request acceptance is not treated as proof of delivery.
+- Both seeded Organization hosts returned HTTP 200 for public audition settings with the expected
+  typed shape, Organization-specific default Performance IDs/titles, eight voice parts, four
+  sections, four audition slots, and matching response/request IDs. This confirms host-scoped public
+  setting selection for the already-verified `api.public.audition-settings` entry; it does not
+  establish authenticated audition administration or submission-side effects.
+- Read-only ticketing, donation, and fee settings returned HTTP 200 with typed, secret-free shapes
+  on both seeded Organization hosts, and each response's JSON request ID matched its response
+  header. `GET /api/public/projection` instead returned the expected typed HTTP 404 on both hosts
+  because neither seeded Organization currently has a published website projection; ETag/conditional
+  cache behavior therefore remains unverified and the public-site workflow stays `implemented`.
+- A no-credential invalid-token sweep across both seeded Organization hosts returned typed failures
+  for calendar, player, ticket-order, donation-receipt, RSVP, poll, audition, unsubscribe, and
+  email-change signed-link endpoints. Player/RSVP/poll links returned their invalid-link responses;
+  calendar, ticket-order, and audition links returned not-found responses; donation receipt,
+  unsubscribe, and email-change links returned their typed invalid-token responses. Every response
+  included a request ID. Invalid published-media version/file requests returned typed 404 responses,
+  and invalid player-media tokens returned `invalid_link`. This proves fail-closed negative
+  boundaries only; valid, expired, revoked, and cross-host token success/failure cases remain open.
+- The focused local scale test passed with 5,000 active Profiles and 500 upcoming events in one
+  Organization Durable Object. Dashboard summary returned exact counts, only five next events, and
+  completed in under one second. This is local bounded-query evidence; the planned permanent-staging
+  100,000-record and 250-concurrent-user envelope remains unqualified.
+- A read-only public commerce check used existing staging Performances from both seeded hosts. LMC's
+  open Performance returned HTTP 200 with the complete typed quote, `totalCents: 1059`, and
+  `feeCents: 59`; its request ID was present in the response header. Empty quote bodies on both
+  hosts returned typed HTTP 400 validation failures. The LMC Performance ID submitted to LCC
+  returned only the typed `ticket_sales_closed` 409 response, while LCC's own closed Performance
+  also returned that same non-data-bearing response. Discount availability returned HTTP 200 with no
+  redeemable code on both hosts, including foreign-ID checks; invalid target shapes returned typed
+  HTTP 400 validation failures. Local discount integration coverage proves the positive redeemable,
+  redemption-limit exhaustion, and invalid-code transitions. No checkout, payment-provider call, or
+  persistent write was initiated; both `api.ticket-quote` and `api.ticket-discount-availability` are
+  now `verified`.
+- An authenticated staging browser session loaded `/admin/library/settings` for LMC and rendered the
+  catalog-link, public practice-link, and genre settings regions without an error; the local music
+  integration coverage, full browser suite, and this permanent-staging route evidence support
+  promoting `route.admin.library.settings` to `verified`.
+- The same read-only session loaded the Events, Polls, Reports, Roster, Attendance, RSVP, and
+  Communications administration surfaces without an alert. At that time the Platform dead-letter and
+  email-suppression routes rendered their protected workspace boundary, but the session did not have
+  the required verified Platform Administrator MFA state; a later authenticated browser pass
+  completed that factor and promoted both route entries to `verified`.
+- The staged `/confirm-email-change` route rendered its invalid/expired-token state with the
+  expected recovery link and no write. A valid-token success path was not attempted, so that route
+  remains `implemented`.
 
 Verified over public HTTPS on July 20–25, 2026:
 
@@ -735,7 +1643,7 @@ Verified over public HTTPS on July 20–25, 2026:
   `npm run test:e2e` passed with 50 desktop/mobile Chromium tests. No staging deployment was
   performed. Production is not launched.
 
-## Milestone 6 staging qualification
+## Historical staging qualification checkpoint (superseded)
 
 - `npm run deploy:staging` deployed Worker version `ff2d9fba-6c0c-476e-a964-0eddf80e1c8b` to
   staging.musicsite.org with all bindings active (D1, DO, KV, R2, queues, workflows, Platform
@@ -758,7 +1666,7 @@ Verified over public HTTPS on July 20–25, 2026:
   succeeds. Production promotion requires an authorized approval workflow via
   `.github/workflows/deploy-production.yml`.
 
-## Completed foundation checks
+## Historical completed foundation checks (superseded)
 
 - `npm run check:parity`: 164 inventory entries validated across 9 sections, all 164 implemented (0
   planned, 0 partial). Donation workflow, seasons/dues workflow, setup wizard system, responsive
@@ -1046,19 +1954,44 @@ provision or access.
 Run the full current gate again after each material identity/tenancy expansion and before syncing or
 committing.
 
-## Remaining secure or external prerequisites
+## Current completion backlog: Milestone 6 staging gate
 
-GitHub authentication, the private repository, the remote, and the repository-scoped least-privilege
-Cloudflare account ID/API token secrets are configured. The staging CI workflow has run successfully
-from `main`; the local Wrangler OAuth credential remains separate from CI.
+The following work remains before the goal contract can be marked complete:
 
-Keep the staging email recipient allowlist narrow. Add a recipient only as an intentional access
-decision and update the Worker secret; do not turn staging into an unrestricted mail sender.
+1. Qualify the 131 parity entries that remain `implemented`, including the unverified API families,
+   signed-link flows, CSV exports, file behaviors, record hooks, background tasks, domain workflows,
+   and responsive states. Promote entries to `verified` only after successful and failure-path
+   evidence is captured.
+2. Supply isolated Stripe Connect test credentials and a signed webhook secret, then qualify
+   checkout, capacity, webhook replay/idempotency, refunds, disputes, reconciliation, reminders, and
+   failure/rollback behavior. Do not record credentials here.
+3. Supply isolated Brevo test credentials, verified sender identities, and the approved SMS test
+   number, then qualify delivery, suppression, retry, partial-failure, redaction, and provider
+   feedback behavior. Keep the staging recipient allowlist narrow.
+4. Complete permanent-staging qualification at the planned scale envelope: 5,000 Profiles, 100,000
+   operational/commercial records, and 250 concurrent authenticated/public requests. Verify queue
+   redelivery, idempotency, dead-letter retry/dismissal, scheduled alarms, workflow resume, and
+   fleet migration behavior.
+5. Validate independently attached public domains, apex and `www` behavior, public projections,
+   signed links, and cross-Organization isolation on the deployed staging resources.
+6. Generate and verify a real Organization export, including resumable processing, consistent
+   snapshot behavior, CSV/JSON contents, R2 objects, manifest checksums, and a short-lived
+   authorized download URL.
+7. Finish the staging security, dependency, observability, migration-rehearsal, rollback, and
+   runbook evidence. The final gate must have no unresolved critical or high security finding and
+   must leave production isolated and unlaunched.
 
-Supply Stripe Connect test credentials/webhook secret and Brevo test credentials/verified sender/SMS
-number only at their Milestone 5 staging gates. Until those secrets are intentionally supplied,
-Stripe remains fail-closed and Brevo remains in fake mode; no placeholder credentials should be
-created.
+## Secure and external prerequisites
+
+- GitHub, the private repository, the remote, and the repository-scoped Cloudflare CI credentials
+  are recorded as configured. Local Wrangler OAuth remains separate from CI and must not be copied
+  into this file.
+- Stripe and Brevo secrets must be entered only through their secure environment flows. Until that
+  happens, provider qualification cannot be approved; no placeholder credentials may be created.
+- Staging email remains restricted to the explicit recipient allowlist. Do not turn staging into an
+  unrestricted sender.
+- Independently attached Organization domains require the separately approved Cloudflare hostname
+  lifecycle capability. Production domains and resources remain uncreated and unlaunched.
 
 ## Environment decisions
 
@@ -1066,28 +1999,30 @@ created.
 - Product-owned domain: `musicsite.org`.
 - Permanent staging hostname: `staging.musicsite.org`, with canonical Organization hosts at
   `{slug}.staging.musicsite.org`; the existing workers.dev hostname remains a diagnostic fallback.
-- Production reservation: `musicsite.org` and `{slug}.musicsite.org`; production remains
-  uncreated/unlaunched.
-- Staging/production isolation: separate resources and secrets in the same Cloudflare account for
-  now; production resources remain uncreated/unlaunched.
-- Platform transactional email: capture locally; staging uses native Cloudflare Email Sending in
-  sandbox mode from `auth@mail.staging.musicsite.org`, restricted to an explicit recipient
-  allowlist. Production email remains unconfigured.
-- Independently attached Organization domains remain public-only and require their own Cloudflare
-  for SaaS validation lifecycle; they never receive product auth cookies.
+- Staging uses separate D1, Durable Object, R2, KV, Queue, DLQ, and Workflow resources. The current
+  Worker configuration selects provider sandbox modes and `STRIPE_PAYMENTS_ENABLED=true`; provider
+  qualification still depends on the secure prerequisites above.
+- Platform transactional email uses native Cloudflare Email Sending in staging sandbox mode from
+  `auth@mail.staging.musicsite.org`, restricted to an explicit recipient allowlist. Local capture
+  remains the local/preview mode. Production email remains unconfigured.
+- Production reservation: `musicsite.org` and `{slug}.musicsite.org`; production remains isolated,
+  uncreated, and unlaunched. Production launch is outside the current goal.
+- Independently attached Organization domains remain public-only and never receive product auth
+  cookies.
+- Whole-archive import/restore is intentionally excluded from v1 by ADR 0015.
 
 ## Resume point
 
-1. Preserve the verified local identity checkpoint, then authenticate GitHub and publish the private
-   repository when the secure interactive login is available.
-2. Complete Milestone 1 automatic staging provenance and inert production-promotion proof after the
-   GitHub environment exists.
-3. Bind the completed provider-independent ticketing baseline to Stripe Connect test credentials and
-   webhook verification when those credentials are intentionally supplied. Continue Milestone 5 with
-   public donation/audition modules, specific-Profile and commerce-derived communications audiences,
-   provider-feedback suppression, and external Brevo sandbox qualification, then proceed through
-   remaining member workflow parity. Music audio/player, dedicated set-list management, resources,
-   roster CSV, seating, and the structured Public Website baseline are implemented. Validate
-   independently attached public domains separately from the product-owned canonical namespace. Do
-   not add whole-archive import; ADR 0015 deliberately excludes it from v1.
-4. Pause only at the conditions listed in `AGENTS.md`; record any new blocker here first.
+1. Keep the current repository, parity matrix, and historical evidence aligned with the
+   authoritative `main` checkout. Refresh this file after each staging qualification batch rather
+   than replacing historical evidence with older counts.
+2. For each future material release, repeat the local gate and promote only its exact immutable
+   artifact to permanent staging through the release workflow.
+3. Resolve the Stripe and Brevo secure prerequisites, then execute the remaining provider, queue,
+   export, domain, scale, scheduler, observability, migration, security, and rollback checks listed
+   above.
+4. Promote the corresponding parity entries from `implemented` to `verified` as evidence is
+   approved.
+5. Do not launch or configure production. Pause only for interactive authorization, secure secret
+   entry, missing external entitlement/permission, or a genuinely product-changing decision not
+   resolved by the rebuild plan and ADRs.

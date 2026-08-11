@@ -21,6 +21,7 @@ import {
   authRequest,
   generateTotp,
   fetchWorker,
+  readCapturedPlatformEmailsForTest,
   seedInvitedUser,
   seedOrganizations,
   signInInvitedUser,
@@ -307,6 +308,83 @@ describe("Platform Administrator MFA", () => {
       ),
     );
     expect(wrongHostReleaseResponse.status).toBe(404);
+  });
+
+  it("gates queue controls and keeps provider test routes in fake mode", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+    const capturedEmailCount = readCapturedPlatformEmailsForTest().length;
+
+    const protectedRequests = [
+      {
+        path: "/api/platform/queue-settings",
+        request: authRequest("/api/platform/queue-settings", {
+          headers: { cookie: sessionCookie },
+        }),
+      },
+      {
+        path: "/api/test-smtp",
+        request: authRequest("/api/test-smtp", {
+          body: JSON.stringify({ to: "platform-test@example.test" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        }),
+      },
+      {
+        path: "/api/test-sms",
+        request: authRequest("/api/test-sms", {
+          body: JSON.stringify({ to: "+15551234567" }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        }),
+      },
+    ];
+    for (const { path, request } of protectedRequests) {
+      const response = await fetchWorker(request);
+      expect(response.status, path).toBe(403);
+    }
+
+    await grantPlatformAdministratorForCurrentSession();
+    const queueSettings = await fetchWorker(
+      authRequest("/api/platform/queue-settings", { headers: { cookie: sessionCookie } }),
+    );
+    expect(queueSettings.status).toBe(200);
+    await expect(queueSettings.json()).resolves.toMatchObject({
+      deadLetterQueue: "choir-management-jobs-dlq-local",
+      mode: "fake",
+      queue: "choir-management-jobs-local",
+    });
+
+    const generated = await fetchWorker(
+      authRequest("/api/platform/queue-settings/generate", {
+        body: JSON.stringify({}),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(generated.status).toBe(200);
+    await expect(generated.json()).resolves.toMatchObject({ generated: true });
+
+    const smtp = await fetchWorker(
+      authRequest("/api/test-smtp", {
+        body: JSON.stringify({ to: "platform-test@example.test" }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(smtp.status).toBe(200);
+    await expect(smtp.json()).resolves.toMatchObject({ mode: "fake", sent: true });
+
+    const sms = await fetchWorker(
+      authRequest("/api/test-sms", {
+        body: JSON.stringify({ to: "+15551234567" }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(sms.status).toBe(200);
+    await expect(sms.json()).resolves.toMatchObject({ mode: "fake", sent: true });
+    expect(readCapturedPlatformEmailsForTest()).toHaveLength(capturedEmailCount);
   });
 
   it("bounds edit elevation to one Organization and supports explicit revocation", async () => {

@@ -1,4 +1,11 @@
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  type DragEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 
 export type DataTableSortDirection = "asc" | "desc";
 
@@ -6,6 +13,66 @@ export type DataTablePresentation = "table" | "card";
 
 export interface DataTableRenderContext {
   readonly presentation: DataTablePresentation;
+}
+
+export interface DataTableRowContext<T> {
+  readonly index: number;
+  readonly presentation: DataTablePresentation;
+  readonly rows: readonly T[];
+}
+
+export interface DataTableRowProps {
+  readonly className?: string;
+  readonly draggable?: boolean;
+  readonly onDragEnd?: (event: DragEvent<HTMLElement>) => void;
+  readonly onDragOver?: (event: DragEvent<HTMLElement>) => void;
+  readonly onDragStart?: (event: DragEvent<HTMLElement>) => void;
+  readonly onDrop?: (event: DragEvent<HTMLElement>) => void;
+  readonly onPointerCancel?: (event: PointerEvent<HTMLElement>) => void;
+  readonly onPointerDown?: (event: PointerEvent<HTMLElement>) => void;
+  readonly onPointerUp?: (event: PointerEvent<HTMLElement>) => void;
+}
+
+interface DataTableElementRowEventProps<T extends HTMLElement> {
+  readonly onDragEnd: ((event: DragEvent<T>) => void) | undefined;
+  readonly onDragOver: ((event: DragEvent<T>) => void) | undefined;
+  readonly onDragStart: ((event: DragEvent<T>) => void) | undefined;
+  readonly onDrop: ((event: DragEvent<T>) => void) | undefined;
+  readonly onPointerCancel: ((event: PointerEvent<T>) => void) | undefined;
+  readonly onPointerDown: ((event: PointerEvent<T>) => void) | undefined;
+  readonly onPointerUp: ((event: PointerEvent<T>) => void) | undefined;
+}
+
+function wrapDragHandler<T extends HTMLElement>(
+  handler: ((event: DragEvent<HTMLElement>) => void) | undefined,
+): ((event: DragEvent<T>) => void) | undefined {
+  if (!handler) return undefined;
+  return (event) => {
+    handler(event);
+  };
+}
+
+function wrapPointerHandler<T extends HTMLElement>(
+  handler: ((event: PointerEvent<HTMLElement>) => void) | undefined,
+): ((event: PointerEvent<T>) => void) | undefined {
+  if (!handler) return undefined;
+  return (event) => {
+    handler(event);
+  };
+}
+
+function dataTableElementRowEventProps<T extends HTMLElement>(
+  rowProps: DataTableRowProps | undefined,
+): DataTableElementRowEventProps<T> {
+  return {
+    onDragEnd: wrapDragHandler(rowProps?.onDragEnd),
+    onDragOver: wrapDragHandler(rowProps?.onDragOver),
+    onDragStart: wrapDragHandler(rowProps?.onDragStart),
+    onDrop: wrapDragHandler(rowProps?.onDrop),
+    onPointerCancel: wrapPointerHandler(rowProps?.onPointerCancel),
+    onPointerDown: wrapPointerHandler(rowProps?.onPointerDown),
+    onPointerUp: wrapPointerHandler(rowProps?.onPointerUp),
+  };
 }
 
 export interface DataTableColumn<T> {
@@ -26,6 +93,7 @@ interface DataTableProps<T> {
   readonly columns: readonly DataTableColumn<T>[];
   readonly emptyMessage?: string;
   readonly expandedRowId?: string | null;
+  readonly getRowProps?: (row: T, context: DataTableRowContext<T>) => DataTableRowProps | undefined;
   readonly initialSort?: DataTableSort;
   readonly keySelector: (row: T) => string;
   readonly onRowClick?: (row: T) => void;
@@ -70,6 +138,7 @@ export function DataTable<T>({
   columns,
   emptyMessage = "No results.",
   expandedRowId = null,
+  getRowProps,
   initialSort,
   keySelector,
   onRowClick,
@@ -149,13 +218,25 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => {
+          {sortedRows.map((row, index) => {
             const rowId = keySelector(row);
             const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
+            const customRowProps = getRowProps?.(row, {
+              index,
+              presentation: "table",
+              rows: sortedRows,
+            });
+            const rowClassName =
+              [onRowClick ? "data-table__row--interactive" : null, customRowProps?.className]
+                .filter(Boolean)
+                .join(" ") || undefined;
+            const rowEventProps =
+              dataTableElementRowEventProps<HTMLTableRowElement>(customRowProps);
             return (
               <Fragment key={rowId}>
                 <tr
-                  className={onRowClick ? "data-table__row--interactive" : undefined}
+                  className={rowClassName}
+                  draggable={customRowProps?.draggable}
                   onClick={(event) => {
                     if (!onRowClick || isInteractiveTarget(event.target)) return;
                     onRowClick(row);
@@ -166,6 +247,7 @@ export function DataTable<T>({
                     event.preventDefault();
                     onRowClick(row);
                   }}
+                  {...rowEventProps}
                   tabIndex={onRowClick ? 0 : undefined}
                   aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
                 >
@@ -191,16 +273,27 @@ export function DataTable<T>({
         </tbody>
       </table>
       <div className="data-table-cards">
-        {sortedRows.map((row) => {
+        {sortedRows.map((row, index) => {
           const rowId = keySelector(row);
           const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
+          const customRowProps = getRowProps?.(row, {
+            index,
+            presentation: "card",
+            rows: sortedRows,
+          });
+          const cardClassName = [
+            onRowClick ? "data-table-card data-table-card--interactive" : "data-table-card",
+            customRowProps?.className,
+          ]
+            .filter(Boolean)
+            .join(" ");
+          const cardEventProps = dataTableElementRowEventProps<HTMLDivElement>(customRowProps);
           return (
             <Fragment key={rowId}>
               <div
                 aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
-                className={
-                  onRowClick ? "data-table-card data-table-card--interactive" : "data-table-card"
-                }
+                className={cardClassName}
+                draggable={customRowProps?.draggable}
                 onClick={(event) => {
                   if (!onRowClick || isInteractiveTarget(event.target)) return;
                   onRowClick(row);
@@ -211,6 +304,7 @@ export function DataTable<T>({
                   event.preventDefault();
                   onRowClick(row);
                 }}
+                {...cardEventProps}
                 role={onRowClick ? "button" : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
               >

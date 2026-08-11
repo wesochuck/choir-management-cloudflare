@@ -95,7 +95,8 @@
     .set-list-summary,
     .set-list-save-row,
     .set-list-credits,
-    .set-list-item-heading .button-row {
+    .set-list-item-heading .button-row,
+    .set-list-drag-handle {
       display: none !important;
     }
 

@@ -6,7 +6,7 @@ import {
   parseSetListDuration,
 } from "@choir/domain";
 import { Dialog } from "@choir/ui";
-import { Fragment, useEffect, useRef, useState, type DragEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import {
   displayEvent,
   durationFromSeconds,
@@ -38,10 +38,31 @@ function dropStateForItem(
   };
 }
 
+function setListItemIsDragging(
+  index: number,
+  dragIndex: number | null,
+  keyboardDragIndex: number | null,
+): boolean {
+  return dragIndex === index || keyboardDragIndex === index;
+}
+
+function reorderHandleLabel(
+  title: string,
+  index: number,
+  itemCount: number,
+  keyboardDragging: boolean,
+): string {
+  return `${keyboardDragging ? "Reordering" : "Reorder"} ${title}, position ${String(index + 1)} of ${String(itemCount)}`;
+}
+
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
 export function SetListManagerView({ model }: { readonly model: SetListManagerModel }) {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [dragOverBoundary, setDragOverBoundary] = useState<number | null>(null);
+  const [keyboardDragIndex, setKeyboardDragIndex] = useState<number | null>(null);
+  const [keyboardDragOriginItems, setKeyboardDragOriginItems] = useState<
+    SetListManagerModel["items"] | null
+  >(null);
   const [recentlyMovedItemId, setRecentlyMovedItemId] = useState<string | null>(null);
   const movedFlashTimerRef = useRef<number | null>(null);
   useEffect(() => {
@@ -132,14 +153,6 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
     }, 900);
   }
 
-  function moveItemWithFeedback(index: number, direction: -1 | 1): void {
-    const moved = items[index];
-    const targetIndex = index + direction;
-    if (!moved || targetIndex < 0 || targetIndex >= items.length) return;
-    updateDraftItems((current) => [...moveSetListItem(current, index, direction)]);
-    if (moved.id) flashMovedItem(moved.id);
-  }
-
   function moveDraggedItemWithFeedback(toIndex: number): void {
     if (dragIndex === null || dragIndex === toIndex) return;
     const moved = items[dragIndex];
@@ -151,6 +164,64 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
     if (!canDropAtBoundary(boundary, dragIndex) || dragIndex === null) return;
     moveDraggedItemWithFeedback(boundary > dragIndex ? boundary - 1 : boundary);
     setDragOverBoundary(null);
+  }
+
+  function moveKeyboardItem(direction: -1 | 1): void {
+    if (keyboardDragIndex === null) return;
+    const moved = items[keyboardDragIndex];
+    const targetIndex = keyboardDragIndex + direction;
+    if (!moved || targetIndex < 0 || targetIndex >= items.length) return;
+    updateDraftItems((current) => [...moveSetListItem(current, keyboardDragIndex, direction)]);
+    setKeyboardDragIndex(targetIndex);
+    setMessage(
+      `${moved.title} moved to position ${String(targetIndex + 1)}. Use the arrow keys to continue, or press Space or Enter to drop.`,
+    );
+    if (moved.id) flashMovedItem(moved.id);
+  }
+
+  function cancelKeyboardReorder(): void {
+    if (keyboardDragIndex === null) return;
+    const moved = items[keyboardDragIndex];
+    if (keyboardDragOriginItems !== null && keyboardDragOriginItems !== items) {
+      updateDraftItems(() => [...keyboardDragOriginItems]);
+    }
+    setKeyboardDragIndex(null);
+    setKeyboardDragOriginItems(null);
+    setMessage(`${moved?.title ?? "Set-list item"} reordering canceled.`);
+  }
+
+  function handleKeyboardReorderKeyDown(
+    index: number,
+    event: KeyboardEvent<HTMLButtonElement>,
+  ): void {
+    const isActive = keyboardDragIndex === index;
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      if (keyboardDragIndex === null) {
+        const item = items[index];
+        if (!item) return;
+        setKeyboardDragIndex(index);
+        setKeyboardDragOriginItems(items);
+        setMessage(
+          `Picked up ${item.title}, position ${String(index + 1)} of ${String(items.length)}. Use the arrow keys to move, or press Space or Enter to drop.`,
+        );
+      } else if (isActive) {
+        const item = items[index];
+        setKeyboardDragIndex(null);
+        setKeyboardDragOriginItems(null);
+        setMessage(`${item?.title ?? "Set-list item"} dropped at position ${String(index + 1)}.`);
+      }
+      return;
+    }
+    if (event.key === "Escape" && isActive) {
+      event.preventDefault();
+      cancelKeyboardReorder();
+      return;
+    }
+    if ((event.key === "ArrowUp" || event.key === "ArrowDown") && isActive) {
+      event.preventDefault();
+      moveKeyboardItem(event.key === "ArrowUp" ? -1 : 1);
+    }
   }
   const editingItemIsLinked = Boolean(editingItem?.pieceId);
   const editingTitle = linkedMusicPiece?.title ?? editingItem?.title ?? "";
@@ -409,15 +480,27 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
           ) : (
             <>
               <p className="field-help" aria-live="polite">
-                Drag an item to reorder it, or use Move up and Move down for keyboard control.
+                Drag an item to reorder it, or focus its reorder handle and press Space or Enter to
+                pick it up. Use the arrow keys to move it, then press Space or Enter to drop; Escape
+                cancels.
               </p>
-              <ol className="set-list-items" aria-label="Ordered set-list items">
+              <p className="sr-only" id="set-list-keyboard-reorder-help">
+                Press Space or Enter to pick up this item. Use Arrow Up or Arrow Down to move it.
+                Press Space or Enter to drop it, or Escape to cancel.
+              </p>
+              <ol
+                className="set-list-items"
+                aria-label="Ordered set-list items"
+                id="set-list-items"
+              >
                 {items.map((item, index) => {
                   const dropState = dropStateForItem(index, dragIndex, dragOverBoundary);
+                  const keyboardDragging = keyboardDragIndex === index;
+                  const itemDragging = setListItemIsDragging(index, dragIndex, keyboardDragIndex);
                   return (
                     <Fragment key={item.id}>
                       <li
-                        className={`set-list-item${dragIndex === index ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}${dropState.before ? " set-list-item--drop-before" : ""}${dropState.after ? " set-list-item--drop-after" : ""}${recentlyMovedItemId === item.id ? " set-list-item--moved" : ""}`}
+                        className={`set-list-item${itemDragging ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}${dropState.before ? " set-list-item--drop-before" : ""}${dropState.after ? " set-list-item--drop-after" : ""}${recentlyMovedItemId === item.id ? " set-list-item--moved" : ""}`}
                         draggable
                         onClick={(event) => {
                           const target = event.target;
@@ -430,6 +513,8 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                           openItemEditor(index);
                         }}
                         onDragEnd={() => {
+                          setKeyboardDragIndex(null);
+                          setKeyboardDragOriginItems(null);
                           setDragIndex(null);
                           setDragOverBoundary(null);
                         }}
@@ -440,6 +525,8 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                           setDragOverBoundary(dropBoundaryForEvent(event, index));
                         }}
                         onDragStart={() => {
+                          setKeyboardDragIndex(null);
+                          setKeyboardDragOriginItems(null);
                           setDragIndex(index);
                           setDragOverBoundary(null);
                           setRecentlyMovedItemId(null);
@@ -450,12 +537,16 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                         }}
                         onPointerCancel={(event) => {
                           if (event.pointerType === "touch") {
+                            setKeyboardDragIndex(null);
+                            setKeyboardDragOriginItems(null);
                             setDragIndex(null);
                             setDragOverBoundary(null);
                           }
                         }}
                         onPointerDown={(event) => {
                           if (event.pointerType === "touch") {
+                            setKeyboardDragIndex(null);
+                            setKeyboardDragOriginItems(null);
                             setDragIndex(index);
                             setDragOverBoundary(null);
                           }
@@ -469,11 +560,25 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                       >
                         <div className="set-list-item-heading">
                           <div className="set-list-item-title">
-                            <span
+                            <button
+                              aria-describedby="set-list-keyboard-reorder-help"
+                              aria-label={reorderHandleLabel(
+                                item.title,
+                                index,
+                                items.length,
+                                keyboardDragging,
+                              )}
+                              aria-pressed={keyboardDragging}
+                              aria-controls="set-list-items"
                               className="set-list-drag-handle"
-                              aria-hidden="true"
-                              title="Drag to reorder"
-                            />
+                              onKeyDown={(event) => {
+                                handleKeyboardReorderKeyDown(index, event);
+                              }}
+                              title="Drag to reorder, or press Space or Enter for keyboard control"
+                              type="button"
+                            >
+                              <span aria-hidden="true" />
+                            </button>
                             <strong className="set-list-item-position">{String(index + 1)}.</strong>
                             <strong>{item.title}</strong>
                             {item.type === "intermission" ? (
@@ -503,28 +608,6 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
                                 Play
                               </a>
                             ) : null}
-                            <button
-                              aria-label={`Move ${item.title} up`}
-                              className="text-button"
-                              disabled={index === 0}
-                              type="button"
-                              onClick={() => {
-                                moveItemWithFeedback(index, -1);
-                              }}
-                            >
-                              Move up
-                            </button>
-                            <button
-                              aria-label={`Move ${item.title} down`}
-                              className="text-button"
-                              disabled={index === items.length - 1}
-                              type="button"
-                              onClick={() => {
-                                moveItemWithFeedback(index, 1);
-                              }}
-                            >
-                              Move down
-                            </button>
                             <button
                               className="text-button text-button--danger"
                               type="button"

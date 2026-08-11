@@ -1,4 +1,4 @@
-import { duesRecordSchema } from "@choir/contracts";
+import { duesCheckoutResponseSchema, duesRecordSchema } from "@choir/contracts";
 import { runInDurableObject } from "cloudflare:test";
 import { requestOrganizationProviderRefund } from "../src/payments/refundRequest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import {
   setupTicketingIntegration,
   teardownTicketingIntegration,
+  database,
   stores,
   jsonWrite,
   signIn,
@@ -14,6 +15,78 @@ beforeEach(async () => setupTicketingIntegration());
 afterEach(async () => teardownTicketingIntegration());
 
 describe("Organization dues and ticket payment transitions", () => {
+  it("creates an idempotent fake dues checkout through the linked member route", async () => {
+    const cookie = await signIn();
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Dues Route Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Dues Route Season', ?, ?, 3500, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+    });
+    await database
+      .prepare("UPDATE member SET profileId = ? WHERE organizationId = ? AND userId = ?")
+      .bind(profileId, "organization-alpha", "ticket-manager")
+      .run();
+
+    const requestBody = { checkoutRequestId, seasonId };
+    const created = await jsonWrite(
+      "alpha.localhost",
+      "/api/singer/dues/checkout",
+      "POST",
+      requestBody,
+      cookie,
+    );
+    expect(created.status).toBe(201);
+    const checkout = duesCheckoutResponseSchema.parse(await created.json());
+    expect(checkout.checkoutMode).toBe("fake");
+    expect(checkout.sessionId).toMatch(/^fake_session_/);
+
+    const replay = await jsonWrite(
+      "alpha.localhost",
+      "/api/singer/dues/checkout",
+      "POST",
+      requestBody,
+      cookie,
+    );
+    expect(replay.status).toBe(201);
+    expect(duesCheckoutResponseSchema.parse(await replay.json())).toMatchObject({
+      checkoutMode: "fake",
+      sessionId: checkout.sessionId,
+    });
+    await expect(
+      runInDurableObject<OrganizationStore, { readonly count: number; readonly status: string }>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number; readonly status: string }>(
+              `SELECT COUNT(*) AS count, MAX(status) AS status
+               FROM dues WHERE season_id = ? AND profile_id = ?`,
+              seasonId,
+              profileId,
+            )
+            .one(),
+      ),
+    ).resolves.toEqual({ count: 1, status: "paid" });
+  });
+
   it("applies Stripe completion, replay, and refund transitions atomically", async () => {
     const stub = stores.get(stores.idFromName("organization-alpha"));
     const purchaseId = crypto.randomUUID();

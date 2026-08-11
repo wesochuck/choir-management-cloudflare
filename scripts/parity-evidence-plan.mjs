@@ -8,8 +8,8 @@
  * - skip-elevation: needs Platform Administrator elevation or interactive context
  */
 export const probePlan = new Map([
-  // Anonymous reads
-  ["api.setup-health", { kind: "read-anon", expected: 200 }],
+  // Authenticated reads (session cookie on the canonical Organization hosts)
+  ["api.setup-health", { kind: "read-auth", expected: 200 }],
 
   // Authenticated reads (session cookie on the canonical product or seeded org hosts)
   ["api.organization.audition-settings-read", { kind: "read-auth", expected: 200 }],
@@ -95,6 +95,25 @@ export const probePlan = new Map([
   ["api.account.email-change-confirm", { kind: "skip-fixture" }],
 ]);
 
+export function isExpectedAnonymousBoundary(row, result) {
+  if (result.error !== undefined) return false;
+  if (row.id === "api.stripe-webhook") {
+    return result.status === 503 && result.code === "stripe_webhook_unavailable";
+  }
+  if (row.id === "api.player-playlist") {
+    return result.status === 404 && result.code === "invalid_link";
+  }
+  if (row.id === "api.calendar-feed") {
+    return result.status === 404 && result.code === "not_found";
+  }
+  if (result.status === 200) return true;
+  return (
+    [400, 401, 403, 405, 409, 422, 429].includes(result.status) &&
+    typeof result.code === "string" &&
+    result.code.length > 0
+  );
+}
+
 export function buildProbePlan(matrix) {
   const entries = matrix.apiRoutes.filter((entry) => entry.status === "implemented");
   const rows = [];
@@ -107,4 +126,37 @@ export function buildProbePlan(matrix) {
     rows.push({ id: entry.id, kind: plan.kind, method: entry.method, route: entry.path, ...plan });
   }
   return rows;
+}
+
+export function buildAnonymousProbeRows(matrix, organizationSlugs) {
+  const rows = [];
+  for (const entry of matrix.apiRoutes) {
+    const row = {
+      id: entry.id,
+      method: entry.method,
+      route: materializeRoutePath(entry.path),
+    };
+    const scopes = usesOrganizationHost(row) ? organizationSlugs : [undefined];
+    for (const organizationSlug of scopes) {
+      rows.push({ ...row, organizationSlug });
+    }
+  }
+  return rows;
+}
+
+export function usesOrganizationHost(row) {
+  return (
+    row.route.startsWith("/api/organization/") ||
+    row.route.startsWith("/api/singer/") ||
+    row.route.startsWith("/api/setup/") ||
+    row.route.startsWith("/api/public/") ||
+    row.route.startsWith("/api/calendar/") ||
+    row.route.startsWith("/api/account/") ||
+    row.id === "api.platform.reconciliation-report" ||
+    row.id === "api.maintenance"
+  );
+}
+
+export function materializeRoutePath(route) {
+  return route.replaceAll(/:[A-Za-z][A-Za-z0-9_]*/g, "00000000-0000-4000-8000-000000000000");
 }

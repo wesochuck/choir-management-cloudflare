@@ -97,7 +97,6 @@
             "apps/web/src/App.tsx",
             "apps/web/src/public/PublicRsvpView.tsx",
             "apps/worker/test/publicRsvp.integration.test.ts",
-            "apps/web/src/public/PublicFreeRsvpView.tsx",
             "apps/worker/src/router.ts",
           ],
       },
@@ -484,7 +483,7 @@
         "path": "/platform/dead-letters",
         "owner": "apps/web",
         "milestone": 6,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "No equivalent legacy queue dead-letter operator surface existed.",
         "targetEvidence":
           [
@@ -500,12 +499,13 @@
         "path": "/platform/email-suppressions",
         "owner": "apps/web",
         "milestone": 6,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "No equivalent legacy global provider-suppression view existed.",
         "targetEvidence":
           [
             "apps/web/src/account/PlatformAccess.tsx",
             "apps/web/src/account/PlatformEmailSuppressions.tsx",
+            "apps/worker/test/auth.platform.integration.test.ts",
           ],
       },
       {
@@ -753,7 +753,7 @@
         "path": "/admin/library/settings",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "Target-only settings tab for the publisher catalog and public practice link
           configuration.",
@@ -765,6 +765,7 @@
             "apps/web/src/account/components/AuthenticatedShell/workspacesUtils.tsx",
             "apps/web/src/auth/api/music.ts",
             "apps/worker/test/music.integration.test.ts",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -949,7 +950,11 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (dues refund)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationSeasons.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationSeasons.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "api.health",
@@ -974,6 +979,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -989,6 +995,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/worker/src/organization/seasonStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1004,6 +1011,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1019,6 +1027,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/worker/src/organization/seasonStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1050,6 +1059,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1065,6 +1075,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1080,6 +1091,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1095,6 +1107,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1121,7 +1134,12 @@
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1490",
-        "targetEvidence": ["apps/worker/src/router.ts", "apps/worker/src/index.ts"],
+        "targetEvidence":
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/index.ts",
+            "apps/worker/test/ticketing.integration.test.ts",
+          ],
       },
       {
         "id": "api.rsvp-details",
@@ -1240,7 +1258,8 @@
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1496",
-        "targetEvidence": ["apps/worker/src/router.ts"],
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
       },
       {
         "id": "api.queue-settings-generate",
@@ -1250,7 +1269,8 @@
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1498",
-        "targetEvidence": ["apps/worker/src/router.ts"],
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
       },
       {
         "id": "api.platform.reconciliation-report",
@@ -1279,6 +1299,7 @@
           [
             "apps/worker/src/routes/platformEmailSuppressions.ts",
             "apps/worker/test/auth.integration.test.ts",
+            "apps/worker/test/auth.platform.integration.test.ts",
           ],
       },
       {
@@ -1334,7 +1355,8 @@
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1500",
-        "targetEvidence": ["apps/worker/src/router.ts"],
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
       },
       {
         "id": "api.test-sms",
@@ -1344,7 +1366,8 @@
         "milestone": 5,
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1501",
-        "targetEvidence": ["apps/worker/src/router.ts"],
+        "targetEvidence":
+          ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
       },
       {
         "id": "api.player-token",
@@ -1383,15 +1406,16 @@
         "path": "/api/public/tickets/discount-availability",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "No equivalent Discount Code availability workflow existed in the baseline.",
         "targetEvidence":
           [
+            "docs/goal/READINESS.md",
             "apps/worker/src/routes/publicCommerce.ts",
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.discounts.integration.test.ts",
           ],
       },
       {
@@ -1400,15 +1424,17 @@
         "path": "/api/public/tickets/quote",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "No equivalent authoritative ticket quote workflow existed in the baseline.",
         "targetEvidence":
           [
+            "docs/goal/READINESS.md",
             "apps/worker/src/routes/publicCommerce.ts",
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
             "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.discounts.integration.test.ts",
           ],
       },
       {
@@ -1490,6 +1516,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/worker/src/organization/seasonStore.ts",
+            "apps/worker/test/dues.integration.test.ts",
           ],
       },
       {
@@ -1505,6 +1532,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1564,6 +1592,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1641,6 +1670,7 @@
           [
             "apps/worker/src/calendar/calendarFeed.ts",
             "apps/web/src/account/CalendarSubscription.tsx",
+            "apps/worker/test/calendarFeed.integration.test.ts",
           ],
       },
       {
@@ -1729,7 +1759,11 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/organizationPollLinks.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationPollLinks.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "api.organization.polls",
@@ -1744,6 +1778,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/pollStore.ts",
             "apps/worker/src/organization/OrganizationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1755,7 +1790,11 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/pollStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "api.organization.poll-update",
@@ -1766,7 +1805,11 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/pollStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "api.organization.poll-archive",
@@ -1777,7 +1820,11 @@
         "status": "implemented",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/src/organization/pollStore.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/src/organization/pollStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
       },
       {
         "id": "api.organization.export-start",
@@ -1915,6 +1962,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1931,6 +1979,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1946,6 +1995,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1977,6 +2027,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -1992,6 +2043,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
+            "apps/worker/test/calendarManagement.integration.test.ts",
           ],
       },
       {
@@ -2483,6 +2535,7 @@
             "apps/worker/src/organization/schema.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/publicPoll.integration.test.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
             "apps/web/src/public/PublicPollView.tsx",
           ],
       },
@@ -2629,6 +2682,7 @@
             "apps/worker/src/organization/seasonStore.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/dues.integration.test.ts",
             "apps/web/src/account/SeasonsManager.tsx",
           ],
       },
@@ -2836,6 +2890,7 @@
             "apps/worker/src/organization/organizationPollLinks.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/publicPoll.integration.test.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
             "apps/web/src/public/PublicPollView.tsx",
           ],
       },
@@ -2910,6 +2965,7 @@
             "packages/domain/src/donations.ts",
             "apps/worker/src/organization/donationStore.ts",
             "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/test/dues.integration.test.ts",
             "apps/web/src/public/PublicDonationView.tsx",
             "apps/web/src/account/DonationsManager.tsx",
           ],
@@ -2962,6 +3018,8 @@
             "apps/web/src/account/PlatformAccess.tsx",
             "apps/web/src/account/PlatformOperations.tsx",
             "apps/worker/src/auth/platformElevation.ts",
+            "apps/worker/test/auth.platform.integration.test.ts",
+            "apps/worker/test/auth.authorization.integration.test.ts",
           ],
       },
       {
@@ -2976,6 +3034,7 @@
             "apps/worker/src/tenancy/registerPublicDomain.ts",
             "apps/worker/src/router.ts",
             "apps/worker/src/control/migrations/0003_provisioning.sql",
+            "apps/worker/test/auth.authorization.integration.test.ts",
           ],
       },
     ],
@@ -3120,6 +3179,8 @@
             "packages/ui/src/DataTable.tsx",
             "packages/ui/src/index.ts",
             "apps/web/src/styles/theme.css",
+            "apps/web/e2e/responsive.audit.spec.ts",
+            "apps/web/e2e/ticketing.spec.ts",
           ],
       },
       {
@@ -3151,6 +3212,7 @@
             "apps/web/src/styles/theme.css",
             "apps/web/src/setup/SetupView.tsx",
             "apps/web/src/setup/SetupDataImportStep.tsx",
+            "apps/web/e2e/responsive.audit.spec.ts",
           ],
       },
       {
@@ -3162,7 +3224,11 @@
         "baselineEvidence":
           "docs/2026-07-13-communications-phase-1-mobile-send-flow.md;
           test/CommunicationTabs.test.tsx",
-        "targetEvidence": ["apps/web/src/account/components/CommunicationCenter/controller.tsx"],
+        "targetEvidence":
+          [
+            "apps/web/src/account/components/CommunicationCenter/controller.tsx",
+            "apps/web/e2e/communications.spec.ts",
+          ],
       },
       {
         "id": "responsive.seating",

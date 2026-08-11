@@ -553,6 +553,40 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
   }
 });
 
+test("first-run setup remains usable and resumable on a narrow viewport", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/setup/status" && new URL(page.url()).pathname === "/setup") {
+      await fulfillJson(route, {
+        allModulesConfigured: false,
+        completedSteps: [],
+        currentStep: "organization_info",
+        launched: false,
+        organizationId: "org-responsive",
+        organizationName: "Responsive Choir",
+        requestId,
+      });
+      return;
+    }
+    if (await handleShellRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.goto("/setup");
+  await expect(page.getByRole("heading", { name: "Welcome to your Organization" })).toBeVisible();
+  await page.getByLabel("Organization name").fill("Responsive Choir");
+  await page.getByLabel("Slug").fill("responsive");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Modules" })).toBeVisible();
+
+  const layout = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.viewportWidth);
+});
+
 test("poll creation requires and defaults an expiration date", async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());

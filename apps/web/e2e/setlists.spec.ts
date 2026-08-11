@@ -222,8 +222,26 @@ test("orders, copies, prints, and saves a set list on desktop and mobile", async
   await page.goto("/admin/setlists");
   await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
   await expect(page.locator(".set-list-item").first()).toContainText("Opening Song");
-  await page.getByRole("button", { name: "Move Opening Song down" }).click();
+  await expect(
+    page.getByRole("button", { name: /Move (Opening Song|Finale) (up|down)/ }),
+  ).toHaveCount(0);
+  const firstReorderHandle = page.locator(".set-list-drag-handle").first();
+  await firstReorderHandle.focus();
+  await page.keyboard.press("Space");
+  await expect(firstReorderHandle).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowDown");
   await expect(page.locator(".set-list-item").first()).toContainText("Finale");
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByText("Opening Song dropped at position 2.", { exact: true }),
+  ).toBeVisible();
+  const movedFirstReorderHandle = page.locator(".set-list-drag-handle").first();
+  await movedFirstReorderHandle.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".set-list-item").first()).toContainText("Opening Song");
+  await expect(page.locator(".set-list-item").nth(1)).toContainText("Finale");
   await page.getByRole("button", { name: "Print & Copy" }).click();
   await page.getByRole("button", { name: "Copy Plain Text" }).click();
   await expect(page.getByText("Set list copied as text.", { exact: true })).toBeVisible();
@@ -244,5 +262,8 @@ test("orders, copies, prints, and saves a set list on desktop and mobile", async
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Move Finale down" })).toBeVisible();
+  await expect(page.locator(".set-list-drag-handle").first()).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Move (Opening Song|Finale) (up|down)/ }),
+  ).toHaveCount(0);
 });

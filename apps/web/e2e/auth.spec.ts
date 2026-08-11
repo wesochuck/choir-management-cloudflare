@@ -1612,6 +1612,29 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     linkedRsvpPage.locator(".rsvp-manager__balance").getByRole("combobox", { name: "Performance" }),
   ).toHaveValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   await expect(linkedRsvpPage.getByRole("heading", { name: "RSVP roster" })).toBeVisible();
+  const rsvpBalance = linkedRsvpPage.locator(".rsvp-manager__balance");
+  const rsvpRoster = linkedRsvpPage.locator(".rsvp-manager__roster");
+  const visibleRsvpContent = rsvpRoster.locator(".data-table:visible, .data-table-cards:visible");
+  const expectVisibleRsvpName = async (name: string) => {
+    const nameLocator = visibleRsvpContent.getByText(name, { exact: true });
+    await nameLocator.scrollIntoViewIfNeeded();
+    await expect(nameLocator).toBeVisible();
+  };
+  await rsvpBalance.getByRole("button", { name: "Sopranos 1", exact: true }).click();
+  await expectVisibleRsvpName("Browser Singer");
+  await expect(visibleRsvpContent.getByText("Unexpected Singer", { exact: true })).toHaveCount(0);
+  await expect(
+    rsvpBalance.getByRole("button", { name: "Sopranos 1", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await rsvpBalance.getByRole("button", { name: "S2 1", exact: true }).click();
+  await expectVisibleRsvpName("Browser Singer");
+  await expect(visibleRsvpContent.getByText("Unexpected Singer", { exact: true })).toHaveCount(0);
+  await rsvpBalance.getByRole("button", { name: "A1 1", exact: true }).click();
+  await expectVisibleRsvpName("Unexpected Singer");
+  await expect(visibleRsvpContent.getByText("Browser Singer", { exact: true })).toHaveCount(0);
+  await rsvpBalance.getByRole("button", { name: "A1 1", exact: true }).click();
+  await expectVisibleRsvpName("Browser Singer");
+  await expectVisibleRsvpName("Unexpected Singer");
   await page.goto("/admin/events");
   const eventsPageAfterRsvp = page.getByRole("main");
   await expect(eventsPageAfterRsvp.getByRole("heading", { name: "Events" })).toBeVisible();

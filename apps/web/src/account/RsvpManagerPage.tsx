@@ -32,6 +32,9 @@ type RsvpState =
 type RsvpFilter = "active" | "Yes" | "No" | "Pending";
 type RsvpView = "roster" | "history";
 type HistoryFilter = "All" | "Yes" | "No" | "Pending";
+type RsvpAssignmentFilter =
+  | { readonly kind: "section"; readonly value: string }
+  | { readonly kind: "voicePart"; readonly value: string };
 
 function isHistoryFilter(value: string): value is HistoryFilter {
   return value === "All" || value === "Yes" || value === "No" || value === "Pending";
@@ -158,6 +161,7 @@ export function RsvpManagerPage({
   const [rowsLoading, setRowsLoading] = useState(false);
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [filter, setFilter] = useState<RsvpFilter>("active");
+  const [assignmentFilter, setAssignmentFilter] = useState<RsvpAssignmentFilter | null>(null);
   const [view, setView] = useState<RsvpView>("roster");
   const [query, setQuery] = useState("");
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("All");
@@ -278,21 +282,30 @@ export function RsvpManagerPage({
     });
     return values;
   }, [balanceRows, state]);
+  const sectionByVoicePart = useMemo(() => {
+    if (state.status !== "ready") return new Map<string, string>();
+    return new Map(state.roster.voiceParts.map(({ label, sectionCode }) => [label, sectionCode]));
+  }, [state]);
   const visibleRows = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return activeRows
       .filter((row) => {
+        const matchesAssignment =
+          assignmentFilter === null ||
+          (assignmentFilter.kind === "voicePart"
+            ? row.voicePart === assignmentFilter.value
+            : sectionByVoicePart.get(row.voicePart) === assignmentFilter.value);
         const matchesFilter = filter === "active" || row.rsvp === filter;
         const matchesQuery =
           !normalized ||
           `${row.displayName} ${row.voicePart}`.toLocaleLowerCase().includes(normalized);
-        return matchesFilter && matchesQuery;
+        return matchesAssignment && matchesFilter && matchesQuery;
       })
       .sort((left, right) => {
         const byLastName = lastName(left.displayName).localeCompare(lastName(right.displayName));
         return byLastName === 0 ? left.displayName.localeCompare(right.displayName) : byLastName;
       });
-  }, [activeRows, filter, query]);
+  }, [activeRows, assignmentFilter, filter, query, sectionByVoicePart]);
   const filteredHistory = useMemo(() => {
     const normalized = historyQuery.trim().toLocaleLowerCase();
     return history.filter((entry) => {
@@ -337,6 +350,76 @@ export function RsvpManagerPage({
     }
   }
 
+  function toggleAssignmentFilter(next: RsvpAssignmentFilter) {
+    setAssignmentFilter((current) =>
+      current?.kind === next.kind && current.value === next.value ? null : next,
+    );
+    setView("roster");
+  }
+
+  const rsvpRosterColumns: readonly DataTableColumn<OrganizationAttendanceRow>[] = [
+    {
+      header: "Name",
+      id: "name",
+      render: (row) => <strong>{row.displayName}</strong>,
+      sortValue: (row) => lastName(row.displayName),
+    },
+    {
+      header: performerLabel,
+      id: "performer",
+      render: (row) => row.voicePart || "—",
+      sortValue: (row) => row.voicePart,
+    },
+    {
+      header: "RSVP status",
+      id: "rsvpStatus",
+      render: (row) => (
+        <span className={`rsvp-status-badge rsvp-status-badge--${row.rsvp}`}>
+          {statusText(row.rsvp)}
+        </span>
+      ),
+      sortValue: (row) => row.rsvp,
+    },
+    {
+      header: "Actions",
+      id: "actions",
+      render: (row) => (
+        <div className="rsvp-row-actions">
+          <button
+            className={
+              row.rsvp === "Yes" ? "button button--sm" : "button button--secondary button--sm"
+            }
+            disabled={savingId !== null}
+            onClick={() => void updateRsvp(row.profileId, "Yes")}
+            type="button"
+          >
+            Attending
+          </button>
+          <button
+            className={
+              row.rsvp === "No"
+                ? "button button--danger button--sm"
+                : "button button--secondary button--sm"
+            }
+            disabled={savingId !== null}
+            onClick={() => void updateRsvp(row.profileId, "No")}
+            type="button"
+          >
+            Declined
+          </button>
+          <button
+            className="button button--secondary button--sm"
+            disabled={savingId !== null || row.rsvp === "Pending"}
+            onClick={() => void updateRsvp(row.profileId, "Pending")}
+            type="button"
+          >
+            Reset
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   if (!enabled) {
     return <p className="notice notice--warning">Verify Organization MFA to manage RSVPs.</p>;
   }
@@ -370,6 +453,9 @@ export function RsvpManagerPage({
           <div>
             <p className="eyebrow">Event response</p>
             <h2 id="rsvp-balance-title">{performerLabel} RSVP balance</h2>
+            <p className="field-help">
+              Select a section or {performerLabel.toLowerCase()} to filter the roster below.
+            </p>
             <label className="field rsvp-manager__performance">
               <span>Performance</span>
               <select
@@ -377,6 +463,7 @@ export function RsvpManagerPage({
                   setEventId(event.target.value);
                   setRows([]);
                   setFeedback(null);
+                  setAssignmentFilter(null);
                   setView("roster");
                   setHistoryFilter("All");
                   setHistoryQuery("");
@@ -444,20 +531,44 @@ export function RsvpManagerPage({
           </button>
         </div>
         <div className="roster-balance__sections">
-          {reportableSections(state.roster).map((section) => (
-            <div className="roster-balance__section" key={section.code}>
-              <span>{section.name}</span>
-              <strong>{sectionCounts.get(section.code) ?? 0}</strong>
-            </div>
-          ))}
+          {reportableSections(state.roster).map((section) => {
+            const selected =
+              assignmentFilter?.kind === "section" && assignmentFilter.value === section.code;
+            return (
+              <button
+                aria-pressed={selected}
+                className={`roster-balance__section${selected ? " roster-balance__section--selected" : ""}`}
+                key={section.code}
+                onClick={() => {
+                  toggleAssignmentFilter({ kind: "section", value: section.code });
+                }}
+                type="button"
+              >
+                <span>{section.name}</span>
+                <strong>{sectionCounts.get(section.code) ?? 0}</strong>
+              </button>
+            );
+          })}
         </div>
         <div className="roster-balance__parts">
-          {reportableVoiceParts(state.roster).map((voicePart) => (
-            <div className="roster-balance__part" key={voicePart.label}>
-              <span>{voicePart.label}</span>
-              <strong>{voicePartCounts.get(voicePart.label) ?? 0}</strong>
-            </div>
-          ))}
+          {reportableVoiceParts(state.roster).map((voicePart) => {
+            const selected =
+              assignmentFilter?.kind === "voicePart" && assignmentFilter.value === voicePart.label;
+            return (
+              <button
+                aria-pressed={selected}
+                className={`roster-balance__part${selected ? " roster-balance__part--selected" : ""}`}
+                key={voicePart.label}
+                onClick={() => {
+                  toggleAssignmentFilter({ kind: "voicePart", value: voicePart.label });
+                }}
+                type="button"
+              >
+                <span>{voicePart.label}</span>
+                <strong>{voicePartCounts.get(voicePart.label) ?? 0}</strong>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -486,69 +597,11 @@ export function RsvpManagerPage({
           {visibleRows.length === 0 ? (
             <p className="empty-state">No active profiles match this RSVP filter.</p>
           ) : (
-            <div className="table-scroll">
-              <table className="data-table rsvp-manager__table table--actions">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>{performerLabel}</th>
-                    <th>RSVP status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleRows.map((row) => (
-                    <tr key={row.profileId}>
-                      <td>
-                        <strong>{row.displayName}</strong>
-                      </td>
-                      <td>{row.voicePart || "—"}</td>
-                      <td>
-                        <span className={`rsvp-status-badge rsvp-status-badge--${row.rsvp}`}>
-                          {statusText(row.rsvp)}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="rsvp-row-actions">
-                          <button
-                            className={
-                              row.rsvp === "Yes"
-                                ? "button button--sm"
-                                : "button button--secondary button--sm"
-                            }
-                            disabled={savingId !== null}
-                            onClick={() => void updateRsvp(row.profileId, "Yes")}
-                            type="button"
-                          >
-                            Attending
-                          </button>
-                          <button
-                            className={
-                              row.rsvp === "No"
-                                ? "button button--danger button--sm"
-                                : "button button--secondary button--sm"
-                            }
-                            disabled={savingId !== null}
-                            onClick={() => void updateRsvp(row.profileId, "No")}
-                            type="button"
-                          >
-                            Declined
-                          </button>
-                          <button
-                            className="button button--secondary button--sm"
-                            disabled={savingId !== null || row.rsvp === "Pending"}
-                            onClick={() => void updateRsvp(row.profileId, "Pending")}
-                            type="button"
-                          >
-                            Reset
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              columns={rsvpRosterColumns}
+              keySelector={(row) => row.profileId}
+              rows={visibleRows}
+            />
           )}
         </section>
         <section

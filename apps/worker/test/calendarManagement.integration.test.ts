@@ -218,6 +218,20 @@ describe("Organization calendar management", () => {
     );
     expect(downloaded.status).toBe(200);
     expect(downloaded.headers.get("x-export-checksum-sha256")).toBe(completedBody.checksumSha256);
+    const downloadedArchive: unknown = await downloaded.json();
+    expect(downloadedArchive).toMatchObject({
+      manifest: expect.objectContaining({
+        byteCount: completedBody.byteCount,
+        checksumSha256: completedBody.checksumSha256,
+        exportVersion: 1,
+        organizationId: "organization-alpha",
+      }),
+      payload: expect.objectContaining({
+        exportVersion: 1,
+        organizationId: "organization-alpha",
+        records: expect.any(Object),
+      }),
+    });
 
     const replay = createMessageBatch("choir-management-jobs-local", [
       { ...message, id: `export-replay-${exportId}` },
@@ -561,6 +575,42 @@ describe("Organization calendar management", () => {
       }),
     );
     expect(organizationAuditionResponseSchema.parse(await updated.json()).status).toBe("scheduled");
+
+    const convertible = await post("alpha.localhost", "/api/organization/auditions", cookie, {
+      availabilityNotes: "Evenings",
+      email: "convertible@example.com",
+      experience: "Local choir",
+      name: "Convertible Singer",
+      requestedSlots: [],
+      status: "pending",
+      voicePart: "S1",
+    });
+    expect(convertible.status).toBe(201);
+    const convertibleAudition = organizationAuditionResponseSchema.parse(await convertible.json());
+    const converted = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/auditions/${convertibleAudition.id}/convert`,
+        cookie,
+        { method: "POST" },
+      ),
+    );
+    expect(converted.status).toBe(201);
+    expect(await converted.json()).toMatchObject({
+      auditionId: convertibleAudition.id,
+      profile: { displayName: "Convertible Singer", voicePart: "S1" },
+    });
+    const repeatedConversion = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/auditions/${convertibleAudition.id}/convert`,
+        cookie,
+        { method: "POST" },
+      ),
+    );
+    expect(repeatedConversion.status).toBe(409);
+    expect(await repeatedConversion.json()).toMatchObject({ code: "audition_already_converted" });
+
     const deleted = await exports.default.fetch(
       api("alpha.localhost", `/api/organization/auditions/${audition.id}`, cookie, {
         method: "DELETE",
@@ -668,6 +718,278 @@ describe("Organization calendar management", () => {
     expect(status).toMatchObject({
       completedSteps: ["data_import"],
       currentStep: "data_import",
+    });
+  });
+
+  it("claims setup, persists module progress, and completes the Organization lifecycle", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET lifecycle_state = 'provisioning' WHERE organization_id = ?",
+        "organization-alpha",
+      );
+      return null;
+    });
+
+    const claim = await post("alpha.localhost", "/api/setup/claim", cookie, {});
+    expect(claim.status).toBe(200);
+    expect(await claim.json()).toMatchObject({
+      claimed: true,
+      organizationId: "organization-alpha",
+    });
+
+    const progress = await post("alpha.localhost", "/api/setup/progress", cookie, {
+      data: { events: true, people: true },
+      step: "modules",
+    });
+    expect(progress.status).toBe(200);
+    expect(await progress.json()).toEqual({ saved: true });
+
+    const modules = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/module-state", cookie),
+    );
+    expect(modules.status).toBe(200);
+    expect(await modules.json()).toMatchObject({
+      modules: [
+        { enabled: true, id: "people" },
+        { enabled: true, id: "events" },
+        { enabled: false, id: "programs" },
+      ],
+    });
+
+    const complete = await post("alpha.localhost", "/api/setup/complete", cookie, {});
+    expect(complete.status).toBe(200);
+    expect(await complete.json()).toEqual({ completed: true });
+
+    const status = setupStatusSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/setup/status", cookie))
+      ).json(),
+    );
+    expect(status).toMatchObject({
+      currentStep: null,
+      launched: true,
+      organizationId: "organization-alpha",
+    });
+    await expect(
+      runInDurableObject<OrganizationStore, { readonly count: number }>(stub, (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM audit_events WHERE id = ?",
+            "setup-completed:organization-alpha",
+          )
+          .one(),
+      ),
+    ).resolves.toEqual({ count: 1 });
+  });
+
+  it("serves empty financial list routes and validates refund identifiers before store access", async () => {
+    const cookie = await signIn();
+    const listRoutes = [
+      ["/api/organization/seasons", "seasons"],
+      ["/api/organization/dues", "dues"],
+      ["/api/organization/donations", "donations"],
+      ["/api/organization/patrons", "patrons"],
+    ] as const;
+    for (const [path, key] of listRoutes) {
+      const response = await exports.default.fetch(api("alpha.localhost", path, cookie));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ [key]: [] });
+    }
+
+    const invalidDuesRefund = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/dues/not-a-uuid/refund", cookie, {
+        method: "POST",
+      }),
+    );
+    expect(invalidDuesRefund.status).toBe(400);
+    expect(await invalidDuesRefund.json()).toMatchObject({ code: "validation_failed" });
+
+    const invalidDonationRefund = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations/not-a-uuid/refund", cookie, {
+        method: "POST",
+      }),
+    );
+    expect(invalidDonationRefund.status).toBe(400);
+    expect(await invalidDonationRefund.json()).toMatchObject({ code: "validation_failed" });
+
+    const donationId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          `INSERT INTO donations
+            (id, checkout_request_id, status, amount_cents, fee_cents,
+             tribute_type, tribute_name, tribute_notify_email, anonymous, marketing_consent,
+             buyer_name, buyer_email, patron_id, provider_session_id, provider_payment_id,
+             created_at, updated_at, refunded_at)
+           VALUES (?, ?, 'paid', 2500, 0, 'none', '', '', 0, 0,
+             'Route Donor', 'route-donor@example.test', NULL, ?, ?, ?, ?, NULL)`,
+          donationId,
+          crypto.randomUUID(),
+          `fake_session_${donationId}`,
+          `fake_payment_${donationId}`,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO payment_attempts
+            (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+             provider_payment_id, status, amount_cents, created_at, updated_at)
+           SELECT ?, 'donation', id, checkout_request_id, provider_session_id,
+             provider_payment_id, 'paid', amount_cents, created_at, updated_at
+           FROM donations WHERE id = ?`,
+          `payment-attempt:${donationId}`,
+          donationId,
+        );
+      },
+    );
+    const refundedDonation = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/donations/${donationId}/refund`, cookie, {
+        method: "POST",
+      }),
+    );
+    expect(refundedDonation.status).toBe(200);
+    expect(await refundedDonation.json()).toMatchObject({
+      id: donationId,
+      status: "refunded",
+    });
+    const crossTenantRefund = await exports.default.fetch(
+      api("bravo.localhost", `/api/organization/donations/${donationId}/refund`, cookie, {
+        method: "POST",
+      }),
+    );
+    expect(crossTenantRefund.status).toBe(404);
+  });
+
+  it("manages Organization polls and issues recipient-scoped poll tokens", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const pollId = crypto.randomUUID();
+    const pollOptionIds = [crypto.randomUUID(), crypto.randomUUID()] as const;
+    const createdPollId = crypto.randomUUID();
+    const createdOptionIds = [crypto.randomUUID(), crypto.randomUUID()] as const;
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1_000).toISOString();
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        profileId,
+        "Poll Recipient",
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO polls
+          (id, title, description, multiple_choice, expires_at, archived_at,
+           created_by, created_at, updated_at)
+         VALUES (?, ?, ?, 0, ?, '', ?, ?, ?)`,
+        pollId,
+        "Initial question",
+        "Choose one",
+        expiresAt,
+        "calendar-manager",
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        "INSERT INTO poll_options (id, poll_id, label, sort_order) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
+        pollOptionIds[0],
+        pollId,
+        "First",
+        0,
+        pollOptionIds[1],
+        pollId,
+        "Second",
+        1,
+      );
+      return null;
+    });
+
+    const list = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/polls", cookie),
+    );
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({
+      polls: [expect.objectContaining({ id: pollId, title: "Initial question" })],
+    });
+
+    const detail = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/polls/${pollId}`, cookie),
+    );
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({
+      id: pollId,
+      options: [
+        { id: pollOptionIds[0], label: "First" },
+        { id: pollOptionIds[1], label: "Second" },
+      ],
+      title: "Initial question",
+    });
+
+    const tokenResponse = await post("alpha.localhost", "/api/organization/poll-tokens", cookie, {
+      pollId,
+      profileIds: [profileId],
+    });
+    expect(tokenResponse.status).toBe(200);
+    expect(await tokenResponse.json()).toMatchObject({
+      tokens: { [profileId]: expect.any(String) },
+    });
+
+    const created = await post("alpha.localhost", "/api/organization/polls", cookie, {
+      description: "Created through the route",
+      expiresAt,
+      id: createdPollId,
+      multipleChoice: true,
+      options: [
+        { id: createdOptionIds[0], label: "Yes", sortOrder: 0 },
+        { id: createdOptionIds[1], label: "No", sortOrder: 1 },
+      ],
+      title: "Created question",
+    });
+    expect(created.status).toBe(201);
+    expect(await created.json()).toMatchObject({ id: createdPollId, title: "Created question" });
+
+    const updated = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/polls/${createdPollId}`, cookie, {
+        body: JSON.stringify({
+          description: "Updated through the route",
+          expiresAt,
+          multipleChoice: true,
+          options: [
+            { id: createdOptionIds[0], label: "Absolutely", sortOrder: 0 },
+            { id: createdOptionIds[1], label: "Not yet", sortOrder: 1 },
+          ],
+          title: "Updated question",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({
+      description: "Updated through the route",
+      title: "Updated question",
+    });
+
+    const archive = await post(
+      "alpha.localhost",
+      `/api/organization/polls/${pollId}/archive`,
+      cookie,
+      {},
+    );
+    expect(archive.status).toBe(200);
+    expect(await archive.json()).toMatchObject({ id: pollId, archivedAt: expect.any(String) });
+
+    const archived = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/polls?archived=true", cookie),
+    );
+    expect(archived.status).toBe(200);
+    expect(await archived.json()).toMatchObject({
+      polls: [expect.objectContaining({ id: pollId, title: "Initial question" })],
     });
   });
 

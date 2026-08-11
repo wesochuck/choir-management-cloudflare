@@ -4,6 +4,8 @@ export {
   type DataTableColumn,
   type DataTablePresentation,
   type DataTableRenderContext,
+  type DataTableRowContext,
+  type DataTableRowProps,
   type DataTableSort,
   type DataTableSortDirection,
 } from "./DataTable";

@@ -38,18 +38,31 @@
     flex: none;
   }
 
-  .set-list-drag-handle {
+  .set-list-drag-handle,
+  .organization-resource-drag-handle {
     position: relative;
     display: inline-block;
     width: 1rem;
     min-width: 1rem;
     height: 1.35rem;
     flex: 0 0 1rem;
+    padding: 0;
+    border: 0;
     color: var(--color-text-muted);
+    background: transparent;
     cursor: grab;
+    font: inherit;
+    appearance: none;
   }
 
-  .set-list-drag-handle::before {
+  .set-list-drag-handle:focus-visible,
+  .organization-resource-drag-handle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .set-list-drag-handle::before,
+  .organization-resource-drag-handle::before {
     position: absolute;
     top: 0.18rem;
     left: 0.1rem;
@@ -69,6 +82,11 @@
   /* Item drag, type, and insert zones */
 
   .set-list-item--dragging .set-list-drag-handle {
+    color: var(--color-accent);
+    cursor: grabbing;
+  }
+
+  .organization-resource-row--dragging .organization-resource-drag-handle {
     color: var(--color-accent);
     cursor: grabbing;
   }
