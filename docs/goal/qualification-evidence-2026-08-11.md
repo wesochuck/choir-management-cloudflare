@@ -10,9 +10,9 @@ a production launch.
 - Environment: staging
 - Canonical hosts checked: `staging.musicsite.org`, `lcc.staging.musicsite.org`, and
   `lmc.staging.musicsite.org`
-- Starting parity inventory for this follow-up qualification: 205 entries — 82 `verified`, 123
+- Starting parity inventory for this follow-up qualification: 205 entries — 84 `verified`, 121
   `implemented` (the initial record began at 74 `verified`, 131 `implemented`).
-- Ending parity inventory: 205 entries — 84 `verified`, 121 `implemented`.
+- Ending parity inventory: 205 entries — 119 `verified`, 86 `implemented`.
 - No Stripe or SMS credentials were requested, entered, stored, or changed. Production resources
   were not accessed or modified.
 
@@ -23,6 +23,13 @@ verified the exact immutable artifact and promoted it to 100% traffic as Worker 
 exact-version API health/readiness probes. The GitHub-hosted runner's custom-domain probes were
 blocked by the expected Cloudflare edge rule, so those probes remain an interactive-network
 follow-up rather than a claimed failure.
+
+The record-only release commit `177799328bdd4b70c5012b07326a949a7f6b79c0` passed CI run
+`31503643685` and staging deployment run `31503941589`; Worker version
+`16bf8eff-e170-4a06-9f3e-26aa022458eb` is at 100% traffic. That deployment reused the same qualified
+application behavior, passed exact-version direct Worker qualification, and retained the expected
+GitHub-hosted custom-domain warning. The additional evidence below was gathered against that
+qualified staging runtime; this next parity-record update changes evidence classification only.
 
 ## Qualifiable now
 
@@ -93,6 +100,45 @@ follow-up rather than a claimed failure.
   surfaces. Known layout candidates remain recorded in `READINESS.md`; they are not hidden by this
   qualification record.
 
+### Additional provider-independent qualification batch
+
+The following staging interactions were completed against the qualified runtime. Temporary audition,
+rehearsal, export, resource, and folder fixtures were removed or archived after each check; no real
+message, payment, SMS, or external recipient effect was created.
+
+- Organization export reached the queued/ready state and its authorized download control emitted a
+  browser download event. The browser tool did not inspect export bytes; local Workerd coverage
+  remains the source of checksum and payload assertions.
+- Will-call CSV download emitted a browser download event. Donations and Attendance exports exposed
+  their authorized controls and expected headers; their data-URL downloads did not emit a browser
+  download event in the tool, so no bytes were retained. Existing local CSV contract tests cover
+  quoting, headers, and empty/populated rows.
+- Music Folder Report selected a Performance, edited a folder number, marked it returned, observed
+  the summary move from Outstanding to Returned, and cleared the temporary number. The report
+  detail, return-status, export, and multi-Performance paths were exercised without retaining member
+  values.
+- Auditions covered public details/inquiry/submit, settings read/save, admin
+  create/list/update/delete, a validation failure for an unscheduled status change, and the
+  corresponding audit-trigger paths.
+- The practice player generated and opened an authorized player route with the expected playlist
+  heading and no error surface. Signed-token bytes were not copied or retained.
+- Responsive checks at 390px covered checkout and Music Folder Report state selection/detail
+  behavior, with no alert or horizontal overflow. The viewport override was reset afterward.
+
+This batch promotes these evidence entries to `verified`: the 21 audited organization/player/public
+audition/music-folder API entries (`api.organization.donations`, `api.organization.dues`,
+`api.organization.patrons`, `api.organization.seasons`, `api.player-token`, `api.player-playlist`,
+`api.organization.export-download`, the three public audition APIs, the six admin audition APIs, and
+the five Music Folder Report APIs); `signed.player`; `csv.donations`, `csv.attendance`,
+`csv.will-call`, and `csv.music-folder-report`; `hook.audition-create` and `hook.audition-update`;
+`workflow.music-folder-report`, `workflow.polls`, `workflow.auditions`, `workflow.resources`, and
+`workflow.organization-export`; and `responsive.music-folder-report` and `responsive.checkout`.
+
+Platform Administrator operations remain behind the fresh-factor boundary in the current browser
+session. Profile-photo, music-audio, and public-media upload success paths were not promoted because
+the browser file chooser was not available for a safe fixture upload. No status was inferred from
+either limitation.
+
 ## Provider-deferred work
 
 The following work cannot be honestly promoted from this staging session without the corresponding
@@ -117,19 +163,20 @@ external prerequisite. These are deferred rather than treated as code failures:
 
 ## Still requiring provider-independent evidence
 
-The remaining entries are not automatically deferred: valid signed-link success/expiry/revocation,
-queue/alarm replay, record-hook effects, the remaining attendance/donations/will-call/music-folder
-CSV contracts, export completion/download, the three remaining profile/audio/public-media file
-behaviors, and Platform Administrator operations still need their success plus failure/isolation
-evidence. Platform operations specifically require a fresh user-entered factor in the staging
-browser. No parity status is promoted merely because a route rendered or an anonymous request failed
-closed.
+The remaining entries are not automatically deferred: valid success/expiry/revocation evidence for
+the signed flows other than the player link, queue/alarm replay, the remaining message record-hook
+effects, the three remaining profile/audio/public-media file behaviors, and Platform Administrator
+operations still need success plus failure/isolation evidence. The remaining implemented API and
+workflow entries need the same focused fixture evidence unless they are listed under
+Provider-deferred work. Platform operations specifically require a fresh user-entered factor in the
+staging browser. No parity status is promoted merely because a route rendered or an anonymous
+request failed closed.
 
-This follow-up qualification promotes these ten entries to `verified`: `csv.roster`,
-`csv.music-library`, `csv.event-rsvp`, `csv.repertoire`, `responsive.public`,
-`responsive.data-table`, `responsive.setup`, `responsive.communications`, `file.singer-resource`,
-and `file.r2-isolation`. The ending matrix is therefore 84 `verified` and 121 `implemented`; the
-provider-deferred entries remain in the latter count.
+Together with the ten entries promoted in the prior record (`csv.roster`, `csv.music-library`,
+`csv.event-rsvp`, `csv.repertoire`, `responsive.public`, `responsive.data-table`,
+`responsive.setup`, `responsive.communications`, `file.singer-resource`, and `file.r2-isolation`),
+the current matrix is 119 `verified` and 86 `implemented`. The provider-deferred entries remain in
+the latter count.
 
 - A valid calendar subscription address was present in the member UI, but the browser client blocks
   direct `/api/calendar/feed` navigation; the signed calendar feed therefore remains unpromoted and

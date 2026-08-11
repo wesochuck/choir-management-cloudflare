@@ -52,9 +52,12 @@ describe("parity staging evidence plan", () => {
     const rows = buildProbePlan(matrix);
     const probes = rows.filter((row) => !row.kind.startsWith("skip"));
     expect(probes.length).toBeGreaterThan(20);
+    // The generated plan contains only entries that remain implemented. As staging evidence is
+    // promoted, verified read routes leave this follow-up plan; keep the remaining read coverage
+    // meaningful without tying the threshold to an earlier matrix snapshot.
     expect(
       probes.filter((row) => row.kind === "read-anon" || row.kind === "read-auth").length,
-    ).toBeGreaterThan(10);
+    ).toBeGreaterThanOrEqual(8);
     expect(probes.filter((row) => row.kind === "validation").length).toBeGreaterThan(10);
   });
 
