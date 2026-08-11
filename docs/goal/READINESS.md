@@ -9,10 +9,10 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current repository `main` HEAD is `7187b3e` (`Record current RSVP staging release`). Its runtime
-is the RSVP fix from `6343f2f`; the exact release passed the remote CI release gate and was promoted
-to permanent staging as Worker version `20c9fcac-5ea8-491f-97da-22b085b0d0b3`. The focused current
-qualification record is
+The current repository `main` HEAD is `d6892ce`
+(`Record provider-independent staging qualification`). Its runtime is the RSVP fix from `6343f2f`;
+the exact release passed the remote CI release gate and was promoted to permanent staging as Worker
+version `6ec0a177-4334-4834-a339-bc5990b82e08`. The focused current qualification record is
 [`docs/goal/qualification-evidence-2026-08-11.md`](qualification-evidence-2026-08-11.md); this does
 not make the whole-product goal complete.
 
@@ -40,6 +40,11 @@ The current release evidence is:
   and staging deployment run `31494952424`; the immutable Worker version
   `20c9fcac-5ea8-491f-97da-22b085b0d0b3` is at 100% traffic. A fresh `npm run qualify:staging` run
   passed all six exact-version health/readiness probes.
+- Qualification commit `d6892ce55bd05ebcb02b38b81455c13b282dc749` passed CI run `31497559435` and
+  staging deployment run `31497846290`; the immutable Worker version
+  `6ec0a177-4334-4834-a339-bc5990b82e08` is at 100% traffic. The deployment applied the exact
+  artifact, passed the release gate and exact-version API qualification, and the interactive recheck
+  passed all six direct/custom-domain health/readiness probes.
 - Remote CI run `31350379266` passed all static, contract/parity, unit, build-artifact, Workerd, and
   browser-E2E jobs for `11e3f71`.
 - A fresh August 10 local `npm run check:ci` rerun passed all 13 mirrored CI steps: high-severity
