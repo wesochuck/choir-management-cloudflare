@@ -29,6 +29,51 @@ a production launch.
 - This follow-up started from the prior recorded 119 `verified` / 86 `implemented` matrix and, after
   the evidence below, reaches 144 `verified` / 61 `implemented`.
 
+## Current working sets and follow-up evidence
+
+- The current exact staging artifact is source commit `d8a24856eb039bcd9f1bb28bcc067f8823242131`
+  (`record latest staging artifact`), deployed as Worker version
+  `c4a24a96-db79-4574-833c-184fb91fa608` by release run `31523037909`. Direct qualification with the
+  exact `BUILD_VERSION` passed all six health/readiness probes; all four GitHub-hosted custom-domain
+  probes again received the known Cloudflare edge block. The commit is qualification-record
+  documentation only and does not change runtime behavior.
+- A fresh anonymous boundary sweep against that exact staging release passed 148 safe requests
+  across `lcc` and `lmc`: 3 public HTTP 200 responses, 28 typed validation 400 responses, 112 typed
+  authorization 401 responses, 4 expected invalid-link/not-found 404 responses, and the typed
+  `stripe_webhook_unavailable` 503. No request fell through to an unhandled route or exposed
+  cross-Organization data. This evidence does not promote authenticated or fixture-backed entries.
+- The current remaining working sets are explicit. The 23 provider-deferred entries are
+  `route.auth.confirm-email-change`, `api.test-email`, `api.resend-ticket`,
+  `api.singer.profile-email-change`, `api.account.email-change-confirm`, `signed.email-change`,
+  `workflow.identity`, `api.test-sms`, `api.checkout-ticket`, `api.checkout-dues`,
+  `api.checkout-donation`, `api.stripe-webhook`, `api.refund-ticket`, `api.refund-donation`,
+  `api.refund-dues`, `task.message-queue`, `task.event-reminder`, `task.post-event-report`,
+  `task.ticket-reminder`, `workflow.communications`, `workflow.ticketing`, `workflow.donations`, and
+  `workflow.seasons-dues`. Email entries require an already-authorized staging recipient and a valid
+  delivery/confirmation observation; SMS requires a staging SMS credential and verified
+  sender/recipient; payment entries require an isolated Stripe test account, connected-account
+  setup, signed webhook fixtures, and refund/replay evidence. No such credentials were requested or
+  configured.
+- The 35 provider-independent entries that remain to qualify are `api.setup-claim`,
+  `api.setup-progress`, `api.setup-complete`, `api.setup-recover-admin`, `api.rsvp-details`,
+  `api.singer-rsvp`, `api.singer-practice-link`, `api.quick-rsvp`, `api.unsubscribe`,
+  `api.generate-rsvp-tokens`, `api.queue-settings`, `api.queue-settings-generate`,
+  `api.platform.reconciliation-report`, `api.platform.job-dead-letters.retry`,
+  `api.ticket-validate`, `api.calendar-feed`, `api.calendar-feed-reset`, `api.maintenance`,
+  `api.organization.poll-tokens`, `api.organization.audition-convert`, `task.cleanup`,
+  `signed.rsvp`, `signed.audition`, `signed.unsubscribe`, `signed.calendar`, `signed.ticket-scan`,
+  `workflow.roster`, `workflow.roster-status-automation`, `workflow.rsvp-attendance`,
+  `workflow.rehearsal-parent`, `workflow.player-offline`, `workflow.custom-domains`,
+  `file.profile-photo`, `file.music-audio`, and `file.public-media`.
+- A fresh staging browser review found that the current Platform Security page still requires a
+  fresh factor, so Platform-only entries remain pending an active 15-minute elevation. The current
+  LMC Organization member fixture is signed in but has no assigned voice part, so singer RSVP
+  success cannot be claimed without changing that staging fixture. Both Organizations currently have
+  no ticket orders, so ticket validation requires a deliberate staging purchase-like fixture. The
+  browser file-chooser flow also did not expose a usable chooser for a non-sensitive repository
+  image, so upload success remains unverified. These are evidence/fixture blockers, not provider
+  claims, and no matrix status was promoted on this inspection.
+
 ## Release and starting point
 
 - Qualified runtime source commit: `44e3f36b247b8a04b33bb15c8307ab83ee7fc095`

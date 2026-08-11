@@ -16,6 +16,14 @@ The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae76068
 qualification documentation, parity evidence, and the evidence-plan guard update; it has no runtime
 behavior, schema, route, or provider changes.
 
+The current follow-up record is source commit `d8a24856eb039bcd9f1bb28bcc067f8823242131`
+(`record latest staging artifact`), deployed as Worker version
+`c4a24a96-db79-4574-833c-184fb91fa608` by staging release run `31523037909`. Direct exact-version
+qualification passed, and a fresh anonymous boundary sweep passed 148 safe requests across both
+seeded Organization hosts with only the expected public, validation, authorization,
+invalid-link/not-found, and Stripe fail-closed responses. This record-only commit does not change
+runtime behavior.
+
 The behavior-qualified runtime source release is `039bf9f8ef6e60350f4c1c15ccd4d672d55c655a`
 (`fix signed poll link submission`). It was promoted to permanent staging as Worker version
 `c68b8811-895e-4ad5-8d50-251d0819040f`. Hosted CI run `31520853731` and staging release run
