@@ -9,18 +9,19 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The latest behavior-qualified permanent-staging artifact is source commit
-`51caefeb9748530665030b3c650fc8726e64cc61` (`qualify signed calendar feed`). Hosted CI run
-`31529037805` and release-ready artifact run `93905093785` passed. Staging release run `31529285055`
-deployed Worker version `bfde1f9f-c43b-4d83-b8d8-d874446b28c1` at 100% traffic, and exact direct
+The latest exact permanent-staging artifact is source commit
+`f7ee50d59ac19054023480a4c3c1236e2afc91a1` (`record exact calendar qualification`). Hosted CI run
+`31530391876` and release-ready artifact run `93909611878` passed. Staging release run `31530681787`
+deployed Worker version `b346cffe-34c7-49a7-adb5-9a2bf8a159dd` at 100% traffic, and exact direct
 qualification plus the exact anonymous boundary sweep passed. The GitHub-hosted custom-domain probes
-were blocked by the known Cloudflare edge rule and recorded as the allowed degraded warning. The
-release changed only parity/evidence records; it has no provider credential or production effect.
+were blocked by the known Cloudflare edge rule and recorded as the allowed degraded warning. This
+record-only release carries the behavior qualified by `51caefeb9748530665030b3c650fc8726e64cc61`; it
+has no provider credential or production effect.
 
-The immediately preceding permanent-staging artifact is source commit
-`51df3e7f0f8582edbae760680690e9d5c1700865` (`record signed poll staging qualification`). It was
-promoted as Worker version `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and
-staging release run `31522215667` passed, and the exact immutable artifact reached 100% traffic.
+The immediately preceding behavior-qualified permanent-staging artifact is source commit
+`51caefeb9748530665030b3c650fc8726e64cc61` (`qualify signed calendar feed`). It was promoted as
+Worker version `bfde1f9f-c43b-4d83-b8d8-d874446b28c1`. Hosted CI run `31529037805` and staging
+release run `31529285055` passed, and the exact immutable artifact reached 100% traffic.
 
 The previous follow-up record is source commit `d8a24856eb039bcd9f1bb28bcc067f8823242131`
 (`record latest staging artifact`), deployed as Worker version

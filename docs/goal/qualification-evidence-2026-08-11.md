@@ -5,14 +5,15 @@ a production launch.
 
 ## Current follow-up context
 
-- The latest behavior-qualified permanent-staging artifact is source commit
-  `51caefeb9748530665030b3c650fc8726e64cc61` (`qualify signed calendar feed`). Hosted CI run
-  `31529037805` passed all jobs, release-ready artifact run `93905093785` passed, and staging
-  release run `31529285055` deployed Worker version `bfde1f9f-c43b-4d83-b8d8-d874446b28c1` at 100%
-  traffic. Exact direct qualification passed all six probes, and the exact current anonymous
-  boundary sweep passed 148 safe requests. The GitHub-hosted custom-domain probes were blocked by
-  the known Cloudflare edge rule and recorded as the allowed degraded warning. The release changed
-  only parity/evidence records; it has no provider credential or production effect.
+- The latest exact permanent-staging artifact is source commit
+  `f7ee50d59ac19054023480a4c3c1236e2afc91a1` (`record exact calendar qualification`). Hosted CI run
+  `31530391876` and release-ready artifact run `93909611878` passed, and staging release run
+  `31530681787` deployed Worker version `b346cffe-34c7-49a7-adb5-9a2bf8a159dd` at 100% traffic.
+  Exact direct qualification passed all six probes, and the exact anonymous boundary sweep passed
+  148 safe requests. The GitHub-hosted custom-domain probes were blocked by the known Cloudflare
+  edge rule and recorded as the allowed degraded warning. This record-only release carries the
+  behavior qualified by `51caefeb9748530665030b3c650fc8726e64cc61`; it has no provider credential or
+  production effect.
 - The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
   (`record signed poll staging qualification`), promoted as Worker version
   `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and staging release run
@@ -39,9 +40,9 @@ a production launch.
 
 ## Current working sets and follow-up evidence
 
-- The current exact staging artifact is source commit `51caefeb9748530665030b3c650fc8726e64cc61`
-  (`qualify signed calendar feed`), deployed as Worker version
-  `bfde1f9f-c43b-4d83-b8d8-d874446b28c1` by release run `31529285055`. Direct qualification with the
+- The current exact staging artifact is source commit `f7ee50d59ac19054023480a4c3c1236e2afc91a1`
+  (`record exact calendar qualification`), deployed as Worker version
+  `b346cffe-34c7-49a7-adb5-9a2bf8a159dd` by release run `31530681787`. Direct qualification with the
   exact `BUILD_VERSION` and the 148-request anonymous boundary sweep both passed against this
   release. All four GitHub-hosted custom-domain probes received the known Cloudflare edge block; the
   deployment succeeded with the documented degraded warning.
@@ -67,7 +68,7 @@ a production launch.
   sender/recipient; payment entries require an isolated Stripe test account, connected-account
   setup, signed webhook fixtures, and refund/replay evidence. No such credentials were requested or
   configured.
-- The 35 provider-independent entries that remain to qualify are `api.setup-claim`,
+- The 33 provider-independent entries that remain to qualify are `api.setup-claim`,
   `api.setup-progress`, `api.setup-complete`, `api.setup-recover-admin`, `api.rsvp-details`,
   `api.singer-rsvp`, `api.singer-practice-link`, `api.quick-rsvp`, `api.unsubscribe`,
   `api.generate-rsvp-tokens`, `api.queue-settings`, `api.queue-settings-generate`,
