@@ -9,20 +9,26 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
-(`record signed poll staging qualification`). It was promoted as Worker version
-`a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and staging release run
-`31522215667` passed, and the exact immutable artifact is at 100% traffic. This commit contains only
-qualification documentation, parity evidence, and the evidence-plan guard update; it has no runtime
-behavior, schema, route, or provider changes.
+The latest permanent-staging artifact is source commit `f137f3a6c79f315b825e18e7e960b564ee5282a7`
+(`record qualification working sets`). Hosted CI run `31526456390` and release-ready artifact run
+`93896667156` passed. Staging release run `31526707276` deployed Worker version
+`8ad207b9-2f43-440d-917b-b5a1ed358fdb` at 100% traffic, and exact direct qualification passed all
+six probes. The first trigger-application attempt returned Cloudflare queue error 10013; rerunning
+the failed deployment steps completed trigger deployment, version upload, traffic shift, and
+qualification without a source change. The GitHub-hosted custom-domain probes were blocked by the
+known Cloudflare edge rule and were recorded as the allowed degraded warning. This commit contains
+qualification documentation only; it has no runtime behavior, schema, route, or provider changes.
 
-The current follow-up record is source commit `d8a24856eb039bcd9f1bb28bcc067f8823242131`
+The immediately preceding permanent-staging artifact is source commit
+`51df3e7f0f8582edbae760680690e9d5c1700865` (`record signed poll staging qualification`). It was
+promoted as Worker version `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and
+staging release run `31522215667` passed, and the exact immutable artifact reached 100% traffic.
+
+The previous follow-up record is source commit `d8a24856eb039bcd9f1bb28bcc067f8823242131`
 (`record latest staging artifact`), deployed as Worker version
 `c4a24a96-db79-4574-833c-184fb91fa608` by staging release run `31523037909`. Direct exact-version
-qualification passed, and a fresh anonymous boundary sweep passed 148 safe requests across both
-seeded Organization hosts with only the expected public, validation, authorization,
-invalid-link/not-found, and Stripe fail-closed responses. This record-only commit does not change
-runtime behavior.
+qualification passed, and its anonymous boundary sweep passed 148 safe requests across both seeded
+Organization hosts. This record-only commit does not change runtime behavior.
 
 The behavior-qualified runtime source release is `039bf9f8ef6e60350f4c1c15ccd4d672d55c655a`
 (`fix signed poll link submission`). It was promoted to permanent staging as Worker version

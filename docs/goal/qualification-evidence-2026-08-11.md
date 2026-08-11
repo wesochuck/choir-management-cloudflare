@@ -5,6 +5,16 @@ a production launch.
 
 ## Current follow-up context
 
+- The current permanent-staging artifact is source commit `f137f3a6c79f315b825e18e7e960b564ee5282a7`
+  (`record qualification working sets`). Hosted CI run `31526456390` passed all jobs, release-ready
+  artifact run `93896667156` passed, and staging release run `31526707276` deployed Worker version
+  `8ad207b9-2f43-440d-917b-b5a1ed358fdb` at 100% traffic. The first trigger-application attempt
+  returned Cloudflare queue error 10013; rerunning the failed deployment steps completed trigger
+  deployment, version upload, traffic shift, and exact release qualification without a source
+  change. Direct qualification against the Worker URL passed all six probes. The GitHub-hosted
+  custom-domain probes were blocked by the known Cloudflare edge rule, so the release recorded the
+  allowed degraded warning rather than treating the Worker as failed. This commit contains
+  documentation only and has no runtime behavior, schema, route, or provider changes.
 - The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
   (`record signed poll staging qualification`), promoted as Worker version
   `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and staging release run
@@ -31,12 +41,14 @@ a production launch.
 
 ## Current working sets and follow-up evidence
 
-- The current exact staging artifact is source commit `d8a24856eb039bcd9f1bb28bcc067f8823242131`
-  (`record latest staging artifact`), deployed as Worker version
-  `c4a24a96-db79-4574-833c-184fb91fa608` by release run `31523037909`. Direct qualification with the
-  exact `BUILD_VERSION` passed all six health/readiness probes; all four GitHub-hosted custom-domain
-  probes again received the known Cloudflare edge block. The commit is qualification-record
-  documentation only and does not change runtime behavior.
+- The current exact staging artifact is source commit `f137f3a6c79f315b825e18e7e960b564ee5282a7`
+  (`record qualification working sets`), deployed as Worker version
+  `8ad207b9-2f43-440d-917b-b5a1ed358fdb` by release run `31526707276`. Direct qualification with the
+  exact `BUILD_VERSION` passed all six health/readiness probes. A fresh anonymous boundary sweep
+  against this exact release passed the 148 safe requests summarized below. All four GitHub-hosted
+  custom-domain probes received the known Cloudflare edge block; the deployment succeeded with the
+  documented degraded warning. This commit is qualification-record documentation only and does not
+  change runtime behavior.
 - A fresh anonymous boundary sweep against that exact staging release passed 148 safe requests
   across `lcc` and `lmc`: 3 public HTTP 200 responses, 28 typed validation 400 responses, 112 typed
   authorization 401 responses, 4 expected invalid-link/not-found 404 responses, and the typed
