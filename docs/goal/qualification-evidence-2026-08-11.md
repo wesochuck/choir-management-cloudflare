@@ -5,11 +5,13 @@ a production launch.
 
 ## Latest follow-up batch — platform elevation and member links
 
-The current exact staging runtime is source commit `f132af327198b55e410ec55b7198adfe654ff3f6`
-(`record current staging deployment`), deployed as Worker version
-`193bbcc7-137a-481e-8dc8-9c1bdff172ed`. The prior hosted CI and staging release gates passed for
-this exact artifact. No application code, provider secret, or production resource was changed by
-this follow-up.
+The current exact staging runtime is source commit `f66bc3619071842ffebdbd51a49f7a9a358be675`
+(`record platform and member qualification evidence`), deployed by hosted CI run `31534172241` and
+staging release run `31534447033` as Worker version `0aa0e7e1-6975-45f5-8689-92efd49f5ab0` at 100%
+traffic. Direct qualification of the exact Worker version passed. The GitHub-hosted custom-domain
+probes received the known Cloudflare edge 403 and were recorded as the allowed degraded warning;
+recheck those domains from an allowlisted or interactive network. No application code, provider
+secret, or production resource was changed by this follow-up.
 
 An interactive Platform Administrator factor verification was accepted during this pass. The
 Platform overview loaded the deployed build and configuration checks, and the Queue dead-letter

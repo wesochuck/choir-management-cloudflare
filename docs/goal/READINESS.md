@@ -10,9 +10,12 @@ entries currently classified as `planned`, `partial`, or `blocked`, so the remai
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
 The latest exact permanent-staging artifact is source commit
-`f132af327198b55e410ec55b7198adfe654ff3f6` (`record current staging deployment`), deployed as Worker
-version `193bbcc7-137a-481e-8dc8-9c1bdff172ed`. The preceding CI and staging release gates passed
-for this exact artifact. An interactive Platform Administrator factor verification was accepted; the
+`f66bc3619071842ffebdbd51a49f7a9a358be675` (`record platform and member qualification evidence`),
+deployed by hosted CI run `31534172241` and staging release run `31534447033` as Worker version
+`0aa0e7e1-6975-45f5-8689-92efd49f5ab0` at 100% traffic. Direct qualification of the exact Worker
+version passed. The GitHub-hosted custom-domain probes received the known Cloudflare edge 403 and
+were recorded as the allowed degraded warning; recheck those domains from an allowlisted or
+interactive network. An interactive Platform Administrator factor verification was accepted; the
 Platform overview and Queue dead-letter workspace loaded, and one existing dead-letter was retried
 through its custom confirmation flow with a recorded fresh queue attempt. The LCC member dashboard
 generated and redeemed a signed poll response, opened the authorized practice player, and saved then
