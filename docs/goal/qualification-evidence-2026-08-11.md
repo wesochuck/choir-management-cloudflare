@@ -5,7 +5,13 @@ a production launch.
 
 ## Current follow-up context
 
-- The latest qualified runtime is source commit `039bf9f8ef6e60350f4c1c15ccd4d672d55c655a`
+- The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
+  (`record signed poll staging qualification`), promoted as Worker version
+  `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and staging release run
+  `31522215667` passed; the exact immutable artifact is at 100% traffic. This commit contains only
+  qualification documentation, parity evidence, and the evidence-plan guard update; it has no
+  runtime behavior, schema, route, or provider changes.
+- The behavior-qualified runtime is source commit `039bf9f8ef6e60350f4c1c15ccd4d672d55c655a`
   (`fix signed poll link submission`), promoted to staging as Worker version
   `c68b8811-895e-4ad5-8d50-251d0819040f`. Hosted CI run `31520853731` and staging release run
   `31521120904` passed; the exact immutable artifact is at 100% traffic. Direct Worker qualification
