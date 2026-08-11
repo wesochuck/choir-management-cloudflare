@@ -3,6 +3,47 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
+## Current exact-release and classification audit — August 11, 2026
+
+The current clean commit is `9dfade394d8628b67e06b4b71fcf9ba393867865`
+(`record file qualification evidence`). Hosted CI run `31545427104` and staging release run
+`31545632080` both completed successfully. Deployment `ca10fe62-a097-4f6e-887d-ba14c65539bd` serves
+Worker version `a9c592f3-c49d-4efa-82d1-7cb19dedd127` at 100% traffic, with the commit recorded as
+its annotation.
+`STAGING_EXPECTED_VERSION=9dfade394d8628b67e06b4b71fcf9ba393867865 npm run qualify:staging` passed
+the exact Worker health/readiness probes. A fresh anonymous boundary sweep passed 148 safe requests
+across both seeded Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1.
+
+Read-only staging infrastructure checks found all four staging queues (jobs, jobs DLQ, email events,
+and email-events DLQ) with one active consumer each, the staging R2 bucket present, and both
+registered staging Workflows active. These are configuration and liveness observations; they do not
+replace message replay, retry, dead-letter, or Workflow success-path evidence.
+
+The current matrix has 205 entries: 159 `verified` and 46 `implemented`. The 23 genuinely
+provider-deferred IDs are `route.auth.confirm-email-change`, `api.test-email`, `api.resend-ticket`,
+`api.singer.profile-email-change`, `api.account.email-change-confirm`, `signed.email-change`,
+`workflow.identity`, `api.test-sms`, `api.checkout-ticket`, `api.checkout-dues`,
+`api.checkout-donation`, `api.stripe-webhook`, `api.refund-ticket`, `api.refund-donation`,
+`api.refund-dues`, `task.message-queue`, `task.event-reminder`, `task.post-event-report`,
+`task.ticket-reminder`, `workflow.communications`, `workflow.ticketing`, `workflow.donations`, and
+`workflow.seasons-dues`. Their exact external prerequisites remain the isolated Stripe test account
+and connected-account/webhook fixtures, an isolated SMS sender/recipient credential, or an
+already-authorized staging email recipient for the link/delivery success path. No such credential
+was requested or configured.
+
+The 23 provider-independent IDs still needing permanent-staging success or isolation evidence are
+`api.setup-claim`, `api.setup-progress`, `api.setup-complete`, `api.setup-recover-admin`,
+`api.rsvp-details`, `api.quick-rsvp`, `api.unsubscribe`, `api.generate-rsvp-tokens`,
+`api.queue-settings`, `api.queue-settings-generate`, `api.platform.reconciliation-report`,
+`api.calendar-feed-reset`, `api.maintenance`, `task.cleanup`, `signed.rsvp`, `signed.audition`,
+`signed.unsubscribe`, `workflow.roster`, `workflow.roster-status-automation`,
+`workflow.rsvp-attendance`, `workflow.rehearsal-parent`, `workflow.custom-domains`, and
+`file.profile-photo`. The current blockers are explicit: the preserved Platform Security tab still
+requires a fresh factor; the separate authenticated member runner still waits at its secure sign-in
+prompt; the browser URL policy blocks the old-calendar-token rejection navigation; and the in-app
+browser does not expose the hidden profile-photo file chooser. No staging data was changed by the
+failed chooser or blocked calendar probe.
+
 ## Latest provider-independent file qualification batch — August 11, 2026
 
 This batch was exercised against source commit `af585d572e3dc206db5e409b2de0f2cc091f5537`

@@ -9,6 +9,31 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
+## Current exact-release and classification audit — August 11, 2026
+
+The current clean commit is `9dfade394d8628b67e06b4b71fcf9ba393867865`
+(`record file qualification evidence`). Hosted CI run `31545427104` and staging release run
+`31545632080` completed successfully. Deployment `ca10fe62-a097-4f6e-887d-ba14c65539bd` serves
+Worker version `a9c592f3-c49d-4efa-82d1-7cb19dedd127` at 100% traffic. Exact direct qualification
+passed, and the fresh anonymous boundary sweep passed 148 safe requests across both seeded
+Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. Read-only staging
+inventory found all four staging queues with active consumers, the staging R2 bucket, and both
+staging Workflows registered.
+
+The 23 provider-deferred IDs are `route.auth.confirm-email-change`, `api.test-email`,
+`api.resend-ticket`, `api.singer.profile-email-change`, `api.account.email-change-confirm`,
+`signed.email-change`, `workflow.identity`, `api.test-sms`, `api.checkout-ticket`,
+`api.checkout-dues`, `api.checkout-donation`, `api.stripe-webhook`, `api.refund-ticket`,
+`api.refund-donation`, `api.refund-dues`, `task.message-queue`, `task.event-reminder`,
+`task.post-event-report`, `task.ticket-reminder`, `workflow.communications`, `workflow.ticketing`,
+`workflow.donations`, and `workflow.seasons-dues`. The remaining 23 are provider-independent but
+still require authenticated or signed-fixture staging evidence: setup, RSVP links, queue/platform
+controls, reconciliation/maintenance, calendar revocation, cleanup, signed RSVP/audition/unsubscribe
+flows, roster/status/attendance/rehearsal/domain workflows, and profile-photo upload. Platform
+factor, member sign-in, browser URL policy, and the hidden file chooser are the currently observed
+external interaction blockers. No Stripe or SMS credential was requested or configured, and
+production was not changed.
+
 ## Latest provider-independent file qualification — August 11, 2026
 
 The latest provider-independent evidence batch was exercised against source commit
