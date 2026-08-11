@@ -4,32 +4,36 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-153 are `verified` and 52 are `implemented`. Per the matrix definitions, `implemented` means that
+157 are `verified` and 48 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
 The latest exact permanent-staging artifact is source commit
-`22c4453d434cb21ee709b6b315ed03c06ecb8bb9` (`record final staging qualification artifact`), deployed
-by hosted CI run `31534839702` and staging release run `31535094317` as Worker version
-`e8b1b0d0-4f22-46fe-b028-5fa0507ac681` at 100% traffic. Direct qualification of the exact Worker
+`aecc94e07d6006093bf97f8231b36fd71717cfe1` (`record deployed staging provenance`), deployed by
+hosted CI run `31535430633` and staging release run `31535720059` as Worker version
+`5ea5f531-847b-46c7-aacf-2ddf073fb679` at 100% traffic. Direct qualification of the exact Worker
 version passed. The GitHub-hosted custom-domain probes received the known Cloudflare edge 403 and
 were recorded as the allowed degraded warning; recheck those domains from an allowlisted or
-interactive network. An interactive Platform Administrator factor verification was accepted; the
-Platform overview and Queue dead-letter workspace loaded, and one existing dead-letter was retried
-through its custom confirmation flow with a recorded fresh queue attempt. The LCC member dashboard
-generated and redeemed a signed poll response, opened the authorized practice player, and saved then
-removed a learning track offline. The temporary RSVP voice-part fixture was restored to
-`Not assigned`; no new event, provider credential, or production resource was created.
+interactive network.
 
-This follow-up promotes four entries: `api.organization.poll-tokens`,
+The latest staging evidence batch exercised member RSVP success and restoration, RSVP part/group
+filters, reversible attendance cycling and its destructive confirmation, audition-to-profile
+conversion, and a zero-dollar ticket order with wrong-performance rejection, valid signed-door
+validation, successful free-order refund, and ticket-sales cleanup. It promotes `api.singer-rsvp`,
+`api.organization.audition-convert`, `api.ticket-validate`, and `signed.ticket-scan`. The temporary
+voice-part and audition fixtures were restored or inactivated; the temporary event remains dated Aug
+20, 2026 while its original Aug 11 date still needs restoration through a working date-control path.
+Platform Administrator qualification is still behind the fresh-factor gate, and the separate
+authenticated email runner remains at its secure six-digit prompt. No Stripe or SMS credential was
+requested or configured, and production was not changed.
+
+The previous follow-up batch promoted `api.organization.poll-tokens`,
 `api.platform.job-dead-letters.retry`, `api.singer-practice-link`, and `workflow.player-offline`.
-The matrix now contains 205 entries: 153 `verified` and 52 `implemented`. Calendar reset rendered a
-replacement address, but its direct old-token rejection probe was blocked by the browser client, so
-`api.calendar-feed-reset` remains implemented. The goal remains active because the remaining
-implemented entries include the explicitly provider-deferred Stripe/SMS/email paths and additional
-fixture, Platform API, signed-link, file, queue, domain, scale, and rollback evidence still listed
-below.
+Calendar reset rendered a replacement address, but its direct old-token rejection probe was blocked
+by the browser client, so `api.calendar-feed-reset` remains implemented. The goal remains active
+because provider-deferred entries and additional Platform API, signed-link, file, queue, domain,
+scale, and rollback evidence are still listed below.
 
 The prior exact permanent-staging artifact was source commit
 `f7ee50d59ac19054023480a4c3c1236e2afc91a1` (`record exact calendar qualification`). Hosted CI run

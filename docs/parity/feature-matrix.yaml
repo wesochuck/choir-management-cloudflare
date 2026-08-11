@@ -1163,7 +1163,7 @@
         "path": "/api/singer/events/:eventId/rsvp",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/singerRsvp.ts",
         "targetEvidence":
           [
@@ -1617,7 +1617,7 @@
         "path": "/api/organization/tickets/scan",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1524",
         "targetEvidence":
           [
@@ -2038,7 +2038,7 @@
         "path": "/api/organization/auditions/:auditionId/convert",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "src/services/auditionService.ts; src/views/admin/AuditionsView.tsx",
         "targetEvidence":
           [
@@ -2561,7 +2561,7 @@
         "flow": "ticket-scan",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "test/ticketScanValidation.test.ts; test/pb-hooks/ticketing.test.ts",
         "targetEvidence":
           [

@@ -85,13 +85,17 @@ export const probePlan = new Map([
   ["api.deactivate-ticket-discount-code", { kind: "skip-fixture" }],
   ["api.setup-claim", { kind: "skip-fixture" }],
   ["api.setup-complete", { kind: "skip-fixture" }],
-  ["api.setup-progress", { kind: "skip-fixture" }],
+  // Empty-body validation is safe here: the route rejects the request before
+  // any setup progress can be written.
+  ["api.setup-progress", { kind: "validation", expected: 400 }],
   ["api.organization.music-folder-report-query", { kind: "skip-fixture" }],
   ["api.organization.music-folder-report-profile-detail", { kind: "skip-fixture" }],
   ["api.organization.music-folder-report-folder-numbers", { kind: "skip-fixture" }],
   ["api.organization.music-folder-return-status", { kind: "skip-fixture" }],
   ["api.organization.music-folder-report-export", { kind: "skip-fixture" }],
-  ["api.singer.profile-email-change", { kind: "skip-fixture" }],
+  // Empty-body validation is safe here: the route rejects the request before
+  // starting an email-change operation or contacting the provider.
+  ["api.singer.profile-email-change", { kind: "validation", expected: 400 }],
   ["api.account.email-change-confirm", { kind: "validation", expected: 400 }],
 ]);
 

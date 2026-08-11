@@ -3,7 +3,50 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
-## Latest follow-up batch — platform elevation and member links
+## Latest follow-up batch — RSVP, audition, ticket, and attendance workflows
+
+This batch was exercised against source commit `aecc94e07d6006093bf97f8231b36fd71717cfe1`
+(`record deployed staging provenance`), deployed by hosted CI run `31535430633` and staging release
+run `31535720059` as Worker version `5ea5f531-847b-46c7-aacf-2ddf073fb679` at 100% traffic. The
+exact direct Worker qualification for that artifact had already passed; the hosted custom-domain
+probes retain the documented Cloudflare edge 403 warning. No production resource or provider secret
+was changed.
+
+The LCC member dashboard changed a temporarily eligible member from Declined to Attending and
+reported `Your RSVP was updated.` The member response was restored to Declined, the temporary voice
+part was removed, and the admin RSVP view again showed the no-voice-part guard. This promotes
+`api.singer-rsvp`.
+
+The RSVP balance controls filtered the roster to 12 Alto 2 profiles and 23 Alto profiles. Attendance
+was exercised through Pending → Present → Absent → Pending with immediate persistence, and the
+`Mark remaining present` action displayed its destructive confirmation before it was cancelled. The
+workspace reported live updates every 30 seconds. These checks support the remaining RSVP/attendance
+workflow evidence but do not by themselves promote the full `workflow.rsvp-attendance` entry.
+
+A synthetic scheduled audition was converted to an Organization Profile through the admin
+confirmation flow and reported `Audition converted to an Organization Profile.` The resulting
+staging-only profile was set Inactive with manual status management. This promotes
+`api.organization.audition-convert`.
+
+A temporary zero-dollar public performance was published with ticket sales enabled, a complimentary
+order was completed without payment, and its signed door credential was rejected for the wrong
+performance and accepted for the correct performance. Repeating the scan returned the application's
+valid result again; no duplicate-payment effect was created. The order was then refunded
+successfully (`Ticket order refunded.`), and ticket publication and sales were disabled again. This
+promotes `api.ticket-validate` and `signed.ticket-scan`; it does not qualify Stripe payment-provider
+behavior.
+
+The current matrix snapshot is 205 entries: 157 `verified` and 48 `implemented`. The four newly
+promoted entries are `api.singer-rsvp`, `api.organization.audition-convert`, `api.ticket-validate`,
+and `signed.ticket-scan`.
+
+Two staging cleanup items remain explicit: the qualification event `test` is still dated Aug 20,
+2026 at 5:41 PM rather than its original Aug 11 fixture date because the browser-native datetime
+control did not commit a manually entered replacement, and Platform Administrator qualification is
+still waiting for a fresh factor in the open security page. The separate authenticated email runner
+is still waiting at its secure six-digit sign-in prompt.
+
+## Previous follow-up batch — platform elevation and member links
 
 The current exact staging runtime is source commit `22c4453d434cb21ee709b6b315ed03c06ecb8bb9`
 (`record final staging qualification artifact`), deployed by hosted CI run `31534839702` and staging
@@ -66,7 +109,7 @@ existing local calendar integration coverage remains green.
   and does not touch production.
 - The historical matrix snapshot after the calendar follow-up was 205 entries: 149 `verified` and 56
   `implemented`. The earlier qualification batch narrative below remains historical evidence; the
-  latest follow-up batch above records the current 153/52 snapshot.
+  previous follow-up batch records 153/52, and the latest batch above records 157/48.
 - The latest qualified runtime before this record-only evidence update is source commit `54c423b`
   (`Fix scoped Platform access routing`), promoted to staging as Worker version
   `4b70c369-8b65-48a0-bcc7-1dde2cce97b0`. Hosted CI run `31513358856` and staging release run
