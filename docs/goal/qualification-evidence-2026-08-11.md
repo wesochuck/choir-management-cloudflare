@@ -5,15 +5,14 @@ a production launch.
 
 ## Current follow-up context
 
-- The current permanent-staging artifact is source commit `bea69d5137b0fd411e56d1d4e630f7eba0392ba9`
-  (`record f137 staging qualification`). Hosted CI run `31527368648` passed all jobs, release-ready
-  artifact run `93899661378` passed, and staging release run `31527640292` deployed Worker version
-  `8cc03b1d-1ef9-4319-925a-ae7d91582790` at 100% traffic. Exact direct qualification passed all six
-  probes. The first trigger-application retry was resolved in the preceding f137 release; this
-  record-only commit completed trigger deployment, version upload, traffic shift, and exact release
-  qualification without runtime, schema, route, or provider changes. The GitHub-hosted custom-domain
-  probes were blocked by the known Cloudflare edge rule and recorded as the allowed degraded
-  warning.
+- The latest behavior-qualified permanent-staging artifact is source commit
+  `51caefeb9748530665030b3c650fc8726e64cc61` (`qualify signed calendar feed`). Hosted CI run
+  `31529037805` passed all jobs, release-ready artifact run `93905093785` passed, and staging
+  release run `31529285055` deployed Worker version `bfde1f9f-c43b-4d83-b8d8-d874446b28c1` at 100%
+  traffic. Exact direct qualification passed all six probes, and the exact current anonymous
+  boundary sweep passed 148 safe requests. The GitHub-hosted custom-domain probes were blocked by
+  the known Cloudflare edge rule and recorded as the allowed degraded warning. The release changed
+  only parity/evidence records; it has no provider credential or production effect.
 - The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
   (`record signed poll staging qualification`), promoted as Worker version
   `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and staging release run
@@ -40,14 +39,12 @@ a production launch.
 
 ## Current working sets and follow-up evidence
 
-- The current exact staging artifact is source commit `bea69d5137b0fd411e56d1d4e630f7eba0392ba9`
-  (`record f137 staging qualification`), deployed as Worker version
-  `8cc03b1d-1ef9-4319-925a-ae7d91582790` by release run `31527640292`. Direct qualification with the
-  exact `BUILD_VERSION` passed all six health/readiness probes. The 148-request anonymous boundary
-  sweep summarized below was run against the immediately preceding f137 runtime, which has identical
-  behavior because this record-only release contains no runtime changes. All four GitHub-hosted
-  custom-domain probes received the known Cloudflare edge block; the deployment succeeded with the
-  documented degraded warning.
+- The current exact staging artifact is source commit `51caefeb9748530665030b3c650fc8726e64cc61`
+  (`qualify signed calendar feed`), deployed as Worker version
+  `bfde1f9f-c43b-4d83-b8d8-d874446b28c1` by release run `31529285055`. Direct qualification with the
+  exact `BUILD_VERSION` and the 148-request anonymous boundary sweep both passed against this
+  release. All four GitHub-hosted custom-domain probes received the known Cloudflare edge block; the
+  deployment succeeded with the documented degraded warning.
 - A fresh anonymous boundary sweep against that exact staging release passed 148 safe requests
   across `lcc` and `lmc`: 3 public HTTP 200 responses, 28 typed validation 400 responses, 112 typed
   authorization 401 responses, 4 expected invalid-link/not-found 404 responses, and the typed

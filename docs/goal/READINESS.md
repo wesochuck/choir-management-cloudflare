@@ -9,13 +9,13 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The latest permanent-staging artifact is source commit `bea69d5137b0fd411e56d1d4e630f7eba0392ba9`
-(`record f137 staging qualification`). Hosted CI run `31527368648` and release-ready artifact run
-`93899661378` passed. Staging release run `31527640292` deployed Worker version
-`8cc03b1d-1ef9-4319-925a-ae7d91582790` at 100% traffic, and exact direct qualification passed all
-six probes. The GitHub-hosted custom-domain probes were blocked by the known Cloudflare edge rule
-and recorded as the allowed degraded warning. This commit contains qualification documentation only;
-it has no runtime behavior, schema, route, or provider changes.
+The latest behavior-qualified permanent-staging artifact is source commit
+`51caefeb9748530665030b3c650fc8726e64cc61` (`qualify signed calendar feed`). Hosted CI run
+`31529037805` and release-ready artifact run `93905093785` passed. Staging release run `31529285055`
+deployed Worker version `bfde1f9f-c43b-4d83-b8d8-d874446b28c1` at 100% traffic, and exact direct
+qualification plus the exact anonymous boundary sweep passed. The GitHub-hosted custom-domain probes
+were blocked by the known Cloudflare edge rule and recorded as the allowed degraded warning. The
+release changed only parity/evidence records; it has no provider credential or production effect.
 
 The immediately preceding permanent-staging artifact is source commit
 `51df3e7f0f8582edbae760680690e9d5c1700865` (`record signed poll staging qualification`). It was
