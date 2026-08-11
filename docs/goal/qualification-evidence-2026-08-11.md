@@ -31,6 +31,12 @@ application behavior, passed exact-version direct Worker qualification, and reta
 GitHub-hosted custom-domain warning. The additional evidence below was gathered against that
 qualified staging runtime; this next parity-record update changes evidence classification only.
 
+The current evidence commit `b49f8a588dcba8792e20b40313e8af97d8b4b4da` passed CI run `31507587095`
+and staging deployment run `31507886134`; Worker version `709655ee-359c-41d5-9b77-526c2f49fe99` is
+at 100% traffic. It contains no application behavior or schema change beyond the parity evidence
+classification and the evidence-plan regression guard. Exact-version direct Worker qualification
+passed; the hosted runner again reported only the expected custom-domain edge warning.
+
 ## Qualifiable now
 
 ### Deployment and boundary checks

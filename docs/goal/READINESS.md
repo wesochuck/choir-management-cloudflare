@@ -16,7 +16,11 @@ record-only release commit `177799328bdd4b70c5012b07326a949a7f6b79c0` passed CI 
 and staging deployment run `31503941589`; Worker version `16bf8eff-e170-4a06-9f3e-26aa022458eb` is
 at 100% traffic. It reused the qualified application behavior and passed exact-version direct Worker
 qualification, with the expected GitHub-hosted custom-domain warning. The focused current
-qualification record is
+qualification record is The current evidence commit `b49f8a588dcba8792e20b40313e8af97d8b4b4da`
+passed CI run `31507587095` and staging deployment run `31507886134`; Worker version
+`709655ee-359c-41d5-9b77-526c2f49fe99` is at 100% traffic. It changes only evidence classification
+and its guard test, and exact-version direct Worker qualification passed with the same expected
+custom-domain warning. The focused current qualification record is
 [`docs/goal/qualification-evidence-2026-08-11.md`](qualification-evidence-2026-08-11.md); this does
 not make the whole-product goal complete.
 
