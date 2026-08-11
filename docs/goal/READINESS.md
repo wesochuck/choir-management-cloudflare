@@ -4,12 +4,20 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-144 are `verified` and 61 are `implemented`. Per the matrix definitions, `implemented` means that
+147 are `verified` and 58 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The current qualified runtime source release is `54c423b` (`Fix scoped Platform access routing`). It
+The current qualified runtime source release is `039bf9f8ef6e60350f4c1c15ccd4d672d55c655a`
+(`fix signed poll link submission`). It was promoted to permanent staging as Worker version
+`c68b8811-895e-4ad5-8d50-251d0819040f`. Hosted CI run `31520853731` and staging release run
+`31521120904` passed, the exact immutable artifact is at 100% traffic, and direct Worker
+qualification passed. The GitHub-hosted custom-domain probes were blocked by the known Cloudflare
+edge rule; the interactive LCC recheck passed. The release has no Stripe or SMS credential changes
+and production was not accessed or modified.
+
+The prior qualified runtime source release was `54c423b` (`Fix scoped Platform access routing`). It
 includes the RSVP eligibility fix from `6343f2f` and was promoted to permanent staging as Worker
 version `4b70c369-8b65-48a0-bcc7-1dde2cce97b0`. The hosted CI run `31513358856` and staging
 deployment run `31513630409` passed, and the exact immutable artifact is at 100% traffic. The
@@ -757,24 +765,23 @@ The current release evidence is:
   uploaded, no website draft was saved, and no track playback was started.
 
 Verified coverage is concentrated in browser routes and a growing set of API, CSV, file, workflow,
-and responsive entries: 63/64 browser routes, 28/79 API routes, 6/23 domain workflows, and all 9/9
-responsive states. All eight CSV contracts, two of five file behaviors, one of eight signed flows,
-and two of four record hooks are now verified. The remaining 86 entries include unverified
-signed-flow, file, record-hook, background-task, API, and workflow evidence required by the staging
-gate.
+and responsive entries: 63/64 browser routes, 47/79 API routes, 12/23 domain workflows, and all 9/9
+responsive states. All eight CSV contracts, two of five file behaviors, two of eight signed flows,
+and all four record hooks are verified. The remaining 58 entries include unverified signed-flow,
+file, background-task, API, and workflow evidence required by the staging gate.
 
 The current evidence-family inventory is:
 
 | Evidence family   | Verified | Remaining | Main missing proof                                                               |
 | ----------------- | -------: | --------: | -------------------------------------------------------------------------------- |
 | Browser routes    |       63 |         1 | Valid email-change success                                                       |
-| API routes        |       28 |        51 | Authenticated fixtures, elevation, signed inputs, and provider paths             |
-| Domain workflows  |        6 |        17 | Queue/retry, tenant-isolation, scheduler, and external-effect evidence           |
+| API routes        |       47 |        32 | Authenticated fixtures, elevation, signed inputs, and provider paths             |
+| Domain workflows  |       12 |        11 | Queue/retry, tenant-isolation, scheduler, and external-effect evidence           |
 | Responsive states |        9 |         0 | No remaining responsive parity entry; broader visual review remains supplemental |
-| Signed flows      |        1 |         7 | Valid, expired, revoked, cross-host, and cross-Organization tokens               |
+| Signed flows      |        2 |         6 | Valid, expired, revoked, cross-host, and cross-Organization tokens               |
 | CSV contracts     |        8 |         0 | Browser-tool byte inspection for data-URL downloads remains supplemental         |
 | File behaviors    |        2 |         3 | Profile, music-audio, and public-media upload/rendering probes                   |
-| Record hooks      |        2 |         2 | Message-triggered writes and audit/idempotency evidence                          |
+| Record hooks      |        4 |         0 | Message-triggered writes and audit/idempotency evidence                          |
 | Background tasks  |        0 |         5 | Scheduler, queue, retry, dead-letter, and workflow resume evidence               |
 
 The dated sections below are an append-only historical record. Their parity counts, deployment
@@ -2011,7 +2018,7 @@ committing.
 
 The following work remains before the goal contract can be marked complete:
 
-1. Qualify the 86 parity entries that remain `implemented`, including the remaining API families,
+1. Qualify the 58 parity entries that remain `implemented`, including the remaining API families,
    signed-link flows, file behaviors, record hooks, background tasks, and domain workflows. Promote
    entries to `verified` only after successful and failure-path evidence is captured.
 2. Supply isolated Stripe Connect test credentials and a signed webhook secret, then qualify

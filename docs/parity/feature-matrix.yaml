@@ -1725,7 +1725,7 @@
         "path": "/api/public/poll-details",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
         "targetEvidence":
           [
@@ -1733,6 +1733,7 @@
             "apps/worker/src/organization/organizationPollLinks.ts",
             "apps/worker/test/publicPoll.integration.test.ts",
             "apps/web/src/public/PublicPollView.tsx",
+            "apps/web/e2e/polls.spec.ts",
           ],
       },
       {
@@ -1741,13 +1742,14 @@
         "path": "/api/public/poll-vote",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (poll endpoint)",
         "targetEvidence":
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationPollLinks.ts",
             "apps/worker/test/publicPoll.integration.test.ts",
+            "apps/web/e2e/polls.spec.ts",
           ],
       },
       {
@@ -2524,7 +2526,7 @@
         "flow": "poll-link",
         "owner": "packages/domain",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
         "targetEvidence":
           [
@@ -2537,6 +2539,7 @@
             "apps/worker/test/publicPoll.integration.test.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
             "apps/web/src/public/PublicPollView.tsx",
+            "apps/web/e2e/polls.spec.ts",
           ],
       },
       {

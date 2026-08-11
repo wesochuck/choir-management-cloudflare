@@ -5,6 +5,16 @@ a production launch.
 
 ## Current follow-up context
 
+- The latest qualified runtime is source commit `039bf9f8ef6e60350f4c1c15ccd4d672d55c655a`
+  (`fix signed poll link submission`), promoted to staging as Worker version
+  `c68b8811-895e-4ad5-8d50-251d0819040f`. Hosted CI run `31520853731` and staging release run
+  `31521120904` passed; the exact immutable artifact is at 100% traffic. Direct Worker qualification
+  passed. The GitHub-hosted custom-domain probes were blocked by the known Cloudflare edge rule, and
+  the interactive LCC recheck below passed. The release contains no Stripe or SMS credential changes
+  and does not touch production.
+- The current matrix snapshot after this poll follow-up is 205 entries: 147 `verified` and 58
+  `implemented`. The earlier qualification batch narrative below ends at 144 `verified` / 61
+  `implemented` and remains historical evidence.
 - The latest qualified runtime before this record-only evidence update is source commit `54c423b`
   (`Fix scoped Platform access routing`), promoted to staging as Worker version
   `4b70c369-8b65-48a0-bcc7-1dde2cce97b0`. Hosted CI run `31513358856` and staging release run
@@ -220,10 +230,25 @@ Organization provisioning, queue retry, provider release, or production action w
 verifies `workflow.platform-admin` for its bounded scoped-elevation behavior; the remaining Platform
 API operations below still require their own focused evidence.
 
-The matrix now contains 205 entries: 144 `verified` and 61 `implemented`. This is not a claim that
-all provider-independent qualification is complete: valid signed-link success and revocation,
-scheduler/queue replay, the remaining file upload contracts, the remaining Platform API operations,
-and other fixture-backed API/workflow entries still require evidence below.
+### Signed poll link regression follow-up
+
+The deployed poll-link flow was rechecked after the staging release for `039bf9f`. The authenticated
+LCC dashboard's existing `Qualification poll 2026-08-11` link opened the poll heading and response
+options on the Organization host without the prior render exception, and did not fall into the
+tokenless or invalid-link states. The browser recheck intentionally did not submit the existing
+qualification response. The new focused browser test submits a mocked valid signed poll response;
+the prepared Workerd suite covers valid details, vote persistence, invalid/expired/wrong-host
+tokens, cross-Organization isolation, option validation, duplicate submission, and wrong-purpose
+rejection. The client now validates the shared response schema, reads `responseOptionIds`, and
+retains the token after removing it from the visible URL so a rendered link can actually submit.
+
+This promotes `api.public.poll-details`, `api.public.poll-vote`, and `signed.poll` to `verified`. No
+schema, route, migration, provider credential, or external-effect behavior changed.
+
+The matrix now contains 205 entries: 147 `verified` and 58 `implemented`. This is not a claim that
+all provider-independent qualification is complete: valid signed-link expiry/revocation for flows
+other than the poll link, scheduler/queue replay, the remaining file upload contracts, the remaining
+Platform API operations, and other fixture-backed API/workflow entries still require evidence below.
 
 ## Provider-deferred work
 
@@ -258,9 +283,9 @@ under Provider-deferred work. The remaining Platform operations require their ow
 even though the scoped elevation flow has been verified. No parity status is promoted merely because
 a route rendered or an anonymous request failed closed.
 
-The earlier record ended at 119 `verified` and 86 `implemented`; the follow-up batches above bring
-the current matrix to 144 `verified` and 61 `implemented`. Provider-deferred entries remain in the
-latter count.
+The earlier record ended at 119 `verified` and 86 `implemented`; the qualification batches above
+reached 144 `verified` and 61 `implemented`, and the signed-poll follow-up brings the current matrix
+to 147 `verified` and 58 `implemented`. Provider-deferred entries remain in the latter count.
 
 - A valid calendar subscription address was present in the member UI, but the browser client blocks
   direct `/api/calendar/feed` navigation; the signed calendar feed therefore remains unpromoted and
