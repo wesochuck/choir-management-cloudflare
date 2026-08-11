@@ -4,20 +4,18 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-147 are `verified` and 58 are `implemented`. Per the matrix definitions, `implemented` means that
+149 are `verified` and 56 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-The latest permanent-staging artifact is source commit `f137f3a6c79f315b825e18e7e960b564ee5282a7`
-(`record qualification working sets`). Hosted CI run `31526456390` and release-ready artifact run
-`93896667156` passed. Staging release run `31526707276` deployed Worker version
-`8ad207b9-2f43-440d-917b-b5a1ed358fdb` at 100% traffic, and exact direct qualification passed all
-six probes. The first trigger-application attempt returned Cloudflare queue error 10013; rerunning
-the failed deployment steps completed trigger deployment, version upload, traffic shift, and
-qualification without a source change. The GitHub-hosted custom-domain probes were blocked by the
-known Cloudflare edge rule and were recorded as the allowed degraded warning. This commit contains
-qualification documentation only; it has no runtime behavior, schema, route, or provider changes.
+The latest permanent-staging artifact is source commit `bea69d5137b0fd411e56d1d4e630f7eba0392ba9`
+(`record f137 staging qualification`). Hosted CI run `31527368648` and release-ready artifact run
+`93899661378` passed. Staging release run `31527640292` deployed Worker version
+`8cc03b1d-1ef9-4319-925a-ae7d91582790` at 100% traffic, and exact direct qualification passed all
+six probes. The GitHub-hosted custom-domain probes were blocked by the known Cloudflare edge rule
+and recorded as the allowed degraded warning. This commit contains qualification documentation only;
+it has no runtime behavior, schema, route, or provider changes.
 
 The immediately preceding permanent-staging artifact is source commit
 `51df3e7f0f8582edbae760680690e9d5c1700865` (`record signed poll staging qualification`). It was
@@ -605,10 +603,11 @@ The current release evidence is:
   confirmation guidance; Season dues showed one dues row and the pay-through-Stripe control. No
   RSVP, email, calendar-reset, payment, or upload action was invoked, and no signed-link bytes were
   recorded.
-- The LCC schedule exposed both webcal and HTTPS calendar-subscription controls. A temporary
-  read-only navigation to the existing signed feed was not loadable by the browser client, so this
-  remains an unpromoted signed-flow probe rather than a validity claim; the token and calendar
-  contents were not recorded, and the temporary tab was closed.
+- The LMC schedule exposed a webcal calendar-subscription control. An in-memory fetch of its HTTPS
+  equivalent returned HTTP 200 `text/calendar` with a valid Organization-scoped `VCALENDAR`; using
+  the same signed value on LCC and changing its final signature character both returned typed 404
+  `not_found` responses. The token was not recorded. This promotes `api.calendar-feed` and
+  `signed.calendar`.
 - A read-only LCC public-host pass loaded `/`, `/history`, `/performances`, and `/auditions` with a
   main landmark, no alert or not-found state, and no horizontal overflow at the current viewport. No
   public RSVP, audition inquiry, upload, or other submission was made.
@@ -786,9 +785,9 @@ The current release evidence is:
   uploaded, no website draft was saved, and no track playback was started.
 
 Verified coverage is concentrated in browser routes and a growing set of API, CSV, file, workflow,
-and responsive entries: 63/64 browser routes, 47/79 API routes, 12/23 domain workflows, and all 9/9
-responsive states. All eight CSV contracts, two of five file behaviors, two of eight signed flows,
-and all four record hooks are verified. The remaining 58 entries include unverified signed-flow,
+and responsive entries: 63/64 browser routes, 48/79 API routes, 12/23 domain workflows, and all 9/9
+responsive states. All eight CSV contracts, two of five file behaviors, four of eight signed flows,
+and all four record hooks are verified. The remaining 56 entries include unverified signed-flow,
 file, background-task, API, and workflow evidence required by the staging gate.
 
 The current evidence-family inventory is:
@@ -796,10 +795,10 @@ The current evidence-family inventory is:
 | Evidence family   | Verified | Remaining | Main missing proof                                                               |
 | ----------------- | -------: | --------: | -------------------------------------------------------------------------------- |
 | Browser routes    |       63 |         1 | Valid email-change success                                                       |
-| API routes        |       47 |        32 | Authenticated fixtures, elevation, signed inputs, and provider paths             |
+| API routes        |       48 |        31 | Authenticated fixtures, elevation, signed inputs, and provider paths             |
 | Domain workflows  |       12 |        11 | Queue/retry, tenant-isolation, scheduler, and external-effect evidence           |
 | Responsive states |        9 |         0 | No remaining responsive parity entry; broader visual review remains supplemental |
-| Signed flows      |        2 |         6 | Valid, expired, revoked, cross-host, and cross-Organization tokens               |
+| Signed flows      |        4 |         4 | Valid, expired, revoked, cross-host, and cross-Organization tokens               |
 | CSV contracts     |        8 |         0 | Browser-tool byte inspection for data-URL downloads remains supplemental         |
 | File behaviors    |        2 |         3 | Profile, music-audio, and public-media upload/rendering probes                   |
 | Record hooks      |        4 |         0 | Message-triggered writes and audit/idempotency evidence                          |

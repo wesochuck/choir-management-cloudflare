@@ -5,16 +5,15 @@ a production launch.
 
 ## Current follow-up context
 
-- The current permanent-staging artifact is source commit `f137f3a6c79f315b825e18e7e960b564ee5282a7`
-  (`record qualification working sets`). Hosted CI run `31526456390` passed all jobs, release-ready
-  artifact run `93896667156` passed, and staging release run `31526707276` deployed Worker version
-  `8ad207b9-2f43-440d-917b-b5a1ed358fdb` at 100% traffic. The first trigger-application attempt
-  returned Cloudflare queue error 10013; rerunning the failed deployment steps completed trigger
-  deployment, version upload, traffic shift, and exact release qualification without a source
-  change. Direct qualification against the Worker URL passed all six probes. The GitHub-hosted
-  custom-domain probes were blocked by the known Cloudflare edge rule, so the release recorded the
-  allowed degraded warning rather than treating the Worker as failed. This commit contains
-  documentation only and has no runtime behavior, schema, route, or provider changes.
+- The current permanent-staging artifact is source commit `bea69d5137b0fd411e56d1d4e630f7eba0392ba9`
+  (`record f137 staging qualification`). Hosted CI run `31527368648` passed all jobs, release-ready
+  artifact run `93899661378` passed, and staging release run `31527640292` deployed Worker version
+  `8cc03b1d-1ef9-4319-925a-ae7d91582790` at 100% traffic. Exact direct qualification passed all six
+  probes. The first trigger-application retry was resolved in the preceding f137 release; this
+  record-only commit completed trigger deployment, version upload, traffic shift, and exact release
+  qualification without runtime, schema, route, or provider changes. The GitHub-hosted custom-domain
+  probes were blocked by the known Cloudflare edge rule and recorded as the allowed degraded
+  warning.
 - The latest permanent-staging artifact is source commit `51df3e7f0f8582edbae760680690e9d5c1700865`
   (`record signed poll staging qualification`), promoted as Worker version
   `a433f697-fb74-46db-b2ab-069a8aa41454`. Hosted CI run `31521959330` and staging release run
@@ -28,7 +27,7 @@ a production launch.
   passed. The GitHub-hosted custom-domain probes were blocked by the known Cloudflare edge rule, and
   the interactive LCC recheck below passed. The release contains no Stripe or SMS credential changes
   and does not touch production.
-- The current matrix snapshot after this poll follow-up is 205 entries: 147 `verified` and 58
+- The current matrix snapshot after this calendar follow-up is 205 entries: 149 `verified` and 56
   `implemented`. The earlier qualification batch narrative below ends at 144 `verified` / 61
   `implemented` and remains historical evidence.
 - The latest qualified runtime before this record-only evidence update is source commit `54c423b`
@@ -41,19 +40,24 @@ a production launch.
 
 ## Current working sets and follow-up evidence
 
-- The current exact staging artifact is source commit `f137f3a6c79f315b825e18e7e960b564ee5282a7`
-  (`record qualification working sets`), deployed as Worker version
-  `8ad207b9-2f43-440d-917b-b5a1ed358fdb` by release run `31526707276`. Direct qualification with the
-  exact `BUILD_VERSION` passed all six health/readiness probes. A fresh anonymous boundary sweep
-  against this exact release passed the 148 safe requests summarized below. All four GitHub-hosted
+- The current exact staging artifact is source commit `bea69d5137b0fd411e56d1d4e630f7eba0392ba9`
+  (`record f137 staging qualification`), deployed as Worker version
+  `8cc03b1d-1ef9-4319-925a-ae7d91582790` by release run `31527640292`. Direct qualification with the
+  exact `BUILD_VERSION` passed all six health/readiness probes. The 148-request anonymous boundary
+  sweep summarized below was run against the immediately preceding f137 runtime, which has identical
+  behavior because this record-only release contains no runtime changes. All four GitHub-hosted
   custom-domain probes received the known Cloudflare edge block; the deployment succeeded with the
-  documented degraded warning. This commit is qualification-record documentation only and does not
-  change runtime behavior.
+  documented degraded warning.
 - A fresh anonymous boundary sweep against that exact staging release passed 148 safe requests
   across `lcc` and `lmc`: 3 public HTTP 200 responses, 28 typed validation 400 responses, 112 typed
   authorization 401 responses, 4 expected invalid-link/not-found 404 responses, and the typed
   `stripe_webhook_unavailable` 503. No request fell through to an unhandled route or exposed
   cross-Organization data. This evidence does not promote authenticated or fixture-backed entries.
+- The signed-in LMC member schedule exposed a calendar subscription link. Fetching that link on its
+  Organization host returned HTTP 200 with `text/calendar`, a valid `VCALENDAR`, and organization-
+  scoped `VEVENT` records. Reusing the same signed value on the LCC host and changing its final
+  signature character both returned typed HTTP 404 `not_found` responses. The token value was not
+  recorded. This promotes `api.calendar-feed` and `signed.calendar`.
 - The current remaining working sets are explicit. The 23 provider-deferred entries are
   `route.auth.confirm-email-change`, `api.test-email`, `api.resend-ticket`,
   `api.singer.profile-email-change`, `api.account.email-change-confirm`, `signed.email-change`,
@@ -71,12 +75,12 @@ a production launch.
   `api.singer-rsvp`, `api.singer-practice-link`, `api.quick-rsvp`, `api.unsubscribe`,
   `api.generate-rsvp-tokens`, `api.queue-settings`, `api.queue-settings-generate`,
   `api.platform.reconciliation-report`, `api.platform.job-dead-letters.retry`,
-  `api.ticket-validate`, `api.calendar-feed`, `api.calendar-feed-reset`, `api.maintenance`,
+  `api.ticket-validate`, `api.calendar-feed-reset`, `api.maintenance`,
   `api.organization.poll-tokens`, `api.organization.audition-convert`, `task.cleanup`,
-  `signed.rsvp`, `signed.audition`, `signed.unsubscribe`, `signed.calendar`, `signed.ticket-scan`,
-  `workflow.roster`, `workflow.roster-status-automation`, `workflow.rsvp-attendance`,
-  `workflow.rehearsal-parent`, `workflow.player-offline`, `workflow.custom-domains`,
-  `file.profile-photo`, `file.music-audio`, and `file.public-media`.
+  `signed.rsvp`, `signed.audition`, `signed.unsubscribe`, `signed.ticket-scan`, `workflow.roster`,
+  `workflow.roster-status-automation`, `workflow.rsvp-attendance`, `workflow.rehearsal-parent`,
+  `workflow.player-offline`, `workflow.custom-domains`, `file.profile-photo`, `file.music-audio`,
+  and `file.public-media`.
 - A fresh staging browser review found that the current Platform Security page still requires a
   fresh factor, so Platform-only entries remain pending an active 15-minute elevation. The current
   LMC Organization member fixture is signed in but has no assigned voice part, so singer RSVP
@@ -84,7 +88,7 @@ a production launch.
   no ticket orders, so ticket validation requires a deliberate staging purchase-like fixture. The
   browser file-chooser flow also did not expose a usable chooser for a non-sensitive repository
   image, so upload success remains unverified. These are evidence/fixture blockers, not provider
-  claims, and no matrix status was promoted on this inspection.
+  claims. The calendar signed-flow evidence above is the only matrix promotion from this inspection.
 
 ## Release and starting point
 
@@ -308,10 +312,11 @@ retains the token after removing it from the visible URL so a rendered link can 
 This promotes `api.public.poll-details`, `api.public.poll-vote`, and `signed.poll` to `verified`. No
 schema, route, migration, provider credential, or external-effect behavior changed.
 
-The matrix now contains 205 entries: 147 `verified` and 58 `implemented`. This is not a claim that
+The matrix now contains 205 entries: 149 `verified` and 56 `implemented`. This is not a claim that
 all provider-independent qualification is complete: valid signed-link expiry/revocation for flows
-other than the poll link, scheduler/queue replay, the remaining file upload contracts, the remaining
-Platform API operations, and other fixture-backed API/workflow entries still require evidence below.
+other than the poll and calendar links, scheduler/queue replay, the remaining file upload contracts,
+the remaining Platform API operations, and other fixture-backed API/workflow entries still require
+evidence below.
 
 ## Provider-deferred work
 
@@ -347,12 +352,13 @@ even though the scoped elevation flow has been verified. No parity status is pro
 a route rendered or an anonymous request failed closed.
 
 The earlier record ended at 119 `verified` and 86 `implemented`; the qualification batches above
-reached 144 `verified` and 61 `implemented`, and the signed-poll follow-up brings the current matrix
-to 147 `verified` and 58 `implemented`. Provider-deferred entries remain in the latter count.
+reached 144 `verified` and 61 `implemented`, the signed-poll follow-up reached 147 `verified` and 58
+`implemented`, and this calendar follow-up brings the current matrix to 149 `verified` and 56
+`implemented`. Provider-deferred entries remain in the latter count.
 
-- A valid calendar subscription address was present in the member UI, but the browser client blocks
-  direct `/api/calendar/feed` navigation; the signed calendar feed therefore remains unpromoted and
-  its token was not retained. This is a browser-tool boundary, not evidence of a server failure.
+- A valid calendar subscription address was present in the member UI. An in-memory fetch returned a
+  valid Organization-scoped calendar, while the same signed value on the other Organization host and
+  a tampered signature returned typed 404 responses. The token was not retained in the evidence.
 
 ## Safety and rollback
 

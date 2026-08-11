@@ -1648,7 +1648,7 @@
         "path": "/api/calendar/feed",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1532",
         "targetEvidence":
           [
@@ -2547,7 +2547,7 @@
         "flow": "calendar-feed",
         "owner": "packages/domain",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
         "targetEvidence":
           [
