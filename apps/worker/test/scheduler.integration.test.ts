@@ -242,6 +242,86 @@ describe("Organization scheduler", () => {
     ).toBeNull();
   });
 
+  it("forces due work through the manual scheduler route without advancing the hourly gate", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const createdAt = new Date(now - 1_000).toISOString();
+    const upcomingEventId = "88888888-8888-4888-8888-888888888888";
+    const pastEventId = "99999999-9999-4999-8999-999999999999";
+
+    const nextDueBefore = await runInDurableObject<OrganizationStore, string>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<Record<string, SqlStorageValue> & { nextDueAt: string }>(
+            "SELECT next_due_at AS nextDueAt FROM scheduler_state WHERE singleton = 1",
+          )
+          .one().nextDueAt,
+    );
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, call_time, location, created_at, updated_at)
+         VALUES (?, 'Manual upcoming rehearsal', 'Rehearsal', ?, '', 'Room 1', ?, ?)`,
+        upcomingEventId,
+        new Date(now + 6 * 60 * 60 * 1_000).toISOString(),
+        createdAt,
+        createdAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, call_time, location, created_at, updated_at)
+         VALUES (?, 'Manual past performance', 'Performance', ?, '', 'Room 1', ?, ?)`,
+        pastEventId,
+        new Date(now - 13 * 60 * 60 * 1_000).toISOString(),
+        createdAt,
+        createdAt,
+      );
+      return undefined;
+    });
+
+    const response = await stub.fetch("https://organization.internal/internal/scheduler/run-now", {
+      body: JSON.stringify({ force: true, organizationId: "organization-scheduler" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      enqueuedJobCount: 3,
+      organizationId: "organization-scheduler",
+    });
+
+    const jobs = await readAllOutboxJobs(stub);
+    expect(
+      jobs
+        .filter((job) => job.enqueuedAt !== null)
+        .map((job) => job.kind)
+        .sort(),
+    ).toEqual(["attendance_report", "event_reminder", "stale_checkout_cleanup"]);
+
+    const nextDueAfter = await runInDurableObject<OrganizationStore, string>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<Record<string, SqlStorageValue> & { nextDueAt: string }>(
+            "SELECT next_due_at AS nextDueAt FROM scheduler_state WHERE singleton = 1",
+          )
+          .one().nextDueAt,
+    );
+    expect(nextDueAfter).toBe(nextDueBefore);
+
+    const repeatResponse = await stub.fetch(
+      "https://organization.internal/internal/scheduler/run-now",
+      {
+        body: JSON.stringify({ force: true, organizationId: "organization-scheduler" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(repeatResponse.status).toBe(200);
+    await expect(repeatResponse.json()).resolves.toMatchObject({ enqueuedJobCount: 0 });
+    await expect(readAllOutboxJobs(stub)).resolves.toHaveLength(3);
+  });
+
   it("archives polls two days after expiration and separates archived listings", async () => {
     const stub = await provisionScheduler();
     const now = Date.now();

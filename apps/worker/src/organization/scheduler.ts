@@ -34,6 +34,10 @@ interface PollArchiveCandidateRow {
   readonly title: string;
 }
 
+export interface RunOrganizationAlarmOptions {
+  readonly force?: boolean;
+}
+
 function nextSchedulerDue(now: Date): string {
   return new Date(now.getTime() + SCHEDULER_INTERVAL_MS).toISOString();
 }
@@ -425,7 +429,12 @@ function archiveDuePolls(storage: DurableObjectStorage, organizationId: string, 
   });
 }
 
-function createDueJobs(storage: DurableObjectStorage, organizationId: string, now: Date): void {
+function createDueJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+  force: boolean,
+): void {
   storage.transactionSync(() => {
     const scheduler = storage.sql
       .exec<SchedulerStateRow>(
@@ -433,28 +442,34 @@ function createDueJobs(storage: DurableObjectStorage, organizationId: string, no
       )
       .toArray()
       .at(0);
-    if (!scheduler || new Date(scheduler.nextDueAt).getTime() > now.getTime()) {
+    if (!scheduler) {
       return;
     }
+    const schedulerDueAt = new Date(scheduler.nextDueAt);
+    if (!force && schedulerDueAt.getTime() > now.getTime()) return;
     const idempotencyKey = `scheduler:${organizationId}:stale_checkout_cleanup:${scheduler.nextDueAt}`;
+    const cleanupDueAt =
+      force && schedulerDueAt.getTime() > now.getTime() ? now.toISOString() : scheduler.nextDueAt;
     storage.sql.exec(
       `INSERT OR IGNORE INTO scheduled_job_outbox
         (job_id, kind, idempotency_key, due_at, created_at)
        VALUES (?, 'stale_checkout_cleanup', ?, ?, ?)`,
       crypto.randomUUID(),
       idempotencyKey,
-      scheduler.nextDueAt,
+      cleanupDueAt,
       now.toISOString(),
     );
     createTicketReminderJobs(storage, now);
     createEventReminderJobs(storage, organizationId, now);
     createRsvpFollowUpJobs(storage, organizationId, now);
     createPostEventReportJobs(storage, organizationId, now);
-    storage.sql.exec(
-      `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,
-      new Date(new Date(scheduler.nextDueAt).getTime() + SCHEDULER_INTERVAL_MS).toISOString(),
-      now.toISOString(),
-    );
+    if (schedulerDueAt.getTime() <= now.getTime()) {
+      storage.sql.exec(
+        `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,
+        new Date(schedulerDueAt.getTime() + SCHEDULER_INTERVAL_MS).toISOString(),
+        now.toISOString(),
+      );
+    }
   });
 }
 
@@ -495,6 +510,7 @@ export async function runOrganizationAlarm(
   storage: DurableObjectStorage,
   queue: Queue<DeliveryJob>,
   now = new Date(),
+  options: RunOrganizationAlarmOptions = {},
 ): Promise<{ readonly enqueuedJobCount: number; readonly organizationId: string | null }> {
   const organizationId = readOrganizationId(storage);
   if (!organizationId) {
@@ -503,7 +519,7 @@ export async function runOrganizationAlarm(
   }
   runRosterAutomations(storage, organizationId, now);
   archiveDuePolls(storage, organizationId, now);
-  createDueJobs(storage, organizationId, now);
+  createDueJobs(storage, organizationId, now, options.force === true);
   const pendingJobs = readPendingJobs(storage);
   if (pendingJobs.length === 0) {
     await scheduleNextAlarm(storage, now, false);

@@ -23,7 +23,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const response = await stub.fetch(
         "https://organization.internal/internal/scheduler/run-now",
         {
-          body: JSON.stringify({ organizationId: authorization.organizationId }),
+          body: JSON.stringify({ force: true, organizationId: authorization.organizationId }),
           headers: { "content-type": "application/json" },
           method: "POST",
         },

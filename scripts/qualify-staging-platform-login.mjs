@@ -7,6 +7,7 @@ const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsit
 );
 const organizationSlug = (process.env.STAGING_ORG_SLUG ?? "lcc").trim().toLowerCase();
 const email = (process.env.STAGING_AUTH_EMAIL ?? "cwosborn@gmail.com").trim().toLowerCase();
+const runMaintenance = process.env.STAGING_RUN_MAINTENANCE === "1";
 const productOrigin = new URL(productUrl).origin;
 
 if (!/^[a-z0-9-]+$/.test(organizationSlug)) {
@@ -154,8 +155,39 @@ async function main() {
       if (!passed) failures += 1;
     }
 
+    if (runMaintenance) {
+      const maintenance = await request(
+        `${organizationUrl}/api/platform/maintenance/run`,
+        "GET",
+        undefined,
+        cookie,
+      );
+      const maintenancePassed =
+        maintenance.status === 200 &&
+        maintenance.body?.success === true &&
+        typeof maintenance.body?.organizationId === "string" &&
+        Number.isInteger(maintenance.body?.enqueuedJobCount);
+      console.log(
+        `${maintenancePassed ? "PASS" : "FAIL"} staging maintenance (${organizationSlug})` +
+          (maintenancePassed
+            ? ` — ${String(maintenance.body.enqueuedJobCount)} job(s) enqueued`
+            : ""),
+      );
+      if (!maintenancePassed) failures += 1;
+
+      const productMaintenance = await request(
+        `${productUrl}/api/platform/maintenance/run`,
+        "GET",
+        undefined,
+        cookie,
+      );
+      const boundaryPassed = productMaintenance.status === 404;
+      console.log(`${boundaryPassed ? "PASS" : "FAIL"} product-host maintenance boundary`);
+      if (!boundaryPassed) failures += 1;
+    }
+
     console.log(
-      `\nPlatform staging evidence: ${String(probes.length - failures)} passed, ${String(failures)} failed; no maintenance, provisioning, queue retry, or provider action was invoked.`,
+      `\nPlatform staging evidence: ${String(probes.length + (runMaintenance ? 2 : 0) - failures)} passed, ${String(failures)} failed; no provisioning, queue retry, or provider action was invoked.`,
     );
     if (failures > 0) process.exitCode = 1;
   } finally {

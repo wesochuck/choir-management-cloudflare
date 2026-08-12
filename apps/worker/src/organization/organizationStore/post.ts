@@ -152,7 +152,12 @@ export async function dispatchPostRequest(
   }
   if (pathname === "/internal/scheduler/run-now") {
     const body: unknown = await request.json().catch(() => null);
-    const parsed = z.object({ organizationId: z.string().min(1).max(128) }).safeParse(body);
+    const parsed = z
+      .object({
+        force: z.boolean().optional(),
+        organizationId: z.string().min(1).max(128),
+      })
+      .safeParse(body);
     if (!parsed.success) {
       return Response.json({ code: "invalid_scheduler_request" }, { status: 400 });
     }
@@ -165,7 +170,9 @@ export async function dispatchPostRequest(
     if (identityRow?.organizationId !== parsed.data.organizationId) {
       return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
     }
-    const result = await runOrganizationAlarm(storage, queue);
+    const result = await runOrganizationAlarm(storage, queue, new Date(), {
+      force: parsed.data.force === true,
+    });
     return Response.json({ ...result, ranAt: new Date().toISOString() });
   }
   return dispatchOperationalPostRequest(storage, pathname, request);
