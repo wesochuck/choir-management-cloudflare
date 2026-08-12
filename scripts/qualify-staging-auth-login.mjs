@@ -49,12 +49,23 @@ if (!sessionCookie.includes("choir-management.session_token=")) {
   throw new Error("The sign-in response did not return a staging session cookie.");
 }
 
-const result = spawnSync("node", ["scripts/qualify-staging-auth.mjs"], {
-  env: {
-    ...process.env,
-    STAGING_AUTH_EMAIL: email,
-    STAGING_SESSION_COOKIE: sessionCookie,
-  },
+const qualificationEnvironment = {
+  ...process.env,
+  STAGING_AUTH_EMAIL: email,
+  STAGING_SESSION_COOKIE: sessionCookie,
+};
+
+const authQualification = spawnSync("node", ["scripts/qualify-staging-auth.mjs"], {
+  env: qualificationEnvironment,
   stdio: "inherit",
 });
-process.exitCode = result.status ?? 1;
+
+if ((authQualification.status ?? 1) !== 0) {
+  process.exitCode = authQualification.status ?? 1;
+} else {
+  const parityQualification = spawnSync("node", ["scripts/qualify-staging-evidence.mjs"], {
+    env: qualificationEnvironment,
+    stdio: "inherit",
+  });
+  process.exitCode = parityQualification.status ?? 1;
+}

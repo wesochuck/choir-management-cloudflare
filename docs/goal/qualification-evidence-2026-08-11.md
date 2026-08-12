@@ -5,13 +5,13 @@ a production launch.
 
 ## Current exact-release follow-up — August 12, 2026
 
-The local staging release for source commit `6c60a3990e25a53548ca3133329a1461c23be5ff`
-(`make local staging deployment the default`) was promoted as Worker version
-`913d2251-bf1b-4dbd-94e2-ac3c84fdfc35` in deployment `54777fb0-b48b-412e-b87a-a936bf176765` at 100%
+The local staging release for source commit `1a72f961c8422ed242adac98189de820fee52226`
+(`Allow staging auth email delivery to verified recipient`) was promoted as Worker version
+`47098ef8-a24b-4cd4-b1fc-78932fb506a6` in deployment `b83ced77-fc30-46ed-bc01-575994f4001e` at 100%
 traffic. The exact release passed all 13 local CI-mirror steps, 193 Workerd integration tests, and
 94 Chromium E2E tests.
-`STAGING_EXPECTED_VERSION=6c60a3990e25a53548ca3133329a1461c23be5ff npm run qualify:staging` passed
-all four direct Worker health/readiness probes.
+`STAGING_EXPECTED_VERSION=1a72f961c8422ed242adac98189de820fee52226 npm run qualify:staging` passed
+all four direct Worker health/readiness probes both during promotion and on a fresh follow-up.
 
 The release also passed the anonymous staging boundary sweep: 148 safe requests across both seeded
 Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. No D1 migration was
@@ -65,9 +65,16 @@ job/dead-letter behavior. This strengthens implementation evidence for the affec
 not a substitute for the remaining permanent-staging success, failure, and isolation observations.
 
 The user authorized `cwosborn@gmail.com` as an additional staging-only Platform email recipient. The
-source configuration now includes that address in both the application recipient allowlist and the
-Cloudflare Email Sending destination allowlist. The change is not yet promoted or counted as a
-successful delivery; a fresh staging deployment and OTP sign-in verification remain required.
+source configuration includes that address in both the application recipient allowlist and the
+Cloudflare Email Sending destination allowlist. After promotion, a fresh OTP was delivered and the
+authenticated staging qualification passed with 3 product reads and 74 Organization-host reads; the
+session identity matched the allowlisted recipient. The extended parity probe run was then added to
+the local login command so it can use the same ephemeral session without exposing a cookie, but it
+still awaits a fresh interactive OTP entry.
+
+The push-triggered GitHub Actions CI run `31568021282` failed before starting jobs because GitHub
+reported a failed recent payment or insufficient spending limit. It did not affect the successful
+local staging deployment, and the manual-only hosted staging workflow was not invoked.
 
 ## Historical exact-release and classification audit — August 11, 2026
 

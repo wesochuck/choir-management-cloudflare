@@ -11,14 +11,15 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 12, 2026
 
-Permanent staging currently serves source commit `6c60a3990e25a53548ca3133329a1461c23be5ff` as
-Worker version `913d2251-bf1b-4dbd-94e2-ac3c84fdfc35` in deployment
-`54777fb0-b48b-412e-b87a-a936bf176765` at 100% traffic. The release was built and verified locally
+Permanent staging currently serves source commit `1a72f961c8422ed242adac98189de820fee52226` as
+Worker version `47098ef8-a24b-4cd4-b1fc-78932fb506a6` in deployment
+`b83ced77-fc30-46ed-bc01-575994f4001e` at 100% traffic. The release was built and verified locally
 after hosted Actions credit was exhausted. It passed all 13 local CI-mirror steps, 193 Workerd
 integration tests, 94 Chromium E2E tests, six exact-version API probes, and the 148-request
-anonymous Organization-boundary sweep. No control-plane migration was pending. Version-external
-routes, schedules, queues, and Workflows were synchronized before promotion. The prior Worker
-version `e0348b56-3791-460a-bb5b-32828f7ae519` remains the known-good rollback target.
+anonymous Organization-boundary sweep. A fresh exact-version qualification also passed after
+promotion. No control-plane migration was pending. Version-external routes, schedules, queues, and
+Workflows were synchronized before promotion. The prior Worker version
+`913d2251-bf1b-4dbd-94e2-ac3c84fdfc35` remains the known-good rollback target.
 
 The repository now defines the guarded local command `npm run deploy:staging -- --yes` as the
 default permanent-staging path. It refuses dirty, non-`main`, or unpushed checkouts; runs the
@@ -31,9 +32,16 @@ out of scope.
 
 The user authorized `cwosborn@gmail.com` as an additional staging-only Platform email recipient. The
 address is now present alongside the synthetic test identity in both the application recipient
-allowlist and the Cloudflare Email Sending destination allowlist. This configuration change still
-requires the release deployment and a fresh OTP delivery/sign-in verification; production remains
-unchanged.
+allowlist and the Cloudflare Email Sending destination allowlist. After promotion, a fresh email OTP
+was delivered and the authenticated qualification completed successfully: 3 product reads and 74
+Organization-host reads, with session identity confirmed as the allowlisted recipient. The extended
+parity probe run uses the same ephemeral session but still requires a fresh interactive OTP entry;
+production remains unchanged.
+
+The push also triggered GitHub Actions CI run `31568021282`, but GitHub did not start its jobs
+because the account reported failed recent payments or an insufficient spending limit. This is
+separate from the successful local release path; the manual-only hosted staging workflow did not
+deploy this commit.
 
 ## Historical exact-release and classification audit — August 11, 2026
 
