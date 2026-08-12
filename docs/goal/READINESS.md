@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-174 are `verified` and 31 are `implemented`. Per the matrix definitions, `implemented` means that
+175 are `verified` and 30 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -124,7 +124,17 @@ queue replay, provider, or external-effect entries without focused success and f
 
 The focused local Platform authorization, scheduler, and job/dead-letter integration follow-up
 passed 21 tests. This strengthens local implementation evidence only; the deployed maintenance
-success path, queue replay, and scheduled external-effect behavior remain unverified.
+success path, queue replay, and scheduled external-effect behavior remained unverified at the time
+of that read-only pass.
+
+After explicit authorization, the staging maintenance route was invoked on the canonical LCC host.
+It returned `success: true` for Organization `d791f9f6-17d9-4e62-84ca-65ee905c47e5`, with
+`enqueuedJobCount: 0` and a recorded run time. The same route on the product host correctly returned
+the registered-canonical-host 404 boundary and did not run maintenance. Follow-up product health and
+readiness returned HTTP 200 for the expected release (`1a72f961c8422ed242adac98189de820fee52226`),
+and `STAGING_EXPECTED_VERSION=1a72f961c8422ed242adac98189de820fee52226 npm run qualify:staging`
+passed all four probes. This promotes `api.maintenance`; queue replay and scheduled external-effect
+task entries remain unverified because no jobs were available to execute.
 
 The same authenticated LCC session exercised the public audition signup flow with a synthetic,
 non-deliverable inquiry. The public form loaded the LCC audition details, accepted the required

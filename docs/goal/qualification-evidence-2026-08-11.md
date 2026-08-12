@@ -78,7 +78,17 @@ external-effect entries.
 
 The focused local Platform authorization, scheduler, and job/dead-letter integration follow-up
 passed 21 tests. This strengthens local implementation evidence only; the deployed maintenance
-success path, queue replay, and scheduled external-effect behavior remain unverified.
+success path, queue replay, and scheduled external-effect behavior remained unverified at the time
+of that read-only pass.
+
+After explicit authorization, the staging maintenance route was invoked on the canonical LCC host.
+It returned `success: true` for Organization `d791f9f6-17d9-4e62-84ca-65ee905c47e5`, with
+`enqueuedJobCount: 0` and a recorded run time. The same route on the product host correctly returned
+the registered-canonical-host 404 boundary and did not run maintenance. Follow-up product health and
+readiness returned HTTP 200 for the expected release (`1a72f961c8422ed242adac98189de820fee52226`),
+and `STAGING_EXPECTED_VERSION=1a72f961c8422ed242adac98189de820fee52226 npm run qualify:staging`
+passed all four probes. This promotes `api.maintenance`; queue replay and scheduled external-effect
+task entries remain unverified because no jobs were available to execute.
 
 The corresponding local contract follow-up passed four focused Workerd integration files with 19
 tests: Platform authorization/queue controls, reconciliation reporting, ticketing maintenance, and

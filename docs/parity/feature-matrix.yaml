@@ -1709,7 +1709,7 @@
         "path": "/api/platform/maintenance/run",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1542",
         "targetEvidence":
           [
