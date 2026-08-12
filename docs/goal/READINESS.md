@@ -29,6 +29,11 @@ an invalid token. The corresponding local public RSVP and audition integration s
 tests after a clean web build. These are signed-link failure and boundary observations only; the
 valid signed RSVP/audition success paths still require a fresh authenticated staging session.
 
+A fresh public-health scale smoke issued 250 concurrent read-only requests against the same release;
+all 250 returned HTTP 200. Aggregate latency was 546 ms p50, 824 ms p95, 962 ms p99, and 983 ms
+maximum over a 1,033 ms wall-clock run. This is public health-endpoint evidence only and does not
+replace the planned authenticated/data-envelope, queue, workflow, or tenant-isolation scale tests.
+
 The repository now defines the guarded local command `npm run deploy:staging -- --yes` as the
 default permanent-staging path. It refuses dirty, non-`main`, or unpushed checkouts; runs the
 complete local release gate; creates and verifies one temporary immutable artifact; captures

@@ -28,6 +28,11 @@ public RSVP and audition integration suites passed 29 tests after a clean web bu
 observations verify controlled signed-link failure and boundary behavior only; valid signed RSVP and
 audition success paths remain pending a fresh authenticated staging session.
 
+A fresh public-health scale smoke issued 250 concurrent read-only requests against the same release;
+all 250 returned HTTP 200. Aggregate latency was 546 ms p50, 824 ms p95, 962 ms p99, and 983 ms
+maximum over a 1,033 ms wall-clock run. This is public health-endpoint evidence only and does not
+replace the planned authenticated/data-envelope, queue, workflow, or tenant-isolation scale tests.
+
 Using the authenticated Organization Admin session against the same release, the LCC Roster surface
 filtered the 94-profile roster to exactly 12 Alto 2 profiles when the `A2 12` balance control was
 selected. The profile editor exposed organization-scoped profile fields, status management,
