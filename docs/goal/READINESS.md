@@ -103,21 +103,28 @@ reported `Platform access is ready` with the bounded 15-minute session, and the 
 loaded successfully from the Platform workspace. No factor, session cookie, or credential was copied
 into the repository or recorded here.
 
-Read-only Platform overview checks showed build `6c60a3990e25a53548ca3133329a1461c23be5ff`, two
-Organizations, configured startup/runtime checks, responsive control-plane access, completed
-Platform MFA enrollment, sandbox email delivery, and Organization schema version 68 with preparation
-complete. The platform monitor reported eight background jobs requiring review and Stripe as
-unavailable because provider credentials are intentionally not configured for this staging pass.
+Read-only Platform overview checks on the current release showed build
+`1a72f961c8422ed242adac98189de820fee52226`, two Organizations, configured startup/runtime checks,
+responsive control-plane access, completed Platform MFA enrollment, sandbox email delivery, and
+Organization schema version 68 with preparation complete. The platform monitor reported eight
+background jobs requiring review and Stripe as unavailable because provider credentials are
+intentionally not configured for this staging pass.
 
 The Organization directory showed Lancaster Men's Chorus and Lancaster Community Chorus as Ready,
 each on its canonical staging host, with no schema-preparation action required. The scoped-access
 route correctly showed that access is available only after an Organization host is selected; no
-scoped elevation or Organization mutation was invoked. Queue dead letters and global email
-suppression records loaded with their read-only filters and action controls; Refresh, Retry,
-Dismiss, Release block, provisioning, and provider actions were not invoked. These observations
-remove the fresh-factor blocker for the Platform UI surfaces but do not promote the remaining
-Platform API, queue replay, provider, or external-effect entries without focused success and failure
-evidence.
+scoped elevation or Organization mutation was invoked. Queue DLQ all-records filtering showed six
+`audition_notification` and two `attendance_report` records, with the existing retry/dismiss
+controls visible; one record showed a previously queued retry. Email provider-event all-records
+filtering showed one normalized bounce and no email-feedback dead letters requiring review. Global
+suppression all-records filtering showed one active release-block control. Refresh, Retry, Dismiss,
+Release block, provisioning, and provider actions were not invoked. These observations remove the
+fresh-factor blocker for the Platform UI surfaces but do not promote the remaining Platform API,
+queue replay, provider, or external-effect entries without focused success and failure evidence.
+
+The focused local Platform authorization, scheduler, and job/dead-letter integration follow-up
+passed 21 tests. This strengthens local implementation evidence only; the deployed maintenance
+success path, queue replay, and scheduled external-effect behavior remain unverified.
 
 The same authenticated LCC session exercised the public audition signup flow with a synthetic,
 non-deliverable inquiry. The public form loaded the LCC audition details, accepted the required

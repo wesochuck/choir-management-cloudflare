@@ -62,15 +62,23 @@ behavior remain unverified.
 
 The user then entered a fresh Platform Administrator TOTP in the visible staging Security page. The
 page reported `Platform access is ready` for the bounded 15-minute session. Read-only Platform
-overview checks showed build `6c60a3990e25a53548ca3133329a1461c23be5ff`, two Organizations, the
-configured startup/control-plane/MFA/sandbox-email checks, Organization schema version 68 with
-preparation complete, eight background jobs requiring review, and Stripe intentionally unavailable
-without staging provider credentials. The Organization directory showed both seeded Organizations as
-Ready, and the scoped-access route showed its expected host-selection boundary. Queue dead letters
-and global email suppressions loaded with their filters and action controls; no provisioning, scoped
-elevation, Retry, Dismiss, Release block, or provider action was invoked. This removes the
-fresh-factor observation blocker for Platform UI inspection but does not promote the remaining
-Platform API, queue-replay, provider, or external-effect entries.
+overview checks on the current release showed build `1a72f961c8422ed242adac98189de820fee52226`, two
+Organizations, the configured startup/control-plane/MFA/sandbox-email checks, Organization schema
+version 68 with preparation complete, eight background jobs requiring review, and Stripe
+intentionally unavailable without staging provider credentials. The Organization directory showed
+both seeded Organizations as Ready, and the product-host scoped-access route showed its expected
+host-selection boundary. Queue DLQ all-records filtering showed six `audition_notification` and two
+`attendance_report` records, with the existing retry/dismiss controls visible; one record showed a
+previously queued retry. Email provider-event all-records filtering showed one normalized bounce and
+no email-feedback dead letters requiring review. Global suppression all-records filtering showed one
+active release-block control. No provisioning, scoped elevation, Retry, Dismiss, Release block, or
+provider action was invoked. This removes the fresh-factor observation blocker for Platform UI
+inspection but does not promote the remaining Platform API, queue-replay, provider, or
+external-effect entries.
+
+The focused local Platform authorization, scheduler, and job/dead-letter integration follow-up
+passed 21 tests. This strengthens local implementation evidence only; the deployed maintenance
+success path, queue replay, and scheduled external-effect behavior remain unverified.
 
 The corresponding local contract follow-up passed four focused Workerd integration files with 19
 tests: Platform authorization/queue controls, reconciliation reporting, ticketing maintenance, and
