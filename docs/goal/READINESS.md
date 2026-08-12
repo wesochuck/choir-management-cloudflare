@@ -147,9 +147,8 @@ failure.
 
 The fresh local CI mirror for source commit `05da0d92b6028608b0eb34b2bb2e06f800e05266` passed all 13
 static, contracts, unit, build-release, and Workerd integration steps: 210 unit tests and 193
-integration tests passed, and the release manifest was created and verified. Browser E2E was not
-rerun for this documentation-only batch; the preceding exact runtime qualification recorded 94
-Chromium E2E passes.
+integration tests passed, and the release manifest was created and verified. A fresh Chromium run
+against the same repository passed all 94 desktop/mobile E2E tests.
 
 ## Latest provider-independent file qualification — August 11, 2026
 
