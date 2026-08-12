@@ -90,6 +90,16 @@ passed with HTTP 200 and their expected response shapes; the reconciliation repo
 `lcc`. No maintenance, provisioning, queue retry, or provider action was invoked. These three
 entries are promoted from `implemented` to `verified`.
 
+The authenticated LCC session then created one temporary rehearsal linked to the existing `test`
+Performance. With a temporary voice part and parent RSVP of Yes, the member dashboard showed the
+Rehearsal as Attending with its RSVP controls disabled and the parent-performance explanation.
+Declining the parent removed the linked Rehearsal from the dashboard; attending again restored it.
+The linked member's attendance also persisted through Pending, Present, Absent, and Pending in the
+Attendance manager. The member's original no-part/declined state was restored and the temporary
+Rehearsal was archived. This supports `workflow.rsvp-attendance` and `workflow.rehearsal-parent` but
+does not promote either entry: scheduler/reminder execution, complete finalization, and the
+remaining authorization/isolation evidence are still required.
+
 The push-triggered GitHub Actions CI run `31568021282` failed before starting jobs because GitHub
 reported a failed recent payment or insufficient spending limit. It did not affect the successful
 local staging deployment, and the manual-only hosted staging workflow was not invoked.

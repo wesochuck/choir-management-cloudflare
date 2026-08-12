@@ -39,6 +39,14 @@ ephemeral session then passed 11 safe parity probes (10 typed validation respons
 deliberate Stripe fail-closed response) with 14 fixture/elevation probes skipped. Production remains
 unchanged.
 
+The same authenticated LCC session created and then cleaned up one temporary rehearsal linked to the
+existing `test` Performance. With a temporary voice part and parent RSVP of Yes, the rehearsal was
+shown as Attending with inherited RSVP controls; declining the parent hid it and attending again
+restored it. Attendance persisted through Pending, Present, Absent, and Pending. The member was
+returned to its original no-part/declined state and the temporary rehearsal was archived. This is
+supporting evidence for `workflow.rsvp-attendance` and `workflow.rehearsal-parent`, not a promotion;
+scheduler/reminder execution and the remaining finalization/isolation evidence are still open.
+
 The push also triggered GitHub Actions CI run `31568021282`, but GitHub did not start its jobs
 because the account reported failed recent payments or an insufficient spending limit. This is
 separate from the successful local release path; the manual-only hosted staging workflow did not
