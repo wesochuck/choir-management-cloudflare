@@ -1,14 +1,8 @@
 name: Deploy staging
 
-run-name:
-  Staging release ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha ||
-  inputs.release_sha }}
+run-name: Staging release ${{ inputs.release_sha }}
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       ci_run_id:
@@ -30,22 +24,13 @@ concurrency:
 
 jobs:
   deploy:
-    if: >-
-      ${{
-        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-      ||
-        (github.event_name == 'workflow_dispatch' && inputs.ci_run_id != '' && inputs.release_sha !=
-      '') }}
+    if: ${{ inputs.ci_run_id != '' && inputs.release_sha != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: staging
     env:
-      RELEASE_SHA:
-        ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha ||
-        inputs.release_sha }}
-      CI_RUN_ID:
-        ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.ci_run_id
-        }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      CI_RUN_ID: ${{ inputs.ci_run_id }}
     steps:
       - name: Check out the CI-qualified commit
         uses: actions/checkout@v7
@@ -242,6 +227,6 @@ jobs:
         run: |
           echo "Commit: $RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"
           echo "Lockfile: $(sha256sum package-lock.json | cut -d ' ' -f 1)" >> "$GITHUB_STEP_SUMMARY"
-          echo "CI run: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.html_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.ci_run_id) }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "CI run: https://github.com/${{ github.repository }}/actions/runs/${{ inputs.ci_run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Worker version: ${{ steps.upload.outputs.version_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "URL: https://staging.musicsite.org" >> "$GITHUB_STEP_SUMMARY"

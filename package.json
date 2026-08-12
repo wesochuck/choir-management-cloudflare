@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "choir-deploy-staging": "scripts/deploy-staging-local.mjs"
+  },
   "engines": {
     "node": ">=22.12.0"
   },
@@ -19,6 +22,7 @@
     "check:parity:implementation": "node scripts/audit-parity-implementation.mjs",
     "check:contracts:exports": "node scripts/check-contract-exports.mjs",
     "check:parity": "node scripts/check-parity-matrix.mjs",
+    "deploy:staging": "node scripts/deploy-staging-local.mjs",
     "qualify:staging": "node scripts/qualify-staging.mjs",
     "qualify:staging:auth": "node scripts/qualify-staging-auth.mjs",
     "qualify:staging:auth:login": "node scripts/qualify-staging-auth-login.mjs",

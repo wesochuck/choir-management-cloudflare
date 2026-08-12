@@ -9,6 +9,28 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
+## Current staging release and deployment path — August 12, 2026
+
+Permanent staging currently serves source commit `0661a29443e9f25fa51e6cfb6381338e0d1e59d8` as
+Worker version `e0348b56-3791-460a-bb5b-32828f7ae519` in deployment
+`6b11ac2d-7e47-457e-b467-46f791d13b45` at 100% traffic. The release reused and verified the exact
+immutable artifact built by hosted CI run `31548770535`; every substantive hosted job had passed,
+while the final aggregator could not start because the account had exhausted hosted Actions credit.
+The same commit then passed all 13 local CI-mirror steps, 193 Workerd integration tests, 94 Chromium
+E2E tests, six exact-version API probes, and the 148-request anonymous Organization-boundary sweep.
+No control-plane migration was pending. Version-external routes, schedules, queues, and Workflows
+were synchronized before promotion. The prior Worker version `c40f3058-ca55-446d-a794-12c7741be5be`
+remains the known-good rollback target.
+
+The repository now defines the guarded local command `npm run deploy:staging -- --yes` as the
+default permanent-staging path. It refuses dirty, non-`main`, or unpushed checkouts; runs the
+complete local release gate; creates and verifies one temporary immutable artifact; captures
+rollback state; uses `wrangler versions upload` and `wrangler versions deploy`; qualifies the exact
+release; and automatically restores the previous Worker version after a real qualification failure.
+The hosted `Deploy staging` workflow is manual-only and remains an optional secondary path for a
+successful CI artifact. See `docs/runbooks/staging-deployment.md`. Production remains unchanged and
+out of scope.
+
 ## Current exact-release and classification audit — August 11, 2026
 
 The latest exact runtime release recorded here is `0d4d9e7253e2e9d0363dd472d0d33efd63760845`

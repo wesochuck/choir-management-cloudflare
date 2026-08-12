@@ -150,9 +150,14 @@ Before finishing a material or release-bound change, report:
 - Local and preview environments must not send real messages or create real charges.
 - Staging uses isolated resources and secrets. Store developer credentials in supported keyrings and
   deployed secrets in Worker or GitHub environment secret stores, never tracked files.
-- CI builds one immutable release artifact containing commit, lockfile, Worker bundle, and web asset
-  hashes. Promotion must download and verify that artifact; do not rebuild it or use direct
-  `wrangler deploy` in a promotion workflow.
+- The default permanent-staging release path is the guarded local command
+  `npm run deploy:staging -- --yes`. It must run from a clean `main` checkout that exactly matches
+  `origin/main`, execute the complete local release gate, create and verify one immutable artifact
+  containing commit, lockfile, Worker bundle, and web asset hashes, and retain the prior Worker
+  Version for rollback. Follow `docs/runbooks/staging-deployment.md`.
+- The GitHub staging workflow is an optional manual-only secondary path. It must download and verify
+  the immutable artifact produced by the specified successful CI run; it may not rebuild that
+  artifact. Neither release path may use direct `wrangler deploy` for promotion.
 - Promote with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
   non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly and keep them
   backward compatible with the previously deployed Worker Version.
