@@ -1,6 +1,16 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
+import {
+  formatQualificationSummary,
+  qualificationSnapshot,
+  qualificationSnapshotsMatch,
+  selectQualificationEvents,
+  summarizeCommunicationMessages,
+  summarizeDeliverySummary,
+  summarizeScheduledMessages,
+} from "./staging-qualification-inspection.mjs";
+
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
   "",
@@ -8,6 +18,12 @@ const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsit
 const organizationSlug = (process.env.STAGING_ORG_SLUG ?? "lcc").trim().toLowerCase();
 const email = (process.env.STAGING_AUTH_EMAIL ?? "cwosborn@gmail.com").trim().toLowerCase();
 const runMaintenance = process.env.STAGING_RUN_MAINTENANCE === "1";
+const inspectQualification = process.env.STAGING_INSPECT_QUALIFICATION === "1";
+const repeatMaintenance = process.env.STAGING_REPEAT_MAINTENANCE === "1";
+const planOnly = process.argv.includes("--plan-only");
+const qualificationTitlePrefix = (process.env.STAGING_QUALIFICATION_TITLE_PREFIX ?? "QUAL-").trim();
+const inspectionAttempts = 10;
+const inspectionDelayMs = 2_000;
 const productOrigin = new URL(productUrl).origin;
 
 if (!/^[a-z0-9-]+$/.test(organizationSlug)) {
@@ -45,6 +61,10 @@ async function prompt(readline, message) {
   return (await readline.question(message)).trim();
 }
 
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function sessionCookieFrom(response) {
   const setCookies =
     typeof response.headers.getSetCookie === "function"
@@ -54,6 +74,96 @@ function sessionCookieFrom(response) {
     .map((cookie) => cookie.split(";", 1)[0])
     .filter(Boolean)
     .join("; ");
+}
+
+async function inspectQualificationState(cookie) {
+  const events = await request(
+    `${organizationUrl}/api/organization/events`,
+    "GET",
+    undefined,
+    cookie,
+  );
+  if (events.status !== 200 || !Array.isArray(events.body?.events)) {
+    throw new Error(`Qualification event inspection failed with HTTP ${String(events.status)}.`);
+  }
+  const qualificationEvents = selectQualificationEvents(
+    events.body.events,
+    qualificationTitlePrefix,
+  );
+  if (qualificationEvents.length === 0) {
+    throw new Error(`No events matched qualification prefix ${qualificationTitlePrefix}.`);
+  }
+  const eventIds = qualificationEvents.map((event) => event.id);
+
+  let latest = null;
+  for (let attempt = 0; attempt < inspectionAttempts; attempt += 1) {
+    const [scheduled, communications] = await Promise.all([
+      request(
+        `${organizationUrl}/api/organization/communications/scheduled`,
+        "GET",
+        undefined,
+        cookie,
+      ),
+      request(`${organizationUrl}/api/organization/communications`, "GET", undefined, cookie),
+    ]);
+    if (
+      scheduled.status !== 200 ||
+      !Array.isArray(scheduled.body?.messages) ||
+      communications.status !== 200 ||
+      !Array.isArray(communications.body?.messages)
+    ) {
+      throw new Error(
+        `Qualification communication inspection failed with HTTP ${String(scheduled.status)}/${String(communications.status)}.`,
+      );
+    }
+
+    const scheduledSummary = summarizeScheduledMessages(scheduled.body.messages, eventIds);
+    const communicationSummary = summarizeCommunicationMessages(
+      communications.body.messages,
+      eventIds,
+    );
+    const deliveries = [];
+    for (const message of communicationSummary.rows) {
+      const delivery = await request(
+        `${organizationUrl}/api/organization/communications/${encodeURIComponent(message.id)}/delivery-summary`,
+        "GET",
+        undefined,
+        cookie,
+      );
+      if (delivery.status !== 200) {
+        throw new Error(
+          `Qualification delivery inspection failed with HTTP ${String(delivery.status)}.`,
+        );
+      }
+      deliveries.push({
+        messageId: message.id,
+        status: message.status,
+        summary: summarizeDeliverySummary(delivery.body),
+      });
+    }
+    latest = {
+      communications: communicationSummary,
+      deliveries,
+      events: qualificationEvents,
+      scheduled: scheduledSummary,
+    };
+    const terminal = scheduledSummary.rows.every((row) => ["Failed", "Sent"].includes(row.status));
+    if (scheduledSummary.total > 0 && terminal) break;
+    if (attempt < inspectionAttempts - 1) await sleep(inspectionDelayMs);
+  }
+
+  if (latest === null || latest.scheduled.total === 0) {
+    throw new Error(
+      "No qualification-owned scheduled messages were observed before the polling limit.",
+    );
+  }
+  return latest;
+}
+
+function printQualificationInspection(label, state) {
+  const snapshot = qualificationSnapshot(state.scheduled, state.communications, state.deliveries);
+  console.log(`PASS ${label}: ${formatQualificationSummary({ ...snapshot, ...state })}`);
+  return snapshot;
 }
 
 async function signIn(readline) {
@@ -92,6 +202,16 @@ async function signIn(readline) {
 }
 
 async function main() {
+  if (planOnly) {
+    console.log("Scheduler qualification inspection plan (no network calls made):");
+    console.log("- authenticate interactively in memory");
+    console.log("- read canonical Organization events and communication status");
+    console.log("- redact message bodies, subjects, destinations, tokens, and cookies");
+    console.log(
+      "- optionally repeat the already-authorized maintenance route and compare stable row keys",
+    );
+    return;
+  }
   const readline = createInterface({ input, output });
   try {
     const cookie = await signIn(readline);
@@ -174,6 +294,49 @@ async function main() {
             : ""),
       );
       if (!maintenancePassed) failures += 1;
+
+      if (inspectQualification && maintenancePassed) {
+        try {
+          const beforeRepeat = await inspectQualificationState(cookie);
+          const firstSnapshot = printQualificationInspection(
+            "qualification scheduler inspection",
+            beforeRepeat,
+          );
+
+          if (repeatMaintenance) {
+            const repeated = await request(
+              `${organizationUrl}/api/platform/maintenance/run`,
+              "GET",
+              undefined,
+              cookie,
+            );
+            const repeatPassed =
+              repeated.status === 200 &&
+              repeated.body?.success === true &&
+              repeated.body?.enqueuedJobCount === 0;
+            console.log(
+              `${repeatPassed ? "PASS" : "FAIL"} qualification maintenance replay — ${repeatPassed ? "0 jobs enqueued" : `HTTP ${String(repeated.status)}`}`,
+            );
+            if (!repeatPassed) failures += 1;
+
+            if (repeatPassed) {
+              const afterRepeat = await inspectQualificationState(cookie);
+              const secondSnapshot = printQualificationInspection(
+                "qualification scheduler replay inspection",
+                afterRepeat,
+              );
+              const idempotent = qualificationSnapshotsMatch(firstSnapshot, secondSnapshot);
+              console.log(`${idempotent ? "PASS" : "FAIL"} qualification scheduler idempotency`);
+              if (!idempotent) failures += 1;
+            }
+          }
+        } catch (error) {
+          console.log(
+            `FAIL qualification scheduler inspection — ${error instanceof Error ? error.message : "unexpected inspection error"}`,
+          );
+          failures += 1;
+        }
+      }
 
       const productMaintenance = await request(
         `${productUrl}/api/platform/maintenance/run`,

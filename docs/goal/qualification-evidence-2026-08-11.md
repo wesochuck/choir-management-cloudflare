@@ -3,6 +3,20 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
+## Current next-batch scheduler qualification — August 12, 2026
+
+Source commit `bffdd196be2a5bcf39b2ff780a19224acaf4e071` was promoted to permanent staging as Worker
+version `62011b18-53df-4d12-83d4-0869d17faaf1` at 100% traffic. The exact release passed the local
+13-step CI mirror, 195 Workerd integration tests, 94 Chromium E2E tests, the six exact-version API
+probes, and the 148-request anonymous Organization boundary sweep. No migration was pending.
+
+With explicit Platform Administrator authorization, the guarded maintenance check on the canonical
+LCC host returned success and enqueued 3 jobs. The same request on the product host returned the
+expected registered-canonical-host boundary. The maintenance result is evidence of controlled
+fixture discovery and enqueueing only. Queue consumption, communication-ledger effects, replay
+idempotency, and qualification-owned terminal failure behavior remain open; no existing unrelated
+dead letter was retried or dismissed.
+
 ## Current exact-release follow-up — August 12, 2026
 
 The local staging release for source commit `1a72f961c8422ed242adac98189de820fee52226`

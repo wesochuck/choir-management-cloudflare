@@ -211,6 +211,7 @@ describe("Private Organization files", () => {
     expect(downloadResponse.headers.get("content-disposition")).toContain(
       "alpha.localhost-notes.txt",
     );
+    expect(downloadResponse.headers.get("cache-control")).toBe("no-store");
 
     const anonymousResponse = await exports.default.fetch(
       apiRequest("alpha.localhost", `/api/organization/files/${fileId}`),

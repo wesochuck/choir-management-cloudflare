@@ -20,7 +20,7 @@ promote a parity entry from local tests alone.
 The authoritative starting point is the current checkout, not the counts in older dated evidence. At
 preparation time the parity matrix has 205 entries: 175 `verified` and 30 `implemented`.
 `api.maintenance` is already verified. The current deployed runtime is source commit
-`1a72f961c8422ed242adac98189de820fee52226`; confirm this before relying on it.
+`bffdd196be2a5bcf39b2ff780a19224acaf4e071`; confirm this before relying on it.
 
 ## Required constraints
 
@@ -50,7 +50,7 @@ preparation time the parity matrix has 205 entries: 175 `verified` and 30 `imple
    ```bash
    npm run check:parity
    npm run check:parity:implementation
-   STAGING_EXPECTED_VERSION=1a72f961c8422ed242adac98189de820fee52226 npm run qualify:staging
+   STAGING_EXPECTED_VERSION=bffdd196be2a5bcf39b2ff780a19224acaf4e071 npm run qualify:staging
    ```
 
 3. Confirm product health and readiness return HTTP 200.
@@ -318,7 +318,7 @@ Do not delete audit evidence or directly edit control-plane/Organization storage
 Run:
 
 ```bash
-STAGING_EXPECTED_VERSION=1a72f961c8422ed242adac98189de820fee52226 npm run qualify:staging
+STAGING_EXPECTED_VERSION=bffdd196be2a5bcf39b2ff780a19224acaf4e071 npm run qualify:staging
 npm run check:parity
 npm run check:parity:implementation
 ```

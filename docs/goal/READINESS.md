@@ -11,15 +11,21 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 12, 2026
 
-Permanent staging currently serves source commit `1a72f961c8422ed242adac98189de820fee52226` as
-Worker version `47098ef8-a24b-4cd4-b1fc-78932fb506a6` in deployment
-`b83ced77-fc30-46ed-bc01-575994f4001e` at 100% traffic. The release was built and verified locally
-after hosted Actions credit was exhausted. It passed all 13 local CI-mirror steps, 193 Workerd
-integration tests, 94 Chromium E2E tests, six exact-version API probes, and the 148-request
-anonymous Organization-boundary sweep. A fresh exact-version qualification also passed after
-promotion. No control-plane migration was pending. Version-external routes, schedules, queues, and
-Workflows were synchronized before promotion. The prior Worker version
-`913d2251-bf1b-4dbd-94e2-ac3c84fdfc35` remains the known-good rollback target.
+Permanent staging currently serves source commit `bffdd196be2a5bcf39b2ff780a19224acaf4e071` as
+Worker version `62011b18-53df-4d12-83d4-0869d17faaf1` at 100% traffic. The release was built and
+verified locally after hosted Actions credit was exhausted. It passed all 13 local CI-mirror steps,
+195 Workerd integration tests, 94 Chromium E2E tests, six exact-version API probes, and the
+148-request anonymous Organization-boundary sweep. No control-plane migration was pending.
+Version-external routes, schedules, queues, and Workflows were synchronized before promotion. The
+prior Worker version `94ba2f27-ea6e-4fc3-944b-9ba22d8cf587` remains the known-good rollback target.
+
+The controlled scheduler follow-up then ran on the canonical LCC Organization host with a fresh
+Platform Administrator session. It returned `success: true` and enqueued 3 jobs; the corresponding
+product-host maintenance request retained the registered-canonical-host 404 boundary. This proves
+fixture discovery and maintenance enqueueing for the current release, but does not yet promote
+`task.message-queue`, `task.event-reminder`, `task.post-event-report`, or `task.cleanup`: queue
+consumer completion, exactly-once delivery/ledger effects, and qualification-owned failure handling
+still require isolated recipient fixtures and bounded post-run inspection.
 
 A fresh continuation check against that exact release passed the four direct Worker probes and a new
 148-request anonymous boundary sweep with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. The
