@@ -2229,7 +2229,7 @@ committing.
 
 The following work remains before the goal contract can be marked complete:
 
-1. Qualify the 35 parity entries that remain `implemented`, including the remaining API families,
+1. Qualify the 31 parity entries that remain `implemented`, including the remaining API families,
    signed-link flows, file behaviors, record hooks, background tasks, and domain workflows. Promote
    entries to `verified` only after successful and failure-path evidence is captured.
 2. Supply isolated Stripe Connect test credentials and a signed webhook secret, then qualify
