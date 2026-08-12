@@ -132,6 +132,13 @@ submitted. There is no public roster deletion control; the temporary profile rem
 hidden in staging. This supports `workflow.roster` but does not promote it until import and the
 remaining full CRUD/cleanup and isolation evidence are exercised.
 
+The Roster automation tab loaded its status, On Break, RSVP-expiry, and follow-up controls plus the
+live Profile preview. Selecting the temporary manually managed Profile showed `Inactive → Inactive`
+with no automatic transition due. A temporary threshold edit displayed the floating unsaved-change
+bar, and Discard restored the saved value without changing staging. This is supporting UI evidence
+for `workflow.roster-status-automation`; scheduled runner execution and status-history transitions
+remain unverified in permanent staging.
+
 ## Latest provider-independent file qualification — August 11, 2026
 
 The latest provider-independent evidence batch was exercised against source commit

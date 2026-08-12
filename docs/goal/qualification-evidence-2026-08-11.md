@@ -116,6 +116,13 @@ submitted. No public roster deletion control exists; the temporary profile remai
 hidden in staging. This is supporting evidence for `workflow.roster`, not a promotion; import,
 remaining full CRUD/cleanup, and isolation evidence are still required.
 
+The Roster automation tab loaded its status, On Break, RSVP-expiry, and follow-up controls plus the
+live Profile preview. Selecting the temporary manually managed Profile showed `Inactive → Inactive`
+with no automatic transition due. A temporary threshold edit displayed the floating unsaved-change
+bar, and Discard restored the saved value without changing staging. This supports
+`workflow.roster-status-automation` UI evidence only; scheduled runner execution and status-history
+transitions remain unverified in permanent staging.
+
 The authenticated LCC session then created one temporary rehearsal linked to the existing `test`
 Performance. With a temporary voice part and parent RSVP of Yes, the member dashboard showed the
 Rehearsal as Attending with its RSVP controls disabled and the parent-performance explanation.
