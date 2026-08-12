@@ -53,12 +53,14 @@ function hostFor(row, organizationSlug = organizationSlugs[0]) {
 
 async function request(url, method, cookie) {
   try {
+    const origin = new URL(url).origin;
     const response = await fetch(url, {
       headers: {
         accept: "application/json",
         "cache-control": "no-cache",
         ...(cookie ? { cookie } : {}),
         "content-type": "application/json",
+        origin,
         "user-agent":
           "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
       },
