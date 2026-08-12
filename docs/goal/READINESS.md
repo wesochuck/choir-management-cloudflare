@@ -21,6 +21,14 @@ promotion. No control-plane migration was pending. Version-external routes, sche
 Workflows were synchronized before promotion. The prior Worker version
 `913d2251-bf1b-4dbd-94e2-ac3c84fdfc35` remains the known-good rollback target.
 
+A fresh continuation check against that exact release passed the four direct Worker probes and a new
+148-request anonymous boundary sweep with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. The
+public LCC RSVP page showed the controlled `RSVP Link Required` state without a token and
+`Link Not Found` for an invalid token; the public audition page likewise showed `Link Not Found` for
+an invalid token. The corresponding local public RSVP and audition integration suites passed 29
+tests after a clean web build. These are signed-link failure and boundary observations only; the
+valid signed RSVP/audition success paths still require a fresh authenticated staging session.
+
 The repository now defines the guarded local command `npm run deploy:staging -- --yes` as the
 default permanent-staging path. It refuses dirty, non-`main`, or unpushed checkouts; runs the
 complete local release gate; creates and verifies one temporary immutable artifact; captures

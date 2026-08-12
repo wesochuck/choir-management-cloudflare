@@ -20,6 +20,14 @@ pending, version-external triggers were synchronized, and the prior Worker versi
 path and exact runtime, but does not promote any of the remaining authenticated or provider-gated
 parity entries.
 
+A fresh continuation check against the same exact release passed all four direct Worker probes and
+the 148-request anonymous boundary sweep with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. The
+public LCC RSVP page showed `RSVP Link Required` without a token and `Link Not Found` for an invalid
+token. The public audition page showed `Link Not Found` for an invalid token. The matching local
+public RSVP and audition integration suites passed 29 tests after a clean web build. These
+observations verify controlled signed-link failure and boundary behavior only; valid signed RSVP and
+audition success paths remain pending a fresh authenticated staging session.
+
 Using the authenticated Organization Admin session against the same release, the LCC Roster surface
 filtered the 94-profile roster to exactly 12 Alto 2 profiles when the `A2 12` balance control was
 selected. The profile editor exposed organization-scoped profile fields, status management,
