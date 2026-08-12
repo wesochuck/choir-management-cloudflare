@@ -1679,7 +1679,7 @@
         "path": "/api/singer/calendar-feed-url/reset",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1536",
         "targetEvidence":
           [

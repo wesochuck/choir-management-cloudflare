@@ -77,6 +77,13 @@ ten validation probes returned their expected typed `400` responses without side
 Stripe probe returned its expected typed `503 stripe_webhook_unavailable` fail-closed response.
 These results promote those 11 API entries from `implemented` to `verified`.
 
+In the same authenticated LMC member session, the visible calendar subscription initially returned
+HTTP 200 with one `VEVENT`. The confirmed `Reset calendar address` action produced a different
+signed address; fetching the old address then returned HTTP 404, while the replacement returned HTTP
+200 with a valid `VCALENDAR`. Signed URL values were not recorded. This promotes
+`api.calendar-feed-reset` from `implemented` to `verified` without introducing provider or
+production effects.
+
 The push-triggered GitHub Actions CI run `31568021282` failed before starting jobs because GitHub
 reported a failed recent payment or insufficient spending limit. It did not affect the successful
 local staging deployment, and the manual-only hosted staging workflow was not invoked.
