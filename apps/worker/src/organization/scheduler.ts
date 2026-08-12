@@ -443,13 +443,28 @@ function createDueJobs(
       .toArray()
       .at(0);
     if (!scheduler) {
-      return;
+      const initializedAt = now.toISOString();
+      storage.sql.exec(
+        `INSERT OR IGNORE INTO scheduler_state (singleton, next_due_at, updated_at)
+         VALUES (1, ?, ?)`,
+        nextSchedulerDue(now),
+        initializedAt,
+      );
     }
-    const schedulerDueAt = new Date(scheduler.nextDueAt);
+    const initializedScheduler = storage.sql
+      .exec<SchedulerStateRow>(
+        "SELECT next_due_at AS nextDueAt FROM scheduler_state WHERE singleton = 1",
+      )
+      .toArray()
+      .at(0);
+    if (!initializedScheduler) return;
+    const schedulerDueAt = new Date(initializedScheduler.nextDueAt);
     if (!force && schedulerDueAt.getTime() > now.getTime()) return;
-    const idempotencyKey = `scheduler:${organizationId}:stale_checkout_cleanup:${scheduler.nextDueAt}`;
+    const idempotencyKey = `scheduler:${organizationId}:stale_checkout_cleanup:${initializedScheduler.nextDueAt}`;
     const cleanupDueAt =
-      force && schedulerDueAt.getTime() > now.getTime() ? now.toISOString() : scheduler.nextDueAt;
+      force && schedulerDueAt.getTime() > now.getTime()
+        ? now.toISOString()
+        : initializedScheduler.nextDueAt;
     storage.sql.exec(
       `INSERT OR IGNORE INTO scheduled_job_outbox
         (job_id, kind, idempotency_key, due_at, created_at)

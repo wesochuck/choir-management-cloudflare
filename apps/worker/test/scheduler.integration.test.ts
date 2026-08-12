@@ -322,6 +322,59 @@ describe("Organization scheduler", () => {
     await expect(readAllOutboxJobs(stub)).resolves.toHaveLength(3);
   });
 
+  it("initializes missing scheduler state before a forced maintenance run", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const upcomingEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const pastEventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const createdAt = new Date(now - 1_000).toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec("DELETE FROM scheduler_state WHERE singleton = 1");
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES (?, 'Missing state upcoming', 'Rehearsal', ?, ?, ?)`,
+        upcomingEventId,
+        new Date(now + 6 * 60 * 60 * 1_000).toISOString(),
+        createdAt,
+        createdAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES (?, 'Missing state past', 'Performance', ?, ?, ?)`,
+        pastEventId,
+        new Date(now - 13 * 60 * 60 * 1_000).toISOString(),
+        createdAt,
+        createdAt,
+      );
+      return undefined;
+    });
+
+    const response = await stub.fetch("https://organization.internal/internal/scheduler/run-now", {
+      body: JSON.stringify({ force: true, organizationId: "organization-scheduler" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      enqueuedJobCount: 3,
+      organizationId: "organization-scheduler",
+    });
+
+    await expect(
+      runInDurableObject<OrganizationStore, string | null>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<Record<string, SqlStorageValue> & { nextDueAt: string }>(
+              "SELECT next_due_at AS nextDueAt FROM scheduler_state WHERE singleton = 1",
+            )
+            .toArray()
+            .at(0)?.nextDueAt ?? null,
+      ),
+    ).resolves.toEqual(expect.any(String));
+  });
+
   it("archives polls two days after expiration and separates archived listings", async () => {
     const stub = await provisionScheduler();
     const now = Date.now();
