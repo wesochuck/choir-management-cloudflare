@@ -82,7 +82,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
 }
 
 export async function signOut(): Promise<void> {
-  await request("/api/auth/sign-out", { method: "POST" });
+  await request("/api/auth/sign-out", { body: "{}", method: "POST" });
 }
 
 export async function listActiveSessions(signal?: AbortSignal): Promise<readonly AuthSession[]> {

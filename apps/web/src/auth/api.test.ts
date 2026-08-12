@@ -8,6 +8,7 @@ import {
   listPlatformJobDeadLetters,
   releasePlatformEmailSuppression,
   retryPlatformJobDeadLetter,
+  signOut,
   updateOrganizationAuditionSettings,
 } from "./api";
 
@@ -51,6 +52,24 @@ describe("organization audition settings API", () => {
     const requestBody = requestInit?.body;
     if (typeof requestBody !== "string") throw new Error("The audition settings body was missing.");
     expect(JSON.parse(requestBody)).toEqual(settings);
+  });
+});
+
+describe("account authentication API", () => {
+  it("sends JSON when signing out", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(signOut()).resolves.toBeUndefined();
+    const requestInit = fetchMock.mock.calls[0]?.[1];
+    expect(requestInit?.method).toBe("POST");
+    expect(requestInit?.body).toBe("{}");
+    expect(new Headers(requestInit?.headers).get("content-type")).toBe("application/json");
   });
 });
 

@@ -183,6 +183,18 @@ Continue autonomously through safe, in-scope implementation and verification. Pa
 - an external account lacks a required paid product, entitlement, zone, or permission;
 - production launch or a destructive hosted-data operation would be required.
 
+### Interactive handoff rule
+
+Never tell the user to enter a code into a terminal, browser, panel, or prompt unless that exact
+surface has been verified to be visibly open and usable by the user in the current turn. A
+background command session, queued panel tab, tool session, or inferred browser tab is not a
+user-facing surface. If visibility cannot be verified, either ask for the required value directly in
+chat only when that is safe and explicitly permitted, or provide a complete command for the user to
+run in their own terminal. Do not claim that a prompt or page was opened merely because a tool
+reported that it was queued or created. Before requesting user interaction, report the exact
+surface, URL or command, and how the user can confirm that it is visible; otherwise continue with
+non-interactive work or pause at the authorization boundary.
+
 Update `docs/goal/READINESS.md` only when a blocker affects active milestone completion or must
 survive a handoff. For a temporary question or local-only interruption, report the blocker without
 creating an unrelated documentation change.

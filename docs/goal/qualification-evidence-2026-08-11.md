@@ -19,6 +19,29 @@ dead letter was retried or dismissed.
 
 ## Current exact-release follow-up — August 12, 2026
 
+### Controlled staging-recipient routing — August 12, 2026
+
+The staging-only qualification recipient routing is configured and verified without widening
+production or roster delivery. Cloudflare Email Routing for `musicsite.org` is enabled and ready;
+the dedicated `qa-mail.staging.musicsite.org` receiving subdomain resolves to Cloudflare's MX
+endpoints and publishes the Cloudflare SPF record. Six explicit, enabled aliases are routed to the
+already verified staging destination: delivery, audition, unsubscribe, email-change-old,
+email-change-new, and photo-member qualification aliases. The catch-all rule remains disabled with
+drop behavior.
+
+The application allowlist and Cloudflare destination allowlist are present in staging release
+`e8f138056eb803d72200ea6e010a67a820d720f6`; `/api/health` reports that exact version and
+`/api/ready` reports `ready`. This proves the controlled-recipient configuration and runtime
+boundary only. No external mailbox receipt, queue delivery, signed-link success path, or
+profile-photo mutation is claimed by this configuration check; those still require the corresponding
+bounded qualification fixtures.
+
+Using the authenticated LCC Organization Admin Communications settings page, one connection-test
+message was accepted for delivery to the dedicated delivery alias. The page reported the exact
+controlled recipient and no roster audience was selected. This is provider/request acceptance only;
+the connection-test path does not create a normal Communication history row, and mailbox receipt,
+queue idempotency, failure visibility, and cross-Organization isolation remain unverified.
+
 The local staging release for source commit `1a72f961c8422ed242adac98189de820fee52226`
 (`Allow staging auth email delivery to verified recipient`) was promoted as Worker version
 `47098ef8-a24b-4cd4-b1fc-78932fb506a6` in deployment `b83ced77-fc30-46ed-bc01-575994f4001e` at 100%

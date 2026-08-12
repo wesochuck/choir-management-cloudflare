@@ -11,13 +11,23 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 12, 2026
 
-Permanent staging currently serves source commit `bffdd196be2a5bcf39b2ff780a19224acaf4e071` as
-Worker version `62011b18-53df-4d12-83d4-0869d17faaf1` at 100% traffic. The release was built and
+Permanent staging currently serves source commit `e8f138056eb803d72200ea6e010a67a820d720f6` as
+Worker version `8cab08d7-7583-4ec7-ade6-0699f17869af` at 100% traffic. The release was built and
 verified locally after hosted Actions credit was exhausted. It passed all 13 local CI-mirror steps,
 195 Workerd integration tests, 94 Chromium E2E tests, six exact-version API probes, and the
-148-request anonymous Organization-boundary sweep. No control-plane migration was pending.
-Version-external routes, schedules, queues, and Workflows were synchronized before promotion. The
-prior Worker version `94ba2f27-ea6e-4fc3-944b-9ba22d8cf587` remains the known-good rollback target.
+148-request anonymous Organization-boundary sweep. Direct `/api/health` and `/api/ready` probes
+currently return HTTP 200 on both `staging.musicsite.org` and `lcc.staging.musicsite.org`. No
+control-plane migration was pending. Version-external routes, schedules, queues, and Workflows were
+synchronized before promotion. The prior Worker version remains the known-good rollback target in
+the deployment record.
+
+The staging-only controlled-recipient routing is configured through Cloudflare Email Routing for
+`qa-mail.staging.musicsite.org`. Six dedicated aliases are enabled and forward only to the
+user-approved `cwosborn@gmail.com` destination; the catch-all rule is disabled. The same aliases are
+present in the application and Email Sending allowlists. One Communications connection test was
+accepted for the dedicated delivery alias. This proves routing/provider request acceptance only;
+mailbox receipt, normal queued delivery, signed-link success paths, dead-letter ownership, and
+profile-photo upload are not claimed from that test.
 
 The controlled scheduler follow-up then ran on the canonical LCC Organization host with a fresh
 Platform Administrator session. It returned `success: true` and enqueued 3 jobs; the corresponding
