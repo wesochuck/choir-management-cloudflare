@@ -11,8 +11,8 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 12, 2026
 
-Permanent staging currently serves source commit `e8f138056eb803d72200ea6e010a67a820d720f6` as
-Worker version `8cab08d7-7583-4ec7-ade6-0699f17869af` at 100% traffic. The release was built and
+Permanent staging currently serves source commit `e2423b7cc8678c55e20285be14c4abb5590407b5` as
+Worker version `7766a040-52e5-4e72-99da-997da0fe21d3` at 100% traffic. The release was built and
 verified locally after hosted Actions credit was exhausted. It passed all 13 local CI-mirror steps,
 195 Workerd integration tests, 94 Chromium E2E tests, six exact-version API probes, and the
 148-request anonymous Organization-boundary sweep. Direct `/api/health` and `/api/ready` probes
@@ -28,6 +28,13 @@ present in the application and Email Sending allowlists. One Communications conn
 accepted for the dedicated delivery alias. This proves routing/provider request acceptance only;
 mailbox receipt, normal queued delivery, signed-link success paths, dead-letter ownership, and
 profile-photo upload are not claimed from that test.
+
+The exact release `e2423b7cc8678c55e20285be14c4abb5590407b5` also fixes the signed-out browser
+handoff: the web auth client now sends the JSON content type required by the Better Auth sign-out
+endpoint. The focused auth API test, complete local release gate, 94 Chromium E2E tests, exact
+staging qualification, and anonymous boundary sweep passed. The deployed LCC admin tab then signed
+out successfully to the public LCC page. This is an authentication plumbing fix and does not promote
+any remaining queue, signed-link, or file qualification entry.
 
 The controlled scheduler follow-up then ran on the canonical LCC Organization host with a fresh
 Platform Administrator session. It returned `success: true` and enqueued 3 jobs; the corresponding

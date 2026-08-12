@@ -19,6 +19,21 @@ dead letter was retried or dismissed.
 
 ## Current exact-release follow-up — August 12, 2026
 
+### Exact release and signed-out handoff — August 12, 2026
+
+Source commit `e2423b7cc8678c55e20285be14c4abb5590407b5` was promoted to permanent staging as Worker
+version `7766a040-52e5-4e72-99da-997da0fe21d3` at 100% traffic. The release passed the complete
+local CI mirror (13 steps; 217 unit tests and 195 Workerd integration tests), 94 Chromium E2E tests,
+exact-version qualification, and the 148-request anonymous Organization boundary sweep. No migration
+was pending, and version-external triggers were synchronized.
+
+The visible LCC Organization Admin session initially failed to sign out because the client sent a
+bodyless POST without the JSON content type required by the deployed auth endpoint. The fix sends
+`{}` with `Content-Type: application/json`; the focused API test passed, and the deployed browser
+session then signed out successfully to the public LCC page. No factor, session cookie, or OTP was
+recorded. This fixes the interactive authentication handoff needed for the remaining disposable
+qualification identity work; it does not itself promote any remaining parity entry.
+
 ### Controlled staging-recipient routing — August 12, 2026
 
 The staging-only qualification recipient routing is configured and verified without widening
