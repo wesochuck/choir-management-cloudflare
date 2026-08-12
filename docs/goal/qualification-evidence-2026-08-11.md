@@ -84,6 +84,12 @@ signed address; fetching the old address then returned HTTP 404, while the repla
 `api.calendar-feed-reset` from `implemented` to `verified` without introducing provider or
 production effects.
 
+The secure Platform qualification then used the same staging account with a fresh Platform factor.
+`api.queue-settings`, `api.queue-settings-generate`, and `api.platform.reconciliation-report` all
+passed with HTTP 200 and their expected response shapes; the reconciliation report was checked on
+`lcc`. No maintenance, provisioning, queue retry, or provider action was invoked. These three
+entries are promoted from `implemented` to `verified`.
+
 The push-triggered GitHub Actions CI run `31568021282` failed before starting jobs because GitHub
 reported a failed recent payment or insufficient spending limit. It did not affect the successful
 local staging deployment, and the manual-only hosted staging workflow was not invoked.

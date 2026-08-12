@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-171 are `verified` and 34 are `implemented`. Per the matrix definitions, `implemented` means that
+174 are `verified` and 31 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -142,8 +142,10 @@ The previous follow-up batch promoted `api.organization.poll-tokens`,
 `api.platform.job-dead-letters.retry`, `api.singer-practice-link`, and `workflow.player-offline`.
 The current authenticated staging follow-up also verified calendar reset: the old signed address
 returned 404 after the confirmed reset, while the replacement returned 200 with a valid calendar.
-The goal remains active because provider-deferred entries and additional Platform API, signed-link,
-file, queue, domain, scale, and rollback evidence are still listed below.
+The secure Platform qualification also passed queue settings, queue-settings generation, and the LCC
+reconciliation report. It did not invoke maintenance, provisioning, queue retry, or provider
+actions. The goal remains active because provider-deferred entries and additional Platform API,
+signed-link, file, queue, domain, scale, and rollback evidence are still listed below.
 
 The prior exact permanent-staging artifact was source commit
 `f7ee50d59ac19054023480a4c3c1236e2afc91a1` (`record exact calendar qualification`). Hosted CI run

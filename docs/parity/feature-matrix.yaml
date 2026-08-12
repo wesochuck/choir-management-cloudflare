@@ -1256,7 +1256,7 @@
         "path": "/api/platform/queue-settings",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1496",
         "targetEvidence":
           ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
@@ -1267,7 +1267,7 @@
         "path": "/api/platform/queue-settings/generate",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1498",
         "targetEvidence":
           ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
@@ -1278,7 +1278,7 @@
         "path": "/api/platform/reconciliation-report",
         "owner": "apps/worker",
         "milestone": 6,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "No equivalent legacy read-only reconciliation report existed.",
         "targetEvidence":
           [
