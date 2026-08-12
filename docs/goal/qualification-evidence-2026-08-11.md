@@ -134,10 +134,11 @@ overview requested MFA verification; maintenance and other Platform mutations we
 is an authorization prerequisite for the scheduler-backed staging observation, not a runtime
 failure.
 
-The fresh local CI mirror for source commit `05da0d92b6028608b0eb34b2bb2e06f800e05266` passed all 13
-static, contracts, unit, build-release, and Workerd integration steps: 210 unit tests and 193
-integration tests passed, and the release manifest was created and verified. A fresh Chromium run
-against the same repository passed all 94 desktop/mobile E2E tests.
+The fresh local CI mirror for current documentation-only commit
+`3b03b9892e70c9c90bf3c872ee2cb652386e63e5` passed all 13 static, contracts, unit, build-release, and
+Workerd integration steps: 210 unit tests and 193 integration tests passed, and the release manifest
+was created and verified. The runtime source was unchanged from the fresh Chromium run that passed
+all 94 desktop/mobile E2E tests.
 
 The authenticated LCC session then created one temporary rehearsal linked to the existing `test`
 Performance. With a temporary voice part and parent RSVP of Yes, the member dashboard showed the
