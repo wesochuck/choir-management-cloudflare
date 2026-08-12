@@ -106,6 +106,24 @@ remove the fresh-factor blocker for the Platform UI surfaces but do not promote 
 Platform API, queue replay, provider, or external-effect entries without focused success and failure
 evidence.
 
+The same authenticated LCC session exercised the public audition signup flow with a synthetic,
+non-deliverable inquiry. The public form loaded the LCC audition details, accepted the required
+contact, performer, and preferred-time fields, and reported `Inquiry Received`. The Organization
+Admin Auditions page then showed the inquiry as `Pending Review` with the selected performer and
+requested time. The inquiry was removed through the custom `Delete audition?` confirmation dialog,
+and the admin table no longer contained the fixture. This is supporting staging evidence for the
+audition public/admin surfaces; the signed audition-link contract and complete audition workflow
+authorization/isolation evidence remain open.
+
+The LCC Roster surface also created a temporary no-email profile, assigned voice part S1, updated it
+to Inactive with manual status management, and hid it from the directory. The roster CSV export
+download contained the created profile with its updated status and blank email, while the public
+directory omitted it after hiding. The import dialog opened and displayed its format guidance, but
+the in-app browser could not attach a local file to the hidden file chooser, so no import was
+submitted. There is no public roster deletion control; the temporary profile remains inactive and
+hidden in staging. This supports `workflow.roster` but does not promote it until import and the
+remaining full CRUD/cleanup and isolation evidence are exercised.
+
 ## Latest provider-independent file qualification — August 11, 2026
 
 The latest provider-independent evidence batch was exercised against source commit

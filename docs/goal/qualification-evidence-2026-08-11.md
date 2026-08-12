@@ -90,6 +90,24 @@ passed with HTTP 200 and their expected response shapes; the reconciliation repo
 `lcc`. No maintenance, provisioning, queue retry, or provider action was invoked. These three
 entries are promoted from `implemented` to `verified`.
 
+The same authenticated LCC session exercised the public audition signup flow with a synthetic,
+non-deliverable inquiry. The public form loaded the LCC audition details, accepted the required
+contact, performer, and preferred-time fields, and reported `Inquiry Received`. The Organization
+Admin Auditions page then showed the inquiry as `Pending Review` with the selected performer and
+requested time. The inquiry was removed through the custom `Delete audition?` confirmation dialog,
+and the admin table no longer contained the fixture. This supports the public/admin audition
+surfaces, but it does not promote `signed.audition` or the complete audition workflow because the
+signed-link contract and complete authorization/isolation evidence were not exercised in this batch.
+
+The LCC Roster surface created a temporary no-email profile, assigned voice part S1, updated it to
+Inactive with manual status management, and hid it from the directory. The roster CSV export
+download contained the created profile with its updated status and blank email, while the public
+directory omitted it after hiding. The import dialog opened and displayed its format guidance, but
+the in-app browser could not attach a local file to the hidden file chooser, so no import was
+submitted. No public roster deletion control exists; the temporary profile remains inactive and
+hidden in staging. This is supporting evidence for `workflow.roster`, not a promotion; import,
+remaining full CRUD/cleanup, and isolation evidence are still required.
+
 The authenticated LCC session then created one temporary rehearsal linked to the existing `test`
 Performance. With a temporary voice part and parent RSVP of Yes, the member dashboard showed the
 Rehearsal as Attending with its RSVP controls disabled and the parent-performance explanation.
