@@ -57,6 +57,12 @@ controlled recipient and no roster audience was selected. This is provider/reque
 the connection-test path does not create a normal Communication history row, and mailbox receipt,
 queue idempotency, failure visibility, and cross-Organization isolation remain unverified.
 
+A fresh controlled-account sign-in request returned HTTP 200. A bounded Wrangler tail filtered to
+email events then observed the staging Email Sending feedback event with `providerStatus: delivered`
+for that request. The log contained no OTP or message body. This confirms provider delivery to the
+Cloudflare-routed qualification alias, but not final Gmail forwarding or mailbox receipt; no signed
+link, queue, or profile-photo qualification is promoted from this observation.
+
 The local staging release for source commit `1a72f961c8422ed242adac98189de820fee52226`
 (`Allow staging auth email delivery to verified recipient`) was promoted as Worker version
 `47098ef8-a24b-4cd4-b1fc-78932fb506a6` in deployment `b83ced77-fc30-46ed-bc01-575994f4001e` at 100%

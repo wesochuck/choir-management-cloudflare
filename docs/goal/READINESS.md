@@ -29,6 +29,11 @@ accepted for the dedicated delivery alias. This proves routing/provider request 
 mailbox receipt, normal queued delivery, signed-link success paths, dead-letter ownership, and
 profile-photo upload are not claimed from that test.
 
+A fresh controlled-account sign-in request returned HTTP 200, and the staging Email Sending feedback
+queue reported `providerStatus: delivered` for the resulting provider event. This confirms delivery
+to the Cloudflare-routed qualification alias. It does not prove that Gmail displayed the forwarded
+message, so mailbox receipt and the remaining authenticated qualification are still open.
+
 The exact release `e2423b7cc8678c55e20285be14c4abb5590407b5` also fixes the signed-out browser
 handoff: the web auth client now sends the JSON content type required by the Better Auth sign-out
 endpoint. The focused auth API test, complete local release gate, 94 Chromium E2E tests, exact
