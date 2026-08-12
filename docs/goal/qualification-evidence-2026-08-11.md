@@ -3,7 +3,73 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
-## Current exact-release and classification audit — August 11, 2026
+## Current exact-release follow-up — August 12, 2026
+
+The local staging release for source commit `6c60a3990e25a53548ca3133329a1461c23be5ff`
+(`make local staging deployment the default`) was promoted as Worker version
+`913d2251-bf1b-4dbd-94e2-ac3c84fdfc35` in deployment `54777fb0-b48b-412e-b87a-a936bf176765` at 100%
+traffic. The exact release passed all 13 local CI-mirror steps, 193 Workerd integration tests, and
+94 Chromium E2E tests.
+`STAGING_EXPECTED_VERSION=6c60a3990e25a53548ca3133329a1461c23be5ff npm run qualify:staging` passed
+all four direct Worker health/readiness probes.
+
+The release also passed the anonymous staging boundary sweep: 148 safe requests across both seeded
+Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. No D1 migration was
+pending, version-external triggers were synchronized, and the prior Worker version
+`e0348b56-3791-460a-bb5b-32828f7ae519` remains the rollback target. This confirms the deployment
+path and exact runtime, but does not promote any of the remaining authenticated or provider-gated
+parity entries.
+
+Using the authenticated Organization Admin session against the same release, the LCC Roster surface
+filtered the 94-profile roster to exactly 12 Alto 2 profiles when the `A2 12` balance control was
+selected. The profile editor exposed organization-scoped profile fields, status management,
+performance RSVPs, dues, folder numbers, and messages without leaving the dialog. The roster CSV
+import dialog exposed its format guidance and kept import disabled until a file was selected. The
+filter and dialogs were closed without saving, importing, or changing staging data. These are
+authenticated UI observations and do not promote the complete `workflow.roster` entry, which still
+requires the full CRUD/import/export/directory success and failure evidence.
+
+The authenticated LCC member Schedule surface showed separate Yes and No RSVP buttons, the current
+No state, the decline-note field, and a signed HTTPS calendar address with a separate reset control.
+No RSVP save or calendar reset was activated. This confirms the current member UI shape but does not
+promote `api.calendar-feed-reset` or the full `workflow.rsvp-attendance` entry.
+
+A fresh targeted local Workerd run of `calendarManagement.integration.test.ts` passed the large
+Organization summary case: 5,000 active Profiles and 500 upcoming events returned exact counts and
+five bounded next events within the one-second assertion. This remains local scale evidence; the
+deployed 100,000-record and 250-concurrent-request envelope is still open.
+
+Read-only Wrangler checks against the current staging account confirmed the exact deployment at 100%
+traffic, four staging queues with one active consumer each (and the jobs queue with one producer),
+both registered staging Workflows, the `choir-management-staging` R2 bucket, and no pending remote
+D1 migrations. The staging Email Sending feedback subscription remains enabled for all six delivery
+feedback events and targets the staging email-events queue. These checks confirm resource liveness
+and configuration only; queue replay, Workflow execution, provider delivery, and dead-letter
+behavior remain unverified.
+
+The user then entered a fresh Platform Administrator TOTP in the visible staging Security page. The
+page reported `Platform access is ready` for the bounded 15-minute session. Read-only Platform
+overview checks showed build `6c60a3990e25a53548ca3133329a1461c23be5ff`, two Organizations, the
+configured startup/control-plane/MFA/sandbox-email checks, Organization schema version 68 with
+preparation complete, eight background jobs requiring review, and Stripe intentionally unavailable
+without staging provider credentials. The Organization directory showed both seeded Organizations as
+Ready, and the scoped-access route showed its expected host-selection boundary. Queue dead letters
+and global email suppressions loaded with their filters and action controls; no provisioning, scoped
+elevation, Retry, Dismiss, Release block, or provider action was invoked. This removes the
+fresh-factor observation blocker for Platform UI inspection but does not promote the remaining
+Platform API, queue-replay, provider, or external-effect entries.
+
+The corresponding local contract follow-up passed four focused Workerd integration files with 19
+tests: Platform authorization/queue controls, reconciliation reporting, ticketing maintenance, and
+job/dead-letter behavior. This strengthens implementation evidence for the affected routes but is
+not a substitute for the remaining permanent-staging success, failure, and isolation observations.
+
+The user authorized `cwosborn@gmail.com` as an additional staging-only Platform email recipient. The
+source configuration now includes that address in both the application recipient allowlist and the
+Cloudflare Email Sending destination allowlist. The change is not yet promoted or counted as a
+successful delivery; a fresh staging deployment and OTP sign-in verification remain required.
+
+## Historical exact-release and classification audit — August 11, 2026
 
 The latest exact runtime release recorded here is `0d4d9e7253e2e9d0363dd472d0d33efd63760845`
 (`refresh qualification release provenance`). Hosted CI run `31547239564` and staging release run

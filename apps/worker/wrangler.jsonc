@@ -166,7 +166,10 @@
         {
           "name": "PLATFORM_EMAIL",
           "allowed_sender_addresses": ["auth@mail.staging.musicsite.org"],
-          "allowed_destination_addresses": ["dsksfjksjfakjsdf@dkfjsajfdskaj.test"],
+          "allowed_destination_addresses": [
+            "dsksfjksjfakjsdf@dkfjsajfdskaj.test",
+            "cwosborn@gmail.com",
+          ],
         },
       ],
       "queues": {
@@ -224,7 +227,7 @@
         "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-staging",
         "EXTERNAL_EFFECTS_MODE": "sandbox",
         "JOBS_DLQ_NAME": "choir-management-jobs-dlq-staging",
-        "PLATFORM_EMAIL_ALLOWED_RECIPIENTS": "dsksfjksjfakjsdf@dkfjsajfdskaj.test",
+        "PLATFORM_EMAIL_ALLOWED_RECIPIENTS": "dsksfjksjfakjsdf@dkfjsajfdskaj.test,cwosborn@gmail.com",
         "PLATFORM_EMAIL_FROM": "auth@mail.staging.musicsite.org",
         "PLATFORM_EMAIL_MODE": "sandbox",
         "PRODUCT_BASE_DOMAIN": "staging.musicsite.org",

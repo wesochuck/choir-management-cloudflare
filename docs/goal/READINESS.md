@@ -1,6 +1,6 @@
 # Goal Readiness and Operating State
 
-**Prepared:** August 11, 2026
+**Prepared:** August 12, 2026
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
@@ -11,16 +11,14 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 12, 2026
 
-Permanent staging currently serves source commit `0661a29443e9f25fa51e6cfb6381338e0d1e59d8` as
-Worker version `e0348b56-3791-460a-bb5b-32828f7ae519` in deployment
-`6b11ac2d-7e47-457e-b467-46f791d13b45` at 100% traffic. The release reused and verified the exact
-immutable artifact built by hosted CI run `31548770535`; every substantive hosted job had passed,
-while the final aggregator could not start because the account had exhausted hosted Actions credit.
-The same commit then passed all 13 local CI-mirror steps, 193 Workerd integration tests, 94 Chromium
-E2E tests, six exact-version API probes, and the 148-request anonymous Organization-boundary sweep.
-No control-plane migration was pending. Version-external routes, schedules, queues, and Workflows
-were synchronized before promotion. The prior Worker version `c40f3058-ca55-446d-a794-12c7741be5be`
-remains the known-good rollback target.
+Permanent staging currently serves source commit `6c60a3990e25a53548ca3133329a1461c23be5ff` as
+Worker version `913d2251-bf1b-4dbd-94e2-ac3c84fdfc35` in deployment
+`54777fb0-b48b-412e-b87a-a936bf176765` at 100% traffic. The release was built and verified locally
+after hosted Actions credit was exhausted. It passed all 13 local CI-mirror steps, 193 Workerd
+integration tests, 94 Chromium E2E tests, six exact-version API probes, and the 148-request
+anonymous Organization-boundary sweep. No control-plane migration was pending. Version-external
+routes, schedules, queues, and Workflows were synchronized before promotion. The prior Worker
+version `e0348b56-3791-460a-bb5b-32828f7ae519` remains the known-good rollback target.
 
 The repository now defines the guarded local command `npm run deploy:staging -- --yes` as the
 default permanent-staging path. It refuses dirty, non-`main`, or unpushed checkouts; runs the
@@ -31,7 +29,13 @@ The hosted `Deploy staging` workflow is manual-only and remains an optional seco
 successful CI artifact. See `docs/runbooks/staging-deployment.md`. Production remains unchanged and
 out of scope.
 
-## Current exact-release and classification audit — August 11, 2026
+The user authorized `cwosborn@gmail.com` as an additional staging-only Platform email recipient. The
+address is now present alongside the synthetic test identity in both the application recipient
+allowlist and the Cloudflare Email Sending destination allowlist. This configuration change still
+requires the release deployment and a fresh OTP delivery/sign-in verification; production remains
+unchanged.
+
+## Historical exact-release and classification audit — August 11, 2026
 
 The latest exact runtime release recorded here is `0d4d9e7253e2e9d0363dd472d0d33efd63760845`
 (`refresh qualification release provenance`). Hosted CI run `31547239564` and staging release run
@@ -55,11 +59,35 @@ The 23 provider-deferred IDs are `route.auth.confirm-email-change`, `api.test-em
 `workflow.donations`, and `workflow.seasons-dues`. The remaining 23 are provider-independent but
 still require authenticated or signed-fixture staging evidence: setup, RSVP links, queue/platform
 controls, reconciliation/maintenance, calendar revocation, cleanup, signed RSVP/audition/unsubscribe
-flows, roster/status/attendance/rehearsal/domain workflows, and profile-photo upload. The Platform
-Security tab still reports the factor gate after Verify, the separate member sign-in runner still
-waits for its secure code, browser URL policy blocks the old calendar-token rejection navigation,
-and the hidden file chooser is unavailable in the in-app browser. No Stripe or SMS credential was
-requested or configured, and production was not changed.
+flows, roster/status/attendance/rehearsal/domain workflows, and profile-photo upload. A fresh
+Platform Administrator factor was accepted during the current follow-up and the bounded session is
+active; the separate member sign-in runner still waits for its secure code, browser URL policy
+blocks the old calendar-token rejection navigation, and the hidden file chooser is unavailable in
+the in-app browser. No Stripe or SMS credential was requested or configured, and production was not
+changed.
+
+## Latest authenticated Platform follow-up — August 12, 2026
+
+The user entered a fresh Platform Administrator TOTP in the visible staging Security page. The page
+reported `Platform access is ready` with the bounded 15-minute session, and the current release
+loaded successfully from the Platform workspace. No factor, session cookie, or credential was copied
+into the repository or recorded here.
+
+Read-only Platform overview checks showed build `6c60a3990e25a53548ca3133329a1461c23be5ff`, two
+Organizations, configured startup/runtime checks, responsive control-plane access, completed
+Platform MFA enrollment, sandbox email delivery, and Organization schema version 68 with preparation
+complete. The platform monitor reported eight background jobs requiring review and Stripe as
+unavailable because provider credentials are intentionally not configured for this staging pass.
+
+The Organization directory showed Lancaster Men's Chorus and Lancaster Community Chorus as Ready,
+each on its canonical staging host, with no schema-preparation action required. The scoped-access
+route correctly showed that access is available only after an Organization host is selected; no
+scoped elevation or Organization mutation was invoked. Queue dead letters and global email
+suppression records loaded with their read-only filters and action controls; Refresh, Retry,
+Dismiss, Release block, provisioning, and provider actions were not invoked. These observations
+remove the fresh-factor blocker for the Platform UI surfaces but do not promote the remaining
+Platform API, queue replay, provider, or external-effect entries without focused success and failure
+evidence.
 
 ## Latest provider-independent file qualification — August 11, 2026
 
