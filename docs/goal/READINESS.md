@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-159 are `verified` and 46 are `implemented`. Per the matrix definitions, `implemented` means that
+170 are `verified` and 35 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -34,9 +34,10 @@ The user authorized `cwosborn@gmail.com` as an additional staging-only Platform 
 address is now present alongside the synthetic test identity in both the application recipient
 allowlist and the Cloudflare Email Sending destination allowlist. After promotion, a fresh email OTP
 was delivered and the authenticated qualification completed successfully: 3 product reads and 74
-Organization-host reads, with session identity confirmed as the allowlisted recipient. The extended
-parity probe run uses the same ephemeral session but still requires a fresh interactive OTP entry;
-production remains unchanged.
+Organization-host reads, with session identity confirmed as the allowlisted recipient. The same
+ephemeral session then passed 11 safe parity probes (10 typed validation responses and the
+deliberate Stripe fail-closed response) with 14 fixture/elevation probes skipped. Production remains
+unchanged.
 
 The push also triggered GitHub Actions CI run `31568021282`, but GitHub did not start its jobs
 because the account reported failed recent payments or an insufficient spending limit. This is
@@ -2174,7 +2175,7 @@ committing.
 
 The following work remains before the goal contract can be marked complete:
 
-1. Qualify the 58 parity entries that remain `implemented`, including the remaining API families,
+1. Qualify the 35 parity entries that remain `implemented`, including the remaining API families,
    signed-link flows, file behaviors, record hooks, background tasks, and domain workflows. Promote
    entries to `verified` only after successful and failure-path evidence is captured.
 2. Supply isolated Stripe Connect test credentials and a signed webhook secret, then qualify

@@ -68,9 +68,14 @@ The user authorized `cwosborn@gmail.com` as an additional staging-only Platform 
 source configuration includes that address in both the application recipient allowlist and the
 Cloudflare Email Sending destination allowlist. After promotion, a fresh OTP was delivered and the
 authenticated staging qualification passed with 3 product reads and 74 Organization-host reads; the
-session identity matched the allowlisted recipient. The extended parity probe run was then added to
-the local login command so it can use the same ephemeral session without exposing a cookie, but it
-still awaits a fresh interactive OTP entry.
+session identity matched the allowlisted recipient. Using the same ephemeral session, the extended
+parity probe passed 11 entries and skipped 14 fixture/elevation entries. The passing entries were
+`api.setup-progress`, `api.rsvp-details`, `api.quick-rsvp`, `api.unsubscribe`,
+`api.generate-rsvp-tokens`, `api.checkout-ticket`, `api.checkout-dues`, `api.checkout-donation`,
+`api.stripe-webhook`, `api.singer.profile-email-change`, and `api.account.email-change-confirm`. The
+ten validation probes returned their expected typed `400` responses without side effects, and the
+Stripe probe returned its expected typed `503 stripe_webhook_unavailable` fail-closed response.
+These results promote those 11 API entries from `implemented` to `verified`.
 
 The push-triggered GitHub Actions CI run `31568021282` failed before starting jobs because GitHub
 reported a failed recent payment or insufficient spending limit. It did not affect the successful

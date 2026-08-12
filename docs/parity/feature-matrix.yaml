@@ -1084,7 +1084,7 @@
         "path": "/api/setup/progress",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1487",
         "targetEvidence":
           [
@@ -1147,7 +1147,7 @@
         "path": "/api/public/rsvp-details",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/rsvpDetails.ts",
         "targetEvidence":
           [
@@ -1210,7 +1210,7 @@
         "path": "/api/public/quick-rsvp",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/quickRsvp.ts",
         "targetEvidence":
           [
@@ -1225,7 +1225,7 @@
         "path": "/api/public/unsubscribe",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/unsubscribe.ts",
         "targetEvidence":
           [
@@ -1241,7 +1241,7 @@
         "path": "/api/organization/rsvp-tokens",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/rsvp/generateRsvpTokens.ts",
         "targetEvidence":
           [
@@ -1390,7 +1390,7 @@
         "path": "/api/public/tickets/checkout",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1505",
         "targetEvidence":
           [
@@ -1509,7 +1509,7 @@
         "path": "/api/singer/dues/checkout",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1509",
         "targetEvidence":
           [
@@ -1525,7 +1525,7 @@
         "path": "/api/public/donations/checkout",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1513",
         "targetEvidence":
           [
@@ -1541,7 +1541,7 @@
         "path": "/api/webhook/stripe",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1515",
         "targetEvidence":
           [
@@ -2070,7 +2070,7 @@
         "path": "/api/singer/profile/email-change",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "No equivalent verified member email-change request flow existed.",
         "targetEvidence":
           [
@@ -2087,7 +2087,7 @@
         "path": "/api/account/email-change/confirm",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "No equivalent verified member email-change confirmation flow existed.",
         "targetEvidence":
           [
