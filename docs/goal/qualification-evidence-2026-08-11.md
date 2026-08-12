@@ -705,3 +705,22 @@ reached 144 `verified` and 61 `implemented`, the signed-poll follow-up reached 1
   staging-only data; no message or payment was sent.
 - Tenant isolation remains host-derived and is covered by the local adversarial integration suite;
   the current browser cross-host checks did not expose data across LCC and LMC.
+
+## August 12, 2026 — controlled scheduler inspection
+
+Against the current permanent-staging release, the authenticated Platform qualification command
+passed queue settings, queue-settings generation, reconciliation for LCC, maintenance, and the
+product-host maintenance boundary. The maintenance call enqueued one qualification-owned job.
+
+The bounded, redacted inspection then found two scheduled rows: one `attendance_report` and one
+`event_reminder`, both `Sent`. It found one matching communication row with `Sent` status and a
+`sent` delivery state. The scheduler rows reported zero recipients, so no external recipient receipt
+is claimed from this run. The message identifier was retained only as a safe operational row key:
+`afe78b9f-71b8-4ec6-9674-3ef5b51b850d`.
+
+The replayed maintenance call enqueued zero jobs. A second bounded inspection produced the same
+redacted scheduled, communication, and delivery snapshot, and the qualification harness reported
+`PASS qualification scheduler idempotency`. No provisioning, queue retry, provider action, or
+unrelated dead-letter mutation was invoked. This is staging evidence for scheduler completion and
+replay idempotency; recipient-backed message-queue/ticket-reminder delivery and qualification-owned
+failure handling remain unverified.

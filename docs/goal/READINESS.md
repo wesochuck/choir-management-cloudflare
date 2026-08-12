@@ -27,6 +27,17 @@ fixture discovery and maintenance enqueueing for the current release, but does n
 consumer completion, exactly-once delivery/ledger effects, and qualification-owned failure handling
 still require isolated recipient fixtures and bounded post-run inspection.
 
+A subsequent bounded inspection on that same release enqueued one additional qualification-owned
+maintenance job. The inspection found two scheduler rows, one `attendance_report` and one
+`event_reminder`, both at `Sent`; one redacted communication row was `Sent` with a `sent` delivery
+state. The inspected scheduled rows reported zero recipients, so this proves scheduler discovery,
+consumer completion, ledger state, and the no-duplicate replay result, but not an external recipient
+receipt or a non-empty message-queue delivery. Replaying maintenance enqueued zero jobs, returned an
+identical redacted snapshot, and passed the scheduler idempotency check. The product-host
+maintenance request still returned the expected canonical-host boundary. `task.message-queue`,
+`task.ticket-reminder`, qualification-owned failure/retry/dismissal, and recipient-backed delivery
+evidence therefore remain open.
+
 A fresh continuation check against that exact release passed the four direct Worker probes and a new
 148-request anonymous boundary sweep with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. The
 public LCC RSVP page showed the controlled `RSVP Link Required` state without a token and
