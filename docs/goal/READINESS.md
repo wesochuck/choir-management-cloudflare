@@ -139,6 +139,12 @@ bar, and Discard restored the saved value without changing staging. This is supp
 for `workflow.roster-status-automation`; scheduled runner execution and status-history transitions
 remain unverified in permanent staging.
 
+The focused local `statusAutomation.integration.test.ts` contract run passed all 9 tests. A later
+read-only Platform workspace recheck found the bounded Platform factor session had expired and the
+overview requested MFA verification; maintenance and other Platform mutations were not invoked. This
+is an authorization prerequisite for the scheduler-backed staging observation, not a runtime
+failure.
+
 ## Latest provider-independent file qualification — August 11, 2026
 
 The latest provider-independent evidence batch was exercised against source commit

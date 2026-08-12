@@ -123,6 +123,12 @@ bar, and Discard restored the saved value without changing staging. This support
 `workflow.roster-status-automation` UI evidence only; scheduled runner execution and status-history
 transitions remain unverified in permanent staging.
 
+The focused local `statusAutomation.integration.test.ts` contract run passed all 9 tests. A later
+read-only Platform workspace recheck found the bounded Platform factor session had expired and the
+overview requested MFA verification; maintenance and other Platform mutations were not invoked. This
+is an authorization prerequisite for the scheduler-backed staging observation, not a runtime
+failure.
+
 The authenticated LCC session then created one temporary rehearsal linked to the existing `test`
 Performance. With a temporary voice part and parent RSVP of Yes, the member dashboard showed the
 Rehearsal as Attending with its RSVP controls disabled and the parent-performance explanation.
