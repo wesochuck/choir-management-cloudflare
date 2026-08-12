@@ -18,7 +18,11 @@ Worker version `cfff7bbd-779c-4a9b-b972-9c81183d2557` at 100% traffic. Exact dir
 passed, and the fresh anonymous boundary sweep passed 148 safe requests across both seeded
 Organization hosts with statuses 200=3, 400=28, 401=112, 404=4, and 503=1. Read-only staging
 inventory found all four staging queues with active consumers, the staging R2 bucket, and both
-staging Workflows registered.
+staging Workflows registered. A bounded read-only direct Worker scale smoke against this exact
+release completed 200 health requests with 20 concurrent workers; all returned HTTP 200 with the
+expected staging payload (20 ms p50, 405 ms p95, 675 ms maximum). This is light-concurrency smoke
+evidence, not the larger supported-scale data test. The remote D1 migration ledger reported no
+migrations to apply, and version-external trigger deployment completed successfully.
 
 The 23 provider-deferred IDs are `route.auth.confirm-email-change`, `api.test-email`,
 `api.resend-ticket`, `api.singer.profile-email-change`, `api.account.email-change-confirm`,

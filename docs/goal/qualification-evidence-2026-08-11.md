@@ -19,6 +19,13 @@ and email-events DLQ) with one active consumer each, the staging R2 bucket prese
 registered staging Workflows active. These are configuration and liveness observations; they do not
 replace message replay, retry, dead-letter, or Workflow success-path evidence.
 
+A bounded, read-only direct Worker scale smoke against the exact release completed 200 health
+requests with 20 concurrent workers. All 200 returned HTTP 200 with the expected staging health
+payload; latency was 20 ms p50, 405 ms p95, and 675 ms maximum. This is useful propagation and
+light-concurrency evidence, but it is not a substitute for the larger supported-scale data test. The
+remote staging D1 migration ledger reported no migrations to apply, and the release trigger
+deployment completed successfully; no migration or operational data was changed by these checks.
+
 The current matrix has 205 entries: 159 `verified` and 46 `implemented`. The 23 genuinely
 provider-deferred IDs are `route.auth.confirm-email-change`, `api.test-email`, `api.resend-ticket`,
 `api.singer.profile-email-change`, `api.account.email-change-confirm`, `signed.email-change`,
