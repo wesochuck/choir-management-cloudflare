@@ -13,7 +13,7 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 Permanent staging currently serves source commit `b154a3d0e4c72475f311ab670b3cfb04b6c5b67b` as
 Worker version `0b7a0954-6f7a-4cc7-86cc-5ed3a31682db` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 255 unit tests, 199 Workerd integration tests, and 98
+passed the complete 13-step CI mirror, 258 unit tests, 199 Workerd integration tests, and 98
 Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
 probes and the 148-request anonymous Organization-boundary sweep, including the configured Stripe
 webhook's typed invalid-signature response. `/api/health` reports the exact source commit on the
@@ -362,17 +362,22 @@ that isolated fixture exists. The helper also covers status-miss recovery, RSVP 
 linked-rehearsal attendance reconciliation, wrong-Organization reads, and fixture cleanup without
 provider effects.
 
+The qualification harness and this readiness note are preserved on `main` at commit `6a33a16`. Its
+exact tree passed the 13-step local CI mirror and 98 desktop/mobile browser tests. The GitHub
+Actions run for that commit failed before any job steps started because no hosted runner was
+allocated (`runner_id: 0`); this does not replace the successful local evidence and no Worker
+promotion was needed for the tooling-only commit.
+
 The focused local `statusAutomation.integration.test.ts` contract run passed all 9 tests. A later
 read-only Platform workspace recheck found the bounded Platform factor session had expired and the
 overview requested MFA verification; maintenance and other Platform mutations were not invoked. This
 is an authorization prerequisite for the scheduler-backed staging observation, not a runtime
 failure.
 
-The fresh local CI mirror for current documentation-only commit
-`3b03b9892e70c9c90bf3c872ee2cb652386e63e5` passed all 13 static, contracts, unit, build-release, and
-Workerd integration steps: 210 unit tests and 193 integration tests passed, and the release manifest
-was created and verified. A fresh Chromium run on the current checkout also passed all 94
-desktop/mobile E2E tests.
+The fresh local CI mirror for current tooling commit `6a33a16` passed all 13 static, contracts,
+unit, build-release, and Workerd integration steps: 258 unit tests and 199 integration tests passed,
+and the release manifest was created and verified. A fresh Chromium run on the current checkout also
+passed all 98 desktop/mobile E2E tests.
 
 ## Latest provider-independent file qualification — August 11, 2026
 
