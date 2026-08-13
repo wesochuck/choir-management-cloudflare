@@ -32,7 +32,7 @@ export function updateEventRsvp(
       readonly startsAt: string;
       readonly type: "Performance" | "Rehearsal";
     }>(
-      "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled FROM events WHERE id = ? LIMIT 1",
+      "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
       rsvpOperation.eventId,
     )
     .toArray()

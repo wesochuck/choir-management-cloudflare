@@ -210,7 +210,7 @@ export function readProfileEventRsvpFromStore(
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = ?
        CROSS JOIN profiles p ON p.id = ?
-       WHERE e.id = ? AND e.is_canceled = 0 LIMIT 1`,
+       WHERE e.id = ? AND e.is_archived = 0 AND e.is_canceled = 0 LIMIT 1`,
       profileId.data,
       profileId.data,
       eventId.data,

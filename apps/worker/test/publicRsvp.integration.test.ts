@@ -329,6 +329,38 @@ describe("public RSVP signed flow", () => {
     expect(await response.json()).toMatchObject({ canSubmit: false });
   });
 
+  it("revokes signed RSVP access after the event is archived", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec("UPDATE events SET is_archived = 1 WHERE id = ?", ALPHA_EVENT);
+        return null;
+      },
+    );
+    const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
+    const detailsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/rsvp-details", {
+        body: JSON.stringify({ token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(detailsResponse.status).toBe(404);
+    await expect(detailsResponse.json()).resolves.toMatchObject({
+      code: "profile_event_rsvp_not_found",
+    });
+
+    const mutationResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/quick-rsvp", {
+        body: JSON.stringify({ rsvp: "Yes", rsvpNote: "", token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(mutationResponse.status).toBe(404);
+    await expect(mutationResponse.json()).resolves.toMatchObject({ code: "event_not_found" });
+  });
+
   it("keeps the canonical quick-RSVP path tenant-bound", async () => {
     const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
     const response = await exports.default.fetch(
