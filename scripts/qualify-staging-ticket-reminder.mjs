@@ -60,8 +60,9 @@ export function ticketReminderQualificationPlan() {
     "complete one controlled ticket checkout for an allowed recipient without creating a charge",
     "run canonical-LCC maintenance and prove exactly one ticket_reminder reaches Sent with one recipient",
     "run maintenance again and prove the ticket reminder snapshot is idempotently unchanged",
+    "prove the canonical signed receipt remains readable before cleanup",
     "prove the wrong Organization host cannot read the qualification order, receipt, or reminder row",
-    "archive the qualification Performance and print only safe IDs, counts, and statuses",
+    "refund the free simulated order, archive the qualification Performance, and print only safe IDs, counts, and statuses",
   ];
 }
 
@@ -128,6 +129,8 @@ export function safeTicketReminderQualificationSummary(input) {
     crossOrganizationRejected: input.crossOrganizationRejected === true,
     eventId: input.eventId ?? null,
     purchaseId: input.purchaseId ?? null,
+    receiptAccessible: input.receiptAccessible === true,
+    refundCompleted: input.refundCompleted === true,
     reminder: {
       deliveryState: input.reminder?.deliveryState ?? "unknown",
       jobCount: input.reminder?.jobCount ?? 0,
@@ -357,6 +360,39 @@ async function archiveEvent(cookie, eventId) {
   }
 }
 
+async function readCanonicalReceipt(successToken, eventId, purchaseId) {
+  const result = await request(
+    `${organizationHost}/api/public/tickets/order?token=${encodeURIComponent(successToken)}`,
+    "GET",
+    "",
+  );
+  if (result.response.status !== 200) {
+    throw new Error(
+      `Canonical ticket receipt failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  if (
+    result.body?.purchase?.id !== purchaseId ||
+    result.body?.purchase?.eventId !== eventId ||
+    result.body?.purchase?.status !== "paid"
+  ) {
+    throw new Error("The canonical ticket receipt did not match the paid qualification order.");
+  }
+}
+
+async function refundPurchase(cookie, purchaseId) {
+  const result = await request(
+    `${organizationHost}/api/organization/tickets/${encodeURIComponent(purchaseId)}/refund`,
+    "POST",
+    cookie,
+  );
+  if (result.response.status !== 200 || result.body?.status !== "refunded") {
+    throw new Error(
+      `Free ticket refund failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+}
+
 async function wrongOrganizationBoundary(cookie, purchaseId, eventId, successToken) {
   return Promise.all([
     request(`${wrongOrganizationHost}/api/organization/communications/scheduled`, "GET", cookie),
@@ -381,6 +417,8 @@ async function main() {
   let purchaseId;
   let successToken;
   let cleanupCompleted = true;
+  let receiptAccessible;
+  let refundCompleted = false;
   let summary;
 
   try {
@@ -412,6 +450,10 @@ async function main() {
     if (!replayStable)
       throw new Error("Ticket reminder replay changed the scheduled notification snapshot.");
 
+    await readCanonicalReceipt(successToken, eventId, purchaseId);
+    receiptAccessible = true;
+    console.log("PASS canonical ticket receipt remained accessible");
+
     const boundary = await wrongOrganizationBoundary(cookie, purchaseId, eventId, successToken);
     const crossOrganizationRejected = ticketReminderBoundaryResponsesSafe(
       boundary.map(({ body, response }) => ({ body, status: response.status })),
@@ -427,12 +469,18 @@ async function main() {
       );
     }
 
+    await refundPurchase(cookie, purchaseId);
+    refundCompleted = true;
+    console.log("PASS free simulated ticket refund completed");
+
     const reminder = first.snapshot.rows.find((row) => row.kind === "ticket_reminder");
     summary = safeTicketReminderQualificationSummary({
       cleanupCompleted: false,
       crossOrganizationRejected,
       eventId,
       purchaseId,
+      receiptAccessible,
+      refundCompleted,
       reminder: {
         deliveryState: reminder?.status ?? "unknown",
         jobCount: first.snapshot.rows.filter((row) => row.kind === "ticket_reminder").length,
@@ -442,6 +490,15 @@ async function main() {
       },
     });
   } finally {
+    if (cookie && purchaseId && !refundCompleted) {
+      try {
+        await refundPurchase(cookie, purchaseId);
+        refundCompleted = true;
+      } catch {
+        cleanupCompleted = false;
+        console.error("Ticket-reminder qualification order cleanup did not complete.");
+      }
+    }
     if (cookie && eventId) {
       try {
         await archiveEvent(cookie, eventId);
@@ -457,6 +514,8 @@ async function main() {
 
   if (!summary) throw new Error("Ticket-reminder qualification did not produce a result.");
   summary.cleanupCompleted = cleanupCompleted;
+  summary.receiptAccessible = receiptAccessible;
+  summary.refundCompleted = refundCompleted;
   if (!cleanupCompleted)
     throw new Error("Ticket-reminder qualification fixture cleanup did not complete.");
   console.log(JSON.stringify(summary));

@@ -13,6 +13,8 @@ describe("staging ticket-reminder qualification helpers", () => {
   it("describes a non-mutating checkout and cleanup sequence", () => {
     const plan = ticketReminderQualificationPlan().join(" ");
     expect(plan).toContain("zero-dollar");
+    expect(plan).toContain("canonical signed receipt");
+    expect(plan).toContain("refund the free simulated order");
     expect(plan).toContain("wrong Organization host");
     expect(plan).toContain("archive the qualification Performance");
   });
@@ -88,6 +90,8 @@ describe("staging ticket-reminder qualification helpers", () => {
         crossOrganizationRejected: true,
         eventId: "event",
         purchaseId: "purchase",
+        receiptAccessible: true,
+        refundCompleted: true,
         reminder: {
           deliveryState: "Sent",
           jobCount: 1,
@@ -102,6 +106,8 @@ describe("staging ticket-reminder qualification helpers", () => {
       crossOrganizationRejected: true,
       eventId: "event",
       purchaseId: "purchase",
+      receiptAccessible: true,
+      refundCompleted: true,
       reminder: {
         deliveryState: "Sent",
         jobCount: 1,
