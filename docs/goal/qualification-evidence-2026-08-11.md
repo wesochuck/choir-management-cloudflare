@@ -52,6 +52,13 @@ recipient. The two focused tests and complete 13-step CI mirror pass; permanent-
 still requires a fresh authenticated terminal session and fresh Platform Administrator factor, with
 codes entered locally only.
 
+The first authenticated attempt did not create an external effect: the message-queue request was
+rejected with HTTP 409 before a communication was created, and the dead-letter helper stopped before
+creating its temporary audition because its account-organization slug lookup did not find `lcc`.
+Commit `60bd5ce` now resolves the dead-letter Organization ID from the canonical LCC Organization
+context and exposes only the safe application error code for a rejected message request. The
+message-queue and dead-letter qualification runs remain pending.
+
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
 scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found
