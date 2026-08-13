@@ -28,7 +28,9 @@ checklist. A stale page now rechecks the connected-account state before creating
 Stripe link, and the Worker rejects onboarding-link creation when Stripe already reports the account
 as ready. Stripe Connect return and refresh URLs now land on the setup checklist with explicit
 success or reopen guidance. The LCC control-plane mapping was rechecked read-only after deployment
-and remains one active connected test account.
+and remains one active connected test account. An authenticated LCC browser recheck on this exact
+release rendered both the `stripe=return` success notice and the `stripe=refresh` reopen guidance;
+the Ready account correctly showed no stale Continue action.
 
 This release adds a replay-safe stale-payment cleanup guard: donation and dues expiration markers
 are excluded from later scans, and the cleanup audit event is idempotent. The focused Workerd
