@@ -10,9 +10,11 @@ describe("staging queue dead-letter qualification helpers", () => {
   it("plans a bounded, provider-independent failure fixture", () => {
     expect(queueDeadLetterQualificationPlan()).toEqual([
       "sign in and verify the fresh Platform Administrator factor in memory",
+      "run canonical-LCC maintenance before taking the dead-letter baseline",
       "snapshot open queue dead letters without printing operational payloads",
       "create one temporary audition addressed only to an RFC-reserved example.test fixture",
       "delete the audition through the supported Organization API before notification resolution",
+      "run canonical-LCC maintenance to flush the qualification-owned notification outbox",
       "poll for a new Organization-owned audition_notification dead letter with bounded waits",
       "dismiss each newly owned dead letter once and prove a repeated dismissal is rejected",
       "leave no audition or provider-recipient state behind and never invoke queue retry",

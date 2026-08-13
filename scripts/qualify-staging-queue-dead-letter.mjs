@@ -42,9 +42,11 @@ function uuid(value, label) {
 export function queueDeadLetterQualificationPlan() {
   return [
     "sign in and verify the fresh Platform Administrator factor in memory",
+    "run canonical-LCC maintenance before taking the dead-letter baseline",
     "snapshot open queue dead letters without printing operational payloads",
     "create one temporary audition addressed only to an RFC-reserved example.test fixture",
     "delete the audition through the supported Organization API before notification resolution",
+    "run canonical-LCC maintenance to flush the qualification-owned notification outbox",
     "poll for a new Organization-owned audition_notification dead letter with bounded waits",
     "dismiss each newly owned dead letter once and prove a repeated dismissal is rejected",
     "leave no audition or provider-recipient state behind and never invoke queue retry",
@@ -232,6 +234,24 @@ export function ownedFailureRows(rows, baselineIds, organizationId) {
   );
 }
 
+async function runOrganizationMaintenance(cookie) {
+  const result = await request(
+    `${organizationHost}/api/platform/maintenance/run`,
+    "GET",
+    undefined,
+    cookie,
+  );
+  if (
+    result.response.status !== 200 ||
+    result.body?.success !== true ||
+    typeof result.body?.organizationId !== "string" ||
+    !Number.isInteger(result.body?.enqueuedJobCount)
+  ) {
+    throw new Error(`Staging maintenance failed with HTTP ${String(result.response.status)}.`);
+  }
+  return result.body.enqueuedJobCount;
+}
+
 async function waitForOwnedDeadLetters(cookie, baselineIds, organizationId) {
   for (let attempt = 0; attempt < pollingAttempts; attempt += 1) {
     if (attempt === 0 || (attempt + 1) % 3 === 0) {
@@ -278,6 +298,10 @@ async function main() {
     cookie = await signIn(readline);
     await verifyPlatformFactor(readline, cookie);
     const organizationId = await resolveOrganizationId(cookie);
+    const preflightEnqueuedJobCount = await runOrganizationMaintenance(cookie);
+    console.log(
+      `PASS dead-letter maintenance preflight — ${String(preflightEnqueuedJobCount)} job(s) enqueued`,
+    );
     const baseline = await listDeadLetters(cookie);
     const baselineIds = new Set(
       baseline.map((row) => row?.id).filter((id) => typeof id === "string"),
@@ -289,6 +313,10 @@ async function main() {
     await deleteFailureAudition(cookie, fixture.id);
     deleted = true;
     console.log("PASS qualification-owned audition source deleted before delivery");
+    const fixtureEnqueuedJobCount = await runOrganizationMaintenance(cookie);
+    console.log(
+      `PASS dead-letter fixture maintenance flush — ${String(fixtureEnqueuedJobCount)} job(s) enqueued`,
+    );
 
     const deadLetters = await waitForOwnedDeadLetters(cookie, baselineIds, organizationId);
     const qualificationOwned =
