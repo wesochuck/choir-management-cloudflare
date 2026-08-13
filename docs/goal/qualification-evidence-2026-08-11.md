@@ -3,6 +3,27 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
+## Latest exact-release follow-up — August 13, 2026
+
+Source commit `cc16fd2eea010041c4dd1e8df6e642a9f8a9bea3` was promoted to permanent staging as Worker
+version `11b8d295-35c3-4157-8c38-fdc79ce55633` at 100% traffic. The guarded local release passed the
+complete 13-step CI mirror, 228 unit tests, 196 Workerd integration tests, and 94 Chromium E2E
+tests. `STAGING_EXPECTED_VERSION=cc16fd2eea010041c4dd1e8df6e642a9f8a9bea3 npm run qualify:staging`
+passed all four direct health/readiness probes on the product host and both canonical Organization
+hosts. Production was not changed.
+
+This release extends the Platform Administrator MFA assertion from 15 minutes to one hour after a
+fresh factor verification. The rotating six-digit TOTP remains unchanged, and the separate
+Organization-scoped edit elevation remains 15 minutes. Focused Platform MFA integration coverage
+passed the persisted one-hour expiration assertion; no factor, session cookie, or OTP was recorded.
+
+The five qualification-helper Vitest files passed 13 tests. Valid permanent-staging success evidence
+for the signed RSVP, audition, unsubscribe, email-change, and profile-photo flows remains open. A
+photo qualification attempt used the ordinary linked member as `STAGING_AUTH_EMAIL`, so the
+Organization-admin profile list correctly returned HTTP 403 before any mutation; no staging data was
+changed. The next photo run must use the allowlisted admin identity for the admin session and the
+linked disposable identity only for `STAGING_PHOTO_MEMBER_EMAIL`.
+
 ## Current next-batch scheduler qualification — August 12, 2026
 
 Source commit `bffdd196be2a5bcf39b2ff780a19224acaf4e071` was promoted to permanent staging as Worker

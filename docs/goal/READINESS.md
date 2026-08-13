@@ -1,6 +1,6 @@
 # Goal Readiness and Operating State
 
-**Prepared:** August 12, 2026
+**Prepared:** August 13, 2026
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
@@ -9,7 +9,30 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-## Current staging release and deployment path — August 12, 2026
+## Current staging release and deployment path — August 13, 2026
+
+Permanent staging currently serves source commit `cc16fd2eea010041c4dd1e8df6e642a9f8a9bea3` as
+Worker version `11b8d295-35c3-4157-8c38-fdc79ce55633` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 228 unit tests, 196 Workerd integration tests, and 94
+Chromium E2E tests. Exact-version staging qualification then passed all four direct health/readiness
+probes on the product host and both canonical Organization hosts. `/api/health` reports the exact
+source commit and `/api/ready` reports `ready`; no production resource was changed.
+
+The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
+verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
+Organization-scoped edit elevation lifetime. The focused Platform MFA integration coverage passed,
+including the persisted one-hour expiration assertion, and the deployed UI describes the resulting
+one-hour Platform Administrator session.
+
+The signed-link and profile-photo qualification helpers are present and their five-file Vitest suite
+passes 13 tests. Permanent-staging success evidence for the valid signed RSVP, audition,
+unsubscribe, and email-change flows and for profile-photo upload/authorization/replacement cleanup
+has not yet been captured. One attempted photo run authenticated as the ordinary linked member while
+resolving the Organization-admin target Profile and correctly received HTTP 403; no staging data was
+changed. The next run must use the allowlisted Platform/Organization-admin identity for
+`STAGING_AUTH_EMAIL` and the linked disposable identity separately in `STAGING_PHOTO_MEMBER_EMAIL`.
+
+## Prior staging release and deployment path — August 12, 2026
 
 Permanent staging currently serves source commit `e2423b7cc8678c55e20285be14c4abb5590407b5` as
 Worker version `7766a040-52e5-4e72-99da-997da0fe21d3` at 100% traffic. The release was built and
