@@ -14,13 +14,14 @@ describe("staging Profile-photo qualification helpers", () => {
       "replace with the second fixture and verify the first object is reclaimed",
       "remove the photo and verify the replacement object is reclaimed",
     ]);
+    expect(photoQualificationPlan("profile-id", true)[0]).toContain("another Profile returns 403");
   });
 
   it("requires private no-store headers and an exact fixture checksum", () => {
     const bytes = new Uint8Array([1, 2, 3]);
     const response = new Response(null, {
       headers: {
-        "cache-control": "private, no-store",
+        "cache-control": "no-store",
         "content-type": "image/png",
       },
       status: 200,

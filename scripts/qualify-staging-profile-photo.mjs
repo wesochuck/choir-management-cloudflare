@@ -10,6 +10,7 @@ const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsit
 const organizationSlug = (process.env.STAGING_ORG_SLUG ?? "lcc").trim().toLowerCase();
 const wrongOrganizationSlug = (process.env.STAGING_SECOND_ORG_SLUG ?? "lmc").trim().toLowerCase();
 const email = (process.env.STAGING_AUTH_EMAIL ?? "cwosborn@gmail.com").trim().toLowerCase();
+const memberEmail = (process.env.STAGING_PHOTO_MEMBER_EMAIL ?? "").trim().toLowerCase();
 const targetProfileId = process.env.STAGING_PHOTO_PROFILE_ID?.trim() ?? "";
 const targetProfilePrefix = (
   process.env.STAGING_PHOTO_PROFILE_PREFIX ??
@@ -66,15 +67,20 @@ export function summarizePhotoDownload(response, bytes, expectedChecksum) {
     length: bytes.byteLength,
     ok:
       response.status === 200 &&
-      response.headers.get("cache-control") === "private, no-store" &&
+      response.headers.get("cache-control") === "no-store" &&
       response.headers.get("content-type") === "image/png" &&
       checksum === expectedChecksum,
     status: response.status,
   };
 }
 
-export function photoQualificationPlan(profileId) {
+export function photoQualificationPlan(profileId, includeMemberAuthorization = false) {
   return [
+    ...(includeMemberAuthorization
+      ? [
+          "sign in as the linked member, attach a photo to its own Profile, and verify another Profile returns 403",
+        ]
+      : []),
     `upload two generated PNG fixtures for Profile ${profileId}`,
     "attach the first fixture and verify private download headers and checksum",
     "verify wrong-Organization file access returns 404",
@@ -123,24 +129,25 @@ async function prompt(readline, message) {
   return (await readline.question(message)).trim();
 }
 
-async function signIn(readline) {
+async function signIn(readline, loginEmail = email) {
+  const normalizedEmail = loginEmail.trim().toLowerCase();
   const otpRequest = await jsonRequest(
     `${productUrl}/api/auth/email-otp/send-verification-otp`,
     "POST",
     "",
-    { email, type: "sign-in" },
+    { email: normalizedEmail, type: "sign-in" },
   );
   if (otpRequest.response.status !== 200) {
     throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
   }
-  console.log(`A sign-in code was requested for ${email}.`);
+  console.log(`A sign-in code was requested for ${normalizedEmail}.`);
   const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
   if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
   const signInResponse = await request(
     `${productUrl}/api/auth/sign-in/email-otp`,
     "POST",
     "",
-    JSON.stringify({ email, otp: code }),
+    JSON.stringify({ email: normalizedEmail, otp: code }),
     { "content-type": "application/json" },
   );
   if (!signInResponse.ok) {
@@ -155,6 +162,18 @@ async function signIn(readline) {
 
 async function resolveTargetProfile(cookie) {
   if (targetProfileId) return uuid(targetProfileId, "STAGING_PHOTO_PROFILE_ID");
+
+  const memberProfile = await jsonRequest(`${organizationHost}/api/singer/profile`, "GET", cookie);
+  if (memberProfile.response.status === 200 && typeof memberProfile.body?.id === "string") {
+    if (
+      !targetProfilePrefix ||
+      (typeof memberProfile.body.displayName === "string" &&
+        memberProfile.body.displayName.startsWith(targetProfilePrefix))
+    ) {
+      return uuid(memberProfile.body.id, "linked member Profile");
+    }
+  }
+
   const { body, response } = await jsonRequest(
     `${organizationHost}/api/organization/profiles`,
     "GET",
@@ -175,6 +194,22 @@ async function resolveTargetProfile(cookie) {
     );
   }
   return uuid(matches[0].id, "qualification Profile");
+}
+
+async function resolveOtherProfile(cookie, ownProfileId) {
+  const { body, response } = await jsonRequest(
+    `${organizationHost}/api/singer/directory`,
+    "GET",
+    cookie,
+  );
+  if (response.status !== 200 || !Array.isArray(body?.profiles)) {
+    throw new Error(`Member directory failed with HTTP ${String(response.status)}.`);
+  }
+  const other = body.profiles.find(
+    (profile) => typeof profile?.id === "string" && profile.id !== ownProfileId,
+  );
+  if (!other) throw new Error("The member directory did not contain another Profile.");
+  return uuid(other.id, "other Organization Profile");
 }
 
 async function upload(cookie, fileId, bytes, fileName) {
@@ -232,11 +267,65 @@ async function deleteFile(cookie, fileId) {
   return response.status === 200 || response.status === 404;
 }
 
+async function qualifyMemberAuthorization(readline, adminCookie, profileId) {
+  if (!memberEmail) {
+    console.log(
+      "DEFER ordinary-member Profile-photo authorization: set STAGING_PHOTO_MEMBER_EMAIL to run the linked-member check.",
+    );
+    return;
+  }
+  const memberCookie = await signIn(readline, memberEmail);
+  const memberProfile = await jsonRequest(
+    `${organizationHost}/api/singer/profile`,
+    "GET",
+    memberCookie,
+  );
+  if (memberProfile.response.status !== 200 || memberProfile.body?.id !== profileId) {
+    throw new Error("The photo member email is not linked to the qualification Profile.");
+  }
+  const otherProfileId = await resolveOtherProfile(memberCookie, profileId);
+  const memberFileId = crypto.randomUUID();
+  let attached = false;
+  try {
+    await upload(
+      memberCookie,
+      memberFileId,
+      fixtureBytes(),
+      "qualification-profile-photo-member.png",
+    );
+    const ownAttachment = await jsonRequest(
+      `${organizationHost}/api/organization/profiles/${profileId}/photo/${memberFileId}`,
+      "PUT",
+      memberCookie,
+    );
+    if (ownAttachment.response.status !== 200) {
+      throw new Error(
+        `Member own-Profile photo attach failed with HTTP ${String(ownAttachment.response.status)}.`,
+      );
+    }
+    attached = true;
+    const otherAttachment = await jsonRequest(
+      `${organizationHost}/api/organization/profiles/${otherProfileId}/photo/${memberFileId}`,
+      "PUT",
+      memberCookie,
+    );
+    const forbidden = otherAttachment.response.status === 403;
+    console.log(`${forbidden ? "PASS" : "FAIL"} ordinary-member cross-Profile photo authorization`);
+    if (!forbidden) throw new Error("A member attached a photo to another Profile.");
+    console.log("PASS ordinary-member own-Profile photo attach");
+  } finally {
+    if (attached) await removePhoto(memberCookie, profileId).catch(() => undefined);
+    await deleteFile(adminCookie, memberFileId).catch(() => false);
+  }
+}
+
 async function main() {
   if (planOnly) {
     const displayId = targetProfileId || "<STAGING_PHOTO_PROFILE_ID>";
     console.log("Profile-photo qualification plan (no network calls made):");
-    for (const step of photoQualificationPlan(displayId)) console.log(`- ${step}`);
+    for (const step of photoQualificationPlan(displayId, Boolean(memberEmail))) {
+      console.log(`- ${step}`);
+    }
     return;
   }
 
@@ -247,6 +336,7 @@ async function main() {
   try {
     cookie = await signIn(readline);
     const profileId = await resolveTargetProfile(cookie);
+    await qualifyMemberAuthorization(readline, cookie, profileId);
     const bytes = fixtureBytes();
     const expectedChecksum = sha256(bytes);
     const firstFileId = crypto.randomUUID();
@@ -289,10 +379,6 @@ async function main() {
     const removalPassed = removed.response.status === 404;
     console.log(`${removalPassed ? "PASS" : "FAIL"} profile photo removal cleanup`);
     if (!removalPassed) throw new Error("The removed profile-photo object remained accessible.");
-
-    console.log(
-      "DEFER ordinary-member cross-Profile authorization: use the focused Workerd test or a dedicated linked member identity; this run used the authorized Organization account only.",
-    );
   } finally {
     readline.close();
     if (cookie && attachedProfileId) {

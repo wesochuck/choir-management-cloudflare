@@ -259,7 +259,7 @@ export async function grantPlatformAdministratorForCurrentSession(): Promise<str
       `INSERT INTO platform_mfa_assertions
         (session_id, user_id, method, verified_at, expires_at)
        VALUES (?, ?, 'totp', ?, ?)`,
-    ).bind(session.id, "user-invited-member", now, now + 15 * 60 * 1000),
+    ).bind(session.id, "user-invited-member", now, now + 60 * 60 * 1000),
   ]);
   return session.id;
 }

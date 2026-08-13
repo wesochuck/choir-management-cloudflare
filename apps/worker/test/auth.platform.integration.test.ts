@@ -123,6 +123,18 @@ describe("Platform Administrator MFA", () => {
     );
     expect(challengeResponse.status).toBe(200);
 
+    const assertion = await testEnv.CONTROL_DB.prepare(
+      `SELECT verified_at AS verifiedAt, expires_at AS expiresAt
+       FROM platform_mfa_assertions
+       WHERE user_id = ?
+       ORDER BY verified_at DESC
+       LIMIT 1`,
+    )
+      .bind("user-invited-member")
+      .first<{ expiresAt: number; verifiedAt: number }>();
+    if (!assertion) throw new Error("The Platform MFA assertion was not persisted.");
+    expect(assertion.expiresAt - assertion.verifiedAt).toBe(60 * 60 * 1000);
+
     const authorized = await fetchWorker(
       authRequest("/api/platform/context", { headers: { cookie: sessionCookie } }),
     );

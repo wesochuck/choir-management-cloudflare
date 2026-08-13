@@ -19,7 +19,7 @@ export interface PlatformAdministratorContext {
   readonly userId: string;
 }
 
-const PLATFORM_MFA_ASSERTION_SECONDS = 15 * 60;
+const PLATFORM_MFA_ASSERTION_SECONDS = 60 * 60;
 
 async function findPlatformAdministrator(
   database: D1Database,

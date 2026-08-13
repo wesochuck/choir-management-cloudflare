@@ -195,6 +195,20 @@ reported that it was queued or created. Before requesting user interaction, repo
 surface, URL or command, and how the user can confirm that it is visible; otherwise continue with
 non-interactive work or pause at the authorization boundary.
 
+Apply this as a strict preflight, not as a best-effort suggestion:
+
+- First identify the user-facing surface by evidence from the current turn. A tool session ID,
+  `browser.tabs.new` result, background `exec` process, or queued app action is agent-side evidence
+  only; it does not prove that the user can see or control anything.
+- Do not say “a prompt is open,” “enter the code,” or “click the new tab” until the visible surface,
+  exact location, and required control have been verified. If the surface cannot be verified, say so
+  plainly and give the user a self-contained command or navigation path they can run themselves.
+- After the user reports completing the action, verify the resulting non-secret postcondition before
+  proceeding. Treat “entered,” “done,” or a tool completion message as a report to check, not as
+  proof that authentication or deployment succeeded.
+- Never ask the user to paste one-time codes, recovery codes, passwords, cookies, tokens, or other
+  secrets into chat. Keep those values in the verified provider or user-owned terminal surface.
+
 Update `docs/goal/READINESS.md` only when a blocker affects active milestone completion or must
 survive a handoff. For a temporary question or local-only interruption, report the blocker without
 creating an unrelated documentation change.

@@ -63,6 +63,24 @@ for that request. The log contained no OTP or message body. This confirms provid
 Cloudflare-routed qualification alias, but not final Gmail forwarding or mailbox receipt; no signed
 link, queue, or profile-photo qualification is promoted from this observation.
 
+The controlled delivery alias subsequently authenticated in the visible staging browser and accepted
+its pending LCC invitation through the normal application invitation page. Account → Organizations
+now shows an active Organization Member membership. The member Profile page correctly reports that
+an Organization Owner or Administrator must link the Membership to a Profile; that owner-only link
+operation remains before member-scoped queue, signed-link, and profile-photo qualification can
+continue. No invitation token or session credential was recorded.
+
+## August 13, 2026 — controlled member link and queue fixture
+
+The owner linked the controlled Membership to the existing `Qualification Queue Temp 2026-08-12`
+Profile through the Organization Admin Membership Profile links UI. Communications previewed one
+reachable email recipient when filtered to `Qualification Scheduler Future 2026-08-12`; no SMS or
+unreachable recipient was included. The normal queue workflow then accepted the marked staging
+message. History reported one sent, zero failed, and zero remaining; the provider ledger reported
+one accepted message. A bounded Worker feedback-tail window did not observe a later delivered
+callback, so this is queue-consumption/provider-acceptance evidence only and does not claim mailbox
+receipt. No retry or duplicate send was invoked.
+
 The local staging release for source commit `1a72f961c8422ed242adac98189de820fee52226`
 (`Allow staging auth email delivery to verified recipient`) was promoted as Worker version
 `47098ef8-a24b-4cd4-b1fc-78932fb506a6` in deployment `b83ced77-fc30-46ed-bc01-575994f4001e` at 100%

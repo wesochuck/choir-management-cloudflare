@@ -34,6 +34,21 @@ queue reported `providerStatus: delivered` for the resulting provider event. Thi
 to the Cloudflare-routed qualification alias. It does not prove that Gmail displayed the forwarded
 message, so mailbox receipt and the remaining authenticated qualification are still open.
 
+The controlled delivery alias authenticated in the visible staging browser and accepted its pending
+LCC invitation through the normal application invitation page. Account → Organizations now shows an
+active Organization Member membership. Its member Profile page correctly reports that an
+Organization Owner or Administrator must link the Membership to a Profile; that owner-only link
+operation remains the next authorization step before member-scoped queue, signed-link, or
+profile-photo qualification can proceed. No invitation token or session credential was recorded.
+
+The owner then linked that Membership to the existing `Qualification Queue Temp 2026-08-12` Profile
+through the Membership Profile links UI. A controlled Communications draft targeted the linked
+Profile through the `Qualification Scheduler Future 2026-08-12` event and previewed exactly one
+reachable email recipient. The message was queued through the normal workflow; History reported one
+sent, zero failed, zero remaining, and the provider ledger reported one accepted message. A bounded
+Worker feedback-tail window observed no later provider-delivered callback, so external mailbox
+receipt is not claimed yet.
+
 The exact release `e2423b7cc8678c55e20285be14c4abb5590407b5` also fixes the signed-out browser
 handoff: the web auth client now sends the JSON content type required by the Better Auth sign-out
 endpoint. The focused auth API test, complete local release gate, 94 Chromium E2E tests, exact

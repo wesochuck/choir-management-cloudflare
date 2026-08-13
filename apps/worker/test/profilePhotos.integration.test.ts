@@ -8,7 +8,7 @@ import {
   readCapturedPlatformEmailsForTest,
 } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
-import { privateOrganizationFileKey } from "../src/storage/privateFiles";
+import { MAX_PRIVATE_FILE_BYTES, privateOrganizationFileKey } from "../src/storage/privateFiles";
 
 function binding<T>(value: T | undefined, name: string): T {
   if (value === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -207,5 +207,51 @@ describe("private Profile photos", () => {
     expect(actions).toEqual(
       expect.arrayContaining(["profile.photo_attached", "profile.photo_removed"]),
     );
+  });
+
+  it("accepts supported image types and rejects malformed or oversized uploads", async () => {
+    const cookie = await signIn();
+
+    for (const contentType of ["image/jpeg", "image/png", "image/webp"] as const) {
+      const fileId = crypto.randomUUID();
+      expect((await upload(cookie, fileId, `photo-${contentType}`, contentType)).status).toBe(201);
+      expect(
+        (
+          await exports.default.fetch(
+            api(`/api/organization/profiles/${ownProfileId}/photo/${fileId}`, cookie, {
+              method: "PUT",
+            }),
+          )
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await exports.default.fetch(
+            api(`/api/organization/profiles/${ownProfileId}/photo`, cookie, { method: "DELETE" }),
+          )
+        ).status,
+      ).toBe(200);
+    }
+
+    const malformedType = await upload(
+      cookie,
+      crypto.randomUUID(),
+      "malformed-type",
+      "not-a-content-type",
+    );
+    expect(malformedType.status).toBe(400);
+
+    const oversized = await exports.default.fetch(
+      api(`/api/organization/files/${crypto.randomUUID()}`, cookie, {
+        body: new Uint8Array([1]),
+        headers: {
+          "content-length": String(MAX_PRIVATE_FILE_BYTES + 1),
+          "content-type": "image/png",
+          "x-file-name": encodeURIComponent("oversized.png"),
+        },
+        method: "PUT",
+      }),
+    );
+    expect(oversized.status).toBe(400);
   });
 });

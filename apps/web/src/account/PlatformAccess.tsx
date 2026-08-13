@@ -245,7 +245,7 @@ function VerificationPanel(props: VerificationPanelProps) {
       }}
     >
       <h3>Verify Platform Administrator access</h3>
-      <p>Enter a fresh factor to open a 15-minute Platform Administrator session.</p>
+      <p>Enter a fresh factor to open a 1-hour Platform Administrator session.</p>
       <div className="field">
         <label htmlFor="platform-verification-method">Verification method</label>
         <select
