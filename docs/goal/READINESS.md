@@ -44,17 +44,19 @@ regression expires one old ticket, donation, and dues record on the first pass a
 replay; it also rejects a mismatched Organization identity. Permanent-staging cleanup proof is not
 claimed until a supported stale-payment fixture is available.
 
-The current permanent-staging Worker secret inventory contains the authentication and signed-link
-secrets plus `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Secret values were not read. A safe
-invalid-signature probe against the deployed webhook returned the typed `invalid_webhook_signature`
-HTTP 400 response, confirming that the webhook secret is loaded at runtime. The LCC control-plane
-Stripe mapping now contains one active connected test account, and the Organization status reports
-`Ready`. A live authenticated recheck shows the Organization's Tickets, Donations, and Dues payment
-modules enabled. A controlled paid checkout, refund, and replay/boundary qualification remains
-pending explicit action-time authorization because it creates provider-side sandbox effects;
-stale-payment cleanup still requires a supported pending fixture older than the seven-day cleanup
-threshold. `task.cleanup` therefore remains an explicit staging-fixture prerequisite rather than a
-candidate for a qualification-only clock override or internal route.
+The current permanent-staging Worker secret inventory contains `BETTER_AUTH_SECRET`,
+`SIGNED_LINK_SECRET`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET`; no Brevo SMS secrets are
+currently configured. This was checked with Wrangler's secret-name listing only; secret values were
+not read. A safe invalid-signature probe against the deployed webhook returned the typed
+`invalid_webhook_signature` HTTP 400 response, confirming that the webhook secret is loaded at
+runtime. The LCC control-plane Stripe mapping now contains one active connected test account, and
+the Organization status reports `Ready`. A live authenticated recheck shows the Organization's
+Tickets, Donations, and Dues payment modules enabled. A controlled paid checkout, refund, and
+replay/boundary qualification remains pending explicit action-time authorization because it creates
+provider-side sandbox effects; stale-payment cleanup still requires a supported pending fixture
+older than the seven-day cleanup threshold. `task.cleanup` therefore remains an explicit
+staging-fixture prerequisite rather than a candidate for a qualification-only clock override or
+internal route.
 
 The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
 verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
