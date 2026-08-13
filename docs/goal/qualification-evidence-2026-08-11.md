@@ -90,8 +90,25 @@ linked rehearsal reminder, and sent one post-event attendance report with the ex
 Maintenance replay created no duplicate jobs, both reminder snapshots remained stable, and the
 cross-Organization check returned `200/200/404/404/404` with target data absent. The disposable
 Performance and rehearsal fixtures were cleaned up. This confirms the scheduler evidence remains
-valid on the current staging runtime; it does not promote the separately gated ticket-reminder or
-stale-payment-cleanup entries.
+valid on the current staging runtime; it does not promote the separately gated stale-payment-cleanup
+entry.
+
+## Ticket-reminder qualification — August 13, 2026
+
+The corrected authenticated ticket-reminder qualification ran on the current permanent staging
+runtime with a fresh controlled recipient. It created disposable Performance
+`f2eeaa0e-af07-4363-982e-96ad5c4e455a` and zero-dollar paid ticket order
+`7e633b8a-1e1f-4b6a-abec-2bed25c4b2f2`. Maintenance enqueued three jobs; exactly one target
+`ticket_reminder` reached `Sent` with one recipient. Maintenance replay enqueued zero jobs and the
+reminder snapshot remained stable. The canonical signed ticket receipt was accessible, and the
+wrong-Organization check returned `200/200/404` with the target order, reminder, and receipt data
+absent. The free order was refunded and the disposable Performance was archived; cleanup completed.
+This promotes `task.ticket-reminder` to `verified`. The first attempt stopped at the receipt check
+because the local qualification helper expected a nested `purchase` object while the public receipt
+contract returns the purchase fields at the top level; the helper assertion and regression test were
+corrected before this successful rerun. No Worker runtime change was needed for the
+qualification-only fix. `task.cleanup` remains implemented pending a supported permanent-staging
+stale-payment fixture.
 
 ## Current next-batch scheduler qualification — August 12, 2026
 

@@ -98,6 +98,10 @@ export function ticketReminderSnapshotsMatch(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+export function ticketReceiptMatches(body, eventId, purchaseId) {
+  return body?.id === purchaseId && body?.eventId === eventId && body?.status === "paid";
+}
+
 function responseHasTargetOrder(body, purchaseId, eventId) {
   if (!Array.isArray(body?.orders)) return true;
   return body.orders.some((order) => order?.id === purchaseId || order?.eventId === eventId);
@@ -371,11 +375,7 @@ async function readCanonicalReceipt(successToken, eventId, purchaseId) {
       `Canonical ticket receipt failed with ${requestFailure(result.response.status, result.body)}.`,
     );
   }
-  if (
-    result.body?.purchase?.id !== purchaseId ||
-    result.body?.purchase?.eventId !== eventId ||
-    result.body?.purchase?.status !== "paid"
-  ) {
+  if (!ticketReceiptMatches(result.body, eventId, purchaseId)) {
     throw new Error("The canonical ticket receipt did not match the paid qualification order.");
   }
 }

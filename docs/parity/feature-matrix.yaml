@@ -2322,7 +2322,7 @@
         "task": "ticket-buyer-reminders",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/ticketBuyerReminderTask.ts",
         "targetEvidence":
           [

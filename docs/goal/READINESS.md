@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-185 are `verified` and 20 are `implemented`. Per the matrix definitions, `implemented` means that
+186 are `verified` and 19 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -97,8 +97,8 @@ queue-settings generation, reconciliation, maintenance, scheduler inspection, ma
 scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found
 two completed scheduler rows (`attendance_report` and `event_reminder`) and one sent communication;
 its scheduled-recipient count was zero. Recipient-backed message-queue delivery and qualification-
-owned retry/dismissal therefore remain `implemented`, along with ticket reminders and stale-payment
-cleanup that require their own safe fixtures or provider credentials.
+owned retry/dismissal are covered by the permanent-staging qualification evidence above; ticket
+reminders and stale-payment cleanup require their own safe fixtures or provider credentials.
 
 The recipient-backed scheduler qualification subsequently passed on permanent staging with a fresh
 Platform Administrator session and a controlled LCC Profile. The event reminder reached one
@@ -117,9 +117,13 @@ reminder and post-event attendance report behavior after the 1cb6f61 promotion. 
 reached one controlled recipient, were recorded as sent, and remained stable after maintenance
 replay; the linked rehearsal reused the parent Performance roster. The comparison Organization
 returned `200/200/404/404/404` with target data absent. The new ticket-reminder qualification
-harness is pushed in commit `f7f0ec5`; it adds canonical receipt, refund, archive, and cleanup
-assertions but still requires one interactive terminal run before `task.ticket-reminder` can be
-promoted. `task.cleanup` likewise remains implemented pending supported permanent-staging evidence.
+harness then completed successfully: one ticket reminder reached `Sent` for one controlled
+recipient, replay enqueued zero jobs, the canonical receipt remained accessible, the
+wrong-Organization check returned `200/200/404`, and the free order refund plus fixture archive
+completed. The first run exposed and corrected a qualification-only receipt-shape assertion; the
+public receipt contract and Worker runtime were unchanged. This promotes `task.ticket-reminder` to
+`verified`. `task.cleanup` remains implemented pending supported permanent-staging stale-payment
+evidence.
 
 ## Prior staging release and deployment path — August 12, 2026
 

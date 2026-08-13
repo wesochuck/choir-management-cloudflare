@@ -7,6 +7,7 @@ import {
   ticketReminderReady,
   ticketReminderSnapshot,
   ticketReminderSnapshotsMatch,
+  ticketReceiptMatches,
 } from "./qualify-staging-ticket-reminder.mjs";
 
 describe("staging ticket-reminder qualification helpers", () => {
@@ -57,6 +58,30 @@ describe("staging ticket-reminder qualification helpers", () => {
       ticketReminderSnapshotsMatch(first, {
         rows: [{ ...first.rows[0], status: "Failed" }],
       }),
+    ).toBe(false);
+  });
+
+  it("matches the flattened public ticket receipt response", () => {
+    expect(
+      ticketReceiptMatches(
+        { id: "purchase", eventId: "event", status: "paid" },
+        "event",
+        "purchase",
+      ),
+    ).toBe(true);
+    expect(
+      ticketReceiptMatches(
+        { purchase: { id: "purchase", eventId: "event", status: "paid" } },
+        "event",
+        "purchase",
+      ),
+    ).toBe(false);
+    expect(
+      ticketReceiptMatches(
+        { id: "purchase", eventId: "event", status: "refunded" },
+        "event",
+        "purchase",
+      ),
     ).toBe(false);
   });
 
