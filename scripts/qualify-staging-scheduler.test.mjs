@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   safeSchedulerQualificationSummary,
+  schedulerBoundaryResponsesSafe,
   schedulerBoundaryStatusesRejected,
   schedulerProfileReachFailure,
   schedulerQualificationPlan,
@@ -23,6 +24,39 @@ describe("staging scheduler qualification helpers", () => {
   it("accepts only rejected cross-Organization statuses", () => {
     expect(schedulerBoundaryStatusesRejected([401, 403, 404])).toBe(true);
     expect(schedulerBoundaryStatusesRejected([404, 200])).toBe(false);
+  });
+
+  it("accepts tenant-local collection reads when qualification data is absent", () => {
+    expect(
+      schedulerBoundaryResponsesSafe(
+        [
+          { body: { messages: [{ id: "other-message", eventId: "other-event" }] }, status: 200 },
+          {
+            body: {
+              messages: [{ audience: { eventId: "other-event" }, id: "other-message" }],
+            },
+            status: 200,
+          },
+          { body: null, status: 404 },
+        ],
+        [messageId],
+        [eventId],
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a cross-Organization collection that contains qualification data", () => {
+    expect(
+      schedulerBoundaryResponsesSafe(
+        [
+          { body: { messages: [{ eventId, id: "other-message" }] }, status: 200 },
+          { body: { messages: [] }, status: 200 },
+          { body: null, status: 404 },
+        ],
+        [messageId],
+        [eventId],
+      ),
+    ).toBe(false);
   });
 
   it("explains an unreachable Profile without exposing membership email data", () => {

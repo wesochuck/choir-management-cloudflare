@@ -127,6 +127,29 @@ export function schedulerBoundaryStatusesRejected(statuses) {
   return statuses.every((status) => status === 401 || status === 403 || status === 404);
 }
 
+function responseContainsTargetSchedulerData(body, messageIds, eventIds) {
+  if (!Array.isArray(body?.messages)) return true;
+  const targetMessageIds = new Set(messageIds);
+  const targetEventIds = new Set(eventIds);
+  return body.messages.some((message) => {
+    if (typeof message?.id === "string" && targetMessageIds.has(message.id)) return true;
+    if (typeof message?.eventId === "string" && targetEventIds.has(message.eventId)) return true;
+    return (
+      typeof message?.audience?.eventId === "string" && targetEventIds.has(message.audience.eventId)
+    );
+  });
+}
+
+export function schedulerBoundaryResponsesSafe(responses, messageIds, eventIds) {
+  const collectionResponses = responses.slice(0, 2);
+  const detailStatuses = responses.slice(2).map(({ status }) => status);
+  const collectionsAreSafe = collectionResponses.every(({ status, body }) => {
+    if (status === 401 || status === 403 || status === 404) return true;
+    return status === 200 && !responseContainsTargetSchedulerData(body, messageIds, eventIds);
+  });
+  return collectionsAreSafe && schedulerBoundaryStatusesRejected(detailStatuses);
+}
+
 async function request(url, method, cookie, body) {
   const response = await fetch(url, {
     headers: {
@@ -628,7 +651,7 @@ async function wrongOrganizationBoundary(cookie, messageIds) {
       ),
     ),
   ]);
-  return responses.map(({ response }) => response.status);
+  return responses.map(({ body, response }) => ({ body, status: response.status }));
 }
 
 function eventResult(eventId, first, replay, kind, reportAggregate) {
@@ -795,10 +818,15 @@ async function main() {
       rehearsalResult.messageId,
       reportResult.messageId,
     ].filter((messageId) => typeof messageId === "string");
-    const boundaryStatuses = await wrongOrganizationBoundary(cookie, messageIds);
-    const crossOrganizationRejected = schedulerBoundaryStatusesRejected(boundaryStatuses);
+    const boundaryResponses = await wrongOrganizationBoundary(cookie, messageIds);
+    const boundaryStatuses = boundaryResponses.map(({ status }) => status);
+    const crossOrganizationRejected = schedulerBoundaryResponsesSafe(
+      boundaryResponses,
+      messageIds,
+      [reminderEventId, rehearsalEventId, reportEventId],
+    );
     console.log(
-      `${crossOrganizationRejected ? "PASS" : "FAIL"} scheduler cross-Organization boundary (HTTP ${boundaryStatuses.join("/")})`,
+      `${crossOrganizationRejected ? "PASS" : "FAIL"} scheduler cross-Organization boundary (HTTP ${boundaryStatuses.join("/")}; target data absent)`,
     );
     if (!crossOrganizationRejected) {
       throw new Error(
