@@ -11,14 +11,20 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `9a8d7904a8d826ec05c241b002e1c98ef12dcfee` as
-Worker version `c85bdb01-65b3-4348-b930-8469c7fb6f07` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 241 unit tests, 198 Workerd integration tests, and 94
+Permanent staging currently serves source commit `1cb6f61bf80d67105e5aa0b9dec3e20ab4834951` as
+Worker version `a21b0ff6-8263-47f3-8971-ad24d8e00c4d` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 253 unit tests, 199 Workerd integration tests, and 94
 Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
 probes and the 148-request anonymous Organization-boundary sweep. `/api/health` reports the exact
 source commit on the product host and both canonical Organization hosts; no production resource was
-changed. The release record uses deployment `e44f7b35-9ca4-4151-b7f4-3fcfda9f1212` and retains
-Worker version `24a12f48-ab36-44e4-b3fb-b55d08cc0f50` as the rollback target.
+changed. The release record uses deployment `27069ed8-57c7-45f3-9592-f0e5deec4db2` and retains
+Worker version `c85bdb01-65b3-4348-b930-8469c7fb6f07` as the rollback target.
+
+This release adds a replay-safe stale-payment cleanup guard: donation and dues expiration markers
+are excluded from later scans, and the cleanup audit event is idempotent. The focused Workerd
+regression expires one old ticket, donation, and dues record on the first pass and returns zero on
+replay; it also rejects a mismatched Organization identity. Permanent-staging cleanup proof is not
+claimed until a supported stale-payment fixture is available.
 
 The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
 verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
@@ -105,6 +111,15 @@ target delivery summaries were rejected. All three disposable event fixtures wer
 successfully. This promotes `task.event-reminder`, `task.post-event-report`, and
 `workflow.rehearsal-parent` to `verified`; no Worker deployment was needed because the
 qualification-only boundary correction is outside the deployed runtime.
+
+The same authenticated scheduler run confirmed the current deployed release's recipient-backed event
+reminder and post-event attendance report behavior after the 1cb6f61 promotion. Both communications
+reached one controlled recipient, were recorded as sent, and remained stable after maintenance
+replay; the linked rehearsal reused the parent Performance roster. The comparison Organization
+returned `200/200/404/404/404` with target data absent. The new ticket-reminder qualification
+harness is pushed in commit `f7f0ec5`; it adds canonical receipt, refund, archive, and cleanup
+assertions but still requires one interactive terminal run before `task.ticket-reminder` can be
+promoted. `task.cleanup` likewise remains implemented pending supported permanent-staging evidence.
 
 ## Prior staging release and deployment path — August 12, 2026
 

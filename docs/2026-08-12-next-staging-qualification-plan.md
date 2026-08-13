@@ -11,14 +11,19 @@ The signed-link and profile-photo batch is complete on the deployed source relea
 `46b49b15b35b6bd7cb8dcb37a64594cf9ca789a7`. `signed.rsvp`, `signed.audition`, `signed.unsubscribe`,
 `signed.email-change`, `route.auth.confirm-email-change`, and `file.profile-photo` now have
 permanent-staging success, replay/revocation or authorization, and Organization-isolation evidence
-recorded in `docs/goal/qualification-evidence-2026-08-11.md`. The controlled scheduler follow-up
-passed maintenance, queue controls, inspection, replay, and idempotency checks, but its scheduler
-rows had zero scheduled recipients. A later controlled one-recipient message-queue run passed reach
-preflight, sent delivery/provider acceptance, replay/idempotency, and wrong-Organization rejection
-without creating a duplicate on resume. Qualification-owned dead-letter retry/dismissal,
-event/post-event scheduler recipients, ticket reminders, and stale-payment cleanup remain
-unpromoted; ticket reminders and stale-payment cleanup remain deferred until safe fixtures or
-provider credentials are available.
+recorded in `docs/goal/qualification-evidence-2026-08-11.md`. The recipient-backed scheduler
+follow-up subsequently passed on permanent staging: event reminders, linked-rehearsal parent-roster
+behavior, and post-event attendance reports each reached one controlled recipient, recorded one sent
+delivery, and remained stable on replay; the wrong-Organization comparison returned
+`200/200/404/404/404` with target data absent. Qualification-owned dead-letter dismissal and its
+duplicate guard also passed. Ticket reminders remain the next authenticated fixture; stale-payment
+cleanup has focused local replay evidence but still lacks supported permanent-staging proof.
+
+The exact staging runtime for this follow-up is source commit
+`1cb6f61bf80d67105e5aa0b9dec3e20ab4834951`, Worker version `a21b0ff6-8263-47f3-8971-ad24d8e00c4d`,
+deployed through the guarded local path after the full release gate passed. Commit `f7f0ec5` adds
+receipt, refund, archive, and cleanup assertions to the local ticket-reminder harness; it changes no
+Worker runtime and is ready for the authenticated terminal run.
 
 ## Objective
 
