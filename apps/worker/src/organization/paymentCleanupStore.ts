@@ -56,7 +56,12 @@ export function expireStalePaymentsInStore(
     }
     const donations = storage.sql
       .exec<{ readonly id: string }>(
-        `SELECT id FROM donations WHERE status = 'pending' AND created_at < ?`,
+        `SELECT id FROM donations
+         WHERE status = 'pending' AND created_at < ?
+           AND NOT EXISTS (
+             SELECT 1 FROM donation_expirations expiration
+             WHERE expiration.donation_id = donations.id
+           )`,
         cutoff,
       )
       .toArray();
@@ -78,7 +83,12 @@ export function expireStalePaymentsInStore(
     }
     const dues = storage.sql
       .exec<{ readonly id: string }>(
-        `SELECT id FROM dues WHERE status = 'pending' AND created_at < ?`,
+        `SELECT id FROM dues
+         WHERE status = 'pending' AND created_at < ?
+           AND NOT EXISTS (
+             SELECT 1 FROM dues_expirations expiration
+             WHERE expiration.dues_id = dues.id
+           )`,
         cutoff,
       )
       .toArray();
@@ -101,7 +111,7 @@ export function expireStalePaymentsInStore(
     expired = tickets.length + donations.length + dues.length;
     if (expired > 0) {
       storage.sql.exec(
-        `INSERT INTO audit_events
+        `INSERT OR IGNORE INTO audit_events
           (id, actor_type, actor_id, action, target_type, target_id,
            request_id, change_summary, occurred_at)
          VALUES (?, 'system', 'scheduler', 'payment.pending_expired',

@@ -29,6 +29,7 @@
     "qualify:staging:evidence": "node scripts/qualify-staging-evidence.mjs",
     "qualify:staging:platform": "node scripts/qualify-staging-platform-login.mjs",
     "qualify:staging:scheduler": "node scripts/qualify-staging-scheduler.mjs",
+    "qualify:staging:ticket-reminder": "node scripts/qualify-staging-ticket-reminder.mjs",
     "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

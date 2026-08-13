@@ -2329,6 +2329,8 @@
             "apps/worker/src/organization/scheduler.ts",
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/ticketing.integration.test.ts",
+            "scripts/qualify-staging-ticket-reminder.mjs",
+            "scripts/qualify-staging-ticket-reminder.test.mjs",
           ],
       },
       {
