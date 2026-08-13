@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  safeRsvpDetailsResponseSummary,
   safeRsvpQualificationSummary,
   signedRsvpQualificationPlan,
 } from "./qualify-staging-signed-rsvp.mjs";
@@ -34,6 +35,22 @@ describe("staging signed RSVP qualification helpers", () => {
       replayAllowed: true,
       restored: true,
       validDetails: true,
+    });
+    expect(JSON.stringify(summary)).not.toContain("signed-token");
+  });
+
+  it("summarizes a failed details response without signed-link material", () => {
+    const summary = safeRsvpDetailsResponseSummary({
+      body: {
+        code: "profile_event_rsvp_not_found",
+        token: "signed-token-must-not-escape",
+      },
+      status: 404,
+    });
+    expect(summary).toMatchObject({
+      bodyKeys: ["code", "token"],
+      code: "profile_event_rsvp_not_found",
+      status: 404,
     });
     expect(JSON.stringify(summary)).not.toContain("signed-token");
   });

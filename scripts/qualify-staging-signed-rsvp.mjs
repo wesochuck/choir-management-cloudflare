@@ -72,6 +72,24 @@ export function safeRsvpQualificationSummary(input) {
   };
 }
 
+export function safeRsvpDetailsResponseSummary(input) {
+  const body =
+    typeof input.body === "object" && input.body !== null ? input.body : Object.create(null);
+  const event =
+    typeof body.event === "object" && body.event !== null ? body.event : Object.create(null);
+  return {
+    bodyKeys: Object.keys(body).sort(),
+    canSubmit: typeof body.canSubmit === "boolean" ? body.canSubmit : null,
+    code: typeof body.code === "string" ? body.code : null,
+    eventId: typeof event.id === "string" ? event.id : null,
+    profileId: typeof body.profileId === "string" ? body.profileId : null,
+    rsvp: typeof body.rsvp === "string" ? body.rsvp : null,
+    rsvpSelfServiceOpen:
+      typeof body.rsvpSelfServiceOpen === "boolean" ? body.rsvpSelfServiceOpen : null,
+    status: input.status,
+  };
+}
+
 async function request(url, method, cookie, body, headers = {}) {
   const response = await fetch(url, {
     headers: {
@@ -188,7 +206,8 @@ async function createPerformance(cookie, title) {
       rsvpFollowUpMode: "inherit",
       setList: [],
       setListApproved: false,
-      startsAt: new Date(Date.now() + 48 * 60 * 60 * 1_000).toISOString(),
+      // Keep the fixture beyond the default seven-day RSVP deadline.
+      startsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
       ticketCapacity: null,
       title,
       type: "Performance",
@@ -290,7 +309,18 @@ async function main() {
       details.body?.profileId === profileId &&
       details.body?.rsvp === "Yes" &&
       details.body?.canSubmit === true;
-    console.log(`${summary.validDetails ? "PASS" : "FAIL"} signed RSVP LCC details`);
+    console.log(
+      `${summary.validDetails ? "PASS" : "FAIL"} signed RSVP LCC details${
+        summary.validDetails
+          ? ""
+          : ` — ${JSON.stringify(
+              safeRsvpDetailsResponseSummary({
+                body: details.body,
+                status: details.response.status,
+              }),
+            )}`
+      }`,
+    );
     if (!summary.validDetails) throw new Error("Valid LCC RSVP details were not returned.");
 
     const yes = await submitRsvp(organizationHost, token, "Yes");
