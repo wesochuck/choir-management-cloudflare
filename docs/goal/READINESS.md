@@ -1214,25 +1214,25 @@ The current release evidence is:
   controls without creating an audio element until playback is activated. No file was selected or
   uploaded, no website draft was saved, and no track playback was started.
 
-Verified coverage is concentrated in browser routes and a growing set of API, CSV, file, workflow,
-and responsive entries: 63/64 browser routes, 48/79 API routes, 12/23 domain workflows, and all 9/9
-responsive states. All eight CSV contracts, two of five file behaviors, four of eight signed flows,
-and all four record hooks are verified. The remaining 56 entries include unverified signed-flow,
-file, background-task, API, and workflow evidence required by the staging gate.
+Verified coverage now includes all browser routes, CSV contracts, signed flows, file behaviors,
+responsive states, and record hooks: 64/64 browser routes, 70/79 API routes, 14/23 domain workflows,
+and 4/5 background tasks. The remaining 19 entries are nine authenticated/provider API fixtures, one
+stale-payment cleanup task, and nine domain workflows requiring interactive identity, roster/status,
+provider, or custom-domain evidence.
 
 The current evidence-family inventory is:
 
 | Evidence family   | Verified | Remaining | Main missing proof                                                               |
 | ----------------- | -------: | --------: | -------------------------------------------------------------------------------- |
-| Browser routes    |       63 |         1 | Valid email-change success                                                       |
-| API routes        |       48 |        31 | Authenticated fixtures, elevation, signed inputs, and provider paths             |
-| Domain workflows  |       12 |        11 | Queue/retry, tenant-isolation, scheduler, and external-effect evidence           |
+| Browser routes    |       64 |         0 | None                                                                             |
+| API routes        |       70 |         9 | Authenticated fixture/elevation and provider-action evidence                     |
+| Domain workflows  |       14 |         9 | Identity, roster/status, provider, and custom-domain evidence                    |
 | Responsive states |        9 |         0 | No remaining responsive parity entry; broader visual review remains supplemental |
-| Signed flows      |        4 |         4 | Valid, expired, revoked, cross-host, and cross-Organization tokens               |
-| CSV contracts     |        8 |         0 | Browser-tool byte inspection for data-URL downloads remains supplemental         |
-| File behaviors    |        2 |         3 | Profile, music-audio, and public-media upload/rendering probes                   |
-| Record hooks      |        4 |         0 | Message-triggered writes and audit/idempotency evidence                          |
-| Background tasks  |        0 |         5 | Scheduler, queue, retry, dead-letter, and workflow resume evidence               |
+| Signed flows      |        8 |         0 | None                                                                             |
+| CSV contracts     |        8 |         0 | None                                                                             |
+| File behaviors    |        5 |         0 | None                                                                             |
+| Record hooks      |        4 |         0 | None                                                                             |
+| Background tasks  |        4 |         1 | Seven-day stale-payment fixture and replay evidence                              |
 
 The dated sections below are an append-only historical record. Their parity counts, deployment
 versions, and checkpoint claims describe the state at those dates; the current snapshot above and
