@@ -43,6 +43,13 @@ The qualification-only email-change changes are local helper/script updates; the
 remains the exact release identified above, so no Worker promotion was needed for this evidence
 batch.
 
+Commit `beda28a` adds the bounded one-recipient message-queue qualification harness and focused
+tests. It requires provider acceptance in addition to one sent delivery, stable replay reads, and
+wrong-Organization rejection, and it redacts recipient/message content from output. The complete
+13-step local CI mirror and all 94 Chromium desktop/mobile tests passed after the change. The
+harness has not yet run against permanent staging because it still needs an authenticated terminal
+session; no message was sent and no deployed Worker was changed by this tooling commit.
+
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
 scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found

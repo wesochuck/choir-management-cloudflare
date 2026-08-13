@@ -36,6 +36,13 @@ staging OTP rate limit interrupted the first full run; the resumed cycle passed 
 the deployed Worker. The local helper/script changes are qualification tooling only, so no Worker
 promotion was needed for this evidence batch.
 
+The committed `beda28a` qualification tooling adds a bounded one-recipient message-queue harness
+with safe output redaction. Its local focused tests, complete 13-step CI mirror, and 94-test
+Chromium desktop/mobile gate passed. The harness is ready to prove provider acceptance, exactly-once
+delivery, replay stability, and wrong-Organization rejection on permanent staging, but it has not
+yet been run with an authenticated staging terminal session; this commit sent no message and did not
+change the deployed Worker.
+
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
 scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found
