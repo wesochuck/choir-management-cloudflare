@@ -46,7 +46,7 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
               signing secret as <code>STRIPE_WEBHOOK_SECRET</code>.
             </li>
             <li>
-              Have each Organization complete Stripe Connect onboarding from Organization settings.
+              Have each Organization complete Stripe Connect onboarding from its setup checklist.
             </li>
           </ol>
           <p className="field-help">

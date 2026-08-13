@@ -152,31 +152,37 @@ export function OrganizationProviderStatus() {
                       before payments can be enabled.
                     </p>
                   ) : null}
-                  {connectError ? (
-                    <p className="notice notice--error" role="alert">
-                      {connectError}
-                    </p>
-                  ) : null}
-                  <button
-                    className="button button--secondary"
-                    disabled={!connectState.data.platformConfigured || connectBusy}
-                    onClick={() => {
-                      void beginConnectOnboarding();
-                    }}
-                    type="button"
-                  >
-                    {connectBusy
-                      ? "Opening Stripe…"
-                      : connectState.data.stripe.status === "not_started"
-                        ? "Connect Stripe account"
-                        : "Continue Stripe onboarding"}
-                  </button>
-                  {!connectState.data.platformConfigured ? (
-                    <p className="field-help">
-                      A Platform Administrator must configure the Stripe platform key before this
-                      Organization can connect.
-                    </p>
-                  ) : null}
+                  {connectState.data.stripe.status === "ready" ? (
+                    <p className="field-help">Stripe Connect is ready for staging payments.</p>
+                  ) : (
+                    <>
+                      {connectError ? (
+                        <p className="notice notice--error" role="alert">
+                          {connectError}
+                        </p>
+                      ) : null}
+                      <button
+                        className="button button--secondary"
+                        disabled={!connectState.data.platformConfigured || connectBusy}
+                        onClick={() => {
+                          void beginConnectOnboarding();
+                        }}
+                        type="button"
+                      >
+                        {connectBusy
+                          ? "Opening Stripe…"
+                          : connectState.data.stripe.status === "not_started"
+                            ? "Connect Stripe account"
+                            : "Continue Stripe onboarding"}
+                      </button>
+                      {!connectState.data.platformConfigured ? (
+                        <p className="field-help">
+                          A Platform Administrator must configure the Stripe platform key before
+                          this Organization can connect.
+                        </p>
+                      ) : null}
+                    </>
+                  )}
                 </>
               ) : null}
             </div>

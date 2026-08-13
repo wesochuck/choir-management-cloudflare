@@ -181,6 +181,14 @@ function OrganizationPaymentSettingsPanel() {
               <strong>{settings.readiness.brevoConfigured ? "Ready" : "Needs setup"}</strong>
             </p>
           </div>
+          {settings.stripe.status !== "ready" ? (
+            <p className="field-help">
+              <a href="/admin/settings/setup-checklist#provider-status-title">
+                Open the Stripe Connect setup checklist
+              </a>{" "}
+              to connect or continue this Organization&apos;s account.
+            </p>
+          ) : null}
           {!settings.globalPaymentsEnabled ? (
             <p className="notice notice--warning">
               Online payments are paused by the platform emergency switch or environment settings.

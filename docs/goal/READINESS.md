@@ -26,13 +26,16 @@ regression expires one old ticket, donation, and dues record on the first pass a
 replay; it also rejects a mismatched Organization identity. Permanent-staging cleanup proof is not
 claimed until a supported stale-payment fixture is available.
 
-The current permanent-staging Worker secret inventory contains only the authentication and
-signed-link secrets; no Stripe secret or connected test account is configured. Although the staging
-variable keeps Stripe payments explicitly enabled, the existing checkout path fails closed and
-expires a non-free reservation when Stripe is not configured. This makes a naturally aged pending
-payment impossible to create through the supported staging flow. `task.cleanup` therefore remains an
-explicit external prerequisite rather than a candidate for a qualification-only clock override or
-internal route.
+The current permanent-staging Worker secret inventory contains the authentication and signed-link
+secrets plus `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Secret values were not read. A safe
+invalid-signature probe against the deployed webhook returned the typed `invalid_webhook_signature`
+HTTP 400 response, confirming that the webhook secret is loaded at runtime. The LCC control-plane
+Stripe mapping now contains one active connected test account, and the Organization status reports
+`Ready`. Paid checkout is still gated by the Organization's Tickets activation checkbox, which
+remains disabled in the current setup view. After that activation, a controlled paid checkout can
+verify the provider path; stale-payment cleanup still requires a supported pending fixture older
+than the seven-day cleanup threshold. `task.cleanup` therefore remains an explicit staging-fixture
+prerequisite rather than a candidate for a qualification-only clock override or internal route.
 
 The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
 verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
