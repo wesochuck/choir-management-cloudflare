@@ -11,12 +11,13 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `cc16fd2eea010041c4dd1e8df6e642a9f8a9bea3` as
-Worker version `11b8d295-35c3-4157-8c38-fdc79ce55633` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 228 unit tests, 196 Workerd integration tests, and 94
-Chromium E2E tests. Exact-version staging qualification then passed all four direct health/readiness
-probes on the product host and both canonical Organization hosts. `/api/health` reports the exact
-source commit and `/api/ready` reports `ready`; no production resource was changed.
+Permanent staging currently serves source commit `46b49b15b35b6bd7cb8dcb37a64594cf9ca789a7` as
+Worker version `24a12f48-ab36-44e4-b3fb-b55d08cc0f50` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 229 unit tests, 197 Workerd integration tests, and 94
+Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
+probes and the 148-request anonymous Organization-boundary sweep. `/api/health` reports the exact
+source commit on the product host and both canonical Organization hosts; no production resource was
+changed.
 
 The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
 verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
@@ -25,12 +26,15 @@ including the persisted one-hour expiration assertion, and the deployed UI descr
 one-hour Platform Administrator session.
 
 The signed-link and profile-photo qualification helpers are present and their five-file Vitest suite
-passes 13 tests. Permanent-staging success evidence for the valid signed RSVP, audition,
-unsubscribe, and email-change flows and for profile-photo upload/authorization/replacement cleanup
-has not yet been captured. One attempted photo run authenticated as the ordinary linked member while
-resolving the Organization-admin target Profile and correctly received HTTP 403; no staging data was
-changed. The next run must use the allowlisted Platform/Organization-admin identity for
-`STAGING_AUTH_EMAIL` and the linked disposable identity separately in `STAGING_PHOTO_MEMBER_EMAIL`.
+passes 13 tests. On this release, signed RSVP qualification created disposable Performance
+`b2426d5f-dc90-4ab9-a516-65067406e0ba` and passed valid LCC details, Yes/No update and restore,
+active replay, cross-Organization rejection, and revocation after archive. Permanent-staging success
+evidence for the signed audition, unsubscribe, and email-change flows and for profile-photo
+upload/authorization/replacement cleanup remains open. One attempted photo run authenticated as the
+ordinary linked member while resolving the Organization-admin target Profile and correctly received
+HTTP 403; no staging data was changed. The next photo run must use the allowlisted
+Platform/Organization-admin identity for `STAGING_AUTH_EMAIL` and the linked disposable identity
+separately in `STAGING_PHOTO_MEMBER_EMAIL`.
 
 ## Prior staging release and deployment path — August 12, 2026
 
