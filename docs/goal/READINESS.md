@@ -11,8 +11,8 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `9083acfc5bb35b191a34224aa6e00a7854b46a86` as
-Worker version `128f1166-5749-4641-8db6-d06aa7da73ce` at 100% traffic. The guarded local release
+Permanent staging currently serves source commit `da756f896fb535cc848284b665b04bfec872b9a0` as
+Worker version `5d1c698a-a1b4-4b88-874c-ab14e420607b` at 100% traffic. The guarded local release
 passed the complete 13-step CI mirror, 263 unit tests, 199 Workerd integration tests, and 104
 Chromium desktop/mobile E2E tests. Exact-version staging qualification then passed all six direct
 health/readiness probes and the 148-request anonymous Organization-boundary sweep, including the
@@ -21,6 +21,15 @@ commit on both the product host and the seeded LCC Organization host; no product
 changed. The previous Worker version remains the rollback target. Authenticated web API requests use
 `no-store` by default, preventing cached tenant status from resurrecting a stale Stripe onboarding
 action after the connected account is ready.
+
+This release also enables the controlled identity qualification email flow for
+`qual-identity-20260813-luna@qa-mail.staging.musicsite.org`. The alias is present in the staging
+Worker's Email Sending allowlist and has a Cloudflare Email Routing rule
+(`81e9fa00f7c24852a31e81e836bcec14`) forwarding only to the verified staging destination
+`cwosborn@gmail.com`; the catch-all remains disabled. The route and allowlist change passed the full
+local release gate and was promoted in the exact Worker release above. The authenticated
+invitation/password-reset qualification still needs to be rerun from a visible terminal so its
+one-time codes can be entered interactively.
 
 This release also fixes the completed Stripe Connect state in the setup UI: a Ready account no
 longer offers a stale “Continue Stripe onboarding” action, and incomplete setup links to the setup
