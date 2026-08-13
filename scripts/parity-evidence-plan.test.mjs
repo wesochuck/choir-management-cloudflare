@@ -104,6 +104,12 @@ describe("parity staging evidence plan", () => {
       ),
     ).toBe(true);
     expect(
+      isExpectedAnonymousBoundary(
+        { id: "api.stripe-webhook" },
+        { status: 400, code: "invalid_webhook_signature" },
+      ),
+    ).toBe(true);
+    expect(
       isExpectedAnonymousBoundary({ id: "api.rsvp-details" }, { status: 404, code: "not_found" }),
     ).toBe(false);
     expect(

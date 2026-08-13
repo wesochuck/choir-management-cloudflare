@@ -49,8 +49,11 @@ export const probePlan = new Map([
   ["api.unsubscribe", { kind: "validation", expected: 400 }],
   ["api.checkout-dues", { kind: "validation", expected: 400 }],
 
-  // Deliberate fail-closed gates
-  ["api.stripe-webhook", { kind: "fail-closed", expected: 503 }],
+  // Deliberate fail-closed gates. Staging has the webhook secret configured, so
+  // the safe empty request reaches signature verification and returns 400.
+  // Environments without the secret return the typed 503 configuration error;
+  // the anonymous boundary matcher below accepts both states.
+  ["api.stripe-webhook", { kind: "fail-closed", expected: 400 }],
 
   // Require Platform Administrator elevation or interactive context
   ["api.maintenance", { kind: "skip-elevation" }],
@@ -102,7 +105,10 @@ export const probePlan = new Map([
 export function isExpectedAnonymousBoundary(row, result) {
   if (result.error !== undefined) return false;
   if (row.id === "api.stripe-webhook") {
-    return result.status === 503 && result.code === "stripe_webhook_unavailable";
+    return (
+      (result.status === 400 && result.code === "invalid_webhook_signature") ||
+      (result.status === 503 && result.code === "stripe_webhook_unavailable")
+    );
   }
   if (row.id === "api.player-playlist") {
     return result.status === 404 && result.code === "invalid_link";
