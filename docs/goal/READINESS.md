@@ -11,21 +11,22 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `7a703ec0759a7257a85ca0c83bd775a5935cbd42` as
-Worker version `ccc09b51-188d-4dd0-86f2-7355e34f1e0b` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 254 unit tests, 199 Workerd integration tests, and 94
+Permanent staging currently serves source commit `374a033b12e942ad62409740d1fb5c20e29ad6e5` as
+Worker version `dffbd3f4-1931-4818-ba65-244b7af55390` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 255 unit tests, 199 Workerd integration tests, and 98
 Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
 probes and the 148-request anonymous Organization-boundary sweep, including the configured Stripe
 webhook's typed invalid-signature response. `/api/health` reports the exact source commit on the
 product host; no production resource was changed. The release record uses deployment
-`a4b4258b-348d-4e90-88d1-be554b4f8b53` and retains Worker version
-`f299daa4-7aaf-42d6-8c61-eb533846a2b1` as the rollback target.
+`d8bf8f9f-6b2c-40bb-99bb-e1239cbe60a9` and retains Worker version
+`ccc09b51-188d-4dd0-86f2-7355e34f1e0b` as the rollback target.
 
 This release also fixes the completed Stripe Connect state in the setup UI: a Ready account no
 longer offers a stale “Continue Stripe onboarding” action, and incomplete setup links to the setup
-checklist. The LCC control-plane mapping was rechecked read-only after deployment and remains one
-active connected test account. Organization payment activation is still a separate, manager-owned
-step and was not enabled by the deployment.
+checklist. A stale page now rechecks the connected-account state before creating a new one-time
+Stripe link, and the Worker rejects onboarding-link creation when Stripe already reports the account
+as ready. The LCC control-plane mapping was rechecked read-only after deployment and remains one
+active connected test account.
 
 This release adds a replay-safe stale-payment cleanup guard: donation and dues expiration markers
 are excluded from later scans, and the cleanup audit event is idempotent. The focused Workerd
@@ -38,11 +39,12 @@ secrets plus `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Secret values were
 invalid-signature probe against the deployed webhook returned the typed `invalid_webhook_signature`
 HTTP 400 response, confirming that the webhook secret is loaded at runtime. The LCC control-plane
 Stripe mapping now contains one active connected test account, and the Organization status reports
-`Ready`. Paid checkout is still gated by the Organization's Tickets activation checkbox, which
-remains disabled in the current setup view. After that activation, a controlled paid checkout can
-verify the provider path; stale-payment cleanup still requires a supported pending fixture older
-than the seven-day cleanup threshold. `task.cleanup` therefore remains an explicit staging-fixture
-prerequisite rather than a candidate for a qualification-only clock override or internal route.
+`Ready`. A live authenticated recheck shows the Organization's Tickets, Donations, and Dues payment
+modules enabled. A controlled paid checkout, refund, and replay/boundary qualification remains
+pending explicit action-time authorization because it creates provider-side sandbox effects;
+stale-payment cleanup still requires a supported pending fixture older than the seven-day cleanup
+threshold. `task.cleanup` therefore remains an explicit staging-fixture prerequisite rather than a
+candidate for a qualification-only clock override or internal route.
 
 The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
 verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
