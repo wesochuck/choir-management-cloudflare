@@ -2344,6 +2344,7 @@
           [
             "apps/worker/src/organization/scheduler.ts",
             "apps/worker/test/scheduler.integration.test.ts",
+            "apps/worker/test/paymentCleanup.integration.test.ts",
           ],
       },
     ],
