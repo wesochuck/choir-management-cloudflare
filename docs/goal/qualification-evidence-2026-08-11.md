@@ -70,7 +70,13 @@ Commit `9a8d790` also adds a live-source guard to the audition notification reso
 notification whose audition was deleted now returns a typed not-found response and cannot render or
 send a stale signed audition link. The focused public-audition integration suite passed 18 tests;
 the guarded release above deployed the fix. Permanent-staging dead-letter creation, dismissal, and
-duplicate-dismissal evidence remains unclaimed until the authenticated fixture run completes.
+duplicate-dismissal evidence remains unclaimed until the authenticated fixture run completes. On
+August 13, after a fresh Platform factor was verified, the protected Queue DLQ UI showed the two
+newest qualification-owned `audition_notification` records and dismissed both with the reason
+`Qualification-owned source was deleted before notification delivery.` The All records view retained
+both as `Dismissed`; older records were not touched. This confirms the staging creation and UI
+dismissal path, but the UI hides the action after dismissal, so duplicate-dismissal rejection and
+complete fixture cleanup still require the terminal harness.
 
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,

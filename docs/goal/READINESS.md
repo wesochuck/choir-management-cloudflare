@@ -65,7 +65,13 @@ Commit `9a8d790` adds a live-source guard to the audition notification resolver.
 notification whose audition was deleted now returns the typed not-found response and cannot render
 or send a stale signed audition link. The focused public-audition integration suite passed 18 tests,
 and the guarded release above deployed this fix. Permanent-staging dead-letter creation, dismissal,
-and duplicate-dismissal evidence still require the authenticated terminal run.
+and duplicate-dismissal evidence still require the authenticated terminal run. After a fresh
+Platform factor was verified on August 13, the protected Queue DLQ UI showed the two newest
+qualification-owned `audition_notification` records and both were dismissed with the reason
+`Qualification-owned source was deleted before notification delivery.` The All records view retained
+both audit records as `Dismissed`, while older records were left untouched. This is direct staging
+evidence for creation and UI dismissal; the UI removes the duplicate action after dismissal, so the
+duplicate-dismissal rejection and complete harness cleanup remain unclaimed.
 
 The first authenticated attempt did not create an external effect: the message-queue request was
 rejected with HTTP 409 before a communication was created, and the dead-letter helper stopped before
