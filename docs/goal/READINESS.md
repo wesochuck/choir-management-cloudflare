@@ -11,14 +11,21 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `1cb6f61bf80d67105e5aa0b9dec3e20ab4834951` as
-Worker version `a21b0ff6-8263-47f3-8971-ad24d8e00c4d` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 253 unit tests, 199 Workerd integration tests, and 94
+Permanent staging currently serves source commit `7a703ec0759a7257a85ca0c83bd775a5935cbd42` as
+Worker version `ccc09b51-188d-4dd0-86f2-7355e34f1e0b` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 254 unit tests, 199 Workerd integration tests, and 94
 Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
-probes and the 148-request anonymous Organization-boundary sweep. `/api/health` reports the exact
-source commit on the product host and both canonical Organization hosts; no production resource was
-changed. The release record uses deployment `27069ed8-57c7-45f3-9592-f0e5deec4db2` and retains
-Worker version `c85bdb01-65b3-4348-b930-8469c7fb6f07` as the rollback target.
+probes and the 148-request anonymous Organization-boundary sweep, including the configured Stripe
+webhook's typed invalid-signature response. `/api/health` reports the exact source commit on the
+product host; no production resource was changed. The release record uses deployment
+`a4b4258b-348d-4e90-88d1-be554b4f8b53` and retains Worker version
+`f299daa4-7aaf-42d6-8c61-eb533846a2b1` as the rollback target.
+
+This release also fixes the completed Stripe Connect state in the setup UI: a Ready account no
+longer offers a stale “Continue Stripe onboarding” action, and incomplete setup links to the setup
+checklist. The LCC control-plane mapping was rechecked read-only after deployment and remains one
+active connected test account. Organization payment activation is still a separate, manager-owned
+step and was not enabled by the deployment.
 
 This release adds a replay-safe stale-payment cleanup guard: donation and dues expiration markers
 are excluded from later scans, and the cleanup audit event is idempotent. The focused Workerd
@@ -2433,12 +2440,13 @@ committing.
 
 The following work remains before the goal contract can be marked complete:
 
-1. Qualify the 31 parity entries that remain `implemented`, including the remaining API families,
+1. Qualify the 19 parity entries that remain `implemented`, including the remaining API families,
    signed-link flows, file behaviors, record hooks, background tasks, and domain workflows. Promote
    entries to `verified` only after successful and failure-path evidence is captured.
-2. Supply isolated Stripe Connect test credentials and a signed webhook secret, then qualify
-   checkout, capacity, webhook replay/idempotency, refunds, disputes, reconciliation, reminders, and
-   failure/rollback behavior. Do not record credentials here.
+2. With the isolated Stripe Connect test credentials and signed webhook secret now configured,
+   enable the LCC payment module only after manager confirmation, then qualify checkout, capacity,
+   webhook replay/idempotency, refunds, disputes, reconciliation, reminders, and failure/rollback
+   behavior. Do not record credentials here.
 3. Supply isolated Brevo test credentials, verified sender identities, and the approved SMS test
    number, then qualify delivery, suppression, retry, partial-failure, redaction, and provider
    feedback behavior. Keep the staging recipient allowlist narrow.
@@ -2459,8 +2467,10 @@ The following work remains before the goal contract can be marked complete:
 - GitHub, the private repository, the remote, and the repository-scoped Cloudflare CI credentials
   are recorded as configured. Local Wrangler OAuth remains separate from CI and must not be copied
   into this file.
-- Stripe and Brevo secrets must be entered only through their secure environment flows. Until that
-  happens, provider qualification cannot be approved; no placeholder credentials may be created.
+- Stripe secrets are provisioned in the isolated staging environment and the LCC connected test
+  account is active. Stripe payment qualification still requires the Organization activation step.
+  Brevo secrets and sender credentials must be entered only through their secure environment flow;
+  no placeholder credentials may be created.
 - Staging email remains restricted to the explicit recipient allowlist. Do not turn staging into an
   unrestricted sender.
 - Independently attached Organization domains require the separately approved Cloudflare hostname
@@ -2491,9 +2501,9 @@ The following work remains before the goal contract can be marked complete:
    than replacing historical evidence with older counts.
 2. For each future material release, repeat the local gate and promote only its exact immutable
    artifact to permanent staging through the release workflow.
-3. Resolve the Stripe and Brevo secure prerequisites, then execute the remaining provider, queue,
-   export, domain, scale, scheduler, observability, migration, security, and rollback checks listed
-   above.
+3. Complete the LCC payment activation decision and Stripe qualification; resolve the remaining
+   Brevo prerequisite, then execute the remaining provider, queue, export, domain, scale, scheduler,
+   observability, migration, security, and rollback checks listed above.
 4. Promote the corresponding parity entries from `implemented` to `verified` as evidence is
    approved.
 5. Do not launch or configure production. Pause only for interactive authorization, secure secret
