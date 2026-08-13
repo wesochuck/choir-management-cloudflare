@@ -1,11 +1,12 @@
 import { env, exports } from "cloudflare:workers";
+import { publicAuditionInquiryResponseSchema } from "@choir/contracts";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { auditionSystemCommunicationTemplateIds } from "../src/organization/schema";
-import { updateAuditionInStore } from "../src/organization/auditionStore";
+import { deleteAuditionInStore, updateAuditionInStore } from "../src/organization/auditionStore";
 
 const ALPHA_ORG = "organization-alpha";
 const BRAVO_ORG = "organization-bravo";
@@ -245,6 +246,58 @@ describe("public audition signed flow", () => {
           .at(0)?.count ?? 0,
     }));
     expect(counts).toEqual({ jobs: 1, notifications: 1 });
+  });
+
+  it("does not resolve an audition notification after its source is deleted", async () => {
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-inquiry", {
+        body: JSON.stringify({
+          email: "deleted-source@example.test",
+          name: "Deleted Source Singer",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(201);
+    const auditionId = publicAuditionInquiryResponseSchema.parse(await response.json()).id;
+    const stub = stores.get(stores.idFromName(ALPHA_ORG));
+    const notificationJob = await runInDurableObject<
+      OrganizationStore,
+      { readonly jobId: string } | null
+    >(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{
+            readonly jobId: string;
+          }>(
+            `SELECT o.job_id AS jobId
+           FROM audition_notifications n
+           JOIN scheduled_job_outbox o
+             ON o.idempotency_key = 'audition-notification:' || n.id
+           WHERE n.audition_id = ? LIMIT 1`,
+            auditionId,
+          )
+          .toArray()
+          .at(0) ?? null,
+    );
+    if (!notificationJob) throw new Error("The audition notification fixture was not queued.");
+
+    const deleteStatus = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        deleteAuditionInStore(state.storage, auditionId, {
+          actorUserId: "integration-test",
+          requestId: crypto.randomUUID(),
+        }).status,
+    );
+    expect(deleteStatus).toBe(200);
+
+    const deliveryResolution = await stub.fetch(
+      `https://organization.internal/internal/audition/notification-job?organizationId=${encodeURIComponent(ALPHA_ORG)}&jobId=${encodeURIComponent(notificationJob.jobId)}`,
+    );
+    expect(deliveryResolution.status).toBe(404);
   });
 
   it("renders the Organization's edited audition submission template", async () => {

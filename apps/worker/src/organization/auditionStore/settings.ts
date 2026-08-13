@@ -198,11 +198,13 @@ export function readAuditionNotificationJobFromStore(
   }
   const row = storage.sql
     .exec<AuditionNotificationRow>(
-      `SELECT id, destination, recipient_name AS recipientName, subject,
-        audition_id AS auditionId, kind, content_markdown AS contentMarkdown, status,
-        provider_event_at AS providerEventAt, provider_message_id AS providerMessageId,
-        provider_reason AS providerReason, provider_status AS providerStatus
-       FROM audition_notifications WHERE id = ? LIMIT 1`,
+      `SELECT n.id, n.destination, n.recipient_name AS recipientName, n.subject,
+        n.audition_id AS auditionId, n.kind, n.content_markdown AS contentMarkdown, n.status,
+        n.provider_event_at AS providerEventAt, n.provider_message_id AS providerMessageId,
+        n.provider_reason AS providerReason, n.provider_status AS providerStatus
+       FROM audition_notifications n
+       JOIN auditions a ON a.id = n.audition_id
+       WHERE n.id = ? LIMIT 1`,
       notificationId,
     )
     .toArray()
