@@ -2663,6 +2663,8 @@
             "apps/web/src/auth/SignInView.tsx",
             "apps/worker/src/auth/config.ts",
             "apps/worker/test/auth.integration.test.ts",
+            "scripts/qualify-staging-identity.mjs",
+            "scripts/qualify-staging-identity.test.mjs",
           ],
       },
       {
