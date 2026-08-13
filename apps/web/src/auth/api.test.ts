@@ -108,6 +108,7 @@ describe("platform email suppression API", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "/api/platform/email-suppressions?cursor=2026-08-06T17%3A07%3A28.817Z%7Cbounce%40example.test&q=bounce%40example.test&status=all",
     );
+    expect(fetchMock.mock.calls[0]?.[1]?.cache).toBe("no-store");
   });
 
   it("posts an audited release reason for a suppression", async () => {

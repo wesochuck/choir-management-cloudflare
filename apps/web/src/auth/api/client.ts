@@ -28,7 +28,12 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
   if (!headers.has("accept")) headers.set("accept", "application/json");
   if (init.body !== undefined && !headers.has("content-type"))
     headers.set("content-type", "application/json");
-  const response = await fetch(path, { ...init, credentials: "same-origin", headers });
+  const response = await fetch(path, {
+    ...init,
+    cache: init.cache ?? "no-store",
+    credentials: "same-origin",
+    headers,
+  });
   if (!response.ok) throw await responseError(response);
   return response;
 }
