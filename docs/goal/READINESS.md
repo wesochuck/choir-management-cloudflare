@@ -11,9 +11,9 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `08b6f742e3514697d9ed88a01b245cc105838a6e` as
-Worker version `f0914843-8ce6-4070-8015-ae71ed616b90` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 262 unit tests, 199 Workerd integration tests, and 102
+Permanent staging currently serves source commit `9083acfc5bb35b191a34224aa6e00a7854b46a86` as
+Worker version `128f1166-5749-4641-8db6-d06aa7da73ce` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 263 unit tests, 199 Workerd integration tests, and 104
 Chromium desktop/mobile E2E tests. Exact-version staging qualification then passed all six direct
 health/readiness probes and the 148-request anonymous Organization-boundary sweep, including the
 configured Stripe webhook's typed invalid-signature response. `/api/health` reports the exact source
@@ -31,6 +31,12 @@ success or reopen guidance. The LCC control-plane mapping was rechecked read-onl
 and remains one active connected test account. An authenticated LCC browser recheck on this exact
 release rendered both the `stripe=return` success notice and the `stripe=refresh` reopen guidance;
 the Ready account correctly showed no stale Continue action.
+
+For backward compatibility with one-time Stripe Account Links created before the setup-checklist
+return path was introduced, Organization Settings now explains `stripe=return` success and
+`stripe=refresh` recovery states as well, linking back to the setup checklist when a stale link must
+be reopened. The desktop/mobile browser coverage for both legacy query states passed, and the exact
+release was promoted to permanent staging above.
 
 This release adds a replay-safe stale-payment cleanup guard: donation and dues expiration markers
 are excluded from later scans, and the cleanup audit event is idempotent. The focused Workerd
