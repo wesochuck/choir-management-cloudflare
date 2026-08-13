@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ownedFailureRows,
   queueDeadLetterQualificationPlan,
   safeQueueDeadLetterSummary,
 } from "./qualify-staging-queue-dead-letter.mjs";
@@ -35,5 +36,20 @@ describe("staging queue dead-letter qualification helpers", () => {
       qualificationOwned: true,
     });
     expect(JSON.stringify(summary)).not.toContain("operational detail");
+  });
+
+  it("uses the baseline snapshot instead of comparing clocks from separate Workers", () => {
+    const rows = [
+      {
+        firstSeenAt: "2026-08-13T12:30:39.672Z",
+        id: "new-dead-letter",
+        idempotencyKey: "audition-notification:notification-id",
+        jobKind: "audition_notification",
+        organizationId: "organization-id",
+      },
+    ];
+
+    expect(ownedFailureRows(rows, new Set(), "organization-id")).toEqual(rows);
+    expect(ownedFailureRows(rows, new Set(["new-dead-letter"]), "organization-id")).toEqual([]);
   });
 });

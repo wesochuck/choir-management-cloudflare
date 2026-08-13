@@ -220,7 +220,7 @@ async function deleteFailureAudition(cookie, auditionId) {
   }
 }
 
-function ownedFailureRows(rows, baselineIds, organizationId, createdAt) {
+export function ownedFailureRows(rows, baselineIds, organizationId) {
   return rows.filter(
     (row) =>
       typeof row?.id === "string" &&
@@ -228,23 +228,16 @@ function ownedFailureRows(rows, baselineIds, organizationId, createdAt) {
       row.organizationId === organizationId &&
       row.jobKind === "audition_notification" &&
       typeof row.idempotencyKey === "string" &&
-      row.idempotencyKey.startsWith("audition-notification:") &&
-      typeof row.firstSeenAt === "string" &&
-      row.firstSeenAt >= createdAt,
+      row.idempotencyKey.startsWith("audition-notification:"),
   );
 }
 
-async function waitForOwnedDeadLetters(cookie, baselineIds, organizationId, createdAt) {
+async function waitForOwnedDeadLetters(cookie, baselineIds, organizationId) {
   for (let attempt = 0; attempt < pollingAttempts; attempt += 1) {
     if (attempt === 0 || (attempt + 1) % 3 === 0) {
       console.log(`WAIT queue dead letter (${String(attempt + 1)}/${String(pollingAttempts)})`);
     }
-    const rows = ownedFailureRows(
-      await listDeadLetters(cookie),
-      baselineIds,
-      organizationId,
-      createdAt,
-    );
+    const rows = ownedFailureRows(await listDeadLetters(cookie), baselineIds, organizationId);
     if (rows.length > 0) return rows;
     if (attempt < pollingAttempts - 1) await sleep(pollingDelayMs);
   }
@@ -297,12 +290,7 @@ async function main() {
     deleted = true;
     console.log("PASS qualification-owned audition source deleted before delivery");
 
-    const deadLetters = await waitForOwnedDeadLetters(
-      cookie,
-      baselineIds,
-      organizationId,
-      fixture.createdAt,
-    );
+    const deadLetters = await waitForOwnedDeadLetters(cookie, baselineIds, organizationId);
     const qualificationOwned =
       deadLetters.length > 0 &&
       deadLetters.every(
