@@ -26,6 +26,14 @@ regression expires one old ticket, donation, and dues record on the first pass a
 replay; it also rejects a mismatched Organization identity. Permanent-staging cleanup proof is not
 claimed until a supported stale-payment fixture is available.
 
+The current permanent-staging Worker secret inventory contains only the authentication and
+signed-link secrets; no Stripe secret or connected test account is configured. Although the staging
+variable keeps Stripe payments explicitly enabled, the existing checkout path fails closed and
+expires a non-free reservation when Stripe is not configured. This makes a naturally aged pending
+payment impossible to create through the supported staging flow. `task.cleanup` therefore remains an
+explicit external prerequisite rather than a candidate for a qualification-only clock override or
+internal route.
+
 The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
 verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
 Organization-scoped edit elevation lifetime. The focused Platform MFA integration coverage passed,
