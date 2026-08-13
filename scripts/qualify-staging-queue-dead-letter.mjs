@@ -15,7 +15,11 @@ const failureEmail = (
   .toLowerCase();
 const failureName = `QUAL-QUEUE-FAIL-${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}`;
 const organizationHost = `https://${organizationSlug}.${new URL(productUrl).hostname}`;
-const pollingAttempts = 36;
+// Cloudflare Queue retry scheduling can take slightly longer than the consumer's
+// five-attempt configuration before the message is visible to the DLQ consumer.
+// Keep this bounded while allowing the qualification fixture to observe that
+// asynchronous terminal transition reliably.
+const pollingAttempts = 60;
 const pollingDelayMs = 5_000;
 const planOnly = process.argv.includes("--plan-only");
 
@@ -47,7 +51,7 @@ export function queueDeadLetterQualificationPlan() {
     "create one temporary audition addressed only to an RFC-reserved example.test fixture",
     "delete the audition through the supported Organization API before notification resolution",
     "run canonical-LCC maintenance to flush the qualification-owned notification outbox",
-    "poll for a new Organization-owned audition_notification dead letter with bounded waits",
+    "poll for a new Organization-owned audition_notification dead letter with bounded waits (up to five minutes)",
     "dismiss each newly owned dead letter once and prove a repeated dismissal is rejected",
     "leave no audition or provider-recipient state behind and never invoke queue retry",
   ];

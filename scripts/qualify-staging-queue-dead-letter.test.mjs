@@ -15,7 +15,7 @@ describe("staging queue dead-letter qualification helpers", () => {
       "create one temporary audition addressed only to an RFC-reserved example.test fixture",
       "delete the audition through the supported Organization API before notification resolution",
       "run canonical-LCC maintenance to flush the qualification-owned notification outbox",
-      "poll for a new Organization-owned audition_notification dead letter with bounded waits",
+      "poll for a new Organization-owned audition_notification dead letter with bounded waits (up to five minutes)",
       "dismiss each newly owned dead letter once and prove a repeated dismissal is rejected",
       "leave no audition or provider-recipient state behind and never invoke queue retry",
     ]);
