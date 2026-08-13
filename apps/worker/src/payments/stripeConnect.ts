@@ -49,6 +49,13 @@ export function stripeAccountIsReady(account: {
   );
 }
 
+export function stripeConnectSetupUrl(origin: string, result: "refresh" | "return"): string {
+  const url = new URL("/admin/settings/setup-checklist", origin);
+  url.searchParams.set("stripe", result);
+  url.hash = "provider-status-title";
+  return url.toString();
+}
+
 function stripeMessage(body: unknown): string {
   if (typeof body !== "object" || body === null || !("error" in body)) {
     return "Stripe Connect could not complete the request.";

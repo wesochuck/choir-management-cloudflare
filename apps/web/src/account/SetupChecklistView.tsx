@@ -61,6 +61,10 @@ function stepLabel(step: SetupStep): string {
 
 export function SetupChecklistView() {
   const [checkState, setCheckState] = useState<CheckState>({ status: "loading" });
+  const stripeResult =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("stripe");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -143,6 +147,18 @@ export function SetupChecklistView() {
           })}
         </ul>
       </section>
+      {stripeResult === "return" ? (
+        <p className="notice notice--success" role="status">
+          Stripe Connect returned from onboarding. The connected-account status below has been
+          refreshed.
+        </p>
+      ) : null}
+      {stripeResult === "refresh" ? (
+        <p className="notice notice--warning" role="alert">
+          The Stripe onboarding link needs to be refreshed. Use the button below to reopen the
+          Organization&apos;s setup flow.
+        </p>
+      ) : null}
       <OrganizationProviderStatus />
     </div>
   );

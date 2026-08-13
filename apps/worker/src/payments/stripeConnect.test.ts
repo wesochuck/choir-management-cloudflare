@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createStripeCheckoutSession,
   createStripeRefund,
+  stripeConnectSetupUrl,
   stripeAccountIsReady,
 } from "./stripeConnect";
 
@@ -35,6 +36,15 @@ describe("Stripe Connect provider contract", () => {
         requirements: { currently_due: [] },
       }),
     ).toBe(false);
+  });
+
+  it("returns Stripe Connect to the setup checklist with an outcome", () => {
+    expect(stripeConnectSetupUrl("https://lcc.staging.musicsite.org", "return")).toBe(
+      "https://lcc.staging.musicsite.org/admin/settings/setup-checklist?stripe=return#provider-status-title",
+    );
+    expect(stripeConnectSetupUrl("https://lcc.staging.musicsite.org", "refresh")).toBe(
+      "https://lcc.staging.musicsite.org/admin/settings/setup-checklist?stripe=refresh#provider-status-title",
+    );
   });
 
   it("creates direct-charge Checkout Sessions with tenant and retry identity", async () => {

@@ -14,6 +14,7 @@ import {
   createStripeConnectedAccount,
   retrieveStripeConnectedAccount,
   stripeAccountIsReady,
+  stripeConnectSetupUrl,
   StripeConnectError,
 } from "../payments/stripeConnect";
 import { upsertStripeAccountOrganization } from "../payments/stripeRouting";
@@ -351,13 +352,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         );
       }
       const requestUrl = new URL(context.req.url);
-      const returnUrl = new URL("/admin/settings?stripe=return", requestUrl.origin).toString();
-      const refreshUrl = new URL("/admin/settings?stripe=refresh", requestUrl.origin).toString();
       const onboardingUrl = await createStripeAccountOnboardingLink(
         secretKey,
         account.id,
-        returnUrl,
-        refreshUrl,
+        stripeConnectSetupUrl(requestUrl.origin, "return"),
+        stripeConnectSetupUrl(requestUrl.origin, "refresh"),
       );
       const response = organizationStripeConnectOnboardingResponseSchema.parse({
         accountId: account.id,

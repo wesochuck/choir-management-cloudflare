@@ -156,6 +156,37 @@ test("hides Stripe onboarding when the connected account is ready", async ({ pag
   await expect(page.getByRole("button", { name: /Stripe onboarding/i })).toHaveCount(0);
 });
 
+test("shows a successful Stripe return on the setup checklist", async ({ page }) => {
+  await setupChecklistRoutes(page, [readyConnectStatus]);
+
+  await page.goto("/admin/settings/setup-checklist?stripe=return#provider-status-title");
+
+  await expect(
+    page.getByText("Stripe Connect returned from onboarding.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText("Status: Ready", { exact: false })).toBeVisible();
+});
+
+test("explains how to refresh an expired Stripe onboarding link", async ({ page }) => {
+  await setupChecklistRoutes(page, [
+    {
+      accountId: "acct_SetupChecklistOnboarding",
+      chargesEnabled: false,
+      detailsSubmitted: false,
+      payoutsEnabled: false,
+      requirementsDue: ["business_profile.url"],
+      status: "onboarding",
+    },
+  ]);
+
+  await page.goto("/admin/settings/setup-checklist?stripe=refresh#provider-status-title");
+
+  await expect(
+    page.getByText("The Stripe onboarding link needs to be refreshed.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue Stripe onboarding" })).toBeVisible();
+});
+
 test("refreshes a stale onboarding view before opening Stripe", async ({ page }) => {
   await setupChecklistRoutes(page, [
     {
