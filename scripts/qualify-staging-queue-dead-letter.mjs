@@ -43,6 +43,13 @@ function uuid(value, label) {
   return value;
 }
 
+export function deadLetterId(value, label) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512) {
+    throw new Error(`${label} must be a non-empty queue dead-letter identifier.`);
+  }
+  return value;
+}
+
 export function queueDeadLetterQualificationPlan() {
   return [
     "sign in and verify the fresh Platform Administrator factor in memory",
@@ -340,8 +347,9 @@ async function main() {
     let dismissalCount = 0;
     let duplicateDismissalRejected = true;
     for (const row of deadLetters) {
-      if (await dismissDeadLetter(cookie, uuid(row.id, "dead-letter ID"))) dismissalCount += 1;
-      if (!(await repeatedDismissalRejected(cookie, uuid(row.id, "dead-letter ID")))) {
+      const identifier = deadLetterId(row.id, "dead-letter ID");
+      if (await dismissDeadLetter(cookie, identifier)) dismissalCount += 1;
+      if (!(await repeatedDismissalRejected(cookie, identifier))) {
         duplicateDismissalRejected = false;
       }
     }

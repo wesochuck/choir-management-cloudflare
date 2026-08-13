@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deadLetterId,
   ownedFailureRows,
   queueDeadLetterQualificationPlan,
   safeQueueDeadLetterSummary,
@@ -53,5 +54,17 @@ describe("staging queue dead-letter qualification helpers", () => {
 
     expect(ownedFailureRows(rows, new Set(), "organization-id")).toEqual(rows);
     expect(ownedFailureRows(rows, new Set(["new-dead-letter"]), "organization-id")).toEqual([]);
+  });
+
+  it("accepts opaque queue dead-letter identifiers returned by the platform API", () => {
+    const identifier = "choir-management-jobs-dlq-staging:message-0123456789abcdef";
+
+    expect(deadLetterId(identifier, "dead-letter ID")).toBe(identifier);
+    expect(() => deadLetterId("", "dead-letter ID")).toThrow(
+      "dead-letter ID must be a non-empty queue dead-letter identifier.",
+    );
+    expect(() => deadLetterId("x".repeat(513), "dead-letter ID")).toThrow(
+      "dead-letter ID must be a non-empty queue dead-letter identifier.",
+    );
   });
 });
