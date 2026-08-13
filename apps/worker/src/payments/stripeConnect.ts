@@ -37,6 +37,18 @@ export class StripeCheckoutError extends Error {
   }
 }
 
+export function stripeAccountIsReady(account: {
+  readonly charges_enabled: boolean;
+  readonly payouts_enabled: boolean;
+  readonly requirements: { readonly currently_due: readonly string[] };
+}): boolean {
+  return (
+    account.charges_enabled &&
+    account.payouts_enabled &&
+    account.requirements.currently_due.length === 0
+  );
+}
+
 function stripeMessage(body: unknown): string {
   if (typeof body !== "object" || body === null || !("error" in body)) {
     return "Stripe Connect could not complete the request.";

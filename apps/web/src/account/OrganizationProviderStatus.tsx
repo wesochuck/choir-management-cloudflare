@@ -5,6 +5,7 @@ import type {
 import { useEffect, useState } from "react";
 
 import {
+  AuthApiError,
   getOrganizationProviderStatus,
   getOrganizationStripeConnectStatus,
   startOrganizationStripeConnectOnboarding,
@@ -79,9 +80,28 @@ export function OrganizationProviderStatus() {
     setConnectBusy(true);
     setConnectError(null);
     try {
+      // The page can remain open while Stripe finishes onboarding in another tab. Re-read the
+      // provider state before creating another one-time Account Link so a stale button cannot
+      // send an already-ready account through Stripe's onboarding flow again.
+      const latest = await getOrganizationStripeConnectStatus();
+      setConnectState({ data: latest, status: "ready" });
+      if (latest.stripe.status === "ready") return;
+
       const result = await startOrganizationStripeConnectOnboarding();
       window.location.assign(result.url);
-    } catch {
+    } catch (error: unknown) {
+      // A concurrent completion may be observed by the server after the preflight above. Refresh
+      // once so the UI settles on the ready state instead of showing a misleading onboarding
+      // failure for an account that no longer needs onboarding.
+      if (error instanceof AuthApiError && error.status === 409) {
+        try {
+          const latest = await getOrganizationStripeConnectStatus();
+          setConnectState({ data: latest, status: "ready" });
+          if (latest.stripe.status === "ready") return;
+        } catch {
+          // Fall through to the normal actionable error below.
+        }
+      }
       setConnectError(
         "Stripe onboarding could not be started. Ask a Platform Administrator to verify the Stripe setup.",
       );

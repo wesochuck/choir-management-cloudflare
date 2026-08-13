@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createStripeCheckoutSession, createStripeRefund } from "./stripeConnect";
+import {
+  createStripeCheckoutSession,
+  createStripeRefund,
+  stripeAccountIsReady,
+} from "./stripeConnect";
 
 function requestBody(request: RequestInit | undefined): string {
   if (typeof request?.body === "string") return request.body;
@@ -9,6 +13,30 @@ function requestBody(request: RequestInit | undefined): string {
 }
 
 describe("Stripe Connect provider contract", () => {
+  it("recognizes only fully enabled connected accounts as ready", () => {
+    expect(
+      stripeAccountIsReady({
+        charges_enabled: true,
+        payouts_enabled: true,
+        requirements: { currently_due: [] },
+      }),
+    ).toBe(true);
+    expect(
+      stripeAccountIsReady({
+        charges_enabled: true,
+        payouts_enabled: true,
+        requirements: { currently_due: ["business_profile.url"] },
+      }),
+    ).toBe(false);
+    expect(
+      stripeAccountIsReady({
+        charges_enabled: false,
+        payouts_enabled: true,
+        requirements: { currently_due: [] },
+      }),
+    ).toBe(false);
+  });
+
   it("creates direct-charge Checkout Sessions with tenant and retry identity", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

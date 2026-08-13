@@ -1,4 +1,4 @@
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const organizationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -31,7 +31,11 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
   await route.fulfill({ body: JSON.stringify(body), contentType: "application/json", status });
 }
 
-test("hides Stripe onboarding when the connected account is ready", async ({ page }) => {
+async function setupChecklistRoutes(
+  page: Page,
+  connectStatuses: readonly Record<string, unknown>[],
+): Promise<void> {
+  let connectStatusRead = 0;
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     const responses: Record<string, unknown> = {
@@ -98,18 +102,6 @@ test("hides Stripe onboarding when the connected account is ready", async ({ pag
         statusAutomationRecoveryEnabled: true,
         voiceParts: [],
       },
-      "/api/organization/stripe-connect": {
-        platformConfigured: true,
-        requestId,
-        stripe: {
-          accountId: "acct_SetupChecklistReady",
-          chargesEnabled: true,
-          detailsSubmitted: true,
-          payoutsEnabled: true,
-          requirementsDue: [],
-          status: "ready",
-        },
-      },
       "/api/platform/mfa/status": {
         activePlatformAdministrator: false,
         enrollmentComplete: false,
@@ -128,16 +120,60 @@ test("hides Stripe onboarding when the connected account is ready", async ({ pag
     if (pathname === "/api/organization/stripe-connect/onboard") {
       throw new Error("Ready Stripe accounts must not start onboarding.");
     }
+    if (pathname === "/api/organization/stripe-connect") {
+      const status =
+        connectStatuses[Math.min(connectStatusRead, connectStatuses.length - 1)] ??
+        connectStatuses[0];
+      connectStatusRead += 1;
+      await fulfillJson(route, { platformConfigured: true, requestId, stripe: status });
+      return;
+    }
     if (pathname in responses) {
       await fulfillJson(route, responses[pathname]);
       return;
     }
     await fulfillJson(route, { code: "not_found", message: "Not found", requestId }, 404);
   });
+}
+
+const readyConnectStatus = {
+  accountId: "acct_SetupChecklistReady",
+  chargesEnabled: true,
+  detailsSubmitted: true,
+  payoutsEnabled: true,
+  requirementsDue: [],
+  status: "ready",
+};
+
+test("hides Stripe onboarding when the connected account is ready", async ({ page }) => {
+  await setupChecklistRoutes(page, [readyConnectStatus]);
 
   await page.goto("/admin/settings/setup-checklist");
 
   await expect(page.getByRole("heading", { name: "Stripe Connect account" })).toBeVisible();
+  await expect(page.getByText("Status: Ready", { exact: false })).toBeVisible();
+  await expect(page.getByText("Stripe Connect is ready for staging payments.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Stripe onboarding/i })).toHaveCount(0);
+});
+
+test("refreshes a stale onboarding view before opening Stripe", async ({ page }) => {
+  await setupChecklistRoutes(page, [
+    {
+      accountId: "acct_SetupChecklistOnboarding",
+      chargesEnabled: false,
+      detailsSubmitted: false,
+      payoutsEnabled: false,
+      requirementsDue: ["business_profile.url"],
+      status: "onboarding",
+    },
+    readyConnectStatus,
+  ]);
+
+  await page.goto("/admin/settings/setup-checklist");
+
+  const continueButton = page.getByRole("button", { name: "Continue Stripe onboarding" });
+  await expect(continueButton).toBeVisible();
+  await continueButton.click();
   await expect(page.getByText("Status: Ready", { exact: false })).toBeVisible();
   await expect(page.getByText("Stripe Connect is ready for staging payments.")).toBeVisible();
   await expect(page.getByRole("button", { name: /Stripe onboarding/i })).toHaveCount(0);

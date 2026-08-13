@@ -13,6 +13,7 @@ import {
   createStripeAccountOnboardingLink,
   createStripeConnectedAccount,
   retrieveStripeConnectedAccount,
+  stripeAccountIsReady,
   StripeConnectError,
 } from "../payments/stripeConnect";
 import { upsertStripeAccountOrganization } from "../payments/stripeRouting";
@@ -337,13 +338,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       await upsertStripeAccountOrganization(context.env.CONTROL_DB, {
         accountId: account.id,
         organizationId: authorization.organizationId,
-        status:
-          account.charges_enabled &&
-          account.payouts_enabled &&
-          account.requirements.currently_due.length === 0
-            ? "active"
-            : "pending",
+        status: stripeAccountIsReady(account) ? "active" : "pending",
       });
+      if (stripeAccountIsReady(account)) {
+        return context.json(
+          {
+            code: "stripe_connect_already_ready",
+            message: "This Organization's Stripe Connect account is already ready.",
+            requestId,
+          } satisfies ProblemDetails,
+          409,
+        );
+      }
       const requestUrl = new URL(context.req.url);
       const returnUrl = new URL("/admin/settings?stripe=return", requestUrl.origin).toString();
       const refreshUrl = new URL("/admin/settings?stripe=refresh", requestUrl.origin).toString();
