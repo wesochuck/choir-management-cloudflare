@@ -11,24 +11,24 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `b154a3d0e4c72475f311ab670b3cfb04b6c5b67b` as
-Worker version `0b7a0954-6f7a-4cc7-86cc-5ed3a31682db` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 258 unit tests, 199 Workerd integration tests, and 98
-Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
-probes and the 148-request anonymous Organization-boundary sweep, including the configured Stripe
-webhook's typed invalid-signature response. `/api/health` reports the exact source commit on the
-product host; no production resource was changed. The release record uses deployment
-`086b55c7-de8a-4517-8df8-9bc851672f62` and retains Worker version
-`dffbd3f4-1931-4818-ba65-244b7af55390` as the rollback target. Authenticated web API requests now
-use `no-store` by default, preventing cached tenant status from resurrecting a stale Stripe
-onboarding action after the connected account is ready.
+Permanent staging currently serves source commit `08b6f742e3514697d9ed88a01b245cc105838a6e` as
+Worker version `f0914843-8ce6-4070-8015-ae71ed616b90` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 262 unit tests, 199 Workerd integration tests, and 102
+Chromium desktop/mobile E2E tests. Exact-version staging qualification then passed all six direct
+health/readiness probes and the 148-request anonymous Organization-boundary sweep, including the
+configured Stripe webhook's typed invalid-signature response. `/api/health` reports the exact source
+commit on both the product host and the seeded LCC Organization host; no production resource was
+changed. The previous Worker version remains the rollback target. Authenticated web API requests use
+`no-store` by default, preventing cached tenant status from resurrecting a stale Stripe onboarding
+action after the connected account is ready.
 
 This release also fixes the completed Stripe Connect state in the setup UI: a Ready account no
 longer offers a stale “Continue Stripe onboarding” action, and incomplete setup links to the setup
 checklist. A stale page now rechecks the connected-account state before creating a new one-time
 Stripe link, and the Worker rejects onboarding-link creation when Stripe already reports the account
-as ready. The LCC control-plane mapping was rechecked read-only after deployment and remains one
-active connected test account.
+as ready. Stripe Connect return and refresh URLs now land on the setup checklist with explicit
+success or reopen guidance. The LCC control-plane mapping was rechecked read-only after deployment
+and remains one active connected test account.
 
 This release adds a replay-safe stale-payment cleanup guard: donation and dues expiration markers
 are excluded from later scans, and the cleanup audit event is idempotent. The focused Workerd
