@@ -5,12 +5,14 @@ a production launch.
 
 ## Latest exact-release qualification completion — August 13, 2026
 
-Source commit `46b49b15b35b6bd7cb8dcb37a64594cf9ca789a7` was promoted to permanent staging as Worker
-version `24a12f48-ab36-44e4-b3fb-b55d08cc0f50` at 100% traffic. The guarded local release passed the
-complete 13-step CI mirror, 229 unit tests, 197 Workerd integration tests, and 94 Chromium E2E
-tests. `STAGING_EXPECTED_VERSION=46b49b15b35b6bd7cb8dcb37a64594cf9ca789a7 npm run qualify:staging`
+Source commit `9a8d7904a8d826ec05c241b002e1c98ef12dcfee` was promoted to permanent staging as Worker
+version `c85bdb01-65b3-4348-b930-8469c7fb6f07` at 100% traffic. The guarded local release passed the
+complete 13-step CI mirror, 241 unit tests, 198 Workerd integration tests, and 94 Chromium E2E
+tests. `STAGING_EXPECTED_VERSION=9a8d7904a8d826ec05c241b002e1c98ef12dcfee npm run qualify:staging`
 passed all six direct health/readiness probes, and the anonymous staging boundary sweep passed 148
-safe requests across both seeded Organization hosts. Production was not changed.
+safe requests across both seeded Organization hosts. Deployment
+`e44f7b35-9ca4-4151-b7f4-3fcfda9f1212` retains Worker version `24a12f48-ab36-44e4-b3fb-b55d08cc0f50`
+as the rollback target. Production was not changed.
 
 This release extends the Platform Administrator MFA assertion from 15 minutes to one hour after a
 fresh factor verification. The rotating six-digit TOTP remains unchanged, and the separate
@@ -57,7 +59,18 @@ rejected with HTTP 409 before a communication was created, and the dead-letter h
 creating its temporary audition because its account-organization slug lookup did not find `lcc`.
 Commit `60bd5ce` now resolves the dead-letter Organization ID from the canonical LCC Organization
 context and exposes only the safe application error code for a rejected message request. The
-message-queue and dead-letter qualification runs remain pending.
+message-queue qualification then completed against the canonical LCC host using the controlled
+Profile fixture. It found one reachable email recipient, reused the controlled message on the resume
+pass, observed `sent` delivery and provider acceptance, confirmed replay stability, and confirmed
+the wrong-Organization delivery-summary request returned HTTP 404. No duplicate delivery was
+created. The qualification-owned dead-letter run remains pending a fresh authenticated terminal
+session.
+
+Commit `9a8d790` also adds a live-source guard to the audition notification resolver. A queued
+notification whose audition was deleted now returns a typed not-found response and cannot render or
+send a stale signed audition link. The focused public-audition integration suite passed 18 tests;
+the guarded release above deployed the fix. Permanent-staging dead-letter creation, dismissal, and
+duplicate-dismissal evidence remains unclaimed until the authenticated fixture run completes.
 
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,

@@ -11,13 +11,14 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `46b49b15b35b6bd7cb8dcb37a64594cf9ca789a7` as
-Worker version `24a12f48-ab36-44e4-b3fb-b55d08cc0f50` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 229 unit tests, 197 Workerd integration tests, and 94
+Permanent staging currently serves source commit `9a8d7904a8d826ec05c241b002e1c98ef12dcfee` as
+Worker version `c85bdb01-65b3-4348-b930-8469c7fb6f07` at 100% traffic. The guarded local release
+passed the complete 13-step CI mirror, 241 unit tests, 198 Workerd integration tests, and 94
 Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
 probes and the 148-request anonymous Organization-boundary sweep. `/api/health` reports the exact
 source commit on the product host and both canonical Organization hosts; no production resource was
-changed.
+changed. The release record uses deployment `e44f7b35-9ca4-4151-b7f4-3fcfda9f1212` and retains
+Worker version `24a12f48-ab36-44e4-b3fb-b55d08cc0f50` as the rollback target.
 
 The Platform Administrator MFA assertion lifetime is now one hour after a successful fresh factor
 verification. The rotating six-digit TOTP itself remains unchanged, as does the separate
@@ -59,6 +60,12 @@ queue retry and has no provider-recipient effect. Its two focused tests and the 
 mirror pass. It has not yet run against permanent staging because it needs a fresh authenticated
 terminal session and a fresh Platform Administrator factor; enter those codes locally in the
 terminal only.
+
+Commit `9a8d790` adds a live-source guard to the audition notification resolver. A queued
+notification whose audition was deleted now returns the typed not-found response and cannot render
+or send a stale signed audition link. The focused public-audition integration suite passed 18 tests,
+and the guarded release above deployed this fix. Permanent-staging dead-letter creation, dismissal,
+and duplicate-dismissal evidence still require the authenticated terminal run.
 
 The first authenticated attempt did not create an external effect: the message-queue request was
 rejected with HTTP 409 before a communication was created, and the dead-letter helper stopped before
