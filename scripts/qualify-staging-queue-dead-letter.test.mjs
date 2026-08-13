@@ -17,7 +17,7 @@ describe("staging queue dead-letter qualification helpers", () => {
       "delete the audition through the supported Organization API before notification resolution",
       "run canonical-LCC maintenance to flush the qualification-owned notification outbox",
       "poll for a new Organization-owned audition_notification dead letter with bounded waits (up to five minutes)",
-      "dismiss each newly owned dead letter once and prove a repeated dismissal is rejected",
+      "dismiss each newly owned dead letter once and prove a repeated dismissal is idempotent",
       "leave no audition or provider-recipient state behind and never invoke queue retry",
     ]);
   });
@@ -27,7 +27,7 @@ describe("staging queue dead-letter qualification helpers", () => {
       cleanupCompleted: true,
       deadLetterCount: 2,
       dismissalCount: 2,
-      duplicateDismissalRejected: true,
+      duplicateDismissalGuarded: true,
       qualificationOwned: true,
       idempotencyKey: "contains operational detail",
     });
@@ -35,7 +35,7 @@ describe("staging queue dead-letter qualification helpers", () => {
       cleanupCompleted: true,
       deadLetterCount: 2,
       dismissalCount: 2,
-      duplicateDismissalRejected: true,
+      duplicateDismissalGuarded: true,
       qualificationOwned: true,
     });
     expect(JSON.stringify(summary)).not.toContain("operational detail");

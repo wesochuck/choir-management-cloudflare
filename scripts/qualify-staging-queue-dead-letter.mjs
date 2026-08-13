@@ -59,7 +59,7 @@ export function queueDeadLetterQualificationPlan() {
     "delete the audition through the supported Organization API before notification resolution",
     "run canonical-LCC maintenance to flush the qualification-owned notification outbox",
     "poll for a new Organization-owned audition_notification dead letter with bounded waits (up to five minutes)",
-    "dismiss each newly owned dead letter once and prove a repeated dismissal is rejected",
+    "dismiss each newly owned dead letter once and prove a repeated dismissal is idempotent",
     "leave no audition or provider-recipient state behind and never invoke queue retry",
   ];
 }
@@ -69,7 +69,7 @@ export function safeQueueDeadLetterSummary(input) {
     cleanupCompleted: input.cleanupCompleted === true,
     deadLetterCount: input.deadLetterCount,
     dismissalCount: input.dismissalCount,
-    duplicateDismissalRejected: input.duplicateDismissalRejected === true,
+    duplicateDismissalGuarded: input.duplicateDismissalGuarded === true,
     qualificationOwned: input.qualificationOwned === true,
   };
 }
@@ -285,14 +285,18 @@ async function dismissDeadLetter(cookie, deadLetterId) {
   return result.response.status === 200 && result.body?.actionStatus === "dismissed";
 }
 
-async function repeatedDismissalRejected(cookie, deadLetterId) {
+async function repeatedDismissalIsStable(cookie, deadLetterId) {
   const result = await request(
     `${productUrl}/api/platform/job-dead-letters/${encodeURIComponent(deadLetterId)}/dismiss`,
     "POST",
     { reason: "Qualification-owned duplicate dismissal guard check." },
     cookie,
   );
-  return result.response.status === 409 && result.body?.code === "job_dead_letter_dismissed";
+  return (
+    result.response.status === 200 &&
+    result.body?.actionStatus === "dismissed" &&
+    result.body?.deadLetterId === deadLetterId
+  );
 }
 
 async function main() {
@@ -345,18 +349,20 @@ async function main() {
     }
 
     let dismissalCount = 0;
-    let duplicateDismissalRejected = true;
+    let duplicateDismissalGuarded = true;
     for (const row of deadLetters) {
       const identifier = deadLetterId(row.id, "dead-letter ID");
       if (await dismissDeadLetter(cookie, identifier)) dismissalCount += 1;
-      if (!(await repeatedDismissalRejected(cookie, identifier))) {
-        duplicateDismissalRejected = false;
+      if (!(await repeatedDismissalIsStable(cookie, identifier))) {
+        duplicateDismissalGuarded = false;
       }
     }
     const dismissed = dismissalCount === deadLetters.length;
     console.log(`${dismissed ? "PASS" : "FAIL"} qualification-owned dead-letter dismissal`);
-    console.log(`${duplicateDismissalRejected ? "PASS" : "FAIL"} duplicate dismissal guard`);
-    if (!dismissed || !duplicateDismissalRejected) {
+    console.log(
+      `${duplicateDismissalGuarded ? "PASS" : "FAIL"} duplicate dismissal idempotency guard`,
+    );
+    if (!dismissed || !duplicateDismissalGuarded) {
       throw new Error(
         "Qualification-owned dead-letter dismissal did not satisfy its guard checks.",
       );
@@ -368,7 +374,7 @@ async function main() {
           cleanupCompleted: deleted,
           deadLetterCount: deadLetters.length,
           dismissalCount,
-          duplicateDismissalRejected,
+          duplicateDismissalGuarded,
           qualificationOwned,
         }),
       ),

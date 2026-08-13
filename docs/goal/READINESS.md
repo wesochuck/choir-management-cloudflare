@@ -55,7 +55,7 @@ Commit `f1484d1` adds a second provider-independent harness for qualification-ow
 and dead-letter dismissal. It creates one temporary audition addressed only to an RFC-reserved
 `example.test` address, deletes the source through the supported Organization API before
 notification resolution, polls with a bounded timeout, dismisses only newly owned
-`audition_notification` dead letters, and proves a repeated dismissal is rejected. It performs no
+`audition_notification` dead letters, and proves a repeated dismissal is idempotent. It performs no
 queue retry and has no provider-recipient effect. Its two focused tests and the complete 13-step CI
 mirror pass. It has not yet run against permanent staging because it needs a fresh authenticated
 terminal session and a fresh Platform Administrator factor; enter those codes locally in the
@@ -65,13 +65,13 @@ Commit `9a8d790` adds a live-source guard to the audition notification resolver.
 notification whose audition was deleted now returns the typed not-found response and cannot render
 or send a stale signed audition link. The focused public-audition integration suite passed 18 tests,
 and the guarded release above deployed this fix. Permanent-staging dead-letter creation, dismissal,
-and duplicate-dismissal evidence still require the authenticated terminal run. After a fresh
-Platform factor was verified on August 13, the protected Queue DLQ UI showed the two newest
+and duplicate-dismissal idempotency evidence still require the authenticated terminal run. After a
+fresh Platform factor was verified on August 13, the protected Queue DLQ UI showed the two newest
 qualification-owned `audition_notification` records and both were dismissed with the reason
 `Qualification-owned source was deleted before notification delivery.` The All records view retained
 both audit records as `Dismissed`, while older records were left untouched. This is direct staging
 evidence for creation and UI dismissal; the UI removes the duplicate action after dismissal, so the
-duplicate-dismissal rejection and complete harness cleanup remain unclaimed.
+duplicate-dismissal idempotency and complete harness cleanup remain unclaimed.
 
 The first authenticated attempt did not create an external effect: the message-queue request was
 rejected with HTTP 409 before a communication was created, and the dead-letter helper stopped before
@@ -83,7 +83,7 @@ reach preflight found exactly one email recipient; the controlled message reache
 queue attempt and a provider-accepted status; repeated inspection was stable; and the wrong
 Organization delivery-summary request was rejected with HTTP 404. The resume pass reused the
 existing controlled message and created no duplicate delivery. `task.message-queue` is now verified.
-Qualification-owned dead-letter creation, dismissal, and duplicate-dismissal rejection remain open
+Qualification-owned dead-letter creation, dismissal, and duplicate-dismissal idempotency remain open
 pending the corrected bounded failure-fixture run.
 
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,

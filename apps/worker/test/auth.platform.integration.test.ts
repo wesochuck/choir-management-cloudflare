@@ -1049,6 +1049,24 @@ describe("Platform Administrator MFA", () => {
       deadLetterId: invalidDeadLetterId,
     });
 
+    const duplicateDismissResponse = await fetchWorker(
+      authRequest(
+        `/api/platform/job-dead-letters/${encodeURIComponent(invalidDeadLetterId)}/dismiss`,
+        {
+          body: JSON.stringify({ reason: "Repeated dismissal remains idempotent." }),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+      ),
+    );
+    expect(duplicateDismissResponse.status).toBe(200);
+    expect(
+      platformJobDeadLetterActionResponseSchema.parse(await duplicateDismissResponse.json()),
+    ).toMatchObject({
+      actionStatus: "dismissed",
+      deadLetterId: invalidDeadLetterId,
+    });
+
     const openResponse = await fetchWorker(
       authRequest("/api/platform/job-dead-letters", { headers: { cookie: sessionCookie } }),
     );

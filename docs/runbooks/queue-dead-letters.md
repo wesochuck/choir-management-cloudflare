@@ -20,6 +20,8 @@ those cases.
 Choose **Dismiss record** after reviewing a failure that does not need another attempt. Dismissal
 removes the incident from **Needs review**, retains the record and reason in the audit history, and
 does not delete or alter the originating job. **All records** shows dismissed and retried incidents.
+Submitting the dismissal again is idempotent: it returns the existing dismissed action and does not
+create a second dismissal audit event.
 
 If a row says **Retry pending**, do not submit another retry. The source reset or queue acceptance
 was not fully confirmed; inspect the originating notification or job before taking another action.
