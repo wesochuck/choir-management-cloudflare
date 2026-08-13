@@ -80,6 +80,10 @@ function OrganizationPaymentSettingsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const { confirm, confirmationDialog } = useConfirmation();
+  const stripeResult =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("stripe");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -163,6 +167,22 @@ function OrganizationPaymentSettingsPanel() {
       {success ? (
         <p className="notice notice--success" role="status">
           {success}
+        </p>
+      ) : null}
+      {stripeResult === "return" ? (
+        <p className="notice notice--success" role="status">
+          Stripe Connect returned from onboarding. The connected-account status below has been
+          refreshed.
+        </p>
+      ) : null}
+      {stripeResult === "refresh" ? (
+        <p className="notice notice--warning" role="alert">
+          The Stripe onboarding link needs to be refreshed. Use the setup checklist below to reopen
+          the Organization&apos;s setup flow.
+          <br />
+          <a href="/admin/settings/setup-checklist?stripe=refresh#provider-status-title">
+            Open Stripe setup checklist
+          </a>
         </p>
       ) : null}
       {settings ? (

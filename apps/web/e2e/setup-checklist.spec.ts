@@ -86,6 +86,31 @@ async function setupChecklistRoutes(
         requestId,
         stripe: { detail: "Sandbox provider", status: "ok" },
       },
+      "/api/organization/payment-settings": {
+        activations: { donations: false, dues: false, tickets: false },
+        environment: "local",
+        externalEffectsMode: "fake",
+        globalPaymentsEnabled: true,
+        organizationName: "Setup Checklist Choir",
+        readiness: {
+          brevoConfigured: true,
+          stripeAccountReady: true,
+          stripeConfigured: true,
+          webhookConfigured: true,
+        },
+        requestId,
+        stripe: readyConnectStatus,
+      },
+      "/api/organization/calendar-settings": {
+        requestId,
+        timezone: "America/New_York",
+      },
+      "/api/organization/transaction-fee-settings": {
+        fixedCents: 30,
+        passFeeToDonor: false,
+        percentage: 2.9,
+        requestId,
+      },
       "/api/organization/roster-configuration": {
         attendanceReportWarningThreshold: 3,
         onBreakTimeoutDays: 60,
@@ -208,4 +233,27 @@ test("refreshes a stale onboarding view before opening Stripe", async ({ page })
   await expect(page.getByText("Status: Ready", { exact: false })).toBeVisible();
   await expect(page.getByText("Stripe Connect is ready for staging payments.")).toBeVisible();
   await expect(page.getByRole("button", { name: /Stripe onboarding/i })).toHaveCount(0);
+});
+
+test("explains legacy Stripe return and refresh links on organization settings", async ({
+  page,
+}) => {
+  await setupChecklistRoutes(page, [readyConnectStatus]);
+
+  await page.goto("/admin/settings?stripe=return#payments-settings");
+
+  await expect(
+    page.getByText("Stripe Connect returned from onboarding.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText("Stripe account: ready", { exact: false })).toBeVisible();
+
+  await page.goto("/admin/settings?stripe=refresh#payments-settings");
+
+  await expect(
+    page.getByText("The Stripe onboarding link needs to be refreshed.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Stripe setup checklist" })).toHaveAttribute(
+    "href",
+    "/admin/settings/setup-checklist?stripe=refresh#provider-status-title",
+  );
 });
