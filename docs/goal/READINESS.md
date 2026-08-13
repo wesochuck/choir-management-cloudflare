@@ -2445,10 +2445,11 @@ The following work remains before the goal contract can be marked complete:
 1. Qualify the 19 parity entries that remain `implemented`, including the remaining API families,
    signed-link flows, file behaviors, record hooks, background tasks, and domain workflows. Promote
    entries to `verified` only after successful and failure-path evidence is captured.
-2. With the isolated Stripe Connect test credentials and signed webhook secret now configured,
-   enable the LCC payment module only after manager confirmation, then qualify checkout, capacity,
-   webhook replay/idempotency, refunds, disputes, reconciliation, reminders, and failure/rollback
-   behavior. Do not record credentials here.
+2. The isolated Stripe Connect test credentials and signed webhook secret are now configured, and
+   the LCC Tickets, Donations, and Dues modules are enabled after manager confirmation. Obtain
+   action-time authorization for the controlled sandbox checkout, then qualify capacity, webhook
+   replay/idempotency, refunds, disputes, reconciliation, reminders, and failure/rollback behavior.
+   Do not record credentials here.
 3. Supply isolated Brevo test credentials, verified sender identities, and the approved SMS test
    number, then qualify delivery, suppression, retry, partial-failure, redaction, and provider
    feedback behavior. Keep the staging recipient allowlist narrow.
