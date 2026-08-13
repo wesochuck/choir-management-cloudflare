@@ -61,7 +61,7 @@ export function ticketReminderQualificationPlan() {
     "run canonical-LCC maintenance and prove exactly one ticket_reminder reaches Sent with one recipient",
     "run maintenance again and prove the ticket reminder snapshot is idempotently unchanged",
     "prove the canonical signed receipt remains readable before cleanup",
-    "prove the wrong Organization host cannot read the qualification order, receipt, or reminder row",
+    "prove the wrong Organization host cannot read or refund the qualification order, receipt, or reminder row",
     "refund the free simulated order, archive the qualification Performance, and print only safe IDs, counts, and statuses",
   ];
 }
@@ -113,17 +113,19 @@ function responseHasTargetReminder(body, eventId) {
 }
 
 export function ticketReminderBoundaryResponsesSafe(responses, purchaseId, eventId) {
-  const [scheduled, orders, receipt] = responses;
+  const [scheduled, orders, receipt, refund] = responses;
   const collectionSafe = (result, containsTarget) =>
     result.status === 401 ||
     result.status === 403 ||
     result.status === 404 ||
     (result.status === 200 && !containsTarget(result.body));
   const receiptSafe = receipt.status === 401 || receipt.status === 403 || receipt.status === 404;
+  const refundSafe = refund?.status === 401 || refund?.status === 403 || refund?.status === 404;
   return (
     collectionSafe(scheduled, (body) => responseHasTargetReminder(body, eventId)) &&
     collectionSafe(orders, (body) => responseHasTargetOrder(body, purchaseId, eventId)) &&
-    receiptSafe
+    receiptSafe &&
+    refundSafe
   );
 }
 
@@ -134,6 +136,7 @@ export function safeTicketReminderQualificationSummary(input) {
     eventId: input.eventId ?? null,
     purchaseId: input.purchaseId ?? null,
     receiptAccessible: input.receiptAccessible === true,
+    refundBoundaryRejected: input.refundBoundaryRejected === true,
     refundCompleted: input.refundCompleted === true,
     reminder: {
       deliveryState: input.reminder?.deliveryState ?? "unknown",
@@ -402,6 +405,11 @@ async function wrongOrganizationBoundary(cookie, purchaseId, eventId, successTok
       "GET",
       "",
     ),
+    request(
+      `${wrongOrganizationHost}/api/organization/tickets/${encodeURIComponent(purchaseId)}/refund`,
+      "POST",
+      cookie,
+    ),
   ]);
 }
 
@@ -465,7 +473,7 @@ async function main() {
     );
     if (!crossOrganizationRejected) {
       throw new Error(
-        "Ticket order, receipt, or reminder data was accessible on the wrong Organization host.",
+        "Ticket order, receipt, reminder, or refund behavior was accessible on the wrong Organization host.",
       );
     }
 
@@ -480,6 +488,7 @@ async function main() {
       eventId,
       purchaseId,
       receiptAccessible,
+      refundBoundaryRejected: true,
       refundCompleted,
       reminder: {
         deliveryState: reminder?.status ?? "unknown",

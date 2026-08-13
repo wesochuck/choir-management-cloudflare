@@ -91,6 +91,7 @@ describe("staging ticket-reminder qualification helpers", () => {
         { status: 200, body: { messages: [] } },
         { status: 200, body: { orders: [] } },
         { status: 404, body: { code: "not_found" } },
+        { status: 404, body: { code: "not_found" } },
       ],
       "purchase",
       "event",
@@ -100,12 +101,28 @@ describe("staging ticket-reminder qualification helpers", () => {
         { status: 200, body: { messages: [{ eventId: "event" }] } },
         { status: 200, body: { orders: [] } },
         { status: 404, body: { code: "not_found" } },
+        { status: 404, body: { code: "not_found" } },
       ],
       "purchase",
       "event",
     );
     expect(safe).toBe(true);
     expect(unsafe).toBe(false);
+  });
+
+  it("rejects a wrong-Organization refund mutation", () => {
+    expect(
+      ticketReminderBoundaryResponsesSafe(
+        [
+          { status: 200, body: { messages: [] } },
+          { status: 200, body: { orders: [] } },
+          { status: 404, body: { code: "not_found" } },
+          { status: 200, body: { status: "refunded" } },
+        ],
+        "purchase",
+        "event",
+      ),
+    ).toBe(false);
   });
 
   it("returns only safe qualification fields", () => {
@@ -116,6 +133,7 @@ describe("staging ticket-reminder qualification helpers", () => {
         eventId: "event",
         purchaseId: "purchase",
         receiptAccessible: true,
+        refundBoundaryRejected: true,
         refundCompleted: true,
         reminder: {
           deliveryState: "Sent",
@@ -132,6 +150,7 @@ describe("staging ticket-reminder qualification helpers", () => {
       eventId: "event",
       purchaseId: "purchase",
       receiptAccessible: true,
+      refundBoundaryRejected: true,
       refundCompleted: true,
       reminder: {
         deliveryState: "Sent",
