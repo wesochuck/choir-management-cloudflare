@@ -28,6 +28,7 @@
     "qualify:staging:auth:login": "node scripts/qualify-staging-auth-login.mjs",
     "qualify:staging:evidence": "node scripts/qualify-staging-evidence.mjs",
     "qualify:staging:platform": "node scripts/qualify-staging-platform-login.mjs",
+    "qualify:staging:identity": "node scripts/qualify-staging-identity.mjs",
     "qualify:staging:roster-automation": "node scripts/qualify-staging-roster-automation.mjs",
     "qualify:staging:scheduler": "node scripts/qualify-staging-scheduler.mjs",
     "qualify:staging:ticket-reminder": "node scripts/qualify-staging-ticket-reminder.mjs",

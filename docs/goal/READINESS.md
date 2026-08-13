@@ -368,6 +368,14 @@ Actions run for that commit failed before any job steps started because no hoste
 allocated (`runner_id: 0`); this does not replace the successful local evidence and no Worker
 promotion was needed for the tooling-only commit.
 
+A guarded `npm run qualify:staging:identity` harness now covers invitation-only identity activation,
+Organization-bound invitation details, first-password setup, single-use password recovery, replay
+rejection, recovered-password sign-in, and wrong-Organization Profile isolation. It accepts only an
+explicit `qual-identity-*@qa-mail.staging.musicsite.org` alias, never prints credentials or token
+bytes, cancels an unaccepted invitation on failure, and retains the accepted qualification
+Membership/Profile because no supported user-deletion route exists. Its focused three-test suite
+passes; permanent-staging identity evidence is not claimed until the controlled email flow is run.
+
 The focused local `statusAutomation.integration.test.ts` contract run passed all 9 tests. A later
 read-only Platform workspace recheck found the bounded Platform factor session had expired and the
 overview requested MFA verification; maintenance and other Platform mutations were not invoked. This
