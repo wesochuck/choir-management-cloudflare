@@ -13,9 +13,12 @@ The signed-link and profile-photo batch is complete on the deployed source relea
 permanent-staging success, replay/revocation or authorization, and Organization-isolation evidence
 recorded in `docs/goal/qualification-evidence-2026-08-11.md`. The controlled scheduler follow-up
 passed maintenance, queue controls, inspection, replay, and idempotency checks, but its scheduler
-rows had zero scheduled recipients; recipient-backed message-queue delivery and qualification-owned
-retry/dismissal remain unpromoted. Ticket reminders and stale-payment cleanup remain deferred until
-safe fixtures or provider credentials are available.
+rows had zero scheduled recipients. A later controlled one-recipient message-queue run passed reach
+preflight, sent delivery/provider acceptance, replay/idempotency, and wrong-Organization rejection
+without creating a duplicate on resume. Qualification-owned dead-letter retry/dismissal,
+event/post-event scheduler recipients, ticket reminders, and stale-payment cleanup remain
+unpromoted; ticket reminders and stale-payment cleanup remain deferred until safe fixtures or
+provider credentials are available.
 
 ## Objective
 

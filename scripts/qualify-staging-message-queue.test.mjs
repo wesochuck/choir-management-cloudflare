@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  messageQueueCrossOrganizationRejected,
   messageQueueFailure,
+  messageQueueReachFailure,
   messageQueueQualificationPlan,
   safeMessageQueueQualificationSummary,
 } from "./qualify-staging-message-queue.mjs";
@@ -51,5 +53,28 @@ describe("staging message-queue qualification helpers", () => {
       }),
     ).toBe("HTTP 409 (communication_has_no_recipients)");
     expect(messageQueueFailure(503, { message: "provider payload" })).toBe("HTTP 503");
+  });
+
+  it("explains an unreachable controlled Profile without exposing recipient data", () => {
+    const failure = messageQueueReachFailure(
+      {
+        doNotEmail: false,
+        globalStatus: "Active",
+        providerEmailSuppressed: false,
+        voicePart: "S1",
+      },
+      { email: 0, total: 0 },
+    );
+    expect(failure).toContain("active unsubscribe suppression");
+    expect(failure).toContain("Use a dedicated, unsuppressed qualification Profile.");
+    expect(failure).not.toContain("@");
+  });
+
+  it("accepts each expected tenant-isolation rejection status", () => {
+    expect(messageQueueCrossOrganizationRejected(401)).toBe(true);
+    expect(messageQueueCrossOrganizationRejected(403)).toBe(true);
+    expect(messageQueueCrossOrganizationRejected(404)).toBe(true);
+    expect(messageQueueCrossOrganizationRejected(200)).toBe(false);
+    expect(messageQueueCrossOrganizationRejected(500)).toBe(false);
   });
 });

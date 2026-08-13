@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseSignedUnsubscribeUrl,
   safeUnsubscribeQualificationSummary,
+  signedUnsubscribeProfilePrefix,
   signedUnsubscribeQualificationPlan,
 } from "./qualify-staging-signed-unsubscribe.mjs";
 
@@ -58,5 +59,19 @@ describe("staging signed-unsubscribe qualification helpers", () => {
       unsubscribed: true,
     });
     expect(JSON.stringify(summary)).not.toContain("signed-token");
+  });
+
+  it("does not reuse the photo qualification prefix", () => {
+    expect(
+      signedUnsubscribeProfilePrefix({
+        STAGING_PHOTO_PROFILE_PREFIX: "Qualification Queue Temp 2026-08-12",
+      }),
+    ).toBe("QUAL-Unsubscribe-");
+    expect(
+      signedUnsubscribeProfilePrefix({
+        STAGING_PHOTO_PROFILE_PREFIX: "photo-prefix",
+        STAGING_UNSUBSCRIBE_PROFILE_PREFIX: "unsubscribe-prefix",
+      }),
+    ).toBe("unsubscribe-prefix");
   });
 });

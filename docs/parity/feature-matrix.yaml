@@ -2258,7 +2258,7 @@
         "task": "message-queue-delivery",
         "owner": "apps/worker",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/emailQueueTask.ts",
         "targetEvidence":
           [
@@ -2268,6 +2268,8 @@
             "apps/worker/test/communications.integration.test.ts",
             "apps/worker/test/jobs.integration.test.ts",
             "apps/web/src/account/PlatformOperations.tsx",
+            "scripts/qualify-staging-message-queue.mjs",
+            "scripts/qualify-staging-message-queue.test.mjs",
           ],
       },
       {

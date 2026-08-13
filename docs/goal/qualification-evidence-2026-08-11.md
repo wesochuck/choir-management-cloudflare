@@ -850,3 +850,24 @@ redacted scheduled, communication, and delivery snapshot, and the qualification 
 unrelated dead-letter mutation was invoked. This is staging evidence for scheduler completion and
 replay idempotency; recipient-backed message-queue/ticket-reminder delivery and qualification-owned
 failure handling remain unverified.
+
+## August 13, 2026 — recipient-backed message queue continuation
+
+The controlled queue qualification selected a separate active Profile with an assigned voice part
+and a staging-allowlisted membership email. Its reach preflight returned exactly one reachable email
+recipient. The harness queued one targeted sandbox message and observed one sent delivery, one queue
+attempt, and a provider-accepted status. A repeated read remained stable and did not create a second
+delivery.
+
+The wrong-Organization delivery-summary request returned HTTP 404 on the LMC host. This is the
+expected tenant-isolation result when the account can authenticate on that host but the LCC message
+does not exist in LMC storage. The resume pass reused the existing controlled message rather than
+sending another email. The redacted result reported `attempts`, `deliveryState`, `providerAccepted`,
+`replayStable`, `sentDeliveries`, and `crossOrganizationRejected` as true. This promotes
+`task.message-queue` to `verified` in the current parity matrix.
+
+The earlier queue target was intentionally suppressed by the signed-unsubscribe qualification, so
+the local queue harness now performs a reach preflight and the unsubscribe harness no longer falls
+back to the photo-qualification Profile prefix. No suppression was cleared and no production
+resource was changed. Qualification-owned dead-letter observation, dismissal, and duplicate-
+dismissal rejection remain open pending the corrected bounded failure-fixture run.

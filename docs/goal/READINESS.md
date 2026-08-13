@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-181 are `verified` and 24 are `implemented`. Per the matrix definitions, `implemented` means that
+182 are `verified` and 23 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -65,7 +65,13 @@ rejected with HTTP 409 before a communication was created, and the dead-letter h
 creating its temporary audition because its account-organization slug lookup did not find `lcc`.
 Commit `60bd5ce` now resolves the dead-letter Organization ID from the canonical LCC Organization
 context and exposes only the safe application error code for a rejected message request. The
-message-queue and dead-letter qualification runs remain pending.
+message-queue qualification then completed against a separate unsuppressed controlled Profile. Its
+reach preflight found exactly one email recipient; the controlled message reached `sent` with one
+queue attempt and a provider-accepted status; repeated inspection was stable; and the wrong
+Organization delivery-summary request was rejected with HTTP 404. The resume pass reused the
+existing controlled message and created no duplicate delivery. `task.message-queue` is now verified.
+Qualification-owned dead-letter creation, dismissal, and duplicate-dismissal rejection remain open
+pending the corrected bounded failure-fixture run.
 
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,

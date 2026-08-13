@@ -10,11 +10,12 @@ const organizationSlug = (process.env.STAGING_ORG_SLUG ?? "lcc").trim().toLowerC
 const wrongOrganizationSlug = (process.env.STAGING_SECOND_ORG_SLUG ?? "lmc").trim().toLowerCase();
 const email = (process.env.STAGING_AUTH_EMAIL ?? "cwosborn@gmail.com").trim().toLowerCase();
 const targetProfileId = process.env.STAGING_UNSUBSCRIBE_PROFILE_ID?.trim() ?? "";
-const targetProfilePrefix = (
-  process.env.STAGING_UNSUBSCRIBE_PROFILE_PREFIX ??
-  process.env.STAGING_PHOTO_PROFILE_PREFIX ??
-  "QUAL-"
-).trim();
+
+export function signedUnsubscribeProfilePrefix(environment = process.env) {
+  return (environment.STAGING_UNSUBSCRIBE_PROFILE_PREFIX ?? "QUAL-Unsubscribe-").trim();
+}
+
+const targetProfilePrefix = signedUnsubscribeProfilePrefix();
 const organizationHost = `https://${organizationSlug}.${new URL(productUrl).hostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${new URL(productUrl).hostname}`;
 const planOnly = process.argv.includes("--plan-only");

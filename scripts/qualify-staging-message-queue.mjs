@@ -9,6 +9,7 @@ const organizationSlug = (process.env.STAGING_ORG_SLUG ?? "lcc").trim().toLowerC
 const wrongOrganizationSlug = (process.env.STAGING_SECOND_ORG_SLUG ?? "lmc").trim().toLowerCase();
 const email = (process.env.STAGING_AUTH_EMAIL ?? "cwosborn@gmail.com").trim().toLowerCase();
 const targetProfileId = process.env.STAGING_QUEUE_PROFILE_ID?.trim() ?? "";
+const targetMessageId = process.env.STAGING_QUEUE_MESSAGE_ID?.trim() ?? "";
 const targetProfilePrefix = (
   process.env.STAGING_QUEUE_PROFILE_PREFIX ?? "Qualification Queue Temp 2026-08-12"
 ).trim();
@@ -34,6 +35,9 @@ function uuid(value, label) {
   }
   return value;
 }
+
+if (targetProfileId) uuid(targetProfileId, "STAGING_QUEUE_PROFILE_ID");
+if (targetMessageId) uuid(targetMessageId, "STAGING_QUEUE_MESSAGE_ID");
 
 function sessionCookieFrom(response) {
   const setCookies =
@@ -79,6 +83,53 @@ export function messageQueueFailure(status, body) {
       ? body.code
       : null;
   return `HTTP ${String(status)}${code ? ` (${code})` : ""}`;
+}
+
+export function messageQueueAudience(profileId) {
+  return {
+    eventId: null,
+    globalStatuses: ["Active"],
+    profileIds: [profileId],
+    rsvp: "All",
+    targetAudiences: ["Members"],
+    voiceParts: [],
+  };
+}
+
+export function messageQueueReachFailure(profile, reach) {
+  const reasons = [];
+  if (reach?.total !== 1) {
+    reasons.push(
+      `reach preview returned ${String(reach?.total ?? "an unknown number of")} recipients`,
+    );
+  }
+  if (!profile) {
+    reasons.push("the selected Profile was not found in the Organization profile list");
+  } else {
+    if (profile.globalStatus !== "Active") reasons.push("Profile status is not Active");
+    if (typeof profile.voicePart !== "string" || profile.voicePart.trim().length === 0) {
+      reasons.push("Profile has no assigned voice part");
+    }
+    if (profile.doNotEmail === true) reasons.push("Profile is marked do-not-email");
+    if (profile.providerEmailSuppressed === true) {
+      reasons.push("Profile has a provider email suppression");
+    }
+  }
+  if (reach?.total === 0) {
+    reasons.push(
+      "the linked membership email is missing or an active unsubscribe suppression exists",
+    );
+  }
+  if (reasons.length === 0) {
+    reasons.push("the selected Profile is not eligible for exactly one email recipient");
+  }
+  return `Message queue target has no exactly-one reachable email recipient: ${reasons.join(
+    "; ",
+  )}. Use a dedicated, unsuppressed qualification Profile.`;
+}
+
+export function messageQueueCrossOrganizationRejected(status) {
+  return status === 401 || status === 403 || status === 404;
 }
 
 async function request(url, method, cookie, body) {
@@ -150,19 +201,29 @@ async function listProfiles(cookie) {
 }
 
 async function resolveTargetProfile(cookie) {
-  if (targetProfileId) return uuid(targetProfileId, "STAGING_QUEUE_PROFILE_ID");
-  const matches = (await listProfiles(cookie)).filter(
+  const profiles = await listProfiles(cookie);
+  const matches = profiles.filter(
     (profile) =>
       typeof profile?.id === "string" &&
-      typeof profile?.displayName === "string" &&
-      profile.displayName.startsWith(targetProfilePrefix),
+      (targetProfileId
+        ? profile.id === targetProfileId
+        : typeof profile?.displayName === "string" &&
+          profile.displayName.startsWith(targetProfilePrefix)),
   );
   if (matches.length !== 1) {
+    if (targetProfileId) {
+      throw new Error(
+        "STAGING_QUEUE_PROFILE_ID did not resolve to exactly one Organization Profile.",
+      );
+    }
     throw new Error(
       `Expected exactly one qualification Profile matching ${targetProfilePrefix}; found ${String(matches.length)}. Set STAGING_QUEUE_PROFILE_ID explicitly.`,
     );
   }
-  return uuid(matches[0].id, "qualification Profile");
+  return {
+    ...matches[0],
+    id: uuid(matches[0].id, "qualification Profile"),
+  };
 }
 
 function fixtureSubject() {
@@ -176,12 +237,7 @@ async function sendTargetedMessage(cookie, profileId, subject) {
     cookie,
     {
       audience: {
-        eventId: null,
-        globalStatuses: ["Active"],
-        profileIds: [profileId],
-        rsvp: "All",
-        targetAudiences: ["Members"],
-        voiceParts: [],
+        ...messageQueueAudience(profileId),
       },
       channel: "Email",
       contentMarkdown: `Controlled message-queue qualification ${subject}.`,
@@ -194,6 +250,23 @@ async function sendTargetedMessage(cookie, profileId, subject) {
     );
   }
   return uuid(body.id, "communication message");
+}
+
+async function previewReach(cookie, profileId) {
+  const { body, response } = await request(
+    `${organizationHost}/api/organization/communications/reach-preview`,
+    "POST",
+    cookie,
+    { audience: messageQueueAudience(profileId), channel: "Email" },
+  );
+  if (
+    response.status !== 200 ||
+    typeof body?.total !== "number" ||
+    typeof body?.email !== "number"
+  ) {
+    throw new Error(`Communication reach preview failed with HTTP ${String(response.status)}.`);
+  }
+  return body;
 }
 
 async function inspectMessage(cookie, profileId, messageId) {
@@ -276,15 +349,25 @@ async function wrongOrganizationBoundary(cookie, messageId) {
     "GET",
     cookie,
   );
-  return result.response.status === 403;
+  return result.response.status;
 }
 
 export async function runMessageQueueQualification(readline) {
   const cookie = await signIn(readline);
-  const profileId = await resolveTargetProfile(cookie);
-  const subject = fixtureSubject();
-  const messageId = await sendTargetedMessage(cookie, profileId, subject);
-  console.log(`PASS targeted message queued (${messageId})`);
+  const profile = await resolveTargetProfile(cookie);
+  const profileId = profile.id;
+  const reach = await previewReach(cookie, profileId);
+  if (reach.total !== 1 || reach.email !== 1) {
+    throw new Error(messageQueueReachFailure(profile, reach));
+  }
+  console.log("PASS one reachable email recipient preflight");
+  const messageId =
+    targetMessageId || (await sendTargetedMessage(cookie, profileId, fixtureSubject()));
+  console.log(
+    targetMessageId
+      ? `PASS reusing existing controlled message (${messageId})`
+      : `PASS targeted message queued (${messageId})`,
+  );
   const first = await waitForExactlyOnceSent(cookie, profileId, messageId);
   console.log("PASS bounded message-queue delivery state (sent)");
 
@@ -293,9 +376,10 @@ export async function runMessageQueueQualification(readline) {
   console.log(`${replayStable ? "PASS" : "FAIL"} message-queue replay/idempotency observation`);
   if (!replayStable) throw new Error("Repeated message inspection changed delivery counts.");
 
-  const crossOrganizationRejected = await wrongOrganizationBoundary(cookie, messageId);
+  const crossOrganizationStatus = await wrongOrganizationBoundary(cookie, messageId);
+  const crossOrganizationRejected = messageQueueCrossOrganizationRejected(crossOrganizationStatus);
   console.log(
-    `${crossOrganizationRejected ? "PASS" : "FAIL"} message-queue cross-Organization boundary`,
+    `${crossOrganizationRejected ? "PASS" : "FAIL"} message-queue cross-Organization boundary (HTTP ${String(crossOrganizationStatus)})`,
   );
   if (!crossOrganizationRejected) {
     throw new Error("The message delivery summary was accessible on the wrong Organization host.");
