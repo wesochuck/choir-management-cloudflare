@@ -153,17 +153,16 @@ async function verifyPlatformFactor(readline, cookie) {
 }
 
 async function resolveOrganizationId(cookie) {
-  const result = await request(`${productUrl}/api/account/organizations`, "GET", undefined, cookie);
-  if (result.response.status !== 200 || !Array.isArray(result.body?.organizations)) {
-    throw new Error(`Organization list failed with HTTP ${String(result.response.status)}.`);
-  }
-  const organization = result.body.organizations.find(
-    (candidate) => candidate?.slug === organizationSlug,
+  const result = await request(
+    `${organizationHost}/api/organization/context`,
+    "GET",
+    undefined,
+    cookie,
   );
-  if (!organization || typeof organization.id !== "string") {
-    throw new Error(`The signed-in account is not linked to Organization ${organizationSlug}.`);
+  if (result.response.status !== 200 || typeof result.body?.organizationId !== "string") {
+    throw new Error(`Organization context failed with HTTP ${String(result.response.status)}.`);
   }
-  return uuid(organization.id, "Organization ID");
+  return uuid(result.body.organizationId, "Organization ID");
 }
 
 async function listDeadLetters(cookie) {

@@ -73,6 +73,14 @@ export function safeMessageQueueQualificationSummary(input) {
   };
 }
 
+export function messageQueueFailure(status, body) {
+  const code =
+    typeof body === "object" && body !== null && "code" in body && typeof body.code === "string"
+      ? body.code
+      : null;
+  return `HTTP ${String(status)}${code ? ` (${code})` : ""}`;
+}
+
 async function request(url, method, cookie, body) {
   const response = await fetch(url, {
     headers: {
@@ -181,7 +189,9 @@ async function sendTargetedMessage(cookie, profileId, subject) {
     },
   );
   if (response.status !== 202 || typeof body?.id !== "string") {
-    throw new Error(`Message queue request failed with HTTP ${String(response.status)}.`);
+    throw new Error(
+      `Message queue request failed with ${messageQueueFailure(response.status, body)}.`,
+    );
   }
   return uuid(body.id, "communication message");
 }

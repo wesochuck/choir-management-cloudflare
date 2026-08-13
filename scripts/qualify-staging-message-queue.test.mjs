@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  messageQueueFailure,
   messageQueueQualificationPlan,
   safeMessageQueueQualificationSummary,
 } from "./qualify-staging-message-queue.mjs";
@@ -40,5 +41,15 @@ describe("staging message-queue qualification helpers", () => {
       sentDeliveries: true,
     });
     expect(JSON.stringify(summary)).not.toContain("recipient@example.test");
+  });
+
+  it("surfaces only the safe application error code for a rejected send", () => {
+    expect(
+      messageQueueFailure(409, {
+        code: "communication_has_no_recipients",
+        requestId: "request-id-not-output",
+      }),
+    ).toBe("HTTP 409 (communication_has_no_recipients)");
+    expect(messageQueueFailure(503, { message: "provider payload" })).toBe("HTTP 503");
   });
 });
