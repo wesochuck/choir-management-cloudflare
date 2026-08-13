@@ -11,15 +11,17 @@ Milestone 6 whole-product staging qualification gate rather than a known unimple
 
 ## Current staging release and deployment path — August 13, 2026
 
-Permanent staging currently serves source commit `374a033b12e942ad62409740d1fb5c20e29ad6e5` as
-Worker version `dffbd3f4-1931-4818-ba65-244b7af55390` at 100% traffic. The guarded local release
+Permanent staging currently serves source commit `b154a3d0e4c72475f311ab670b3cfb04b6c5b67b` as
+Worker version `0b7a0954-6f7a-4cc7-86cc-5ed3a31682db` at 100% traffic. The guarded local release
 passed the complete 13-step CI mirror, 255 unit tests, 199 Workerd integration tests, and 98
 Chromium E2E tests. Exact-version staging qualification then passed all six direct health/readiness
 probes and the 148-request anonymous Organization-boundary sweep, including the configured Stripe
 webhook's typed invalid-signature response. `/api/health` reports the exact source commit on the
 product host; no production resource was changed. The release record uses deployment
-`d8bf8f9f-6b2c-40bb-99bb-e1239cbe60a9` and retains Worker version
-`ccc09b51-188d-4dd0-86f2-7355e34f1e0b` as the rollback target.
+`086b55c7-de8a-4517-8df8-9bc851672f62` and retains Worker version
+`dffbd3f4-1931-4818-ba65-244b7af55390` as the rollback target. Authenticated web API requests now
+use `no-store` by default, preventing cached tenant status from resurrecting a stale Stripe
+onboarding action after the connected account is ready.
 
 This release also fixes the completed Stripe Connect state in the setup UI: a Ready account no
 longer offers a stale “Continue Stripe onboarding” action, and incomplete setup links to the setup
