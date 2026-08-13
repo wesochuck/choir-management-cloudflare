@@ -149,6 +149,12 @@ public receipt contract and Worker runtime were unchanged. This promotes `task.t
 `verified`. `task.cleanup` remains implemented pending supported permanent-staging stale-payment
 evidence.
 
+Commit `98eb75c` hardens the ticket-reminder qualification harness so its wrong-Organization
+boundary check also attempts the ticket refund mutation and requires a 401/403/404 response. The
+focused seven-test qualification suite and complete local CI mirror pass. This is qualification
+tooling only; it does not change the deployed Worker or promote `api.refund-ticket`. A fresh
+authenticated rerun is still required to record the new refund-boundary result on permanent staging.
+
 ## Prior staging release and deployment path — August 12, 2026
 
 Permanent staging currently serves source commit `e2423b7cc8678c55e20285be14c4abb5590407b5` as
