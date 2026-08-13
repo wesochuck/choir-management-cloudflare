@@ -15,7 +15,7 @@ const failureEmail = (
   .toLowerCase();
 const failureName = `QUAL-QUEUE-FAIL-${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}`;
 const organizationHost = `https://${organizationSlug}.${new URL(productUrl).hostname}`;
-const pollingAttempts = 24;
+const pollingAttempts = 36;
 const pollingDelayMs = 5_000;
 const planOnly = process.argv.includes("--plan-only");
 
@@ -236,6 +236,9 @@ function ownedFailureRows(rows, baselineIds, organizationId, createdAt) {
 
 async function waitForOwnedDeadLetters(cookie, baselineIds, organizationId, createdAt) {
   for (let attempt = 0; attempt < pollingAttempts; attempt += 1) {
+    if (attempt === 0 || (attempt + 1) % 3 === 0) {
+      console.log(`WAIT queue dead letter (${String(attempt + 1)}/${String(pollingAttempts)})`);
+    }
     const rows = ownedFailureRows(
       await listDeadLetters(cookie),
       baselineIds,
