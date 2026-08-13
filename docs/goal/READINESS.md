@@ -353,6 +353,15 @@ bar, and Discard restored the saved value without changing staging. This is supp
 for `workflow.roster-status-automation`; scheduled runner execution and status-history transitions
 remain unverified in permanent staging.
 
+The current LCC roster read-only recheck reports 97 Profiles and zero Profiles currently filtered as
+On Break. A guarded `npm run qualify:staging:roster-automation` harness is now present with focused
+tests; it requires an explicitly selected performer Profile and a separate, pre-aged, non-manual
+Idle Profile for the On Break branch. It uses the saved Organization automation configuration and
+refuses to change global settings or override time, so no permanent-staging run is claimed until
+that isolated fixture exists. The helper also covers status-miss recovery, RSVP expiry,
+linked-rehearsal attendance reconciliation, wrong-Organization reads, and fixture cleanup without
+provider effects.
+
 The focused local `statusAutomation.integration.test.ts` contract run passed all 9 tests. A later
 read-only Platform workspace recheck found the bounded Platform factor session had expired and the
 overview requested MFA verification; maintenance and other Platform mutations were not invoked. This
