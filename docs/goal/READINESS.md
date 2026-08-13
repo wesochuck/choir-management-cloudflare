@@ -57,21 +57,20 @@ and dead-letter dismissal. It creates one temporary audition addressed only to a
 notification resolution, polls with a bounded timeout, dismisses only newly owned
 `audition_notification` dead letters, and proves a repeated dismissal is idempotent. It performs no
 queue retry and has no provider-recipient effect. Its two focused tests and the complete 13-step CI
-mirror pass. It has not yet run against permanent staging because it needs a fresh authenticated
-terminal session and a fresh Platform Administrator factor; enter those codes locally in the
-terminal only.
+mirror pass. The authenticated permanent-staging run then passed with one newly observed
+Organization-owned dead letter, one successful dismissal, a passing duplicate-dismissal idempotency
+guard, and completed fixture cleanup.
 
 Commit `9a8d790` adds a live-source guard to the audition notification resolver. A queued
 notification whose audition was deleted now returns the typed not-found response and cannot render
 or send a stale signed audition link. The focused public-audition integration suite passed 18 tests,
 and the guarded release above deployed this fix. Permanent-staging dead-letter creation, dismissal,
-and duplicate-dismissal idempotency evidence still require the authenticated terminal run. After a
-fresh Platform factor was verified on August 13, the protected Queue DLQ UI showed the two newest
-qualification-owned `audition_notification` records and both were dismissed with the reason
-`Qualification-owned source was deleted before notification delivery.` The All records view retained
-both audit records as `Dismissed`, while older records were left untouched. This is direct staging
-evidence for creation and UI dismissal; the UI removes the duplicate action after dismissal, so the
-duplicate-dismissal idempotency and complete harness cleanup remain unclaimed.
+and duplicate-dismissal idempotency evidence were then completed by the authenticated terminal run
+on August 13. The controlled fixture produced one newly observed Organization-owned
+`audition_notification` dead letter, dismissed it successfully, confirmed the repeated dismissal was
+idempotent, and completed source cleanup without queue retry or provider-recipient effect. The
+protected Queue DLQ UI evidence also showed qualification-owned records dismissed while older
+records remained untouched.
 
 The first authenticated attempt did not create an external effect: the message-queue request was
 rejected with HTTP 409 before a communication was created, and the dead-letter helper stopped before
@@ -83,8 +82,9 @@ reach preflight found exactly one email recipient; the controlled message reache
 queue attempt and a provider-accepted status; repeated inspection was stable; and the wrong
 Organization delivery-summary request was rejected with HTTP 404. The resume pass reused the
 existing controlled message and created no duplicate delivery. `task.message-queue` is now verified.
-Qualification-owned dead-letter creation, dismissal, and duplicate-dismissal idempotency remain open
-pending the corrected bounded failure-fixture run.
+Qualification-owned dead-letter creation, dismissal, and duplicate-dismissal idempotency are now
+verified on permanent staging. Qualification-owned retry remains unexercised because the fixture's
+cause is intentionally not corrected.
 
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
