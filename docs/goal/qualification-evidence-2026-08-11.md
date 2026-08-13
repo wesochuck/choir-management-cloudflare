@@ -3,7 +3,7 @@
 This record covers the current permanent staging deployment only. It does not authorize or describe
 a production launch.
 
-## Latest exact-release follow-up — August 13, 2026
+## Latest exact-release qualification completion — August 13, 2026
 
 Source commit `46b49b15b35b6bd7cb8dcb37a64594cf9ca789a7` was promoted to permanent staging as Worker
 version `24a12f48-ab36-44e4-b3fb-b55d08cc0f50` at 100% traffic. The guarded local release passed the
@@ -17,14 +17,32 @@ fresh factor verification. The rotating six-digit TOTP remains unchanged, and th
 Organization-scoped edit elevation remains 15 minutes. Focused Platform MFA integration coverage
 passed the persisted one-hour expiration assertion; no factor, session cookie, or OTP was recorded.
 
-The five qualification-helper Vitest files passed 13 tests. Signed RSVP qualification then created
+The five qualification-helper Vitest files passed 14 tests. Signed RSVP qualification then created
 disposable Performance `b2426d5f-dc90-4ab9-a516-65067406e0ba` and passed LCC details, Yes/No update
-and restore, active replay, cross-Organization rejection, and revocation after archive. Valid
-permanent-staging success evidence for the signed audition, unsubscribe, email-change, and
-profile-photo flows remains open. A photo qualification attempt used the ordinary linked member as
-`STAGING_AUTH_EMAIL`, so the Organization-admin profile list correctly returned HTTP 403 before any
-mutation; no staging data was changed. The next photo run must use the allowlisted admin identity
-for the admin session and the linked disposable identity only for `STAGING_PHOTO_MEMBER_EMAIL`.
+and restore, active replay, cross-Organization rejection, and revocation after archive. Signed
+audition qualification passed temporary creation and scheduling, valid LCC details, public update,
+cross-Organization rejection, and revocation after deletion. Signed unsubscribe qualification passed
+targeted message queueing, bounded sent delivery state, signed transition and replay rejection,
+cross-Organization rejection, and suppression-based reach exclusion. Email-change qualification
+passed two controlled address-change cycles, consumed-link replay rejection, and cross-Organization
+rejection; the four bounded notification phases were sent. Profile-photo qualification passed
+ordinary-member cross-Profile authorization, admin upload/attach/private download, rejection for the
+wrong Organization, and replacement/removal cleanup. No signed token, session credential, OTP, or
+private file content was recorded.
+
+The email-change qualification helper now defaults to the approved `qual-email-old-20260812-luna`
+and `qual-email-new-20260812-luna` aliases. Its `--resume-second-cycle` mode was used after a
+staging OTP rate limit interrupted the first full run; the resumed cycle passed and did not change
+the deployed Worker. The local helper/script changes are qualification tooling only, so no Worker
+promotion was needed for this evidence batch.
+
+The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
+queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
+scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found
+two completed scheduler rows (`attendance_report` and `event_reminder`) and one sent communication;
+its scheduled-recipient count was zero. Recipient-backed message-queue delivery and qualification-
+owned retry/dismissal therefore remain unpromoted, as do ticket reminders and stale-payment cleanup
+that require separate safe fixtures or provider credentials.
 
 ## Current next-batch scheduler qualification — August 12, 2026
 

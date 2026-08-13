@@ -5,6 +5,18 @@
 **Target:** permanent staging only  
 **Production:** explicitly out of scope
 
+## Execution status — August 13, 2026
+
+The signed-link and profile-photo batch is complete on the deployed source release
+`46b49b15b35b6bd7cb8dcb37a64594cf9ca789a7`. `signed.rsvp`, `signed.audition`, `signed.unsubscribe`,
+`signed.email-change`, `route.auth.confirm-email-change`, and `file.profile-photo` now have
+permanent-staging success, replay/revocation or authorization, and Organization-isolation evidence
+recorded in `docs/goal/qualification-evidence-2026-08-11.md`. The controlled scheduler follow-up
+passed maintenance, queue controls, inspection, replay, and idempotency checks, but its scheduler
+rows had zero scheduled recipients; recipient-backed message-queue delivery and qualification-owned
+retry/dismissal remain unpromoted. Ticket reminders and stale-payment cleanup remain deferred until
+safe fixtures or provider credentials are available.
+
 ## Objective
 
 Complete the next provider-independent Milestone 6 qualification batch in this order:

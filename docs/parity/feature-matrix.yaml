@@ -255,7 +255,7 @@
         "path": "/confirm-email-change",
         "owner": "apps/web",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "No equivalent verified member email-change confirmation route existed.",
         "targetEvidence":
@@ -263,6 +263,8 @@
             "apps/web/src/App.tsx",
             "apps/web/src/auth/EmailChangeConfirmationView.tsx",
             "apps/web/e2e/auth.spec.ts",
+            "scripts/qualify-staging-signed-email-change.mjs",
+            "docs/goal/qualification-evidence-2026-08-11.md",
           ],
       },
       {
@@ -2476,7 +2478,7 @@
         "flow": "rsvp-link",
         "owner": "packages/domain",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
         "targetEvidence":
           [
@@ -2485,6 +2487,8 @@
             "apps/worker/src/router.ts",
             "apps/worker/test/publicRsvp.integration.test.ts",
             "apps/web/src/public/PublicRsvpView.tsx",
+            "scripts/qualify-staging-signed-rsvp.mjs",
+            "docs/goal/qualification-evidence-2026-08-11.md",
           ],
       },
       {
@@ -2492,7 +2496,7 @@
         "flow": "audition-link",
         "owner": "packages/domain",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
         "targetEvidence":
           [
@@ -2504,6 +2508,8 @@
             "apps/worker/src/router.ts",
             "apps/worker/test/publicAudition.integration.test.ts",
             "apps/web/src/public/PublicAuditionView.tsx",
+            "scripts/qualify-staging-signed-audition.mjs",
+            "docs/goal/qualification-evidence-2026-08-11.md",
           ],
       },
       {
@@ -2511,7 +2517,7 @@
         "flow": "unsubscribe-link",
         "owner": "packages/domain",
         "milestone": 3,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "AGENTS.md signed-token contract; test/pb-hooks/hmacTokens.test.ts",
         "targetEvidence":
           [
@@ -2519,6 +2525,8 @@
             "apps/worker/src/organization/organizationCommunications.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/communications.integration.test.ts",
+            "scripts/qualify-staging-signed-unsubscribe.mjs",
+            "docs/goal/qualification-evidence-2026-08-11.md",
           ],
       },
       {
@@ -2575,7 +2583,7 @@
         "flow": "email-change-link",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "AGENTS.md signed-token contract; no equivalent member email-change flow existed.",
         "targetEvidence":
@@ -2584,6 +2592,8 @@
             "apps/worker/src/auth/emailChange.ts",
             "apps/worker/test/memberProfiles.integration.test.ts",
             "apps/web/src/auth/EmailChangeConfirmationView.tsx",
+            "scripts/qualify-staging-signed-email-change.mjs",
+            "docs/goal/qualification-evidence-2026-08-11.md",
           ],
       },
     ],
@@ -3048,7 +3058,7 @@
         "behavior": "private profile photo upload, replacement, deletion, and authorized rendering",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/services/profileService.ts:updateProfilePhoto; test/profileForm.test.ts",
         "targetEvidence":
@@ -3058,6 +3068,8 @@
             "apps/worker/src/router.ts",
             "apps/worker/test/profilePhotos.integration.test.ts",
             "apps/web/src/account/MemberProfileDirectory.tsx",
+            "scripts/qualify-staging-profile-photo.mjs",
+            "docs/goal/qualification-evidence-2026-08-11.md",
           ],
       },
       {

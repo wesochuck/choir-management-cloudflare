@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-175 are `verified` and 30 are `implemented`. Per the matrix definitions, `implemented` means that
+181 are `verified` and 24 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -26,15 +26,30 @@ including the persisted one-hour expiration assertion, and the deployed UI descr
 one-hour Platform Administrator session.
 
 The signed-link and profile-photo qualification helpers are present and their five-file Vitest suite
-passes 13 tests. On this release, signed RSVP qualification created disposable Performance
+passes 14 tests. On this release, signed RSVP qualification created disposable Performance
 `b2426d5f-dc90-4ab9-a516-65067406e0ba` and passed valid LCC details, Yes/No update and restore,
-active replay, cross-Organization rejection, and revocation after archive. Permanent-staging success
-evidence for the signed audition, unsubscribe, and email-change flows and for profile-photo
-upload/authorization/replacement cleanup remains open. One attempted photo run authenticated as the
-ordinary linked member while resolving the Organization-admin target Profile and correctly received
-HTTP 403; no staging data was changed. The next photo run must use the allowlisted
-Platform/Organization-admin identity for `STAGING_AUTH_EMAIL` and the linked disposable identity
-separately in `STAGING_PHOTO_MEMBER_EMAIL`.
+active replay, cross-Organization rejection, and revocation after archive. Signed audition
+qualification passed temporary creation and scheduling, valid details, public update, cross-
+Organization rejection, and revocation after deletion. Signed unsubscribe qualification passed
+targeted queueing, bounded sent delivery state, signed transition and replay rejection, cross-
+Organization rejection, and suppression-based reach exclusion. Email-change qualification passed two
+controlled address-change cycles, consumed-link replay rejection, and cross-Organization rejection;
+the four bounded notification phases were sent. Profile-photo qualification passed ordinary-member
+cross-Profile authorization, admin upload/attach/private download, rejection for the wrong
+Organization, and replacement/removal cleanup. No signed token, session credential, OTP, or private
+file content was recorded.
+
+The qualification-only email-change changes are local helper/script updates; the deployed runtime
+remains the exact release identified above, so no Worker promotion was needed for this evidence
+batch.
+
+The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
+queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
+scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found
+two completed scheduler rows (`attendance_report` and `event_reminder`) and one sent communication;
+its scheduled-recipient count was zero. Recipient-backed message-queue delivery and qualification-
+owned retry/dismissal therefore remain `implemented`, along with ticket reminders and stale-payment
+cleanup that require their own safe fixtures or provider credentials.
 
 ## Prior staging release and deployment path — August 12, 2026
 

@@ -10,19 +10,20 @@ const organizationSlug = (process.env.STAGING_ORG_SLUG ?? "lcc").trim().toLowerC
 const wrongOrganizationSlug = (process.env.STAGING_SECOND_ORG_SLUG ?? "lmc").trim().toLowerCase();
 const oldEmail = (
   process.env.STAGING_EMAIL_CHANGE_OLD ??
-  "qual-email-change-old-20260812-luna@qa-mail.staging.musicsite.org"
+  "qual-email-old-20260812-luna@qa-mail.staging.musicsite.org"
 )
   .trim()
   .toLowerCase();
 const newEmail = (
   process.env.STAGING_EMAIL_CHANGE_NEW ??
-  "qual-email-change-new-20260812-luna@qa-mail.staging.musicsite.org"
+  "qual-email-new-20260812-luna@qa-mail.staging.musicsite.org"
 )
   .trim()
   .toLowerCase();
 const organizationHost = `https://${organizationSlug}.${new URL(productUrl).hostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${new URL(productUrl).hostname}`;
 const planOnly = process.argv.includes("--plan-only");
+const resumeSecondCycle = process.argv.includes("--resume-second-cycle");
 
 if (!/^[a-z0-9-]+$/.test(organizationSlug) || !/^[a-z0-9-]+$/.test(wrongOrganizationSlug)) {
   throw new Error("Organization slugs must contain only lowercase letters, numbers, or hyphens.");
@@ -202,6 +203,27 @@ async function main() {
     secondReplayRejected: false,
   };
   try {
+    if (resumeSecondCycle) {
+      const newCookie = await signIn(readline, newEmail);
+      const second = await runCycle(readline, newCookie, newEmail, oldEmail);
+      const wrongHost = await confirmChange(wrongOrganizationHost, second.token);
+      const crossOrganizationRejected = wrongHost.response.status === 400;
+      console.log(
+        `${crossOrganizationRejected ? "PASS" : "FAIL"} email-change cross-Organization boundary`,
+      );
+      if (!crossOrganizationRejected) {
+        throw new Error("Email-change token was accepted on the wrong Organization host.");
+      }
+      console.log(
+        JSON.stringify({
+          crossOrganizationRejected: true,
+          resumedSecondCycle: true,
+          secondConfirmed: second.confirmed,
+          secondReplayRejected: second.replayRejected,
+        }),
+      );
+      return;
+    }
     const oldCookie = await signIn(readline, oldEmail);
     const first = await runCycle(readline, oldCookie, oldEmail, newEmail);
     summary.firstConfirmed = first.confirmed;
