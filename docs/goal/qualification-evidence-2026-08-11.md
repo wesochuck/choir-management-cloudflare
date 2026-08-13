@@ -43,6 +43,15 @@ delivery, replay stability, and wrong-Organization rejection on permanent stagin
 yet been run with an authenticated staging terminal session; this commit sent no message and did not
 change the deployed Worker.
 
+Commit `f1484d1` adds a second provider-independent queue qualification harness for terminal failure
+and dead-letter dismissal. It creates one temporary audition addressed only to an RFC-reserved
+`example.test` address, deletes the source through the supported Organization API before
+notification resolution, uses bounded polling, dismisses only newly owned `audition_notification`
+dead letters, and verifies repeated dismissal rejection. It never invokes queue retry or a provider
+recipient. The two focused tests and complete 13-step CI mirror pass; permanent-staging execution
+still requires a fresh authenticated terminal session and fresh Platform Administrator factor, with
+codes entered locally only.
+
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
 scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found

@@ -50,6 +50,16 @@ wrong-Organization rejection, and it redacts recipient/message content from outp
 harness has not yet run against permanent staging because it still needs an authenticated terminal
 session; no message was sent and no deployed Worker was changed by this tooling commit.
 
+Commit `f1484d1` adds a second provider-independent harness for qualification-owned queue failure
+and dead-letter dismissal. It creates one temporary audition addressed only to an RFC-reserved
+`example.test` address, deletes the source through the supported Organization API before
+notification resolution, polls with a bounded timeout, dismisses only newly owned
+`audition_notification` dead letters, and proves a repeated dismissal is rejected. It performs no
+queue retry and has no provider-recipient effect. Its two focused tests and the complete 13-step CI
+mirror pass. It has not yet run against permanent staging because it needs a fresh authenticated
+terminal session and a fresh Platform Administrator factor; enter those codes locally in the
+terminal only.
+
 The controlled scheduler follow-up also passed on the canonical LCC host: Platform queue controls,
 queue-settings generation, reconciliation, maintenance, scheduler inspection, maintenance replay,
 scheduler idempotency, and the product-host canonical-host boundary all passed. The inspection found
