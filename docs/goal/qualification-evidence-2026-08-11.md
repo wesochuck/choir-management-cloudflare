@@ -84,6 +84,15 @@ its scheduled-recipient count was zero. Recipient-backed message-queue delivery 
 owned retry/dismissal therefore remain unpromoted, as do ticket reminders and stale-payment cleanup
 that require separate safe fixtures or provider credentials.
 
+The latest authenticated scheduler rerun on permanent staging completed successfully with a fresh
+controlled recipient. It sent one event reminder, applied the parent Performance RSVP roster to the
+linked rehearsal reminder, and sent one post-event attendance report with the expected aggregate.
+Maintenance replay created no duplicate jobs, both reminder snapshots remained stable, and the
+cross-Organization check returned `200/200/404/404/404` with target data absent. The disposable
+Performance and rehearsal fixtures were cleaned up. This confirms the scheduler evidence remains
+valid on the current staging runtime; it does not promote the separately gated ticket-reminder or
+stale-payment-cleanup entries.
+
 ## Current next-batch scheduler qualification — August 12, 2026
 
 Source commit `bffdd196be2a5bcf39b2ff780a19224acaf4e071` was promoted to permanent staging as Worker
