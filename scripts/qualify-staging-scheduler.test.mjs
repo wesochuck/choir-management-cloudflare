@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   safeSchedulerQualificationSummary,
   schedulerBoundaryStatusesRejected,
+  schedulerProfileReachFailure,
   schedulerQualificationPlan,
+  validateAttendanceReportRecipient,
 } from "./qualify-staging-scheduler.mjs";
 
 const eventId = "11111111-1111-4111-8111-111111111111";
@@ -21,6 +23,77 @@ describe("staging scheduler qualification helpers", () => {
   it("accepts only rejected cross-Organization statuses", () => {
     expect(schedulerBoundaryStatusesRejected([401, 403, 404])).toBe(true);
     expect(schedulerBoundaryStatusesRejected([404, 200])).toBe(false);
+  });
+
+  it("explains an unreachable Profile without exposing membership email data", () => {
+    const failure = schedulerProfileReachFailure(
+      {
+        doNotEmail: false,
+        id: "33333333-3333-4333-8333-333333333333",
+        providerEmailSuppressed: false,
+      },
+      [],
+      { email: 0, total: 0 },
+    );
+    expect(failure).toContain("no Organization Membership is currently linked");
+    expect(failure).not.toContain("@");
+  });
+
+  it("explains other member-audience exclusions without exposing membership email data", () => {
+    const failure = schedulerProfileReachFailure(
+      {
+        doNotEmail: false,
+        id: "33333333-3333-4333-8333-333333333333",
+        providerEmailSuppressed: false,
+        voicePart: "S1",
+      },
+      [{ email: "secret@example.test", profileId: "33333333-3333-4333-8333-333333333333" }],
+      { email: 0, total: 0 },
+    );
+    expect(failure).toContain("active communication suppression or a configured track-only");
+    expect(failure).not.toContain("secret@example.test");
+  });
+
+  it("accepts an attendance-report recipient without requiring a voice part", () => {
+    const profile = validateAttendanceReportRecipient(
+      {
+        email: "secret@example.test",
+        profileId: "33333333-3333-4333-8333-333333333333",
+        role: "owner",
+      },
+      [
+        {
+          doNotEmail: false,
+          globalStatus: "Active",
+          id: "33333333-3333-4333-8333-333333333333",
+          providerEmailSuppressed: false,
+          receiveAttendanceReports: true,
+          voicePart: "",
+        },
+      ],
+    );
+    expect(profile.voicePart).toBe("");
+  });
+
+  it("rejects an attendance-report recipient without an email", () => {
+    expect(() =>
+      validateAttendanceReportRecipient(
+        {
+          email: "",
+          profileId: "33333333-3333-4333-8333-333333333333",
+          role: "owner",
+        },
+        [
+          {
+            doNotEmail: false,
+            globalStatus: "Active",
+            id: "33333333-3333-4333-8333-333333333333",
+            providerEmailSuppressed: false,
+            receiveAttendanceReports: true,
+          },
+        ],
+      ),
+    ).toThrow("the linked Organization Membership has no email address");
   });
 
   it("keeps the summary bounded and excludes message content or recipient data", () => {

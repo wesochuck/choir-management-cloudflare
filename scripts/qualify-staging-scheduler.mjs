@@ -272,12 +272,73 @@ function profileAudience(profileId) {
   };
 }
 
-async function previewProfileReach(cookie, profileId) {
+export function schedulerProfileReachFailure(
+  profile,
+  memberships,
+  reach,
+  label = "Scheduler Profile",
+) {
+  const linkedMemberships = memberships.filter(
+    (membership) => membership?.profileId === profile?.id,
+  );
+  const linkedMembershipsWithEmail = linkedMemberships.filter(
+    (membership) => typeof membership?.email === "string" && membership.email.trim() !== "",
+  );
+  const reasons = [
+    `reach preview returned ${String(reach?.total ?? "an unknown number")} recipients`,
+  ];
+
+  if (linkedMemberships.length === 0) {
+    reasons.push("no Organization Membership is currently linked to the selected Profile");
+  } else if (linkedMembershipsWithEmail.length === 0) {
+    reasons.push("the linked Organization Membership has no email address");
+  } else if (reach?.total === 0) {
+    if (typeof profile?.voicePart !== "string" || profile.voicePart.trim() === "") {
+      reasons.push("the Profile has no assigned voice part");
+    } else {
+      reasons.push(
+        "the Profile may be excluded by an active communication suppression or a configured track-only voice-part audience rule",
+      );
+    }
+  }
+
+  if (profile?.doNotEmail === true) reasons.push("Profile is marked do-not-email");
+  if (profile?.providerEmailSuppressed === true) {
+    reasons.push("Profile has a provider email suppression");
+  }
+
+  return `${label} must resolve to exactly one email recipient: ${reasons.join("; ")}.`;
+}
+
+export function validateAttendanceReportRecipient(reportRecipient, profiles) {
+  const profile = profiles.find((candidate) => candidate?.id === reportRecipient?.profileId);
+  const reasons = [];
+  if (!profile) reasons.push("the linked Profile could not be found");
+  if (typeof reportRecipient?.email !== "string" || reportRecipient.email.trim() === "") {
+    reasons.push("the linked Organization Membership has no email address");
+  }
+  if (profile?.globalStatus !== "Active") reasons.push("the Profile is not Active");
+  if (profile?.receiveAttendanceReports !== true) {
+    reasons.push("attendance reports are not enabled for the Profile");
+  }
+  if (profile?.doNotEmail === true) reasons.push("Profile is marked do-not-email");
+  if (profile?.providerEmailSuppressed === true) {
+    reasons.push("Profile has a provider email suppression");
+  }
+  if (reasons.length > 0) {
+    throw new Error(
+      `Attendance-report Profile must resolve to exactly one email recipient: ${reasons.join("; ")}.`,
+    );
+  }
+  return profile;
+}
+
+async function previewProfileReach(cookie, profile, memberships, label = "Scheduler Profile") {
   const result = await request(
     `${organizationHost}/api/organization/communications/reach-preview`,
     "POST",
     cookie,
-    { audience: profileAudience(profileId), channel: "Email" },
+    { audience: profileAudience(profile.id), channel: "Email" },
   );
   if (
     result.response.status !== 200 ||
@@ -289,9 +350,7 @@ async function previewProfileReach(cookie, profileId) {
     );
   }
   if (result.body.total !== 1 || result.body.email !== 1) {
-    throw new Error(
-      `Scheduler Profile must resolve to exactly one email recipient; reach was ${String(result.body.total)}.`,
-    );
+    throw new Error(schedulerProfileReachFailure(profile, memberships, result.body, label));
   }
   return result.body;
 }
@@ -325,7 +384,8 @@ function resolveReportRecipient(profiles, memberships) {
     return selected[0];
   }
   const currentAccountCandidates = candidates.filter(
-    ({ email: memberEmail }) => memberEmail.toLowerCase() === email,
+    ({ email: memberEmail }) =>
+      typeof memberEmail === "string" && memberEmail.trim().toLowerCase() === email,
   );
   if (candidates.length !== 1 || currentAccountCandidates.length !== 1) {
     throw new Error(
@@ -624,10 +684,10 @@ async function main() {
     const profiles = await listProfiles(cookie);
     const memberships = await listMemberships(cookie);
     const targetProfile = resolveTargetProfile(profiles);
-    const targetReach = await previewProfileReach(cookie, targetProfile.id);
+    const targetReach = await previewProfileReach(cookie, targetProfile, memberships);
     console.log("PASS one reachable scheduler Profile preflight");
     const reportRecipient = resolveReportRecipient(profiles, memberships);
-    const reportReach = await previewProfileReach(cookie, reportRecipient.profileId);
+    validateAttendanceReportRecipient(reportRecipient, profiles);
     console.log("PASS one eligible attendance-report recipient preflight");
 
     const preflightEnqueuedJobCount = await runMaintenance(cookie);
@@ -754,7 +814,6 @@ async function main() {
       postEventReport: reportResult,
       profileId: targetProfile.id,
       targetReach,
-      reportReach,
       organizationId,
     });
   } finally {
