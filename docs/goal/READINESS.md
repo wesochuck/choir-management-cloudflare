@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-182 are `verified` and 23 are `implemented`. Per the matrix definitions, `implemented` means that
+185 are `verified` and 20 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -93,6 +93,18 @@ two completed scheduler rows (`attendance_report` and `event_reminder`) and one 
 its scheduled-recipient count was zero. Recipient-backed message-queue delivery and qualification-
 owned retry/dismissal therefore remain `implemented`, along with ticket reminders and stale-payment
 cleanup that require their own safe fixtures or provider credentials.
+
+The recipient-backed scheduler qualification subsequently passed on permanent staging with a fresh
+Platform Administrator session and a controlled LCC Profile. The event reminder reached one
+recipient and one sent delivery; a linked rehearsal used the parent Performance RSVP roster;
+replaying maintenance created zero duplicate jobs and preserved both reminder snapshots. A past
+Performance with one Yes/Present attendee produced one sent attendance report with the expected
+aggregate, and its replay was stable. The wrong-Organization check returned `200/200/404/404/404`:
+the comparison Organization's collection reads contained no target event or message IDs, while all
+target delivery summaries were rejected. All three disposable event fixtures were archived
+successfully. This promotes `task.event-reminder`, `task.post-event-report`, and
+`workflow.rehearsal-parent` to `verified`; no Worker deployment was needed because the
+qualification-only boundary correction is outside the deployed runtime.
 
 ## Prior staging release and deployment path — August 12, 2026
 

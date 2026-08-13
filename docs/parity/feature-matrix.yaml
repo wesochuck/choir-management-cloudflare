@@ -2277,7 +2277,7 @@
         "task": "event-reminders",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/eventReminderTask.ts",
         "targetEvidence":
           [
@@ -2289,6 +2289,8 @@
             "apps/worker/test/jobs.integration.test.ts",
             "apps/worker/src/organization/communicationStore.ts",
             "apps/worker/src/organization/organizationCommunications.ts",
+            "scripts/qualify-staging-scheduler.mjs",
+            "scripts/qualify-staging-scheduler.test.mjs",
             "docs/adr/0029-deliver-scheduled-event-communications-through-system-templates.md",
           ],
       },
@@ -2297,7 +2299,7 @@
         "task": "post-event-report",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/postEventReportTask.ts",
         "targetEvidence":
           [
@@ -2310,6 +2312,8 @@
             "apps/worker/src/organization/communicationStore.ts",
             "apps/worker/src/organization/organizationCommunications.ts",
             "apps/web/src/account/RosterAutomationSettings.tsx",
+            "scripts/qualify-staging-scheduler.mjs",
+            "scripts/qualify-staging-scheduler.test.mjs",
             "docs/adr/0029-deliver-scheduled-event-communications-through-system-templates.md",
           ],
       },
@@ -2777,7 +2781,7 @@
         "workflow": "linked rehearsal reminders use the parent performance RSVP roster",
         "owner": "packages/domain",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "docs/adr/0001-ignore-rehearsal-rsvps-for-automated-reminders.md;
           test/pb-hooks/eventReminderTask.test.ts",
@@ -2786,6 +2790,8 @@
             "apps/worker/src/organization/calendarManagementStore.ts",
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/scheduler.integration.test.ts",
+            "scripts/qualify-staging-scheduler.mjs",
+            "scripts/qualify-staging-scheduler.test.mjs",
           ],
       },
       {
