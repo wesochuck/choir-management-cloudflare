@@ -362,11 +362,11 @@ that isolated fixture exists. The helper also covers status-miss recovery, RSVP 
 linked-rehearsal attendance reconciliation, wrong-Organization reads, and fixture cleanup without
 provider effects.
 
-The qualification harness and this readiness note are preserved on `main` at commit `6a33a16`. Its
-exact tree passed the 13-step local CI mirror and 98 desktop/mobile browser tests. The GitHub
-Actions run for that commit failed before any job steps started because no hosted runner was
-allocated (`runner_id: 0`); this does not replace the successful local evidence and no Worker
-promotion was needed for the tooling-only commit.
+The qualification harness and this readiness note are preserved on `main` at commit `472df52`. Its
+exact tree passed the 13-step local CI mirror, 261 unit tests, 199 Workerd integration tests, and 98
+desktop/mobile browser tests. The GitHub Actions run for that commit failed before any job steps
+started because no hosted runner was allocated (`runner_id: 0`); this does not replace the
+successful local evidence and no Worker promotion was needed for the tooling-only commit.
 
 A guarded `npm run qualify:staging:identity` harness now covers invitation-only identity activation,
 Organization-bound invitation details, first-password setup, single-use password recovery, replay
@@ -382,8 +382,8 @@ overview requested MFA verification; maintenance and other Platform mutations we
 is an authorization prerequisite for the scheduler-backed staging observation, not a runtime
 failure.
 
-The fresh local CI mirror for current tooling commit `6a33a16` passed all 13 static, contracts,
-unit, build-release, and Workerd integration steps: 258 unit tests and 199 integration tests passed,
+The fresh local CI mirror for current tooling commit `472df52` passed all 13 static, contracts,
+unit, build-release, and Workerd integration steps: 261 unit tests and 199 integration tests passed,
 and the release manifest was created and verified. A fresh Chromium run on the current checkout also
 passed all 98 desktop/mobile E2E tests.
 
