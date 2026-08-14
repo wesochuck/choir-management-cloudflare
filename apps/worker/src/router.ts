@@ -70,6 +70,16 @@ export const router = new Hono<WorkerHonoEnvironment>();
 export const CONTENT_SECURITY_POLICY =
   "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'";
 
+export function setSecurityHeaders(
+  headers: Headers,
+  referrerPolicy = "strict-origin-when-cross-origin",
+): void {
+  headers.set("referrer-policy", referrerPolicy);
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("x-frame-options", "DENY");
+  headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
+}
+
 router.use("*", requestId());
 router.use("*", async (context, next) => {
   const method = context.req.method.toUpperCase();
@@ -131,15 +141,12 @@ router.use("*", async (context, next) => {
         ? "public, max-age=31536000, immutable"
         : "no-store",
   );
-  context.header(
-    "referrer-policy",
+  setSecurityHeaders(
+    context.res.headers,
     responsePath === "/api/calendar/feed" || responsePath === "/api/public/unsubscribe"
       ? "no-referrer"
       : "strict-origin-when-cross-origin",
   );
-  context.header("x-content-type-options", "nosniff");
-  context.header("x-frame-options", "DENY");
-  context.header("content-security-policy", CONTENT_SECURITY_POLICY);
   context.res.headers.set(
     "access-control-allow-origin",
     context.env.PRODUCT_BASE_DOMAIN === "localhost"

@@ -32,6 +32,21 @@ describe("Worker foundation", () => {
     expect(body).toMatchObject({ code: "not_found" });
   });
 
+  it("serves the SPA shell through the Worker security-header path", async () => {
+    const response = await exports.default.fetch(
+      new Request("https://choir-management.local/login", {
+        headers: { "sec-fetch-mode": "navigate" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(response.headers.get("content-security-policy")).toBe(CONTENT_SECURITY_POLICY);
+    expect(response.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
+    expect(response.headers.get("content-type")).toContain("text/html");
+  });
+
   it("rejects oversized JSON request bodies before route parsing", async () => {
     const response = await exports.default.fetch(
       new Request("https://choir-management.local/api/not-a-route", {

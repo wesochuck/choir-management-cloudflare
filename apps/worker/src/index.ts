@@ -6,7 +6,7 @@ import {
 import { reconcileEmailChangeNotifications } from "./auth/emailChange";
 import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
-import { router } from "./router";
+import { router, setSecurityHeaders } from "./router";
 import { FleetSchemaWorkflow } from "./workflows/FleetSchemaWorkflow";
 import { ProvisioningWorkflow } from "./workflows/ProvisioningWorkflow";
 import type { Env } from "./env";
@@ -15,7 +15,20 @@ export { FleetSchemaWorkflow, OrganizationStore, ProvisioningWorkflow };
 
 const worker = {
   async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {
-    return router.fetch(request, env, executionContext);
+    const response = await router.fetch(request, env, executionContext);
+    const pathname = new URL(request.url).pathname;
+    if (response.status !== 404 || pathname === "/api" || pathname.startsWith("/api/")) {
+      return response;
+    }
+
+    const assetResponse = await env.ASSETS.fetch(request);
+    const headers = new Headers(assetResponse.headers);
+    setSecurityHeaders(headers);
+    return new Response(assetResponse.body, {
+      headers,
+      status: assetResponse.status,
+      statusText: assetResponse.statusText,
+    });
   },
   async queue(batch: MessageBatch, env: Env): Promise<void> {
     if (batch.queue === env.EMAIL_EVENTS_QUEUE_NAME) {
