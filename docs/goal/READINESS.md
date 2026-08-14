@@ -9,6 +9,23 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
+## Static asset security-header remediation — August 14, 2026
+
+The open `SEC-STATIC-HEADERS` defense-in-depth finding is now addressed in commit `0acaa27`. The
+Worker runs before all static assets, passes SPA-shell and asset misses through the `ASSETS`
+binding, and applies the existing CSP, `X-Frame-Options`, `X-Content-Type-Options`, and
+referrer-policy headers without changing the typed API 404 boundary. The focused Workerd foundation
+test and the full local CI mirror passed; the integration suite now contains 201 tests, and all 104
+desktop/mobile Chromium tests passed.
+
+The guarded local staging release promoted `0acaa27f1377deba001c2ca5d475f1115fea792b` as Worker
+version `7faa62da-717a-4d28-9967-34e87520b3bb` at 100% traffic. Direct HTTPS checks on both
+`staging.musicsite.org/login` and `lcc.staging.musicsite.org/login` returned HTTP 200 HTML with the
+four expected security headers. An unknown API route remained HTTP 404 JSON with the same headers,
+and `/api/health` reported the exact release. Exact-release qualification passed six API probes and
+the anonymous boundary sweep passed all 148 requests. This closes `SEC-STATIC-HEADERS`; HSTS and the
+broader final security review remain separate Milestone 6 evidence items.
+
 ## Latest provider-independent roster and RSVP/attendance qualification — August 14, 2026
 
 The guarded local staging release promoted source commit `5fc94d0e498a98689bf42a63c720b870e1a3d343`
