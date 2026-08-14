@@ -31,6 +31,14 @@ if (organizationSlug === wrongOrganizationSlug) {
 if (!/^qual-identity-[a-z0-9-]+@qa-mail\.staging\.musicsite\.org$/.test(identityEmail)) {
   throw new Error("STAGING_IDENTITY_EMAIL must be an approved qual-identity staging alias.");
 }
+if (
+  !fixtureDisplayName.startsWith("Qualification Identity Temp ") ||
+  fixtureDisplayName.length > 200
+) {
+  throw new Error(
+    "STAGING_IDENTITY_PROFILE_NAME must be a bounded Qualification Identity Temp fixture name.",
+  );
+}
 
 function uuid(value, label) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
@@ -95,6 +103,17 @@ export function safeIdentityQualificationSummary(input) {
     qualificationEmail: input.qualificationEmail ?? null,
     qualificationProfileId: input.qualificationProfileId ?? null,
   };
+}
+
+export function selectQualificationProfileId(profiles, membership, displayName) {
+  if (membership?.profileId) {
+    const linkedProfile = profiles.find((profile) => profile?.id === membership.profileId);
+    if (!linkedProfile) {
+      throw new Error("The qualification Membership links to a missing Organization Profile.");
+    }
+    return linkedProfile.id;
+  }
+  return profiles.find((profile) => profile?.displayName === displayName)?.id ?? null;
 }
 
 async function request(url, method, cookie, body) {
@@ -180,19 +199,14 @@ async function listProfiles(cookie, host = organizationHost) {
   return result.body.profiles;
 }
 
-async function ensureProfile(cookie) {
-  const existing = (await listProfiles(cookie)).find(
-    (profile) => profile?.displayName === fixtureDisplayName,
-  );
-  if (existing) {
-    if (existing.email?.toLowerCase() !== identityEmail) {
-      throw new Error("The existing qualification Profile has a different email address.");
-    }
-    return uuid(existing.id, "Qualification Profile");
+async function ensureProfile(cookie, membership) {
+  const profiles = await listProfiles(cookie);
+  const existingId = selectQualificationProfileId(profiles, membership, fixtureDisplayName);
+  if (existingId) {
+    return uuid(existingId, "Qualification Profile");
   }
   const result = await request(`${organizationHost}/api/organization/profiles`, "POST", cookie, {
     displayName: fixtureDisplayName,
-    email: identityEmail,
     globalStatus: "Active",
     voicePart: "S1",
   });
@@ -347,9 +361,6 @@ async function main() {
 
   try {
     ownerCookie = await signIn(readline, ownerEmail);
-    qualificationProfileId = await ensureProfile(ownerCookie);
-    summary.qualificationProfileId = qualificationProfileId;
-
     const membershipsBefore = await listMemberships(ownerCookie);
     const existingMembership = membershipsBefore.find(
       (membership) => membership?.email?.toLowerCase() === identityEmail,
@@ -359,6 +370,8 @@ async function main() {
         "The qualification identity is already a member; set STAGING_IDENTITY_RESUME_EXISTING=1 to resume it, or use a fresh approved alias for an invitation-activation run.",
       );
     }
+    qualificationProfileId = await ensureProfile(ownerCookie, existingMembership);
+    summary.qualificationProfileId = qualificationProfileId;
 
     if (existingMembership) {
       invitationAccepted = true;
