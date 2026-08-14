@@ -9,6 +9,19 @@ target behavior and focused tests exist; permanent-staging proof may still remai
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
+## Permanent staging infrastructure recheck — August 14, 2026
+
+Read-only probes currently report the exact static-security release commit
+`0acaa27f1377deba001c2ca5d475f1115fea792b` as healthy on both `staging.musicsite.org` and
+`lcc.staging.musicsite.org`. Wrangler confirms the four expected staging queues are present:
+email-events, email-events DLQ, jobs, and jobs DLQ; the jobs queue has one producer and one
+consumer, and each other queue has its expected consumer. Both registered staging Workflows
+(`FleetSchemaWorkflow` and `ProvisioningWorkflow`) are present, remote control-plane D1 reports no
+migrations to apply, and the four required Worker secret names are present without exposing values.
+No custom Organization domain is registered, so canonical-host health does not count as custom-
+domain workflow evidence; `workflow.custom-domains` remains `implemented` pending an authorized
+domain fixture.
+
 ## Static asset security-header remediation — August 14, 2026
 
 The open `SEC-STATIC-HEADERS` defense-in-depth finding is now addressed in commit `0acaa27`. The
