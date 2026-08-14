@@ -106,7 +106,14 @@ describe("staging roster automation qualification helpers", () => {
         ],
         "primary",
       ),
-    ).toEqual([{ displayName: "Eligible One", id: "candidate-1", voicePart: "S1" }]);
+    ).toEqual([
+      {
+        displayName: "Eligible One",
+        id: "candidate-1",
+        onBreakInactiveAt: null,
+        voicePart: "S1",
+      },
+    ]);
   });
 
   it("diagnoses stored Idle Profiles without exposing email fields", () => {
@@ -145,12 +152,14 @@ describe("staging roster automation qualification helpers", () => {
         automationEnabled: true,
         displayName: "Idle Candidate",
         id: "candidate-1",
+        onBreakInactiveAt: null,
         voicePart: "S1",
       },
       {
         automationEnabled: false,
         displayName: "Manual Idle Candidate",
         id: "candidate-2",
+        onBreakInactiveAt: null,
         voicePart: "S2",
       },
     ]);

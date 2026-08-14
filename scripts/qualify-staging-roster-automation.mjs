@@ -16,6 +16,7 @@ const onBreakProfileId = process.env.STAGING_STATUS_AUTOMATION_ON_BREAK_PROFILE_
 const organizationHost = `https://${organizationSlug}.${productHostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${productHostname}`;
 const planOnly = process.argv.includes("--plan-only");
+const readinessOnly = process.argv.includes("--readiness-only");
 
 if (!/^[a-z0-9-]+$/.test(organizationSlug) || !/^[a-z0-9-]+$/.test(wrongOrganizationSlug)) {
   throw new Error("Organization slugs must contain only lowercase letters, numbers, or hyphens.");
@@ -229,6 +230,8 @@ export function safeOnBreakProfileCandidates(profiles, primaryProfileId) {
   return eligibleOnBreakProfiles(profiles, primaryProfileId).map((profile) => ({
     displayName: typeof profile.displayName === "string" ? profile.displayName : "Unnamed Profile",
     id: profile.id,
+    onBreakInactiveAt:
+      typeof profile.onBreakInactiveAt === "string" ? profile.onBreakInactiveAt : null,
     voicePart: profile.voicePart,
   }));
 }
@@ -241,6 +244,8 @@ export function safeIdleProfileDiagnostics(profiles, primaryProfileId) {
       displayName:
         typeof profile.displayName === "string" ? profile.displayName : "Unnamed Profile",
       id: profile.id,
+      onBreakInactiveAt:
+        typeof profile.onBreakInactiveAt === "string" ? profile.onBreakInactiveAt : null,
       voicePart: typeof profile.voicePart === "string" ? profile.voicePart : "",
     }));
 }
@@ -566,9 +571,27 @@ async function main() {
     await resolveOrganizationId(cookie);
     const profiles = await listProfiles(cookie);
     profile = resolveTargetProfile(profiles);
-    onBreakProfile = await resolveOnBreakProfile(profiles, profile.id, readline);
     summary.profileId = profile.id;
     const controlledConfiguration = await readRosterConfiguration(cookie);
+    if (readinessOnly) {
+      const idleProfiles = safeIdleProfileDiagnostics(profiles, profile.id);
+      const eligibleProfiles = safeOnBreakProfileCandidates(profiles, profile.id);
+      console.log(
+        JSON.stringify({
+          configuration: {
+            onBreakTimeoutDays: controlledConfiguration.onBreakTimeoutDays,
+            onBreakTimeoutEnabled: controlledConfiguration.onBreakTimeoutEnabled,
+            statusAutomationEnabled: controlledConfiguration.statusAutomationEnabled,
+          },
+          eligibleOnBreakProfiles: eligibleProfiles,
+          idleProfiles,
+          primaryProfileId: profile.id,
+          readOnly: true,
+        }),
+      );
+      return;
+    }
+    onBreakProfile = await resolveOnBreakProfile(profiles, profile.id, readline);
     if (!controlledConfiguration.statusAutomationEnabled) {
       throw new Error("Roster status automation is disabled in the target Organization.");
     }
