@@ -186,9 +186,13 @@ global timeout or clock override, and production/local configurations leave the 
 
 The fixture is retained hidden, Inactive, and manually managed after cleanup because the product has
 no Profile-delete route. Focused local coverage now passes 11 Status automation Workerd tests and 7
-qualification-helper tests, plus formatting, lint, and typecheck. The new path has not been deployed
-or run against permanent staging yet, so `workflow.roster-status-automation` remains `implemented`,
-not `verified`.
+qualification-helper tests, plus formatting, lint, and typecheck. Commit `e11b595` was then promoted
+through the guarded staging path as Worker version `78cc937f-5d7e-43e4-95e4-53c6bbc52d2e` at 100%
+traffic. The complete local release gate passed all 13 steps, including 302 unit tests, 202 Workerd
+integration tests, 104 desktop/mobile E2E tests, exact-build probes, and the 148-request anonymous
+Organization boundary sweep; remote staging D1 had no migrations to apply. The authenticated fixture
+qualification itself is still pending a user-owned staging session, so
+`workflow.roster-status-automation` remains `implemented`, not `verified`.
 
 ## Prior staging release and deployment path — August 13, 2026
 
