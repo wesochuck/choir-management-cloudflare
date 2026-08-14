@@ -61,7 +61,8 @@ export function ticketReminderQualificationPlan() {
     "run canonical-LCC maintenance and prove exactly one ticket_reminder reaches Sent with one recipient",
     "run maintenance again and prove the ticket reminder snapshot is idempotently unchanged",
     "prove the canonical signed receipt remains readable before cleanup",
-    "prove the wrong Organization host cannot read or refund the qualification order, receipt, or reminder row",
+    "queue and deliver one ticket-confirmation resend for the paid qualification order",
+    "prove the wrong Organization host cannot read, resend, or refund the qualification order, receipt, or reminder row",
     "refund the free simulated order, archive the qualification Performance, and print only safe IDs, counts, and statuses",
   ];
 }
@@ -98,6 +99,15 @@ export function ticketReminderSnapshotsMatch(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+export function ticketConfirmationResendReady(before, after) {
+  const beforeRows = before?.rows?.filter((row) => row.kind === "ticket_confirmation") ?? [];
+  const afterRows = after?.rows?.filter((row) => row.kind === "ticket_confirmation") ?? [];
+  if (afterRows.length !== beforeRows.length + 1) return false;
+  const beforeIds = new Set(beforeRows.map((row) => row.id));
+  const newRows = afterRows.filter((row) => !beforeIds.has(row.id));
+  return newRows.length === 1 && newRows[0].status === "Sent" && newRows[0].recipientCount === 1;
+}
+
 export function ticketReceiptMatches(body, eventId, purchaseId) {
   return body?.id === purchaseId && body?.eventId === eventId && body?.status === "paid";
 }
@@ -113,7 +123,7 @@ function responseHasTargetReminder(body, eventId) {
 }
 
 export function ticketReminderBoundaryResponsesSafe(responses, purchaseId, eventId) {
-  const [scheduled, orders, receipt, refund] = responses;
+  const [scheduled, orders, receipt, refund, resend] = responses;
   const collectionSafe = (result, containsTarget) =>
     result.status === 401 ||
     result.status === 403 ||
@@ -121,11 +131,15 @@ export function ticketReminderBoundaryResponsesSafe(responses, purchaseId, event
     (result.status === 200 && !containsTarget(result.body));
   const receiptSafe = receipt.status === 401 || receipt.status === 403 || receipt.status === 404;
   const refundSafe = refund?.status === 401 || refund?.status === 403 || refund?.status === 404;
+  const resendSafe = resend
+    ? resend.status === 401 || resend.status === 403 || resend.status === 404
+    : true;
   return (
     collectionSafe(scheduled, (body) => responseHasTargetReminder(body, eventId)) &&
     collectionSafe(orders, (body) => responseHasTargetOrder(body, purchaseId, eventId)) &&
     receiptSafe &&
-    refundSafe
+    refundSafe &&
+    resendSafe
   );
 }
 
@@ -138,6 +152,12 @@ export function safeTicketReminderQualificationSummary(input) {
     receiptAccessible: input.receiptAccessible === true,
     refundBoundaryRejected: input.refundBoundaryRejected === true,
     refundCompleted: input.refundCompleted === true,
+    resendBoundaryRejected: input.resendBoundaryRejected === true,
+    resendConfirmation: {
+      deliveryState: input.resendConfirmation?.deliveryState ?? "unknown",
+      recipientCount: input.resendConfirmation?.recipientCount ?? 0,
+      status: input.resendConfirmation?.status ?? "unknown",
+    },
     reminder: {
       deliveryState: input.reminder?.deliveryState ?? "unknown",
       jobCount: input.reminder?.jobCount ?? 0,
@@ -354,6 +374,22 @@ async function waitForReminder(cookie, eventId, purchaseId) {
   throw new Error("ticket_reminder did not reach exactly-one sent state in time.");
 }
 
+async function waitForConfirmationResend(cookie, eventId, purchaseId, before) {
+  for (let attempt = 0; attempt < pollingAttempts; attempt += 1) {
+    if (attempt === 0 || (attempt + 1) % 3 === 0) {
+      console.log(
+        `WAIT ticket_confirmation_resend (${String(attempt + 1)}/${String(pollingAttempts)})`,
+      );
+    }
+    const state = await inspect(cookie, eventId, purchaseId);
+    if (state.order?.status === "paid" && ticketConfirmationResendReady(before, state.snapshot)) {
+      return state;
+    }
+    if (attempt < pollingAttempts - 1) await sleep(pollingDelayMs);
+  }
+  throw new Error("ticket confirmation resend did not reach a sent state in time.");
+}
+
 async function archiveEvent(cookie, eventId) {
   const result = await request(
     `${organizationHost}/api/organization/events/${encodeURIComponent(eventId)}`,
@@ -380,6 +416,19 @@ async function readCanonicalReceipt(successToken, eventId, purchaseId) {
   }
   if (!ticketReceiptMatches(result.body, eventId, purchaseId)) {
     throw new Error("The canonical ticket receipt did not match the paid qualification order.");
+  }
+}
+
+async function resendTicketConfirmation(cookie, purchaseId) {
+  const result = await request(
+    `${organizationHost}/api/organization/tickets/${encodeURIComponent(purchaseId)}/confirmation`,
+    "POST",
+    cookie,
+  );
+  if (result.response.status !== 200 || result.body?.queued !== true) {
+    throw new Error(
+      `Ticket confirmation resend failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
   }
 }
 
@@ -410,6 +459,11 @@ async function wrongOrganizationBoundary(cookie, purchaseId, eventId, successTok
       "POST",
       cookie,
     ),
+    request(
+      `${wrongOrganizationHost}/api/organization/tickets/${encodeURIComponent(purchaseId)}/confirmation`,
+      "POST",
+      cookie,
+    ),
   ]);
 }
 
@@ -427,6 +481,7 @@ async function main() {
   let cleanupCompleted = true;
   let receiptAccessible;
   let refundCompleted = false;
+  let resendConfirmation;
   let summary;
 
   try {
@@ -462,6 +517,26 @@ async function main() {
     receiptAccessible = true;
     console.log("PASS canonical ticket receipt remained accessible");
 
+    await resendTicketConfirmation(cookie, purchaseId);
+    console.log("PASS ticket confirmation resend queued");
+    const resendMaintenance = await runMaintenance(cookie);
+    console.log(
+      `PASS ticket-confirmation resend maintenance — ${String(resendMaintenance)} job(s) enqueued`,
+    );
+    const resent = await waitForConfirmationResend(cookie, eventId, purchaseId, first.snapshot);
+    const firstConfirmationIds = new Set(
+      first.snapshot.rows.filter((row) => row.kind === "ticket_confirmation").map((row) => row.id),
+    );
+    const resentRow = resent.snapshot.rows.find(
+      (row) => row.kind === "ticket_confirmation" && !firstConfirmationIds.has(row.id),
+    );
+    resendConfirmation = {
+      deliveryState: resentRow?.status ?? "unknown",
+      recipientCount: resentRow?.recipientCount ?? 0,
+      status: resentRow?.status ?? "unknown",
+    };
+    console.log("PASS ticket confirmation resend delivery");
+
     const boundary = await wrongOrganizationBoundary(cookie, purchaseId, eventId, successToken);
     const crossOrganizationRejected = ticketReminderBoundaryResponsesSafe(
       boundary.map(({ body, response }) => ({ body, status: response.status })),
@@ -473,7 +548,7 @@ async function main() {
     );
     if (!crossOrganizationRejected) {
       throw new Error(
-        "Ticket order, receipt, reminder, or refund behavior was accessible on the wrong Organization host.",
+        "Ticket order, receipt, reminder, resend, or refund behavior was accessible on the wrong Organization host.",
       );
     }
 
@@ -490,6 +565,8 @@ async function main() {
       receiptAccessible,
       refundBoundaryRejected: true,
       refundCompleted,
+      resendBoundaryRejected: true,
+      resendConfirmation,
       reminder: {
         deliveryState: reminder?.status ?? "unknown",
         jobCount: first.snapshot.rows.filter((row) => row.kind === "ticket_reminder").length,

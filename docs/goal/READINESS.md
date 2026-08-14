@@ -291,6 +291,13 @@ focused seven-test qualification suite and complete local CI mirror pass. This i
 tooling only; it does not change the deployed Worker or promote `api.refund-ticket`. A fresh
 authenticated rerun is still required to record the new refund-boundary result on permanent staging.
 
+The ticket-reminder qualifier now also exercises the implemented organization ticket-confirmation
+resend route: it queues one resend for the controlled paid order, runs maintenance, requires a
+second sent confirmation with one recipient, and checks that the wrong Organization host rejects the
+resend mutation. The helper still uses a zero-dollar simulated order and archives its fixture; this
+is qualification tooling only and does not change the deployed Worker. A fresh authenticated rerun
+is required before claiming permanent-staging evidence for `api.resend-ticket`.
+
 ## Prior staging release and deployment path — August 12, 2026
 
 Permanent staging currently serves source commit `e2423b7cc8678c55e20285be14c4abb5590407b5` as

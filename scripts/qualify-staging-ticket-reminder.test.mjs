@@ -7,6 +7,7 @@ import {
   ticketReminderReady,
   ticketReminderSnapshot,
   ticketReminderSnapshotsMatch,
+  ticketConfirmationResendReady,
   ticketReceiptMatches,
 } from "./qualify-staging-ticket-reminder.mjs";
 
@@ -15,6 +16,7 @@ describe("staging ticket-reminder qualification helpers", () => {
     const plan = ticketReminderQualificationPlan().join(" ");
     expect(plan).toContain("zero-dollar");
     expect(plan).toContain("canonical signed receipt");
+    expect(plan).toContain("ticket-confirmation resend");
     expect(plan).toContain("refund the free simulated order");
     expect(plan).toContain("wrong Organization host");
     expect(plan).toContain("archive the qualification Performance");
@@ -61,6 +63,35 @@ describe("staging ticket-reminder qualification helpers", () => {
     ).toBe(false);
   });
 
+  it("requires exactly one newly sent confirmation for a resend", () => {
+    const before = {
+      rows: [
+        { id: "confirmation-1", kind: "ticket_confirmation", recipientCount: 1, status: "Sent" },
+      ],
+    };
+    expect(
+      ticketConfirmationResendReady(before, {
+        rows: [
+          ...before.rows,
+          { id: "confirmation-2", kind: "ticket_confirmation", recipientCount: 1, status: "Sent" },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      ticketConfirmationResendReady(before, {
+        rows: [
+          ...before.rows,
+          {
+            id: "confirmation-2",
+            kind: "ticket_confirmation",
+            recipientCount: 1,
+            status: "Queued",
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
   it("matches the flattened public ticket receipt response", () => {
     expect(
       ticketReceiptMatches(
@@ -92,6 +123,7 @@ describe("staging ticket-reminder qualification helpers", () => {
         { status: 200, body: { orders: [] } },
         { status: 404, body: { code: "not_found" } },
         { status: 404, body: { code: "not_found" } },
+        { status: 404, body: { code: "not_found" } },
       ],
       "purchase",
       "event",
@@ -100,6 +132,7 @@ describe("staging ticket-reminder qualification helpers", () => {
       [
         { status: 200, body: { messages: [{ eventId: "event" }] } },
         { status: 200, body: { orders: [] } },
+        { status: 404, body: { code: "not_found" } },
         { status: 404, body: { code: "not_found" } },
         { status: 404, body: { code: "not_found" } },
       ],
@@ -118,6 +151,23 @@ describe("staging ticket-reminder qualification helpers", () => {
           { status: 200, body: { orders: [] } },
           { status: 404, body: { code: "not_found" } },
           { status: 200, body: { status: "refunded" } },
+          { status: 404, body: { code: "not_found" } },
+        ],
+        "purchase",
+        "event",
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a wrong-Organization resend mutation", () => {
+    expect(
+      ticketReminderBoundaryResponsesSafe(
+        [
+          { status: 200, body: { messages: [] } },
+          { status: 200, body: { orders: [] } },
+          { status: 404, body: { code: "not_found" } },
+          { status: 404, body: { code: "not_found" } },
+          { status: 200, body: { queued: true } },
         ],
         "purchase",
         "event",
@@ -135,6 +185,12 @@ describe("staging ticket-reminder qualification helpers", () => {
         receiptAccessible: true,
         refundBoundaryRejected: true,
         refundCompleted: true,
+        resendBoundaryRejected: true,
+        resendConfirmation: {
+          deliveryState: "Sent",
+          recipientCount: 1,
+          status: "Sent",
+        },
         reminder: {
           deliveryState: "Sent",
           jobCount: 1,
@@ -152,6 +208,12 @@ describe("staging ticket-reminder qualification helpers", () => {
       receiptAccessible: true,
       refundBoundaryRejected: true,
       refundCompleted: true,
+      resendBoundaryRejected: true,
+      resendConfirmation: {
+        deliveryState: "Sent",
+        recipientCount: 1,
+        status: "Sent",
+      },
       reminder: {
         deliveryState: "Sent",
         jobCount: 1,
