@@ -9,6 +9,7 @@ const productHostname = new URL(productUrl).hostname;
 const organizationSlug = (process.env.STAGING_ORG_SLUG ?? "lcc").trim().toLowerCase();
 const wrongOrganizationSlug = (process.env.STAGING_SECOND_ORG_SLUG ?? "lmc").trim().toLowerCase();
 const email = (process.env.STAGING_AUTH_EMAIL ?? "cwosborn@gmail.com").trim().toLowerCase();
+const suppliedSessionCookie = process.env.STAGING_SESSION_COOKIE?.trim() ?? "";
 const targetProfileId = process.env.STAGING_STATUS_AUTOMATION_PROFILE_ID?.trim() ?? "";
 const targetProfilePrefix = process.env.STAGING_STATUS_AUTOMATION_PROFILE_PREFIX?.trim() ?? "";
 const onBreakProfileId = process.env.STAGING_STATUS_AUTOMATION_ON_BREAK_PROFILE_ID?.trim() ?? "";
@@ -47,6 +48,15 @@ function sessionCookieFrom(response) {
     .map((cookie) => cookie.split(";", 1)[0])
     .filter(Boolean)
     .join("; ");
+}
+
+export function reusableStagingSessionCookie(value) {
+  const cookie = value.trim();
+  if (!cookie) return null;
+  if (!cookie.includes("choir-management.session_token=")) {
+    throw new Error("STAGING_SESSION_COOKIE is not a staging session cookie.");
+  }
+  return cookie;
 }
 
 export function rosterAutomationQualificationPlan() {
@@ -127,6 +137,8 @@ async function prompt(readline, message) {
 }
 
 async function signIn(readline) {
+  const reusableCookie = reusableStagingSessionCookie(suppliedSessionCookie);
+  if (reusableCookie) return reusableCookie;
   const otpRequest = await request(
     `${productUrl}/api/auth/email-otp/send-verification-otp`,
     "POST",

@@ -11,4 +11,13 @@ describe("provider-independent staging qualification batch", () => {
       "stop on a failed batch phase and retain only bounded phase summaries",
     ]);
   });
+
+  it("can opt into roster automation without changing the default phases", () => {
+    expect(providerIndependentQualificationPlan({ includeRosterAutomation: true })).toContain(
+      "optionally reuse the same session for roster status automation and isolation",
+    );
+    expect(providerIndependentQualificationPlan()).not.toContain(
+      "optionally reuse the same session for roster status automation and isolation",
+    );
+  });
 });

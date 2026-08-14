@@ -27,8 +27,6 @@ CSV and checksum, and cross-Organization isolation. The wrong-host requests retu
 runtime fix. The two parity workflows are now promoted to `verified`; no OTP, session credential, or
 private data was recorded.
 
-## Current staging release and deployment path — August 14, 2026
-
 ## Prior staging release and deployment path — August 13, 2026
 
 Permanent staging then served source commit `da756f896fb535cc848284b665b04bfec872b9a0` as Worker
@@ -2515,7 +2513,7 @@ committing.
 
 The following work remains before the goal contract can be marked complete:
 
-1. Qualify the 19 parity entries that remain `implemented`, including the remaining API families,
+1. Qualify the 16 parity entries that remain `implemented`, including the remaining API families,
    signed-link flows, file behaviors, record hooks, background tasks, and domain workflows. Promote
    entries to `verified` only after successful and failure-path evidence is captured.
 2. The isolated Stripe Connect test credentials and signed webhook secret are now configured, and

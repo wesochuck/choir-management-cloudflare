@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   rosterAutomationBoundaryResponsesSafe,
   rosterAutomationQualificationPlan,
+  reusableStagingSessionCookie,
   safeRosterAutomationQualificationSummary,
 } from "./qualify-staging-roster-automation.mjs";
 
@@ -68,5 +69,15 @@ describe("staging roster automation qualification helpers", () => {
       profileId: "profile-id",
       qualificationEventCount: 7,
     });
+  });
+
+  it("reuses only a staging session cookie supplied by the parent batch", () => {
+    expect(reusableStagingSessionCookie("")).toBeNull();
+    expect(
+      reusableStagingSessionCookie("choir-management.session_token=qualification-cookie"),
+    ).toBe("choir-management.session_token=qualification-cookie");
+    expect(() => reusableStagingSessionCookie("session=wrong-scope")).toThrow(
+      "STAGING_SESSION_COOKIE is not a staging session cookie.",
+    );
   });
 });

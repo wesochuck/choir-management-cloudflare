@@ -10,6 +10,7 @@ const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsit
 const email = (process.env.STAGING_AUTH_EMAIL ?? "cwosborn@gmail.com").trim().toLowerCase();
 const suppliedSessionCookie = process.env.STAGING_SESSION_COOKIE?.trim() ?? "";
 const runKey = (process.env.STAGING_BATCH_RUN_KEY ?? randomUUID().slice(0, 8)).trim().toLowerCase();
+const includeRosterAutomation = process.env.STAGING_INCLUDE_ROSTER_AUTOMATION === "1";
 
 if (!/^[a-z0-9-]{4,40}$/.test(runKey)) {
   throw new Error(
@@ -17,13 +18,21 @@ if (!/^[a-z0-9-]{4,40}$/.test(runKey)) {
   );
 }
 
-export function providerIndependentQualificationPlan() {
-  return [
+export function providerIndependentQualificationPlan(options = {}) {
+  const plan = [
     "authenticate once in the user's own terminal without printing the session cookie",
     "run roster create/update/import/export/directory/isolation qualification",
     "reuse the same in-memory session for RSVP notes, attendance, finalization, export, and isolation",
     "stop on a failed batch phase and retain only bounded phase summaries",
   ];
+  if (options.includeRosterAutomation === true) {
+    plan.splice(
+      3,
+      0,
+      "optionally reuse the same session for roster status automation and isolation",
+    );
+  }
+  return plan;
 }
 
 function sessionCookieFrom(response) {
@@ -86,7 +95,9 @@ function runPhase(script, environment) {
 
 async function main() {
   if (process.argv.includes("--plan-only")) {
-    for (const [index, step] of providerIndependentQualificationPlan().entries()) {
+    for (const [index, step] of providerIndependentQualificationPlan({
+      includeRosterAutomation,
+    }).entries()) {
       console.log(`${String(index + 1)}. ${step}`);
     }
     return;
@@ -111,10 +122,20 @@ async function main() {
   if (rsvpStatus !== 0) {
     throw new Error(`RSVP/attendance qualification failed with exit status ${String(rsvpStatus)}.`);
   }
+  const phases = ["roster", "rsvp-attendance"];
+  if (includeRosterAutomation) {
+    const automationStatus = runPhase("scripts/qualify-staging-roster-automation.mjs", environment);
+    if (automationStatus !== 0) {
+      throw new Error(
+        `Roster automation qualification failed with exit status ${String(automationStatus)}.`,
+      );
+    }
+    phases.push("roster-automation");
+  }
   console.log(
     JSON.stringify({
       completed: true,
-      phases: ["roster", "rsvp-attendance"],
+      phases,
       runKey,
     }),
   );
