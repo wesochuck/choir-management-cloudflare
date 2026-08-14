@@ -71,6 +71,8 @@ interface StatusAutomationActor {
   readonly requestId: string;
 }
 
+const MAX_AUTOMATION_PROFILES = 5_000;
+
 export interface EventRsvpChange {
   readonly actor: StatusAutomationActor;
   readonly automatic: boolean;
@@ -135,7 +137,7 @@ function readProfiles(storage: DurableObjectStorage): readonly StoredProfileRow[
       `SELECT id, display_name AS displayName, created_at AS createdAt, voice_part AS voicePart,
          global_status AS globalStatus, status_is_manual AS statusIsManual,
          status_changed_at AS statusChangedAt, status_change_reason AS statusChangeReason
-       FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
+       FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT ${String(MAX_AUTOMATION_PROFILES)}`,
     )
     .toArray();
 }

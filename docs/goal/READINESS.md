@@ -54,6 +54,14 @@ secret names without reading secret values; remote staging D1 reported no migrat
 parity matrix and implementation audits passed with 205 entries and 79 API entries respectively. No
 hosted data, Organization setting, secret, route, or Worker version was changed by these checks.
 
+The local scale audit also found and fixed a bounded-query defect in roster status automation: its
+internal Profile scan had been limited to 500 rows even though the accepted Organization envelope
+supports 5,000 Profiles. The scan is now explicitly bounded at 5,000, and a new Workerd regression
+seeds a target Profile beyond the former boundary, verifies the automation preview selects it, and
+verifies the timeout automation changes its status. All 10 status-automation integration tests pass.
+This removes the local truncation defect but does not promote `workflow.roster-status-automation` or
+replace the still-open permanent-staging scale and fixture qualification.
+
 After this evidence-only update, the complete local CI mirror passed all 13 steps again: 282 unit
 tests, 199 Workerd integration tests, and release-manifest verification passed. The local Chromium
 gate also passed all 104 desktop/mobile E2E tests. These checks did not produce a deployable runtime

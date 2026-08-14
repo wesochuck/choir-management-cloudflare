@@ -534,6 +534,91 @@ describe("roster status automation", () => {
     });
   });
 
+  it("processes automation profiles across the supported 5,000-profile envelope", async () => {
+    const cookie = await signIn();
+    const tailProfileId = "00000000-0000-4000-8000-000000005000";
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const createdAt = new Date("2025-01-01T00:00:00.000Z").toISOString();
+        for (let offset = 0; offset < 4_999; offset += 25) {
+          const rows = Array.from({ length: Math.min(25, 4_999 - offset) }, (_, index) => {
+            const sequence = String(offset + index).padStart(4, "0");
+            return [
+              `scale-status-profile-${sequence}`,
+              `Scale Status Profile ${sequence}`,
+              createdAt,
+              createdAt,
+            ] as const;
+          });
+          const placeholders = rows.map(() => "(?, ?, ?, ?)").join(", ");
+          state.storage.sql.exec(
+            `INSERT INTO profiles (id, display_name, created_at, updated_at)
+             VALUES ${placeholders}`,
+            ...rows.flat(),
+          );
+        }
+        state.storage.sql.exec(
+          `INSERT INTO profiles
+             (id, display_name, voice_part, global_status, status_is_manual,
+              status_changed_at, status_change_reason, created_at, updated_at)
+           VALUES (?, ?, 'S1', 'Idle', 0, ?, 'Planned leave', ?, ?)`,
+          tailProfileId,
+          "zz-scale-status-tail",
+          new Date("2025-01-01T00:00:00.000Z").toISOString(),
+          createdAt,
+          createdAt,
+        );
+        return null;
+      },
+    );
+
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    const preview = organizationRosterAutomationPreviewResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/roster-configuration/preview", cookie, {
+          configuration: roster,
+          profileId: tailProfileId,
+        })
+      ).json(),
+    );
+    expect(preview.selectedProfile).toMatchObject({
+      currentStatus: "Idle",
+      id: tailProfileId,
+      nextStatus: "Inactive",
+    });
+
+    const result = await runInDurableObject<
+      OrganizationStore,
+      { readonly profileStatusChanges: number }
+    >(stores.get(stores.idFromName("organization-alpha")), (_instance, state) =>
+      runRosterAutomations(
+        state.storage,
+        "organization-alpha",
+        new Date("2031-02-01T00:00:00.000Z"),
+      ),
+    );
+    expect(result.profileStatusChanges).toBe(1);
+    await expect(
+      runInDurableObject<OrganizationStore, { readonly globalStatus: string }>(
+        stores.get(stores.idFromName("organization-alpha")),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly globalStatus: string }>(
+              "SELECT global_status AS globalStatus FROM profiles WHERE id = ?",
+              tailProfileId,
+            )
+            .one(),
+      ),
+    ).resolves.toEqual({ globalStatus: "Inactive" });
+  });
+
   it("leaves manually managed and non-performer profiles untouched by automation runs", async () => {
     const cookie = await signIn();
     const manual = organizationProfileResponseSchema.parse(
