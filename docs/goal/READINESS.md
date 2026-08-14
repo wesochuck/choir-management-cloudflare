@@ -45,6 +45,26 @@ RSVP/attendance mutations. The latest complete local CI mirror for `502b8d7` pas
 including 282 unit tests and 199 Workerd integration tests. No Worker promotion was needed for these
 script-only changes.
 
+The authenticated `--readiness-only` rerun returned `onBreakTimeoutDays: 365`, both automation
+features enabled, `idleProfiles: []`, and `eligibleOnBreakProfiles: []` for the selected LCC Profile
+`d7b36d80-adf4-45f6-a54e-2b515b135750`. This confirms that the missing fixture is an external
+staging state prerequisite, not an ambiguous Profile selection. A read-only Wrangler check also
+confirmed the deployed Worker version `d64c8478-71e5-4a20-909b-8dce581a12e7` and its four expected
+secret names without reading secret values; remote staging D1 reported no migrations to apply. The
+parity matrix and implementation audits passed with 205 entries and 79 API entries respectively. No
+hosted data, Organization setting, secret, route, or Worker version was changed by these checks.
+
+After this evidence-only update, the complete local CI mirror passed all 13 steps again: 282 unit
+tests, 199 Workerd integration tests, and release-manifest verification passed. The local Chromium
+gate also passed all 104 desktop/mobile E2E tests. These checks did not produce a deployable runtime
+change.
+
+A separate read-only control-plane query confirmed both seeded Organizations are active at schema
+version 68 with active canonical domains. LCC maps to the ready connected Stripe test account
+`acct_1U45UcK14BDCe8kR`; LMC has no connected account. No custom Organization domain is currently
+registered, so canonical-host health does not count as custom-domain workflow evidence and
+`workflow.custom-domains` remains `implemented`.
+
 ## Prior staging release and deployment path — August 13, 2026
 
 Permanent staging then served source commit `da756f896fb535cc848284b665b04bfec872b9a0` as Worker
