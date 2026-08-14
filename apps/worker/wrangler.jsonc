@@ -35,6 +35,7 @@
     "PLATFORM_EMAIL_FROM": "auth@invalid.example",
     "PLATFORM_EMAIL_MODE": "capture",
     "PRODUCT_BASE_DOMAIN": "localhost",
+    "STATUS_AUTOMATION_FIXTURE_MODE": "disabled",
   },
   "d1_databases": [
     {
@@ -251,6 +252,7 @@
         "PLATFORM_EMAIL_FROM": "auth@mail.staging.musicsite.org",
         "PLATFORM_EMAIL_MODE": "sandbox",
         "PRODUCT_BASE_DOMAIN": "staging.musicsite.org",
+        "STATUS_AUTOMATION_FIXTURE_MODE": "enabled",
         "STRIPE_PAYMENTS_ENABLED": "true",
       },
     },

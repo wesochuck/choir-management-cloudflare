@@ -13,6 +13,8 @@ const suppliedSessionCookie = process.env.STAGING_SESSION_COOKIE?.trim() ?? "";
 const targetProfileId = process.env.STAGING_STATUS_AUTOMATION_PROFILE_ID?.trim() ?? "";
 const targetProfilePrefix = process.env.STAGING_STATUS_AUTOMATION_PROFILE_PREFIX?.trim() ?? "";
 const onBreakProfileId = process.env.STAGING_STATUS_AUTOMATION_ON_BREAK_PROFILE_ID?.trim() ?? "";
+const allowStatusAutomationFixture = process.env.STAGING_STATUS_AUTOMATION_ALLOW_FIXTURE === "1";
+const statusAutomationFixtureDisplayPrefix = "QUAL-STATUS-AUTOMATION-";
 const organizationHost = `https://${organizationSlug}.${productHostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${productHostname}`;
 const planOnly = process.argv.includes("--plan-only");
@@ -63,7 +65,7 @@ export function reusableStagingSessionCookie(value) {
 export function rosterAutomationQualificationPlan() {
   return [
     "sign in and resolve one explicitly selected performer Profile without printing its email",
-    "resolve one non-manual Idle performer whose existing status age is eligible for the On Break timeout",
+    "resolve one eligible non-manual Idle performer for the On Break timeout, or create an explicitly enabled hidden staging fixture",
     "capture the Profile and roster-automation settings without changing existing Organization configuration",
     "create the configured number of ended Performance fixtures with controlled No RSVPs",
     "preview and run roster automation, proving the Profile becomes Inactive with a system status-history entry",
@@ -105,6 +107,24 @@ export function safeRosterAutomationQualificationSummary(input) {
     previewMatched: input.previewMatched === true,
     profileId: input.profileId ?? null,
     qualificationEventCount: input.qualificationEventCount ?? 0,
+  };
+}
+
+export function statusAutomationFixtureProfileRequest(displayName) {
+  return {
+    displayName,
+    globalStatus: "Idle",
+    statusIsManual: false,
+    voicePart: "S1",
+    showInDirectory: false,
+    doNotEmail: true,
+    isSectionLeader: false,
+    notes: "Qualification-only Status automation fixture.",
+    phone: "",
+    receiveAdminNotifications: true,
+    receiveAttendanceReports: true,
+    receiveFinancialAlerts: false,
+    receiveRsvpDeclineNotices: false,
   };
 }
 
@@ -250,7 +270,49 @@ export function safeIdleProfileDiagnostics(profiles, primaryProfileId) {
     }));
 }
 
-async function resolveOnBreakProfile(profiles, primaryProfileId, readline) {
+async function createStatusAutomationFixture(cookie) {
+  const displayName = `${statusAutomationFixtureDisplayPrefix}${new Date()
+    .toISOString()
+    .slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}`;
+  const result = await request(
+    `${organizationHost}/api/organization/profiles`,
+    "POST",
+    cookie,
+    statusAutomationFixtureProfileRequest(displayName),
+  );
+  if (result.response.status !== 201 || typeof result.body?.id !== "string") {
+    throw new Error(
+      `Status automation fixture Profile creation failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  return {
+    ...result.body,
+    id: uuid(result.body.id, "Status automation fixture Profile"),
+    qualificationFixture: true,
+  };
+}
+
+async function seedStatusAutomationFixture(cookie, profileId) {
+  const result = await request(
+    `${organizationHost}/api/platform/maintenance/status-automation-fixture`,
+    "POST",
+    cookie,
+    { profileId },
+  );
+  if (
+    result.response.status !== 200 ||
+    result.body?.fixture !== true ||
+    result.body?.profileId !== profileId ||
+    typeof result.body?.onBreakInactiveAt !== "string"
+  ) {
+    throw new Error(
+      `Status automation fixture preparation failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  return result.body;
+}
+
+async function resolveOnBreakProfile(profiles, primaryProfileId, readline, cookie) {
   let matches = onBreakProfileId
     ? profiles.filter((profile) => profile?.id === onBreakProfileId)
     : eligibleOnBreakProfiles(profiles, primaryProfileId);
@@ -277,6 +339,10 @@ async function resolveOnBreakProfile(profiles, primaryProfileId, readline) {
           `- ${candidate.id} · ${candidate.displayName} · ${candidate.voicePart || "no voice part"} · ${candidate.automationEnabled ? "automation enabled" : "manual status"}`,
         );
       }
+    }
+    if (allowStatusAutomationFixture) {
+      console.log("Creating the explicitly approved hidden staging Status automation fixture.");
+      return createStatusAutomationFixture(cookie);
     }
   }
   if (matches.length !== 1) {
@@ -591,7 +657,6 @@ async function main() {
       );
       return;
     }
-    onBreakProfile = await resolveOnBreakProfile(profiles, profile.id, readline);
     if (!controlledConfiguration.statusAutomationEnabled) {
       throw new Error("Roster status automation is disabled in the target Organization.");
     }
@@ -607,15 +672,19 @@ async function main() {
     ) {
       throw new Error("The Organization status-automation miss threshold is invalid.");
     }
+    onBreakProfile = await resolveOnBreakProfile(profiles, profile.id, readline, cookie);
+    if (onBreakProfile.qualificationFixture === true) {
+      const seededFixture = await seedStatusAutomationFixture(cookie, onBreakProfile.id);
+      onBreakProfile = { ...onBreakProfile, ...seededFixture };
+      console.log("PASS staging Status automation fixture preparation");
+    }
     const onBreakPreview = await preview(cookie, controlledConfiguration, onBreakProfile.id);
     const onBreakPredicted =
       onBreakPreview.selectedProfile?.nextStatus === "Inactive" &&
       onBreakPreview.selectedProfile?.nextStatusReason.startsWith("On Break has reached");
     console.log(`${onBreakPredicted ? "PASS" : "FAIL"} On Break timeout preview`);
     if (!onBreakPredicted) {
-      throw new Error(
-        "The selected Idle Profile has not reached the controlled one-day On Break timeout.",
-      );
+      throw new Error("The selected Idle Profile has not reached the configured On Break timeout.");
     }
     await runMaintenance(cookie);
     const onBreakAfter = await readProfile(cookie, onBreakProfile.id);
@@ -777,7 +846,17 @@ async function main() {
     }
     if (cookie && onBreakProfile) {
       try {
-        await updateProfile(cookie, onBreakProfile.id, profileMutation(onBreakProfile));
+        await updateProfile(
+          cookie,
+          onBreakProfile.id,
+          onBreakProfile.qualificationFixture === true
+            ? profileMutation(onBreakProfile, {
+                globalStatus: "Inactive",
+                showInDirectory: false,
+                statusIsManual: true,
+              })
+            : profileMutation(onBreakProfile),
+        );
       } catch {
         cleanupSucceeded = false;
         console.error("Roster automation On Break Profile cleanup did not complete.");

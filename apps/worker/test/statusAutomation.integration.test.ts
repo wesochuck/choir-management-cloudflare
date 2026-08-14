@@ -534,6 +534,147 @@ describe("roster status automation", () => {
     });
   });
 
+  it("seeds only a marked hidden fixture before running the real timeout rule", async () => {
+    const cookie = await signIn();
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "QUAL-STATUS-AUTOMATION-local",
+          doNotEmail: true,
+          globalStatus: "Idle",
+          showInDirectory: false,
+          statusIsManual: false,
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    expect(profile).toMatchObject({
+      doNotEmail: true,
+      globalStatus: "Idle",
+      showInDirectory: false,
+      statusIsManual: false,
+      voicePart: "S1",
+    });
+
+    const disabledRoute = await write(
+      "alpha.localhost",
+      "/api/platform/maintenance/status-automation-fixture",
+      cookie,
+      { profileId: profile.id },
+    );
+    expect(disabledRoute.status).toBe(404);
+
+    const crossOrganizationFixture = await stores
+      .get(stores.idFromName("organization-alpha"))
+      .fetch("https://organization.internal/internal/roster/status-automation-fixture", {
+        body: JSON.stringify({
+          actorUserId: "status-automation-manager",
+          organizationId: "organization-bravo",
+          profileId: profile.id,
+          requestId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+    expect(crossOrganizationFixture.status).toBe(404);
+    await expect(crossOrganizationFixture.json()).resolves.toMatchObject({
+      code: "organization_not_found",
+    });
+
+    const unmarked = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Unmarked Status Automation Profile",
+          globalStatus: "Idle",
+          showInDirectory: false,
+          statusIsManual: false,
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    const invalidFixture = await stores
+      .get(stores.idFromName("organization-alpha"))
+      .fetch("https://organization.internal/internal/roster/status-automation-fixture", {
+        body: JSON.stringify({
+          actorUserId: "status-automation-manager",
+          organizationId: "organization-alpha",
+          profileId: unmarked.id,
+          requestId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+    expect(invalidFixture.status).toBe(409);
+    await expect(invalidFixture.json()).resolves.toMatchObject({
+      code: "invalid_status_automation_fixture",
+    });
+
+    const fixture = await stores
+      .get(stores.idFromName("organization-alpha"))
+      .fetch("https://organization.internal/internal/roster/status-automation-fixture", {
+        body: JSON.stringify({
+          actorUserId: "status-automation-manager",
+          organizationId: "organization-alpha",
+          profileId: profile.id,
+          requestId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+    expect(fixture.status).toBe(200);
+    await expect(fixture.json()).resolves.toMatchObject({
+      fixture: true,
+      profileId: profile.id,
+      timeoutDays: 365,
+    });
+
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    const preview = organizationRosterAutomationPreviewResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/roster-configuration/preview", cookie, {
+          configuration: roster,
+          profileId: profile.id,
+        })
+      ).json(),
+    );
+    expect(preview.selectedProfile).toMatchObject({
+      currentStatus: "Idle",
+      nextStatus: "Inactive",
+    });
+
+    const maintenance = await exports.default.fetch(
+      api("alpha.localhost", "/api/platform/maintenance/run", cookie),
+    );
+    expect(maintenance.status).toBe(200);
+    const updated = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/profiles", cookie))
+      ).json(),
+    );
+    expect(updated.profiles.find(({ id }) => id === profile.id)).toMatchObject({
+      globalStatus: "Inactive",
+      statusIsManual: false,
+    });
+    const history = organizationProfileStatusHistoryResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/profiles/${profile.id}/status-history`, cookie),
+        )
+      ).json(),
+    );
+    expect(history.entries[0]).toMatchObject({
+      actorType: "system",
+      newStatus: "Inactive",
+      triggerType: "on_break_timeout",
+    });
+  });
+
   it("processes automation profiles across the supported 5,000-profile envelope", async () => {
     const cookie = await signIn();
     const tailProfileId = "00000000-0000-4000-8000-000000005000";

@@ -5,7 +5,16 @@ import type { Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { authorizeCalendarRoute } from "./helpers";
+import { authorizeCalendarRoute, setupFailureStatus } from "./helpers";
+
+const statusAutomationFixtureRequestSchema = z.object({ profileId: z.uuid() });
+
+function stagingStatusAutomationFixtureEnabled(env: {
+  readonly APP_ENV: string;
+  readonly STATUS_AUTOMATION_FIXTURE_MODE?: string;
+}): boolean {
+  return env.APP_ENV === "staging" && env.STATUS_AUTOMATION_FIXTURE_MODE === "enabled";
+}
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/platform/maintenance/run", async (context) => {
@@ -53,6 +62,89 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: "maintenance_unavailable",
           message: "Organization maintenance could not be run.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+  });
+
+  router.post("/api/platform/maintenance/status-automation-fixture", async (context) => {
+    if (!stagingStatusAutomationFixtureEnabled(context.env)) {
+      return context.json({ code: "not_found" }, 404);
+    }
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const parsed = statusAutomationFixtureRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!parsed.success) {
+      return context.json(
+        {
+          code: "invalid_status_automation_fixture",
+          message: "A valid staging Status automation fixture Profile is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const stub = context.env.ORGANIZATION_STORE.get(
+        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+      );
+      const response = await stub.fetch(
+        "https://organization.internal/internal/roster/status-automation-fixture",
+        {
+          body: JSON.stringify({
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            profileId: parsed.data.profileId,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        return context.json(
+          {
+            code:
+              typeof body === "object" &&
+              body !== null &&
+              "code" in body &&
+              typeof body.code === "string"
+                ? body.code
+                : "status_automation_fixture_unavailable",
+            message: "The staging Status automation fixture could not be prepared.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          setupFailureStatus(response.status),
+        );
+      }
+      const result = z
+        .object({
+          fixture: z.literal(true),
+          onBreakInactiveAt: z.iso.datetime(),
+          profileId: z.uuid(),
+          statusChangedAt: z.iso.datetime(),
+          timeoutDays: z.number().int().positive(),
+        })
+        .safeParse(body);
+      if (!result.success || result.data.profileId !== parsed.data.profileId) {
+        throw new Error("status_automation_fixture_result_invalid");
+      }
+      return context.json({ ...result.data, requestId: context.get("requestId") });
+    } catch {
+      return context.json(
+        {
+          code: "status_automation_fixture_unavailable",
+          message: "The staging Status automation fixture could not be prepared.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,

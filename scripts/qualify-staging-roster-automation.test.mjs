@@ -7,6 +7,7 @@ import {
   safeIdleProfileDiagnostics,
   safeOnBreakProfileCandidates,
   safeRosterAutomationQualificationSummary,
+  statusAutomationFixtureProfileRequest,
 } from "./qualify-staging-roster-automation.mjs";
 
 describe("staging roster automation qualification helpers", () => {
@@ -163,5 +164,23 @@ describe("staging roster automation qualification helpers", () => {
         voicePart: "S2",
       },
     ]);
+  });
+
+  it("builds a hidden no-email Status automation fixture request", () => {
+    expect(statusAutomationFixtureProfileRequest("QUAL-STATUS-AUTOMATION-example")).toEqual({
+      displayName: "QUAL-STATUS-AUTOMATION-example",
+      doNotEmail: true,
+      globalStatus: "Idle",
+      isSectionLeader: false,
+      notes: "Qualification-only Status automation fixture.",
+      phone: "",
+      receiveAdminNotifications: true,
+      receiveAttendanceReports: true,
+      receiveFinancialAlerts: false,
+      receiveRsvpDeclineNotices: false,
+      showInDirectory: false,
+      statusIsManual: false,
+      voicePart: "S1",
+    });
   });
 });

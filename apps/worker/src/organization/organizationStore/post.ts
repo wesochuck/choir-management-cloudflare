@@ -6,7 +6,10 @@ import {
 } from "@choir/contracts";
 import { type DeliveryJob } from "../../jobs/contracts";
 import { manageOrganizationCalendarInStore } from "../calendarManagementStore";
-import { readRosterAutomationPreviewFromStore } from "../statusAutomationStore";
+import {
+  readRosterAutomationPreviewFromStore,
+  seedStagingStatusAutomationFixture,
+} from "../statusAutomationStore";
 import { runOrganizationAlarm } from "../scheduler";
 import {
   createAuditionInStore,
@@ -137,6 +140,20 @@ export async function dispatchPostRequest(
     return parsed.success
       ? readRosterAutomationPreviewFromStore(storage, parsed.data.organizationId, parsed.data)
       : Response.json({ code: "invalid_roster_automation_preview" }, { status: 400 });
+  }
+  if (pathname === "/internal/roster/status-automation-fixture") {
+    const body: unknown = await request.json().catch(() => null);
+    const parsed = z
+      .object({
+        actorUserId: z.string().min(1).max(128),
+        organizationId: z.string().min(1).max(128),
+        profileId: z.uuid(),
+        requestId: z.uuid(),
+      })
+      .safeParse(body);
+    return parsed.success
+      ? seedStagingStatusAutomationFixture(storage, parsed.data)
+      : Response.json({ code: "invalid_status_automation_fixture" }, { status: 400 });
   }
   if (pathname === "/internal/scheduling/attendance-report-prepare") {
     const body: unknown = await request.json().catch(() => null);

@@ -102,6 +102,14 @@ CSV and checksum, and cross-Organization isolation. The wrong-host requests retu
 runtime fix. The two parity workflows are now promoted to `verified`; no OTP, session credential, or
 private data was recorded.
 
+An additional authenticated run using batch key `20260814-status-automation-2` repeated the roster
+and RSVP/attendance phases successfully, including fixture cleanup, CSV checksums, and the
+`HTTP 404/404/404` wrong-Organization boundary. Its status-automation phase again stopped before any
+status, event, Organization-setting, or maintenance mutation because LCC still has no stored Idle
+(user-facing **On Break**) Profile, and therefore no eligible non-manual timeout fixture. This
+confirms the blocker is unchanged after a fresh staging run rather than a stale session or fixture
+selection problem.
+
 ## Roster status-automation qualification follow-up — August 14, 2026
 
 The provider-independent batch was rerun with the known qualification Profile. Its roster and
@@ -163,6 +171,24 @@ version 68 with active canonical domains. LCC maps to the ready connected Stripe
 `acct_1U45UcK14BDCe8kR`; LMC has no connected account. No custom Organization domain is currently
 registered, so canonical-host health does not count as custom-domain workflow evidence and
 `workflow.custom-domains` remains `implemented`.
+
+## Staging Status-automation fixture path — August 14, 2026
+
+After explicit approval in the current task, the source now includes a narrowly gated staging-only
+fixture path for the missing On Break timeout evidence. With
+`STAGING_STATUS_AUTOMATION_ALLOW_FIXTURE=1`, the qualification harness creates a hidden,
+`doNotEmail` `QUAL-STATUS-AUTOMATION-*` performer through the normal Profile API. The staging-only,
+manager-authenticated fixture route resolves the canonical Organization, verifies the marker,
+hidden-directory state, Idle/non-manual status, and voice part inside that Organization's Durable
+Object, then backdates only that marked Profile's `status_changed_at` far enough for the configured
+timeout. The normal preview and maintenance paths still apply the saved 365-day rule; there is no
+global timeout or clock override, and production/local configurations leave the route disabled.
+
+The fixture is retained hidden, Inactive, and manually managed after cleanup because the product has
+no Profile-delete route. Focused local coverage now passes 11 Status automation Workerd tests and 7
+qualification-helper tests, plus formatting, lint, and typecheck. The new path has not been deployed
+or run against permanent staging yet, so `workflow.roster-status-automation` remains `implemented`,
+not `verified`.
 
 ## Prior staging release and deployment path — August 13, 2026
 

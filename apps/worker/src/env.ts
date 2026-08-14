@@ -57,6 +57,7 @@ export interface Env {
   readonly STRIPE_SECRET_KEY?: string;
   readonly STRIPE_PAYMENTS_ENABLED?: string;
   readonly STRIPE_WEBHOOK_SECRET?: string;
+  readonly STATUS_AUTOMATION_FIXTURE_MODE?: string;
 }
 
 export type StartupConfig = z.infer<typeof startupConfigSchema>;
