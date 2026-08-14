@@ -2655,7 +2655,7 @@
         "workflow": "invitation-only sign-in, identity activation, and password recovery",
         "owner": "apps/worker",
         "milestone": 2,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/contexts/AuthContext.tsx; src/views/LoginView.tsx; test/authRedirect.test.ts",
         "targetEvidence":
@@ -2665,6 +2665,7 @@
             "apps/worker/test/auth.integration.test.ts",
             "scripts/qualify-staging-identity.mjs",
             "scripts/qualify-staging-identity.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {

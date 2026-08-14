@@ -4,7 +4,7 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-186 are `verified` and 19 are `implemented`. Per the matrix definitions, `implemented` means that
+187 are `verified` and 18 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
@@ -27,9 +27,12 @@ This release also enables the controlled identity qualification email flow for
 Worker's Email Sending allowlist and has a Cloudflare Email Routing rule
 (`81e9fa00f7c24852a31e81e836bcec14`) forwarding only to the verified staging destination
 `cwosborn@gmail.com`; the catch-all remains disabled. The route and allowlist change passed the full
-local release gate and was promoted in the exact Worker release above. The authenticated
-invitation/password-reset qualification still needs to be rerun from a visible terminal so its
-one-time codes can be entered interactively.
+local release gate and was promoted in the exact Worker release above. The authenticated identity
+qualification then resumed the existing accepted Membership and its linked Profile. It confirmed the
+password state, completed password reset, rejected reset-token replay, established a session with
+the recovered password, and rejected the qualification Profile on the wrong Organization host. No
+one-time code, reset token, generated password, or session credential was recorded. This promotes
+`workflow.identity` to `verified`.
 
 This release also fixes the completed Stripe Connect state in the setup UI: a Ready account no
 longer offers a stale “Continue Stripe onboarding” action, and incomplete setup links to the setup
@@ -1238,10 +1241,10 @@ The current release evidence is:
   uploaded, no website draft was saved, and no track playback was started.
 
 Verified coverage now includes all browser routes, CSV contracts, signed flows, file behaviors,
-responsive states, and record hooks: 64/64 browser routes, 70/79 API routes, 14/23 domain workflows,
-and 4/5 background tasks. The remaining 19 entries are nine authenticated/provider API fixtures, one
-stale-payment cleanup task, and nine domain workflows requiring interactive identity, roster/status,
-provider, or custom-domain evidence.
+responsive states, and record hooks: 64/64 browser routes, 70/79 API routes, 15/23 domain workflows,
+and 4/5 background tasks. The remaining 18 entries are nine authenticated/provider API fixtures, one
+stale-payment cleanup task, and eight domain workflows requiring roster/status, provider, or
+custom-domain evidence.
 
 The current evidence-family inventory is:
 
@@ -1249,7 +1252,7 @@ The current evidence-family inventory is:
 | ----------------- | -------: | --------: | -------------------------------------------------------------------------------- |
 | Browser routes    |       64 |         0 | None                                                                             |
 | API routes        |       70 |         9 | Authenticated fixture/elevation and provider-action evidence                     |
-| Domain workflows  |       14 |         9 | Identity, roster/status, provider, and custom-domain evidence                    |
+| Domain workflows  |       15 |         8 | Roster/status, provider, and custom-domain evidence                              |
 | Responsive states |        9 |         0 | No remaining responsive parity entry; broader visual review remains supplemental |
 | Signed flows      |        8 |         0 | None                                                                             |
 | CSV contracts     |        8 |         0 | None                                                                             |
