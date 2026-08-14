@@ -20,6 +20,7 @@ const fixtureDisplayName =
 const organizationHost = `https://${organizationSlug}.${new URL(productUrl).hostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${new URL(productUrl).hostname}`;
 const planOnly = process.argv.includes("--plan-only");
+const resumeExisting = process.env.STAGING_IDENTITY_RESUME_EXISTING === "1";
 
 if (!/^[a-z0-9-]+$/.test(organizationSlug) || !/^[a-z0-9-]+$/.test(wrongOrganizationSlug)) {
   throw new Error("Organization slugs must contain only lowercase letters, numbers, or hyphens.");
@@ -287,6 +288,16 @@ async function setPassword(cookie, password) {
   }
 }
 
+async function passwordIsSet(cookie) {
+  const result = await request(`${productUrl}/api/account/security`, "GET", cookie);
+  if (result.response.status !== 200 || typeof result.body?.passwordSet !== "boolean") {
+    throw new Error(
+      `Account security lookup failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  return result.body.passwordSet;
+}
+
 async function requestPasswordReset() {
   const result = await request(`${productUrl}/api/auth/request-password-reset`, "POST", "", {
     email: identityEmail,
@@ -321,6 +332,7 @@ async function main() {
   let ownerCookie = "";
   let invitationId = "";
   let invitationAccepted = false;
+  let identityCookie;
   let qualificationProfileId = null;
   const summary = {
     crossOrganizationRejected: false,
@@ -342,41 +354,48 @@ async function main() {
     const existingMembership = membershipsBefore.find(
       (membership) => membership?.email?.toLowerCase() === identityEmail,
     );
+    if (existingMembership && !resumeExisting) {
+      throw new Error(
+        "The qualification identity is already a member; set STAGING_IDENTITY_RESUME_EXISTING=1 to resume it, or use a fresh approved alias for an invitation-activation run.",
+      );
+    }
+
     if (existingMembership) {
-      throw new Error(
-        "The qualification identity is already a member; use a fresh approved alias for an invitation-activation run.",
+      invitationAccepted = true;
+      summary.invitationAccepted = true;
+      console.log("PASS reused existing qualification Membership");
+      identityCookie = await signIn(readline, identityEmail);
+    } else {
+      invitationId = await createInvitation(ownerCookie);
+      identityCookie = await signIn(readline, identityEmail);
+      const details = await invitationDetails(identityCookie, organizationHost, invitationId);
+      if (
+        details.response.status !== 200 ||
+        details.body?.id !== invitationId ||
+        details.body?.email?.toLowerCase() !== identityEmail
+      ) {
+        throw new Error(
+          `Invitation details failed with ${requestFailure(details.response.status, details.body)}.`,
+        );
+      }
+      const wrongDetails = await invitationDetails(
+        identityCookie,
+        wrongOrganizationHost,
+        invitationId,
       );
-    }
-
-    invitationId = await createInvitation(ownerCookie);
-    const identityCookie = await signIn(readline, identityEmail);
-    const details = await invitationDetails(identityCookie, organizationHost, invitationId);
-    if (
-      details.response.status !== 200 ||
-      details.body?.id !== invitationId ||
-      details.body?.email?.toLowerCase() !== identityEmail
-    ) {
-      throw new Error(
-        `Invitation details failed with ${requestFailure(details.response.status, details.body)}.`,
+      summary.crossOrganizationRejected = wrongDetails.response.status === 404;
+      console.log(
+        `${summary.crossOrganizationRejected ? "PASS" : "FAIL"} invitation cross-Organization boundary`,
       );
-    }
-    const wrongDetails = await invitationDetails(
-      identityCookie,
-      wrongOrganizationHost,
-      invitationId,
-    );
-    summary.crossOrganizationRejected = wrongDetails.response.status === 404;
-    console.log(
-      `${summary.crossOrganizationRejected ? "PASS" : "FAIL"} invitation cross-Organization boundary`,
-    );
-    if (!summary.crossOrganizationRejected) {
-      throw new Error("The invitation was readable on the wrong Organization host.");
-    }
+      if (!summary.crossOrganizationRejected) {
+        throw new Error("The invitation was readable on the wrong Organization host.");
+      }
 
-    await acceptInvitation(identityCookie, invitationId);
-    invitationAccepted = true;
-    summary.invitationAccepted = true;
-    console.log("PASS invitation acceptance");
+      await acceptInvitation(identityCookie, invitationId);
+      invitationAccepted = true;
+      summary.invitationAccepted = true;
+      console.log("PASS invitation acceptance");
+    }
 
     const membership = (await listMemberships(ownerCookie)).find(
       (candidate) => candidate?.email?.toLowerCase() === identityEmail,
@@ -385,10 +404,15 @@ async function main() {
     if (membership.profileId !== qualificationProfileId) {
       await linkProfile(ownerCookie, membership.id, qualificationProfileId);
     }
-    const password = `Qualify-${crypto.randomUUID()}-S1!`;
-    await setPassword(identityCookie, password);
-    summary.firstPasswordSet = true;
-    console.log("PASS invited identity password setup");
+    if (await passwordIsSet(identityCookie)) {
+      summary.firstPasswordSet = true;
+      console.log("PASS qualification identity password already set (resumed)");
+    } else {
+      const password = `Qualify-${crypto.randomUUID()}-S1!`;
+      await setPassword(identityCookie, password);
+      summary.firstPasswordSet = true;
+      console.log("PASS invited identity password setup");
+    }
 
     await requestPasswordReset();
     const resetUrl = await prompt(
@@ -433,7 +457,7 @@ async function main() {
       (wrongProfiles.response.status === 200 &&
         Array.isArray(wrongProfiles.body?.profiles) &&
         !wrongProfiles.body.profiles.some((profile) => profile?.id === qualificationProfileId));
-    summary.crossOrganizationRejected = summary.crossOrganizationRejected && targetAbsent;
+    summary.crossOrganizationRejected = targetAbsent;
     console.log(
       `${targetAbsent ? "PASS" : "FAIL"} qualification Profile wrong-Organization boundary`,
     );
