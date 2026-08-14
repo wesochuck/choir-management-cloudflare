@@ -62,6 +62,14 @@ verifies the timeout automation changes its status. All 10 status-automation int
 This removes the local truncation defect but does not promote `workflow.roster-status-automation` or
 replace the still-open permanent-staging scale and fixture qualification.
 
+The fix was then promoted from commit `70a3b445487927d78bd24bf899527d66a29e195a` as Worker version
+`38a3d059-21fe-4fc9-ac67-7006879d1b1b` at 100% permanent-staging traffic. The guarded release passed
+the complete 13-step local CI mirror, all 104 desktop/mobile Chromium tests, exact-version health
+and readiness probes, and the 148-request anonymous Organization boundary sweep. The previous Worker
+version `d64c8478-71e5-4a20-909b-8dce581a12e7` remains the rollback target; no migration, production
+resource, or hosted Organization data was changed. Direct post-deploy health checks on the product
+and LCC hosts returned the new exact build version.
+
 After this evidence-only update, the complete local CI mirror passed all 13 steps again: 282 unit
 tests, 199 Workerd integration tests, and release-manifest verification passed. The local Chromium
 gate also passed all 104 desktop/mobile E2E tests. These checks did not produce a deployable runtime
