@@ -141,6 +141,15 @@ afterEach(async () => {
 describe("roster status automation", () => {
   it("previews, applies, reconciles, expires, and isolates the automation rules", async () => {
     const cookie = await signIn();
+    const missingHistoryResponse = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/profiles/${crypto.randomUUID()}/status-history`,
+        cookie,
+      ),
+    );
+    expect(missingHistoryResponse.status).toBe(404);
+    await expect(missingHistoryResponse.json()).resolves.toMatchObject({ code: "not_found" });
     const profile = organizationProfileResponseSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/profiles", cookie, {

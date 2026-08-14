@@ -264,13 +264,22 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const history = organizationProfileStatusHistoryResponseSchema.parse(
-        await listOrganizationProfileStatusHistory(
-          context.env,
-          authorization.organizationId,
-          profileId.data,
-        ),
+      const historyResult = await listOrganizationProfileStatusHistory(
+        context.env,
+        authorization.organizationId,
+        profileId.data,
       );
+      if (historyResult === null) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization Profile was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const history = organizationProfileStatusHistoryResponseSchema.parse(historyResult);
       return context.json({ ...history, requestId: context.get("requestId") });
     } catch {
       return context.json(

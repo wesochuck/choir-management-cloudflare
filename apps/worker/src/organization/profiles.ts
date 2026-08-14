@@ -79,11 +79,12 @@ export async function listOrganizationProfileStatusHistory(
   env: Env,
   organizationId: string,
   profileId: string,
-): Promise<OrganizationProfileStatusHistoryResponse> {
+): Promise<OrganizationProfileStatusHistoryResponse | null> {
   const url = new URL("https://organization.internal/internal/profiles/status-history");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("profileId", profileId);
   const response = await organizationStub(env, organizationId).fetch(url);
+  if (response.status === 404) return null;
   if (!response.ok)
     throw new Error("The Organization store rejected the Profile status history request.");
   return organizationProfileStatusHistoryResponseSchema.parse(await response.json());

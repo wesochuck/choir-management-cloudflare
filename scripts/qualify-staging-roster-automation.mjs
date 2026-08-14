@@ -421,7 +421,7 @@ function eventRequest(title, startsAt, options = {}) {
     dayOfPriceCents: 0,
     details: "Controlled roster automation qualification fixture.",
     doorsOpenTime: "",
-    durationMinutes: 60,
+    durationMinutes: options.durationMinutes ?? 60,
     isTicketingEnabled: false,
     location: "Qualification only",
     parentPerformanceId: options.parentPerformanceId ?? null,
@@ -589,11 +589,35 @@ async function inspectBoundary(cookie, profileId, eventIds) {
       cookie,
     ),
   ]);
-  return rosterAutomationBoundaryResponsesSafe(
-    responses.map(({ response, body }) => ({ status: response.status, body })),
-    profileId,
-    eventIds,
-  );
+  const normalized = responses.map(({ response, body }) => ({ status: response.status, body }));
+  const [profiles, events, history] = normalized;
+  const profileTarget =
+    Array.isArray(profiles.body?.profiles) &&
+    profiles.body.profiles.some((candidate) => candidate?.id === profileId);
+  const eventTarget =
+    Array.isArray(events.body?.events) &&
+    events.body.events.some((candidate) => eventIds.includes(candidate?.id));
+  const safe = rosterAutomationBoundaryResponsesSafe(normalized, profileId, eventIds);
+  if (!safe) {
+    const responseCode = (body) => (typeof body?.code === "string" ? body.code : null);
+    console.error(
+      JSON.stringify({
+        wrongOrganizationHost,
+        profiles: {
+          code: responseCode(profiles.body),
+          containsTarget: profileTarget,
+          status: profiles.status,
+        },
+        events: {
+          code: responseCode(events.body),
+          containsTarget: eventTarget,
+          status: events.status,
+        },
+        history: { code: responseCode(history.body), status: history.status },
+      }),
+    );
+  }
+  return safe;
 }
 
 function fixtureTitle(kind) {
@@ -703,10 +727,13 @@ async function main() {
         "The selected Idle Profile did not become Inactive through On Break automation.",
       );
     }
+    // Administrative RSVP writes recalculate statuses immediately. Hold the selected Profile in
+    // manual mode while the qualification-owned missed Performances are staged so Preview can
+    // observe the intended Active -> Inactive transition before maintenance applies it.
     await updateProfile(
       cookie,
       profile.id,
-      profileMutation(profile, { globalStatus: "Active", statusIsManual: false }),
+      profileMutation(profile, { globalStatus: "Active", statusIsManual: true }),
     );
 
     const now = Date.now();
@@ -718,13 +745,22 @@ async function main() {
       const eventId = await createEvent(
         cookie,
         fixtureTitle(`Missed Performance ${String(index)}`),
-        new Date(now - index * 3 * 86_400_000).toISOString(),
+        new Date(now - index * 10 * 60_000).toISOString(),
+        { durationMinutes: 1 },
       );
       eventIds.push(eventId);
       await setRsvp(cookie, eventId, profile.id, "No");
     }
     summary.qualificationEventCount = eventIds.length;
 
+    const activeProfile = await updateProfile(
+      cookie,
+      profile.id,
+      profileMutation(profile, { globalStatus: "Active", statusIsManual: false }),
+    );
+    if (activeProfile.globalStatus !== "Active" || activeProfile.statusIsManual !== false) {
+      throw new Error("The qualification Profile did not return to Active automatic management.");
+    }
     const previewResult = await preview(cookie, controlledConfiguration, profile.id);
     summary.previewMatched =
       previewResult.selectedProfile?.nextStatus === "Inactive" &&
@@ -732,10 +768,31 @@ async function main() {
         `latest ${String(controlledConfiguration.statusAutomationMissThreshold)} ended Performances`,
       );
     console.log(`${summary.previewMatched ? "PASS" : "FAIL"} roster automation preview`);
-    if (!summary.previewMatched)
+    if (!summary.previewMatched) {
+      const selectedProfile = previewResult.selectedProfile;
+      console.error(
+        JSON.stringify({
+          expectedMissThreshold: controlledConfiguration.statusAutomationMissThreshold,
+          qualificationEventIds: eventIds,
+          profileState: {
+            globalStatus: activeProfile.globalStatus,
+            statusIsManual: activeProfile.statusIsManual,
+            voicePart: activeProfile.voicePart,
+          },
+          preview: selectedProfile
+            ? {
+                currentStatus: selectedProfile.currentStatus,
+                nextStatus: selectedProfile.nextStatus,
+                nextStatusReason: selectedProfile.nextStatusReason,
+                recentPerformances: selectedProfile.recentPerformances,
+              }
+            : null,
+        }),
+      );
       throw new Error(
         `Roster automation preview did not predict Inactive after ${String(controlledConfiguration.statusAutomationMissThreshold)} misses.`,
       );
+    }
 
     await runMaintenance(cookie);
     const inactiveProfile = await readProfile(cookie, profile.id);
@@ -761,7 +818,8 @@ async function main() {
     );
     eventIds.push(recoveryPerformance);
     await setRsvp(cookie, recoveryPerformance, profile.id, "Yes");
-    await runMaintenance(cookie);
+    // The administrative RSVP mutation already recalculates statuses. A second maintenance pass
+    // would immediately re-apply the three missed Performances before the recovery assertion.
     const recoveredProfile = await readProfile(cookie, profile.id);
     const recoveryHistory = await readStatusHistory(cookie, profile.id);
     summary.futureRecovery =
@@ -817,7 +875,12 @@ async function main() {
     if (!summary.attendanceReconciled)
       throw new Error("Linked rehearsal Present attendance did not reconcile the parent RSVP.");
 
-    summary.crossOrganizationRejected = await inspectBoundary(cookie, profile.id, eventIds);
+    // Prefer the newly created hidden fixture for the Profile boundary. Its ID is guaranteed to be
+    // unique to this Organization; a pre-existing supplied Profile ID may legitimately exist in
+    // the other seeded Organization without exposing this Organization's data.
+    const boundaryProfileId =
+      onBreakProfile.qualificationFixture === true ? onBreakProfile.id : profile.id;
+    summary.crossOrganizationRejected = await inspectBoundary(cookie, boundaryProfileId, eventIds);
     console.log(
       `${summary.crossOrganizationRejected ? "PASS" : "FAIL"} roster automation cross-Organization boundary`,
     );
