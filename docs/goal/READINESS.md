@@ -38,6 +38,13 @@ export artifact; local checks created no staging export and promoted no parity e
 parity entry remains `implemented` until this guarded helper is run against an authorized staging
 export.
 
+The follow-up runner `npm run qualify:staging:follow-up` now authenticates once in the user's own
+terminal and reuses the in-memory session for both the export helper and the hardened
+ticket-reminder qualification. It never prints or persists the session cookie. The export phase
+remains read-only unless `STAGING_EXPORT_CREATE=1` is explicitly supplied; the ticket phase retains
+its own fresh Platform-factor check and uses the existing zero-dollar simulated order, so this
+batching change does not enable provider charges or alter Worker behavior.
+
 ## Latest provider-independent roster and RSVP/attendance qualification — August 14, 2026
 
 The guarded local staging release promoted source commit `5fc94d0e498a98689bf42a63c720b870e1a3d343`
