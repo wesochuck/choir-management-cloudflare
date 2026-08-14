@@ -186,13 +186,17 @@ global timeout or clock override, and production/local configurations leave the 
 
 The fixture is retained hidden, Inactive, and manually managed after cleanup because the product has
 no Profile-delete route. Focused local coverage now passes 11 Status automation Workerd tests and 7
-qualification-helper tests, plus formatting, lint, and typecheck. Commit `e11b595` was then promoted
-through the guarded staging path as Worker version `78cc937f-5d7e-43e4-95e4-53c6bbc52d2e` at 100%
-traffic. The complete local release gate passed all 13 steps, including 302 unit tests, 202 Workerd
-integration tests, 104 desktop/mobile E2E tests, exact-build probes, and the 148-request anonymous
-Organization boundary sweep; remote staging D1 had no migrations to apply. The authenticated fixture
-qualification itself is still pending a user-owned staging session, so
-`workflow.roster-status-automation` remains `implemented`, not `verified`.
+qualification-helper tests, plus formatting, lint, and typecheck. Commit `14e0be4e4cdfcfda593e830d1f7aeb24efc6d3f2`
+was promoted through the guarded staging path as Worker version
+`c9deeb21-89d4-4894-b5b4-e7ee55c14a06` at 100% traffic. The complete local release gate passed all
+13 steps, including 302 unit tests, 202 Workerd integration tests, 104 desktop/mobile E2E tests,
+exact-build probes, and the 148-request anonymous Organization boundary sweep; remote staging D1 had
+no migrations to apply, and version-external triggers were applied. The deployed route now returns a
+typed `404 not_found` for a missing Profile's status history instead of converting that tenant-safe
+miss into a generic `503`, which allows the wrong-Organization qualification to distinguish isolation
+from service failure. The authenticated fixture qualification must still be rerun from a user-owned
+staging session against this exact Worker version; `workflow.roster-status-automation` remains
+`implemented`, not `verified`, until its final cross-Organization PASS is recorded.
 
 ## Prior staging release and deployment path — August 13, 2026
 
