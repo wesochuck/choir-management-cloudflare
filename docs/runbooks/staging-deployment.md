@@ -1,8 +1,8 @@
 # Permanent Staging Deployment Runbook
 
-The default staging release path runs locally from an authenticated maintainer workstation. GitHub
-Actions remains an optional, manually dispatched secondary path when hosted runners are available.
-Neither path authorizes a production deployment.
+The sole staging release path runs locally from an authenticated maintainer workstation. GitHub
+Actions is disabled; the local command runs the complete release checks before deployment. This path
+does not authorize a production deployment.
 
 ## Default local release
 
@@ -31,12 +31,6 @@ Routes, queue consumers, schedules, and Workflow triggers are not Worker-version
 rollback cannot revert those settings. Keep trigger changes backward compatible and follow
 `docs/runbooks/rollback.md` if a trigger change is the source of an incident.
 
-## Optional hosted release
-
-The `Deploy staging` GitHub Actions workflow is manual-only. It downloads and verifies the exact
-artifact produced by a successful CI run, then follows the same version-upload, traffic-shift,
-qualification, and rollback sequence. Supply the successful CI run ID and full release commit SHA
-when dispatching it.
-
-Do not use `wrangler deploy` for promotion. Do not point the local command or the hosted workflow at
-the production environment. Production requires its separate approval contract.
+Do not use `wrangler deploy` for promotion. Do not point the local command at the production
+environment. Production requires its separate approval contract and a separately designed release
+path.

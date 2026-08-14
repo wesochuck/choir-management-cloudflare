@@ -149,20 +149,20 @@ Before finishing a material or release-bound change, report:
 
 - Local and preview environments must not send real messages or create real charges.
 - Staging uses isolated resources and secrets. Store developer credentials in supported keyrings and
-  deployed secrets in Worker or GitHub environment secret stores, never tracked files.
-- The default permanent-staging release path is the guarded local command
+  deployed secrets in Worker secret stores, never tracked files.
+- The sole permanent-staging release path is the guarded local command
   `npm run deploy:staging -- --yes`. It must run from a clean `main` checkout that exactly matches
   `origin/main`, execute the complete local release gate, create and verify one immutable artifact
   containing commit, lockfile, Worker bundle, and web asset hashes, and retain the prior Worker
   Version for rollback. Follow `docs/runbooks/staging-deployment.md`.
-- The GitHub staging workflow is an optional manual-only secondary path. It must download and verify
-  the immutable artifact produced by the specified successful CI run; it may not rebuild that
-  artifact. Neither release path may use direct `wrangler deploy` for promotion.
+- GitHub Actions is disabled for this repository. Release checks run locally through
+  `npm run check:ci` and `npm run test:e2e`; repository workflows must not be added without explicit
+  user approval. Do not use direct `wrangler deploy` for promotion.
 - Promote with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
   non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly and keep them
   backward compatible with the previously deployed Worker Version.
 - Qualification is API-only: direct Worker health/readiness, exact `BUILD_VERSION`, and seeded
-  Organization-host resolution. Browser smoke tests do not belong in CI promotion.
+  Organization-host resolution. Browser smoke tests do not belong in release promotion.
 - A custom-domain HTTP 403 may be reported as degraded only when direct Worker probes pass. A
   healthy previous version throughout the qualification window may be reported as propagation delay.
   Real Worker failures remain hard failures and trigger rollback.

@@ -27,11 +27,13 @@ Cloudflare for SaaS lifecycle.
 
 ## Promotion invariants
 
-- One commit and lockfile build once in CI. The hashed Worker/web artifact is uploaded unchanged to
-  each isolated environment without cherry-picking, rebuilding, or manual file copying.
+- One clean `main` commit and lockfile are built once by the guarded local staging release. The
+  hashed Worker/web artifact is verified before upload without cherry-picking or manual file
+  copying.
 - Staging and production never share D1, Durable Object state, R2, KV, queues, secrets, domains, or
   provider modes.
-- CI records commit SHA, lockfile hash, migration set, Worker version, and parity result.
+- The local release provenance records commit SHA, lockfile hash, migration set, Worker version, and
+  qualification result.
 - Production deploys only an already staging-qualified commit after environment approval.
 - Schema expansion is forward-compatible; rollback changes Worker version, never rewrites an applied
   migration.
@@ -43,8 +45,8 @@ consumers, schedules, and Workflow triggers are applied separately because Cloud
 version them with Worker code; those changes therefore follow backward-compatible expand/contract
 discipline too.
 
-Local OAuth is in the Wrangler/macOS keyring. GitHub Actions requires a separate least-privilege
-Cloudflare API token stored as an environment secret, never copied from the local credential.
+Local OAuth is in the Wrangler/macOS keyring. GitHub Actions is disabled; local release checks and
+Cloudflare authentication remain on the maintainer workstation.
 
 ## Organization communications sandbox gate
 

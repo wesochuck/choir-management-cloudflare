@@ -254,14 +254,15 @@ all 250 returned HTTP 200. Aggregate latency was 546 ms p50, 824 ms p95, 962 ms 
 maximum over a 1,033 ms wall-clock run. This is public health-endpoint evidence only and does not
 replace the planned authenticated/data-envelope, queue, workflow, or tenant-isolation scale tests.
 
-The repository now defines the guarded local command `npm run deploy:staging -- --yes` as the
-default permanent-staging path. It refuses dirty, non-`main`, or unpushed checkouts; runs the
-complete local release gate; creates and verifies one temporary immutable artifact; captures
-rollback state; uses `wrangler versions upload` and `wrangler versions deploy`; qualifies the exact
-release; and automatically restores the previous Worker version after a real qualification failure.
-The hosted `Deploy staging` workflow is manual-only and remains an optional secondary path for a
-successful CI artifact. See `docs/runbooks/staging-deployment.md`. Production remains unchanged and
-out of scope.
+The repository now defines the guarded local command `npm run deploy:staging -- --yes` as the sole
+permanent-staging path. It refuses dirty, non-`main`, or unpushed checkouts; runs the complete local
+release gate; creates and verifies one temporary immutable artifact; captures rollback state; uses
+`wrangler versions upload` and `wrangler versions deploy`; qualifies the exact release; and
+automatically restores the previous Worker version after a real qualification failure. The GitHub
+CI, staging, and production workflows have been removed because hosted jobs were failing before
+execution when Actions credits were unavailable. Pushes no longer start GitHub Actions jobs. The
+guarded local release runs the complete CI mirror and browser suite before Cloudflare promotion. See
+`docs/runbooks/staging-deployment.md`. Production remains unchanged and out of scope.
 
 The user authorized `cwosborn@gmail.com` as an additional staging-only Platform email recipient. The
 address is now present alongside the synthetic test identity in both the application recipient
