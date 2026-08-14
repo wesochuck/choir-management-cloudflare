@@ -70,6 +70,14 @@ version `d64c8478-71e5-4a20-909b-8dce581a12e7` remains the rollback target; no m
 resource, or hosted Organization data was changed. Direct post-deploy health checks on the product
 and LCC hosts returned the new exact build version.
 
+A follow-up contract correction in commit `fd78226cc4006591586a657df019e7ab74a592a7` raised the
+automation preview count bounds to the full 5,000-Profile envelope and expanded the regression to
+evaluate all 5,000 records. Its guarded release passed the same 13-step CI mirror, 104 Chromium
+tests, exact-version probes, and anonymous boundary sweep, then promoted Worker version
+`82eade6d-f472-4fc1-8f89-27466b0967c8` at 100%. Both staging health endpoints now report the new
+exact build; the prior `38a3d059-21fe-4fc9-ac67-7006879d1b1b` version remains available for
+rollback.
+
 After this evidence-only update, the complete local CI mirror passed all 13 steps again: 282 unit
 tests, 199 Workerd integration tests, and release-manifest verification passed. The local Chromium
 gate also passed all 104 desktop/mobile E2E tests. These checks did not produce a deployable runtime
