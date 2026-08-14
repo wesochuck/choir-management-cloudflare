@@ -33,6 +33,12 @@ disables every controlled hostname before reporting cleanup. It never prints pro
 payloads, tokens, or signed values. The harness has not run against staging because the external
 Cloudflare for SaaS zone and least-privilege provider secret are not configured yet.
 
+A read-only Wrangler secret listing on August 14 confirmed that staging currently contains only
+`BETTER_AUTH_SECRET`, `SIGNED_LINK_SECRET`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET`; no
+custom-hostname provider token was exposed or present. The current staging vars also contain no
+`CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID`. Commit `27b17fb` pushed the harness to `main`, but it has not
+been promoted because the provider setup is incomplete.
+
 ## Static asset security-header remediation — August 14, 2026
 
 The open `SEC-STATIC-HEADERS` defense-in-depth finding is now addressed in commit `0acaa27`. The
