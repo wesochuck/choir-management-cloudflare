@@ -2721,7 +2721,7 @@
           reconciliation, recovery, and status history",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/components/admin/StatusAutomationSettings.tsx;
           src/components/admin/RosterSettingsTab.tsx; pocketbase/pb_hooks/status.pb.js",
@@ -2742,6 +2742,8 @@
             "apps/web/src/account/components/EventsPage/page.tsx",
             "apps/web/src/account/RsvpManagerPage.tsx",
             "apps/web/src/account/MySchedule.tsx",
+            "scripts/qualify-staging-roster-automation.mjs",
+            "docs/goal/READINESS.md",
             "docs/adr/0016-use-on-break-in-product-language.md",
             "docs/adr/0017-linked-rehearsal-attendance-confirms-performance-rsvp.md",
             "docs/adr/0018-future-performance-rsvp-restores-active-status.md",
