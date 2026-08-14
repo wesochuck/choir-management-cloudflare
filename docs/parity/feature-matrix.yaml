@@ -3071,6 +3071,7 @@
             "apps/worker/src/control/migrations/0015_custom_domain_provider.sql",
             "apps/worker/test/auth.authorization.integration.test.ts",
             "apps/worker/src/tenancy/customDomainProvider.test.ts",
+            "scripts/qualify-staging-custom-domain.mjs",
             "apps/web/src/account/components/PlatformOperations/OrganizationDomains.tsx",
           ],
         "notes":

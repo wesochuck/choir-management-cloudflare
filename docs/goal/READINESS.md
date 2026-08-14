@@ -26,6 +26,13 @@ change. A safe customer-owned staging domain, an enabled Cloudflare for SaaS zon
 the least-privilege provider credential, and subdomain/apex/www qualification are still required
 before this lifecycle can be promoted and marked verified.
 
+The source now also includes a guarded `npm run qualify:staging:custom-domain -- --yes` harness. It
+requires explicitly supplied customer-owned subdomain, apex, and `www` hostnames, performs bounded
+activation polling, checks public-only route protection and wrong-Organization isolation, and
+disables every controlled hostname before reporting cleanup. It never prints provider error
+payloads, tokens, or signed values. The harness has not run against staging because the external
+Cloudflare for SaaS zone and least-privilege provider secret are not configured yet.
+
 ## Static asset security-header remediation — August 14, 2026
 
 The open `SEC-STATIC-HEADERS` defense-in-depth finding is now addressed in commit `0acaa27`. The
