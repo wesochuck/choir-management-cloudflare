@@ -33,6 +33,7 @@
     "qualify:staging:roster-automation": "node scripts/qualify-staging-roster-automation.mjs",
     "qualify:staging:rsvp-attendance": "node scripts/qualify-staging-rsvp-attendance.mjs",
     "qualify:staging:provider-independent": "node scripts/qualify-staging-provider-independent.mjs",
+    "qualify:staging:export": "node scripts/qualify-staging-export.mjs",
     "qualify:staging:scheduler": "node scripts/qualify-staging-scheduler.mjs",
     "qualify:staging:ticket-reminder": "node scripts/qualify-staging-ticket-reminder.mjs",
     "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",

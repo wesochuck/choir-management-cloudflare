@@ -26,6 +26,18 @@ and `/api/health` reported the exact release. Exact-release qualification passed
 the anonymous boundary sweep passed all 148 requests. This closes `SEC-STATIC-HEADERS`; HSTS and the
 broader final security review remain separate Milestone 6 evidence items.
 
+## Organization export qualification tooling — August 14, 2026
+
+The repository now includes a guarded `npm run qualify:staging:export` helper and focused tests for
+the remaining Organization-export staging evidence. Supplying `STAGING_EXPORT_ID` keeps the run
+read-only: it verifies replay-stable completion status, the tenant-bound manifest and payload
+checksum, byte count, private `no-store` download headers, and wrong-Organization status/download
+rejection without printing archive contents. Creating an export requires the explicit
+`STAGING_EXPORT_CREATE=1` opt-in and leaves the resulting export as the Organization's durable
+export artifact; local checks created no staging export and promoted no parity entry. The export
+parity entry remains `implemented` until this guarded helper is run against an authorized staging
+export.
+
 ## Latest provider-independent roster and RSVP/attendance qualification — August 14, 2026
 
 The guarded local staging release promoted source commit `5fc94d0e498a98689bf42a63c720b870e1a3d343`
