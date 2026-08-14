@@ -8,6 +8,10 @@ import {
 } from "../../../auth/api";
 import type { OrganizationDomainsState } from "./shared";
 
+function providerStatusLabel(status: string): string {
+  return status.replaceAll("_", " ");
+}
+
 export function PlatformOrganizationDomains({
   organizationId,
 }: {
@@ -110,12 +114,38 @@ export function PlatformOrganizationDomains({
           <ul className="platform-domain-list">
             {state.domains.map((domain) => (
               <li key={domain.domainId}>
-                <span>
+                <div className="platform-domain-list__details">
                   <strong>{domain.hostname}</strong>
-                  <span className={`status-pill status-pill--${domain.status}`}>
-                    {domain.status}
+                  <span className="platform-domain-list__statuses">
+                    <span className={`status-pill status-pill--${domain.status}`}>
+                      {domain.status}
+                    </span>
+                    <span className="field-help">
+                      Provider: {providerStatusLabel(domain.providerStatus)}
+                    </span>
                   </span>
-                </span>
+                  {domain.providerError ? (
+                    <span className="field-help platform-domain-list__error" role="alert">
+                      {domain.providerError}
+                    </span>
+                  ) : null}
+                  {domain.validationRecords.length > 0 ? (
+                    <div className="platform-domain-list__validation">
+                      <span className="field-help">
+                        Add the following DNS validation record
+                        {domain.validationRecords.length > 1 ? "s" : ""} before the certificate can
+                        activate:
+                      </span>
+                      <ul>
+                        {domain.validationRecords.map((record) => (
+                          <li key={`${record.type}:${record.name}`}>
+                            <code>{record.type.toUpperCase()}</code> {record.name} = {record.value}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
                 {domain.status !== "disabled" ? (
                   <button
                     className="button button--secondary"

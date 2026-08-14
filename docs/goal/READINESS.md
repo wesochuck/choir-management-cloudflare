@@ -4,12 +4,10 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-189 are `verified`, 15 are `implemented`, and 1 is `partial`. Per the matrix definitions,
-`implemented` means that target behavior and focused tests exist; permanent-staging proof may still
-remain. The partial entry is `workflow.custom-domains`: pending registration and disablement exist,
-but the Cloudflare for SaaS custom-hostname lifecycle and activation path do not. The remaining work
-is therefore the Milestone 6 whole-product staging qualification gate plus completion of that
-explicit custom-domain implementation gap.
+189 are `verified` and 16 are `implemented`. Per the matrix definitions, `implemented` means that
+target behavior and focused tests exist; permanent-staging proof may still remain. The remaining
+work is the Milestone 6 whole-product staging qualification gate plus permanent-staging evidence for
+the custom-domain provider lifecycle.
 
 ## Permanent staging infrastructure recheck — August 14, 2026
 
@@ -21,12 +19,12 @@ consumer, and each other queue has its expected consumer. Both registered stagin
 (`FleetSchemaWorkflow` and `ProvisioningWorkflow`) are present, remote control-plane D1 reports no
 migrations to apply, and the four required Worker secret names are present without exposing values.
 No custom Organization domain is registered, so canonical-host health does not count as custom-
-domain workflow evidence. `workflow.custom-domains` is now `partial`: the app records pending
-domains, but no Worker Workflow calls Cloudflare for SaaS, polls hostname/certificate activation,
-stores validation records, or promotes an active hostname into the routing cache. A safe
-customer-owned staging domain, an enabled Cloudflare for SaaS zone/fallback origin, and the
-least-privilege provider credential are still required before that lifecycle can be implemented and
-qualified.
+domain workflow evidence. The current source now contains the typed Cloudflare for SaaS adapter,
+bounded CustomDomainWorkflow, provider-state migration, validation-record presentation, and local
+fake-provider activation/routing coverage. The deployed staging Worker still predates this source
+change. A safe customer-owned staging domain, an enabled Cloudflare for SaaS zone/fallback origin,
+the least-privilege provider credential, and subdomain/apex/www qualification are still required
+before this lifecycle can be promoted and marked verified.
 
 ## Static asset security-header remediation — August 14, 2026
 

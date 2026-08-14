@@ -27,6 +27,7 @@
   "vars": {
     "APP_ENV": "local",
     "BUILD_VERSION": "development",
+    "CUSTOM_DOMAIN_PROVIDER_MODE": "fake",
     "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-local",
     "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-local",
     "EXTERNAL_EFFECTS_MODE": "fake",
@@ -115,6 +116,11 @@
       "binding": "PROVISIONING_WORKFLOW",
       "name": "choir-management-provisioning-local",
       "class_name": "ProvisioningWorkflow",
+    },
+    {
+      "binding": "CUSTOM_DOMAIN_WORKFLOW",
+      "name": "choir-management-custom-domain-local",
+      "class_name": "CustomDomainWorkflow",
     },
   ],
   "env": {
@@ -226,10 +232,16 @@
           "name": "choir-management-provisioning-staging",
           "class_name": "ProvisioningWorkflow",
         },
+        {
+          "binding": "CUSTOM_DOMAIN_WORKFLOW",
+          "name": "choir-management-custom-domain-staging",
+          "class_name": "CustomDomainWorkflow",
+        },
       ],
       "vars": {
         "APP_ENV": "staging",
         "BUILD_VERSION": "staging",
+        "CUSTOM_DOMAIN_PROVIDER_MODE": "cloudflare",
         "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-staging",
         "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-staging",
         "EXTERNAL_EFFECTS_MODE": "sandbox",
@@ -247,6 +259,7 @@
       "vars": {
         "APP_ENV": "production",
         "BUILD_VERSION": "unreleased",
+        "CUSTOM_DOMAIN_PROVIDER_MODE": "disabled",
         "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-production",
         "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-production",
         "EXTERNAL_EFFECTS_MODE": "disabled",

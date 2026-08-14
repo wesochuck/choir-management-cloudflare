@@ -7,7 +7,7 @@ import {
   organizationProfileLinkResponseSchema,
   publicDomainResponseSchema,
 } from "@choir/contracts";
-import { runInDurableObject } from "cloudflare:test";
+import { introspectWorkflow, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
@@ -418,6 +418,7 @@ describe("host-derived Organization authorization", () => {
       .bind("user-invited-member")
       .run();
     const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const workflowIntrospector = await introspectWorkflow(testEnv.CUSTOM_DOMAIN_WORKFLOW);
 
     const registrationResponse = await fetchWorker(
       authRequest(
@@ -435,8 +436,33 @@ describe("host-derived Organization authorization", () => {
     expect(domain).toMatchObject({
       hostname: "public.example.test",
       organizationId: "organization-alpha",
+      providerHostnameId: null,
+      providerStatus: "not_configured",
       routingVersion: 1,
       status: "pending",
+    });
+
+    try {
+      const instances = await workflowIntrospector.get();
+      expect(instances).toHaveLength(1);
+      const [instance] = instances;
+      if (!instance) throw new Error("The custom-domain workflow instance was not created.");
+      await instance.waitForStatus("complete");
+    } finally {
+      await workflowIntrospector.dispose();
+    }
+
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT status, provider_status AS providerStatus, provider_hostname_id AS providerHostnameId
+         FROM organization_domains WHERE id = ?`,
+      )
+        .bind(domain.domainId)
+        .first(),
+    ).resolves.toEqual({
+      providerHostnameId: "fake-public-example-test",
+      providerStatus: "active",
+      status: "active",
     });
 
     const productHostnameResponse = await fetchWorker(
@@ -478,19 +504,6 @@ describe("host-derived Organization authorization", () => {
     );
     expect(crossOrganizationResponse.status).toBe(409);
 
-    await testEnv.CONTROL_DB.prepare(
-      "UPDATE organization_domains SET status = 'active' WHERE id = ?",
-    )
-      .bind(domain.domainId)
-      .run();
-    await testEnv.ROUTING_CACHE.put(
-      `host:${domain.hostname}`,
-      JSON.stringify({
-        organizationId: "organization-alpha",
-        routeKind: "custom_public",
-        routingVersion: 1,
-      }),
-    );
     const authOnPublicDomain = await fetchWorker(
       new Request(`http://${domain.hostname}/api/auth/get-session`, {
         headers: { origin: `http://${domain.hostname}` },
@@ -513,7 +526,7 @@ describe("host-derived Organization authorization", () => {
     );
     expect(disableResponse.status).toBe(200);
     expect(publicDomainResponseSchema.parse(await disableResponse.json())).toMatchObject({
-      routingVersion: 2,
+      routingVersion: 3,
       status: "disabled",
     });
     await expect(testEnv.ROUTING_CACHE.get(`host:${domain.hostname}`)).resolves.toBeNull();
@@ -522,11 +535,12 @@ describe("host-derived Organization authorization", () => {
         `SELECT COUNT(*) AS count FROM platform_audit_events
          WHERE target_id = ? AND action IN (
            'organization.public_domain.registered',
+           'organization.public_domain.activated',
            'organization.public_domain.disabled'
          )`,
       )
         .bind(domain.domainId)
         .first(),
-    ).resolves.toEqual({ count: 2 });
+    ).resolves.toEqual({ count: 3 });
   });
 });

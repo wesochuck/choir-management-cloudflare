@@ -7,11 +7,12 @@ import { reconcileEmailChangeNotifications } from "./auth/emailChange";
 import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
 import { router, setSecurityHeaders } from "./router";
+import { CustomDomainWorkflow } from "./workflows/CustomDomainWorkflow";
 import { FleetSchemaWorkflow } from "./workflows/FleetSchemaWorkflow";
 import { ProvisioningWorkflow } from "./workflows/ProvisioningWorkflow";
 import type { Env } from "./env";
 
-export { FleetSchemaWorkflow, OrganizationStore, ProvisioningWorkflow };
+export { CustomDomainWorkflow, FleetSchemaWorkflow, OrganizationStore, ProvisioningWorkflow };
 
 const worker = {
   async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {

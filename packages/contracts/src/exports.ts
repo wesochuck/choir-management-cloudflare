@@ -26,14 +26,34 @@ export const publicDomainRegistrationRequestSchema = z.object({
   hostname: publicWebsiteHostnameSchema,
 });
 
+export const publicDomainValidationRecordSchema = z.object({
+  name: z.string().min(1).max(2048),
+  type: z.enum(["http", "txt"]),
+  value: z.string().min(1).max(2048),
+});
+
+export const publicDomainProviderStatusSchema = z.enum([
+  "active",
+  "error",
+  "not_configured",
+  "pending",
+  "disabled",
+]);
+
 export const publicDomainResponseSchema = z.object({
   domainId: z.uuid(),
   hostname: publicWebsiteHostnameSchema,
   organizationId: organizationIdSchema,
+  providerError: z.string().max(500).nullable(),
+  providerHostnameId: z.string().max(128).nullable(),
+  providerSslStatus: z.string().max(64).nullable(),
+  providerStatus: publicDomainProviderStatusSchema,
   routingVersion: z.number().int().positive(),
   status: z.enum(["active", "disabled", "pending"]),
+  validationRecords: z.array(publicDomainValidationRecordSchema).max(10),
 });
 
+export type PublicDomainValidationRecord = z.infer<typeof publicDomainValidationRecordSchema>;
 export type PublicDomainResponse = z.infer<typeof publicDomainResponseSchema>;
 
 export const privateFileResponseSchema = z.object({

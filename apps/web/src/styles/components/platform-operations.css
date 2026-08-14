@@ -241,6 +241,33 @@
     gap: 0.55rem;
   }
 
+  .platform-domain-list__details {
+    display: grid;
+    min-width: 0;
+    gap: 0.35rem;
+  }
+
+  .platform-domain-list__statuses {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .platform-domain-list__error {
+    color: var(--color-danger);
+  }
+
+  .platform-domain-list__validation {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .platform-domain-list__validation ul {
+    margin: 0;
+    padding-left: 1.2rem;
+  }
+
   .platform-domain-list .status-pill {
     margin: 0;
   }

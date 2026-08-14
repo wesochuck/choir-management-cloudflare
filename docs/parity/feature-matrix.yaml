@@ -3060,20 +3060,25 @@
         "workflow": "canonical Organization subdomain and custom public domain onboarding",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "partial",
+        "status": "implemented",
         "baselineEvidence": "baseline public routes plus accepted ADR 0005",
         "targetEvidence":
           [
             "apps/worker/src/tenancy/registerPublicDomain.ts",
+            "apps/worker/src/tenancy/customDomainProvider.ts",
+            "apps/worker/src/workflows/CustomDomainWorkflow.ts",
             "apps/worker/src/router.ts",
-            "apps/worker/src/control/migrations/0003_provisioning.sql",
+            "apps/worker/src/control/migrations/0015_custom_domain_provider.sql",
             "apps/worker/test/auth.authorization.integration.test.ts",
+            "apps/worker/src/tenancy/customDomainProvider.test.ts",
+            "apps/web/src/account/components/PlatformOperations/OrganizationDomains.tsx",
           ],
         "notes":
-          "Registration and disabled-route safety are implemented, but Cloudflare for SaaS
-          custom-hostname creation, certificate/hostname status polling, activation,
-          validation-record presentation, and customer subdomain/apex/www staging evidence are not
-          yet implemented.",
+          "Registration, Cloudflare for SaaS custom-hostname reconciliation, bounded certificate
+          status polling, validation-record presentation, activation, routing-cache promotion, and
+          disabled-route safety are implemented with local fake-provider and Workerd coverage.
+          Permanent-staging evidence for a customer subdomain, apex/www hostnames, fallback origin,
+          DNS validation, and provider rollback remains pending external Cloudflare setup.",
       },
     ],
   "fileBehaviors":

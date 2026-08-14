@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { OrganizationStore } from "./organization/OrganizationStore";
+import type { CustomDomainParams } from "./workflows/CustomDomainWorkflow";
 import type { FleetSchemaParams } from "./workflows/FleetSchemaWorkflow";
 import type { ProvisioningParams } from "./workflows/ProvisioningWorkflow";
 
@@ -9,6 +10,7 @@ export const appEnvironmentSchema = z.enum(["local", "preview", "staging", "prod
 const startupConfigSchema = z.object({
   APP_ENV: appEnvironmentSchema,
   BUILD_VERSION: z.string().min(1).max(128),
+  CUSTOM_DOMAIN_PROVIDER_MODE: z.enum(["cloudflare", "disabled", "fake"]),
   EXTERNAL_EFFECTS_MODE: z.enum(["disabled", "fake", "sandbox"]),
   EMAIL_EVENTS_DLQ_NAME: z.string().min(1).max(128),
   EMAIL_EVENTS_QUEUE_NAME: z.string().min(1).max(128),
@@ -31,7 +33,11 @@ export interface Env {
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string;
   readonly BREVO_SMS_SENDER?: string;
   readonly BUILD_VERSION: string;
+  readonly CLOUDFLARE_API_TOKEN?: string;
+  readonly CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID?: string;
   readonly CONTROL_DB: D1Database;
+  readonly CUSTOM_DOMAIN_PROVIDER_MODE: string;
+  readonly CUSTOM_DOMAIN_WORKFLOW: Workflow<CustomDomainParams>;
   readonly EMAIL_EVENTS_DLQ_NAME: string;
   readonly EMAIL_EVENTS_QUEUE_NAME: string;
   readonly EXTERNAL_EFFECTS_MODE: string;
@@ -61,6 +67,7 @@ export function validateStartupConfig(env: Env): StartupConfig {
   return startupConfigSchema.parse({
     APP_ENV: env.APP_ENV,
     BUILD_VERSION: env.BUILD_VERSION,
+    CUSTOM_DOMAIN_PROVIDER_MODE: env.CUSTOM_DOMAIN_PROVIDER_MODE,
     EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE,
     EMAIL_EVENTS_DLQ_NAME: env.EMAIL_EVENTS_DLQ_NAME,
     EMAIL_EVENTS_QUEUE_NAME: env.EMAIL_EVENTS_QUEUE_NAME,

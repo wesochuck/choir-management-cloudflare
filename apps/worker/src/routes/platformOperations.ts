@@ -371,23 +371,35 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
       const authorization = await authorizePlatformRead(context, requestUrl);
       if (authorization instanceof Response) return authorization;
-      const disabled = await disablePublicDomain(context.env, {
-        actorUserId: authorization.userId,
-        domainId: domainId.data,
-        organizationId: organizationId.data,
-        requestId: context.get("requestId"),
-      });
-      if (!disabled.ok) {
+      try {
+        const disabled = await disablePublicDomain(context.env, {
+          actorUserId: authorization.userId,
+          domainId: domainId.data,
+          organizationId: organizationId.data,
+          requestId: context.get("requestId"),
+        });
+        if (!disabled.ok) {
+          return context.json(
+            {
+              code: disabled.error.code,
+              message: disabled.error.message,
+              requestId: context.get("requestId"),
+            } satisfies ProblemDetails,
+            404,
+          );
+        }
+        return context.json({ ...disabled.value, requestId: context.get("requestId") });
+      } catch {
         return context.json(
           {
-            code: disabled.error.code,
-            message: disabled.error.message,
+            code: "service_unavailable",
+            message:
+              "The custom hostname could not be disabled while its provider configuration is being removed.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
-          404,
+          503,
         );
       }
-      return context.json({ ...disabled.value, requestId: context.get("requestId") });
     },
   );
 

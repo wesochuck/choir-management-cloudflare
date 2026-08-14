@@ -144,22 +144,34 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
-    const disabled = await disablePublicDomain(context.env, {
-      actorUserId: authorization.value.userId,
-      domainId: domainId.data,
-      organizationId,
-      requestId: context.get("requestId"),
-    });
-    if (!disabled.ok) {
+    try {
+      const disabled = await disablePublicDomain(context.env, {
+        actorUserId: authorization.value.userId,
+        domainId: domainId.data,
+        organizationId,
+        requestId: context.get("requestId"),
+      });
+      if (!disabled.ok) {
+        return context.json(
+          {
+            code: disabled.error.code,
+            message: disabled.error.message,
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      return context.json({ ...disabled.value, requestId: context.get("requestId") });
+    } catch {
       return context.json(
         {
-          code: disabled.error.code,
-          message: disabled.error.message,
+          code: "service_unavailable",
+          message:
+            "The Public Website Domain could not be disabled while its provider configuration is being removed.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        404,
+        503,
       );
     }
-    return context.json({ ...disabled.value, requestId: context.get("requestId") });
   });
 }
