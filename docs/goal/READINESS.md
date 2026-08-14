@@ -27,6 +27,24 @@ CSV and checksum, and cross-Organization isolation. The wrong-host requests retu
 runtime fix. The two parity workflows are now promoted to `verified`; no OTP, session credential, or
 private data was recorded.
 
+## Roster status-automation qualification follow-up — August 14, 2026
+
+The provider-independent batch was rerun with the known qualification Profile. Its roster and
+RSVP/attendance phases passed again, including cleanup and the `HTTP 404/404/404` wrong-Organization
+boundary. The status-automation phase stopped before any mutation because the target LCC staging
+roster currently has no separate non-manual Idle (user-facing **On Break**) Profile available for
+the time-based timeout branch. No Profile, event, Organization setting, or maintenance job was
+changed by the failed phase, and `workflow.roster-status-automation` remains `implemented`, not
+`verified`.
+
+Commits `0d472b8`, `cc18b36`, and `502b8d7` improve the qualification tooling only. The helper now
+reuses the authenticated batch session, refuses to guess among fixtures, reports safe candidate
+fields without email addresses, and supports a standalone `--readiness-only` audit. The audit can
+inspect stored Idle Profiles and their computed timeout dates without repeating the roster or
+RSVP/attendance mutations. The latest complete local CI mirror for `502b8d7` passed all 13 steps,
+including 282 unit tests and 199 Workerd integration tests. No Worker promotion was needed for these
+script-only changes.
+
 ## Prior staging release and deployment path — August 13, 2026
 
 Permanent staging then served source commit `da756f896fb535cc848284b665b04bfec872b9a0` as Worker
