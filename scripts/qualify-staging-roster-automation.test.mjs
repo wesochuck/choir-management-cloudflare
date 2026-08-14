@@ -4,6 +4,7 @@ import {
   rosterAutomationBoundaryResponsesSafe,
   rosterAutomationQualificationPlan,
   reusableStagingSessionCookie,
+  safeIdleProfileDiagnostics,
   safeOnBreakProfileCandidates,
   safeRosterAutomationQualificationSummary,
 } from "./qualify-staging-roster-automation.mjs";
@@ -106,5 +107,52 @@ describe("staging roster automation qualification helpers", () => {
         "primary",
       ),
     ).toEqual([{ displayName: "Eligible One", id: "candidate-1", voicePart: "S1" }]);
+  });
+
+  it("diagnoses stored Idle Profiles without exposing email fields", () => {
+    expect(
+      safeIdleProfileDiagnostics(
+        [
+          {
+            displayName: "Idle Candidate",
+            email: "hidden@example.test",
+            globalStatus: "Idle",
+            id: "candidate-1",
+            statusIsManual: false,
+            voicePart: "S1",
+          },
+          {
+            displayName: "Manual Idle Candidate",
+            email: "hidden@example.test",
+            globalStatus: "Idle",
+            id: "candidate-2",
+            statusIsManual: true,
+            voicePart: "S2",
+          },
+          {
+            displayName: "Active Candidate",
+            email: "hidden@example.test",
+            globalStatus: "Active",
+            id: "candidate-3",
+            statusIsManual: false,
+            voicePart: "T1",
+          },
+        ],
+        "primary",
+      ),
+    ).toEqual([
+      {
+        automationEnabled: true,
+        displayName: "Idle Candidate",
+        id: "candidate-1",
+        voicePart: "S1",
+      },
+      {
+        automationEnabled: false,
+        displayName: "Manual Idle Candidate",
+        id: "candidate-2",
+        voicePart: "S2",
+      },
+    ]);
   });
 });

@@ -233,6 +233,18 @@ export function safeOnBreakProfileCandidates(profiles, primaryProfileId) {
   }));
 }
 
+export function safeIdleProfileDiagnostics(profiles, primaryProfileId) {
+  return profiles
+    .filter((profile) => profile?.id !== primaryProfileId && profile?.globalStatus === "Idle")
+    .map((profile) => ({
+      automationEnabled: profile.statusIsManual === false,
+      displayName:
+        typeof profile.displayName === "string" ? profile.displayName : "Unnamed Profile",
+      id: profile.id,
+      voicePart: typeof profile.voicePart === "string" ? profile.voicePart : "",
+    }));
+}
+
 async function resolveOnBreakProfile(profiles, primaryProfileId, readline) {
   let matches = onBreakProfileId
     ? profiles.filter((profile) => profile?.id === onBreakProfileId)
@@ -248,11 +260,25 @@ async function resolveOnBreakProfile(profiles, primaryProfileId, readline) {
     );
     matches = matches.filter((profile) => profile?.id === selectedId);
   }
+  if (!onBreakProfileId && matches.length === 0) {
+    const idleProfiles = safeIdleProfileDiagnostics(profiles, primaryProfileId);
+    console.log("No eligible non-manual Idle Profile is available for the On Break branch.");
+    if (idleProfiles.length === 0) {
+      console.log("No other Profile is currently in the stored Idle (On Break) state.");
+    } else {
+      console.log("Idle Profiles found (safe fields only):");
+      for (const candidate of idleProfiles) {
+        console.log(
+          `- ${candidate.id} · ${candidate.displayName} · ${candidate.voicePart || "no voice part"} · ${candidate.automationEnabled ? "automation enabled" : "manual status"}`,
+        );
+      }
+    }
+  }
   if (matches.length !== 1) {
     throw new Error(
       onBreakProfileId
         ? "STAGING_STATUS_AUTOMATION_ON_BREAK_PROFILE_ID did not resolve to exactly one other Profile."
-        : "Set STAGING_STATUS_AUTOMATION_ON_BREAK_PROFILE_ID to exactly one existing non-manual Idle performer.",
+        : "Set STAGING_STATUS_AUTOMATION_ON_BREAK_PROFILE_ID to one existing non-manual Idle performer whose On Break timeout is already eligible; no Profile or Organization settings were changed.",
     );
   }
   const profile = matches[0];
