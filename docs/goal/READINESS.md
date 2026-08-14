@@ -19,12 +19,12 @@ consumer, and each other queue has its expected consumer. Both registered stagin
 (`FleetSchemaWorkflow` and `ProvisioningWorkflow`) are present, remote control-plane D1 reports no
 migrations to apply, and the four required Worker secret names are present without exposing values.
 No custom Organization domain is registered, so canonical-host health does not count as custom-
-domain workflow evidence. The current source now contains the typed Cloudflare for SaaS adapter,
-bounded CustomDomainWorkflow, provider-state migration, validation-record presentation, and local
-fake-provider activation/routing coverage. The deployed staging Worker still predates this source
-change. A safe customer-owned staging domain, an enabled Cloudflare for SaaS zone/fallback origin,
-the least-privilege provider credential, and subdomain/apex/www qualification are still required
-before this lifecycle can be promoted and marked verified.
+domain workflow evidence. The current source contains the typed Cloudflare for SaaS adapter, bounded
+CustomDomainWorkflow, provider-state migration, validation-record presentation, and local
+fake-provider activation/routing coverage. The guarded release below has now promoted that source
+and migration to permanent staging. A safe customer-owned staging domain, an enabled Cloudflare for
+SaaS fallback origin, the least-privilege provider credential, and subdomain/apex/www qualification
+are still required before this lifecycle can be marked verified.
 
 The source now also includes a guarded `npm run qualify:staging:custom-domain -- --yes` harness. It
 requires explicitly supplied customer-owned subdomain, apex, and `www` hostnames, performs bounded
@@ -35,12 +35,18 @@ Cloudflare for SaaS zone and least-privilege provider secret are not configured 
 
 A read-only Wrangler secret listing on August 14 confirmed that staging currently contains only
 `BETTER_AUTH_SECRET`, `SIGNED_LINK_SECRET`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET`; no
-custom-hostname provider token was exposed or present. The source staging configuration now records
-the verified non-secret `CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID`; that value is not deployed until the
-next guarded staging release. Commit `27b17fb` pushed the harness to `main`, but it has not been
-promoted because the provider setup is incomplete. The follow-up source-only configuration commit
-`f8b436f` records the verified zone ID for the next guarded release; it does not change the deployed
-Worker.
+custom-hostname provider token was exposed or present. The source and deployed staging configuration
+now record the verified non-secret `CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID`. Commits `27b17fb`,
+`f8b436f`, and `11d275d` pushed the harness/configuration and promoted them through the guarded
+staging release. The custom-domain qualification remains pending because the provider credential,
+fallback-origin readiness, and customer-owned hostnames are not configured.
+
+The August 14 guarded release applied `0015_custom_domain_provider.sql`, deployed the version-
+external custom-domain workflow and triggers, and promoted Worker version
+`4293a645-2969-46b0-926b-a6a240c55c51` for commit `11d275d53f8c56a90f85a09d6f0862641df74d73` at 100%
+traffic. Exact-build qualification passed six API probes and the anonymous Organization boundary
+sweep passed all 148 requests; the full local release gate also passed 301 unit tests, 201 Workerd
+integration tests, and 104 desktop/mobile E2E tests. No custom Organization domain was registered.
 
 ## Static asset security-header remediation — August 14, 2026
 
