@@ -79,7 +79,7 @@ exact build; the prior `38a3d059-21fe-4fc9-ac67-7006879d1b1b` version remains av
 rollback.
 
 After this evidence-only update, the complete local CI mirror passed all 13 steps again: 282 unit
-tests, 199 Workerd integration tests, and release-manifest verification passed. The local Chromium
+tests, 200 Workerd integration tests, and release-manifest verification passed. The local Chromium
 gate also passed all 104 desktop/mobile E2E tests. These checks did not produce a deployable runtime
 change.
 
