@@ -38,7 +38,9 @@ A read-only Wrangler secret listing on August 14 confirmed that staging currentl
 custom-hostname provider token was exposed or present. The source staging configuration now records
 the verified non-secret `CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID`; that value is not deployed until the
 next guarded staging release. Commit `27b17fb` pushed the harness to `main`, but it has not been
-promoted because the provider setup is incomplete.
+promoted because the provider setup is incomplete. The follow-up source-only configuration commit
+`f8b436f` records the verified zone ID for the next guarded release; it does not change the deployed
+Worker.
 
 ## Static asset security-header remediation — August 14, 2026
 
