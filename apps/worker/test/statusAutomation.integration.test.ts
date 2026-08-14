@@ -569,6 +569,12 @@ describe("roster status automation", () => {
           createdAt,
           createdAt,
         );
+        state.storage.sql.exec(
+          `UPDATE profiles SET voice_part = 'S1', global_status = 'Idle', status_is_manual = 0,
+             status_changed_at = ?, status_change_reason = 'Planned leave'
+           WHERE id LIKE 'scale-status-profile-%'`,
+          new Date("2025-01-01T00:00:00.000Z").toISOString(),
+        );
         return null;
       },
     );
@@ -593,6 +599,11 @@ describe("roster status automation", () => {
       id: tailProfileId,
       nextStatus: "Inactive",
     });
+    expect(preview).toMatchObject({
+      affectedProfileCount: 5_000,
+      onBreakTimeoutCount: 5_000,
+      statusChangeCount: 5_000,
+    });
 
     const result = await runInDurableObject<
       OrganizationStore,
@@ -604,7 +615,7 @@ describe("roster status automation", () => {
         new Date("2031-02-01T00:00:00.000Z"),
       ),
     );
-    expect(result.profileStatusChanges).toBe(1);
+    expect(result.profileStatusChanges).toBe(5_000);
     await expect(
       runInDurableObject<OrganizationStore, { readonly globalStatus: string }>(
         stores.get(stores.idFromName("organization-alpha")),
