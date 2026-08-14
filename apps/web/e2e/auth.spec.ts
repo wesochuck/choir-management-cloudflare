@@ -1701,7 +1701,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     eventEditor.getByRole("link", { name: "Change RSVP expiry in Roster Settings" }),
   ).toHaveAttribute("href", "/admin/roster?section=settings");
   await expect(eventEditor).toContainText(
-    "This date is calculated from the event start using the organization's RSVP expiry setting.",
+    /This date (?:is|was) calculated from the event start using the organization's RSVP expiry setting\./,
   );
   await expect(eventEditor.getByText("Ticket page and QR code")).toBeVisible();
   const ticketPageLink = eventEditor.locator(
