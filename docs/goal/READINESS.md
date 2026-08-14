@@ -35,9 +35,10 @@ Cloudflare for SaaS zone and least-privilege provider secret are not configured 
 
 A read-only Wrangler secret listing on August 14 confirmed that staging currently contains only
 `BETTER_AUTH_SECRET`, `SIGNED_LINK_SECRET`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET`; no
-custom-hostname provider token was exposed or present. The current staging vars also contain no
-`CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID`. Commit `27b17fb` pushed the harness to `main`, but it has not
-been promoted because the provider setup is incomplete.
+custom-hostname provider token was exposed or present. The source staging configuration now records
+the verified non-secret `CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID`; that value is not deployed until the
+next guarded staging release. Commit `27b17fb` pushed the harness to `main`, but it has not been
+promoted because the provider setup is incomplete.
 
 ## Static asset security-header remediation — August 14, 2026
 

@@ -241,6 +241,7 @@
       "vars": {
         "APP_ENV": "staging",
         "BUILD_VERSION": "staging",
+        "CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID": "06291d6d14ca953912365e8f2df2eea8",
         "CUSTOM_DOMAIN_PROVIDER_MODE": "cloudflare",
         "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-staging",
         "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-staging",
