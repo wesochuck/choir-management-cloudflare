@@ -104,11 +104,12 @@ export async function listOrganizationEventAttendance(
   env: Env,
   organizationId: string,
   eventId: string,
-): Promise<readonly OrganizationAttendanceRow[]> {
+): Promise<readonly OrganizationAttendanceRow[] | null> {
   const url = new URL("https://organization.internal/internal/calendar/attendance");
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
   const response = await stub(env, organizationId).fetch(url);
+  if (response.status === 404) return null;
   if (!response.ok) throw new Error("The Organization store rejected the attendance request.");
   return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(await response.json())
     .rows;
@@ -118,11 +119,12 @@ export async function listOrganizationEventRsvpHistory(
   env: Env,
   organizationId: string,
   eventId: string,
-): Promise<OrganizationEventRsvpHistoryResponse> {
+): Promise<OrganizationEventRsvpHistoryResponse | null> {
   const url = new URL("https://organization.internal/internal/calendar/event-rsvp-history");
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
   const response = await stub(env, organizationId).fetch(url);
+  if (response.status === 404) return null;
   if (!response.ok) throw new Error("The Organization store rejected the RSVP history request.");
   return organizationEventRsvpHistoryResponseSchema.parse(await response.json());
 }

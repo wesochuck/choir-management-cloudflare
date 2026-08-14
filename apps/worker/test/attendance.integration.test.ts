@@ -376,6 +376,16 @@ describe("Organization attendance", () => {
         api("bravo.localhost", `/api/organization/events/${event.id}/rsvp-export.csv`, cookie),
       ),
     ).toMatchObject({ status: 404 });
+    expect(
+      await exports.default.fetch(
+        api("bravo.localhost", `/api/organization/events/${event.id}/attendance`, cookie),
+      ),
+    ).toMatchObject({ status: 404 });
+    expect(
+      await exports.default.fetch(
+        api("bravo.localhost", `/api/organization/events/${event.id}/rsvp-history`, cookie),
+      ),
+    ).toMatchObject({ status: 404 });
 
     await database
       .prepare(

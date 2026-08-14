@@ -197,6 +197,10 @@ non-interactive work or pause at the authorization boundary.
 
 Apply this as a strict preflight, not as a best-effort suggestion:
 
+- Treat every terminal launched through Codex tooling as agent-only and non-interactive for the
+  user, even when a tool offers to open, queue, or display that terminal. Never start an
+  authentication command there and then ask the user to type into it. Give the user the complete
+  command to run in their own terminal instead.
 - First identify the user-facing surface by evidence from the current turn. A tool session ID,
   `browser.tabs.new` result, background `exec` process, or queued app action is agent-side evidence
   only; it does not prove that the user can see or control anything.

@@ -37,14 +37,25 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      const rows = await listOrganizationEventAttendance(
+        context.env,
+        authorization.organizationId,
+        eventId.data,
+      );
+      if (rows === null) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization event was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
       return context.json({
         eventId: eventId.data,
         requestId: context.get("requestId"),
-        rows: await listOrganizationEventAttendance(
-          context.env,
-          authorization.organizationId,
-          eventId.data,
-        ),
+        rows,
       });
     } catch {
       return context.json(
@@ -78,13 +89,22 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const history = organizationEventRsvpHistoryResponseSchema.parse(
-        await listOrganizationEventRsvpHistory(
-          context.env,
-          authorization.organizationId,
-          eventId.data,
-        ),
+      const historyResponse = await listOrganizationEventRsvpHistory(
+        context.env,
+        authorization.organizationId,
+        eventId.data,
       );
+      if (historyResponse === null) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization event was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const history = organizationEventRsvpHistoryResponseSchema.parse(historyResponse);
       return context.json({ ...history, requestId: context.get("requestId") });
     } catch {
       return context.json(
