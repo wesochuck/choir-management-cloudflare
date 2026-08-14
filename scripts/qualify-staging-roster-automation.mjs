@@ -213,18 +213,41 @@ function resolveTargetProfile(profiles) {
   return { ...profile, id: uuid(profile.id, "Status-automation Profile") };
 }
 
-function resolveOnBreakProfile(profiles, primaryProfileId) {
-  const matches = profiles.filter(
+function eligibleOnBreakProfiles(profiles, primaryProfileId) {
+  return profiles.filter(
     (profile) =>
       typeof profile?.id === "string" &&
       profile.id !== primaryProfileId &&
-      (onBreakProfileId
-        ? profile.id === onBreakProfileId
-        : profile.globalStatus === "Idle" &&
-          profile.statusIsManual === false &&
-          typeof profile.voicePart === "string" &&
-          profile.voicePart.trim() !== ""),
+      profile.globalStatus === "Idle" &&
+      profile.statusIsManual === false &&
+      typeof profile.voicePart === "string" &&
+      profile.voicePart.trim() !== "",
   );
+}
+
+export function safeOnBreakProfileCandidates(profiles, primaryProfileId) {
+  return eligibleOnBreakProfiles(profiles, primaryProfileId).map((profile) => ({
+    displayName: typeof profile.displayName === "string" ? profile.displayName : "Unnamed Profile",
+    id: profile.id,
+    voicePart: profile.voicePart,
+  }));
+}
+
+async function resolveOnBreakProfile(profiles, primaryProfileId, readline) {
+  let matches = onBreakProfileId
+    ? profiles.filter((profile) => profile?.id === onBreakProfileId)
+    : eligibleOnBreakProfiles(profiles, primaryProfileId);
+  if (!onBreakProfileId && matches.length > 1) {
+    console.log("More than one eligible non-manual Idle Profile was found.");
+    for (const candidate of safeOnBreakProfileCandidates(profiles, primaryProfileId)) {
+      console.log(`- ${candidate.id} · ${candidate.displayName} · ${candidate.voicePart}`);
+    }
+    const selectedId = await prompt(
+      readline,
+      "Enter the ID of the disposable On Break qualification Profile (not an email): ",
+    );
+    matches = matches.filter((profile) => profile?.id === selectedId);
+  }
   if (matches.length !== 1) {
     throw new Error(
       onBreakProfileId
@@ -517,7 +540,7 @@ async function main() {
     await resolveOrganizationId(cookie);
     const profiles = await listProfiles(cookie);
     profile = resolveTargetProfile(profiles);
-    onBreakProfile = resolveOnBreakProfile(profiles, profile.id);
+    onBreakProfile = await resolveOnBreakProfile(profiles, profile.id, readline);
     summary.profileId = profile.id;
     const controlledConfiguration = await readRosterConfiguration(cookie);
     if (!controlledConfiguration.statusAutomationEnabled) {

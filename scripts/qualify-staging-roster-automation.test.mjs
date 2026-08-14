@@ -4,6 +4,7 @@ import {
   rosterAutomationBoundaryResponsesSafe,
   rosterAutomationQualificationPlan,
   reusableStagingSessionCookie,
+  safeOnBreakProfileCandidates,
   safeRosterAutomationQualificationSummary,
 } from "./qualify-staging-roster-automation.mjs";
 
@@ -79,5 +80,31 @@ describe("staging roster automation qualification helpers", () => {
     expect(() => reusableStagingSessionCookie("session=wrong-scope")).toThrow(
       "STAGING_SESSION_COOKIE is not a staging session cookie.",
     );
+  });
+
+  it("lists only safe fields when an On Break Profile must be selected", () => {
+    expect(
+      safeOnBreakProfileCandidates(
+        [
+          {
+            displayName: "Eligible One",
+            email: "hidden@example.test",
+            globalStatus: "Idle",
+            id: "candidate-1",
+            statusIsManual: false,
+            voicePart: "S1",
+          },
+          {
+            displayName: "Manual Profile",
+            email: "hidden@example.test",
+            globalStatus: "Idle",
+            id: "candidate-2",
+            statusIsManual: true,
+            voicePart: "S2",
+          },
+        ],
+        "primary",
+      ),
+    ).toEqual([{ displayName: "Eligible One", id: "candidate-1", voicePart: "S1" }]);
   });
 });
