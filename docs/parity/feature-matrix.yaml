@@ -2673,7 +2673,7 @@
         "workflow": "profile CRUD, profile-without-login, import, export, and directory",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/services/profileService.ts; src/services/rosterService.ts; test/rosterService.test.ts",
         "targetEvidence":
@@ -2691,6 +2691,9 @@
             "apps/web/src/account/RosterConfiguration.tsx",
             "apps/web/src/account/MemberProfileDirectory.tsx",
             "apps/web/e2e/auth.spec.ts",
+            "scripts/qualify-staging-roster.mjs",
+            "scripts/qualify-staging-roster.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -2768,7 +2771,7 @@
         "workflow": "personalized/free RSVP, notes, balances, check-in, and finalization",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/views/public-rsvp; src/views/admin/attendance; test/attendanceRsvpSync.test.tsx",
         "targetEvidence":
@@ -2780,6 +2783,9 @@
             "apps/web/src/account/AttendanceManager.tsx",
             "apps/worker/src/organization/schema.ts",
             "apps/web/src/account/MySchedule.tsx",
+            "scripts/qualify-staging-rsvp-attendance.mjs",
+            "scripts/qualify-staging-rsvp-attendance.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {

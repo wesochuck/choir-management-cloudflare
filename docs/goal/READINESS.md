@@ -1,20 +1,40 @@
 # Goal Readiness and Operating State
 
-**Prepared:** August 13, 2026
+**Prepared:** August 14, 2026
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-187 are `verified` and 18 are `implemented`. Per the matrix definitions, `implemented` means that
+189 are `verified` and 16 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. There are no
 entries currently classified as `planned`, `partial`, or `blocked`, so the remaining work is the
 Milestone 6 whole-product staging qualification gate rather than a known unimplemented parity slice.
 
-## Current staging release and deployment path — August 13, 2026
+## Latest provider-independent roster and RSVP/attendance qualification — August 14, 2026
 
-Permanent staging currently serves source commit `da756f896fb535cc848284b665b04bfec872b9a0` as
-Worker version `5d1c698a-a1b4-4b88-874c-ab14e420607b` at 100% traffic. The guarded local release
-passed the complete 13-step CI mirror, 263 unit tests, 199 Workerd integration tests, and 104
-Chromium desktop/mobile E2E tests. Exact-version staging qualification then passed all six direct
+The guarded local staging release promoted source commit `5fc94d0e498a98689bf42a63c720b870e1a3d343`
+as Worker version `d64c8478-71e5-4a20-909b-8dce581a12e7` at 100% traffic. The complete local release
+gate passed all 13 steps, including 278 unit tests, 199 Workerd integration tests, and 104
+desktop/mobile browser E2E tests. Exact-release qualification and the anonymous staging boundary
+sweep also passed. No production resource was changed.
+
+The authenticated provider-independent qualification batch used run key
+`20260814-provider-independent-1` and completed both phases with fixture cleanup. The roster phase
+passed Profile create/update, CSV import, no-login Profile boundary, canonical CSV export and
+checksum, directory inclusion/exclusion, and cross-Organization isolation. The RSVP/attendance phase
+passed note transitions, RSVP history and balance, attendance check-in/finalization, RSVP balance
+CSV and checksum, and cross-Organization isolation. The wrong-host requests returned
+`HTTP 404/404/404` with target data absent, confirming the tenant-safe boundary after the deployed
+runtime fix. The two parity workflows are now promoted to `verified`; no OTP, session credential, or
+private data was recorded.
+
+## Current staging release and deployment path — August 14, 2026
+
+## Prior staging release and deployment path — August 13, 2026
+
+Permanent staging then served source commit `da756f896fb535cc848284b665b04bfec872b9a0` as Worker
+version `5d1c698a-a1b4-4b88-874c-ab14e420607b` at 100% traffic. The guarded local release passed the
+complete 13-step CI mirror, 263 unit tests, 199 Workerd integration tests, and 104 Chromium
+desktop/mobile E2E tests. Exact-version staging qualification then passed all six direct
 health/readiness probes and the 148-request anonymous Organization-boundary sweep, including the
 configured Stripe webhook's typed invalid-signature response. `/api/health` reports the exact source
 commit on both the product host and the seeded LCC Organization host; no production resource was
