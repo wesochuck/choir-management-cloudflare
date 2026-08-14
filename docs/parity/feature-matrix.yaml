@@ -3060,7 +3060,7 @@
         "workflow": "canonical Organization subdomain and custom public domain onboarding",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "partial",
         "baselineEvidence": "baseline public routes plus accepted ADR 0005",
         "targetEvidence":
           [
@@ -3069,6 +3069,11 @@
             "apps/worker/src/control/migrations/0003_provisioning.sql",
             "apps/worker/test/auth.authorization.integration.test.ts",
           ],
+        "notes":
+          "Registration and disabled-route safety are implemented, but Cloudflare for SaaS
+          custom-hostname creation, certificate/hostname status polling, activation,
+          validation-record presentation, and customer subdomain/apex/www staging evidence are not
+          yet implemented.",
       },
     ],
   "fileBehaviors":
