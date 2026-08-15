@@ -28,7 +28,9 @@ function renderInline(value: string): string {
       '<span class="communication-poll-link-placeholder">Personalized poll response link</span>',
     )
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label: string, url: string) =>
-      isSafeHttpUrl(url) ? `<a href="${url}">${label}</a>` : match,
+      isSafeHttpUrl(url)
+        ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+        : match,
     );
 }
 

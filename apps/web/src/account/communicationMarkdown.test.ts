@@ -8,7 +8,7 @@ describe("renderCommunicationMarkdownPreview", () => {
     );
 
     expect(rendered).toContain(
-      '<a href="https://example.test/?q=&quot; onmouseover=&quot;alert(1">safe</a>',
+      '<a href="https://example.test/?q=&quot; onmouseover=&quot;alert(1" target="_blank" rel="noopener noreferrer">safe</a>',
     );
     expect(rendered).toContain("&lt;img src=x&gt;");
     expect(rendered).not.toContain('onmouseover="alert(1)"');

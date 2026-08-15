@@ -111,13 +111,32 @@ router.use("*", async (context, next) => {
   }
   await next();
 });
+function resolveCorsOrigin(requestOrigin: string | undefined, baseDomain: string): string {
+  if (!requestOrigin) {
+    return baseDomain === "localhost" ? "*" : `https://${baseDomain}`;
+  }
+  try {
+    const originUrl = new URL(requestOrigin);
+    if (baseDomain === "localhost") {
+      if (originUrl.hostname === "localhost" || originUrl.hostname.endsWith(".localhost")) {
+        return requestOrigin;
+      }
+      return "*";
+    }
+    if (originUrl.hostname === baseDomain || originUrl.hostname.endsWith(`.${baseDomain}`)) {
+      return requestOrigin;
+    }
+  } catch {
+    // Fall back on invalid origin URLs
+  }
+  return baseDomain === "localhost" ? "*" : `https://${baseDomain}`;
+}
+
 router.use("*", async (context, next) => {
   if (context.req.method === "OPTIONS") {
     context.res.headers.set(
       "access-control-allow-origin",
-      context.env.PRODUCT_BASE_DOMAIN === "localhost"
-        ? "*"
-        : `https://${context.env.PRODUCT_BASE_DOMAIN}`,
+      resolveCorsOrigin(context.req.header("origin"), context.env.PRODUCT_BASE_DOMAIN),
     );
     context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
     context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
@@ -153,9 +172,7 @@ router.use("*", async (context, next) => {
   );
   context.res.headers.set(
     "access-control-allow-origin",
-    context.env.PRODUCT_BASE_DOMAIN === "localhost"
-      ? "*"
-      : `https://${context.env.PRODUCT_BASE_DOMAIN}`,
+    resolveCorsOrigin(context.req.header("origin"), context.env.PRODUCT_BASE_DOMAIN),
   );
   context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
   context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
