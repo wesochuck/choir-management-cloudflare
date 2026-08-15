@@ -623,7 +623,7 @@ describe("Organization calendar management", () => {
       api("alpha.localhost", "/api/organization/audition-settings", cookie, {
         body: JSON.stringify({
           ...settingsWithVenue,
-          defaultPerformanceId: null,
+          defaultPerformanceId: "00000000-0000-4000-8000-000000000999",
           mode: "open_inquiry",
           rehearsalNotes: "We rehearse every Tuesday. No audition required!",
           rehearsalSchedule: [
@@ -636,6 +636,7 @@ describe("Organization calendar management", () => {
             },
           ],
           slots: [],
+          startDate: "2026-09-08",
         }),
         headers: { "content-type": "application/json" },
         method: "PUT",
@@ -646,6 +647,7 @@ describe("Organization calendar management", () => {
       await openInquirySettingsUpdate.json(),
     );
     expect(openInquirySaved).toMatchObject({
+      defaultPerformanceId: null,
       mode: "open_inquiry",
       rehearsalNotes: "We rehearse every Tuesday. No audition required!",
       rehearsalSchedule: [
@@ -656,6 +658,7 @@ describe("Organization calendar management", () => {
           startTime: "19:00",
         },
       ],
+      startDate: "2026-09-08",
     });
 
     const openInquiryPublicSettings = await exports.default.fetch(
@@ -675,6 +678,7 @@ describe("Organization calendar management", () => {
           startTime: "19:00",
         },
       ],
+      startDate: "2026-09-08",
     });
 
     const publicInquiry = await post("alpha.localhost", "/api/public/audition-inquiry", "", {

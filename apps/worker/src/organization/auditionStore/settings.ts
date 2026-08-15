@@ -102,6 +102,7 @@ export function readPublicAuditionSettingsFromStore(
     rehearsalSchedule: settings.rehearsalSchedule,
     sections: rosterOptions.sections,
     slots: settings.slots,
+    startDate: settings.startDate ?? null,
     timezone: row.timezone,
     venue: venue ?? null,
     voiceParts: rosterOptions.voiceParts,
@@ -124,32 +125,58 @@ export function updateAuditionSettingsInStore(
   if (row?.organizationId !== organizationId) {
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
-  if (!settings.venueId) {
-    return Response.json({ code: "venue_required" }, { status: 400 });
-  }
-  const venueExists =
-    storage.sql.exec("SELECT 1 FROM venues WHERE id = ? LIMIT 1", settings.venueId).toArray()
-      .length > 0;
-  if (!venueExists) {
-    return Response.json({ code: "venue_not_found" }, { status: 400 });
-  }
-  if (settings.defaultPerformanceId) {
-    const performanceExists =
+  let validatedSettings = settings;
+  if (validatedSettings.mode === "audition") {
+    if (!validatedSettings.venueId) {
+      return Response.json({ code: "venue_required" }, { status: 400 });
+    }
+    const venueExists =
       storage.sql
-        .exec(
-          "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0 LIMIT 1",
-          settings.defaultPerformanceId,
-        )
+        .exec("SELECT 1 FROM venues WHERE id = ? LIMIT 1", validatedSettings.venueId)
         .toArray().length > 0;
-    if (!performanceExists) {
-      return Response.json({ code: "performance_not_found" }, { status: 400 });
+    if (!venueExists) {
+      return Response.json({ code: "venue_not_found" }, { status: 400 });
+    }
+    if (validatedSettings.defaultPerformanceId) {
+      const performanceExists =
+        storage.sql
+          .exec(
+            "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0 LIMIT 1",
+            validatedSettings.defaultPerformanceId,
+          )
+          .toArray().length > 0;
+      if (!performanceExists) {
+        return Response.json({ code: "performance_not_found" }, { status: 400 });
+      }
+    }
+  } else {
+    if (validatedSettings.venueId) {
+      const venueExists =
+        storage.sql
+          .exec("SELECT 1 FROM venues WHERE id = ? LIMIT 1", validatedSettings.venueId)
+          .toArray().length > 0;
+      if (!venueExists) {
+        validatedSettings = { ...validatedSettings, venueId: null };
+      }
+    }
+    if (validatedSettings.defaultPerformanceId) {
+      const performanceExists =
+        storage.sql
+          .exec(
+            "SELECT 1 FROM events WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0 LIMIT 1",
+            validatedSettings.defaultPerformanceId,
+          )
+          .toArray().length > 0;
+      if (!performanceExists) {
+        validatedSettings = { ...validatedSettings, defaultPerformanceId: null };
+      }
     }
   }
   const now = new Date().toISOString();
   storage.transactionSync(() => {
     storage.sql.exec(
       "UPDATE organization_metadata SET audition_settings_json = ?, updated_at = ?",
-      JSON.stringify(settings),
+      JSON.stringify(validatedSettings),
       now,
     );
     insertAudit(
@@ -158,15 +185,17 @@ export function updateAuditionSettingsInStore(
       "audition.settings_updated",
       organizationId,
       {
-        enabled: settings.enabled,
-        defaultPerformanceId: settings.defaultPerformanceId,
-        slotCount: settings.slots.length,
-        venueId: settings.venueId,
+        defaultPerformanceId: validatedSettings.defaultPerformanceId,
+        enabled: validatedSettings.enabled,
+        mode: validatedSettings.mode,
+        slotCount: validatedSettings.slots.length,
+        startDate: validatedSettings.startDate,
+        venueId: validatedSettings.venueId,
       },
       now,
     );
   });
-  return Response.json(settings);
+  return Response.json(validatedSettings);
 }
 
 export function readAuditionNotificationJobFromStore(

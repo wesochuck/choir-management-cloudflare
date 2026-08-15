@@ -32,6 +32,7 @@ export const fallbackSettings: OrganizationAuditionSettings = {
   rehearsalNotes: "",
   rehearsalSchedule: [],
   slots: [],
+  startDate: null,
   venueId: null,
 };
 

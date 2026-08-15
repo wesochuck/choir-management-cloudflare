@@ -28,6 +28,7 @@ const settings: OrganizationAuditionSettings = {
       startsAt: "2026-08-26T14:00:00.000Z",
     },
   ],
+  startDate: null,
   venueId: "00000000-0000-4000-8000-000000000002",
 };
 

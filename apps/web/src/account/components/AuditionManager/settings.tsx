@@ -34,6 +34,391 @@ function capitalizeDay(day: string): string {
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
 
+function RegularRehearsalScheduleSection({
+  draft,
+  onAddSession,
+  onRemoveSession,
+  onUpdateNotes,
+  onUpdateStartDate,
+  rehearsalDay,
+  rehearsalEnd,
+  rehearsalLocation,
+  rehearsalStart,
+  setRehearsalDay,
+  setRehearsalEnd,
+  setRehearsalLocation,
+  setRehearsalStart,
+}: {
+  readonly draft: OrganizationAuditionSettings;
+  readonly onAddSession: () => void;
+  readonly onRemoveSession: (index: number) => void;
+  readonly onUpdateNotes: (notes: string) => void;
+  readonly onUpdateStartDate: (date: string | null) => void;
+  readonly rehearsalDay: DayOfWeek;
+  readonly rehearsalEnd: string;
+  readonly rehearsalLocation: string;
+  readonly rehearsalStart: string;
+  readonly setRehearsalDay: (day: DayOfWeek) => void;
+  readonly setRehearsalEnd: (val: string) => void;
+  readonly setRehearsalLocation: (val: string) => void;
+  readonly setRehearsalStart: (val: string) => void;
+}) {
+  return (
+    <fieldset className="form-stack">
+      <legend>Regular Rehearsal Schedule</legend>
+      <label className="field">
+        Start Date / First Rehearsal Date
+        <input
+          onChange={(e) => {
+            onUpdateStartDate(e.target.value ? e.target.value : null);
+          }}
+          type="date"
+          value={draft.startDate ?? ""}
+        />
+        <span className="field-help">
+          Optional date when the group, season, or next open rehearsal begins.
+        </span>
+      </label>
+      <p className="field-help">
+        Share information about when rehearsals regularly happen so prospective singers know the
+        schedule.
+      </p>
+      <div className="form-grid form-grid--compact">
+        <label className="field">
+          Day of week
+          <select
+            onChange={(e) => {
+              const parsed = dayOfWeekSchema.safeParse(e.target.value);
+              if (parsed.success) setRehearsalDay(parsed.data);
+            }}
+            value={rehearsalDay}
+          >
+            <option value="monday">Monday</option>
+            <option value="tuesday">Tuesday</option>
+            <option value="wednesday">Wednesday</option>
+            <option value="thursday">Thursday</option>
+            <option value="friday">Friday</option>
+            <option value="saturday">Saturday</option>
+            <option value="sunday">Sunday</option>
+          </select>
+        </label>
+        <label className="field">
+          Start time
+          <input
+            onChange={(e) => {
+              setRehearsalStart(timeInputStateValue(e.currentTarget));
+            }}
+            type="time"
+            value={rehearsalStart}
+          />
+        </label>
+        <label className="field">
+          End time
+          <input
+            onChange={(e) => {
+              setRehearsalEnd(timeInputStateValue(e.currentTarget));
+            }}
+            type="time"
+            value={rehearsalEnd}
+          />
+        </label>
+        <label className="field">
+          Location / Room (optional)
+          <input
+            onChange={(e) => {
+              setRehearsalLocation(e.target.value);
+            }}
+            placeholder="e.g. Main Sanctuary"
+            type="text"
+            value={rehearsalLocation}
+          />
+        </label>
+      </div>
+      <button className="button button--secondary" onClick={onAddSession} type="button">
+        Add regular rehearsal day
+      </button>
+      {draft.rehearsalSchedule.length > 0 ? (
+        <ul className="account-list">
+          {draft.rehearsalSchedule.map((session, index) => (
+            <li className="flex items-center justify-between gap-2" key={index}>
+              <span>
+                <strong>Every {capitalizeDay(session.dayOfWeek)}</strong> from{" "}
+                {formatTime12h(session.startTime)} to {formatTime12h(session.endTime)}
+                {session.locationName ? ` (${session.locationName})` : ""}
+              </span>
+              <button
+                className="text-button text-button--danger"
+                onClick={() => {
+                  onRemoveSession(index);
+                }}
+                type="button"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="notice">No regular rehearsal schedule added yet.</p>
+      )}
+
+      <div className="field">
+        <label htmlFor="intake-rehearsal-notes">Rehearsal & Season Notes (optional)</label>
+        <textarea
+          id="intake-rehearsal-notes"
+          onChange={(e) => {
+            onUpdateNotes(e.target.value);
+          }}
+          placeholder="e.g. Season runs from September through May. We welcome all voice types!"
+          rows={3}
+          value={draft.rehearsalNotes}
+        />
+        <span className="field-help">Displayed to prospective members alongside the schedule.</span>
+      </div>
+    </fieldset>
+  );
+}
+
+function AuditionSlotsSection({
+  addSlot,
+  draft,
+  generateSlots,
+  onRemoveSlot,
+  setSlotDate,
+  setSlotEnd,
+  setSlotInterval,
+  setSlotStart,
+  slotDate,
+  slotEnd,
+  slotError,
+  slotInterval,
+  slotStart,
+  timezone,
+}: {
+  readonly addSlot: () => void;
+  readonly draft: OrganizationAuditionSettings;
+  readonly generateSlots: () => void;
+  readonly onRemoveSlot: (startsAt: string) => void;
+  readonly setSlotDate: (date: string) => void;
+  readonly setSlotEnd: (time: string) => void;
+  readonly setSlotInterval: (interval: string) => void;
+  readonly setSlotStart: (time: string) => void;
+  readonly slotDate: string;
+  readonly slotEnd: string;
+  readonly slotError: string | null;
+  readonly slotInterval: string;
+  readonly slotStart: string;
+  readonly timezone: string;
+}) {
+  return (
+    <fieldset className="form-stack">
+      <legend>Audition time slots</legend>
+      <div className="form-grid form-grid--compact">
+        <label className="field">
+          Date for time slots
+          <input
+            onChange={(event) => {
+              setSlotDate(dateInputStateValue(event.currentTarget));
+            }}
+            type="date"
+            value={slotDate}
+          />
+        </label>
+        <label className="field">
+          Interval (minutes)
+          <input
+            max="240"
+            min="5"
+            onChange={(event) => {
+              setSlotInterval(event.target.value);
+            }}
+            step="5"
+            type="number"
+            value={slotInterval}
+          />
+        </label>
+      </div>
+      <div className="form-grid form-grid--compact">
+        <label className="field">
+          Start time
+          <input
+            aria-label="Audition slot start time"
+            onChange={(event) => {
+              setSlotStart(timeInputStateValue(event.currentTarget));
+            }}
+            step="900"
+            type="time"
+            value={slotStart}
+          />
+        </label>
+        <label className="field">
+          End time
+          <input
+            aria-label="Audition slot end time"
+            onChange={(event) => {
+              setSlotEnd(timeInputStateValue(event.currentTarget));
+            }}
+            step="900"
+            type="time"
+            value={slotEnd}
+          />
+        </label>
+      </div>
+      <p className="field-help">
+        Use the clock controls to choose a time. New slot ranges start at 6:00 PM and end at 8:00 PM
+        in {timezone}; adjust them before generating or adding slots.
+      </p>
+      {slotError ? (
+        <p className="notice notice--error" role="alert">
+          {slotError}
+        </p>
+      ) : null}
+      <button className="button button--secondary" onClick={generateSlots} type="button">
+        Generate slots
+      </button>
+      <button className="button button--secondary" onClick={addSlot} type="button">
+        Add time slot
+      </button>
+      {draft.slots.length > 0 ? (
+        <ul className="account-list">
+          {draft.slots.map((slot) => (
+            <li className="flex items-center justify-between gap-2" key={slot.id ?? slot.startsAt}>
+              <span>{formatDate(slot.startsAt)}</span>
+              <button
+                className="text-button text-button--danger"
+                onClick={() => {
+                  onRemoveSlot(slot.startsAt);
+                }}
+                type="button"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="notice">Add at least one slot before opening requests.</p>
+      )}
+    </fieldset>
+  );
+}
+
+function AdminNotificationsSection({
+  administratorRecipients,
+  draft,
+  onAddRecipient,
+  onRemoveRecipient,
+  onToggleAdminNotify,
+  onToggleAdministrator,
+  recipientEmail,
+  setRecipientEmail,
+}: {
+  readonly administratorRecipients: readonly AdministratorRecipient[];
+  readonly draft: OrganizationAuditionSettings;
+  readonly onAddRecipient: () => void;
+  readonly onRemoveRecipient: (email: string) => void;
+  readonly onToggleAdminNotify: (enabled: boolean) => void;
+  readonly onToggleAdministrator: (recipient: AdministratorRecipient, checked: boolean) => void;
+  readonly recipientEmail: string;
+  readonly setRecipientEmail: (email: string) => void;
+}) {
+  return (
+    <fieldset className="form-stack">
+      <legend>Administrator notifications</legend>
+      <label className="checkbox-field">
+        <input
+          checked={draft.adminNotifyEnabled}
+          onChange={(event) => {
+            onToggleAdminNotify(event.target.checked);
+          }}
+          type="checkbox"
+        />
+        Notify administrators when an inquiry arrives
+      </label>
+      {draft.adminNotifyEnabled ? (
+        <>
+          <fieldset className="form-stack">
+            <legend>Roster administrators</legend>
+            <p className="field-help">
+              Select linked Organization owners and administrators. A Profile must allow
+              administrator notifications to receive inquiry emails.
+            </p>
+            {administratorRecipients.length > 0 ? (
+              <div className="form-stack">
+                {administratorRecipients.map((recipient) => {
+                  const eligible =
+                    recipient.profile.receiveAdminNotifications && !recipient.profile.doNotEmail;
+                  return (
+                    <label className="checkbox-row" key={recipient.profile.id}>
+                      <input
+                        checked={draft.adminNotifyUsers.includes(recipient.email)}
+                        disabled={!eligible}
+                        onChange={(event) => {
+                          onToggleAdministrator(recipient, event.target.checked);
+                        }}
+                        type="checkbox"
+                      />
+                      <span>
+                        {recipient.profile.displayName} · {recipient.email}
+                        <small className="field-help">
+                          {!eligible
+                            ? "Emails disabled in this Profile"
+                            : recipient.role === "owner"
+                              ? "Owner"
+                              : "Administrator"}
+                        </small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="notice">
+                No linked roster administrators are available. Link an owner or administrator to a
+                Profile to select them here.
+              </p>
+            )}
+          </fieldset>
+          <div className="form-actions">
+            <input
+              aria-label="Administrator notification email"
+              onChange={(event) => {
+                setRecipientEmail(event.target.value);
+              }}
+              placeholder="Additional email address (optional)"
+              type="email"
+              value={recipientEmail}
+            />
+            <button className="button button--secondary" onClick={onAddRecipient} type="button">
+              Add additional recipient
+            </button>
+          </div>
+          {draft.adminNotifyUsers.length > 0 ? (
+            <ul className="account-list">
+              {draft.adminNotifyUsers.map((email) => (
+                <li className="flex items-center justify-between gap-2" key={email}>
+                  <span>{email}</span>
+                  <button
+                    className="text-button text-button--danger"
+                    onClick={() => {
+                      onRemoveRecipient(email);
+                    }}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="notice">Select at least one administrator or add an email address.</p>
+          )}
+        </>
+      ) : null}
+    </fieldset>
+  );
+}
+
 export function SettingsForm({
   administratorRecipients,
   initial,
@@ -173,9 +558,17 @@ export function SettingsForm({
           setError("Choose an Organization venue for the auditions before saving.");
           return;
         }
+        const payload: OrganizationAuditionSettings = isAuditionMode
+          ? draft
+          : {
+              ...draft,
+              defaultPerformanceId: null,
+              startDate: draft.startDate ?? null,
+              venueId: null,
+            };
         setBusy(true);
         setError(null);
-        onSave(draft)
+        onSave(payload)
           .catch((caught: unknown) => {
             setError(
               caught instanceof AuthApiError
@@ -295,110 +688,30 @@ export function SettingsForm({
           </label>
         </>
       ) : (
-        <fieldset className="form-stack">
-          <legend>Regular Rehearsal Schedule</legend>
-          <p className="field-help">
-            Share information about when rehearsals regularly happen so prospective singers know the
-            schedule.
-          </p>
-          <div className="form-grid form-grid--compact">
-            <label className="field">
-              Day of week
-              <select
-                onChange={(e) => {
-                  const parsed = dayOfWeekSchema.safeParse(e.target.value);
-                  if (parsed.success) setRehearsalDay(parsed.data);
-                }}
-                value={rehearsalDay}
-              >
-                <option value="monday">Monday</option>
-                <option value="tuesday">Tuesday</option>
-                <option value="wednesday">Wednesday</option>
-                <option value="thursday">Thursday</option>
-                <option value="friday">Friday</option>
-                <option value="saturday">Saturday</option>
-                <option value="sunday">Sunday</option>
-              </select>
-            </label>
-            <label className="field">
-              Start time
-              <input
-                onChange={(e) => {
-                  setRehearsalStart(timeInputStateValue(e.currentTarget));
-                }}
-                type="time"
-                value={rehearsalStart}
-              />
-            </label>
-            <label className="field">
-              End time
-              <input
-                onChange={(e) => {
-                  setRehearsalEnd(timeInputStateValue(e.currentTarget));
-                }}
-                type="time"
-                value={rehearsalEnd}
-              />
-            </label>
-            <label className="field">
-              Location / Room (optional)
-              <input
-                onChange={(e) => {
-                  setRehearsalLocation(e.target.value);
-                }}
-                placeholder="e.g. Main Sanctuary"
-                type="text"
-                value={rehearsalLocation}
-              />
-            </label>
-          </div>
-          <button className="button button--secondary" onClick={addRehearsalSession} type="button">
-            Add regular rehearsal day
-          </button>
-          {draft.rehearsalSchedule.length > 0 ? (
-            <ul className="account-list">
-              {draft.rehearsalSchedule.map((session, index) => (
-                <li className="flex items-center justify-between gap-2" key={index}>
-                  <span>
-                    <strong>Every {capitalizeDay(session.dayOfWeek)}</strong> from{" "}
-                    {formatTime12h(session.startTime)} to {formatTime12h(session.endTime)}
-                    {session.locationName ? ` (${session.locationName})` : ""}
-                  </span>
-                  <button
-                    className="text-button text-button--danger"
-                    onClick={() => {
-                      setDraft((current) => ({
-                        ...current,
-                        rehearsalSchedule: current.rehearsalSchedule.filter((_, i) => i !== index),
-                      }));
-                    }}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="notice">No regular rehearsal schedule added yet.</p>
-          )}
-
-          <div className="field">
-            <label htmlFor="intake-rehearsal-notes">Rehearsal & Season Notes (optional)</label>
-            <textarea
-              id="intake-rehearsal-notes"
-              onChange={(e) => {
-                setDraft((current) => ({ ...current, rehearsalNotes: e.target.value }));
-              }}
-              placeholder="e.g. Season runs from September through May. We welcome all voice types!"
-              rows={3}
-              value={draft.rehearsalNotes}
-            />
-            <span className="field-help">
-              Displayed to prospective members alongside the schedule.
-            </span>
-          </div>
-        </fieldset>
+        <RegularRehearsalScheduleSection
+          draft={draft}
+          onAddSession={addRehearsalSession}
+          onRemoveSession={(index) => {
+            setDraft((current) => ({
+              ...current,
+              rehearsalSchedule: current.rehearsalSchedule.filter((_, i) => i !== index),
+            }));
+          }}
+          onUpdateNotes={(notes) => {
+            setDraft((current) => ({ ...current, rehearsalNotes: notes }));
+          }}
+          onUpdateStartDate={(date) => {
+            setDraft((current) => ({ ...current, startDate: date }));
+          }}
+          rehearsalDay={rehearsalDay}
+          rehearsalEnd={rehearsalEnd}
+          rehearsalLocation={rehearsalLocation}
+          rehearsalStart={rehearsalStart}
+          setRehearsalDay={setRehearsalDay}
+          setRehearsalEnd={setRehearsalEnd}
+          setRehearsalLocation={setRehearsalLocation}
+          setRehearsalStart={setRehearsalStart}
+        />
       )}
 
       <div className="field">
@@ -423,207 +736,59 @@ export function SettingsForm({
       </div>
 
       {isAuditionMode && (
-        <fieldset className="form-stack">
-          <legend>Audition time slots</legend>
-          <div className="form-grid form-grid--compact">
-            <label className="field">
-              Date for time slots
-              <input
-                onChange={(event) => {
-                  setSlotError(null);
-                  setSlotDate(dateInputStateValue(event.currentTarget));
-                }}
-                type="date"
-                value={slotDate}
-              />
-            </label>
-            <label className="field">
-              Interval (minutes)
-              <input
-                max="240"
-                min="5"
-                onChange={(event) => {
-                  setSlotError(null);
-                  setSlotInterval(event.target.value);
-                }}
-                step="5"
-                type="number"
-                value={slotInterval}
-              />
-            </label>
-          </div>
-          <div className="form-grid form-grid--compact">
-            <label className="field">
-              Start time
-              <input
-                aria-label="Audition slot start time"
-                onChange={(event) => {
-                  setSlotError(null);
-                  setSlotStart(timeInputStateValue(event.currentTarget));
-                }}
-                step="900"
-                type="time"
-                value={slotStart}
-              />
-            </label>
-            <label className="field">
-              End time
-              <input
-                aria-label="Audition slot end time"
-                onChange={(event) => {
-                  setSlotError(null);
-                  setSlotEnd(timeInputStateValue(event.currentTarget));
-                }}
-                step="900"
-                type="time"
-                value={slotEnd}
-              />
-            </label>
-          </div>
-          <p className="field-help">
-            Use the clock controls to choose a time. New slot ranges start at 6:00 PM and end at
-            8:00 PM in {timezone}; adjust them before generating or adding slots.
-          </p>
-          {slotError ? (
-            <p className="notice notice--error" role="alert">
-              {slotError}
-            </p>
-          ) : null}
-          <button className="button button--secondary" onClick={generateSlots} type="button">
-            Generate slots
-          </button>
-          <button className="button button--secondary" onClick={addSlot} type="button">
-            Add time slot
-          </button>
-          {draft.slots.length > 0 ? (
-            <ul className="account-list">
-              {draft.slots.map((slot) => (
-                <li
-                  className="flex items-center justify-between gap-2"
-                  key={slot.id ?? slot.startsAt}
-                >
-                  <span>{formatDate(slot.startsAt)}</span>
-                  <button
-                    className="text-button text-button--danger"
-                    onClick={() => {
-                      setDraft((current) => ({
-                        ...current,
-                        slots: current.slots.filter(
-                          (candidate) => candidate.startsAt !== slot.startsAt,
-                        ),
-                      }));
-                    }}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="notice">Add at least one slot before opening requests.</p>
-          )}
-        </fieldset>
+        <AuditionSlotsSection
+          addSlot={addSlot}
+          draft={draft}
+          generateSlots={generateSlots}
+          onRemoveSlot={(startsAt) => {
+            setDraft((current) => ({
+              ...current,
+              slots: current.slots.filter((candidate) => candidate.startsAt !== startsAt),
+            }));
+          }}
+          setSlotDate={(date) => {
+            setSlotError(null);
+            setSlotDate(date);
+          }}
+          setSlotEnd={(time) => {
+            setSlotError(null);
+            setSlotEnd(time);
+          }}
+          setSlotInterval={(interval) => {
+            setSlotError(null);
+            setSlotInterval(interval);
+          }}
+          setSlotStart={(time) => {
+            setSlotError(null);
+            setSlotStart(time);
+          }}
+          slotDate={slotDate}
+          slotEnd={slotEnd}
+          slotError={slotError}
+          slotInterval={slotInterval}
+          slotStart={slotStart}
+          timezone={timezone}
+        />
       )}
 
-      <fieldset className="form-stack">
-        <legend>Administrator notifications</legend>
-        <label className="checkbox-field">
-          <input
-            checked={draft.adminNotifyEnabled}
-            onChange={(event) => {
-              setDraft((current) => ({ ...current, adminNotifyEnabled: event.target.checked }));
-            }}
-            type="checkbox"
-          />
-          Notify administrators when an inquiry arrives
-        </label>
-        {draft.adminNotifyEnabled ? (
-          <>
-            <fieldset className="form-stack">
-              <legend>Roster administrators</legend>
-              <p className="field-help">
-                Select linked Organization owners and administrators. A Profile must allow
-                administrator notifications to receive inquiry emails.
-              </p>
-              {administratorRecipients.length > 0 ? (
-                <div className="form-stack">
-                  {administratorRecipients.map((recipient) => {
-                    const eligible =
-                      recipient.profile.receiveAdminNotifications && !recipient.profile.doNotEmail;
-                    return (
-                      <label className="checkbox-row" key={recipient.profile.id}>
-                        <input
-                          checked={draft.adminNotifyUsers.includes(recipient.email)}
-                          disabled={!eligible}
-                          onChange={(event) => {
-                            toggleAdministrator(recipient, event.target.checked);
-                          }}
-                          type="checkbox"
-                        />
-                        <span>
-                          {recipient.profile.displayName} · {recipient.email}
-                          <small className="field-help">
-                            {!eligible
-                              ? "Emails disabled in this Profile"
-                              : recipient.role === "owner"
-                                ? "Owner"
-                                : "Administrator"}
-                          </small>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="notice">
-                  No linked roster administrators are available. Link an owner or administrator to a
-                  Profile to select them here.
-                </p>
-              )}
-            </fieldset>
-            <div className="form-actions">
-              <input
-                aria-label="Administrator notification email"
-                onChange={(event) => {
-                  setRecipientEmail(event.target.value);
-                }}
-                placeholder="Additional email address (optional)"
-                type="email"
-                value={recipientEmail}
-              />
-              <button className="button button--secondary" onClick={addRecipient} type="button">
-                Add additional recipient
-              </button>
-            </div>
-            {draft.adminNotifyUsers.length > 0 ? (
-              <ul className="account-list">
-                {draft.adminNotifyUsers.map((email) => (
-                  <li className="flex items-center justify-between gap-2" key={email}>
-                    <span>{email}</span>
-                    <button
-                      className="text-button text-button--danger"
-                      onClick={() => {
-                        setDraft((current) => ({
-                          ...current,
-                          adminNotifyUsers: current.adminNotifyUsers.filter(
-                            (candidate) => candidate !== email,
-                          ),
-                        }));
-                      }}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="notice">Select at least one administrator or add an email address.</p>
-            )}
-          </>
-        ) : null}
-      </fieldset>
+      <AdminNotificationsSection
+        administratorRecipients={administratorRecipients}
+        draft={draft}
+        onAddRecipient={addRecipient}
+        onRemoveRecipient={(email) => {
+          setDraft((current) => ({
+            ...current,
+            adminNotifyUsers: current.adminNotifyUsers.filter((candidate) => candidate !== email),
+          }));
+        }}
+        onToggleAdminNotify={(enabled) => {
+          setDraft((current) => ({ ...current, adminNotifyEnabled: enabled }));
+        }}
+        onToggleAdministrator={toggleAdministrator}
+        recipientEmail={recipientEmail}
+        setRecipientEmail={setRecipientEmail}
+      />
+
       <div className="form-actions">
         <button className="button button--secondary" onClick={onCancel} type="button">
           Cancel

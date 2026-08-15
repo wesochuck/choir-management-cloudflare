@@ -63,6 +63,7 @@ interface PublicAuditionSettings {
   readonly rehearsalSchedule: readonly RehearsalSession[];
   readonly sections: readonly PublicAuditionSection[];
   readonly slots: readonly AuditionSlot[];
+  readonly startDate: string | null;
   readonly timezone: string;
   readonly venue: PublicAuditionVenue | null;
   readonly voiceParts: readonly PublicAuditionVoicePart[];
@@ -79,6 +80,7 @@ const fallbackPublicAuditionSettings: PublicAuditionSettings = {
   rehearsalSchedule: [],
   sections: [],
   slots: [],
+  startDate: null,
   timezone: "UTC",
   venue: null,
   voiceParts: [],
@@ -179,10 +181,36 @@ function fetchAuditionSettings(): Promise<PublicAuditionSettings> {
   });
 }
 
+function formatStartDate(dateStr: string): string {
+  const date = new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  const options: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+    year: "numeric",
+  };
+  try {
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  } catch {
+    return dateStr;
+  }
+}
+
 function RehearsalScheduleCard({ settings }: { readonly settings: PublicAuditionSettings }) {
-  if (settings.rehearsalSchedule.length === 0 && !settings.rehearsalNotes) return null;
+  if (settings.rehearsalSchedule.length === 0 && !settings.rehearsalNotes && !settings.startDate) {
+    return null;
+  }
   return (
     <section aria-label="Regular rehearsal schedule" className="audition-event-details">
+      {settings.startDate && (
+        <div className="audition-event-details__item">
+          <span className="audition-event-details__label">Start Date</span>
+          <strong className="audition-event-details__value">
+            {formatStartDate(settings.startDate)}
+          </strong>
+        </div>
+      )}
       {settings.rehearsalSchedule.length > 0 && (
         <div className="audition-event-details__item">
           <span className="audition-event-details__label">Regular Rehearsals</span>

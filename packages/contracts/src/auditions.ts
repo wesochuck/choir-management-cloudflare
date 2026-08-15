@@ -161,6 +161,7 @@ export const organizationAuditionSettingsSchema = z
     rehearsalNotes: z.string().max(5_000).default(""),
     rehearsalSchedule: z.array(rehearsalSessionSchema).max(20).default([]),
     slots: z.array(auditionSlotInputSchema).max(200),
+    startDate: z.string().max(100).nullable().default(null),
     venueId: z.uuid().nullable().default(null),
   })
   .superRefine((settings, context) => {
@@ -229,6 +230,7 @@ export const publicAuditionSettingsSchema = z.object({
     .max(50)
     .default([]),
   slots: z.array(auditionSlotInputSchema).max(200),
+  startDate: z.string().max(100).nullable().default(null),
   timezone: z.string().min(1).max(128).default("UTC"),
   venue: z
     .object({

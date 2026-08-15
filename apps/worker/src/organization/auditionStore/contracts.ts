@@ -11,6 +11,7 @@ export const defaultAuditionSettings: OrganizationAuditionSettings = {
   rehearsalNotes: "",
   rehearsalSchedule: [],
   slots: [],
+  startDate: null,
   venueId: null,
 };
 
