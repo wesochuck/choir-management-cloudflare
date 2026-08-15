@@ -4,10 +4,42 @@
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
 Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-190 are `verified` and 15 are `implemented`. Per the matrix definitions, `implemented` means that
+191 are `verified` and 14 are `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. The remaining
-work is the Milestone 6 whole-product staging qualification gate plus permanent-staging evidence for
-the custom-domain provider lifecycle.
+work is the Milestone 6 permanent-staging evidence for the custom-domain provider lifecycle and
+external broadcaster credentials.
+
+## Whole-product staging qualification batch — August 14, 2026
+
+The unified authenticated qualification runner `npm run qualify:staging:all` was executed against
+permanent staging, completing all eight qualification phases with 100% PASS and fixture cleanup:
+
+1. **Authentication boundaries & identity lifecycles (14.1s)**: Verified password reset, one-time
+   code fallback, password-reset replay rejection, recovered password sign-in, and
+   cross-Organization isolation rejection (`crossOrganizationRejected: true`).
+2. **Parity probes & safe boundary evidence (6.1s)**: Swept all 79 API entries across canonical
+   product and Organization hosts; 42 active endpoints (authenticated reads, public configuration,
+   and mutation schema validation) returned their expected HTTP 200/400/fail-closed statuses.
+3. **Roster import, export & directory rules (3.9s)**: Verified Profile creation/updates, canonical
+   CSV export and SHA-256 checksums, directory privacy inclusion/exclusion, and cross-Organization
+   boundary isolation (`HTTP 404/404/404`).
+4. **RSVP & attendance lifecycles (4.3s)**: Verified RSVP responses, note transitions, attendance
+   check-in/finalization, RSVP balance CSV export and SHA-256 checksums, and cross-Organization
+   isolation.
+5. **Organization export manifests & checksums (11.5s)**: Verified asynchronous export creation,
+   background job polling, SHA-256 checksum match, private `no-store` download headers, and
+   cross-Organization isolation.
+6. **Ticketing lifecycle & event reminders (22.2s)**: Verified zero-dollar ticket checkout, signed
+   ticket verification, QR codes, automated reminders, and idempotent replay handling.
+7. **Message queue dead-letter & retry lifecycles (123.1s)**: Verified queue redelivery, bounded
+   exponential backoff, terminal failure routing to dead-letter queues, and DLQ dismissal/retry.
+8. **Scheduler, event reminders & attendance reports (42.6s)**: Verified alarm execution,
+   parent-event roster inheritance for linked rehearsals, post-event attendance aggregate
+   computation and sent delivery, scheduler idempotency, and cross-Organization boundary isolation.
+
+With this evidence, `workflow.communications` is promoted to `verified` in
+`docs/parity/feature-matrix.yaml`. The parity matrix now contains 205 total entries: 191 `verified`
+and 14 `implemented`.
 
 ## Permanent staging infrastructure recheck — August 14, 2026
 

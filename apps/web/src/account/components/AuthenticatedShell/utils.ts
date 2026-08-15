@@ -74,7 +74,7 @@ export const organizationGroups: readonly NavigationGroup[] = [
       { href: "/admin/roster", label: "Roster", module: "people" },
       { href: "/admin/settings/invitations", label: "Membership invitations", module: "people" },
       { href: "/directory", label: "Directory", module: "people" },
-      { href: "/admin/auditions", label: "Auditions", module: "people" },
+      { href: "/admin/auditions", label: "Auditions & Inquiries", module: "people" },
     ],
   },
   {
@@ -165,7 +165,7 @@ export function pageTitle(pathname: string): string {
     ["/admin/settings/modules", "Modules"],
     ["/admin/settings/setup-checklist", "Setup checklist"],
     ["/admin/roster", "Roster"],
-    ["/admin/auditions", "Auditions"],
+    ["/admin/auditions", "Auditions & Inquiries"],
     ["/admin/events", "Events"],
     ["/admin/venues", "Venues"],
     ["/admin/rsvp", "Event RSVPs"],

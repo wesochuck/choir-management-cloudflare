@@ -6,6 +6,9 @@ import { boundJsonRequestBody, MAX_JSON_BODY_BYTES } from "./routes/helpers";
 import { registerRoutes as registerPublicRoutes } from "./routes/public";
 import { registerRoutes as registerPlatformSetupRoutes } from "./routes/platformSetup";
 import { registerRoutes as registerPublicCommerceRoutes } from "./routes/publicCommerce";
+import { registerRoutes as registerPublicDonationsRoutes } from "./routes/publicDonations";
+import { registerRoutes as registerPublicTicketsRoutes } from "./routes/publicTickets";
+import { registerRoutes as registerPublicRsvpPollsRoutes } from "./routes/publicRsvpPolls";
 import { registerRoutes as registerPublicEngagementRoutes } from "./routes/publicEngagement";
 import { registerRoutes as registerCalendarRoutes } from "./routes/calendar";
 import { registerRoutes as registerSingerRoutes } from "./routes/singer";
@@ -133,13 +136,14 @@ router.use("*", async (context, next) => {
   const publicMediaResponse =
     responsePath.startsWith("/api/public/media/") &&
     (context.res.status === 200 || context.res.status === 304);
+  const routeCacheControl = context.res.headers.get("cache-control");
   context.header(
     "cache-control",
     publicProjectionResponse
       ? "public, max-age=60, stale-while-revalidate=300"
       : publicMediaResponse
         ? "public, max-age=31536000, immutable"
-        : "no-store",
+        : (routeCacheControl ?? "no-store"),
   );
   setSecurityHeaders(
     context.res.headers,
@@ -175,6 +179,9 @@ router.use("*", async (context, next) => {
 registerPublicRoutes(router);
 registerPlatformSetupRoutes(router);
 registerPublicCommerceRoutes(router);
+registerPublicDonationsRoutes(router);
+registerPublicTicketsRoutes(router);
+registerPublicRsvpPollsRoutes(router);
 registerPublicEngagementRoutes(router);
 registerCalendarRoutes(router);
 registerSingerRoutes(router);

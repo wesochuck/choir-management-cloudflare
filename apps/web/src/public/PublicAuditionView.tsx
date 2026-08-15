@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { publicAuditionSettingsSchema } from "@choir/contracts";
+import { publicAuditionSettingsSchema, type DayOfWeek } from "@choir/contracts";
 import { responseError } from "../auth/api/client";
 
 interface AuditionSlot {
@@ -31,6 +31,14 @@ interface PublicAuditionVoicePart {
   readonly sectionCode: string;
 }
 
+interface RehearsalSession {
+  readonly dayOfWeek: DayOfWeek;
+  readonly endTime: string;
+  readonly locationName: string;
+  readonly startTime: string;
+  readonly venueId: string | null;
+}
+
 interface AuditionDetails {
   readonly id: string;
   readonly createdAt: string;
@@ -48,8 +56,11 @@ interface PublicAuditionSettings {
   readonly confirmationMessage: string;
   readonly defaultPerformanceId: string | null;
   readonly enabled: boolean;
+  readonly mode: "audition" | "open_inquiry";
   readonly performerLabel: string;
   readonly performance: PublicAuditionPerformance | null;
+  readonly rehearsalNotes: string;
+  readonly rehearsalSchedule: readonly RehearsalSession[];
   readonly sections: readonly PublicAuditionSection[];
   readonly slots: readonly AuditionSlot[];
   readonly timezone: string;
@@ -61,8 +72,11 @@ const fallbackPublicAuditionSettings: PublicAuditionSettings = {
   confirmationMessage: "Thank you for your interest. We will be in touch soon.",
   defaultPerformanceId: null,
   enabled: true,
+  mode: "audition",
   performerLabel: "Performer",
   performance: null,
+  rehearsalNotes: "",
+  rehearsalSchedule: [],
   sections: [],
   slots: [],
   timezone: "UTC",
@@ -75,7 +89,7 @@ type PageStatus =
   | { type: "ready_form"; settings: PublicAuditionSettings }
   | { type: "closed"; message: string }
   | { type: "submitting_inquiry"; settings: PublicAuditionSettings }
-  | { type: "inquiry_submitted"; id: string }
+  | { type: "inquiry_submitted"; id: string; mode: "audition" | "open_inquiry" }
   | { type: "inquiry_error"; message: string; settings: PublicAuditionSettings }
   | { type: "not_found" }
   | { type: "ready_details"; details: AuditionDetails }
@@ -116,6 +130,23 @@ function formatAuditionDate(value: string, timezone: string): string {
   }
 }
 
+function formatTime12h(timeStr: string): string {
+  if (!timeStr) return "";
+  const [hoursStr, minutesStr] = timeStr.split(":");
+  const hours = parseInt(hoursStr ?? "0", 10);
+  const minutes = parseInt(minutesStr ?? "0", 10);
+  if (Number.isNaN(hours)) return timeStr;
+  const period = hours >= 12 ? "PM" : "AM";
+  const formattedHours = String(hours % 12 === 0 ? 12 : hours % 12);
+  const formattedMinutes = minutes < 10 ? `0${String(minutes)}` : String(minutes);
+  return `${formattedHours}:${formattedMinutes} ${period}`;
+}
+
+function capitalizeDay(day: string): string {
+  if (!day) return "";
+  return day.charAt(0).toUpperCase() + day.slice(1);
+}
+
 function fetchAuditionDetails(token: string): Promise<AuditionDetails> {
   return fetch("/api/public/audition-details", {
     body: JSON.stringify({ token }),
@@ -148,30 +179,59 @@ function fetchAuditionSettings(): Promise<PublicAuditionSettings> {
   });
 }
 
+function RehearsalScheduleCard({ settings }: { readonly settings: PublicAuditionSettings }) {
+  if (settings.rehearsalSchedule.length === 0 && !settings.rehearsalNotes) return null;
+  return (
+    <section aria-label="Regular rehearsal schedule" className="audition-event-details">
+      {settings.rehearsalSchedule.length > 0 && (
+        <div className="audition-event-details__item">
+          <span className="audition-event-details__label">Regular Rehearsals</span>
+          <strong className="audition-event-details__value">
+            {settings.rehearsalSchedule
+              .map(
+                (session) =>
+                  `Every ${capitalizeDay(session.dayOfWeek)} from ${formatTime12h(
+                    session.startTime,
+                  )} to ${formatTime12h(session.endTime)}${
+                    session.locationName ? ` (${session.locationName})` : ""
+                  }`,
+              )
+              .join("; ")}
+          </strong>
+        </div>
+      )}
+      {settings.rehearsalNotes && (
+        <div className="audition-event-details__item">
+          <span className="audition-event-details__label">Schedule Notes</span>
+          <span className="audition-event-details__secondary">{settings.rehearsalNotes}</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function AuditionEventDetails({ settings }: { readonly settings: PublicAuditionSettings }) {
   if (!settings.performance && !settings.venue) return null;
   return (
     <section aria-label="Audition details" className="audition-event-details">
-      <div className="audition-event-details__item">
-        <span className="audition-event-details__label">Audition location</span>
-        <strong className="audition-event-details__value">
-          {settings.venue?.name ?? "Location to be confirmed"}
-        </strong>
-        {settings.venue?.address ? (
-          <span className="audition-event-details__secondary">{settings.venue.address}</span>
-        ) : null}
-      </div>
-      <div className="audition-event-details__item">
-        <span className="audition-event-details__label">Concert</span>
-        <strong className="audition-event-details__value">
-          {settings.performance?.title ?? "Performance to be confirmed"}
-        </strong>
-        {settings.performance ? (
+      {settings.venue ? (
+        <div className="audition-event-details__item">
+          <span className="audition-event-details__label">Audition location</span>
+          <strong className="audition-event-details__value">{settings.venue.name}</strong>
+          {settings.venue.address ? (
+            <span className="audition-event-details__secondary">{settings.venue.address}</span>
+          ) : null}
+        </div>
+      ) : null}
+      {settings.performance ? (
+        <div className="audition-event-details__item">
+          <span className="audition-event-details__label">Concert</span>
+          <strong className="audition-event-details__value">{settings.performance.title}</strong>
           <span className="audition-event-details__secondary">
             {formatAuditionDate(settings.performance.startsAt, settings.timezone)}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -246,12 +306,8 @@ function AuditionForm({
   const [voicePart, setVoicePart] = useState("");
   const [experience, setExperience] = useState("");
   const [requestedSlots, setRequestedSlots] = useState<readonly string[]>([]);
-  const voicePartsBySection = new Map<string, PublicAuditionVoicePart[]>();
-  settings.voiceParts.forEach((part) => {
-    const parts = voicePartsBySection.get(part.sectionCode) ?? [];
-    parts.push(part);
-    voicePartsBySection.set(part.sectionCode, parts);
-  });
+
+  const isAuditionMode = settings.mode === "audition";
 
   return (
     <div className="form-stack audition-form">
@@ -291,7 +347,7 @@ function AuditionForm({
         />
       </label>
       <label className="field" htmlFor="audition-voice-part">
-        {settings.performerLabel}
+        Section
         <select
           id="audition-voice-part"
           onChange={(e) => {
@@ -299,23 +355,15 @@ function AuditionForm({
           }}
           value={voicePart}
         >
-          <option value="">Unsure</option>
-          {settings.sections.map((section) => {
-            const parts = voicePartsBySection.get(section.code) ?? [];
-            if (parts.length === 0) return null;
-            return (
-              <optgroup key={section.code} label={section.name}>
-                {parts.map((part) => (
-                  <option key={part.label} value={part.label}>
-                    {part.fullName}
-                  </option>
-                ))}
-              </optgroup>
-            );
-          })}
+          <option value="">Unsure / Placement needed</option>
+          {settings.sections.map((section) => (
+            <option key={section.code} value={section.name}>
+              {section.name}
+            </option>
+          ))}
         </select>
         <span className="field-help">
-          Choose a {settings.performerLabel.toLowerCase()}, or select Unsure if you need help.
+          Select your preferred section, or choose Unsure if you need placement help.
         </span>
       </label>
       <label className="field" htmlFor="audition-experience">
@@ -331,7 +379,7 @@ function AuditionForm({
           value={experience}
         />
       </label>
-      {settings.slots.length > 0 && (
+      {isAuditionMode && settings.slots.length > 0 && (
         <fieldset className="audition-slot-picker">
           <legend>Preferred audition times</legend>
           <p className="audition-slot-picker__hint">Select any times that work for you.</p>
@@ -374,7 +422,7 @@ function AuditionForm({
         }}
         type="button"
       >
-        {busy ? "Submitting..." : "Submit Inquiry"}
+        {busy ? "Submitting..." : isAuditionMode ? "Submit Audition Request" : "Submit Inquiry"}
       </button>
     </div>
   );
@@ -388,7 +436,6 @@ function AuditionDetailView({
   readonly token: string;
 }) {
   const [voicePart, setVoicePart] = useState(details.voicePart ?? "");
-  const performerLabel = details.performerLabel ?? "Performer";
   const [availabilityNotes, setAvailabilityNotes] = useState(details.availabilityNotes ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -445,7 +492,7 @@ function AuditionDetailView({
 
       <div>
         <label className="block text-sm font-medium" htmlFor="update-voice-part">
-          {performerLabel}
+          Section
         </label>
         <input
           className="mt-1 w-full rounded border p-2"
@@ -484,6 +531,98 @@ function AuditionDetailView({
   );
 }
 
+function PublicAuditionStatusCard({
+  onRetry,
+  pageStatus,
+  retrySettings,
+}: {
+  readonly onRetry: () => void;
+  readonly pageStatus: PageStatus;
+  readonly retrySettings: PublicAuditionSettings;
+}) {
+  if (pageStatus.type === "loading") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="audition-title">
+          <h1 id="audition-title">Loading...</h1>
+        </section>
+      </main>
+    );
+  }
+
+  if (pageStatus.type === "not_found") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="audition-title">
+          <h1 id="audition-title">Link Not Found</h1>
+          <p className="notice notice--error" role="alert">
+            This audition link is invalid or expired. Contact the organization for a new link.
+          </p>
+          <a className="button button--secondary" href="/">
+            Return to the Organization site
+          </a>
+        </section>
+      </main>
+    );
+  }
+
+  if (pageStatus.type === "closed") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="audition-title">
+          <p className="eyebrow">Intake</p>
+          <h1 id="audition-title">Inquiries are currently closed</h1>
+          <p className="notice">{pageStatus.message}</p>
+          <a className="button button--secondary" href="/">
+            Return to the Organization site
+          </a>
+        </section>
+      </main>
+    );
+  }
+
+  if (pageStatus.type === "inquiry_submitted") {
+    const isOpenInquiry = pageStatus.mode === "open_inquiry";
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="audition-title">
+          <p className="eyebrow">{isOpenInquiry ? "Join Us" : "Audition"}</p>
+          <h1 id="audition-title">Inquiry Received</h1>
+          <p className="notice notice--success" role="status">
+            {isOpenInquiry
+              ? "Thank you for your interest! Your inquiry has been received. The organization will be in touch with rehearsal details."
+              : "Thank you for your interest! Your audition inquiry has been received. The organization will reach out to you with next steps."}
+          </p>
+          <a className="button button--secondary" href="/">
+            Return to the Organization site
+          </a>
+        </section>
+      </main>
+    );
+  }
+
+  if (pageStatus.type === "inquiry_error") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="audition-title">
+          <p className="eyebrow">
+            {retrySettings.mode === "open_inquiry" ? "Join Us" : "Audition"}
+          </p>
+          <h1 id="audition-title">Submission Error</h1>
+          <p className="notice notice--error" role="alert">
+            {pageStatus.message}
+          </p>
+          <button className="button button--secondary" onClick={onRetry} type="button">
+            Try again
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  return null;
+}
+
 export function PublicAuditionView() {
   const [token] = useState(() => new URLSearchParams(window.location.search).get("token"));
   const [pageStatus, setPageStatus] = useState<PageStatus>({
@@ -491,14 +630,22 @@ export function PublicAuditionView() {
   });
 
   useEffect(() => {
-    window.history.replaceState(null, "", "/auditions");
+    const currentPath = window.location.pathname === "/join" ? "/join" : "/auditions";
+    window.history.replaceState(null, "", currentPath);
     if (!token) {
       fetchAuditionSettings()
         .then((settings) => {
-          if (!settings.enabled || !settings.defaultPerformanceId || settings.slots.length === 0) {
+          const isClosed =
+            !settings.enabled ||
+            (settings.mode === "audition" &&
+              (!settings.defaultPerformanceId || settings.slots.length === 0));
+          if (isClosed) {
             setPageStatus({
               type: "closed",
-              message: "Audition requests are not currently open. Please check back later.",
+              message:
+                settings.mode === "open_inquiry"
+                  ? "Join inquiries are not currently open. Please check back later."
+                  : "Audition requests are not currently open. Please check back later.",
             });
             return;
           }
@@ -542,7 +689,7 @@ export function PublicAuditionView() {
       data.requestedSlots,
     )
       .then((id) => {
-        setPageStatus({ type: "inquiry_submitted", id });
+        setPageStatus({ id, mode: settings.mode, type: "inquiry_submitted" });
       })
       .catch((failure: unknown) => {
         setPageStatus({
@@ -556,86 +703,26 @@ export function PublicAuditionView() {
       });
   }
 
-  if (pageStatus.type === "loading") {
-    return (
-      <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="audition-title">
-          <h1 id="audition-title">Loading...</h1>
-        </section>
-      </main>
-    );
-  }
+  const formSettings =
+    pageStatus.type === "ready_form" || pageStatus.type === "submitting_inquiry"
+      ? pageStatus.settings
+      : fallbackPublicAuditionSettings;
 
-  if (pageStatus.type === "not_found") {
+  if (
+    pageStatus.type === "loading" ||
+    pageStatus.type === "not_found" ||
+    pageStatus.type === "closed" ||
+    pageStatus.type === "inquiry_submitted" ||
+    pageStatus.type === "inquiry_error"
+  ) {
     return (
-      <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="audition-title">
-          <h1 id="audition-title">Link Not Found</h1>
-          <p className="notice notice--error" role="alert">
-            This audition link is invalid or expired. Contact the organization for a new link.
-          </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
-        </section>
-      </main>
-    );
-  }
-
-  if (pageStatus.type === "closed") {
-    return (
-      <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="audition-title">
-          <p className="eyebrow">Audition</p>
-          <h1 id="audition-title">Auditions are currently closed</h1>
-          <p className="notice">{pageStatus.message}</p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
-        </section>
-      </main>
-    );
-  }
-
-  if (pageStatus.type === "inquiry_submitted") {
-    return (
-      <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="audition-title">
-          <p className="eyebrow">Audition</p>
-          <h1 id="audition-title">Inquiry Received</h1>
-          <p className="notice notice--success" role="status">
-            Thank you for your interest! Your audition inquiry has been received. The organization
-            will reach out to you with next steps.
-          </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
-        </section>
-      </main>
-    );
-  }
-
-  if (pageStatus.type === "inquiry_error") {
-    const retrySettings = pageStatus.settings;
-    return (
-      <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="audition-title">
-          <p className="eyebrow">Audition</p>
-          <h1 id="audition-title">Submission Error</h1>
-          <p className="notice notice--error" role="alert">
-            {pageStatus.message}
-          </p>
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setPageStatus({ settings: retrySettings, type: "ready_form" });
-            }}
-            type="button"
-          >
-            Try again
-          </button>
-        </section>
-      </main>
+      <PublicAuditionStatusCard
+        onRetry={() => {
+          setPageStatus({ settings: formSettings, type: "ready_form" });
+        }}
+        pageStatus={pageStatus}
+        retrySettings={formSettings}
+      />
     );
   }
 
@@ -655,24 +742,30 @@ export function PublicAuditionView() {
     );
   }
 
-  const formSettings =
-    pageStatus.type === "ready_form" || pageStatus.type === "submitting_inquiry"
-      ? pageStatus.settings
-      : fallbackPublicAuditionSettings;
+  const isOpenInquiry = formSettings.mode === "open_inquiry";
+
   return (
     <main className="auth-layout">
       <section className="auth-card public-audition-card" aria-labelledby="audition-title">
-        <p className="eyebrow">Audition</p>
-        <h1 id="audition-title">Audition Inquiry</h1>
+        <p className="eyebrow">{isOpenInquiry ? "Join Us" : "Audition"}</p>
+        <h1 id="audition-title">{isOpenInquiry ? "Join Inquiry" : "Audition Inquiry"}</h1>
         <p className="auth-card__intro">
-          Interested in joining? Fill out the form below and we will be in touch.
+          {isOpenInquiry
+            ? "Interested in singing with us? Fill out the form below and we will be in touch with rehearsal details."
+            : "Interested in joining? Fill out the form below and select your preferred audition times."}
         </p>
-        <AuditionEventDetails settings={formSettings} />
-        <p className="notice">{formSettings.confirmationMessage}</p>
+        {isOpenInquiry ? (
+          <RehearsalScheduleCard settings={formSettings} />
+        ) : (
+          <AuditionEventDetails settings={formSettings} />
+        )}
+        {formSettings.confirmationMessage ? (
+          <p className="notice">{formSettings.confirmationMessage}</p>
+        ) : null}
         <AuditionForm
           busy={pageStatus.type === "submitting_inquiry"}
-          settings={formSettings}
           onSubmit={handleInquirySubmit}
+          settings={formSettings}
         />
       </section>
     </main>

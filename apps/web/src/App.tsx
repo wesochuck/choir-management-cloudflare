@@ -249,7 +249,7 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   if (pathname === "/player") {
     return <PublicPlayerView />;
   }
-  if (pathname === "/auditions") {
+  if (pathname === "/auditions" || pathname === "/join") {
     return <PublicAuditionView />;
   }
   return null;

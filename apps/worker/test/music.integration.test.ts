@@ -359,7 +359,7 @@ describe("Organization music catalog", () => {
       api("alpha.localhost", "/api/organization/music/export", cookie),
     );
     expect(exportResponse.status).toBe(200);
-    expect(exportResponse.headers.get("cache-control")).toBe("no-store");
+    expect(exportResponse.headers.get("cache-control")).toBe("private, no-store");
     expect(exportResponse.headers.get("content-disposition")).toBe(
       'attachment; filename="music_library.csv"',
     );

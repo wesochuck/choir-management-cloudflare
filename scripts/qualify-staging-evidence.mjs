@@ -108,7 +108,8 @@ if (anonymous) {
   );
   if (failed > 0) process.exitCode = 1;
 } else {
-  const rows = buildProbePlan(matrix);
+  const probeAll = process.argv.includes("--all") || !process.argv.includes("--implemented-only");
+  const rows = buildProbePlan(matrix, { all: probeAll });
   const summary = { pass: 0, fail: 0, skip: 0 };
   let failed = 0;
 

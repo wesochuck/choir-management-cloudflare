@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 import { pathToFileURL } from "node:url";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
@@ -146,6 +147,12 @@ async function prompt(readline, message) {
 }
 
 async function signIn(readline, loginEmail) {
+  if (loginEmail === ownerEmail) {
+    return getStagingSession({
+      email: ownerEmail,
+      productUrl,
+    });
+  }
   const otpRequest = await request(
     `${productUrl}/api/auth/email-otp/send-verification-otp`,
     "POST",

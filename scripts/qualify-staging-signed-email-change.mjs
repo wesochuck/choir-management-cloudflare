@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 import { pathToFileURL } from "node:url";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
@@ -32,17 +33,6 @@ if (organizationSlug === wrongOrganizationSlug) {
   throw new Error("The wrong-Organization host must be different from the target host.");
 }
 if (oldEmail === newEmail) throw new Error("Email-change aliases must be different.");
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
-}
 
 export function signedEmailChangeQualificationPlan() {
   return [
@@ -118,34 +108,11 @@ async function prompt(readline, message) {
   return (await readline.question(message)).trim();
 }
 
-async function signIn(readline, loginEmail) {
-  const otpRequest = await jsonRequest(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email: loginEmail, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${loginEmail}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await request(
-    `${productUrl}/api/auth/sign-in/email-otp`,
-    "POST",
-    "",
-    JSON.stringify({ email: loginEmail, otp: code }),
-    { "content-type": "application/json" },
-  );
-  if (!signInResponse.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
+async function signIn(loginEmail) {
+  return getStagingSession({
+    email: loginEmail,
+    productUrl,
+  });
 }
 
 async function requestChange(cookie, requestedEmail) {
@@ -204,7 +171,7 @@ async function main() {
   };
   try {
     if (resumeSecondCycle) {
-      const newCookie = await signIn(readline, newEmail);
+      const newCookie = await signIn(newEmail);
       const second = await runCycle(readline, newCookie, newEmail, oldEmail);
       const wrongHost = await confirmChange(wrongOrganizationHost, second.token);
       const crossOrganizationRejected = wrongHost.response.status === 400;
@@ -224,7 +191,7 @@ async function main() {
       );
       return;
     }
-    const oldCookie = await signIn(readline, oldEmail);
+    const oldCookie = await signIn(oldEmail);
     const first = await runCycle(readline, oldCookie, oldEmail, newEmail);
     summary.firstConfirmed = first.confirmed;
     summary.firstReplayRejected = first.replayRejected;
@@ -238,7 +205,7 @@ async function main() {
       throw new Error("Email-change token was accepted on the wrong Organization host.");
     }
 
-    const newCookie = await signIn(readline, newEmail);
+    const newCookie = await signIn(newEmail);
     const second = await runCycle(readline, newCookie, newEmail, oldEmail);
     summary.secondConfirmed = second.confirmed;
     summary.secondReplayRejected = second.replayRejected;

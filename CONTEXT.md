@@ -720,10 +720,32 @@ A unique, cryptographically random string stored on a singer's profile that is s
 Calendar Subscription Feed URL. Re-generating this salt instantly invalidates any previously shared
 subscription links.
 
+## Auditions & Inquiries
+
+The prospective singer intake management system allowing an Organization to accept either audition
+requests or open join inquiries from interested singers.
+
+## Intake Mode
+
+An Organization-level configuration governing whether prospective singers must schedule an audition
+(`audition` mode) or can submit an interest form without an audition (`open_inquiry` mode).
+
 ## Audition Inquiry
 
 A request submitted by a prospective singer via the public audition form, detailing their name,
-contact information, preferred audition time slots, voice part, and musical experience.
+contact information, preferred audition time slot, voice part, and musical experience.
+
+## Open Join Inquiry
+
+A request submitted by a prospective singer when the Organization operates in open inquiry mode,
+detailing their name, contact information, preferred or tentative voice part (including an option
+for undetermined voice placement), musical experience, and notes.
+
+## Rehearsal Schedule
+
+A structured schedule configuration (regular days of the week, start and end times, venue, and
+seasonal notes) presented to prospective singers on the public intake form to set rehearsal
+attendance expectations.
 
 ## Singer Resource
 

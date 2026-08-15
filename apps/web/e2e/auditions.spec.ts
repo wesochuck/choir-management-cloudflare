@@ -150,9 +150,9 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
   await page.getByLabel("Name *").fill("Jane Singer");
   await page.getByLabel("Email *").fill("jane.singer@example.test");
   await page.getByLabel("Phone").fill("555-0200");
-  await page.getByLabel("Performer").selectOption({ label: "Unsure" });
+  await page.getByLabel("Section").selectOption({ value: "" });
   await page.getByLabel("Musical Experience").fill("Five years of choir experience.");
-  await page.getByRole("button", { name: "Submit Inquiry" }).click();
+  await page.getByRole("button", { name: /Submit (Audition Request|Inquiry)/ }).click();
 
   await expect(page.getByRole("heading", { name: "Inquiry Received" })).toBeVisible();
   await expect(page.getByText("Thank you for your interest!")).toBeVisible();

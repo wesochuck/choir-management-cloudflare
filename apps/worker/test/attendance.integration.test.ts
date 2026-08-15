@@ -349,7 +349,7 @@ describe("Organization attendance", () => {
       ),
     );
     expect(rsvpExport.status).toBe(200);
-    expect(rsvpExport.headers.get("cache-control")).toBe("no-store");
+    expect(rsvpExport.headers.get("cache-control")).toBe("private, no-store");
     expect(rsvpExport.headers.get("content-type")).toBe("text/csv; charset=utf-8");
     expect(rsvpExport.headers.get("content-disposition")).toBe(
       'attachment; filename="attendance_rehearsal_rsvp_export.csv"',

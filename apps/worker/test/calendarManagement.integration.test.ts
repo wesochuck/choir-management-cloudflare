@@ -217,6 +217,7 @@ describe("Organization calendar management", () => {
       api("alpha.localhost", completedBody.downloadUrl ?? "/missing", cookie),
     );
     expect(downloaded.status).toBe(200);
+    expect(downloaded.headers.get("cache-control")).toBe("private, no-store");
     expect(downloaded.headers.get("x-export-checksum-sha256")).toBe(completedBody.checksumSha256);
     const downloadedArchive: unknown = await downloaded.json();
     expect(downloadedArchive).toMatchObject({
@@ -617,6 +618,75 @@ describe("Organization calendar management", () => {
       }),
     );
     expect(deleted.status).toBe(200);
+
+    const openInquirySettingsUpdate = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify({
+          ...settingsWithVenue,
+          defaultPerformanceId: null,
+          mode: "open_inquiry",
+          rehearsalNotes: "We rehearse every Tuesday. No audition required!",
+          rehearsalSchedule: [
+            {
+              dayOfWeek: "tuesday",
+              endTime: "21:30",
+              locationName: "Main Sanctuary",
+              startTime: "19:00",
+              venueId: null,
+            },
+          ],
+          slots: [],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(openInquirySettingsUpdate.status).toBe(200);
+    const openInquirySaved = organizationAuditionSettingsResponseSchema.parse(
+      await openInquirySettingsUpdate.json(),
+    );
+    expect(openInquirySaved).toMatchObject({
+      mode: "open_inquiry",
+      rehearsalNotes: "We rehearse every Tuesday. No audition required!",
+      rehearsalSchedule: [
+        {
+          dayOfWeek: "tuesday",
+          endTime: "21:30",
+          locationName: "Main Sanctuary",
+          startTime: "19:00",
+        },
+      ],
+    });
+
+    const openInquiryPublicSettings = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-settings"),
+    );
+    expect(openInquiryPublicSettings.status).toBe(200);
+    expect(
+      publicAuditionSettingsSchema.parse(await openInquiryPublicSettings.json()),
+    ).toMatchObject({
+      mode: "open_inquiry",
+      rehearsalNotes: "We rehearse every Tuesday. No audition required!",
+      rehearsalSchedule: [
+        {
+          dayOfWeek: "tuesday",
+          endTime: "21:30",
+          locationName: "Main Sanctuary",
+          startTime: "19:00",
+        },
+      ],
+    });
+
+    const publicInquiry = await post("alpha.localhost", "/api/public/audition-inquiry", "", {
+      availabilityNotes: "Available Tuesdays",
+      email: "join-inquiry@example.com",
+      experience: "Sang in high school choir",
+      name: "Prospective Community Singer",
+      requestedSlots: [],
+      voicePart: "Unsure / Voice placement needed",
+    });
+    expect(publicInquiry.status).toBe(201);
+
     const crossTenant = await exports.default.fetch(
       api("bravo.localhost", `/api/organization/auditions/${audition.id}`, cookie, {
         body: JSON.stringify({ status: "completed" }),

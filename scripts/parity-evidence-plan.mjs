@@ -23,10 +23,10 @@ export const probePlan = new Map([
   ["api.setup-status", { kind: "read-auth", expected: 200 }],
   ["api.calendar-feed-url", { kind: "read-auth", expected: 200 }],
   ["api.singer-dashboard", { kind: "read-auth", expected: 200 }],
-  ["api.seating-profiles", { kind: "read-auth", expected: 200 }],
   ["api.list-ticket-discount-codes", { kind: "read-auth", expected: 200 }],
 
   // Empty-body validation probes (schemas require fields, so 400 precedes any side effect)
+  ["api.seating-profiles", { kind: "validation", expected: 400 }],
   ["api.organization.audition-create", { kind: "validation", expected: 400 }],
   ["api.player-token", { kind: "validation", expected: 400 }],
   ["api.organization.poll-tokens", { kind: "validation", expected: 400 }],
@@ -97,9 +97,13 @@ export const probePlan = new Map([
   ["api.organization.music-folder-return-status", { kind: "skip-fixture" }],
   ["api.organization.music-folder-report-export", { kind: "skip-fixture" }],
   // Empty-body validation is safe here: the route rejects the request before
-  // starting an email-change operation or contacting the provider.
   ["api.singer.profile-email-change", { kind: "validation", expected: 400 }],
   ["api.account.email-change-confirm", { kind: "validation", expected: 400 }],
+  ["api.health", { kind: "read-anon", expected: 200 }],
+  ["api.public.audition-settings", { kind: "read-anon", expected: 200 }],
+  ["api.organization.dashboard-summary", { kind: "read-auth", expected: 200 }],
+  ["api.organization.export-start", { kind: "skip-fixture" }],
+  ["api.organization.export-status", { kind: "skip-fixture" }],
 ]);
 
 export function isExpectedAnonymousBoundary(row, result) {
@@ -124,8 +128,10 @@ export function isExpectedAnonymousBoundary(row, result) {
   );
 }
 
-export function buildProbePlan(matrix) {
-  const entries = matrix.apiRoutes.filter((entry) => entry.status === "implemented");
+export function buildProbePlan(matrix, options = {}) {
+  const entries = options.all
+    ? matrix.apiRoutes
+    : matrix.apiRoutes.filter((entry) => entry.status === "implemented");
   const rows = [];
   for (const entry of entries) {
     const plan = probePlan.get(entry.id);

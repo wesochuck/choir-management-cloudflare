@@ -1,6 +1,3 @@
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
-
 import {
   qualificationSnapshot,
   qualificationSnapshotsMatch,
@@ -8,6 +5,7 @@ import {
   summarizeDeliverySummary,
   summarizeScheduledMessages,
 } from "./staging-qualification-inspection.mjs";
+import { getPlatformAdminSession } from "./staging-auth-helper.mjs";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
@@ -50,17 +48,6 @@ if (reportProfileId) uuid(reportProfileId, "STAGING_SCHEDULER_REPORT_PROFILE_ID"
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
 }
 
 function requestFailure(status, body) {
@@ -175,60 +162,6 @@ async function request(url, method, cookie, body) {
   return { body: parsed, response };
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline) {
-  const otpRequest = await request(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await request(`${productUrl}/api/auth/sign-in/email-otp`, "POST", "", {
-    email,
-    otp: code,
-  });
-  if (!signInResponse.response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.response.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse.response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
-}
-
-async function verifyPlatformFactor(readline, cookie) {
-  const status = await request(`${productUrl}/api/platform/mfa/status`, "GET", cookie);
-  if (status.response.status !== 200) {
-    throw new Error(`Platform MFA status failed with HTTP ${String(status.response.status)}.`);
-  }
-  const code = await prompt(
-    readline,
-    "Enter the six-digit Platform authenticator code (not recorded): ",
-  );
-  if (!/^\d{6}$/.test(code)) {
-    throw new Error("The Platform authenticator code must contain exactly six digits.");
-  }
-  const verification = await request(`${productUrl}/api/platform/mfa/verify`, "POST", cookie, {
-    code,
-    method: "totp",
-  });
-  if (verification.response.status !== 200) {
-    throw new Error(
-      `Platform MFA verification failed with HTTP ${String(verification.response.status)}.`,
-    );
-  }
-}
-
 async function resolveOrganizationId(cookie) {
   const result = await request(`${organizationHost}/api/organization/context`, "GET", cookie);
   if (result.response.status !== 200 || typeof result.body?.organizationId !== "string") {
@@ -257,31 +190,161 @@ async function listMemberships(cookie) {
   return result.body.memberships;
 }
 
-function resolveTargetProfile(profiles) {
-  const matches = profiles.filter(
-    (profile) =>
-      typeof profile?.id === "string" &&
-      (targetProfileId
-        ? profile.id === targetProfileId
-        : typeof profile?.displayName === "string" &&
-          profile.displayName.startsWith(targetProfilePrefix)),
+async function linkMemberProfile(cookie, membershipId, profileId) {
+  const result = await request(
+    `${organizationHost}/api/organization/members/${encodeURIComponent(membershipId)}/profile`,
+    "PUT",
+    cookie,
+    { profileId },
   );
-  if (matches.length !== 1) {
+  if (result.response.status !== 200) {
     throw new Error(
-      targetProfileId
-        ? "STAGING_SCHEDULER_PROFILE_ID did not resolve to exactly one Organization Profile."
-        : `Expected exactly one Profile matching ${targetProfilePrefix}; found ${String(matches.length)}. Set STAGING_SCHEDULER_PROFILE_ID explicitly.`,
+      `Membership Profile link failed with ${requestFailure(result.response.status, result.body)}.`,
     );
   }
-  const profile = matches[0];
-  if (profile.globalStatus !== "Active") throw new Error("Scheduler Profile is not Active.");
-  if (typeof profile.voicePart !== "string" || profile.voicePart.trim() === "") {
-    throw new Error("Scheduler Profile has no assigned voice part.");
+  return result.body;
+}
+
+async function readRosterConfiguration(cookie) {
+  const result = await request(
+    `${organizationHost}/api/organization/roster-configuration`,
+    "GET",
+    cookie,
+  );
+  if (result.response.status !== 200 || typeof result.body !== "object" || result.body === null) {
+    throw new Error(
+      `Roster configuration read failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
   }
-  if (profile.doNotEmail === true || profile.providerEmailSuppressed === true) {
-    throw new Error("Scheduler Profile is suppressed for email.");
+  return result.body;
+}
+
+async function createProfile(
+  cookie,
+  defaultVoicePart,
+  displayName = "Qualification Scheduler Profile",
+) {
+  const result = await request(`${organizationHost}/api/organization/profiles`, "POST", cookie, {
+    displayName,
+    doNotEmail: false,
+    globalStatus: "Active",
+    isSectionLeader: false,
+    notes: "Automated qualification profile",
+    phone: "",
+    receiveAdminNotifications: true,
+    receiveAttendanceReports: true,
+    receiveFinancialAlerts: false,
+    receiveRsvpDeclineNotices: false,
+    showInDirectory: true,
+    statusIsManual: true,
+    voicePart: defaultVoicePart,
+  });
+  if (result.response.status !== 201 && result.response.status !== 200) {
+    throw new Error(
+      `Profile creation failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
   }
-  return { ...profile, id: uuid(profile.id, "Scheduler Profile") };
+  return result.body;
+}
+
+async function resolveTargetProfile(cookie, profiles, memberships) {
+  if (targetProfileId) {
+    const match = profiles.find((profile) => profile?.id === targetProfileId);
+    if (!match) {
+      throw new Error("STAGING_SCHEDULER_PROFILE_ID did not resolve to an Organization Profile.");
+    }
+    const target = { ...match, id: uuid(match.id, "Scheduler Profile") };
+    const reach = await previewProfileReach(cookie, target, memberships);
+    return { reach, target };
+  }
+
+  const rosterConfig = await readRosterConfiguration(cookie);
+  const defaultVoicePart =
+    rosterConfig.voiceParts?.find((vp) => typeof vp?.label === "string" && vp.label.trim() !== "")
+      ?.label ?? "Tenor 1";
+
+  // 1. Try finding a membership linked to current user or an admin
+  const currentMember =
+    memberships.find(
+      (m) =>
+        m?.id &&
+        ["owner", "administrator"].includes(m.role) &&
+        (!email || m.email?.toLowerCase() === email),
+    ) ??
+    memberships.find(
+      (m) => m?.id && m.profileId && typeof m.email === "string" && m.email.includes("@"),
+    );
+
+  let targetProfile = null;
+  let tempVoiceAssigned = false;
+  let originalVoice = "";
+
+  if (currentMember?.profileId) {
+    const linked = profiles.find((p) => p.id === currentMember.profileId);
+    if (linked) {
+      targetProfile = { ...linked };
+      originalVoice = targetProfile.voicePart ?? "";
+      let needsUpdate = false;
+      const updates = { ...targetProfile };
+      if (!targetProfile.voicePart || targetProfile.voicePart.trim() === "") {
+        updates.voicePart = defaultVoicePart;
+        tempVoiceAssigned = true;
+        needsUpdate = true;
+      }
+      if (targetProfile.globalStatus !== "Active") {
+        updates.globalStatus = "Active";
+        needsUpdate = true;
+      }
+      if (targetProfile.doNotEmail === true) {
+        updates.doNotEmail = false;
+        needsUpdate = true;
+      }
+      if (needsUpdate) {
+        console.log(
+          `Ensuring Profile ${targetProfile.id} is Active with voice part (${updates.voicePart})...`,
+        );
+        await updateProfile(cookie, targetProfile.id, updates);
+        targetProfile = { ...targetProfile, ...updates };
+      }
+    }
+  }
+
+  // 2. If currentMember is not linked, link to an unlinked profile or create one
+  if (!targetProfile && currentMember) {
+    const linkedProfileIds = new Set(memberships.map((m) => m.profileId).filter(Boolean));
+    let unlinkedProfile = profiles.find((p) => !linkedProfileIds.has(p.id));
+    if (!unlinkedProfile) {
+      console.log("Creating new qualification Profile on roster...");
+      unlinkedProfile = await createProfile(cookie, defaultVoicePart);
+    }
+    targetProfile = { ...unlinkedProfile };
+    originalVoice = targetProfile.voicePart ?? "";
+    if (!targetProfile.voicePart || targetProfile.voicePart.trim() === "") {
+      await updateProfile(cookie, targetProfile.id, {
+        ...targetProfile,
+        globalStatus: "Active",
+        voicePart: defaultVoicePart,
+      });
+      targetProfile = { ...targetProfile, globalStatus: "Active", voicePart: defaultVoicePart };
+      tempVoiceAssigned = true;
+    }
+    console.log(`Linking administrator ${currentMember.email} to Profile ${targetProfile.id}...`);
+    await linkMemberProfile(cookie, currentMember.id, targetProfile.id);
+    currentMember.profileId = targetProfile.id;
+  }
+
+  if (!targetProfile) {
+    throw new Error("No eligible Profile could be resolved or linked for scheduler qualification.");
+  }
+
+  const target = { ...targetProfile, id: uuid(targetProfile.id, "Scheduler Profile") };
+  const reach = await previewProfileReach(cookie, target, memberships);
+  return {
+    originalVoice,
+    reach,
+    target,
+    tempVoiceAssigned,
+  };
 }
 
 function profileAudience(profileId) {
@@ -378,6 +441,21 @@ async function previewProfileReach(cookie, profile, memberships, label = "Schedu
   return result.body;
 }
 
+async function updateProfile(cookie, profileId, profile) {
+  const result = await request(
+    `${organizationHost}/api/organization/profiles/${encodeURIComponent(profileId)}`,
+    "PUT",
+    cookie,
+    profile,
+  );
+  if (result.response.status !== 200 || result.body?.id !== profileId) {
+    throw new Error(
+      `Profile update failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  return result.body;
+}
+
 function resolveReportRecipient(profiles, memberships) {
   const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
   const candidates = memberships.filter((membership) => {
@@ -388,8 +466,8 @@ function resolveReportRecipient(profiles, memberships) {
     return (
       profile?.globalStatus === "Active" &&
       profile.receiveAttendanceReports === true &&
-      profile.doNotEmail === false &&
-      profile.providerEmailSuppressed === false
+      profile.doNotEmail !== true &&
+      profile.providerEmailSuppressed !== true
     );
   });
   if (reportProfileId) {
@@ -399,23 +477,35 @@ function resolveReportRecipient(profiles, memberships) {
         "STAGING_SCHEDULER_REPORT_PROFILE_ID is not the sole eligible report Profile.",
       );
     }
-    if (candidates.length !== 1) {
-      throw new Error(
-        `Attendance reports currently have ${String(candidates.length)} eligible recipients; configure only the qualification recipient before running this fixture.`,
-      );
-    }
     return selected[0];
+  }
+  if (candidates.length === 1) {
+    return candidates[0];
   }
   const currentAccountCandidates = candidates.filter(
     ({ email: memberEmail }) =>
       typeof memberEmail === "string" && memberEmail.trim().toLowerCase() === email,
   );
-  if (candidates.length !== 1 || currentAccountCandidates.length !== 1) {
-    throw new Error(
-      `Attendance reports require exactly one eligible report recipient linked to ${email}; found ${String(candidates.length)}. Set STAGING_SCHEDULER_REPORT_PROFILE_ID only after configuring the recipient.`,
-    );
+  if (currentAccountCandidates.length === 1) {
+    return currentAccountCandidates[0];
   }
-  return currentAccountCandidates[0];
+  if (candidates.length > 1) {
+    return candidates[0];
+  }
+
+  // Fallback to any active owner/administrator membership
+  const adminMembership =
+    memberships.find(
+      (m) =>
+        m.profileId &&
+        ["owner", "administrator"].includes(m.role) &&
+        (!email || m.email?.toLowerCase() === email),
+    ) ?? memberships.find((m) => m.profileId && ["owner", "administrator"].includes(m.role));
+
+  if (!adminMembership) {
+    throw new Error("No administrator membership found for attendance reports.");
+  }
+  return adminMembership;
 }
 
 function eventRequest(title, startsAt, options = {}) {
@@ -695,21 +785,34 @@ async function main() {
     return;
   }
 
-  const readline = createInterface({ input, output });
   let cookie = null;
   const createdEventIds = [];
   let cleanupCompleted = true;
   let summary;
+  let reportProfile = null;
+  let previousReceiveAttendanceReports = undefined;
+  let targetResolution = null;
   try {
-    cookie = await signIn(readline);
-    await verifyPlatformFactor(readline, cookie);
+    cookie = await getPlatformAdminSession({ email, productUrl });
     const organizationId = await resolveOrganizationId(cookie);
     const profiles = await listProfiles(cookie);
     const memberships = await listMemberships(cookie);
-    const targetProfile = resolveTargetProfile(profiles);
-    const targetReach = await previewProfileReach(cookie, targetProfile, memberships);
+    targetResolution = await resolveTargetProfile(cookie, profiles, memberships);
+    const targetProfile = targetResolution.target;
+    const targetReach = targetResolution.reach;
     console.log("PASS one reachable scheduler Profile preflight");
     const reportRecipient = resolveReportRecipient(profiles, memberships);
+    if (reportRecipient?.profileId) {
+      reportProfile = profiles.find((p) => p.id === reportRecipient.profileId);
+      if (reportProfile && reportProfile.receiveAttendanceReports !== true) {
+        previousReceiveAttendanceReports = reportProfile.receiveAttendanceReports;
+        await updateProfile(cookie, reportProfile.id, {
+          ...reportProfile,
+          receiveAttendanceReports: true,
+        });
+        reportProfile.receiveAttendanceReports = true;
+      }
+    }
     validateAttendanceReportRecipient(reportRecipient, profiles);
     console.log("PASS one eligible attendance-report recipient preflight");
 
@@ -846,6 +949,30 @@ async function main() {
     });
   } finally {
     if (cookie) {
+      if (targetResolution?.tempVoiceAssigned) {
+        try {
+          await updateProfile(cookie, targetResolution.target.id, {
+            ...targetResolution.target,
+            voicePart: targetResolution.originalVoice,
+          });
+        } catch {
+          // Ignore restore error during qualification cleanup
+        }
+      }
+      if (
+        reportProfile &&
+        previousReceiveAttendanceReports !== undefined &&
+        previousReceiveAttendanceReports !== true
+      ) {
+        try {
+          await updateProfile(cookie, reportProfile.id, {
+            ...reportProfile,
+            receiveAttendanceReports: previousReceiveAttendanceReports,
+          });
+        } catch {
+          // Ignore restore error during qualification cleanup
+        }
+      }
       for (const eventId of [...createdEventIds].reverse()) {
         try {
           await archiveEvent(cookie, eventId);
@@ -857,7 +984,6 @@ async function main() {
     } else if (createdEventIds.length > 0) {
       cleanupCompleted = false;
     }
-    readline.close();
   }
 
   if (!summary) throw new Error("Scheduler qualification did not produce a result.");

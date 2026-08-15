@@ -1,6 +1,4 @@
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
-
+import { getStagingSession } from "./staging-auth-helper.mjs";
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
   "",
@@ -38,17 +36,6 @@ function uuid(value, label) {
 
 if (targetProfileId) uuid(targetProfileId, "STAGING_QUEUE_PROFILE_ID");
 if (targetMessageId) uuid(targetMessageId, "STAGING_QUEUE_MESSAGE_ID");
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
-}
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -157,35 +144,11 @@ async function request(url, method, cookie, body) {
   return { body: parsed, response };
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline) {
-  const otpRequest = await request(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await request(`${productUrl}/api/auth/sign-in/email-otp`, "POST", "", {
+async function signIn() {
+  return getStagingSession({
     email,
-    otp: code,
+    productUrl,
   });
-  if (!signInResponse.response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.response.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse.response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
 }
 
 async function listProfiles(cookie) {
@@ -352,8 +315,8 @@ async function wrongOrganizationBoundary(cookie, messageId) {
   return result.response.status;
 }
 
-export async function runMessageQueueQualification(readline) {
-  const cookie = await signIn(readline);
+export async function runMessageQueueQualification() {
+  const cookie = await signIn();
   const profile = await resolveTargetProfile(cookie);
   const profileId = profile.id;
   const reach = await previewReach(cookie, profileId);
@@ -408,12 +371,7 @@ async function main() {
     }
     return;
   }
-  const readline = createInterface({ input, output });
-  try {
-    await runMessageQueueQualification(readline);
-  } finally {
-    readline.close();
-  }
+  await runMessageQueueQualification();
 }
 
 if (process.argv[1] && import.meta.url === new URL(process.argv[1], "file:").href) {

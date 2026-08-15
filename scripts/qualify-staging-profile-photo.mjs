@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 import { pathToFileURL } from "node:url";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
@@ -30,17 +29,6 @@ function uuid(value, label) {
     throw new Error(`${label} must be a UUID.`);
   }
   return value;
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
 }
 
 function fixtureBytes() {
@@ -125,39 +113,11 @@ async function jsonRequest(url, method, cookie, body) {
   return { body: parsed, response };
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline, loginEmail = email) {
-  const normalizedEmail = loginEmail.trim().toLowerCase();
-  const otpRequest = await jsonRequest(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email: normalizedEmail, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${normalizedEmail}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await request(
-    `${productUrl}/api/auth/sign-in/email-otp`,
-    "POST",
-    "",
-    JSON.stringify({ email: normalizedEmail, otp: code }),
-    { "content-type": "application/json" },
-  );
-  if (!signInResponse.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
+async function signIn(loginEmail = email) {
+  return getStagingSession({
+    email: loginEmail,
+    productUrl,
+  });
 }
 
 async function resolveTargetProfile(cookie) {
@@ -267,14 +227,14 @@ async function deleteFile(cookie, fileId) {
   return response.status === 200 || response.status === 404;
 }
 
-async function qualifyMemberAuthorization(readline, adminCookie, profileId) {
+async function qualifyMemberAuthorization(adminCookie, profileId) {
   if (!memberEmail) {
     console.log(
       "DEFER ordinary-member Profile-photo authorization: set STAGING_PHOTO_MEMBER_EMAIL to run the linked-member check.",
     );
     return;
   }
-  const memberCookie = await signIn(readline, memberEmail);
+  const memberCookie = await signIn(memberEmail);
   const memberProfile = await jsonRequest(
     `${organizationHost}/api/singer/profile`,
     "GET",
@@ -329,14 +289,13 @@ async function main() {
     return;
   }
 
-  const readline = createInterface({ input, output });
   const uploaded = [];
   let cookie = "";
   let attachedProfileId = null;
   try {
-    cookie = await signIn(readline);
+    cookie = await signIn();
     const profileId = await resolveTargetProfile(cookie);
-    await qualifyMemberAuthorization(readline, cookie, profileId);
+    await qualifyMemberAuthorization(cookie, profileId);
     const bytes = fixtureBytes();
     const expectedChecksum = sha256(bytes);
     const firstFileId = crypto.randomUUID();
@@ -380,7 +339,6 @@ async function main() {
     console.log(`${removalPassed ? "PASS" : "FAIL"} profile photo removal cleanup`);
     if (!removalPassed) throw new Error("The removed profile-photo object remained accessible.");
   } finally {
-    readline.close();
     if (cookie && attachedProfileId) {
       await removePhoto(cookie, attachedProfileId).catch(() => undefined);
     }

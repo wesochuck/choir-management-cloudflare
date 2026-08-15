@@ -1,6 +1,4 @@
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
-
+import { getPlatformAdminSession } from "./staging-auth-helper.mjs";
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
   "",
@@ -97,72 +95,6 @@ async function request(url, method, body, cookie) {
     // Do not print or retain unexpected response bodies.
   }
   return { body: parsed, response };
-}
-
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
-}
-
-async function signIn(readline) {
-  const otpRequest = await request(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signedIn = await request(`${productUrl}/api/auth/sign-in/email-otp`, "POST", {
-    email,
-    otp: code,
-  });
-  if (!signedIn.response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signedIn.response.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signedIn.response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
-}
-
-async function verifyPlatformFactor(readline, cookie) {
-  const status = await request(`${productUrl}/api/platform/mfa/status`, "GET", undefined, cookie);
-  if (status.response.status !== 200) {
-    throw new Error(`Platform MFA status failed with HTTP ${String(status.response.status)}.`);
-  }
-  const code = await prompt(
-    readline,
-    "Enter the six-digit Platform authenticator code (not recorded): ",
-  );
-  if (!/^\d{6}$/.test(code)) {
-    throw new Error("The Platform authenticator code must contain exactly six digits.");
-  }
-  const verification = await request(
-    `${productUrl}/api/platform/mfa/verify`,
-    "POST",
-    { code, method: "totp" },
-    cookie,
-  );
-  if (verification.response.status !== 200) {
-    throw new Error(
-      `Platform MFA verification failed with HTTP ${String(verification.response.status)}.`,
-    );
-  }
 }
 
 async function resolveOrganizationId(cookie) {
@@ -305,13 +237,11 @@ async function main() {
     return;
   }
 
-  const readline = createInterface({ input, output });
   let cookie = null;
   let auditionId = null;
   let deleted = false;
   try {
-    cookie = await signIn(readline);
-    await verifyPlatformFactor(readline, cookie);
+    cookie = await getPlatformAdminSession({ email, productUrl });
     const organizationId = await resolveOrganizationId(cookie);
     const preflightEnqueuedJobCount = await runOrganizationMaintenance(cookie);
     console.log(
@@ -389,7 +319,6 @@ async function main() {
         console.error("Qualification audition cleanup did not complete.");
       }
     }
-    readline.close();
   }
 }
 

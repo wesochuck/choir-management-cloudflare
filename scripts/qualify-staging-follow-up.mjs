@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
@@ -37,49 +36,6 @@ export function followUpPhases(options = {}) {
   return phases;
 }
 
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
-}
-
-async function request(path, body) {
-  const response = await fetch(`${productUrl}${path}`, {
-    body: JSON.stringify(body),
-    headers: { accept: "application/json", "content-type": "application/json" },
-    method: "POST",
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(response.status)}.`);
-  }
-  return response;
-}
-
-async function authenticate(readline) {
-  const reusableCookie = reusableStagingSessionCookie(suppliedSessionCookie);
-  if (reusableCookie) return reusableCookie;
-
-  await request("/api/auth/email-otp/send-verification-otp", { email, type: "sign-in" });
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = (
-    await readline.question("Enter the six-digit sign-in code (not recorded): ")
-  ).trim();
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-
-  const response = await request("/api/auth/sign-in/email-otp", { email, otp: code });
-  const cookie = sessionCookieFrom(response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
-}
-
 function runPhase(script, environment) {
   const result = spawnSync("node", [script], {
     env: environment,
@@ -100,8 +56,11 @@ async function main() {
   if (phases.length === 0)
     throw new Error("At least one follow-up qualification phase is required.");
 
-  const readline = createInterface({ input, output });
-  const cookie = await authenticate(readline).finally(() => readline.close());
+  const cookie = await getStagingSession({
+    email,
+    productUrl,
+    sessionCookie: suppliedSessionCookie || undefined,
+  });
   const environment = {
     ...process.env,
     STAGING_AUTH_EMAIL: email,

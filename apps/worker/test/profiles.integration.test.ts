@@ -311,7 +311,7 @@ describe("Organization Profiles", () => {
     );
     expect(rosterExport.status).toBe(200);
     expect(rosterExport.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-    expect(rosterExport.headers.get("cache-control")).toBe("no-store");
+    expect(rosterExport.headers.get("cache-control")).toBe("private, no-store");
     expect(rosterExport.headers.get("content-disposition")).toBe(
       'attachment; filename="choir_roster_export.csv"',
     );

@@ -1,5 +1,32 @@
 import { z } from "zod";
 import { requestIdSchema } from "./primitives";
+
+export const intakeModeSchema = z.enum(["audition", "open_inquiry"]).default("audition");
+
+export type IntakeMode = z.infer<typeof intakeModeSchema>;
+
+export const dayOfWeekSchema = z.enum([
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+]);
+
+export type DayOfWeek = z.infer<typeof dayOfWeekSchema>;
+
+export const rehearsalSessionSchema = z.object({
+  dayOfWeek: dayOfWeekSchema,
+  endTime: z.string().max(20),
+  locationName: z.string().max(200).default(""),
+  startTime: z.string().max(20),
+  venueId: z.uuid().nullable().default(null),
+});
+
+export type RehearsalSession = z.infer<typeof rehearsalSessionSchema>;
+
 export const auditionStatusSchema = z.enum([
   "pending",
   "scheduled",
@@ -130,6 +157,9 @@ export const organizationAuditionSettingsSchema = z
     confirmationMessage: z.string().max(5_000),
     defaultPerformanceId: z.uuid().nullable(),
     enabled: z.boolean(),
+    mode: intakeModeSchema,
+    rehearsalNotes: z.string().max(5_000).default(""),
+    rehearsalSchedule: z.array(rehearsalSessionSchema).max(20).default([]),
     slots: z.array(auditionSlotInputSchema).max(200),
     venueId: z.uuid().nullable().default(null),
   })
@@ -177,6 +207,7 @@ export const publicAuditionSettingsSchema = z.object({
   confirmationMessage: z.string().max(5_000),
   defaultPerformanceId: z.uuid().nullable(),
   enabled: z.boolean(),
+  mode: intakeModeSchema,
   performerLabel: z.string().trim().min(1).max(50).default("Performer"),
   performance: z
     .object({
@@ -186,6 +217,8 @@ export const publicAuditionSettingsSchema = z.object({
     })
     .nullable()
     .default(null),
+  rehearsalNotes: z.string().max(5_000).default(""),
+  rehearsalSchedule: z.array(rehearsalSessionSchema).max(20).default([]),
   sections: z
     .array(
       z.object({

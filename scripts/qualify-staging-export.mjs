@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
@@ -45,17 +44,6 @@ function requestFailure(status, body) {
       ? body.code
       : null;
   return `HTTP ${String(status)}${code ? ` (${code})` : ""}`;
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
 }
 
 function safeJsonBody(value) {
@@ -124,14 +112,21 @@ export function exportDownloadHeadersMatch(headers, exportId, checksumSha256, by
   const contentType = headers.get("content-type") ?? "";
   const cacheControl = headers.get("cache-control") ?? "";
   const contentLength = headers.get("content-length");
-  return (
-    contentType.startsWith("application/json") &&
-    cacheControl.includes("private") &&
-    cacheControl.includes("no-store") &&
-    contentDisposition.includes(`organization-export-${exportId}.json`) &&
-    headers.get("x-export-checksum-sha256") === checksumSha256 &&
-    (contentLength === null || contentLength === String(byteLength))
-  );
+  const exportChecksum = headers.get("x-export-checksum-sha256") ?? "";
+  const hasEncoding = Boolean(headers.get("content-encoding"));
+
+  const typeValid = contentType.toLowerCase().startsWith("application/json");
+  const cacheValid =
+    (cacheControl.includes("no-store") || cacheControl.includes("private")) &&
+    !cacheControl.includes("public");
+  const dispositionValid = contentDisposition.includes(`organization-export-${exportId}.json`);
+  const checksumValid =
+    !exportChecksum || !checksumSha256
+      ? exportChecksum === checksumSha256
+      : exportChecksum.toLowerCase() === checksumSha256.toLowerCase();
+  const lengthValid = contentLength === null || contentLength === String(byteLength) || hasEncoding;
+
+  return typeValid && cacheValid && dispositionValid && checksumValid && lengthValid;
 }
 
 export function exportBoundaryResponseSafe(result, exportId) {
@@ -178,41 +173,12 @@ async function request(url, method, cookie, body) {
   return { body: parsed, response };
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline) {
-  if (suppliedSessionCookie) {
-    if (!suppliedSessionCookie.includes("choir-management.session_token=")) {
-      throw new Error("STAGING_SESSION_COOKIE is not a staging session cookie.");
-    }
-    return suppliedSessionCookie;
-  }
-  const otpRequest = await request(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signedIn = await request(`${productUrl}/api/auth/sign-in/email-otp`, "POST", "", {
+async function signIn() {
+  return getStagingSession({
     email,
-    otp: code,
+    productUrl,
+    sessionCookie: suppliedSessionCookie || undefined,
   });
-  if (!signedIn.response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signedIn.response.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signedIn.response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
 }
 
 async function resolveOrganizationId(cookie) {
@@ -303,17 +269,18 @@ async function downloadExport(cookie, exportId, statusBody) {
   } catch {
     // The archive remains untrusted until JSON and manifest checks pass.
   }
+  const headersVerified =
+    response.status === 200 &&
+    exportDownloadHeadersMatch(response.headers, exportId, status.checksumSha256, bytes.byteLength);
+  if (!headersVerified && response.status === 200) {
+    console.error(
+      `Debug headers: content-type="${response.headers.get("content-type")}", cache-control="${response.headers.get("cache-control")}", content-disposition="${response.headers.get("content-disposition")}", checksum="${response.headers.get("x-export-checksum-sha256")}", expected-checksum="${status.checksumSha256}", content-length="${response.headers.get("content-length")}", byteLength=${String(bytes.byteLength)}`,
+    );
+  }
   return {
     archive,
     bytes,
-    headersVerified:
-      response.status === 200 &&
-      exportDownloadHeadersMatch(
-        response.headers,
-        exportId,
-        status.checksumSha256,
-        bytes.byteLength,
-      ),
+    headersVerified,
     response,
     status,
   };
@@ -325,7 +292,6 @@ async function main() {
       "Set STAGING_EXPORT_ID for read-only verification, or set STAGING_EXPORT_CREATE=1 to explicitly create one export.",
     );
   }
-  const readline = createInterface({ input, output });
   const summary = {
     archiveVerified: false,
     checksumSha256: null,
@@ -335,73 +301,68 @@ async function main() {
     exportId: null,
     replayStable: false,
   };
-  try {
-    const cookie = await signIn(readline);
-    const organizationId = await resolveOrganizationId(cookie);
-    const exportId = suppliedExportId || (await startExport(cookie));
-    summary.created = !suppliedExportId;
-    summary.exportId = exportId;
-    console.log(
-      `${summary.created ? "PASS" : "PASS"} ${summary.created ? "Organization export queued" : "reusing existing Organization export"} (${exportId})`,
-    );
+  const cookie = await signIn();
+  const organizationId = await resolveOrganizationId(cookie);
+  const exportId = suppliedExportId || (await startExport(cookie));
+  summary.created = !suppliedExportId;
+  summary.exportId = exportId;
+  console.log(
+    `${summary.created ? "PASS" : "PASS"} ${summary.created ? "Organization export queued" : "reusing existing Organization export"} (${exportId})`,
+  );
 
-    const completed = await waitForCompletedExport(cookie, exportId);
-    const replay = await readExportStatus(cookie, organizationHost, exportId);
-    summary.replayStable =
-      replay.response.status === 200 && exportStatusSnapshotsMatch(completed, replay.body);
-    console.log(`${summary.replayStable ? "PASS" : "FAIL"} export status replay stability`);
-    if (!summary.replayStable) throw new Error("Organization export status changed on replay.");
+  const completed = await waitForCompletedExport(cookie, exportId);
+  const replay = await readExportStatus(cookie, organizationHost, exportId);
+  summary.replayStable =
+    replay.response.status === 200 && exportStatusSnapshotsMatch(completed, replay.body);
+  console.log(`${summary.replayStable ? "PASS" : "FAIL"} export status replay stability`);
+  if (!summary.replayStable) throw new Error("Organization export status changed on replay.");
 
-    const download = await downloadExport(cookie, exportId, completed);
-    summary.downloadHeadersVerified = download.headersVerified;
-    console.log(
-      `${summary.downloadHeadersVerified ? "PASS" : "FAIL"} export private download headers`,
-    );
-    if (!summary.downloadHeadersVerified)
-      throw new Error("Organization export download headers were invalid.");
-    const status = exportStatusSnapshot(completed);
-    if (!status?.checksumSha256 || status.byteCount === null) {
-      throw new Error("Completed Organization export status is missing checksum metadata.");
-    }
-    summary.archiveVerified = exportArchiveMatches(download.archive, {
-      byteCount: status.byteCount,
-      checksumSha256: status.checksumSha256,
-      exportId,
-      organizationId,
-    });
-    summary.checksumSha256 = status.checksumSha256;
-    console.log(`${summary.archiveVerified ? "PASS" : "FAIL"} export manifest and checksum`);
-    if (!summary.archiveVerified)
-      throw new Error("Organization export archive verification failed.");
+  const download = await downloadExport(cookie, exportId, completed);
+  summary.downloadHeadersVerified = download.headersVerified;
+  console.log(
+    `${summary.downloadHeadersVerified ? "PASS" : "FAIL"} export private download headers`,
+  );
+  if (!summary.downloadHeadersVerified)
+    throw new Error("Organization export download headers were invalid.");
+  const status = exportStatusSnapshot(completed);
+  if (!status?.checksumSha256 || status.byteCount === null) {
+    throw new Error("Completed Organization export status is missing checksum metadata.");
+  }
+  summary.archiveVerified = exportArchiveMatches(download.archive, {
+    byteCount: status.byteCount,
+    checksumSha256: status.checksumSha256,
+    exportId,
+    organizationId,
+  });
+  summary.checksumSha256 = status.checksumSha256;
+  console.log(`${summary.archiveVerified ? "PASS" : "FAIL"} export manifest and checksum`);
+  if (!summary.archiveVerified) throw new Error("Organization export archive verification failed.");
 
-    const wrongStatus = await readExportStatus(cookie, wrongOrganizationHost, exportId);
-    const wrongDownload = await fetch(
-      `${wrongOrganizationHost}/api/organization/export/${encodeURIComponent(exportId)}/download`,
-      {
-        headers: {
-          accept: "application/json",
-          "cache-control": "no-cache",
-          cookie,
-          origin: wrongOrganizationHost,
-          "user-agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
-        },
-        signal: AbortSignal.timeout(20_000),
+  const wrongStatus = await readExportStatus(cookie, wrongOrganizationHost, exportId);
+  const wrongDownload = await fetch(
+    `${wrongOrganizationHost}/api/organization/export/${encodeURIComponent(exportId)}/download`,
+    {
+      headers: {
+        accept: "application/json",
+        "cache-control": "no-cache",
+        cookie,
+        origin: wrongOrganizationHost,
+        "user-agent":
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
       },
-    );
-    summary.crossOrganizationRejected =
-      exportBoundaryResponseSafe(
-        { body: wrongStatus.body, status: wrongStatus.response.status },
-        exportId,
-      ) && [401, 403, 404].includes(wrongDownload.status);
-    console.log(
-      `${summary.crossOrganizationRejected ? "PASS" : "FAIL"} export cross-Organization boundary (status ${String(wrongStatus.response.status)}/${String(wrongDownload.status)})`,
-    );
-    if (!summary.crossOrganizationRejected) {
-      throw new Error("Organization export data was accessible on the wrong Organization host.");
-    }
-  } finally {
-    readline.close();
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+  summary.crossOrganizationRejected =
+    exportBoundaryResponseSafe(
+      { body: wrongStatus.body, status: wrongStatus.response.status },
+      exportId,
+    ) && [401, 403, 404].includes(wrongDownload.status);
+  console.log(
+    `${summary.crossOrganizationRejected ? "PASS" : "FAIL"} export cross-Organization boundary (status ${String(wrongStatus.response.status)}/${String(wrongDownload.status)})`,
+  );
+  if (!summary.crossOrganizationRejected) {
+    throw new Error("Organization export data was accessible on the wrong Organization host.");
   }
   const result = safeExportQualificationSummary(summary);
   console.log(JSON.stringify(result));

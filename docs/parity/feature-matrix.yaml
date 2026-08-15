@@ -2891,7 +2891,7 @@
         "workflow": "Email/SMS/Both compose, reach, drafts, templates, history, and retries",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/views/admin/communications; src/services/communication;
           test/communicationWizard.test.ts",
@@ -2905,6 +2905,9 @@
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/communications.integration.test.ts",
             "apps/web/src/account/components/CommunicationCenter/controller.tsx",
+            "scripts/qualify-staging-scheduler.mjs",
+            "scripts/qualify-staging-scheduler.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {

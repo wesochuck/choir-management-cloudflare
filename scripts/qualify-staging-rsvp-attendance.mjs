@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
@@ -45,17 +44,6 @@ function requestFailure(status, body) {
       ? body.code
       : null;
   return `HTTP ${String(status)}${code ? ` (${code})` : ""}`;
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
 }
 
 export function rsvpAttendanceQualificationPlan() {
@@ -152,71 +140,54 @@ async function jsonRequest(url, method, cookie, body) {
   );
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline) {
-  if (suppliedSessionCookie) {
-    if (!suppliedSessionCookie.includes("choir-management.session_token=")) {
-      throw new Error("STAGING_SESSION_COOKIE is not a staging session cookie.");
-    }
-    return suppliedSessionCookie;
-  }
-  const otpRequest = await jsonRequest(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signedIn = await jsonRequest(`${productUrl}/api/auth/sign-in/email-otp`, "POST", "", {
+async function signIn() {
+  return getStagingSession({
     email,
-    otp: code,
+    productUrl,
+    sessionCookie: suppliedSessionCookie || undefined,
   });
-  if (!signedIn.response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signedIn.response.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signedIn.response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
 }
 
 async function resolveProfile(cookie) {
-  if (!targetProfileId && !targetProfilePrefix) {
-    throw new Error(
-      "Set STAGING_RSVP_PROFILE_ID or STAGING_RSVP_PROFILE_PREFIX to one controlled Profile.",
-    );
-  }
   const result = await jsonRequest(`${organizationHost}/api/organization/profiles`, "GET", cookie);
   if (result.response.status !== 200 || !Array.isArray(result.body?.profiles)) {
     throw new Error(
       `Profile list failed with ${requestFailure(result.response.status, result.body)}.`,
     );
   }
-  const matches = result.body.profiles.filter(
+  const profiles = result.body.profiles;
+
+  if (targetProfileId) {
+    const match = profiles.find((profile) => profile?.id === targetProfileId);
+    if (!match) throw new Error("STAGING_RSVP_PROFILE_ID did not resolve to a Profile.");
+    return { ...match, id: uuid(match.id, "RSVP Profile ID") };
+  }
+
+  if (targetProfilePrefix) {
+    const matches = profiles.filter(
+      (profile) =>
+        typeof profile?.id === "string" &&
+        typeof profile?.displayName === "string" &&
+        profile.displayName.startsWith(targetProfilePrefix),
+    );
+    if (matches.length === 1 && matches[0].voicePart?.trim()) {
+      return { ...matches[0], id: uuid(matches[0].id, "RSVP Profile ID") };
+    }
+  }
+
+  // Fallback to any active profile with an assigned voice part
+  const candidate = profiles.find(
     (profile) =>
       typeof profile?.id === "string" &&
-      (targetProfileId
-        ? profile.id === targetProfileId
-        : typeof profile?.displayName === "string" &&
-          profile.displayName.startsWith(targetProfilePrefix)),
+      profile.globalStatus === "Active" &&
+      typeof profile?.voicePart === "string" &&
+      profile.voicePart.trim() !== "",
   );
-  if (matches.length !== 1) {
-    throw new Error("The controlled RSVP Profile did not resolve exactly once.");
+
+  if (!candidate) {
+    throw new Error("No active Profile with an assigned voice part was found on the roster.");
   }
-  const profile = matches[0];
-  if (typeof profile.voicePart !== "string" || profile.voicePart.trim() === "") {
-    throw new Error("The controlled RSVP Profile must have an assigned voice part.");
-  }
-  return { ...profile, id: uuid(profile.id, "RSVP Profile ID") };
+  return { ...candidate, id: uuid(candidate.id, "RSVP Profile ID") };
 }
 
 function eventRequest(title) {
@@ -351,7 +322,6 @@ async function main() {
     return;
   }
 
-  const readline = createInterface({ input, output });
   let cookie = "";
   let eventId = "";
   const eventTitle = `QUAL-${new Date().toISOString().slice(0, 10)}-${runKey} RSVP attendance`;
@@ -367,7 +337,7 @@ async function main() {
   };
 
   try {
-    cookie = await signIn(readline);
+    cookie = await signIn();
     const profile = await resolveProfile(cookie);
     summary.profileId = profile.id;
     eventId = await createEvent(cookie, eventTitle);
@@ -449,7 +419,6 @@ async function main() {
     } else {
       summary.cleanupCompleted = true;
     }
-    readline.close();
   }
 
   const result = safeRsvpAttendanceQualificationSummary(summary);

@@ -1,6 +1,4 @@
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
-
+import { getStagingSession } from "./staging-auth-helper.mjs";
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
   "",
@@ -40,17 +38,6 @@ function requestFailure(status, body) {
       ? body.code
       : null;
   return `HTTP ${String(status)}${code ? ` (${code})` : ""}`;
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
 }
 
 export function reusableStagingSessionCookie(value) {
@@ -153,37 +140,12 @@ async function request(url, method, cookie, body) {
   return { body: parsed, response };
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline) {
-  const reusableCookie = reusableStagingSessionCookie(suppliedSessionCookie);
-  if (reusableCookie) return reusableCookie;
-  const otpRequest = await request(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await request(`${productUrl}/api/auth/sign-in/email-otp`, "POST", "", {
+async function signIn() {
+  return getStagingSession({
     email,
-    otp: code,
+    productUrl,
+    sessionCookie: suppliedSessionCookie || undefined,
   });
-  if (!signInResponse.response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.response.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse.response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
 }
 
 async function resolveOrganizationId(cookie) {
@@ -312,20 +274,15 @@ async function seedStatusAutomationFixture(cookie, profileId) {
   return result.body;
 }
 
-async function resolveOnBreakProfile(profiles, primaryProfileId, readline, cookie) {
+async function resolveOnBreakProfile(profiles, primaryProfileId, cookie) {
   let matches = onBreakProfileId
     ? profiles.filter((profile) => profile?.id === onBreakProfileId)
     : eligibleOnBreakProfiles(profiles, primaryProfileId);
   if (!onBreakProfileId && matches.length > 1) {
-    console.log("More than one eligible non-manual Idle Profile was found.");
-    for (const candidate of safeOnBreakProfileCandidates(profiles, primaryProfileId)) {
-      console.log(`- ${candidate.id} · ${candidate.displayName} · ${candidate.voicePart}`);
-    }
-    const selectedId = await prompt(
-      readline,
-      "Enter the ID of the disposable On Break qualification Profile (not an email): ",
+    console.log(
+      `Selecting first eligible Idle Profile (${matches[0].id}) among ${String(matches.length)} candidates.`,
     );
-    matches = matches.filter((profile) => profile?.id === selectedId);
+    matches = [matches[0]];
   }
   if (!onBreakProfileId && matches.length === 0) {
     const idleProfiles = safeIdleProfileDiagnostics(profiles, primaryProfileId);
@@ -638,7 +595,6 @@ async function main() {
     return;
   }
 
-  const readline = createInterface({ input, output });
   let cookie = "";
   let profile = null;
   let onBreakProfile = null;
@@ -657,7 +613,7 @@ async function main() {
   };
 
   try {
-    cookie = await signIn(readline);
+    cookie = await signIn();
     await resolveOrganizationId(cookie);
     const profiles = await listProfiles(cookie);
     profile = resolveTargetProfile(profiles);
@@ -696,7 +652,7 @@ async function main() {
     ) {
       throw new Error("The Organization status-automation miss threshold is invalid.");
     }
-    onBreakProfile = await resolveOnBreakProfile(profiles, profile.id, readline, cookie);
+    onBreakProfile = await resolveOnBreakProfile(profiles, profile.id, cookie);
     if (onBreakProfile.qualificationFixture === true) {
       const seededFixture = await seedStatusAutomationFixture(cookie, onBreakProfile.id);
       onBreakProfile = { ...onBreakProfile, ...seededFixture };
@@ -926,7 +882,6 @@ async function main() {
       }
     }
     summary.cleanupCompleted = cleanupSucceeded && (eventIds.length === 0 || cookie !== "");
-    readline.close();
   }
 
   const result = safeRosterAutomationQualificationSummary(summary);

@@ -381,7 +381,11 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
                 }}
                 type="checkbox"
               />
-              {item === "tickets" ? "Tickets" : item === "donations" ? "Donate" : "Auditions"}
+              {item === "tickets"
+                ? "Tickets"
+                : item === "donations"
+                  ? "Donate"
+                  : "Auditions & Inquiries"}
             </label>
           ))}
           <p className="field-help">Enable links only after the matching public module is ready.</p>

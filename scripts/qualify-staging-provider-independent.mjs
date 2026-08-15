@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
@@ -35,56 +34,6 @@ export function providerIndependentQualificationPlan(options = {}) {
   return plan;
 }
 
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
-}
-
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function authenticate(readline) {
-  if (suppliedSessionCookie) {
-    if (!suppliedSessionCookie.includes("choir-management.session_token=")) {
-      throw new Error("STAGING_SESSION_COOKIE is not a staging session cookie.");
-    }
-    return suppliedSessionCookie;
-  }
-  const otpResponse = await fetch(`${productUrl}/api/auth/email-otp/send-verification-otp`, {
-    body: JSON.stringify({ email, type: "sign-in" }),
-    headers: { accept: "application/json", "content-type": "application/json" },
-    method: "POST",
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!otpResponse.ok) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpResponse.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await fetch(`${productUrl}/api/auth/sign-in/email-otp`, {
-    body: JSON.stringify({ email, otp: code }),
-    headers: { accept: "application/json", "content-type": "application/json" },
-    method: "POST",
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!signInResponse.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
-}
-
 function runPhase(script, environment) {
   const result = spawnSync("node", [script], {
     env: environment,
@@ -103,8 +52,11 @@ async function main() {
     return;
   }
 
-  const readline = createInterface({ input, output });
-  const cookie = await authenticate(readline).finally(() => readline.close());
+  const cookie = await getStagingSession({
+    email,
+    productUrl,
+    sessionCookie: suppliedSessionCookie || undefined,
+  });
 
   const environment = {
     ...process.env,

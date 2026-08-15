@@ -71,6 +71,19 @@ export function AuditionTable({
               >
                 Edit
               </button>
+              {audition.status === "pending" ||
+              audition.status === "scheduled" ||
+              audition.status === "completed" ? (
+                <button
+                  className="button button--secondary button--small"
+                  onClick={() => {
+                    onConvert(audition);
+                  }}
+                  type="button"
+                >
+                  Convert to Profile
+                </button>
+              ) : null}
               {audition.status === "pending" ? (
                 <button
                   className="button button--secondary button--small"
@@ -80,17 +93,6 @@ export function AuditionTable({
                   type="button"
                 >
                   Schedule
-                </button>
-              ) : null}
-              {audition.status === "scheduled" ? (
-                <button
-                  className="button button--secondary button--small"
-                  onClick={() => {
-                    onConvert(audition);
-                  }}
-                  type="button"
-                >
-                  Convert to Profile
                 </button>
               ) : null}
               <button

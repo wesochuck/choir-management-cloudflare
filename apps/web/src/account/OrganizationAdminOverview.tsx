@@ -86,8 +86,8 @@ function buildOverviewSections(
         {
           href: "/admin/auditions",
           icon: "🎵",
-          label: "Auditions",
-          description: "Review public audition requests",
+          label: "Auditions & Inquiries",
+          description: "Review public audition requests and join inquiries",
           module: "people",
           tone: "blue",
         },
@@ -365,7 +365,7 @@ export function OrganizationAdminOverview({
             ) : null}
             {moduleIsEnabled(modules, "people") ? (
               <DashboardLink href="/admin/auditions" onNavigate={navigate}>
-                <span>Pending Auditions</span>
+                <span>Pending Inquiries</span>
                 <strong>{displayCount(pendingAuditionCount)}</strong>
               </DashboardLink>
             ) : null}

@@ -1,20 +1,8 @@
-import type {
-  DuesRecord,
-  OrganizationProfile,
-  Season,
-  SeasonCreateRequest,
-} from "@choir/contracts";
-import {
-  datePartInTimeZone,
-  utcToZonedLocalDateTime,
-  zonedLocalDateTimeToUtc,
-} from "@choir/domain";
-import { DataTable, Dialog } from "@choir/ui";
+import type { Season } from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
 
 import {
   activateOrganizationSeason,
-  AuthApiError,
   createOrganizationSeason,
   deleteOrganizationSeason,
   getOrganizationCalendarSettings,
@@ -24,99 +12,22 @@ import {
   refundOrganizationDues,
   updateOrganizationSeason,
 } from "../auth/api";
+import { DeleteSeasonDialog } from "./components/SeasonsManager/DeleteSeasonDialog";
+import { DuesTab } from "./components/SeasonsManager/DuesTab";
+import { SeasonDialog } from "./components/SeasonsManager/SeasonDialog";
+import { SeasonsTab } from "./components/SeasonsManager/SeasonsTab";
+import {
+  apiError,
+  defaultDuesSeasonId,
+  emptySeasonForm,
+  seasonFormFor,
+  seasonPayload,
+  type DuesState,
+  type ProfilesState,
+  type SeasonForm,
+  type SeasonState,
+} from "./components/SeasonsManager/types";
 
-type SeasonState =
-  | { readonly status: "error" }
-  | { readonly status: "loading" }
-  | { readonly seasons: readonly Season[]; readonly status: "ready" };
-
-type DuesState =
-  | { readonly status: "error" }
-  | { readonly status: "loading" }
-  | { readonly dues: readonly DuesRecord[]; readonly status: "ready" };
-
-type ProfilesState =
-  | { readonly status: "error" }
-  | { readonly status: "loading" }
-  | { readonly profiles: readonly OrganizationProfile[]; readonly status: "ready" };
-
-interface SeasonForm {
-  readonly duesAmount: string;
-  readonly endsAt: string;
-  readonly name: string;
-  readonly startsAt: string;
-}
-
-function emptySeasonForm(timezone: string): SeasonForm {
-  const startsAt = datePartInTimeZone(new Date(), timezone);
-  const endDate = new Date(`${startsAt}T12:00:00.000Z`);
-  endDate.setUTCFullYear(endDate.getUTCFullYear() + 1);
-  const endsAt = datePartInTimeZone(endDate, timezone);
-  return {
-    duesAmount: "0.00",
-    endsAt,
-    name: "",
-    startsAt,
-  };
-}
-
-function money(cents: number): string {
-  return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
-    cents / 100,
-  );
-}
-
-function dateOnly(value: string, timezone: string): string {
-  return utcToZonedLocalDateTime(value, timezone)?.slice(0, 10) ?? value.slice(0, 10);
-}
-
-function seasonPayload(form: SeasonForm, timezone: string): SeasonCreateRequest {
-  const amount = Number(form.duesAmount);
-  const startsAt = zonedLocalDateTimeToUtc(`${form.startsAt}T00:00`, timezone);
-  const endsAt = zonedLocalDateTimeToUtc(`${form.endsAt}T23:59`, timezone);
-  if (!startsAt || !endsAt) throw new Error("Choose valid dates for the Organization timezone.");
-  return {
-    duesAmountCents: Math.round(amount * 100),
-    endsAt,
-    name: form.name.trim(),
-    startsAt,
-  };
-}
-
-function seasonFormFor(season: Season | null, timezone: string): SeasonForm {
-  return season
-    ? {
-        duesAmount: (season.duesAmountCents / 100).toFixed(2),
-        endsAt: dateOnly(season.endsAt, timezone),
-        name: season.name,
-        startsAt: dateOnly(season.startsAt, timezone),
-      }
-    : emptySeasonForm(timezone);
-}
-
-function seasonDateLabel(value: string, timezone: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeZone: timezone }).format(
-    new Date(value),
-  );
-}
-
-function apiError(error: unknown, fallback: string): string {
-  return error instanceof AuthApiError ? error.message : fallback;
-}
-
-function defaultDuesSeasonId(seasons: readonly Season[]): string | null {
-  const active = seasons.find((season) => season.isActive);
-  if (active) return active.id;
-  return (
-    seasons.reduce<Season | null>(
-      (latest, season) =>
-        !latest || season.startsAt.localeCompare(latest.startsAt) > 0 ? season : latest,
-      null,
-    )?.id ?? null
-  );
-}
-
-// eslint-disable-next-line complexity -- this coordinator owns the two related season and dues workflows.
 export function SeasonsManager({
   enabled,
   onOpenProfile,
@@ -313,6 +224,7 @@ export function SeasonsManager({
   const duesSeasonId =
     selectedDuesSeasonId ??
     (seasonState.status === "ready" ? defaultDuesSeasonId(seasonState.seasons) : null);
+
   return (
     <>
       <section className="panel" aria-label="Season and dues management">
@@ -407,8 +319,9 @@ export function SeasonsManager({
         )}
       </section>
 
-      <Dialog
-        description="Set the dates and dues amount for this choir season. Overlapping seasons are not allowed."
+      <SeasonDialog
+        editingSeason={editingSeason}
+        error={error}
         onClose={() => {
           if (!seasonBusy) {
             setError(null);
@@ -416,96 +329,15 @@ export function SeasonsManager({
           }
         }}
         open={seasonDialogOpen}
-        title={editingSeason ? "Edit season" : "Create season"}
-      >
-        <form
-          className="form-stack"
-          autoComplete="off"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            void saveSeason();
-          }}
-        >
-          {error ? (
-            <p className="notice notice--error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="field">
-            <label htmlFor="season-name">Name</label>
-            <input
-              autoFocus
-              id="season-name"
-              maxLength={200}
-              onChange={(event) => {
-                setSeasonForm((current) => ({ ...current, name: event.target.value }));
-              }}
-              required
-              value={seasonForm.name}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="season-dues-amount">Dues amount</label>
-            <input
-              id="season-dues-amount"
-              min="0"
-              onChange={(event) => {
-                setSeasonForm((current) => ({ ...current, duesAmount: event.target.value }));
-              }}
-              required
-              step="0.01"
-              type="number"
-              value={seasonForm.duesAmount}
-            />
-          </div>
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="season-starts-at">Start date</label>
-              <input
-                id="season-starts-at"
-                onChange={(event) => {
-                  setSeasonForm((current) => ({ ...current, startsAt: event.target.value }));
-                }}
-                required
-                type="date"
-                value={seasonForm.startsAt}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="season-ends-at">End date</label>
-              <input
-                id="season-ends-at"
-                onChange={(event) => {
-                  setSeasonForm((current) => ({ ...current, endsAt: event.target.value }));
-                }}
-                required
-                type="date"
-                value={seasonForm.endsAt}
-              />
-            </div>
-          </div>
-          <div className="dialog__actions">
-            <button
-              className="button button--secondary"
-              disabled={seasonBusy}
-              onClick={() => {
-                setError(null);
-                setSeasonDialogOpen(false);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button className="button button--primary" disabled={seasonBusy} type="submit">
-              {seasonBusy ? "Saving…" : editingSeason ? "Save changes" : "Create season"}
-            </button>
-          </div>
-        </form>
-      </Dialog>
+        saveSeason={saveSeason}
+        seasonBusy={seasonBusy}
+        seasonForm={seasonForm}
+        setSeasonForm={setSeasonForm}
+      />
 
-      <Dialog
-        description="A season with dues records cannot be deleted."
+      <DeleteSeasonDialog
+        confirmSeason={confirmSeason}
+        error={error}
         onClose={() => {
           if (!seasonBusy) {
             setError(null);
@@ -513,333 +345,9 @@ export function SeasonsManager({
           }
         }}
         open={confirmSeason !== null}
-        title="Delete season?"
-      >
-        {error ? (
-          <p className="notice notice--error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <p>
-          {confirmSeason
-            ? `Delete ${confirmSeason.name}? This action cannot be undone.`
-            : "Delete this season?"}
-        </p>
-        <div className="dialog__actions">
-          <button
-            className="button button--secondary"
-            disabled={seasonBusy}
-            onClick={() => {
-              setError(null);
-              setConfirmSeason(null);
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="button button--danger"
-            disabled={seasonBusy}
-            onClick={() => void removeSeason()}
-            type="button"
-          >
-            {seasonBusy ? "Deleting…" : "Delete season"}
-          </button>
-        </div>
-      </Dialog>
-    </>
-  );
-}
-
-function SeasonsTab({
-  busy,
-  onActivate,
-  onDelete,
-  onEdit,
-  seasonState,
-  timezone,
-}: {
-  readonly busy: boolean;
-  readonly onActivate: (season: Season) => void;
-  readonly onDelete: (season: Season) => void;
-  readonly onEdit: (season: Season) => void;
-  readonly seasonState: SeasonState;
-  readonly timezone: string;
-}) {
-  if (seasonState.status === "loading") return <p>Loading seasons…</p>;
-  if (seasonState.status === "error")
-    return <p className="notice notice--error">Seasons could not be loaded.</p>;
-  if (seasonState.seasons.length === 0) return <p>No seasons yet. Add one to get started.</p>;
-  return (
-    <DataTable
-      columns={[
-        {
-          header: "Name",
-          id: "name",
-          render: (season) => <strong>{season.name}</strong>,
-          sortValue: (season) => season.name,
-        },
-        {
-          header: "Starts",
-          id: "startsAt",
-          render: (season) => seasonDateLabel(season.startsAt, timezone),
-          sortValue: (season) => season.startsAt,
-        },
-        {
-          header: "Ends",
-          id: "endsAt",
-          render: (season) => seasonDateLabel(season.endsAt, timezone),
-          sortValue: (season) => season.endsAt,
-        },
-        {
-          header: "Dues amount",
-          id: "duesAmount",
-          render: (season) => money(season.duesAmountCents),
-          sortValue: (season) => season.duesAmountCents,
-        },
-        {
-          header: "Status",
-          id: "status",
-          render: (season) =>
-            season.isActive ? <span className="badge">Active</span> : "Inactive",
-          sortValue: (season) => season.isActive,
-        },
-        {
-          header: "Actions",
-          id: "actions",
-          mobileLabel: "Manage",
-          render: (season) => (
-            <div className="table-actions">
-              {!season.isActive ? (
-                <button
-                  className="text-button"
-                  disabled={busy}
-                  onClick={() => {
-                    onActivate(season);
-                  }}
-                  type="button"
-                >
-                  Make active
-                </button>
-              ) : null}
-              <button
-                className="text-button"
-                disabled={busy}
-                onClick={() => {
-                  onEdit(season);
-                }}
-                type="button"
-              >
-                Edit
-              </button>
-              <button
-                className="text-button text-button--danger"
-                disabled={busy}
-                onClick={() => {
-                  onDelete(season);
-                }}
-                type="button"
-              >
-                Delete
-              </button>
-            </div>
-          ),
-        },
-      ]}
-      emptyMessage="No seasons yet. Add one to get started."
-      initialSort={{ columnId: "startsAt", direction: "desc" }}
-      keySelector={(season) => season.id}
-      onRowClick={onEdit}
-      rowLabel={(season) => `Edit season ${season.name}`}
-      rows={seasonState.seasons}
-    />
-  );
-}
-
-function DuesTab({
-  busy,
-  duesState,
-  onOpenProfile,
-  onSeasonFilterChange,
-  profilesById,
-  refund,
-  refundId,
-  seasonFilterId,
-  seasonState,
-  setRefundId,
-}: {
-  readonly busy: boolean;
-  readonly duesState: DuesState;
-  readonly onOpenProfile: (profileId: string) => void;
-  readonly onSeasonFilterChange: (seasonId: string | null) => void;
-  readonly profilesById: ReadonlyMap<string, OrganizationProfile>;
-  readonly refund: (id: string) => Promise<void>;
-  readonly refundId: string | null;
-  readonly seasonFilterId: string | null;
-  readonly seasonState: SeasonState;
-  readonly setRefundId: (id: string | null) => void;
-}) {
-  const [searchQuery, setSearchQuery] = useState("");
-  if (duesState.status === "loading") return <p>Loading dues records…</p>;
-  if (duesState.status === "error")
-    return <p className="notice notice--error">Dues records could not be loaded.</p>;
-  const seasons = seasonState.status === "ready" ? seasonState.seasons : [];
-  const seasonsById = new Map(seasons.map((season) => [season.id, season] as const));
-  const profileName = (record: DuesRecord): string =>
-    profilesById.get(record.profileId)?.displayName ?? "Profile unavailable";
-  const seasonName = (record: DuesRecord): string =>
-    seasonsById.get(record.seasonId)?.name ?? "Season unavailable";
-  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
-  const filteredDues = duesState.dues.filter((record) => {
-    if (seasonFilterId && record.seasonId !== seasonFilterId) return false;
-    if (!normalizedSearchQuery) return true;
-    return [profileName(record), seasonName(record), record.status].some((value) =>
-      value.toLocaleLowerCase().includes(normalizedSearchQuery),
-    );
-  });
-  const hasSearchQuery = normalizedSearchQuery.length > 0;
-  const openProfile = (record: DuesRecord) => {
-    if (profilesById.has(record.profileId)) onOpenProfile(record.profileId);
-  };
-  return (
-    <>
-      <div className="dues-records-header">
-        <p className="seasons-manager-description">
-          Review dues payment status for members, filter by season, or search by name.
-        </p>
-        <div className="dues-records-toolbar">
-          <label className="field">
-            Search records
-            <input
-              onChange={(event) => {
-                setSearchQuery(event.target.value);
-              }}
-              placeholder="Search names, seasons, or status…"
-              type="search"
-              value={searchQuery}
-            />
-          </label>
-          <label className="field">
-            Season
-            <select
-              disabled={seasonState.status !== "ready" || seasons.length === 0}
-              value={seasonFilterId ?? ""}
-              onChange={(event) => {
-                onSeasonFilterChange(event.target.value || "");
-              }}
-            >
-              {seasons.length > 0 ? null : <option value="">All seasons</option>}
-              {seasons.map((season) => (
-                <option key={season.id} value={season.id}>
-                  {season.name}
-                  {season.isActive ? " (Active)" : ""}
-                </option>
-              ))}
-              {seasons.length > 0 ? <option value="">All seasons</option> : null}
-            </select>
-          </label>
-        </div>
-      </div>
-      {duesState.dues.length === 0 ? <p>No dues records yet.</p> : null}
-      {duesState.dues.length > 0 && filteredDues.length === 0 ? (
-        <p>
-          {hasSearchQuery
-            ? seasonFilterId
-              ? "No dues records match the selected season and search."
-              : "No dues records match your search."
-            : "No dues records for the selected season."}
-        </p>
-      ) : null}
-      {filteredDues.length > 0 ? (
-        <DataTable
-          columns={[
-            {
-              header: "Profile",
-              id: "profile",
-              render: (record) => profileName(record),
-              sortValue: (record) => profileName(record),
-            },
-            {
-              header: "Season",
-              id: "season",
-              render: (record) => seasonName(record),
-              sortValue: (record) => seasonName(record),
-            },
-            {
-              header: "Amount",
-              id: "amount",
-              render: (record) => money(record.amountCents),
-              sortValue: (record) => record.amountCents,
-            },
-            {
-              header: "Processing fee",
-              id: "fee",
-              render: (record) => (record.feeCents > 0 ? money(record.feeCents) : "Covered"),
-              sortValue: (record) => record.feeCents,
-            },
-            {
-              header: "Status",
-              id: "status",
-              render: (record) => record.status,
-              sortValue: (record) => record.status,
-            },
-            {
-              header: "Paid at",
-              id: "paidAt",
-              render: (record) =>
-                record.paidAt ? new Date(record.paidAt).toLocaleDateString() : "—",
-              sortValue: (record) => record.paidAt,
-            },
-            {
-              header: "Action",
-              id: "action",
-              render: (record) =>
-                refundId === record.id ? (
-                  <div className="danger-confirmation">
-                    <p>Refund this dues record?</p>
-                    <div className="form-actions">
-                      <button
-                        className="button button--secondary"
-                        disabled={busy}
-                        onClick={() => {
-                          setRefundId(null);
-                        }}
-                        type="button"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="button button--danger"
-                        disabled={busy}
-                        onClick={() => void refund(record.id)}
-                        type="button"
-                      >
-                        {busy ? "Refunding…" : "Confirm refund"}
-                      </button>
-                    </div>
-                  </div>
-                ) : record.status === "paid" ? (
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      setRefundId(record.id);
-                    }}
-                    type="button"
-                  >
-                    Refund
-                  </button>
-                ) : null,
-            },
-          ]}
-          emptyMessage="No dues records yet."
-          initialSort={{ columnId: "paidAt", direction: "desc" }}
-          keySelector={(record) => record.id}
-          onRowClick={openProfile}
-          rowLabel={(record) => `Open dues for ${profileName(record)}`}
-          rows={filteredDues}
-        />
-      ) : null}
+        removeSeason={removeSeason}
+        seasonBusy={seasonBusy}
+      />
     </>
   );
 }

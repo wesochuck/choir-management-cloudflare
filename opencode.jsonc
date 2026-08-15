@@ -3,6 +3,15 @@
   "plugin": [
     ["opencode-goal-plugin", { "maxTurns": 15, "maxDurationMs": 1800000, "maxTokens": 400000 }],
   ],
+  "agent": {
+    "luna_max_coder": {
+      "description": "Implements and reviews repository changes with GPT-5.6 Luna at maximum reasoning effort.",
+      "mode": "subagent",
+      "model": "openai/gpt-5.6-luna",
+      "reasoningEffort": "max",
+      "prompt": "You are Luna Max Coder, a focused implementation subagent. Follow the repository's AGENTS.md instructions, inspect existing code before editing, make the smallest complete change requested by the orchestrator, and report changed files, verification performed, and any remaining risks. Do not broaden the task or launch additional subagents.",
+    },
+  },
   "command": {
     "goal": {
       "description": "Set a session-scoped goal and auto-continue until complete.",

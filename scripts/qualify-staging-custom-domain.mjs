@@ -1,7 +1,4 @@
-#!/usr/bin/env node
-
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/u,
@@ -45,17 +42,6 @@ function requestFailure(status, body) {
       ? body.code
       : null;
   return `HTTP ${String(status)}${code ? ` (${code})` : ""}`;
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
 }
 
 export function customDomainQualificationPlan() {
@@ -181,41 +167,12 @@ async function request(url, method, cookie, body) {
   return { body: parsed, response };
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline) {
-  if (suppliedSessionCookie) {
-    if (!suppliedSessionCookie.includes("choir-management.session_token=")) {
-      throw new Error("STAGING_SESSION_COOKIE is not a staging session cookie.");
-    }
-    return suppliedSessionCookie;
-  }
-  const otpRequest = await request(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/u.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await request(`${productUrl}/api/auth/sign-in/email-otp`, "POST", "", {
+async function signIn() {
+  return getStagingSession({
     email,
-    otp: code,
+    productUrl,
+    sessionCookie: suppliedSessionCookie || undefined,
   });
-  if (!signInResponse.response.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.response.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse.response);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
 }
 
 async function readDomains(cookie) {
@@ -358,7 +315,6 @@ async function main() {
 
   const hostnames = customDomainHostnames();
   const targetHostnames = [hostnames.subdomain, hostnames.apex, hostnames.www];
-  const readline = createInterface({ input, output });
   let cookie = "";
   const registered = [];
   const disabled = new Set();
@@ -373,7 +329,7 @@ async function main() {
   };
 
   try {
-    cookie = await signIn(readline);
+    cookie = await signIn();
     const context = await request(`${organizationHost}/api/organization/context`, "GET", cookie);
     if (context.response.status !== 200) {
       throw new Error(
@@ -461,7 +417,6 @@ async function main() {
       }
     }
     summary.cleanupCompleted = disabled.size === registered.length;
-    readline.close();
   }
 
   const result = safeCustomDomainQualificationSummary(summary);

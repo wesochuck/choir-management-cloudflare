@@ -18,6 +18,9 @@ const settings: OrganizationAuditionSettings = {
   confirmationMessage: "We received your inquiry.",
   defaultPerformanceId: "00000000-0000-4000-8000-000000000001",
   enabled: true,
+  mode: "audition",
+  rehearsalNotes: "",
+  rehearsalSchedule: [],
   slots: [
     {
       endsAt: "2026-08-26T14:15:00.000Z",

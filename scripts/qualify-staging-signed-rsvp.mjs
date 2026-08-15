@@ -1,5 +1,4 @@
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { getStagingSession } from "./staging-auth-helper.mjs";
 import { pathToFileURL } from "node:url";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
@@ -31,17 +30,6 @@ function uuid(value, label) {
     throw new Error(`${label} must be a UUID.`);
   }
   return value;
-}
-
-function sessionCookieFrom(response) {
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [response.headers.get("set-cookie") ?? ""];
-  return setCookies
-    .map((cookie) => cookie.split(";", 1)[0])
-    .filter(Boolean)
-    .join("; ");
 }
 
 function fixtureTitle() {
@@ -126,38 +114,11 @@ async function jsonRequest(url, method, cookie, body) {
   return { body: parsed, response };
 }
 
-async function prompt(readline, message) {
-  return (await readline.question(message)).trim();
-}
-
-async function signIn(readline) {
-  const otpRequest = await jsonRequest(
-    `${productUrl}/api/auth/email-otp/send-verification-otp`,
-    "POST",
-    "",
-    { email, type: "sign-in" },
-  );
-  if (otpRequest.response.status !== 200) {
-    throw new Error(`Sign-in code request failed with HTTP ${String(otpRequest.response.status)}.`);
-  }
-  console.log(`A sign-in code was requested for ${email}.`);
-  const code = await prompt(readline, "Enter the six-digit sign-in code (not recorded): ");
-  if (!/^\d{6}$/.test(code)) throw new Error("The sign-in code must contain exactly six digits.");
-  const signInResponse = await request(
-    `${productUrl}/api/auth/sign-in/email-otp`,
-    "POST",
-    "",
-    JSON.stringify({ email, otp: code }),
-    { "content-type": "application/json" },
-  );
-  if (!signInResponse.ok) {
-    throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.status)}.`);
-  }
-  const cookie = sessionCookieFrom(signInResponse);
-  if (!cookie.includes("choir-management.session_token=")) {
-    throw new Error("The sign-in response did not return a staging session cookie.");
-  }
-  return cookie;
+async function signIn() {
+  return getStagingSession({
+    email,
+    productUrl,
+  });
 }
 
 async function resolveTargetProfile(cookie) {
@@ -279,7 +240,6 @@ async function main() {
     return;
   }
 
-  const readline = createInterface({ input, output });
   let cookie = "";
   let eventId = null;
   let archived = false;
@@ -292,7 +252,7 @@ async function main() {
     validDetails: false,
   };
   try {
-    cookie = await signIn(readline);
+    cookie = await signIn();
     const profileId = await resolveTargetProfile(cookie);
     const title = fixtureTitle();
     eventId = await createPerformance(cookie, title);
@@ -361,7 +321,6 @@ async function main() {
     if (cookie && eventId && !archived) {
       await archivePerformance(cookie, eventId).catch(() => undefined);
     }
-    readline.close();
   }
 }
 

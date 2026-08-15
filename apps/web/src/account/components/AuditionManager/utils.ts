@@ -28,6 +28,9 @@ export const fallbackSettings: OrganizationAuditionSettings = {
   confirmationMessage: "Thank you for your interest. We will be in touch soon.",
   defaultPerformanceId: null,
   enabled: true,
+  mode: "audition",
+  rehearsalNotes: "",
+  rehearsalSchedule: [],
   slots: [],
   venueId: null,
 };
