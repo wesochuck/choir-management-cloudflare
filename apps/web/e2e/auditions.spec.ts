@@ -571,14 +571,17 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   });
   if (await openWorkspaceNavigation.isVisible()) {
     await openWorkspaceNavigation.click();
+    const navigationDrawer = page.getByRole("dialog");
+    const communicationsLink = navigationDrawer.getByRole("link", {
+      name: "Communications",
+      exact: true,
+    });
+    await communicationsLink.focus();
+    await communicationsLink.press("Enter");
+  } else {
+    await page.getByRole("link", { name: "Communications", exact: true }).click();
   }
   const navigationDialog = page.getByRole("dialog");
-  const communicationsLink = navigationDialog.getByRole("link", {
-    name: "Communications",
-    exact: true,
-  });
-  await communicationsLink.focus();
-  await communicationsLink.press("Enter");
   await expect(navigationDialog).toContainText("Leave with unsaved changes?");
   await navigationDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("heading", { name: "Audition settings" })).toBeVisible();
