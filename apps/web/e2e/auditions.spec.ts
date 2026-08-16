@@ -566,8 +566,19 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   expect(Math.abs(rehearsalVenueBox.y - rehearsalEndTime.y)).toBeLessThanOrEqual(1);
   await page.getByLabel("Start Date / First Rehearsal Date").fill("2026-09-07");
   await expect(page.locator(".floating-save-bar")).toContainText("You have unsaved changes");
-  await page.getByRole("link", { name: "Communications", exact: true }).click();
+  const openWorkspaceNavigation = page.getByRole("button", {
+    name: "Open workspace navigation",
+  });
+  if (await openWorkspaceNavigation.isVisible()) {
+    await openWorkspaceNavigation.click();
+  }
   const navigationDialog = page.getByRole("dialog");
+  const communicationsLink = navigationDialog.getByRole("link", {
+    name: "Communications",
+    exact: true,
+  });
+  await communicationsLink.focus();
+  await communicationsLink.press("Enter");
   await expect(navigationDialog).toContainText("Leave with unsaved changes?");
   await navigationDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("heading", { name: "Audition settings" })).toBeVisible();
@@ -585,7 +596,9 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await page.getByRole("button", { name: "Add regular rehearsal day" }).click({ force: true });
   const saveBar = page.locator(".floating-save-bar");
   await expect(saveBar).toBeVisible();
-  await saveBar.getByRole("button", { name: "Save changes" }).click();
+  const saveButton = saveBar.getByRole("button", { name: "Save changes" });
+  await saveButton.focus();
+  await saveButton.press("Enter");
 
   await expect(page.getByText("Audition settings saved.")).toBeVisible();
   await expect(saveBar).toHaveCount(0);

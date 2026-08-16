@@ -401,6 +401,12 @@
       grid-template-columns: 1fr;
     }
 
+    /* Keep rehearsal time and venue controls paired on narrow screens so the
+     * venue dropdown stays aligned with the end-time control. */
+    .audition-rehearsal-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .settings-grid {
       grid-template-columns: 1fr;
     }
