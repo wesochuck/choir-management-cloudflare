@@ -316,6 +316,12 @@ export function auditionSettingsStoreMessage(code: string, status: number): stri
   if (code === "venue_not_found") {
     return "The selected audition venue is no longer available. Choose another venue.";
   }
+  if (code === "rehearsal_venue_required") {
+    return "Choose an Organization venue for each regular rehearsal before saving.";
+  }
+  if (code === "rehearsal_venue_not_found") {
+    return "A regular rehearsal references a venue that is no longer available. Choose another venue.";
+  }
   if (code === "performance_not_found") {
     return "The selected target Performance is no longer available. Choose another Performance.";
   }

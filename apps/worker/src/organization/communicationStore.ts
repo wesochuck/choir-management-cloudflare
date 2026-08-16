@@ -1,5 +1,6 @@
 import { operationSchema } from "./communicationStore/contracts";
 import {
+  cancelMessage,
   deleteDraft,
   deleteTemplate,
   recordDeliveryResults,
@@ -42,5 +43,6 @@ export async function manageCommunicationInStore(
   if (operation.action === "update-template") return updateTemplate(storage, operation, now);
   if (operation.action === "delete-template") return deleteTemplate(storage, operation, now);
   if (operation.action === "delete-draft") return deleteDraft(storage, operation, now);
+  if (operation.action === "cancel") return cancelMessage(storage, operation, now);
   return recordDeliveryResults(storage, operation, now);
 }

@@ -95,6 +95,10 @@ export const deleteDraftOperationSchema = contextSchema.extend({
   action: z.literal("delete-draft"),
   messageId: z.uuid(),
 });
+export const cancelOperationSchema = contextSchema.extend({
+  action: z.literal("cancel"),
+  messageId: z.uuid(),
+});
 export const deliveryResultOperationSchema = z.object({
   action: z.literal("delivery-result"),
   jobId: z.uuid(),
@@ -118,6 +122,7 @@ export const operationSchema = z.discriminatedUnion("action", [
   updateTemplateOperationSchema,
   deleteTemplateOperationSchema,
   deleteDraftOperationSchema,
+  cancelOperationSchema,
   deliveryResultOperationSchema,
 ]);
 
@@ -144,6 +149,7 @@ export interface ConfigurationRow {
 export interface MessageRow {
   readonly [column: string]: SqlStorageValue;
   readonly audienceJson: string;
+  readonly canceledAt: string | null;
   readonly channel: "Both" | "Email" | "SMS";
   readonly contentMarkdown: string;
   readonly createdAt: string;
@@ -194,4 +200,4 @@ export interface TemplateRow {
 
 export const messageColumns = `id, channel, status, subject, content_markdown AS contentMarkdown,
   audience_json AS audienceJson, reach_json AS reachJson, created_at AS createdAt,
-  updated_at AS updatedAt, sent_at AS sentAt`;
+  updated_at AS updatedAt, sent_at AS sentAt, canceled_at AS canceledAt`;

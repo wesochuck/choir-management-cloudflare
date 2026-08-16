@@ -7,6 +7,7 @@
    The public landing page keeps its editorial scale; the application uses a compact,
    system-sans interface so navigation and operational forms remain readable. */
   .signed-in-shell {
+    --signed-in-header-height: 3.75rem;
     font-family:
       Inter,
       ui-sans-serif,
@@ -61,7 +62,6 @@
   }
 
   .signed-in-header {
-    min-height: 3.75rem;
     padding: 0.55rem clamp(1rem, 3vw, 2.25rem);
     background: color-mix(in srgb, var(--color-background) 94%, transparent);
   }

@@ -79,7 +79,8 @@ export function renderCommunicationTemplate(
 ): string {
   const replacements = { singerName: recipientName, ...values };
   return Object.entries(replacements).reduce(
-    (message, [key, value]) => message.split(`{${key}}`).join(value),
+    (message, [key, value]) =>
+      message.split(`{{${key}}}`).join(value).split(`{${key}}`).join(value),
     template,
   );
 }

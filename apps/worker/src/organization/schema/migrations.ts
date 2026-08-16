@@ -1178,6 +1178,10 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "CREATE INDEX idx_ticket_purchases_discount_code ON ticket_purchases(discount_code_id, status, created_at, id)",
     ],
   },
+  {
+    version: 69,
+    statements: ["ALTER TABLE communication_messages ADD COLUMN canceled_at TEXT"],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -359,7 +359,7 @@ export function AuthenticatedShell({
                 type="button"
               >
                 <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                  <path d="m8 4 8 8m-8-8v5l-3 3h14l-3-3V4M12 12v8" />
+                  <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
                 </svg>
                 <span className="sr-only">Unpin workspace navigation</span>
               </button>
@@ -441,7 +441,7 @@ export function AuthenticatedShell({
               type="button"
             >
               <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                <path d="m8 4 8 8m-8-8v5l-3 3h14l-3-3V4M12 12v8" />
+                <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
               </svg>
               <span className="sr-only">Pin navigation open</span>
             </button>

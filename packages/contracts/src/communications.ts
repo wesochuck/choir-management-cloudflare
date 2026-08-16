@@ -2,7 +2,13 @@ import { z } from "zod";
 import { requestIdSchema } from "./primitives";
 import type { singerLearningTrackPieceSchema } from "./music";
 export const communicationChannelSchema = z.enum(["Email", "SMS", "Both"]);
-export const communicationMessageStatusSchema = z.enum(["Draft", "Queued", "Sent", "Failed"]);
+export const communicationMessageStatusSchema = z.enum([
+  "Canceled",
+  "Draft",
+  "Queued",
+  "Sent",
+  "Failed",
+]);
 export const communicationDeliveryStatusSchema = z.enum([
   "queued",
   "processing",
@@ -143,6 +149,13 @@ export const communicationDeliveryFailureSchema = z.object({
   maskedDestination: z.string().min(1).max(320),
 });
 
+export const communicationDeliveryRecipientSchema = z.object({
+  channel: z.enum(["email", "sms"]),
+  providerStatus: communicationProviderStatusSchema.nullable(),
+  recipientName: z.string().min(1).max(200),
+  status: z.enum(["failed", "processing", "queued", "sent", "suppressed"]),
+});
+
 export const communicationDeliverySummarySchema = z.object({
   email: communicationChannelCountsSchema,
   failures: z.array(communicationDeliveryFailureSchema).max(20),
@@ -150,6 +163,7 @@ export const communicationDeliverySummarySchema = z.object({
   lastActivity: z.iso.datetime().nullable(),
   messageId: z.uuid(),
   provider: communicationProviderStatusCountsSchema,
+  recipients: z.array(communicationDeliveryRecipientSchema).max(1_000).default([]),
   sms: communicationChannelCountsSchema,
   state: z.enum(["failed", "partial", "queued", "sending", "sent", "tracking-unavailable"]),
   total: communicationChannelCountsSchema,
@@ -223,6 +237,7 @@ export const communicationUnsubscribeResponseSchema = z.object({
 
 export type CommunicationAudienceRequest = z.infer<typeof communicationAudienceRequestSchema>;
 export type CommunicationChannel = z.infer<typeof communicationChannelSchema>;
+export type CommunicationDeliveryRecipient = z.infer<typeof communicationDeliveryRecipientSchema>;
 export type CommunicationDeliverySummary = z.infer<typeof communicationDeliverySummarySchema>;
 export type CommunicationDraftRequest = z.infer<typeof communicationDraftRequestSchema>;
 export type CommunicationMessage = z.infer<typeof communicationMessageSchema>;

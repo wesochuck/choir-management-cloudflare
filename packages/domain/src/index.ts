@@ -95,6 +95,7 @@ export { defaultSeatingConfiguration } from "./seatingConfiguration";
 export {
   addRow,
   addSeat,
+  clearSeatAssignment,
   moveAssignment,
   removeRow,
   removeSeat,

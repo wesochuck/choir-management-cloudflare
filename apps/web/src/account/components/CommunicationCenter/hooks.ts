@@ -21,6 +21,7 @@ import {
 import type { CommunicationStage, CommunicationTab } from "./types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  cancelOrganizationCommunication,
   deleteOrganizationCommunicationDraft,
   getOrganizationCommunicationDeliverySummary,
   getOrganizationProviderStatus,
@@ -66,6 +67,9 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [queuedResult, setQueuedResult] = useState<CommunicationMessage | null>(null);
+  const [sendIdempotencyKey, setSendIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [testEmailIdempotencyKey, setTestEmailIdempotencyKey] = useState(() => crypto.randomUUID());
   const { confirm, confirmationDialog } = useConfirmation();
 
   function replaceAudience(nextAudience: CommunicationAudienceRequest) {
@@ -80,6 +84,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   }
 
   const resumeDraft = useCallback((draft: CommunicationMessage) => {
+    setSendIdempotencyKey(crypto.randomUUID());
     audienceRef.current = draft.audience;
     setAudience(draft.audience);
     setChannel(draft.channel);
@@ -88,10 +93,12 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     setVoiceParts(draft.audience.voiceParts.join(", "));
     setStage("compose");
     setActiveTab("compose");
+    setQueuedResult(null);
     setSuccess("Draft loaded. Review the message and queue it when it is ready.");
   }, []);
 
   function startNewMessage() {
+    setSendIdempotencyKey(crypto.randomUUID());
     replaceAudience(defaultAudience);
     setChannel("Email");
     setContentMarkdown("");
@@ -101,6 +108,8 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     setSummary(null);
     setError(null);
     setSuccess(null);
+    setQueuedResult(null);
+    setPreviewOpen(false);
     setStage("audience");
     setActiveTab("compose");
   }
@@ -248,11 +257,15 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     const testSubject = subject.trim() || defaultTestEmailSubject;
     const testContent = contentMarkdown.trim() || defaultTestEmailContent;
     try {
-      await sendOrganizationCommunicationTestEmail({
-        contentMarkdown: testContent,
-        email: recipient,
-        subject: testSubject,
-      });
+      await sendOrganizationCommunicationTestEmail(
+        {
+          contentMarkdown: testContent,
+          email: recipient,
+          subject: testSubject,
+        },
+        testEmailIdempotencyKey,
+      );
+      setTestEmailIdempotencyKey(crypto.randomUUID());
       setSuccess(`Test email accepted for delivery to ${recipient}.`);
     } catch (failure: unknown) {
       setError(failureMessage(failure));
@@ -281,13 +294,15 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     setError(null);
     setSuccess(null);
     try {
-      const message = await sendOrganizationCommunication(composeRequest());
+      const message = await sendOrganizationCommunication(composeRequest(), sendIdempotencyKey);
       setMessages((current) => [message, ...current]);
+      setQueuedResult(message);
       setContentMarkdown("");
       setSubject("");
       setReach(null);
       setPreviewOpen(false);
-      setSuccess("Communication queued for delivery.");
+      setSendIdempotencyKey(crypto.randomUUID());
+      setSuccess(null);
     } catch (failure: unknown) {
       setError(failureMessage(failure));
     } finally {
@@ -338,6 +353,68 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
       await deleteOrganizationCommunicationDraft(message.id);
       setMessages((current) => current.filter(({ id }) => id !== message.id));
       setSuccess("Draft deleted.");
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelQueuedMessage(message: CommunicationMessage) {
+    const shouldCancel = await confirm({
+      confirmLabel: "Cancel message",
+      description: "No more deliveries will be attempted for this queued message.",
+      destructive: true,
+      title: "Cancel queued message?",
+    });
+    if (!shouldCancel) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const canceled = await cancelOrganizationCommunication(message.id);
+      setMessages((current) =>
+        current.map((candidate) => (candidate.id === message.id ? canceled : candidate)),
+      );
+      setSummary((current) => (current?.messageId === message.id ? null : current));
+      setSuccess("Queued message canceled.");
+    } catch (failure: unknown) {
+      setError(failureMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function editQueuedMessage(message: CommunicationMessage) {
+    const shouldEdit = await confirm({
+      confirmLabel: "Edit & requeue",
+      description:
+        "Editing cancels the queued copy and opens its contents for changes. Queue it again when it is ready.",
+      title: "Edit queued message?",
+    });
+    if (!shouldEdit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const canceled = await cancelOrganizationCommunication(message.id);
+      setMessages((current) =>
+        current.map((candidate) => (candidate.id === message.id ? canceled : candidate)),
+      );
+      audienceRef.current = canceled.audience;
+      setAudience(canceled.audience);
+      setChannel(canceled.channel);
+      setContentMarkdown(canceled.contentMarkdown);
+      setSubject(canceled.subject);
+      setVoiceParts(canceled.audience.voiceParts.join(", "));
+      setReach(null);
+      setSummary(null);
+      setQueuedResult(null);
+      setSendIdempotencyKey(crypto.randomUUID());
+      setPreviewOpen(false);
+      setStage("compose");
+      setActiveTab("compose");
+      setSuccess(
+        "Queued message canceled. Review it, make changes, and queue it again when ready.",
+      );
     } catch (failure: unknown) {
       setError(failureMessage(failure));
     } finally {
@@ -399,10 +476,12 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     audienceFieldsetRef,
     busy,
     channel,
+    cancelQueuedMessage,
     contentMarkdown,
     confirmationDialog,
     deleteDraft,
     draftMessages,
+    editQueuedMessage,
     enabled,
     error,
     events,
@@ -412,6 +491,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     previewOpen,
     previewReach,
     providerStatus,
+    queuedResult,
     reach,
     resumeDraft,
     retryFailed,

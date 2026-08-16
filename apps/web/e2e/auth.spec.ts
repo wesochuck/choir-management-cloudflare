@@ -280,6 +280,10 @@ test.beforeEach(async ({ page }) => {
             publicDetails: "A Browser Concert for the choir.",
             publicGraphicFileId: null,
             publishOnWebsite: true,
+            rsvpDeadlineAt: "2026-08-13T23:59:59.000Z",
+            rsvpDeadlineDate: "2026-08-13",
+            rsvpDeadlinePassed: true,
+            rsvpSelfServiceOpen: false,
             setList: [{ title: "Finale" }],
             setListApproved: true,
             startsAt: "2026-08-20T23:00:00.000Z",
@@ -891,13 +895,10 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   await expect(
     page.getByText("1 singer across 1 row — 1 singer per row.", { exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Singers to place").fill("10");
+  await page.getByLabel("Singers to place").fill("30");
   await page.getByLabel("Rows").fill("3");
   await expect(
-    page.getByText(
-      "10 singers across 3 rows — 3–4 singers per row, balanced as evenly as possible.",
-      { exact: true },
-    ),
+    page.getByText("30 singers across 3 rows — 10 singers per row.", { exact: true }),
   ).toBeVisible();
   const createChartRequestPromise = page.waitForRequest(
     (request) => request.method() === "POST" && request.url().includes("/seating-charts"),
@@ -905,7 +906,7 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   await page.getByRole("button", { name: "Create chart", exact: true }).click();
   const createChartRequest = await createChartRequestPromise;
   expect(createChartRequest.postDataJSON()).toEqual(
-    expect.objectContaining({ rowCounts: [4, 3, 3] }),
+    expect.objectContaining({ rowCounts: [10, 10, 10] }),
   );
   const chartSelect = page.getByLabel("Select seating chart");
   await expect(chartSelect).toContainText("Full Canvas Chart");
@@ -952,6 +953,29 @@ test("renders the focused seating canvas with structural controls", async ({ pag
     await expect(
       page.locator(".seating-seat--assigned").filter({ hasText: "Browser Singer" }).first(),
     ).toBeVisible();
+
+    const assignedSeat = page
+      .locator(".seating-seat--assigned")
+      .filter({ hasText: "Browser Singer" })
+      .first();
+    await expect(assignedSeat).toHaveAttribute("title", "Browser Singer");
+    await expect(assignedSeat.getByText("Browser Singer", { exact: true })).toBeHidden();
+    await expect(assignedSeat.getByText("BS", { exact: true })).toBeVisible();
+    await assignedSeat.getByRole("button", { name: "Remove Browser Singer from Seat 1" }).click();
+    const clearSeatDialog = page.getByRole("dialog", { name: "Clear seat assignment?" });
+    await expect(clearSeatDialog).toContainText("return them to Unassigned Profiles");
+    await clearSeatDialog.getByRole("button", { name: "Clear assignment" }).click();
+    await expect(
+      page.locator(".seating-seat--assigned").filter({ hasText: "Browser Singer" }),
+    ).toHaveCount(0);
+    const firstRow = page.locator(".seating-row--canvas").filter({ hasText: "Row 1" }).first();
+    await expect(firstRow.locator(".seating-seat--canvas")).toHaveCount(10);
+
+    await firstRow.getByRole("button", { name: "Delete empty Seat 1", exact: true }).click();
+    const deleteSeatDialog = page.getByRole("dialog", { name: "Delete empty seat?" });
+    await expect(deleteSeatDialog).toBeVisible();
+    await deleteSeatDialog.getByRole("button", { name: "Delete seat" }).click();
+    await expect(firstRow.locator(".seating-seat--canvas")).toHaveCount(9);
   }
   await expect(page.getByRole("button", { name: "+ Add row to back" })).toBeVisible();
   await expect(page.getByRole("button", { name: "+ Add row to front" })).toBeVisible();
@@ -1644,6 +1668,12 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     linkedRsvpPage.locator(".rsvp-manager__balance").getByRole("combobox", { name: "Performance" }),
   ).toHaveValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   await expect(linkedRsvpPage.getByRole("heading", { name: "RSVP roster" })).toBeVisible();
+  await expect(
+    linkedRsvpPage.getByText(/Administrators can still override responses\./),
+  ).toBeVisible();
+  await expect(
+    linkedRsvpPage.getByRole("link", { name: "Roster Settings", exact: true }),
+  ).toHaveCount(0);
   const rsvpBalance = linkedRsvpPage.locator(".rsvp-manager__balance");
   const rsvpRoster = linkedRsvpPage.locator(".rsvp-manager__roster");
   const visibleRsvpContent = rsvpRoster.locator(".data-table:visible, .data-table-cards:visible");
@@ -1831,6 +1861,12 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     name: "Collapse workspace navigation",
   });
   await expect(collapseNavigation).toBeVisible();
+  await expect(page.locator(".signed-in-header")).toHaveCSS("height", "60px");
+  await expect(page.locator(".signed-in-sidebar")).toHaveCSS("top", "60px");
+  await expect(page.locator(".sidebar-toolbar__button--pin path")).toHaveAttribute(
+    "d",
+    "M8 4h8v5l3 3H5l3-3V4M12 12v8",
+  );
   await collapseNavigation.click();
   await expect(page.locator(".signed-in-sidebar")).toHaveCount(0);
   const openNavigation = page.getByRole("button", { name: "Open workspace navigation" });
@@ -1842,6 +1878,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(pinNavigation).toHaveClass(/sidebar-drawer__pin/);
   await expect(pinNavigation).toHaveCSS("width", "36px");
   await expect(pinNavigation.locator("svg")).toHaveCSS("overflow", "visible");
+  await expect(pinNavigation.locator("path")).toHaveAttribute("d", "M8 4h8v5l3 3H5l3-3V4M12 12v8");
   await pinNavigation.click();
   await expect(navigationDrawer).toHaveCount(0);
   await expect(collapseNavigation).toBeVisible();

@@ -99,6 +99,118 @@ function isDonationSystemTemplate(template: CommunicationTemplate): boolean {
   return /\bdonation\b|\bdonor\b/.test(text);
 }
 
+type TemplateChannelFilter = CommunicationChannel | "All";
+type TemplateTypeFilter = "all" | "custom" | "system";
+
+function templateChannelFilterFromValue(value: string): TemplateChannelFilter {
+  return value === "Email" || value === "SMS" || value === "Both" ? value : "All";
+}
+
+function templateTypeFilterFromValue(value: string): TemplateTypeFilter {
+  return value === "custom" || value === "system" ? value : "all";
+}
+
+function templateMatchesFilters(
+  template: CommunicationTemplate,
+  search: string,
+  channelFilter: TemplateChannelFilter,
+  typeFilter: TemplateTypeFilter,
+): boolean {
+  const searchMatches =
+    search.length === 0 ||
+    `${template.title}\n${template.subject}\n${template.contentMarkdown}`
+      .toLowerCase()
+      .includes(search);
+  const channelMatches = channelFilter === "All" || template.channel === channelFilter;
+  const typeMatches =
+    typeFilter === "all" || (typeFilter === "system" ? template.isSystem : !template.isSystem);
+  return searchMatches && channelMatches && typeMatches;
+}
+
+function TemplateFilters({
+  channelFilter,
+  onChannelFilterChange,
+  onClear,
+  onSearchChange,
+  onTypeFilterChange,
+  search,
+  totalCount,
+  typeFilter,
+  visibleCount,
+}: {
+  readonly channelFilter: TemplateChannelFilter;
+  readonly onChannelFilterChange: (value: TemplateChannelFilter) => void;
+  readonly onClear: () => void;
+  readonly onSearchChange: (value: string) => void;
+  readonly onTypeFilterChange: (value: TemplateTypeFilter) => void;
+  readonly search: string;
+  readonly totalCount: number;
+  readonly typeFilter: TemplateTypeFilter;
+  readonly visibleCount: number;
+}) {
+  const hasFilters = search.trim().length > 0 || channelFilter !== "All" || typeFilter !== "all";
+  return (
+    <div className="communication-template-filters" aria-label="Template filters">
+      <div className="field">
+        <label htmlFor="communication-template-search">Search templates</label>
+        <input
+          id="communication-template-search"
+          onChange={(event) => {
+            onSearchChange(event.target.value);
+          }}
+          placeholder="Name, subject, or message"
+          type="search"
+          value={search}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="communication-template-channel-filter">Template channel</label>
+        <select
+          id="communication-template-channel-filter"
+          onChange={(event) => {
+            onChannelFilterChange(templateChannelFilterFromValue(event.target.value));
+          }}
+          value={channelFilter}
+        >
+          <option value="All">All channels</option>
+          <option value="Email">Email</option>
+          <option value="SMS">SMS</option>
+          <option value="Both">Email &amp; SMS</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="communication-template-type-filter">Template type</label>
+        <select
+          id="communication-template-type-filter"
+          onChange={(event) => {
+            onTypeFilterChange(templateTypeFilterFromValue(event.target.value));
+          }}
+          value={typeFilter}
+        >
+          <option value="all">All templates</option>
+          <option value="custom">Custom templates</option>
+          <option value="system">System templates</option>
+        </select>
+      </div>
+      <div className="communication-template-filters__actions">
+        <p className="communication-template-filter-summary" role="status">
+          Showing {String(visibleCount)} of {String(totalCount)}
+          {totalCount === 1 ? " template" : " templates"}
+        </p>
+        {hasFilters ? (
+          <button
+            className="button button--secondary button--small"
+            onClick={onClear}
+            type="button"
+          >
+            Clear template filters
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function CommunicationTemplatePicker({
   audience,
   channel,
@@ -219,6 +331,9 @@ export function TemplateLibrary({
   const [editingTitle, setEditingTitle] = useState("");
   const [editingSubject, setEditingSubject] = useState("");
   const [editingContent, setEditingContent] = useState("");
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateChannelFilter, setTemplateChannelFilter] = useState<TemplateChannelFilter>("All");
+  const [templateTypeFilter, setTemplateTypeFilter] = useState<TemplateTypeFilter>("all");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { confirm, confirmationDialog } = useConfirmation();
@@ -235,11 +350,26 @@ export function TemplateLibrary({
     };
   }, []);
 
-  const visibleTemplates = showAll
+  const availableTemplates = showAll
     ? templates
     : templates.filter((template) =>
         templateMatchesCommunicationContext(template, audience, channel),
       );
+  const normalizedTemplateSearch = templateSearch.trim().toLowerCase();
+  const visibleTemplates = availableTemplates.filter((template) =>
+    templateMatchesFilters(
+      template,
+      normalizedTemplateSearch,
+      templateChannelFilter,
+      templateTypeFilter,
+    ),
+  );
+
+  function clearTemplateFilters(): void {
+    setTemplateSearch("");
+    setTemplateChannelFilter("All");
+    setTemplateTypeFilter("all");
+  }
 
   async function save() {
     setBusy(true);
@@ -325,6 +455,17 @@ export function TemplateLibrary({
           {error}
         </p>
       ) : null}
+      <TemplateFilters
+        channelFilter={templateChannelFilter}
+        onChannelFilterChange={setTemplateChannelFilter}
+        onClear={clearTemplateFilters}
+        onSearchChange={setTemplateSearch}
+        onTypeFilterChange={setTemplateTypeFilter}
+        search={templateSearch}
+        totalCount={availableTemplates.length}
+        typeFilter={templateTypeFilter}
+        visibleCount={visibleTemplates.length}
+      />
       {visibleTemplates.length > 0 ? (
         <ul className="account-list">
           {visibleTemplates.map((template) => (
@@ -357,7 +498,7 @@ export function TemplateLibrary({
           ))}
         </ul>
       ) : (
-        <p>No templates match this channel and audience yet.</p>
+        <p>No templates match the current search and filters.</p>
       )}
       {editingTemplate ? (
         <fieldset className="form-stack communication-template-editor">

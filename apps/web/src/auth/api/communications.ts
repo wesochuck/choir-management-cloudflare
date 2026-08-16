@@ -67,19 +67,33 @@ export async function saveOrganizationCommunicationDraft(
 
 export async function sendOrganizationCommunication(
   communication: CommunicationSendRequest,
+  idempotencyKey?: string,
 ): Promise<CommunicationMessage> {
   const response = await request("/api/organization/communications/send", {
     body: JSON.stringify(communication),
+    ...(idempotencyKey ? { headers: { "idempotency-key": idempotencyKey } } : {}),
     method: "POST",
   });
   return communicationMessageResponseSchema.parse(await response.json());
 }
 
+export async function cancelOrganizationCommunication(
+  messageId: string,
+): Promise<CommunicationMessage> {
+  const response = await request(
+    `/api/organization/communications/${encodeURIComponent(messageId)}/cancel`,
+    { method: "POST" },
+  );
+  return communicationMessageResponseSchema.parse(await response.json());
+}
+
 export async function sendOrganizationCommunicationTestEmail(
   message: CommunicationTestEmailRequest,
+  idempotencyKey?: string,
 ): Promise<void> {
   const response = await request("/api/organization/communications/test-email", {
     body: JSON.stringify(message),
+    ...(idempotencyKey ? { headers: { "idempotency-key": idempotencyKey } } : {}),
     method: "POST",
   });
   communicationTestEmailResponseSchema.parse(await response.json());

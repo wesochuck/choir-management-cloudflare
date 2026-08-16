@@ -1,5 +1,11 @@
 import { closestCenter, DndContext, DragOverlay } from "@dnd-kit/core";
-import { addRow, addSeat, isSeatingSectionMismatch, moveAssignment } from "@choir/domain";
+import {
+  addRow,
+  addSeat,
+  clearSeatAssignment,
+  isSeatingSectionMismatch,
+  moveAssignment,
+} from "@choir/domain";
 import { Dialog } from "@choir/ui";
 import { type CSSProperties } from "react";
 import { setOrganizationEventRsvp } from "../../../auth/api";
@@ -14,7 +20,7 @@ import {
   seatingRowSummary,
   statusLabel,
 } from "./utils";
-import { SeatTile, UnassignedTray, ChartList } from "./chartParts";
+import { ChartList, SeatName, SeatTile, UnassignedTray } from "./chartParts";
 import type { SeatingManagerModel } from "./hooks";
 
 // eslint-disable-next-line complexity -- render composition preserves the existing seating workspace's independent tools and dialogs.
@@ -667,14 +673,16 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                               />
                             ) : (
                               <div
-                                className={`seating-seat seating-seat--canvas seating-seat--readonly${mismatch ? " seating-seat--mismatch" : ""}`}
+                                aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
+                                className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
                                 key={seatKey}
+                                title={profile?.displayName}
                               >
                                 <span className="seating-seat__number">Seat {seatIndex + 1}</span>
                                 <span className="seating-seat__suggestion">
                                   {suggestion ?? "Open"}
                                 </span>
-                                <strong>{profile?.displayName ?? "Empty"}</strong>
+                                <SeatName displayName={profile?.displayName} />
                                 {profile ? (
                                   <span className="seating-seat__voice">{profile.voicePart}</span>
                                 ) : null}
@@ -1079,7 +1087,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
       </Dialog>
 
       <Dialog
-        description="Assign an eligible Profile, unassign the current Profile, or remove this seat."
+        description="Assign an eligible Profile, unassign the current Profile, or delete an empty seat."
         onClose={() => {
           setSelectedSeat(null);
         }}
@@ -1142,12 +1150,17 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                 <button
                   className="button button--secondary"
                   onClick={() => {
-                    applyChart({
-                      ...chart,
-                      assignments: Object.fromEntries(
-                        Object.entries(chart.assignments).filter(([key]) => key !== selectedSeat),
-                      ),
-                    });
+                    const [rowText, seatText] = selectedSeat.split("-");
+                    const nextLayout = clearSeatAssignment(
+                      {
+                        assignments: chart.assignments,
+                        rowCounts: chart.rowCounts,
+                        sectionSuggestions: chart.sectionSuggestions,
+                      },
+                      Number(rowText),
+                      Number(seatText),
+                    );
+                    applyChart({ ...chart, assignments: nextLayout.assignments });
                     setSelectedSeat(null);
                   }}
                   type="button"
@@ -1159,7 +1172,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
                 const [rowText, seatText] = selectedSeat.split("-");
                 const rowIndex = Number(rowText);
                 const seatIndex = Number(seatText);
-                return (chart.rowCounts[rowIndex] ?? 0) > 1 ? (
+                return !chart.assignments[selectedSeat] && (chart.rowCounts[rowIndex] ?? 0) > 1 ? (
                   <button
                     className="button button--danger"
                     onClick={() => {

@@ -235,6 +235,7 @@ export async function sendOrganizationCommunication(
   database: D1Database,
   context: ActorContext & { readonly organizationOrigin: string },
   message: CommunicationSendRequest,
+  idempotencyKey?: string,
 ): Promise<CommunicationMessage> {
   const recipients = await resolveRecipients(
     env,
@@ -246,10 +247,24 @@ export async function sendOrganizationCommunication(
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
     action: "send",
     ...context,
+    dedupeKey: idempotencyKey,
     jobId: crypto.randomUUID(),
     message,
     messageId: crypto.randomUUID(),
     recipients,
+  });
+  return communicationMessageSchema.parse(await response.json());
+}
+
+export async function cancelOrganizationCommunication(
+  env: Env,
+  context: ActorContext,
+  messageId: string,
+): Promise<CommunicationMessage> {
+  const response = await post(env, context.organizationId, "/internal/communications/manage", {
+    action: "cancel",
+    ...context,
+    messageId,
   });
   return communicationMessageSchema.parse(await response.json());
 }

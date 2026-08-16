@@ -6,10 +6,12 @@ import {
   communicationTemplateRequestSchema,
   type ProblemDetails,
 } from "@choir/contracts";
+import { renderCommunicationTemplate } from "@choir/domain";
 import { z } from "zod";
 import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
 import { deliverOrganizationCommunication } from "../communications/provider";
 import {
+  CommunicationRepositoryError,
   listOrganizationCommunications,
   listOrganizationScheduledMessages,
   listCommunicationTemplates,
@@ -22,6 +24,7 @@ import {
   updateCommunicationTemplate,
   saveCommunicationDraft,
   sendOrganizationCommunication,
+  cancelOrganizationCommunication,
 } from "../organization/organizationCommunications";
 
 import type { Hono } from "hono";
@@ -29,6 +32,8 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute, communicationProblem } from "./helpers";
+
+const communicationIdempotencyKeySchema = z.string().trim().min(1).max(256);
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/communications", async (context) => {
@@ -377,6 +382,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         } satisfies ProblemDetails,
         400,
       );
+    const idempotencyKey = communicationIdempotencyKeySchema
+      .optional()
+      .safeParse(context.req.header("idempotency-key"));
+    if (!idempotencyKey.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "The Idempotency-Key header must be between 1 and 256 characters.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
     try {
       const message = await sendOrganizationCommunication(
         context.env,
@@ -388,6 +405,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           requestId: context.get("requestId"),
         },
         body.data,
+        idempotencyKey.data,
       );
       return context.json({ ...message, requestId: context.get("requestId") }, 202);
     } catch (error: unknown) {
@@ -419,19 +437,32 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         } satisfies ProblemDetails,
         400,
       );
+    const idempotencyKey = communicationIdempotencyKeySchema
+      .optional()
+      .safeParse(context.req.header("idempotency-key"));
+    if (!idempotencyKey.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "The Idempotency-Key header must be between 1 and 256 characters.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
     try {
       await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
+      const testRecipientName = "Test recipient";
       const delivery = await deliverOrganizationCommunication(context.env, {
         channel: "email",
-        contentMarkdown: body.data.contentMarkdown,
+        contentMarkdown: renderCommunicationTemplate(body.data.contentMarkdown, testRecipientName),
         deliveryId: crypto.randomUUID(),
         destination: body.data.email,
         messageId: crypto.randomUUID(),
         organizationId: authorization.organizationId,
-        recipientName: "Test recipient",
-        sourceId: crypto.randomUUID(),
+        recipientName: testRecipientName,
+        sourceId: idempotencyKey.data ?? crypto.randomUUID(),
         sourceKind: "test_email",
-        subject: `[Test] ${body.data.subject}`,
+        subject: "[Test] " + renderCommunicationTemplate(body.data.subject, testRecipientName),
         unsubscribeUrl: null,
       });
       if (delivery.status === "suppressed") {
@@ -528,6 +559,47 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         error,
         context.get("requestId"),
         "Failed deliveries could not be queued for retry.",
+      );
+      return context.json(result.problem, result.status);
+    }
+  });
+
+  router.post("/api/organization/communications/:messageId/cancel", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok)
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    const messageId = z.uuid().safeParse(context.req.param("messageId"));
+    if (!messageId.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid communication is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    try {
+      const message = await cancelOrganizationCommunication(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        messageId.data,
+      );
+      return context.json({ ...message, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      const result = communicationProblem(
+        error,
+        context.get("requestId"),
+        error instanceof CommunicationRepositoryError &&
+          error.code === "communication_delivery_started"
+          ? "Delivery has already started, so this message can no longer be canceled."
+          : "The queued communication could not be canceled.",
       );
       return context.json(result.problem, result.status);
     }

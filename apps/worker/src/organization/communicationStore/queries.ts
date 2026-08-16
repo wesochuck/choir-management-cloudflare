@@ -3,7 +3,7 @@ import {
   communicationScheduledMessageSchema,
   communicationTemplateSchema,
 } from "@choir/contracts";
-import { summarizeCommunicationDeliveries, type DeliveryRecord } from "@choir/domain";
+import { summarizeCommunicationDeliveries } from "@choir/domain";
 import { z } from "zod";
 
 import {
@@ -383,7 +383,7 @@ export function readCommunicationSummaryFromStore(
   const parsedMessageId = z.uuid().safeParse(messageId);
   if (!parsedMessageId.success || !readMessage(storage, parsedMessageId.data))
     return Response.json({ code: "communication_message_not_found" }, { status: 404 });
-  const records: DeliveryRecord[] = storage.sql
+  const records = storage.sql
     .exec<DeliveryRow>(
       `SELECT id, message_id AS messageId, recipient_name AS recipientName, channel, destination,
         status, attempts, failure_detail AS failureDetail, provider_status AS providerStatus,
@@ -392,10 +392,17 @@ export function readCommunicationSummaryFromStore(
       parsedMessageId.data,
     )
     .toArray();
+  const summary = summarizeCommunicationDeliveries(parsedMessageId.data, records);
   return Response.json(
-    communicationDeliverySummarySchema.parse(
-      summarizeCommunicationDeliveries(parsedMessageId.data, records),
-    ),
+    communicationDeliverySummarySchema.parse({
+      ...summary,
+      recipients: records.slice(0, 1_000).map((record) => ({
+        channel: record.channel,
+        providerStatus: record.providerStatus,
+        recipientName: record.recipientName,
+        status: record.status,
+      })),
+    }),
   );
 }
 
@@ -420,34 +427,59 @@ export function readCommunicationJobFromStore(
   const messageId = job?.idempotencyKey.split(":")[1];
   if (!messageId) return Response.json({ code: "communication_job_not_found" }, { status: 404 });
   const message = readMessage(storage, messageId);
-  storage.sql.exec(
-    `UPDATE communication_deliveries
-     SET status = 'suppressed', failure_detail = '', updated_at = ?
-     WHERE message_id = ? AND channel = 'email' AND status = 'queued'
-       AND EXISTS (
-         SELECT 1 FROM profiles p
-         WHERE p.id = communication_deliveries.profile_id
-           AND (
-             p.do_not_email = 1 OR EXISTS (
-               SELECT 1 FROM communication_suppressions s
-               WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+  if (!message) return Response.json({ code: "communication_message_not_found" }, { status: 404 });
+  const deliveries = storage.transactionSync(() => {
+    const current = storage.sql
+      .exec<{
+        readonly canceledAt: string | null;
+        readonly status: "Draft" | "Failed" | "Queued" | "Sent";
+      }>(
+        `SELECT status, canceled_at AS canceledAt
+         FROM communication_messages WHERE id = ? LIMIT 1`,
+        messageId,
+      )
+      .toArray()
+      .at(0);
+    if (!current || current.canceledAt || current.status !== "Queued") return [];
+    const now = new Date().toISOString();
+    storage.sql.exec(
+      `UPDATE communication_deliveries
+       SET status = 'suppressed', failure_detail = '', updated_at = ?
+       WHERE message_id = ? AND channel = 'email' AND status = 'queued'
+         AND EXISTS (
+           SELECT 1 FROM profiles p
+           WHERE p.id = communication_deliveries.profile_id
+             AND (
+               p.do_not_email = 1 OR EXISTS (
+                 SELECT 1 FROM communication_suppressions s
+                 WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+               )
              )
-           )
-       )`,
-    new Date().toISOString(),
-    messageId,
-  );
-  const deliveries = storage.sql
-    .exec<DeliveryRow>(
-      `SELECT id, message_id AS messageId, profile_id AS profileId, recipient_name AS recipientName, channel, destination,
-        status, attempts, failure_detail AS failureDetail, updated_at AS updatedAt,
-        unsubscribe_url AS unsubscribeUrl
-       FROM communication_deliveries WHERE message_id = ? AND status = 'queued'
-       ORDER BY id LIMIT 1000`,
+         )`,
+      now,
       messageId,
-    )
-    .toArray()
-    .map(({ channel, destination, id, profileId, recipientName, unsubscribeUrl }) => ({
+    );
+    const queued = storage.sql
+      .exec<
+        Pick<
+          DeliveryRow,
+          "channel" | "destination" | "id" | "profileId" | "recipientName" | "unsubscribeUrl"
+        >
+      >(
+        `SELECT id, message_id AS messageId, profile_id AS profileId, recipient_name AS recipientName,
+          channel, destination, unsubscribe_url AS unsubscribeUrl
+         FROM communication_deliveries WHERE message_id = ? AND status = 'queued'
+         ORDER BY id LIMIT 1000`,
+        messageId,
+      )
+      .toArray();
+    storage.sql.exec(
+      `UPDATE communication_deliveries SET status = 'processing', updated_at = ?
+       WHERE message_id = ? AND status = 'queued'`,
+      now,
+      messageId,
+    );
+    return queued.map(({ channel, destination, id, profileId, recipientName, unsubscribeUrl }) => ({
       channel,
       destination,
       id,
@@ -455,15 +487,14 @@ export function readCommunicationJobFromStore(
       recipientName,
       unsubscribeUrl,
     }));
-  const eventId = message?.audience.eventId ?? null;
+  });
+  const eventId = message.audience.eventId;
   const context = eventCommunicationContext(storage, eventId);
-  return message
-    ? Response.json({
-        contentMarkdown: message.contentMarkdown,
-        context,
-        deliveries,
-        messageId,
-        subject: message.subject,
-      })
-    : Response.json({ code: "communication_message_not_found" }, { status: 404 });
+  return Response.json({
+    contentMarkdown: message.contentMarkdown,
+    context,
+    deliveries,
+    messageId,
+    subject: message.subject,
+  });
 }

@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { getFirstName, getLastName, getUniqueDisplayNames } from "./nameFormatting";
+import { getFirstName, getInitials, getLastName, getUniqueDisplayNames } from "./nameFormatting";
 
 describe("seating name formatting", () => {
   it("keeps compound surnames and suffixes together", () => {
     expect(getLastName("  Ron   Van Dyke ")).toBe("Van Dyke");
     expect(getFirstName("Ron Van Dyke")).toBe("Ron");
     expect(getLastName("Martin Luther King Jr.")).toBe("Luther King Jr.");
+  });
+
+  it("renders compact initials for narrow seating tiles", () => {
+    expect(getInitials(" Aden  Van Horn ")).toBe("AVH");
+    expect(getInitials("Sue Smith")).toBe("SS");
+    expect(getInitials(" ")).toBe("");
   });
 
   it("uses only a surname when it is unique", () => {

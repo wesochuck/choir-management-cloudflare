@@ -15,6 +15,7 @@ import {
 } from "@dnd-kit/core";
 import {
   calculateSeatingSuggestions,
+  clearSeatAssignment,
   moveAssignment,
   removeRow,
   removeSeat,
@@ -586,12 +587,26 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
 
   function requestRemoveSeat(rowIndex: number, seatIndex: number): void {
     const key = `${String(rowIndex)}-${String(seatIndex)}`;
-    const occupant = profilesById.get(chart.assignments[key] ?? "");
+    const assignedProfileId = chart.assignments[key];
+    const occupant = assignedProfileId ? profilesById.get(assignedProfileId) : undefined;
+    if (assignedProfileId) {
+      setConfirmState({
+        title: "Clear seat assignment?",
+        message: occupant
+          ? `Clear ${occupant.displayName} from this seat and return them to Unassigned Profiles?`
+          : "Clear the assigned Profile from this seat without deleting the seat?",
+        confirmLabel: "Clear assignment",
+        onConfirm: () => {
+          updateLayout(clearSeatAssignment({ ...chart }, rowIndex, seatIndex));
+          setConfirmState(null);
+        },
+      });
+      return;
+    }
+
     setConfirmState({
-      title: "Delete seat?",
-      message: occupant
-        ? `Deleting this seat will return ${occupant.displayName} to Unassigned Profiles.`
-        : "Delete this seat from the row?",
+      title: "Delete empty seat?",
+      message: "Delete this empty seat from the row?",
       confirmLabel: "Delete seat",
       onConfirm: () => {
         updateLayout(removeSeat({ ...chart }, rowIndex, seatIndex));

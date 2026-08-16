@@ -1,9 +1,27 @@
+import type { CommunicationDeliveryRecipient } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { audienceOptions, channelFromValue, displayDate, eventLabel } from "./utils";
 import { CommunicationSectionPicker, CommunicationTemplatePicker, TemplateLibrary } from "./shared";
 import { CommunicationComposer } from "../../CommunicationComposer";
-import { renderCommunicationMarkdownPreview } from "../../communicationMarkdown";
+import {
+  communicationPreviewValues,
+  renderCommunicationMarkdownPreview,
+} from "../../communicationMarkdown";
 import type { CommunicationCenterModel } from "./hooks";
+
+function deliveryStatusLabel(recipient: CommunicationDeliveryRecipient): string {
+  if (recipient.providerStatus === "delivered") return "Delivered";
+  return recipient.status.charAt(0).toUpperCase() + recipient.status.slice(1);
+}
+
+function deliveryChannelLabel(channel: CommunicationDeliveryRecipient["channel"]): string {
+  return channel === "email" ? "Email" : "SMS";
+}
+
+function queuedReachMessage(total: number): string {
+  if (total === 0) return "No recipients were queued for delivery.";
+  return `${String(total)} ${total === 1 ? "recipient was" : "recipients were"} queued for delivery.`;
+}
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
 export function CommunicationCenterView({ model }: { readonly model: CommunicationCenterModel }) {
@@ -13,10 +31,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     audienceFieldsetRef,
     busy,
     channel,
+    cancelQueuedMessage,
     contentMarkdown,
     confirmationDialog,
     deleteDraft,
     draftMessages,
+    editQueuedMessage,
     enabled,
     error,
     events,
@@ -26,6 +46,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     previewOpen,
     previewReach,
     providerStatus,
+    queuedResult,
     reach,
     resumeDraft,
     retryFailed,
@@ -64,6 +85,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     brevoStatus === "error"
       ? "Email delivery is not configured. Audition notices and other organization emails cannot be sent until Brevo is configured."
       : "Email delivery is not active in this environment. Messages will not reach recipients until delivery is enabled.";
+  const summaryMessage = summary
+    ? messages.find((message) => message.id === summary.messageId)
+    : undefined;
+  const selectedEvent = audience.eventId
+    ? (events.find((event) => event.id === audience.eventId) ?? null)
+    : null;
   return (
     <section className="panel communication-center" aria-label="Communication center">
       <p className="section-description">
@@ -146,315 +173,367 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           id="communication-compose-panel"
           role="tabpanel"
         >
-          <ol className="communication-stepper" aria-label="Message workflow">
-            <li className={stage === "audience" ? "is-active" : "is-complete"}>
-              <span>1</span> Audience
-            </li>
-            <li className={stage === "compose" ? "is-active" : ""}>
-              <span>2</span> Compose
-            </li>
-            <li>
-              <span>3</span> Review &amp; send
-            </li>
-          </ol>
-          {error ? (
-            <p className="notice notice--error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {success ? (
-            <p className="notice notice--success" role="status">
-              {success}
-            </p>
-          ) : null}
-
-          <form
-            className="form-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (stage === "audience") {
-                setStage("compose");
-              } else {
-                void openFinalPreview();
-              }
-            }}
-          >
-            {stage === "audience" ? (
-              <>
-                <div className="field">
-                  <label htmlFor="communication-channel">Channel</label>
-                  <select
-                    id="communication-channel"
-                    onChange={(event) => {
-                      setChannel(channelFromValue(event.target.value));
-                      setReach(null);
-                    }}
-                    value={channel}
-                  >
-                    <option>Email</option>
-                    <option>SMS</option>
-                    <option>Both</option>
-                  </select>
-                </div>
-                <fieldset ref={audienceFieldsetRef}>
-                  <legend>Audience</legend>
-                  <p className="field-help">
-                    Donors and ticket buyers include paid contacts who opted into updates. An
-                    event-specific ticket audience includes all paid buyers for that event.
-                  </p>
-                  <div className="checkbox-grid">
-                    {audienceOptions.map((target) => (
-                      <label key={target} className="checkbox-row">
-                        <input
-                          checked={audience.targetAudiences.includes(target)}
-                          data-communication-audience={target}
-                          disabled={
-                            audience.targetAudiences.length === 1 &&
-                            audience.targetAudiences.includes(target)
-                          }
-                          onChange={(event) => {
-                            toggleAudience(target, event.target.checked);
-                          }}
-                          type="checkbox"
-                        />
-                        {target}
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                {audience.targetAudiences.includes("Members") ? (
-                  <>
-                    <fieldset>
-                      <legend>Profile status</legend>
-                      <div className="communication-status-options">
-                        {(["Active", "Idle", "Inactive"] as const).map((status) => (
-                          <label key={status} className="checkbox-row">
-                            <input
-                              checked={audience.globalStatuses.includes(status)}
-                              onChange={(event) => {
-                                toggleStatus(status, event.target.checked);
-                                setReach(null);
-                              }}
-                              type="checkbox"
-                            />
-                            {status === "Idle" ? "On Break" : status}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
-                    {rosterConfiguration ? (
-                      <CommunicationSectionPicker
-                        configuration={rosterConfiguration}
-                        onChange={(sections) => {
-                          setVoiceParts(sections.join(", "));
-                          setReach(null);
-                        }}
-                        value={voiceParts}
-                      />
-                    ) : null}
-                  </>
-                ) : null}
-                {audience.targetAudiences.includes("Members") ||
-                audience.targetAudiences.includes("Ticket Buyers") ? (
-                  <div className="field">
-                    <label htmlFor="communication-event">Event (optional)</label>
-                    <select
-                      aria-describedby="communication-event-help"
-                      id="communication-event"
-                      onChange={(event) => {
-                        const eventId = event.target.value || null;
-                        updateAudience((current) => ({
-                          ...current,
-                          eventId,
-                          rsvp: eventId ? current.rsvp : "All",
-                        }));
-                        setReach(null);
-                      }}
-                      value={audience.eventId ?? ""}
-                    >
-                      <option value="">All matching contacts</option>
-                      {events.map((event) => (
-                        <option key={event.id} value={event.id}>
-                          {eventLabel(event)}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="field-help" id="communication-event-help">
-                      Choose an event to target its matching contacts and unlock event-specific
-                      placeholders in the Compose step.
-                    </p>
-                  </div>
-                ) : null}
-                {audience.eventId && audience.targetAudiences.includes("Members") ? (
-                  <div className="field">
-                    <label htmlFor="communication-rsvp">Member RSVP response</label>
-                    <select
-                      id="communication-rsvp"
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        updateAudience((current) => ({
-                          ...current,
-                          rsvp:
-                            value === "Yes" || value === "No" || value === "Pending"
-                              ? value
-                              : "All",
-                        }));
-                        setReach(null);
-                      }}
-                      value={audience.rsvp}
-                    >
-                      <option value="All">Any response</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                      <option value="Pending">Pending</option>
-                    </select>
-                  </div>
-                ) : null}
-                {reach ? (
-                  <p className="notice notice--info communication-audience-reach" role="status">
-                    <strong>Audience reach</strong>
-                    <br />
-                    {reach}
-                  </p>
-                ) : null}
-                <div className="form-actions form-actions--end">
-                  <button disabled={busy} onClick={() => void previewReach()} type="button">
-                    {busy ? "Calculating…" : "Preview audience reach"}
-                  </button>
-                  <button className="button button--primary" disabled={busy} type="submit">
-                    Continue to compose
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <CommunicationTemplatePicker
-                  audience={audience}
-                  channel={channel}
-                  contentMarkdown={contentMarkdown}
-                  onApply={(template) => {
-                    setChannel(template.channel);
-                    setContentMarkdown(template.contentMarkdown);
-                    setSubject(template.subject);
-                    setReach(null);
-                  }}
-                  subject={subject}
-                />
-                {channel !== "SMS" ? (
-                  <div className="field">
-                    <label htmlFor="communication-subject">Subject</label>
-                    <input
-                      id="communication-subject"
-                      maxLength={300}
-                      onChange={(event) => {
-                        setSubject(event.target.value);
-                      }}
-                      required
-                      value={subject}
-                    />
-                  </div>
-                ) : null}
-                <div className="field">
-                  <label htmlFor="communication-content">Message</label>
-                  <CommunicationComposer
-                    audience={audience}
-                    channel={channel}
-                    contentMarkdown={contentMarkdown}
-                    onBackToAudience={() => {
-                      setStage("audience");
-                    }}
-                    onContentChange={(value) => {
-                      setContentMarkdown(value);
-                    }}
-                    subject={subject}
-                  />
-                </div>
-                {reach ? (
-                  <p className="notice notice--info" role="status">
-                    {reach}
-                  </p>
-                ) : null}
-                <div className="form-actions">
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      setStage("audience");
-                    }}
-                    type="button"
-                  >
-                    Back to audience
-                  </button>
-                  <button disabled={busy} onClick={() => void previewReach()} type="button">
-                    Preview reach
-                  </button>
-                  <button disabled={busy} onClick={() => void saveDraft()} type="button">
-                    Save draft
-                  </button>
-                  <button className="button button--primary" disabled={busy} type="submit">
-                    {busy ? "Working…" : "Preview before queueing"}
-                  </button>
-                </div>
-              </>
-            )}
-          </form>
-
-          <Dialog
-            description="Review the exact message and audience reach before queueing it for delivery."
-            onClose={() => {
-              if (!busy) setPreviewOpen(false);
-            }}
-            open={previewOpen}
-            title="Final message preview"
-          >
-            <div className="communication-preview">
-              <dl>
+          {queuedResult ? (
+            <section
+              aria-labelledby="communication-queued-title"
+              className="communication-queued-result"
+              id="communication-queued-result"
+            >
+              <div className="communication-queued-result__heading">
+                <p className="eyebrow">Delivery queued</p>
+                <h2 id="communication-queued-title">Communication queued</h2>
+                <p>The message is ready for delivery to the selected audience.</p>
+              </div>
+              <p className="notice notice--success" role="status">
+                <strong>{queuedReachMessage(queuedResult.reach.total)}</strong>
+              </p>
+              <dl className="communication-queued-result__details">
                 <div>
                   <dt>Channel</dt>
-                  <dd>{channel}</dd>
+                  <dd>{queuedResult.channel}</dd>
                 </div>
-                {channel !== "SMS" ? (
+                {queuedResult.channel !== "SMS" ? (
                   <div>
                     <dt>Subject</dt>
-                    <dd>{subject}</dd>
+                    <dd>{queuedResult.subject}</dd>
                   </div>
                 ) : null}
                 <div>
                   <dt>Audience reach</dt>
-                  <dd>{reach ?? "Reach not calculated"}</dd>
+                  <dd>{queuedResult.reach.total} reachable</dd>
                 </div>
               </dl>
-              <div
-                className="communication-preview__message communication-composer__preview"
-                dangerouslySetInnerHTML={{
-                  __html: renderCommunicationMarkdownPreview(contentMarkdown),
+              <div className="form-actions form-actions--end">
+                <button className="button button--primary" onClick={startNewMessage} type="button">
+                  Send another message
+                </button>
+              </div>
+            </section>
+          ) : (
+            <>
+              <ol className="communication-stepper" aria-label="Message workflow">
+                <li className={stage === "audience" ? "is-active" : "is-complete"}>
+                  <span>1</span> Audience
+                </li>
+                <li className={stage === "compose" ? "is-active" : ""}>
+                  <span>2</span> Compose
+                </li>
+                <li>
+                  <span>3</span> Review &amp; send
+                </li>
+              </ol>
+              {error ? (
+                <p className="notice notice--error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              {success ? (
+                <p className="notice notice--success" role="status">
+                  {success}
+                </p>
+              ) : null}
+
+              <form
+                className="form-stack"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (stage === "audience") {
+                    setStage("compose");
+                  } else {
+                    void openFinalPreview();
+                  }
                 }}
-              />
-              <p className="field-help">
-                Queueing will create delivery records for the selected audience. You can review
-                delivery status afterward.
-              </p>
-            </div>
-            <div className="dialog__actions">
-              <button
-                className="button button--secondary"
-                disabled={busy}
-                onClick={() => {
-                  setPreviewOpen(false);
+              >
+                {stage === "audience" ? (
+                  <>
+                    <div className="field">
+                      <label htmlFor="communication-channel">Channel</label>
+                      <select
+                        id="communication-channel"
+                        onChange={(event) => {
+                          setChannel(channelFromValue(event.target.value));
+                          setReach(null);
+                        }}
+                        value={channel}
+                      >
+                        <option>Email</option>
+                        <option>SMS</option>
+                        <option>Both</option>
+                      </select>
+                    </div>
+                    <fieldset ref={audienceFieldsetRef}>
+                      <legend>Audience</legend>
+                      <p className="field-help">
+                        Donors and ticket buyers include paid contacts who opted into updates. An
+                        event-specific ticket audience includes all paid buyers for that event.
+                      </p>
+                      <div className="checkbox-grid">
+                        {audienceOptions.map((target) => (
+                          <label key={target} className="checkbox-row">
+                            <input
+                              checked={audience.targetAudiences.includes(target)}
+                              data-communication-audience={target}
+                              disabled={
+                                audience.targetAudiences.length === 1 &&
+                                audience.targetAudiences.includes(target)
+                              }
+                              onChange={(event) => {
+                                toggleAudience(target, event.target.checked);
+                              }}
+                              type="checkbox"
+                            />
+                            {target}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                    {audience.targetAudiences.includes("Members") ? (
+                      <>
+                        <fieldset>
+                          <legend>Profile status</legend>
+                          <div className="communication-status-options">
+                            {(["Active", "Idle", "Inactive"] as const).map((status) => (
+                              <label key={status} className="checkbox-row">
+                                <input
+                                  checked={audience.globalStatuses.includes(status)}
+                                  onChange={(event) => {
+                                    toggleStatus(status, event.target.checked);
+                                    setReach(null);
+                                  }}
+                                  type="checkbox"
+                                />
+                                {status === "Idle" ? "On Break" : status}
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                        {rosterConfiguration ? (
+                          <CommunicationSectionPicker
+                            configuration={rosterConfiguration}
+                            onChange={(sections) => {
+                              setVoiceParts(sections.join(", "));
+                              setReach(null);
+                            }}
+                            value={voiceParts}
+                          />
+                        ) : null}
+                      </>
+                    ) : null}
+                    {audience.targetAudiences.includes("Members") ||
+                    audience.targetAudiences.includes("Ticket Buyers") ? (
+                      <div className="field">
+                        <label htmlFor="communication-event">Event (optional)</label>
+                        <select
+                          aria-describedby="communication-event-help"
+                          id="communication-event"
+                          onChange={(event) => {
+                            const eventId = event.target.value || null;
+                            updateAudience((current) => ({
+                              ...current,
+                              eventId,
+                              rsvp: eventId ? current.rsvp : "All",
+                            }));
+                            setReach(null);
+                          }}
+                          value={audience.eventId ?? ""}
+                        >
+                          <option value="">All matching contacts</option>
+                          {events.map((event) => (
+                            <option key={event.id} value={event.id}>
+                              {eventLabel(event)}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="field-help" id="communication-event-help">
+                          Choose an event to target its matching contacts and unlock event-specific
+                          placeholders in the Compose step.
+                        </p>
+                      </div>
+                    ) : null}
+                    {audience.eventId && audience.targetAudiences.includes("Members") ? (
+                      <div className="field">
+                        <label htmlFor="communication-rsvp">Member RSVP response</label>
+                        <select
+                          id="communication-rsvp"
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            updateAudience((current) => ({
+                              ...current,
+                              rsvp:
+                                value === "Yes" || value === "No" || value === "Pending"
+                                  ? value
+                                  : "All",
+                            }));
+                            setReach(null);
+                          }}
+                          value={audience.rsvp}
+                        >
+                          <option value="All">Any response</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                          <option value="Pending">Pending</option>
+                        </select>
+                      </div>
+                    ) : null}
+                    {reach ? (
+                      <p className="notice notice--info communication-audience-reach" role="status">
+                        <strong>Audience reach</strong>
+                        <br />
+                        {reach}
+                      </p>
+                    ) : null}
+                    <div className="form-actions form-actions--end">
+                      <button disabled={busy} onClick={() => void previewReach()} type="button">
+                        {busy ? "Calculating…" : "Preview audience reach"}
+                      </button>
+                      <button className="button button--primary" disabled={busy} type="submit">
+                        Continue to compose
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <CommunicationTemplatePicker
+                      audience={audience}
+                      channel={channel}
+                      contentMarkdown={contentMarkdown}
+                      onApply={(template) => {
+                        setChannel(template.channel);
+                        setContentMarkdown(template.contentMarkdown);
+                        setSubject(template.subject);
+                        setReach(null);
+                      }}
+                      subject={subject}
+                    />
+                    {channel !== "SMS" ? (
+                      <div className="field">
+                        <label htmlFor="communication-subject">Subject</label>
+                        <input
+                          id="communication-subject"
+                          maxLength={300}
+                          onChange={(event) => {
+                            setSubject(event.target.value);
+                          }}
+                          required
+                          value={subject}
+                        />
+                      </div>
+                    ) : null}
+                    <div className="field">
+                      <label htmlFor="communication-content">Message</label>
+                      <CommunicationComposer
+                        audience={audience}
+                        channel={channel}
+                        contentMarkdown={contentMarkdown}
+                        onBackToAudience={() => {
+                          setStage("audience");
+                        }}
+                        onContentChange={(value) => {
+                          setContentMarkdown(value);
+                        }}
+                        previewEvent={selectedEvent}
+                        subject={subject}
+                      />
+                    </div>
+                    {reach ? (
+                      <p className="notice notice--info" role="status">
+                        {reach}
+                      </p>
+                    ) : null}
+                    <div className="form-actions">
+                      <button
+                        disabled={busy}
+                        onClick={() => {
+                          setStage("audience");
+                        }}
+                        type="button"
+                      >
+                        Back to audience
+                      </button>
+                      <button disabled={busy} onClick={() => void previewReach()} type="button">
+                        Preview reach
+                      </button>
+                      <button disabled={busy} onClick={() => void saveDraft()} type="button">
+                        Save draft
+                      </button>
+                      <button className="button button--primary" disabled={busy} type="submit">
+                        {busy ? "Working…" : "Preview before queueing"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </form>
+
+              <Dialog
+                description="Review the exact message and audience reach before queueing it for delivery."
+                onClose={() => {
+                  if (!busy) setPreviewOpen(false);
                 }}
-                type="button"
+                open={previewOpen}
+                title="Final message preview"
               >
-                Back to edit
-              </button>
-              <button
-                className="button button--primary"
-                disabled={busy}
-                onClick={() => void send()}
-                type="button"
-              >
-                {busy ? "Queueing…" : "Queue communication"}
-              </button>
-            </div>
-          </Dialog>
+                {error ? (
+                  <p className="notice notice--error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                <div className="communication-preview">
+                  <dl>
+                    <div>
+                      <dt>Channel</dt>
+                      <dd>{channel}</dd>
+                    </div>
+                    {channel !== "SMS" ? (
+                      <div>
+                        <dt>Subject</dt>
+                        <dd>{subject}</dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt>Audience reach</dt>
+                      <dd>{reach ?? "Reach not calculated"}</dd>
+                    </div>
+                  </dl>
+                  <div
+                    className="communication-preview__message communication-composer__preview"
+                    dangerouslySetInnerHTML={{
+                      __html: renderCommunicationMarkdownPreview(
+                        contentMarkdown,
+                        communicationPreviewValues(selectedEvent),
+                      ),
+                    }}
+                  />
+                  <p className="field-help">
+                    Preview uses a sample recipient; event values come from the selected event.
+                  </p>
+                  <p className="field-help">
+                    Queueing will create delivery records for the selected audience. You can review
+                    delivery status afterward.
+                  </p>
+                </div>
+                <div className="dialog__actions">
+                  <button
+                    className="button button--secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setPreviewOpen(false);
+                    }}
+                    type="button"
+                  >
+                    Back to edit
+                  </button>
+                  <button
+                    className="button button--primary"
+                    disabled={busy}
+                    onClick={() => void send()}
+                    type="button"
+                  >
+                    {busy ? "Queueing…" : "Queue communication"}
+                  </button>
+                </div>
+              </Dialog>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -523,7 +602,10 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           <div className="communication-tab-panel__heading">
             <div>
               <h2>Message history</h2>
-              <p>Review queued and completed messages, then inspect delivery details.</p>
+              <p>
+                Review queued and completed messages. Select View delivery details to inspect
+                delivery progress and recipient outcomes.
+              </p>
             </div>
           </div>
           {historyMessages.length === 0 && scheduledMessageHistory.length === 0 ? (
@@ -541,13 +623,36 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                           reach {String(message.reach.total)}
                         </p>
                       </div>
-                      <button
-                        disabled={busy}
-                        onClick={() => void showDelivery(message)}
-                        type="button"
-                      >
-                        Delivery status
-                      </button>
+                      <div className="button-row communication-history-actions">
+                        {message.status === "Queued" ? (
+                          <>
+                            <button
+                              className="button button--secondary button--small"
+                              disabled={busy}
+                              onClick={() => void editQueuedMessage(message)}
+                              type="button"
+                            >
+                              Edit &amp; requeue
+                            </button>
+                            <button
+                              className="button button--danger button--small"
+                              disabled={busy}
+                              onClick={() => void cancelQueuedMessage(message)}
+                              type="button"
+                            >
+                              Cancel message
+                            </button>
+                          </>
+                        ) : null}
+                        <button
+                          className="button button--secondary button--small"
+                          disabled={busy}
+                          onClick={() => void showDelivery(message)}
+                          type="button"
+                        >
+                          View delivery details
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -582,6 +687,14 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
           {summary ? (
             <div className="notice notice--info" aria-live="polite">
               <p>
+                <strong>
+                  Delivery details
+                  {summaryMessage
+                    ? " for " + (summaryMessage.subject || summaryMessage.channel + " message")
+                    : ""}
+                </strong>
+              </p>
+              <p>
                 Delivery: {summary.state} · {summary.total.sent} sent · {summary.total.failed}{" "}
                 failed · {summary.total.queued + summary.total.processing} remaining
               </p>
@@ -606,6 +719,29 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                     </li>
                   ))}
                 </ul>
+              ) : null}
+              {summary.recipients.length > 0 ? (
+                <details className="communication-delivery-recipients" open>
+                  <summary>Recipients ({String(summary.recipients.length)})</summary>
+                  <ul className="communication-delivery-recipients__list">
+                    {summary.recipients.map((recipient, index) => (
+                      <li
+                        className="communication-delivery-recipients__item"
+                        key={
+                          recipient.recipientName + ":" + recipient.channel + ":" + String(index)
+                        }
+                      >
+                        <div>
+                          <strong>{recipient.recipientName}</strong>
+                          <p>{deliveryChannelLabel(recipient.channel)}</p>
+                        </div>
+                        <span className={"status-pill status-pill--" + recipient.status}>
+                          {deliveryStatusLabel(recipient)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               ) : null}
               {summary.total.failed > 0 ? (
                 <button disabled={busy} onClick={() => void retryFailed()} type="button">
@@ -773,7 +909,8 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
             </div>
             <p className="field-help">
               Sender and domain delivery settings are controlled by the organization’s configured
-              email service.
+              email service. Test emails replace {"{singerName}"} with “Test recipient”; event
+              placeholders are populated when you queue a message for a selected event.
             </p>
           </fieldset>
         </div>

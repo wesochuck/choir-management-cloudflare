@@ -37,6 +37,7 @@ interface RehearsalSession {
   readonly locationName: string;
   readonly startTime: string;
   readonly venueId: string | null;
+  readonly venue: PublicAuditionVenue | null;
 }
 
 interface AuditionDetails {
@@ -216,14 +217,16 @@ function RehearsalScheduleCard({ settings }: { readonly settings: PublicAudition
           <span className="audition-event-details__label">Regular Rehearsals</span>
           <strong className="audition-event-details__value">
             {settings.rehearsalSchedule
-              .map(
-                (session) =>
-                  `Every ${capitalizeDay(session.dayOfWeek)} from ${formatTime12h(
-                    session.startTime,
-                  )} to ${formatTime12h(session.endTime)}${
-                    session.locationName ? ` (${session.locationName})` : ""
-                  }`,
-              )
+              .map((session) => {
+                const venueText = session.venue
+                  ? ` at ${session.venue.name}${session.venue.address ? `, ${session.venue.address}` : ""}`
+                  : session.locationName
+                    ? ` (${session.locationName})`
+                    : "";
+                return `Every ${capitalizeDay(session.dayOfWeek)} from ${formatTime12h(
+                  session.startTime,
+                )} to ${formatTime12h(session.endTime)}${venueText}`;
+              })
               .join("; ")}
           </strong>
         </div>

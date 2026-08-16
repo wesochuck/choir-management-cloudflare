@@ -27,6 +27,17 @@ export const rehearsalSessionSchema = z.object({
 
 export type RehearsalSession = z.infer<typeof rehearsalSessionSchema>;
 
+const publicRehearsalVenueSchema = z.object({
+  address: z.string().max(2_000),
+  name: z.string().min(1).max(500),
+});
+
+export const publicRehearsalSessionSchema = rehearsalSessionSchema.extend({
+  venue: publicRehearsalVenueSchema.nullable().default(null),
+});
+
+export type PublicRehearsalSession = z.infer<typeof publicRehearsalSessionSchema>;
+
 export const auditionStatusSchema = z.enum([
   "pending",
   "scheduled",
@@ -219,7 +230,7 @@ export const publicAuditionSettingsSchema = z.object({
     .nullable()
     .default(null),
   rehearsalNotes: z.string().max(5_000).default(""),
-  rehearsalSchedule: z.array(rehearsalSessionSchema).max(20).default([]),
+  rehearsalSchedule: z.array(publicRehearsalSessionSchema).max(20).default([]),
   sections: z
     .array(
       z.object({

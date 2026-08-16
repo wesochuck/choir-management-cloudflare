@@ -62,6 +62,32 @@ export function addSeat(current: SeatingLayoutState, rowIndex: number): SeatingL
   return withMaps(rowCounts, current.assignments, current.sectionSuggestions);
 }
 
+export function clearSeatAssignment(
+  current: SeatingLayoutState,
+  rowIndex: number,
+  seatIndex: number,
+): SeatingLayoutState {
+  const existingCount = current.rowCounts[rowIndex] ?? 0;
+  if (
+    rowIndex < 0 ||
+    rowIndex >= current.rowCounts.length ||
+    seatIndex < 0 ||
+    seatIndex >= existingCount
+  ) {
+    return current;
+  }
+
+  const key = `${String(rowIndex)}-${String(seatIndex)}`;
+  if (!current.assignments[key]) return current;
+  return withMaps(
+    current.rowCounts,
+    Object.fromEntries(
+      Object.entries(current.assignments).filter(([candidateKey]) => candidateKey !== key),
+    ),
+    current.sectionSuggestions,
+  );
+}
+
 export function removeSeat(
   current: SeatingLayoutState,
   rowIndex: number,

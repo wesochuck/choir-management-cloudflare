@@ -659,6 +659,8 @@
   .seating-seat--canvas {
     position: relative;
     display: flex;
+    container-name: seating-seat;
+    container-type: inline-size;
     min-width: 3rem;
     min-height: clamp(4.2rem, 6vw, 6rem);
     flex-direction: column;
@@ -803,6 +805,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .seating-seat__name-initials {
+    display: none;
+  }
+
+  @media screen {
+    @container seating-seat (max-width: 5.25rem) {
+      .seating-seat--assigned .seating-seat__name-full {
+        display: none;
+      }
+
+      .seating-seat--assigned .seating-seat__name-initials {
+        display: inline;
+      }
+    }
   }
 
   .seating-seat__voice {

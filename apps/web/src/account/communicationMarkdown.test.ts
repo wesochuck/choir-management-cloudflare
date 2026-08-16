@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
+import {
+  communicationPreviewValues,
+  renderCommunicationMarkdownPreview,
+} from "./communicationMarkdown";
 
 describe("renderCommunicationMarkdownPreview", () => {
   it("escapes attributes and markup in link previews", () => {
@@ -18,5 +21,28 @@ describe("renderCommunicationMarkdownPreview", () => {
     expect(renderCommunicationMarkdownPreview("[unsafe](javascript:alert(1))")).not.toContain(
       "<a ",
     );
+  });
+
+  it("populates preview placeholders without changing the source", () => {
+    const source = "Hi {singerName}, {eventTitle}. {{RSVP_LINKS}}";
+    const rendered = renderCommunicationMarkdownPreview(source, communicationPreviewValues(null));
+
+    expect(rendered).toContain("Alex Morgan");
+    expect(rendered).toContain("Example Performance");
+    expect(rendered).toContain("View RSVP details");
+    expect(rendered).not.toContain("{singerName}");
+    expect(source).toBe("Hi {singerName}, {eventTitle}. {{RSVP_LINKS}}");
+  });
+
+  it("populates scalar placeholders written with double braces", () => {
+    const rendered = renderCommunicationMarkdownPreview(
+      "Hi {{singerName}}, {{eventTitle}}.",
+      communicationPreviewValues(null),
+    );
+
+    expect(rendered).toContain("Alex Morgan");
+    expect(rendered).toContain("Example Performance");
+    expect(rendered).not.toContain("{{singerName}}");
+    expect(rendered).not.toContain("{{eventTitle}}");
   });
 });

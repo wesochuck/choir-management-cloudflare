@@ -1,6 +1,7 @@
 import {
   communicationDeliverySummaryResponseSchema,
   communicationMessageResponseSchema,
+  communicationMessagesResponseSchema,
   communicationReachResponseSchema,
   communicationRetryResponseSchema,
   communicationScheduledMessagesResponseSchema,
@@ -47,11 +48,19 @@ function api(host: string, path: string, cookie?: string, init?: RequestInit): R
   return new Request(`http://${host}${path}`, { ...init, headers });
 }
 
-async function write(host: string, path: string, cookie: string, body: unknown) {
+async function write(
+  host: string,
+  path: string,
+  cookie: string,
+  body: unknown,
+  requestHeaders: HeadersInit = {},
+) {
+  const headers = new Headers(requestHeaders);
+  headers.set("content-type", "application/json");
   return exports.default.fetch(
     api(host, path, cookie, {
       body: JSON.stringify(body),
-      headers: { "content-type": "application/json" },
+      headers,
       method: "POST",
     }),
   );
@@ -434,6 +443,74 @@ describe("Organization communications", () => {
     ).toBe(409);
   });
 
+  it("deduplicates a retried manual communication request", async () => {
+    const cookie = await signIn();
+    const profileId = await createProfile(cookie, {
+      displayName: "Retry-safe Recipient",
+      phone: "+1 555 100 0004",
+      voicePart: "S1",
+    });
+    await database
+      .prepare("UPDATE member SET profileId = ? WHERE id = 'member-alpha'")
+      .bind(profileId)
+      .run();
+    const audience = {
+      eventId: null,
+      globalStatuses: ["Active"],
+      profileIds: [],
+      rsvp: "All",
+      targetAudiences: ["Members"],
+      voiceParts: [],
+    };
+    const body = {
+      audience,
+      channel: "Email",
+      contentMarkdown: "Hello {singerName}",
+      subject: "Retry-safe message",
+    };
+    const idempotencyKey = "manual-send-retry-" + crypto.randomUUID();
+    const first = communicationMessageResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/send", cookie, body, {
+          "idempotency-key": idempotencyKey,
+        })
+      ).json(),
+    );
+    const second = communicationMessageResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/send", cookie, body, {
+          "idempotency-key": idempotencyKey,
+        })
+      ).json(),
+    );
+
+    expect(first.id).toBe(second.id);
+    await expect(
+      runInDurableObject<OrganizationStore, { deliveries: number; messages: number; jobs: number }>(
+        stores.get(stores.idFromName("organization-alpha")),
+        (_instance, state) => ({
+          deliveries: state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM communication_deliveries WHERE message_id = ?",
+              first.id,
+            )
+            .one().count,
+          jobs: state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM scheduled_job_outbox WHERE kind = 'communication_delivery'",
+            )
+            .one().count,
+          messages: state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM communication_messages WHERE id = ?",
+              first.id,
+            )
+            .one().count,
+        }),
+      ),
+    ).resolves.toEqual({ deliveries: 1, jobs: 1, messages: 1 });
+  });
+
   it("resolves reach, queues fake delivery, summarizes it, audits it, and isolates Organizations", async () => {
     const cookie = await signIn();
     const managerProfileId = await createProfile(cookie, {
@@ -602,6 +679,26 @@ describe("Organization communications", () => {
     expect(summary.state).toBe("sent");
     expect(summary.total).toMatchObject({ sent: 2, suppressed: 1, total: 3 });
     expect(summary.failures).toEqual([]);
+    expect(summary.recipients).toHaveLength(3);
+    expect(summary.recipients).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          channel: "email",
+          recipientName: "Communications Manager",
+          status: "suppressed",
+        }),
+        expect.objectContaining({
+          channel: "sms",
+          recipientName: "Communications Manager",
+          status: "sent",
+        }),
+        expect.objectContaining({
+          channel: "sms",
+          recipientName: "SMS Singer",
+          status: "sent",
+        }),
+      ]),
+    );
 
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       state.storage.sql.exec(
@@ -652,5 +749,130 @@ describe("Organization communications", () => {
     expect(actions).toContain("organization.communication.queued");
     expect(actions).toContain("organization.communication.retry.queued");
     expect(actions).toContain("organization.communication.unsubscribed");
+  });
+
+  it("cancels queued messages and rejects cancellation after delivery is claimed", async () => {
+    const cookie = await signIn();
+    const profileId = await createProfile(cookie, {
+      displayName: "Queued Message Recipient",
+      phone: "+1 555 100 0003",
+      voicePart: "S1",
+    });
+    await database
+      .prepare("UPDATE member SET profileId = ? WHERE id = 'member-alpha'")
+      .bind(profileId)
+      .run();
+    const audience = {
+      eventId: null,
+      globalStatuses: ["Active"],
+      profileIds: [],
+      rsvp: "All",
+      targetAudiences: ["Members"],
+      voiceParts: [],
+    };
+    const firstMessage = communicationMessageResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/send", cookie, {
+          audience,
+          channel: "Email",
+          contentMarkdown: "First queued message",
+          subject: "First queued message",
+        })
+      ).json(),
+    );
+    const canceled = communicationMessageResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/communications/${firstMessage.id}/cancel`,
+          cookie,
+          {},
+        )
+      ).json(),
+    );
+    expect(canceled).toMatchObject({ id: firstMessage.id, status: "Canceled" });
+
+    const firstJob = await runInDurableObject<OrganizationStore, { jobId: string }>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly jobId: string }>(
+            `SELECT job_id AS jobId FROM scheduled_job_outbox
+             WHERE idempotency_key = ? LIMIT 1`,
+            `communication:${firstMessage.id}:initial`,
+          )
+          .one(),
+    );
+    const canceledJobResponse = await stores
+      .get(stores.idFromName("organization-alpha"))
+      .fetch(
+        `https://organization.internal/internal/communications/job?organizationId=organization-alpha&jobId=${firstJob.jobId}`,
+      );
+    expect(canceledJobResponse.status).toBe(200);
+    expect(
+      z.object({ deliveries: z.array(z.unknown()) }).parse(await canceledJobResponse.json())
+        .deliveries,
+    ).toHaveLength(0);
+    const canceledDelivery = await runInDurableObject<OrganizationStore, string>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly status: string }>(
+            "SELECT status FROM communication_deliveries WHERE message_id = ? LIMIT 1",
+            firstMessage.id,
+          )
+          .one().status,
+    );
+    expect(canceledDelivery).toBe("suppressed");
+
+    const messages = communicationMessagesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/communications", cookie),
+        )
+      ).json(),
+    );
+    expect(messages.messages.find(({ id }) => id === firstMessage.id)?.status).toBe("Canceled");
+
+    const secondMessage = communicationMessageResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/send", cookie, {
+          audience,
+          channel: "Email",
+          contentMarkdown: "Second queued message",
+          subject: "Second queued message",
+        })
+      ).json(),
+    );
+    const secondJob = await runInDurableObject<OrganizationStore, { jobId: string }>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly jobId: string }>(
+            `SELECT job_id AS jobId FROM scheduled_job_outbox
+             WHERE idempotency_key = ? LIMIT 1`,
+            `communication:${secondMessage.id}:initial`,
+          )
+          .one(),
+    );
+    const claimedResponse = await stores
+      .get(stores.idFromName("organization-alpha"))
+      .fetch(
+        `https://organization.internal/internal/communications/job?organizationId=organization-alpha&jobId=${secondJob.jobId}`,
+      );
+    expect(claimedResponse.status).toBe(200);
+    expect(
+      z.object({ deliveries: z.array(z.unknown()) }).parse(await claimedResponse.json()).deliveries,
+    ).toHaveLength(1);
+    const startedResponse = await write(
+      "alpha.localhost",
+      `/api/organization/communications/${secondMessage.id}/cancel`,
+      cookie,
+      {},
+    );
+    expect(startedResponse.status).toBe(409);
+    expect(z.object({ code: z.string() }).parse(await startedResponse.json()).code).toBe(
+      "communication_delivery_started",
+    );
   });
 });

@@ -331,6 +331,13 @@ export function AuditionManager({ enabled }: Props) {
                 setActiveTab("inquiries");
               }}
               onSave={saveSettings}
+              onVenueCreated={(venue) => {
+                setVenues((current) =>
+                  [...current.filter(({ id }) => id !== venue.id), venue].toSorted((left, right) =>
+                    left.name.localeCompare(right.name),
+                  ),
+                );
+              }}
               performances={performances}
               timezone={timezone}
               venues={venues}

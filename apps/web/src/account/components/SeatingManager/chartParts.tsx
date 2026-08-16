@@ -5,13 +5,24 @@ import type {
 } from "@choir/contracts";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useMemo } from "react";
-import { getLastName } from "../../nameFormatting";
+import { getInitials, getLastName } from "../../nameFormatting";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
 import { UnassignedProfileChip } from "./shared";
 import { seatingProfileLabel } from "./utils";
 
 import type { SeatTileProps } from "./types";
+
+export function SeatName({ displayName }: { readonly displayName: string | undefined }) {
+  return (
+    <strong className="seating-seat__name">
+      <span className="seating-seat__name-full">{displayName ?? "Empty"}</span>
+      <span aria-hidden="true" className="seating-seat__name-initials">
+        {getInitials(displayName ?? "")}
+      </span>
+    </strong>
+  );
+}
 
 export function SeatTile({
   assigned,
@@ -38,6 +49,8 @@ export function SeatTile({
       style={{ opacity: draggable.isDragging ? 0.45 : undefined }}
       {...draggable.attributes}
       {...draggable.listeners}
+      aria-disabled={undefined}
+      title={assigned?.displayName}
       onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
@@ -63,7 +76,7 @@ export function SeatTile({
     >
       <span className="seating-seat__number">{label}</span>
       <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>
-      <strong>{assigned?.displayName ?? "Empty"}</strong>
+      <SeatName displayName={assigned?.displayName} />
       {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
       {mismatch ? <span className="seating-seat__warning">{performerLabel} mismatch</span> : null}
       <button
@@ -78,7 +91,7 @@ export function SeatTile({
         onKeyDown={(event) => {
           event.stopPropagation();
         }}
-        title="Delete seat"
+        title={assigned ? "Clear seat assignment" : "Delete empty seat"}
         type="button"
       >
         ×

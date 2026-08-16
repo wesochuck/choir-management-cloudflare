@@ -26,6 +26,7 @@ export function parseMessage(row: MessageRow) {
     ...row,
     audience: JSON.parse(row.audienceJson) as unknown,
     reach: JSON.parse(row.reachJson) as unknown,
+    status: row.canceledAt ? "Canceled" : row.status,
   });
 }
 

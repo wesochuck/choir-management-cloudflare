@@ -140,8 +140,7 @@ function RsvpDeadlineNotice({ event }: { readonly event: OrganizationEvent | nul
     <p className={event.rsvpDeadlinePassed ? "notice notice--warning" : "notice notice--info"}>
       {event.rsvpDeadlinePassed
         ? `Member self-service RSVP is closed. The deadline was ${event.rsvpDeadlineDate}. Administrators can still override responses.`
-        : `Member RSVP deadline: ${event.rsvpDeadlineDate} through 11:59 p.m.`}{" "}
-      <a href="/admin/roster?section=settings">Roster Settings</a>
+        : `Member RSVP deadline: ${event.rsvpDeadlineDate} through 11:59 p.m.`}
     </p>
   );
 }

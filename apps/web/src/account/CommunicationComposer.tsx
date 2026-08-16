@@ -1,4 +1,8 @@
-import type { CommunicationAudienceRequest, CommunicationChannel } from "@choir/contracts";
+import type {
+  CommunicationAudienceRequest,
+  CommunicationChannel,
+  OrganizationEvent,
+} from "@choir/contracts";
 import { useRef, useState } from "react";
 
 import {
@@ -7,7 +11,10 @@ import {
   visibleCommunicationPlaceholders,
   type CommunicationPlaceholder,
 } from "./communicationPlaceholders";
-import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
+import {
+  communicationPreviewValues,
+  renderCommunicationMarkdownPreview,
+} from "./communicationMarkdown";
 
 interface CommunicationComposerProps {
   readonly audience: CommunicationAudienceRequest;
@@ -15,7 +22,25 @@ interface CommunicationComposerProps {
   readonly contentMarkdown: string;
   readonly onBackToAudience: () => void;
   readonly onContentChange: (value: string) => void;
+  readonly previewEvent: OrganizationEvent | null;
   readonly subject: string;
+}
+
+function replaceSelection(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  start: number,
+  end: number,
+  replacement: string,
+  onChange: (next: string) => void,
+): void {
+  const next = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
+  onChange(next);
+  requestAnimationFrame(() => {
+    textarea.focus();
+    const cursor = start + replacement.length;
+    textarea.setSelectionRange(cursor, cursor);
+  });
 }
 
 function insertAtSelection(
@@ -27,13 +52,28 @@ function insertAtSelection(
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
   const selected = value.slice(start, end);
-  const next = `${value.slice(0, start)}${replacement.replace("$SELECTION", selected || "text")}${value.slice(end)}`;
-  onChange(next);
-  requestAnimationFrame(() => {
-    textarea.focus();
-    const cursor = start + replacement.replace("$SELECTION", selected || "text").length;
-    textarea.setSelectionRange(cursor, cursor);
-  });
+  replaceSelection(
+    textarea,
+    value,
+    start,
+    end,
+    replacement.replace("$SELECTION", selected || "text"),
+    onChange,
+  );
+}
+
+function insertListItemAtSelection(
+  textarea: HTMLTextAreaElement,
+  value: string,
+  onChange: (next: string) => void,
+): void {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = value.slice(start, end);
+  const currentLineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const currentLinePrefix = value.slice(currentLineStart, start);
+  const lineBreak = currentLinePrefix.trim().length > 0 ? "\n" : "";
+  replaceSelection(textarea, value, start, end, `${lineBreak}- ${selected || "text"}`, onChange);
 }
 
 function PlaceholderButton({
@@ -64,10 +104,12 @@ export function CommunicationComposer({
   contentMarkdown,
   onBackToAudience,
   onContentChange,
+  previewEvent,
   subject,
 }: CommunicationComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [preview, setPreview] = useState(false);
+  const previewValues = communicationPreviewValues(previewEvent);
   const context = communicationPlaceholderContext(`${subject}\n${contentMarkdown}`);
   const placeholders = visibleCommunicationPlaceholders(
     audience,
@@ -89,6 +131,11 @@ export function CommunicationComposer({
   function insert(replacement: string) {
     if (!textareaRef.current) return;
     insertAtSelection(textareaRef.current, contentMarkdown, replacement, onContentChange);
+  }
+
+  function insertListItem() {
+    if (!textareaRef.current) return;
+    insertListItemAtSelection(textareaRef.current, contentMarkdown, onContentChange);
   }
 
   return (
@@ -158,7 +205,7 @@ export function CommunicationComposer({
             </button>
             <button
               onClick={() => {
-                insert("- $SELECTION");
+                insertListItem();
               }}
               title="Bulleted list"
               type="button"
@@ -211,14 +258,21 @@ export function CommunicationComposer({
           ) : null}
         </div>
       ) : (
-        <div
-          aria-labelledby="communication-composer-preview-tab"
-          aria-label="Formatted message preview"
-          className="communication-composer__preview"
-          dangerouslySetInnerHTML={{ __html: renderCommunicationMarkdownPreview(contentMarkdown) }}
-          id="communication-composer-preview-panel"
-          role="tabpanel"
-        />
+        <>
+          <div
+            aria-labelledby="communication-composer-preview-tab"
+            aria-label="Formatted message preview"
+            className="communication-composer__preview"
+            dangerouslySetInnerHTML={{
+              __html: renderCommunicationMarkdownPreview(contentMarkdown, previewValues),
+            }}
+            id="communication-composer-preview-panel"
+            role="tabpanel"
+          />
+          <p className="field-help">
+            Preview uses a sample recipient; event values come from the selected event.
+          </p>
+        </>
       )}
       <aside className="communication-placeholders" aria-label="Available placeholders">
         <div>

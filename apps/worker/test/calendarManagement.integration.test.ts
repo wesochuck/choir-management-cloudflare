@@ -619,6 +619,63 @@ describe("Organization calendar management", () => {
     );
     expect(deleted.status).toBe(200);
 
+    const openInquiryMissingVenueUpdate = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify({
+          ...settingsWithVenue,
+          defaultPerformanceId: "00000000-0000-4000-8000-000000000999",
+          mode: "open_inquiry",
+          rehearsalNotes: "We rehearse every Tuesday. No audition required!",
+          rehearsalSchedule: [
+            {
+              dayOfWeek: "tuesday",
+              endTime: "21:30",
+              locationName: "",
+              startTime: "19:00",
+              venueId: null,
+            },
+          ],
+          slots: [],
+          startDate: "2026-09-08",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(openInquiryMissingVenueUpdate.status).toBe(400);
+    expect(await openInquiryMissingVenueUpdate.json()).toMatchObject({
+      code: "rehearsal_venue_required",
+      message: "Choose an Organization venue for each regular rehearsal before saving.",
+    });
+
+    const openInquiryInvalidVenueUpdate = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/audition-settings", cookie, {
+        body: JSON.stringify({
+          ...settingsWithVenue,
+          defaultPerformanceId: "00000000-0000-4000-8000-000000000999",
+          mode: "open_inquiry",
+          rehearsalSchedule: [
+            {
+              dayOfWeek: "tuesday",
+              endTime: "21:30",
+              locationName: "",
+              startTime: "19:00",
+              venueId: "00000000-0000-4000-8000-000000000998",
+            },
+          ],
+          slots: [],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(openInquiryInvalidVenueUpdate.status).toBe(400);
+    expect(await openInquiryInvalidVenueUpdate.json()).toMatchObject({
+      code: "rehearsal_venue_not_found",
+      message:
+        "A regular rehearsal references a venue that is no longer available. Choose another venue.",
+    });
+
     const openInquirySettingsUpdate = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/audition-settings", cookie, {
         body: JSON.stringify({
@@ -630,9 +687,9 @@ describe("Organization calendar management", () => {
             {
               dayOfWeek: "tuesday",
               endTime: "21:30",
-              locationName: "Main Sanctuary",
+              locationName: "",
               startTime: "19:00",
-              venueId: null,
+              venueId: auditionVenue.id,
             },
           ],
           slots: [],
@@ -654,8 +711,9 @@ describe("Organization calendar management", () => {
         {
           dayOfWeek: "tuesday",
           endTime: "21:30",
-          locationName: "Main Sanctuary",
+          locationName: "",
           startTime: "19:00",
+          venueId: auditionVenue.id,
         },
       ],
       startDate: "2026-09-08",
@@ -674,8 +732,13 @@ describe("Organization calendar management", () => {
         {
           dayOfWeek: "tuesday",
           endTime: "21:30",
-          locationName: "Main Sanctuary",
+          locationName: "",
           startTime: "19:00",
+          venue: {
+            address: "123 Audition Lane",
+            name: "Audition Hall",
+          },
+          venueId: auditionVenue.id,
         },
       ],
       startDate: "2026-09-08",

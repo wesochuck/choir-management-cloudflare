@@ -4,6 +4,7 @@ import { communicationReach } from "@choir/domain";
 import type { z } from "zod";
 
 import type {
+  cancelOperationSchema,
   deliveryResultOperationSchema,
   deleteDraftOperationSchema,
   deleteTemplateOperationSchema,
@@ -341,6 +342,78 @@ export function deleteDraft(
   return Response.json({ id: operation.messageId, status: "deleted" });
 }
 
+export function cancelMessage(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof cancelOperationSchema>,
+  now: string,
+): Response {
+  return storage.transactionSync(() => {
+    const current = storage.sql
+      .exec<{
+        readonly canceledAt: string | null;
+        readonly status: "Draft" | "Failed" | "Queued" | "Sent";
+      }>(
+        `SELECT status, canceled_at AS canceledAt
+         FROM communication_messages WHERE id = ? LIMIT 1`,
+        operation.messageId,
+      )
+      .toArray()
+      .at(0);
+    if (!current) {
+      return Response.json({ code: "communication_message_not_found" }, { status: 404 });
+    }
+    if (current.canceledAt) {
+      const message = readMessage(storage, operation.messageId);
+      if (!message) {
+        return Response.json({ code: "communication_message_not_found" }, { status: 404 });
+      }
+      return Response.json(message);
+    }
+    if (current.status !== "Queued") {
+      return Response.json({ code: "communication_message_not_queued" }, { status: 409 });
+    }
+    const activeDeliveries = storage.sql
+      .exec<{ readonly count: number }>(
+        `SELECT COUNT(*) AS count FROM communication_deliveries
+         WHERE message_id = ? AND status IN ('processing', 'sent')`,
+        operation.messageId,
+      )
+      .one().count;
+    if (activeDeliveries > 0) {
+      return Response.json({ code: "communication_delivery_started" }, { status: 409 });
+    }
+    storage.sql.exec(
+      `UPDATE communication_deliveries
+       SET status = 'suppressed', failure_detail = 'Canceled before delivery', updated_at = ?
+       WHERE message_id = ? AND status IN ('queued', 'failed')`,
+      now,
+      operation.messageId,
+    );
+    storage.sql.exec(
+      `UPDATE communication_messages
+       SET status = 'Failed', canceled_at = ?, sent_at = NULL, updated_at = ?
+       WHERE id = ? AND status = 'Queued' AND canceled_at IS NULL`,
+      now,
+      now,
+      operation.messageId,
+    );
+    audit(
+      storage,
+      operation.actorUserId,
+      operation.requestId,
+      "organization.communication.canceled",
+      operation.messageId,
+      {},
+      now,
+    );
+    const message = readMessage(storage, operation.messageId);
+    if (!message) {
+      return Response.json({ code: "communication_message_not_found" }, { status: 404 });
+    }
+    return Response.json(message);
+  });
+}
+
 export async function retryMessage(
   storage: DurableObjectStorage,
   operation: z.infer<typeof retryOperationSchema>,
@@ -446,7 +519,7 @@ export function recordDeliveryResults(
     const status = counts.remaining > 0 ? "Queued" : counts.sent > 0 ? "Sent" : "Failed";
     storage.sql.exec(
       `UPDATE communication_messages SET status = ?, sent_at = CASE WHEN ? = 'Sent' THEN ? ELSE sent_at END,
-        updated_at = ? WHERE id = ?`,
+        updated_at = ? WHERE id = ? AND canceled_at IS NULL`,
       status,
       status,
       now,

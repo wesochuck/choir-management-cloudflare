@@ -6,7 +6,8 @@ import {
   type OrganizationAuditionSettings,
   type OrganizationVenue,
 } from "@choir/contracts";
-import { AuthApiError } from "../../../auth/api";
+import { Dialog } from "@choir/ui";
+import { AuthApiError, createOrganizationVenue } from "../../../auth/api";
 
 import { formatDate, dateInputStateValue, timeInputStateValue, slotUtcValue } from "./utils";
 
@@ -37,32 +38,40 @@ function capitalizeDay(day: string): string {
 function RegularRehearsalScheduleSection({
   draft,
   onAddSession,
+  onAddVenue,
   onRemoveSession,
   onUpdateNotes,
   onUpdateStartDate,
   rehearsalDay,
   rehearsalEnd,
-  rehearsalLocation,
+  rehearsalError,
   rehearsalStart,
+  rehearsalVenueId,
   setRehearsalDay,
   setRehearsalEnd,
-  setRehearsalLocation,
   setRehearsalStart,
+  setRehearsalVenueId,
+  venues,
 }: {
   readonly draft: OrganizationAuditionSettings;
   readonly onAddSession: () => void;
+  readonly onAddVenue: () => void;
   readonly onRemoveSession: (index: number) => void;
   readonly onUpdateNotes: (notes: string) => void;
   readonly onUpdateStartDate: (date: string | null) => void;
   readonly rehearsalDay: DayOfWeek;
   readonly rehearsalEnd: string;
-  readonly rehearsalLocation: string;
+  readonly rehearsalError: string | null;
   readonly rehearsalStart: string;
+  readonly rehearsalVenueId: string;
   readonly setRehearsalDay: (day: DayOfWeek) => void;
   readonly setRehearsalEnd: (val: string) => void;
-  readonly setRehearsalLocation: (val: string) => void;
   readonly setRehearsalStart: (val: string) => void;
+  readonly setRehearsalVenueId: (val: string) => void;
+  readonly venues: readonly OrganizationVenue[];
 }) {
+  const venueNamesById = new Map(venues.map(({ id, name }) => [id, name]));
+
   return (
     <fieldset className="form-stack">
       <legend>Regular Rehearsal Schedule</legend>
@@ -76,12 +85,12 @@ function RegularRehearsalScheduleSection({
           value={draft.startDate ?? ""}
         />
         <span className="field-help">
-          Optional date when the group, season, or next open rehearsal begins.
+          Optional date for the group&apos;s first rehearsal or the next open rehearsal.
         </span>
       </label>
       <p className="field-help">
-        Share information about when rehearsals regularly happen so prospective singers know the
-        schedule.
+        Set when rehearsals start and end, then choose the official Organization venue where they
+        happen.
       </p>
       <div className="form-grid form-grid--compact">
         <label className="field">
@@ -123,17 +132,36 @@ function RegularRehearsalScheduleSection({
           />
         </label>
         <label className="field">
-          Location / Room (optional)
-          <input
+          Rehearsal venue
+          <select
+            aria-required="true"
+            id="intake-rehearsal-venue"
             onChange={(e) => {
-              setRehearsalLocation(e.target.value);
+              setRehearsalVenueId(e.target.value);
             }}
-            placeholder="e.g. Main Sanctuary"
-            type="text"
-            value={rehearsalLocation}
-          />
+            value={rehearsalVenueId}
+          >
+            <option value="">Choose an Organization venue</option>
+            {venues.map((venue) => (
+              <option key={venue.id} value={venue.id}>
+                {venue.name}
+                {venue.address ? ` — ${venue.address}` : ""}
+              </option>
+            ))}
+          </select>
+          <span className="field-help">
+            Use a venue from the official Organization list.{" "}
+            <button className="text-button" onClick={onAddVenue} type="button">
+              Add a new venue
+            </button>
+          </span>
         </label>
       </div>
+      {rehearsalError ? (
+        <p className="notice notice--error" role="alert">
+          {rehearsalError}
+        </p>
+      ) : null}
       <button className="button button--secondary" onClick={onAddSession} type="button">
         Add regular rehearsal day
       </button>
@@ -144,7 +172,11 @@ function RegularRehearsalScheduleSection({
               <span>
                 <strong>Every {capitalizeDay(session.dayOfWeek)}</strong> from{" "}
                 {formatTime12h(session.startTime)} to {formatTime12h(session.endTime)}
-                {session.locationName ? ` (${session.locationName})` : ""}
+                {session.venueId
+                  ? ` · ${venueNamesById.get(session.venueId) ?? "Selected venue"}`
+                  : session.locationName
+                    ? ` · ${session.locationName}`
+                    : ""}
               </span>
               <button
                 className="text-button text-button--danger"
@@ -424,6 +456,7 @@ export function SettingsForm({
   initial,
   onCancel,
   onSave,
+  onVenueCreated,
   performances,
   timezone,
   venues,
@@ -432,6 +465,7 @@ export function SettingsForm({
   readonly initial: OrganizationAuditionSettings;
   readonly onCancel: () => void;
   readonly onSave: (settings: OrganizationAuditionSettings) => Promise<void>;
+  readonly onVenueCreated: (venue: OrganizationVenue) => void;
   readonly performances: readonly OrganizationEvent[];
   readonly timezone: string;
   readonly venues: readonly OrganizationVenue[];
@@ -445,11 +479,17 @@ export function SettingsForm({
   const [slotInterval, setSlotInterval] = useState("15");
   const [slotError, setSlotError] = useState<string | null>(null);
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [newVenueAddress, setNewVenueAddress] = useState("");
+  const [newVenueName, setNewVenueName] = useState("");
+  const [newVenueError, setNewVenueError] = useState<string | null>(null);
+  const [newVenueBusy, setNewVenueBusy] = useState(false);
+  const [newVenueOpen, setNewVenueOpen] = useState(false);
 
   const [rehearsalDay, setRehearsalDay] = useState<DayOfWeek>("tuesday");
   const [rehearsalStart, setRehearsalStart] = useState(DEFAULT_REHEARSAL_START);
   const [rehearsalEnd, setRehearsalEnd] = useState(DEFAULT_REHEARSAL_END);
-  const [rehearsalLocation, setRehearsalLocation] = useState("");
+  const [rehearsalError, setRehearsalError] = useState<string | null>(null);
+  const [rehearsalVenueId, setRehearsalVenueId] = useState("");
 
   function addSlot() {
     setSlotError(null);
@@ -511,7 +551,16 @@ export function SettingsForm({
   }
 
   function addRehearsalSession() {
-    if (!rehearsalStart || !rehearsalEnd) return;
+    setRehearsalError(null);
+    if (!rehearsalStart || !rehearsalEnd || rehearsalStart >= rehearsalEnd) {
+      setRehearsalError("Enter a valid rehearsal start and end time.");
+      return;
+    }
+    const venue = venues.find(({ id }) => id === rehearsalVenueId);
+    if (!venue) {
+      setRehearsalError("Choose an Organization venue before adding this rehearsal day.");
+      return;
+    }
     setDraft((current) => ({
       ...current,
       rehearsalSchedule: [
@@ -519,13 +568,42 @@ export function SettingsForm({
         {
           dayOfWeek: rehearsalDay,
           endTime: rehearsalEnd,
-          locationName: rehearsalLocation.trim(),
+          locationName: "",
           startTime: rehearsalStart,
-          venueId: null,
+          venueId: venue.id,
         },
       ],
     }));
-    setRehearsalLocation("");
+  }
+
+  function openNewVenueDialog() {
+    setNewVenueAddress("");
+    setNewVenueError(null);
+    setNewVenueName("");
+    setNewVenueOpen(true);
+  }
+
+  async function saveNewVenue() {
+    const name = newVenueName.trim();
+    const address = newVenueAddress.trim();
+    if (!name) {
+      setNewVenueError("Enter a venue name.");
+      return;
+    }
+    setNewVenueBusy(true);
+    setNewVenueError(null);
+    try {
+      const venue = await createOrganizationVenue(name, address);
+      onVenueCreated(venue);
+      setRehearsalVenueId(venue.id);
+      setNewVenueOpen(false);
+    } catch (caught: unknown) {
+      setNewVenueError(
+        caught instanceof AuthApiError ? caught.message : "The venue could not be created.",
+      );
+    } finally {
+      setNewVenueBusy(false);
+    }
   }
 
   function addRecipient() {
@@ -691,6 +769,7 @@ export function SettingsForm({
         <RegularRehearsalScheduleSection
           draft={draft}
           onAddSession={addRehearsalSession}
+          onAddVenue={openNewVenueDialog}
           onRemoveSession={(index) => {
             setDraft((current) => ({
               ...current,
@@ -705,12 +784,14 @@ export function SettingsForm({
           }}
           rehearsalDay={rehearsalDay}
           rehearsalEnd={rehearsalEnd}
-          rehearsalLocation={rehearsalLocation}
+          rehearsalError={rehearsalError}
           rehearsalStart={rehearsalStart}
+          rehearsalVenueId={rehearsalVenueId}
           setRehearsalDay={setRehearsalDay}
           setRehearsalEnd={setRehearsalEnd}
-          setRehearsalLocation={setRehearsalLocation}
           setRehearsalStart={setRehearsalStart}
+          setRehearsalVenueId={setRehearsalVenueId}
+          venues={venues}
         />
       )}
 
@@ -801,6 +882,65 @@ export function SettingsForm({
           {busy ? "Saving…" : "Save settings"}
         </button>
       </div>
+      <Dialog
+        description="Add a venue to the Organization list so rehearsal locations stay consistent across the public site."
+        onClose={() => {
+          if (!newVenueBusy) setNewVenueOpen(false);
+        }}
+        open={newVenueOpen}
+        title="Add rehearsal venue"
+      >
+        <form
+          className="form-stack"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveNewVenue();
+          }}
+        >
+          {newVenueError ? (
+            <p className="notice notice--error" role="alert">
+              {newVenueError}
+            </p>
+          ) : null}
+          <label className="field">
+            Venue name
+            <input
+              autoFocus
+              onChange={(event) => {
+                setNewVenueName(event.target.value);
+              }}
+              required
+              type="text"
+              value={newVenueName}
+            />
+          </label>
+          <label className="field">
+            Address (optional)
+            <input
+              onChange={(event) => {
+                setNewVenueAddress(event.target.value);
+              }}
+              type="text"
+              value={newVenueAddress}
+            />
+          </label>
+          <div className="form-actions">
+            <button
+              className="button button--secondary"
+              disabled={newVenueBusy}
+              onClick={() => {
+                setNewVenueOpen(false);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className="button button--primary" disabled={newVenueBusy} type="submit">
+              {newVenueBusy ? "Adding…" : "Add venue"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </form>
   );
 }

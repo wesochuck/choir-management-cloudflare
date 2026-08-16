@@ -37,6 +37,14 @@ describe("Organization communications", () => {
     expect(renderCommunicationTemplate("Hello {singerName}", "$& $1 $$")).toBe("Hello $& $1 $$");
   });
 
+  it("supports both scalar placeholder styles", () => {
+    expect(
+      renderCommunicationTemplate("Hello {singerName}; {{eventTitle}}", "Ada Alto", {
+        eventTitle: "Spring Concert",
+      }),
+    ).toBe("Hello Ada Alto; Spring Concert");
+  });
+
   it("summarizes delivery state without exposing raw errors or destinations", () => {
     const summary = summarizeCommunicationDeliveries("message-1", [
       {

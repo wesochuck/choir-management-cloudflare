@@ -41,6 +41,16 @@ export function getFirstName(fullName: string): string {
   return index === -1 ? "" : trimmed.substring(0, index).trim();
 }
 
+export function getInitials(fullName: string): string {
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => Array.from(part)[0] ?? "")
+    .join("")
+    .toUpperCase();
+}
+
 interface DisplayNamed {
   readonly id: string;
   readonly displayName: string;

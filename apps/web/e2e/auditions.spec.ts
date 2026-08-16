@@ -231,6 +231,70 @@ test("shows configured public audition availability and scheduled details", asyn
   await expect(page.getByText(/Scheduled audition:/)).toBeVisible();
 });
 
+test("shows the first rehearsal date and official venue for an open inquiry", async ({ page }) => {
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId,
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
+  });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
+  await page.route("**/api/public/audition-settings", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        confirmationMessage: "We will be in touch.",
+        defaultPerformanceId: null,
+        enabled: true,
+        mode: "open_inquiry",
+        performance: null,
+        rehearsalNotes: "We welcome singers throughout the season.",
+        rehearsalSchedule: [
+          {
+            dayOfWeek: "tuesday",
+            endTime: "21:30",
+            locationName: "",
+            startTime: "19:00",
+            venue: {
+              address: "123 Rehearsal Lane",
+              name: "Rehearsal Hall",
+            },
+            venueId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          },
+        ],
+        sections: [],
+        slots: [],
+        startDate: "2026-09-08",
+        timezone: "UTC",
+        venue: null,
+        voiceParts: [],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/auditions");
+
+  await expect(page.getByRole("heading", { name: "Join Inquiry" })).toBeVisible();
+  await expect(page.getByText(/September 8, 2026/)).toBeVisible();
+  await expect(
+    page.getByText(/Every Tuesday from 7:00 PM to 9:30 PM at Rehearsal Hall, 123 Rehearsal Lane/),
+  ).toBeVisible();
+  await expect(page.getByText("We welcome singers throughout the season.")).toBeVisible();
+});
+
 test("shows not-found state for an invalid audition token", async ({ page }) => {
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
@@ -274,6 +338,21 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   const updatedAudition: {
     value: { id: string; status: string; adminNotes?: string } | null;
   } = { value: null };
+  const rehearsalVenue = {
+    address: "123 Rehearsal Lane",
+    createdAt: "2026-07-20T19:00:00.000Z",
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    name: "Rehearsal Hall",
+    updatedAt: "2026-07-20T19:00:00.000Z",
+  };
+  const addedVenue = {
+    address: "456 Community Street",
+    createdAt: "2026-07-24T19:00:00.000Z",
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    name: "Community Arts Center",
+    updatedAt: "2026-07-24T19:00:00.000Z",
+  };
+  let savedSettingsBody: Record<string, unknown> | null = null;
 
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
@@ -366,6 +445,69 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
     }
     await route.continue();
   });
+  await page.route("**/api/organization/audition-settings", async (route) => {
+    if (route.request().method() === "PUT") {
+      const body: unknown = route.request().postDataJSON();
+      const responseBody: Record<string, unknown> = {};
+      if (typeof body === "object" && body !== null && !Array.isArray(body)) {
+        Object.assign(responseBody, body);
+      }
+      savedSettingsBody = responseBody;
+      await route.fulfill({
+        body: JSON.stringify({ ...responseBody, requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        adminNotifyEnabled: false,
+        adminNotifyUsers: [],
+        confirmationMessage: "We will be in touch.",
+        defaultPerformanceId: null,
+        enabled: true,
+        mode: "open_inquiry",
+        rehearsalNotes: "",
+        rehearsalSchedule: [],
+        requestId,
+        slots: [],
+        startDate: null,
+        venueId: null,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/venues", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        body: JSON.stringify({ ...addedVenue, requestId }),
+        contentType: "application/json",
+        status: 201,
+      });
+      return;
+    }
+    await route.fulfill({
+      body: JSON.stringify({ requestId, venues: [rehearsalVenue] }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/events", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ events: [], requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/calendar-settings", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ requestId, timezone: "UTC" }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
 
   await page.goto("/admin/auditions");
 
@@ -386,6 +528,32 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
     expect(updatedAudition.value.status).toBe("scheduled");
     expect(updatedAudition.value.adminNotes).toBe("Promising candidate");
   }
+
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await expect(page.getByRole("heading", { name: "Audition settings" })).toBeVisible();
+  await page.getByRole("button", { name: "Add a new venue" }).click({ force: true });
+  await page.getByLabel("Venue name").fill(addedVenue.name);
+  await page.getByLabel("Address (optional)").fill(addedVenue.address);
+  await page.getByRole("button", { name: "Add venue" }).click();
+  await expect(page.locator("#intake-rehearsal-venue")).toHaveValue(addedVenue.id);
+  await page.getByLabel("Start Date / First Rehearsal Date").fill("2026-09-08");
+  await page.getByRole("button", { name: "Add regular rehearsal day" }).click({ force: true });
+  await page.getByRole("button", { name: "Save settings" }).click({ force: true });
+
+  await expect(page.getByText("Audition settings saved.")).toBeVisible();
+  expect(savedSettingsBody).toMatchObject({
+    mode: "open_inquiry",
+    rehearsalSchedule: [
+      {
+        dayOfWeek: "tuesday",
+        endTime: "21:30",
+        locationName: "",
+        startTime: "19:00",
+        venueId: addedVenue.id,
+      },
+    ],
+    startDate: "2026-09-08",
+  });
 });
 
 test("admin sees empty state when no auditions exist", async ({ page }) => {

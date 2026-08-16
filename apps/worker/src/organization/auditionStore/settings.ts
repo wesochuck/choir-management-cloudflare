@@ -81,15 +81,17 @@ export function readPublicAuditionSettingsFromStore(
         .toArray()
         .at(0)
     : undefined;
-  const venue = settings.venueId
-    ? storage.sql
-        .exec<{ readonly address: string; readonly name: string }>(
-          "SELECT address, name FROM venues WHERE id = ? LIMIT 1",
-          settings.venueId,
-        )
-        .toArray()
-        .at(0)
-    : undefined;
+  const venueRows = storage.sql
+    .exec<{ readonly address: string; readonly id: string; readonly name: string }>(
+      "SELECT id, address, name FROM venues",
+    )
+    .toArray();
+  const venuesById = new Map(venueRows.map((venueRow) => [venueRow.id, venueRow]));
+  const venue = settings.venueId ? venuesById.get(settings.venueId) : undefined;
+  const rehearsalSchedule = settings.rehearsalSchedule.map((session) => ({
+    ...session,
+    venue: session.venueId ? (venuesById.get(session.venueId) ?? null) : null,
+  }));
   const rosterOptions = publicAuditionRosterOptions(storage);
   const publicSettings = publicAuditionSettingsSchema.parse({
     confirmationMessage: settings.confirmationMessage,
@@ -99,7 +101,7 @@ export function readPublicAuditionSettingsFromStore(
     performerLabel: rosterOptions.performerLabel,
     performance: performance ?? null,
     rehearsalNotes: settings.rehearsalNotes,
-    rehearsalSchedule: settings.rehearsalSchedule,
+    rehearsalSchedule,
     sections: rosterOptions.sections,
     slots: settings.slots,
     startDate: settings.startDate ?? null,
@@ -126,14 +128,31 @@ export function updateAuditionSettingsInStore(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   let validatedSettings = settings;
+  const rehearsalVenueIds = new Set(
+    validatedSettings.rehearsalSchedule.flatMap((session) =>
+      session.venueId ? [session.venueId] : [],
+    ),
+  );
+  const venueIds = new Set(
+    storage.sql
+      .exec<{ readonly id: string }>("SELECT id FROM venues")
+      .toArray()
+      .map(({ id }) => id),
+  );
+  if (
+    validatedSettings.mode === "open_inquiry" &&
+    validatedSettings.rehearsalSchedule.some((session) => session.venueId === null)
+  ) {
+    return Response.json({ code: "rehearsal_venue_required" }, { status: 400 });
+  }
+  if ([...rehearsalVenueIds].some((venueId) => !venueIds.has(venueId))) {
+    return Response.json({ code: "rehearsal_venue_not_found" }, { status: 400 });
+  }
   if (validatedSettings.mode === "audition") {
     if (!validatedSettings.venueId) {
       return Response.json({ code: "venue_required" }, { status: 400 });
     }
-    const venueExists =
-      storage.sql
-        .exec("SELECT 1 FROM venues WHERE id = ? LIMIT 1", validatedSettings.venueId)
-        .toArray().length > 0;
+    const venueExists = venueIds.has(validatedSettings.venueId);
     if (!venueExists) {
       return Response.json({ code: "venue_not_found" }, { status: 400 });
     }
@@ -150,14 +169,8 @@ export function updateAuditionSettingsInStore(
       }
     }
   } else {
-    if (validatedSettings.venueId) {
-      const venueExists =
-        storage.sql
-          .exec("SELECT 1 FROM venues WHERE id = ? LIMIT 1", validatedSettings.venueId)
-          .toArray().length > 0;
-      if (!venueExists) {
-        validatedSettings = { ...validatedSettings, venueId: null };
-      }
+    if (validatedSettings.venueId && !venueIds.has(validatedSettings.venueId)) {
+      validatedSettings = { ...validatedSettings, venueId: null };
     }
     if (validatedSettings.defaultPerformanceId) {
       const performanceExists =

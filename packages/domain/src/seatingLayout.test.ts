@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addRow,
   addSeat,
+  clearSeatAssignment,
   moveAssignment,
   removeRow,
   removeSeat,
@@ -36,6 +37,14 @@ describe("seating layout transformations", () => {
       assignments: { "0-0": "profile-a", "0-1": "profile-b", "1-1": "profile-c" },
       rowCounts: [2, 2],
       sectionSuggestions: { "0-0": "S", "0-1": "A", "1-1": "T" },
+    });
+  });
+
+  it("clears an occupied seat without changing the row capacity", () => {
+    expect(clearSeatAssignment(state, 0, 0)).toEqual({
+      assignments: { "0-2": "profile-b", "1-1": "profile-c" },
+      rowCounts: [3, 2],
+      sectionSuggestions: { "0-0": "S", "0-2": "A", "1-1": "T" },
     });
   });
 
