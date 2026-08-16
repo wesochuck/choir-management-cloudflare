@@ -7,6 +7,7 @@ import { CsvImportDialog } from "../../CsvImportDialog";
 import { ProfilePhotoEditor } from "../../MemberProfileDirectory";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
+import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useEffect, useRef, useState } from "react";
 import type { RosterPageModel } from "./hooks";
 
@@ -106,7 +107,7 @@ export function RosterPageView({
     }
   }, [someVisibleSelected]);
   if (!enabled) {
-    return <p className="notice notice--warning">Verify Organization MFA to manage the roster.</p>;
+    return <OrganizationMfaPrompt message="Verify Organization MFA to manage the roster." />;
   }
   return (
     <>

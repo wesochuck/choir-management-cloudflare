@@ -17,6 +17,7 @@ import {
   listOrganizationProfiles,
   setOrganizationEventRsvp,
 } from "../auth/api";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type RsvpState =
@@ -431,7 +432,7 @@ export function RsvpManagerPage({
   ];
 
   if (!enabled) {
-    return <p className="notice notice--warning">Verify Organization MFA to manage RSVPs.</p>;
+    return <OrganizationMfaPrompt message="Verify Organization MFA to manage RSVPs." />;
   }
 
   if (state.status === "loading") return <p role="status">Loading RSVP roster…</p>;

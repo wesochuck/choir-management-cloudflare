@@ -2,21 +2,12 @@ import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { getPublishedOrganizationProjection } from "../auth/api";
+import { publicWebsiteFontStacks } from "./publicWebsiteFonts";
 
 type ProjectionState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly projection: PublishedOrganizationProjection | null; readonly status: "ready" };
-
-const fontStacks = {
-  "casual-handwritten": '"Segoe Print", "Bradley Hand", cursive',
-  "formal-sans": "Arial, Helvetica, sans-serif",
-  "formal-script": '"Brush Script MT", "Lucida Handwriting", cursive',
-  "friendly-sans": '"Trebuchet MS", "Lucida Grande", sans-serif',
-  "modern-serif": '"Iowan Old Style", "Palatino Linotype", serif',
-  serif: 'Georgia, "Times New Roman", serif',
-  system: "system-ui, sans-serif",
-} as const;
 
 interface PublicSiteStyle extends CSSProperties {
   "--public-body-font": string;
@@ -27,8 +18,8 @@ function publicSiteStyle(
   settings: PublishedOrganizationProjection["payload"]["settings"],
 ): PublicSiteStyle {
   return {
-    "--public-body-font": fontStacks[settings.bodyFont],
-    "--public-heading-font": fontStacks[settings.headerFont],
+    "--public-body-font": publicWebsiteFontStacks[settings.bodyFont],
+    "--public-heading-font": publicWebsiteFontStacks[settings.headerFont],
   };
 }
 

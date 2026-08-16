@@ -9,6 +9,7 @@ import {
 } from "../auth/api";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { GenreChip } from "./components/MusicCatalog/shared";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { genreKey, uniqueGenreLabels } from "./components/MusicCatalog/utils";
 
 export function MusicLibrarySettingsPage({
@@ -113,9 +114,7 @@ export function MusicLibrarySettingsPage({
 
   if (!enabled) {
     return (
-      <p className="notice notice--warning">
-        Verify Organization MFA to change Music library settings.
-      </p>
+      <OrganizationMfaPrompt message="Verify Organization MFA to change Music library settings." />
     );
   }
 

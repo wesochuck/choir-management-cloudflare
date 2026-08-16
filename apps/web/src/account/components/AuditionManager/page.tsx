@@ -9,6 +9,7 @@ import type {
   OrganizationVenue,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
+import { useConfirmation } from "@choir/ui";
 import {
   convertOrganizationAudition,
   createOrganizationAudition,
@@ -48,6 +49,7 @@ export function AuditionManager({ enabled }: Props) {
     useState<OrganizationRosterConfiguration | null>(null);
   const [timezone, setTimezone] = useState("UTC");
   const [activeTab, setActiveTab] = useState<AuditionTab>("inquiries");
+  const [settingsDirty, setSettingsDirty] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationAudition | null>(null);
   const [schedule, setSchedule] = useState<OrganizationAudition | null>(null);
@@ -64,6 +66,7 @@ export function AuditionManager({ enabled }: Props) {
   >([]);
   const [statusFilter, setStatusFilter] = useState<AuditionStatus | "all">("all");
   const [search, setSearch] = useState("");
+  const { confirm: requestConfirmation, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -183,6 +186,24 @@ export function AuditionManager({ enabled }: Props) {
     setNotice("Audition settings saved.");
   }
 
+  async function requestSettingsTab(nextTab: AuditionTab): Promise<void> {
+    if (activeTab === nextTab) return;
+    if (nextTab === "settings" || !settingsDirty) {
+      setActiveTab(nextTab);
+      return;
+    }
+    const shouldDiscard = await requestConfirmation({
+      confirmLabel: "Discard changes",
+      description:
+        "Your audition settings have unsaved changes. Save them from the floating save bar before leaving, or discard them to continue.",
+      destructive: true,
+      title: "Leave audition settings?",
+    });
+    if (!shouldDiscard) return;
+    setSettingsDirty(false);
+    setActiveTab(nextTab);
+  }
+
   async function createAudition(next: OrganizationAuditionCreateRequest) {
     const created = await createOrganizationAudition(next);
     setState((current) =>
@@ -290,7 +311,7 @@ export function AuditionManager({ enabled }: Props) {
           className={activeTab === "inquiries" ? "is-active" : undefined}
           id="audition-inquiries-tab"
           onClick={() => {
-            setActiveTab("inquiries");
+            void requestSettingsTab("inquiries");
           }}
           role="tab"
           type="button"
@@ -303,7 +324,7 @@ export function AuditionManager({ enabled }: Props) {
           className={activeTab === "settings" ? "is-active" : undefined}
           id="audition-settings-tab"
           onClick={() => {
-            setActiveTab("settings");
+            void requestSettingsTab("settings");
           }}
           role="tab"
           type="button"
@@ -311,6 +332,7 @@ export function AuditionManager({ enabled }: Props) {
           Settings
         </button>
       </div>
+      {confirmationDialog}
       {activeTab === "settings" ? (
         <div
           aria-labelledby="audition-settings-tab"
@@ -328,8 +350,9 @@ export function AuditionManager({ enabled }: Props) {
               administratorRecipients={administratorRecipients}
               initial={settings}
               onCancel={() => {
-                setActiveTab("inquiries");
+                void requestSettingsTab("inquiries");
               }}
+              onDirtyChange={setSettingsDirty}
               onSave={saveSettings}
               onVenueCreated={(venue) => {
                 setVenues((current) =>

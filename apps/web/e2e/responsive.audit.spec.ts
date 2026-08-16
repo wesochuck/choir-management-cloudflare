@@ -249,6 +249,24 @@ const responsiveManagerResponses: Record<string, unknown> = {
   "/api/organization/donations": { donations: [], requestId },
   "/api/organization/patrons": { patrons: [], requestId },
   "/api/organization/polls": { polls: responsivePolls, requestId },
+  "/api/organization/website": {
+    aboutUsText: "",
+    bodyFont: "friendly-sans",
+    contactEmail: "hello@responsive.example.test",
+    enabledNavigation: [],
+    headerFont: "modern-serif",
+    heroFileId: null,
+    heroHeadline: "Responsive Choir",
+    heroSubtitle: "Voices together.",
+    historyText: "",
+    logoFileId: null,
+    organizationName: "Responsive Choir",
+    publicationVersion: 0,
+    publishedAt: null,
+    requestId,
+    showBrandingHeaderFooter: false,
+    updatedAt: "2026-07-20T20:00:00.000Z",
+  },
   "/api/organization/seasons": {
     requestId,
     seasons: [
@@ -484,6 +502,9 @@ async function assertBreakpointSpecificLayout(
     await expect(page.getByRole("columnheader", { name: "Actions" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Share with members" })).toBeVisible();
   }
+  if (path === "/admin/website" && width <= 1024) {
+    await expect(page.locator(".website-font-preview")).toHaveCount(2);
+  }
 }
 
 test("signed-in pages never overflow horizontally at any breakpoint", async ({ page }) => {
@@ -502,6 +523,7 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
     { path: "/admin/tickets", label: "ticketing" },
     { path: "/admin/seasons", label: "seasons and dues" },
     { path: "/admin/setlists", label: "set lists" },
+    { path: "/admin/website", label: "public website" },
   ];
 
   for (const { path, label } of pages) {
@@ -551,6 +573,33 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
       ).toBe(false);
     }
   }
+});
+
+test("public website font selectors show live samples", async ({ page }) => {
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/admin/website");
+  await expect(page.locator(".website-font-preview")).toHaveCount(2);
+
+  const headingSample = page.locator(
+    "#website-header-font + .website-font-preview .website-font-preview__sample",
+  );
+  const bodySample = page.locator(
+    "#website-body-font + .website-font-preview .website-font-preview__sample",
+  );
+  await expect(headingSample).toContainText("The quick brown fox jumps over the lazy dog.");
+  await expect(bodySample).toContainText("The quick brown fox jumps over the lazy dog.");
+  await expect(headingSample).toHaveCSS("font-family", /Iowan Old Style/);
+  await expect(bodySample).toHaveCSS("font-family", /Trebuchet MS/);
+
+  await page.locator("#website-header-font").selectOption("formal-script");
+  await page.locator("#website-body-font").selectOption("formal-sans");
+  await expect(headingSample).toHaveCSS("font-family", /Brush Script MT/);
+  await expect(bodySample).toHaveCSS("font-family", /Arial/);
 });
 
 test("first-run setup remains usable and resumable on a narrow viewport", async ({ page }) => {

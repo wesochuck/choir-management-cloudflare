@@ -14,6 +14,7 @@ import {
   updateOrganizationEvent,
   uploadPrivateOrganizationFile,
 } from "../../../auth/api";
+import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 
 import {
   emptyEvent,
@@ -354,7 +355,7 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   }
 
   if (!enabled) {
-    return <p className="notice notice--warning">Verify Organization MFA to manage events.</p>;
+    return <OrganizationMfaPrompt message="Verify Organization MFA to manage events." />;
   }
 
   const readyState = state.status === "ready" ? state : null;

@@ -123,6 +123,29 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
   await page.route("**/api/public/projection", async (route) => {
     await route.fulfill({ status: 404 });
   });
+  await page.route("**/api/public/audition-settings", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        confirmationMessage: "Your custom confirmation message.",
+        defaultPerformanceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        enabled: true,
+        performance: null,
+        sections: [],
+        slots: [
+          {
+            endsAt: "2026-08-01T15:30:00.000Z",
+            id: "slot-001",
+            startsAt: "2026-08-01T15:00:00.000Z",
+          },
+        ],
+        timezone: "UTC",
+        venue: null,
+        voiceParts: [],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/public/audition-inquiry", async (route) => {
     const body: unknown = route.request().postDataJSON();
     if (
@@ -146,6 +169,7 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
 
   await expect(page.getByRole("heading", { name: "Audition Inquiry" })).toBeVisible();
   await expect(page.getByText("Interested in joining?")).toBeVisible();
+  await expect(page.getByText("Your custom confirmation message.", { exact: true })).toHaveCount(0);
 
   await page.getByLabel("Name *").fill("Jane Singer");
   await page.getByLabel("Email *").fill("jane.singer@example.test");
@@ -155,7 +179,7 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
   await page.getByRole("button", { name: /Submit (Audition Request|Inquiry)/ }).click();
 
   await expect(page.getByRole("heading", { name: "Inquiry Received" })).toBeVisible();
-  await expect(page.getByText("Thank you for your interest!")).toBeVisible();
+  await expect(page.getByText("Your custom confirmation message.", { exact: true })).toBeVisible();
   expect(inquiryReceived).toEqual({
     email: "jane.singer@example.test",
     name: "Jane Singer",
@@ -207,7 +231,7 @@ test("shows configured public audition availability and scheduled details", asyn
   });
   await page.goto("/auditions");
   await expect(page.getByRole("heading", { name: "Audition Inquiry" })).toBeVisible();
-  await expect(page.getByText("Choose a time")).toBeVisible();
+  await expect(page.getByText("Choose a time", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("checkbox")).toHaveCount(1);
 
   await page.route("**/api/public/audition-details", async (route) => {
@@ -531,6 +555,27 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
 
   await page.getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByRole("heading", { name: "Audition settings" })).toBeVisible();
+  const rehearsalGrid = page.locator(".audition-rehearsal-grid");
+  const rehearsalEndTime = await rehearsalGrid.getByLabel("End time").boundingBox();
+  const rehearsalVenueBox = await rehearsalGrid.locator("#intake-rehearsal-venue").boundingBox();
+  expect(rehearsalEndTime).not.toBeNull();
+  expect(rehearsalVenueBox).not.toBeNull();
+  if (!rehearsalEndTime || !rehearsalVenueBox) {
+    throw new Error("Rehearsal controls should have visible geometry");
+  }
+  expect(Math.abs(rehearsalVenueBox.y - rehearsalEndTime.y)).toBeLessThanOrEqual(1);
+  await page.getByLabel("Start Date / First Rehearsal Date").fill("2026-09-07");
+  await expect(page.locator(".floating-save-bar")).toContainText("You have unsaved changes");
+  await page.getByRole("link", { name: "Communications", exact: true }).click();
+  const navigationDialog = page.getByRole("dialog");
+  await expect(navigationDialog).toContainText("Leave with unsaved changes?");
+  await navigationDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("heading", { name: "Audition settings" })).toBeVisible();
+  await page.getByRole("tab", { name: "Inquiries" }).click();
+  const tabDialog = page.getByRole("dialog");
+  await expect(tabDialog).toContainText("Leave audition settings?");
+  await tabDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("heading", { name: "Audition settings" })).toBeVisible();
   await page.getByRole("button", { name: "Add a new venue" }).click({ force: true });
   await page.getByLabel("Venue name").fill(addedVenue.name);
   await page.getByLabel("Address (optional)").fill(addedVenue.address);
@@ -538,9 +583,12 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await expect(page.locator("#intake-rehearsal-venue")).toHaveValue(addedVenue.id);
   await page.getByLabel("Start Date / First Rehearsal Date").fill("2026-09-08");
   await page.getByRole("button", { name: "Add regular rehearsal day" }).click({ force: true });
-  await page.getByRole("button", { name: "Save settings" }).click({ force: true });
+  const saveBar = page.locator(".floating-save-bar");
+  await expect(saveBar).toBeVisible();
+  await saveBar.getByRole("button", { name: "Save changes" }).click();
 
   await expect(page.getByText("Audition settings saved.")).toBeVisible();
+  await expect(saveBar).toHaveCount(0);
   expect(savedSettingsBody).toMatchObject({
     mode: "open_inquiry",
     rehearsalSchedule: [

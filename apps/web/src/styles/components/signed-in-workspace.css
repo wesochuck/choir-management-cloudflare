@@ -566,6 +566,20 @@
     display: block;
   }
 
+  .member-dashboard__access-state {
+    max-width: 48rem;
+  }
+
+  .member-dashboard__access-state h2 {
+    margin: 0;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+  }
+
+  .member-dashboard__access-state p:not(.eyebrow) {
+    max-width: 42rem;
+    color: var(--color-text-muted);
+  }
+
   .member-dashboard__header {
     display: flex;
     align-items: start;

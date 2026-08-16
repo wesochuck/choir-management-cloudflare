@@ -176,8 +176,24 @@
 
   .sheet__header.sidebar-drawer__header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.6rem;
+    margin-right: 0.75rem;
+    padding-right: 5rem;
+  }
+
+  .sheet:has(> .sheet__header.sidebar-drawer__header) > .sheet__close {
+    display: inline-grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    line-height: 1;
+  }
+
+  .sheet__header.sidebar-drawer__header > .sidebar-drawer__pin {
+    position: absolute;
+    top: 1rem;
+    right: 3.75rem;
   }
 
   .sidebar-drawer__context {

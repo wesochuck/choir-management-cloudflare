@@ -9,6 +9,7 @@ import {
   updateOrganizationPublicWebsiteSettings,
   uploadPrivateOrganizationFile,
 } from "../auth/api";
+import { publicWebsiteFontStacks, type PublicWebsiteFont } from "../public/publicWebsiteFonts";
 
 type LoadState =
   | { readonly status: "error" }
@@ -23,13 +24,30 @@ const websiteFonts = [
   "formal-sans",
   "casual-handwritten",
   "formal-script",
-] as const;
+] as const satisfies readonly PublicWebsiteFont[];
 
-function fontLabel(font: (typeof websiteFonts)[number]): string {
+function fontLabel(font: PublicWebsiteFont): string {
   return font
     .split("-")
     .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
     .join(" ");
+}
+
+const fontPreviewText = "Aa Bb Cc — The quick brown fox jumps over the lazy dog.";
+
+function FontPreview({ font }: { readonly font: PublicWebsiteFont }) {
+  return (
+    <div className="website-font-preview" aria-label={`${fontLabel(font)} font preview`}>
+      <span className="website-font-preview__label">Sample in {fontLabel(font)}</span>
+      <p
+        aria-live="polite"
+        className="website-font-preview__sample"
+        style={{ fontFamily: publicWebsiteFontStacks[font] }}
+      >
+        {fontPreviewText}
+      </p>
+    </div>
+  );
 }
 
 function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequest {
@@ -206,7 +224,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     );
   }
   return (
-    <section className="panel" aria-label="Public website settings">
+    <section className="panel public-website-settings" aria-label="Public website settings">
       <p className="section-description">
         Edit a private draft, then publish an immutable edge-cached version for Organization
         visitors.
@@ -290,14 +308,20 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
                 const font = websiteFonts.find((candidate) => candidate === event.target.value);
                 if (font) change("headerFont", font);
               }}
+              style={{ fontFamily: publicWebsiteFontStacks[draft.headerFont] }}
               value={draft.headerFont}
             >
               {websiteFonts.map((font) => (
-                <option key={font} value={font}>
+                <option
+                  key={font}
+                  style={{ fontFamily: publicWebsiteFontStacks[font] }}
+                  value={font}
+                >
                   {fontLabel(font)}
                 </option>
               ))}
             </select>
+            <FontPreview font={draft.headerFont} />
           </div>
           <div className="field">
             <label htmlFor="website-body-font">Body font</label>
@@ -307,14 +331,20 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
                 const font = websiteFonts.find((candidate) => candidate === event.target.value);
                 if (font) change("bodyFont", font);
               }}
+              style={{ fontFamily: publicWebsiteFontStacks[draft.bodyFont] }}
               value={draft.bodyFont}
             >
               {websiteFonts.map((font) => (
-                <option key={font} value={font}>
+                <option
+                  key={font}
+                  style={{ fontFamily: publicWebsiteFontStacks[font] }}
+                  value={font}
+                >
                   {fontLabel(font)}
                 </option>
               ))}
             </select>
+            <FontPreview font={draft.bodyFont} />
           </div>
           <div className="field">
             <label htmlFor="website-logo">Organization logo</label>

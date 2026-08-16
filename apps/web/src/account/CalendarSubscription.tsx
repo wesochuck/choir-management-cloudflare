@@ -2,6 +2,7 @@ import type { CalendarFeedUrlsResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 import { getCalendarFeedUrls, resetCalendarFeedUrls } from "../auth/api";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
 type CalendarState =
   | { readonly status: "error" }
@@ -69,7 +70,7 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
         <h2 id="calendar-subscription-title">Calendar subscription</h2>
       </div>
       {!enabled ? (
-        <p className="notice notice--warning">Verify Organization MFA to manage this feed.</p>
+        <OrganizationMfaPrompt message="Verify Organization MFA to manage this feed." />
       ) : null}
       {enabled && state.status === "loading" ? <p>Loading calendar subscription…</p> : null}
       {enabled && state.status === "missing" ? (

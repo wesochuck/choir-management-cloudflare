@@ -508,13 +508,14 @@ test("shows recipient names in message history delivery details", async ({ page 
   const messageRow = page.getByRole("listitem").filter({ hasText: "Rehearsal update" });
   await messageRow.getByRole("button", { name: "View delivery details" }).click();
 
-  await expect(
-    page.getByText("Delivery details for Rehearsal update", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("Recipients (2)", { exact: true })).toBeVisible();
-  await expect(page.getByText("Ada Alto", { exact: true })).toBeVisible();
-  await expect(page.getByText("Ben Bass", { exact: true })).toBeVisible();
-  await expect(page.getByText("Delivered", { exact: true })).toHaveCount(2);
+  const deliveryDetails = messageRow.getByRole("region", {
+    name: "Delivery details for Rehearsal update",
+  });
+  await expect(deliveryDetails).toBeVisible();
+  await expect(deliveryDetails.getByText("Recipients (2)", { exact: true })).toBeVisible();
+  await expect(deliveryDetails.getByText("Ada Alto", { exact: true })).toBeVisible();
+  await expect(deliveryDetails.getByText("Ben Bass", { exact: true })).toBeVisible();
+  await expect(deliveryDetails.getByText("Delivered", { exact: true })).toHaveCount(2);
   await expect(page.getByText("ada@example.test", { exact: true })).toHaveCount(0);
 });
 

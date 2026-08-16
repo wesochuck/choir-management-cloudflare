@@ -22,6 +22,23 @@ interface FloatingSaveBarContextValue {
 
 export const FloatingSaveBarContext = createContext<FloatingSaveBarContextValue | null>(null);
 
+type NavigationRequest = (navigate: () => void) => Promise<void>;
+
+let activeNavigationRequest: NavigationRequest | null = null;
+
+export function registerFloatingSaveNavigation(request: NavigationRequest): () => void {
+  activeNavigationRequest = request;
+  return () => {
+    if (activeNavigationRequest === request) activeNavigationRequest = null;
+  };
+}
+
+export function requestFloatingSaveNavigation(navigate: () => void): Promise<void> {
+  if (activeNavigationRequest) return activeNavigationRequest(navigate);
+  navigate();
+  return Promise.resolve();
+}
+
 export function useFloatingSaveAction({
   busy = false,
   dirty,

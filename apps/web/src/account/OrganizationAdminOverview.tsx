@@ -6,6 +6,7 @@ import type {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getOrganizationDashboardSummary, listOrganizationAuditions } from "../auth/api";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type OverviewModule = "events" | "people" | "programs";
@@ -440,10 +441,7 @@ export function OrganizationAdminOverview({
       </div>
 
       {context?.mfaRequired && !context.mfaVerifiedUntil ? (
-        <p className="notice notice--warning">
-          Organization MFA is required before operational data can be opened. Visit Organization
-          security to verify access.
-        </p>
+        <OrganizationMfaPrompt message="Organization MFA is required before operational data can be opened." />
       ) : null}
     </div>
   );

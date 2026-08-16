@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getMemberDashboard, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
 import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
+import type { AccessState } from "./components/AuthenticatedShell/types";
 
 type DashboardEvent = MemberDashboardResponse["events"][number];
+type MemberWorkspaceAccessStatus = AccessState["status"];
 
 function formatDate(value: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -530,10 +532,67 @@ function DashboardInitialState({
   );
 }
 
+function MemberDashboardAccessState({
+  accessStatus,
+  navigate,
+}: {
+  readonly accessStatus: MemberWorkspaceAccessStatus;
+  readonly navigate: (href: string) => void;
+}) {
+  if (accessStatus === "loading") {
+    return (
+      <p className="notice notice--info" role="status">
+        Loading your member workspace…
+      </p>
+    );
+  }
+
+  const content =
+    accessStatus === "none"
+      ? {
+          heading: "Choose an Organization to get started",
+          message:
+            "Your member workspace shows schedules, RSVPs, practice tracks, and Organization updates after you open an active Organization Membership.",
+        }
+      : accessStatus === "error"
+        ? {
+            heading: "We couldn’t verify your Organization access",
+            message:
+              "Open your account to choose an active Organization Membership, then return here to see your member workspace.",
+          }
+        : {
+            heading: "Your member workspace is not ready yet",
+            message:
+              "Your Organization access needs to be verified before your schedule and updates can appear here. Ask an Organization Administrator for help.",
+          };
+
+  return (
+    <section
+      aria-labelledby="member-dashboard-access-title"
+      className="surface-card empty-page member-dashboard__access-state"
+    >
+      <p className="eyebrow">Member workspace</p>
+      <h2 id="member-dashboard-access-title">{content.heading}</h2>
+      <p>{content.message}</p>
+      <button
+        className="button button--primary"
+        onClick={() => {
+          navigate("/account/organizations");
+        }}
+        type="button"
+      >
+        View your Organizations
+      </button>
+    </section>
+  );
+}
+
 export function DashboardView({
+  accessStatus,
   enabled,
   navigate,
 }: {
+  readonly accessStatus: MemberWorkspaceAccessStatus;
   readonly enabled: boolean;
   readonly navigate: (href: string) => void;
 }) {
@@ -638,7 +697,9 @@ export function DashboardView({
     return "Payment expired";
   }, [dashboard?.activeSeason?.duesStatus]);
 
-  if (!enabled) return null;
+  if (!enabled) {
+    return <MemberDashboardAccessState accessStatus={accessStatus} navigate={navigate} />;
+  }
   if (!dashboard) {
     return (
       <DashboardInitialState

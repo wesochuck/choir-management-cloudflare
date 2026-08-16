@@ -365,8 +365,32 @@
     margin-top: 0.25rem;
   }
 
+  .communication-history-entry {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: 0.75rem;
+  }
+
+  .communication-history-entry__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .communication-history-entry__header > :first-child {
+    min-width: 0;
+  }
+
   .communication-history-actions {
+    flex: 0 0 auto;
     justify-content: flex-end;
+  }
+
+  .communication-delivery-details {
+    margin: 0;
   }
 
   .communication-delivery-recipients {
@@ -411,6 +435,18 @@
     margin: 0.15rem 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+  }
+
+  @media (max-width: 40rem) {
+    .communication-history-entry__header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .communication-history-actions {
+      justify-content: flex-start;
+      width: 100%;
+    }
   }
 
   .communication-tab-panel__heading {

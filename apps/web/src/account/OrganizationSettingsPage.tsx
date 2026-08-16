@@ -11,6 +11,7 @@ import {
   updateOrganizationPaymentActivation,
   updateOrganizationTransactionFeeSettings,
 } from "../auth/api";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import type {
   OrganizationExportStatusResponse,
   OrganizationPaymentSettingsResponse,
@@ -492,9 +493,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
 
   if (!enabled) {
     return (
-      <p className="notice notice--warning">
-        Verify Organization MFA to change Organization settings.
-      </p>
+      <OrganizationMfaPrompt message="Verify Organization MFA to change Organization settings." />
     );
   }
 

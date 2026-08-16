@@ -92,7 +92,12 @@ type PageStatus =
   | { type: "ready_form"; settings: PublicAuditionSettings }
   | { type: "closed"; message: string }
   | { type: "submitting_inquiry"; settings: PublicAuditionSettings }
-  | { type: "inquiry_submitted"; id: string; mode: "audition" | "open_inquiry" }
+  | {
+      type: "inquiry_submitted";
+      confirmationMessage: string;
+      id: string;
+      mode: "audition" | "open_inquiry";
+    }
   | { type: "inquiry_error"; message: string; settings: PublicAuditionSettings }
   | { type: "not_found" }
   | { type: "ready_details"; details: AuditionDetails }
@@ -620,9 +625,10 @@ function PublicAuditionStatusCard({
           <p className="eyebrow">{isOpenInquiry ? "Join Us" : "Audition"}</p>
           <h1 id="audition-title">Inquiry Received</h1>
           <p className="notice notice--success" role="status">
-            {isOpenInquiry
-              ? "Thank you for your interest! Your inquiry has been received. The organization will be in touch with rehearsal details."
-              : "Thank you for your interest! Your audition inquiry has been received. The organization will reach out to you with next steps."}
+            {pageStatus.confirmationMessage ||
+              (isOpenInquiry
+                ? "Thank you for your interest! Your inquiry has been received. The organization will be in touch with rehearsal details."
+                : "Thank you for your interest! Your audition inquiry has been received. The organization will reach out to you with next steps.")}
           </p>
           <a className="button button--secondary" href="/">
             Return to the Organization site
@@ -720,7 +726,12 @@ export function PublicAuditionView() {
       data.requestedSlots,
     )
       .then((id) => {
-        setPageStatus({ id, mode: settings.mode, type: "inquiry_submitted" });
+        setPageStatus({
+          confirmationMessage: settings.confirmationMessage,
+          id,
+          mode: settings.mode,
+          type: "inquiry_submitted",
+        });
       })
       .catch((failure: unknown) => {
         setPageStatus({
@@ -790,9 +801,6 @@ export function PublicAuditionView() {
         ) : (
           <AuditionEventDetails settings={formSettings} />
         )}
-        {formSettings.confirmationMessage ? (
-          <p className="notice">{formSettings.confirmationMessage}</p>
-        ) : null}
         <AuditionForm
           busy={pageStatus.type === "submitting_inquiry"}
           onSubmit={handleInquirySubmit}

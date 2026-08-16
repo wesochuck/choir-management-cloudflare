@@ -259,6 +259,17 @@ test("orders, copies, prints, and saves a set list on desktop and mobile", async
   );
   expect(lightSurface).not.toBe(darkSurface);
 
+  await page.setViewportSize({ width: 1100, height: 871 });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
+  const setListLayoutAudit = await page.locator(".set-list-section").evaluate((section) => {
+    const sectionRight = section.getBoundingClientRect().right;
+    return [...section.querySelectorAll("*")]
+      .filter((element) => element.getBoundingClientRect().right > sectionRight + 1)
+      .map((element) => element.className);
+  });
+  expect(setListLayoutAudit).toEqual([]);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();

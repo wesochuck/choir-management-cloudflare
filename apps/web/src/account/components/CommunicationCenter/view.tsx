@@ -1,4 +1,8 @@
-import type { CommunicationDeliveryRecipient } from "@choir/contracts";
+import type {
+  CommunicationDeliveryRecipient,
+  CommunicationDeliverySummary,
+  CommunicationMessage,
+} from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { audienceOptions, channelFromValue, displayDate, eventLabel } from "./utils";
 import { CommunicationSectionPicker, CommunicationTemplatePicker, TemplateLibrary } from "./shared";
@@ -23,6 +27,83 @@ function queuedReachMessage(total: number): string {
   return `${String(total)} ${total === 1 ? "recipient was" : "recipients were"} queued for delivery.`;
 }
 
+function DeliveryDetails({
+  busy,
+  message,
+  onRetry,
+  summary,
+}: {
+  readonly busy: boolean;
+  readonly message: CommunicationMessage;
+  readonly onRetry: () => Promise<void>;
+  readonly summary: CommunicationDeliverySummary;
+}) {
+  const messageLabel = message.subject || `${message.channel} message`;
+  return (
+    <div
+      aria-label={`Delivery details for ${messageLabel}`}
+      aria-live="polite"
+      className="communication-delivery-details notice notice--info"
+      role="region"
+    >
+      <p>
+        <strong>Delivery details</strong>
+      </p>
+      <p>
+        Delivery: {summary.state} · {summary.total.sent} sent · {summary.total.failed} failed ·{" "}
+        {summary.total.queued + summary.total.processing} remaining
+      </p>
+      {summary.provider.total > 0 ? (
+        <>
+          <p>
+            Provider: {summary.provider.accepted} accepted · {summary.provider.delivered} delivered
+            · {summary.provider.deferred} deferred · {summary.provider.bounced} bounced
+          </p>
+          <p>
+            Provider: {summary.provider.failed} failed · {summary.provider.rejected} rejected ·{" "}
+            {summary.provider.complained} complained
+          </p>
+        </>
+      ) : null}
+      {summary.failures.length > 0 ? (
+        <ul>
+          {summary.failures.map((failure, index) => (
+            <li key={`${failure.maskedDestination}:${String(index)}`}>
+              {failure.maskedDestination}: {failure.category}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {summary.recipients.length > 0 ? (
+        <details className="communication-delivery-recipients" open>
+          <summary>Recipients ({String(summary.recipients.length)})</summary>
+          <ul className="communication-delivery-recipients__list">
+            {summary.recipients.map((recipient, index) => (
+              <li
+                className="communication-delivery-recipients__item"
+                key={recipient.recipientName + ":" + recipient.channel + ":" + String(index)}
+              >
+                <div>
+                  <strong>{recipient.recipientName}</strong>
+                  <p>{deliveryChannelLabel(recipient.channel)}</p>
+                </div>
+                <span className={`status-pill status-pill--${recipient.status}`}>
+                  {deliveryStatusLabel(recipient)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {summary.total.failed > 0 ? (
+        <button disabled={busy} onClick={() => void onRetry()} type="button">
+          Retry failed deliveries
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
 export function CommunicationCenterView({ model }: { readonly model: CommunicationCenterModel }) {
   const {
@@ -41,6 +122,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     error,
     events,
     historyMessages,
+    loadingDeliveryId,
     messages,
     openFinalPreview,
     previewOpen,
@@ -85,9 +167,6 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     brevoStatus === "error"
       ? "Email delivery is not configured. Audition notices and other organization emails cannot be sent until Brevo is configured."
       : "Email delivery is not active in this environment. Messages will not reach recipients until delivery is enabled.";
-  const summaryMessage = summary
-    ? messages.find((message) => message.id === summary.messageId)
-    : undefined;
   const selectedEvent = audience.eventId
     ? (events.find((event) => event.id === audience.eventId) ?? null)
     : null;
@@ -608,6 +687,11 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               </p>
             </div>
           </div>
+          {error ? (
+            <p className="notice notice--error" role="alert">
+              {error}
+            </p>
+          ) : null}
           {historyMessages.length === 0 && scheduledMessageHistory.length === 0 ? (
             <p>No communications have been sent yet.</p>
           ) : (
@@ -616,42 +700,56 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                 <ul className="account-list">
                   {historyMessages.map((message) => (
                     <li key={message.id}>
-                      <div>
-                        <strong>{message.subject || `${message.channel} message`}</strong>
-                        <p>
-                          {message.status} · {message.channel} · {displayDate(message.createdAt)} ·
-                          reach {String(message.reach.total)}
-                        </p>
-                      </div>
-                      <div className="button-row communication-history-actions">
-                        {message.status === "Queued" ? (
-                          <>
+                      <div className="communication-history-entry">
+                        <div className="communication-history-entry__header">
+                          <div>
+                            <strong>{message.subject || `${message.channel} message`}</strong>
+                            <p>
+                              {message.status} · {message.channel} ·{" "}
+                              {displayDate(message.createdAt)} · reach {String(message.reach.total)}
+                            </p>
+                          </div>
+                          <div className="button-row communication-history-actions">
+                            {message.status === "Queued" ? (
+                              <>
+                                <button
+                                  className="button button--secondary button--small"
+                                  disabled={busy}
+                                  onClick={() => void editQueuedMessage(message)}
+                                  type="button"
+                                >
+                                  Edit &amp; requeue
+                                </button>
+                                <button
+                                  className="button button--danger button--small"
+                                  disabled={busy}
+                                  onClick={() => void cancelQueuedMessage(message)}
+                                  type="button"
+                                >
+                                  Cancel message
+                                </button>
+                              </>
+                            ) : null}
                             <button
                               className="button button--secondary button--small"
                               disabled={busy}
-                              onClick={() => void editQueuedMessage(message)}
+                              onClick={() => void showDelivery(message)}
                               type="button"
                             >
-                              Edit &amp; requeue
+                              {loadingDeliveryId === message.id
+                                ? "Loading delivery details…"
+                                : "View delivery details"}
                             </button>
-                            <button
-                              className="button button--danger button--small"
-                              disabled={busy}
-                              onClick={() => void cancelQueuedMessage(message)}
-                              type="button"
-                            >
-                              Cancel message
-                            </button>
-                          </>
+                          </div>
+                        </div>
+                        {summary?.messageId === message.id ? (
+                          <DeliveryDetails
+                            busy={busy}
+                            message={message}
+                            onRetry={retryFailed}
+                            summary={summary}
+                          />
                         ) : null}
-                        <button
-                          className="button button--secondary button--small"
-                          disabled={busy}
-                          onClick={() => void showDelivery(message)}
-                          type="button"
-                        >
-                          View delivery details
-                        </button>
                       </div>
                     </li>
                   ))}
@@ -684,72 +782,6 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               ) : null}
             </>
           )}
-          {summary ? (
-            <div className="notice notice--info" aria-live="polite">
-              <p>
-                <strong>
-                  Delivery details
-                  {summaryMessage
-                    ? " for " + (summaryMessage.subject || summaryMessage.channel + " message")
-                    : ""}
-                </strong>
-              </p>
-              <p>
-                Delivery: {summary.state} · {summary.total.sent} sent · {summary.total.failed}{" "}
-                failed · {summary.total.queued + summary.total.processing} remaining
-              </p>
-              {summary.provider.total > 0 ? (
-                <>
-                  <p>
-                    Provider: {summary.provider.accepted} accepted · {summary.provider.delivered}{" "}
-                    delivered · {summary.provider.deferred} deferred · {summary.provider.bounced}{" "}
-                    bounced
-                  </p>
-                  <p>
-                    Provider: {summary.provider.failed} failed · {summary.provider.rejected}{" "}
-                    rejected · {summary.provider.complained} complained
-                  </p>
-                </>
-              ) : null}
-              {summary.failures.length > 0 ? (
-                <ul>
-                  {summary.failures.map((failure, index) => (
-                    <li key={`${failure.maskedDestination}:${String(index)}`}>
-                      {failure.maskedDestination}: {failure.category}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {summary.recipients.length > 0 ? (
-                <details className="communication-delivery-recipients" open>
-                  <summary>Recipients ({String(summary.recipients.length)})</summary>
-                  <ul className="communication-delivery-recipients__list">
-                    {summary.recipients.map((recipient, index) => (
-                      <li
-                        className="communication-delivery-recipients__item"
-                        key={
-                          recipient.recipientName + ":" + recipient.channel + ":" + String(index)
-                        }
-                      >
-                        <div>
-                          <strong>{recipient.recipientName}</strong>
-                          <p>{deliveryChannelLabel(recipient.channel)}</p>
-                        </div>
-                        <span className={"status-pill status-pill--" + recipient.status}>
-                          {deliveryStatusLabel(recipient)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ) : null}
-              {summary.total.failed > 0 ? (
-                <button disabled={busy} onClick={() => void retryFailed()} type="button">
-                  Retry failed deliveries
-                </button>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       ) : null}
 

@@ -5,6 +5,7 @@
 @layer components {
   .set-list-item {
     position: relative;
+    min-width: 0;
     cursor: pointer;
     padding: 0.6rem 0.75rem;
     border: 1px solid var(--color-border);
@@ -17,6 +18,7 @@
   }
 
   .set-list-item-heading {
+    min-width: 0;
     align-items: center;
     margin-bottom: 0.45rem;
   }
@@ -234,11 +236,17 @@
 
   .set-list-item-summary {
     display: flex;
+    min-width: 0;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
+  }
+
+  .set-list-item-summary > span:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .set-list-item > .button-row {
@@ -247,6 +255,7 @@
   }
 
   .set-list-item-actions {
+    min-width: 0;
     gap: 0.55rem;
   }
 
@@ -316,5 +325,27 @@
     display: grid;
     gap: 0.5rem;
     margin-top: 0.75rem;
+  }
+
+  @container set-list-editor (max-width: 52rem) {
+    .set-list-item-heading {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .set-list-item-title,
+    .set-list-item-actions {
+      flex: 1 1 100%;
+      width: 100%;
+    }
+
+    .set-list-item-actions {
+      justify-content: flex-start;
+    }
+
+    .set-list-item-summary {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
   }
 }

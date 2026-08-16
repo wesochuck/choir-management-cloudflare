@@ -183,6 +183,7 @@ export function renderMemberPage(
   pathname: string,
   enabled: boolean,
   navigate: (href: string) => void,
+  accessStatus: AccessState["status"],
 ): ReactNode {
   const pages: Record<string, ReactNode> = {
     "/directory": <MemberProfileDirectory enabled={enabled} view="directory" />,
@@ -194,7 +195,9 @@ export function renderMemberPage(
     // Keep the former deep link working while the subscription controls live on My schedule.
     "/calendar": <MySchedule enabled={enabled} />,
   };
-  if (pathname === "/dashboard") return <DashboardView enabled={enabled} navigate={navigate} />;
+  if (pathname === "/dashboard") {
+    return <DashboardView accessStatus={accessStatus} enabled={enabled} navigate={navigate} />;
+  }
   if (pathname.startsWith("/seating/")) return <SeatingFinder enabled={enabled} />;
   return pages[pathname] ?? null;
 }

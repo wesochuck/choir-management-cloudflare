@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
 import { CalendarSubscription } from "./CalendarSubscription";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type ScheduleState =
@@ -255,7 +256,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
         </label>
       </div>
       {!enabled ? (
-        <p className="notice notice--warning">Verify Organization MFA to view your schedule.</p>
+        <OrganizationMfaPrompt message="Verify Organization MFA to view your schedule." />
       ) : null}
       {enabled && state.status === "loading" ? <p>Loading your schedule…</p> : null}
       {enabled && state.status === "missing" ? (

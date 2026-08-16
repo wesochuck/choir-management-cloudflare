@@ -16,6 +16,7 @@ import {
   listOrganizationMemberships,
   listOrganizationProfiles,
 } from "../auth/api";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
 function displayDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
@@ -199,7 +200,9 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
     return (
       <div className="organization-pending-invitations">
         <h3>Membership Profile links</h3>
-        <p className="notice notice--info">Verify Organization MFA before linking Profiles.</p>
+        <p className="notice notice--info">
+          Profile links will be available after Organization MFA is verified.
+        </p>
       </div>
     );
   }
@@ -481,9 +484,7 @@ export function OrganizationInvitations({
         accepting.
       </p>
       {mfaBlocked ? (
-        <p className="notice notice--info" role="status">
-          Verify Organization MFA above before creating an invitation.
-        </p>
+        <OrganizationMfaPrompt message="Verify Organization MFA before creating an invitation." />
       ) : null}
       {errorMessage ? (
         <p className="notice notice--error" role="alert">

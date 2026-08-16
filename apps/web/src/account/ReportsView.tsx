@@ -25,6 +25,7 @@ import { RsvpReport } from "./components/Reports/RsvpReport";
 import { type LoadState, type ReportTab } from "./components/Reports/shared";
 import { reportEvents, TAB_LABELS } from "./components/Reports/reportHelpers";
 import { MusicFolderReport } from "./components/MusicFolderReport/view";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
 export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   const [tab, setTab] = useState<ReportTab>("attendance");
@@ -95,8 +96,9 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled, tab]);
 
-  if (!enabled)
-    return <p className="notice notice--warning">Verify Organization MFA to view reports.</p>;
+  if (!enabled) {
+    return <OrganizationMfaPrompt message="Verify Organization MFA to view reports." />;
+  }
   if (state === "loading") return <p className="empty-state">Loading reports…</p>;
   if (state === "error")
     return <p className="notice notice--error">Reports could not be loaded. Try again.</p>;

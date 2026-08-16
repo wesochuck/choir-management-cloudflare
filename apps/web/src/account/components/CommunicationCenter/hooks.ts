@@ -57,6 +57,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const [rosterConfiguration, setRosterConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
+  const [loadingDeliveryId, setLoadingDeliveryId] = useState<string | null>(null);
   const [reach, setReach] = useState<string | null>(null);
   const [testEmail, setTestEmail] = useState("");
   const [activeTab, setActiveTab] = useState<CommunicationTab>(
@@ -106,6 +107,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     setVoiceParts("");
     setReach(null);
     setSummary(null);
+    setLoadingDeliveryId(null);
     setError(null);
     setSuccess(null);
     setQueuedResult(null);
@@ -313,11 +315,14 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   async function showDelivery(message: CommunicationMessage) {
     setBusy(true);
     setError(null);
+    setSummary(null);
+    setLoadingDeliveryId(message.id);
     try {
       setSummary(await getOrganizationCommunicationDeliverySummary(message.id));
     } catch (failure: unknown) {
       setError(failureMessage(failure));
     } finally {
+      setLoadingDeliveryId(null);
       setBusy(false);
     }
   }
@@ -486,6 +491,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     error,
     events,
     historyMessages,
+    loadingDeliveryId,
     messages,
     openFinalPreview,
     previewOpen,

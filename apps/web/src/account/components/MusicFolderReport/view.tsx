@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 import { DataTable, type DataTablePresentation } from "@choir/ui";
 
+import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useMusicFolderReportController } from "./controller";
 import {
   filterMusicFolderSummaries,
@@ -429,7 +430,7 @@ export function MusicFolderReport({
     : [];
 
   if (!enabled) {
-    return <p className="notice notice--warning">Verify Organization MFA to view reports.</p>;
+    return <OrganizationMfaPrompt message="Verify Organization MFA to view reports." />;
   }
   if (controller.queryState === "loading" && !report) {
     return <p className="empty-state">Loading Music Folder Report…</p>;

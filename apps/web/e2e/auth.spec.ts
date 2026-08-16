@@ -1875,11 +1875,32 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const navigationDrawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(navigationDrawer).toBeVisible();
   const pinNavigation = navigationDrawer.getByRole("button", { name: "Pin navigation open" });
+  const closeNavigation = navigationDrawer.getByRole("button", { name: "Close navigation" });
   await expect(pinNavigation).toHaveClass(/sidebar-drawer__pin/);
   await expect(pinNavigation).toHaveCSS("width", "36px");
+  await expect(closeNavigation).toHaveCSS("width", "36px");
+  await expect(closeNavigation).toHaveCSS("height", "36px");
   await expect(pinNavigation.locator("svg")).toHaveCSS("overflow", "visible");
   await expect(pinNavigation.locator("path")).toHaveAttribute("d", "M8 4h8v5l3 3H5l3-3V4M12 12v8");
+
+  await page.setViewportSize({ height: 734, width: 390 });
+  const pinBox = await pinNavigation.boundingBox();
+  const closeBox = await closeNavigation.boundingBox();
+  const drawerBox = await navigationDrawer.boundingBox();
+  expect(pinBox).not.toBeNull();
+  expect(closeBox).not.toBeNull();
+  expect(drawerBox).not.toBeNull();
+  if (!pinBox || !closeBox || !drawerBox) {
+    throw new Error("Workspace navigation controls should have visible geometry");
+  }
+  expect(Math.abs(pinBox.y - closeBox.y)).toBeLessThanOrEqual(1);
+  expect(closeBox.x - (pinBox.x + pinBox.width)).toBeGreaterThanOrEqual(7);
+  expect(closeBox.x - (pinBox.x + pinBox.width)).toBeLessThanOrEqual(9);
+  expect(pinBox.x).toBeGreaterThanOrEqual(drawerBox.x);
+  expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(drawerBox.x + drawerBox.width);
+
   await pinNavigation.click();
+  await page.setViewportSize({ height: 734, width: 844 });
   await expect(navigationDrawer).toHaveCount(0);
   await expect(collapseNavigation).toBeVisible();
   await page.reload();

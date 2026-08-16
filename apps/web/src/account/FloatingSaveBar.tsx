@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useConfirmation } from "@choir/ui";
 
-import { FloatingSaveBarContext } from "./useFloatingSaveAction";
+import { FloatingSaveBarContext, registerFloatingSaveNavigation } from "./useFloatingSaveAction";
 
 interface SaveAction {
   readonly busy: boolean;
@@ -13,6 +14,7 @@ interface SaveAction {
 export function FloatingSaveBarProvider({ children }: { readonly children: ReactNode }) {
   const [actions, setActions] = useState<Readonly<Record<string, SaveAction>>>({});
   const [saving, setSaving] = useState(false);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   const register = useCallback((action: SaveAction) => {
     setActions((current) => ({ ...current, [action.id]: action }));
@@ -26,6 +28,34 @@ export function FloatingSaveBarProvider({ children }: { readonly children: React
 
   const dirtyActions = Object.values(actions).filter(({ dirty }) => dirty);
   const busy = saving || Object.values(actions).some(({ busy: actionBusy }) => actionBusy);
+
+  const discardChanges = useCallback((): void => {
+    if (busy) return;
+    dirtyActions.forEach(({ onDiscard }) => onDiscard?.());
+  }, [busy, dirtyActions]);
+
+  const requestNavigation = useCallback(
+    async (navigate: () => void): Promise<void> => {
+      if (dirtyActions.length === 0) {
+        navigate();
+        return;
+      }
+      if (busy) return;
+      const shouldDiscard = await confirm({
+        confirmLabel: "Discard changes",
+        description:
+          "You have unsaved changes. Save them from the floating save bar before leaving, or discard them to continue.",
+        destructive: true,
+        title: "Leave with unsaved changes?",
+      });
+      if (!shouldDiscard) return;
+      discardChanges();
+      navigate();
+    },
+    [busy, confirm, discardChanges, dirtyActions.length],
+  );
+
+  useEffect(() => registerFloatingSaveNavigation(requestNavigation), [requestNavigation]);
 
   async function saveChanges(): Promise<void> {
     if (busy || dirtyActions.length === 0) return;
@@ -41,10 +71,18 @@ export function FloatingSaveBarProvider({ children }: { readonly children: React
     }
   }
 
-  function discardChanges(): void {
-    if (busy) return;
-    dirtyActions.forEach(({ onDiscard }) => onDiscard?.());
-  }
+  useEffect(() => {
+    if (dirtyActions.length === 0) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Safari still requires returnValue for the native prompt.
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [dirtyActions.length]);
 
   const contextValue = useMemo(() => ({ register }), [register]);
 
@@ -74,6 +112,7 @@ export function FloatingSaveBarProvider({ children }: { readonly children: React
           </div>
         </div>
       ) : null}
+      {confirmationDialog}
     </FloatingSaveBarContext.Provider>
   );
 }

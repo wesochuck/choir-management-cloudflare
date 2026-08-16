@@ -9,6 +9,7 @@ import {
 import { Dialog } from "@choir/ui";
 import { type CSSProperties } from "react";
 import { setOrganizationEventRsvp } from "../../../auth/api";
+import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { ConfirmDialog, FormationEditor } from "./shared";
 import {
@@ -121,7 +122,7 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
   } = model;
 
   if (!enabled)
-    return <p className="notice notice--warning">Verify Organization MFA to manage seating.</p>;
+    return <OrganizationMfaPrompt message="Verify Organization MFA to manage seating." />;
   if (loading && !resources) return <p role="status">Loading seating resources…</p>;
   if (error && !resources)
     return (

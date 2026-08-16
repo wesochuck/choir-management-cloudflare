@@ -9,6 +9,7 @@ import {
   listOrganizationVenues,
   updateOrganizationVenue,
 } from "../auth/api";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
 type VenueState =
   | { readonly status: "error" }
@@ -125,7 +126,7 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
   }
 
   if (!enabled) {
-    return <p className="notice notice--warning">Verify Organization MFA to manage venues.</p>;
+    return <OrganizationMfaPrompt message="Verify Organization MFA to manage venues." />;
   }
 
   return (
