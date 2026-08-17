@@ -1,5 +1,5 @@
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import type { Dispatch, SetStateAction, SyntheticEvent } from "react";
 
 import type { DiscountDraft } from "./shared";
@@ -167,14 +167,11 @@ export function DiscountCodeForm({
           >
             {busy ? "Saving…" : "Save discount code"}
           </button>
-          <button
-            className="button button--secondary"
-            disabled={busy}
-            onClick={closeDiscountDialog}
-            type="button"
-          >
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={busy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
         </div>
       </form>
     </Dialog>

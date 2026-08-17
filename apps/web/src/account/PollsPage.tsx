@@ -6,7 +6,7 @@ import {
   type OrganizationPollSummary,
 } from "@choir/contracts";
 import { defaultPollExpirationAt } from "@choir/domain";
-import { DataTable, Dialog } from "@choir/ui";
+import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
 import { saveOrganizationCommunicationDraft } from "../auth/api";
@@ -420,15 +420,11 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             ))}
           </fieldset>
           <div className="dialog__actions">
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                setDialogOpen(false);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
+            <DialogClose asChild>
+              <button className="button button--secondary" type="button">
+                Cancel
+              </button>
+            </DialogClose>
             <button className="button button--primary" disabled={saving} type="submit">
               {saving ? "Saving…" : editingPollId ? "Save changes" : "Create poll"}
             </button>

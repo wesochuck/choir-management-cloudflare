@@ -1,5 +1,5 @@
 import type { OrganizationEvent, OrganizationEventRequest } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import { type Dispatch, type DragEvent, type SetStateAction, useState } from "react";
 import { dayOfPriceStartLabel } from "../../eventPricing";
 import { QRCodeShareCard } from "../../QRCodeShareCard";
@@ -514,9 +514,11 @@ export function EventEditorDialog({
           <div className="event-editor-save-bar" role="region" aria-label="Unsaved event changes">
             <span className="event-editor-save-bar__message">Unsaved changes</span>
             <div className="dialog__actions">
-              <button className="button button--secondary" onClick={onClose} type="button">
-                Cancel
-              </button>
+              <DialogClose asChild>
+                <button className="button button--secondary" type="button">
+                  Cancel
+                </button>
+              </DialogClose>
               <button className="button button--primary" disabled={busy} type="submit">
                 {eventSaveLabel(busy, editingId)}
               </button>

@@ -12,6 +12,20 @@ interface DialogProps {
   readonly title: string;
 }
 
+export function DialogClose({
+  asChild,
+  children,
+}: {
+  readonly asChild?: boolean;
+  readonly children: ReactNode;
+}) {
+  return asChild ? (
+    <DialogPrimitive.Close asChild>{children}</DialogPrimitive.Close>
+  ) : (
+    <DialogPrimitive.Close>{children}</DialogPrimitive.Close>
+  );
+}
+
 export function Dialog({ children, description, dirty, onClose, open, title }: DialogProps) {
   const [inputDirty, setInputDirty] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation();

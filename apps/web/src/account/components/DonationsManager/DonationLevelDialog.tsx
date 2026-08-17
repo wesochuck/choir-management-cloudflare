@@ -1,4 +1,4 @@
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import type { SyntheticEvent } from "react";
 
 export function DonationLevelDialog({
@@ -73,14 +73,11 @@ export function DonationLevelDialog({
           <button className="button button--primary" disabled={busy} type="submit">
             {busy ? "Saving…" : "Save level"}
           </button>
-          <button
-            className="button button--secondary"
-            disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={busy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
         </div>
       </form>
     </Dialog>

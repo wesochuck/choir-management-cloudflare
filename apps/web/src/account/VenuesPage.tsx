@@ -1,5 +1,5 @@
 import type { OrganizationVenue } from "@choir/contracts";
-import { DataTable, Dialog } from "@choir/ui";
+import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -255,16 +255,11 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
             />
           </div>
           <div className="dialog__actions">
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                setCreateOpen(false);
-                setEditingVenue(null);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
+            <DialogClose asChild>
+              <button className="button button--secondary" type="button">
+                Cancel
+              </button>
+            </DialogClose>
             <button className="button button--primary" disabled={busy} type="submit">
               {busy ? "Saving…" : editingVenue ? "Save changes" : "Create venue"}
             </button>

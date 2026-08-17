@@ -1,5 +1,5 @@
 import { parseSetListDuration } from "@choir/domain";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import type { SyntheticEvent } from "react";
 
 import type { SetListManagerModel } from "../hooks";
@@ -160,9 +160,11 @@ export function EditItemDialog({
           />
         ) : null}
         <div className="dialog__actions">
-          <button className="button button--secondary" onClick={closeItemEditor} type="button">
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button className="button button--primary" type="submit">
             Save item
           </button>

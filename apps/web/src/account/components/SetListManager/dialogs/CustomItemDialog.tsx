@@ -1,4 +1,4 @@
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import type { SyntheticEvent } from "react";
 
 export function CustomItemDialog({
@@ -107,9 +107,11 @@ export function CustomItemDialog({
           />
         </label>
         <div className="dialog__actions">
-          <button className="button button--secondary" onClick={onClose} type="button">
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button className="button button--primary" type="submit">
             Add item
           </button>

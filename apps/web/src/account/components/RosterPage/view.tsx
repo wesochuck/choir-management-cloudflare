@@ -1,5 +1,5 @@
 import { rosterCsvColumnOptions } from "@choir/domain";
-import { DataTable, Dialog } from "@choir/ui";
+import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { PerformanceHistory, VoicePartBalance } from "./shared";
 import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "./profileDetails";
@@ -867,9 +867,11 @@ export function RosterPageView({
                 Receive RSVP decline notices
               </label>
               <div className="dialog__actions">
-                <button className="button button--secondary" onClick={closeDialog} type="button">
-                  Cancel
-                </button>
+                <DialogClose asChild>
+                  <button className="button button--secondary" type="button">
+                    Cancel
+                  </button>
+                </DialogClose>
                 <button className="button button--primary" disabled={busy} type="submit">
                   {busy ? "Saving…" : editingId ? "Save Profile" : "Create Profile"}
                 </button>

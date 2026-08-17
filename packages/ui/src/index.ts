@@ -10,7 +10,7 @@ export {
   type DataTableSortDirection,
 } from "./DataTable";
 export { ConfirmDialog, type ConfirmationOptions } from "./ConfirmDialog";
-export { Dialog } from "./Dialog";
+export { Dialog, DialogClose } from "./Dialog";
 export { DropdownMenu } from "./DropdownMenu";
 export { Sheet } from "./Sheet";
 export { useConfirmation } from "./useConfirmation";

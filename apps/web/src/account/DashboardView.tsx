@@ -1,5 +1,5 @@
 import type { MemberDashboardResponse } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getMemberDashboard, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
@@ -465,14 +465,15 @@ function DashboardDialogs({
             </small>
           </div>
           <div className="dialog__actions">
-            <button
-              className="button button--secondary"
-              disabled={busyEventId === declineEvent?.id}
-              onClick={onCloseDecline}
-              type="button"
-            >
-              Cancel
-            </button>
+            <DialogClose asChild>
+              <button
+                className="button button--secondary"
+                disabled={busyEventId === declineEvent?.id}
+                type="button"
+              >
+                Cancel
+              </button>
+            </DialogClose>
             <button
               className="button button--danger"
               disabled={!declineNote.trim() || busyEventId === declineEvent?.id}

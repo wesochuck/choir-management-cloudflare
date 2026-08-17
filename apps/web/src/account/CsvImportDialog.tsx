@@ -1,4 +1,4 @@
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 
 interface CsvImportDialogProps {
   readonly busy: boolean;
@@ -205,14 +205,11 @@ export function CsvImportDialog({
           </div>
         ) : null}
         <div className="dialog__actions">
-          <button
-            className="button button--secondary"
-            disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={busy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button
             className="button button--primary"
             disabled={importDisabled}

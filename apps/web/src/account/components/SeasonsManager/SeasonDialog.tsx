@@ -1,5 +1,5 @@
 import type { Season } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import type { Dispatch, SetStateAction } from "react";
 
 import type { SeasonForm } from "./types";
@@ -98,14 +98,11 @@ export function SeasonDialog({
           </div>
         </div>
         <div className="dialog__actions">
-          <button
-            className="button button--secondary"
-            disabled={seasonBusy}
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={seasonBusy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button className="button button--primary" disabled={seasonBusy} type="submit">
             {seasonBusy ? "Saving…" : editingSeason ? "Save changes" : "Create season"}
           </button>

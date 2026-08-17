@@ -174,6 +174,10 @@
     gap: 0.6rem;
   }
 
+  .set-list-credit-controls .set-list-inline-control {
+    align-items: flex-start;
+  }
+
   .set-list-copy-row,
   .set-list-inline-control,
   .set-list-summary,

@@ -1,5 +1,5 @@
 import type { PublicWebsiteSettings, PublicWebsiteSettingsRequest } from "@choir/contracts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -10,11 +10,35 @@ import {
   uploadPrivateOrganizationFile,
 } from "../auth/api";
 import { publicWebsiteFontStacks, type PublicWebsiteFont } from "../public/publicWebsiteFonts";
+import { useFloatingSaveAction } from "./useFloatingSaveAction";
 
 type LoadState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly settings: PublicWebsiteSettings; readonly status: "ready" };
+
+function isWebsiteDraftDirty(
+  loadState: LoadState,
+  draft: PublicWebsiteSettingsRequest | null,
+  heroFile: File | null,
+  logoFile: File | null,
+): boolean {
+  if (loadState.status !== "ready" || !draft) return false;
+  if (heroFile !== null || logoFile !== null) return true;
+  const saved = requestFrom(loadState.settings);
+  return (
+    draft.aboutUsText !== saved.aboutUsText ||
+    draft.bodyFont !== saved.bodyFont ||
+    draft.contactEmail !== saved.contactEmail ||
+    draft.headerFont !== saved.headerFont ||
+    draft.heroHeadline !== saved.heroHeadline ||
+    draft.heroSubtitle !== saved.heroSubtitle ||
+    draft.historyText !== saved.historyText ||
+    draft.showBrandingHeaderFooter !== saved.showBrandingHeaderFooter ||
+    draft.enabledNavigation.length !== saved.enabledNavigation.length ||
+    draft.enabledNavigation.some((item) => !saved.enabledNavigation.includes(item))
+  );
+}
 
 const websiteFonts = [
   "system",
@@ -204,13 +228,32 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
             }
           : current,
       );
-      setSuccess(`Public website version ${String(result.version)} is live.`);
     } catch (failure: unknown) {
       setError(errorMessage(failure));
     } finally {
       setBusy(false);
     }
   }
+
+  const dirty = useMemo(
+    () => isWebsiteDraftDirty(loadState, draft, heroFile, logoFile),
+    [draft, heroFile, loadState, logoFile],
+  );
+
+  useFloatingSaveAction({
+    busy,
+    dirty,
+    id: "organization-public-website-settings",
+    onDiscard: () => {
+      if (loadState.status === "ready") {
+        setDraft(requestFrom(loadState.settings));
+        setHeroFile(null);
+        setLogoFile(null);
+        setError(null);
+      }
+    },
+    onSave: save,
+  });
 
   if (!enabled) return null;
   if (loadState.status === "loading") {

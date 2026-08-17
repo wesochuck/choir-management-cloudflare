@@ -1,5 +1,5 @@
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import type { Dispatch, SetStateAction, SyntheticEvent } from "react";
 import { money } from "./shared";
 
@@ -159,16 +159,11 @@ export function BundlePanel({
             >
               {busy ? "Saving…" : "Save bundle"}
             </button>
-            {editingBundleId ? (
-              <button
-                className="button button--secondary"
-                disabled={busy}
-                onClick={closeBundleDialog}
-                type="button"
-              >
+            <DialogClose asChild>
+              <button className="button button--secondary" disabled={busy} type="button">
                 Cancel
               </button>
-            ) : null}
+            </DialogClose>
           </div>
         </form>
       </Dialog>

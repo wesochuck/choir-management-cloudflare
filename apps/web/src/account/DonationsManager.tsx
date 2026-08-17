@@ -1,12 +1,13 @@
 import { donationRecordSchema, type DonationLevel, type DonationSettings } from "@choir/contracts";
 import { useConfirmation } from "@choir/ui";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 
 import {
   getOrganizationCalendarSettings,
   getOrganizationDonationSettings,
   updateOrganizationDonationSettings,
 } from "../auth/api";
+import { useFloatingSaveAction } from "./useFloatingSaveAction";
 import { DonationHistoryTab } from "./components/DonationsManager/DonationHistoryTab";
 import { DonationLevelDialog } from "./components/DonationsManager/DonationLevelDialog";
 import { DonationLevelsTab } from "./components/DonationsManager/DonationLevelsTab";
@@ -196,6 +197,34 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       setBusy(false);
     }
   }
+
+  const portalCopyDirty = useMemo(() => {
+    if (settingsState.status !== "ready") return false;
+    return (
+      portalButtonText !== settingsState.settings.buttonText ||
+      portalDescription !== settingsState.settings.description
+    );
+  }, [portalButtonText, portalDescription, settingsState]);
+
+  useFloatingSaveAction({
+    busy,
+    dirty: portalCopyDirty,
+    id: "organization-donation-portal-copy",
+    onDiscard: () => {
+      if (settingsState.status === "ready") {
+        setPortalButtonText(settingsState.settings.buttonText);
+        setPortalDescription(settingsState.settings.description);
+      }
+    },
+    onSave: async () => {
+      if (settingsState.status !== "ready" || !portalButtonText.trim()) return;
+      await saveSettings({
+        ...settingsState.settings,
+        buttonText: portalButtonText.trim(),
+        description: portalDescription.trim(),
+      });
+    },
+  });
 
   if (!enabled) return null;
   const donationExportHref =

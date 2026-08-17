@@ -11,6 +11,162 @@ import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { GenreChip } from "./components/MusicCatalog/shared";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { genreKey, uniqueGenreLabels } from "./components/MusicCatalog/utils";
+import { useFloatingSaveAction } from "./useFloatingSaveAction";
+
+interface MusicPublisherSettingsProps {
+  readonly busy: boolean;
+  readonly onSave: () => void;
+  readonly onTemplateChange: (value: string) => void;
+  readonly savedTemplate: string;
+  readonly template: string;
+}
+
+function MusicPublisherSettingsSection({
+  busy,
+  onSave,
+  onTemplateChange,
+  savedTemplate,
+  template,
+}: MusicPublisherSettingsProps) {
+  return (
+    <section className="music-publisher-settings" aria-labelledby="music-library-settings-title">
+      <div>
+        <p className="eyebrow">Music library setting</p>
+        <h2 id="music-library-settings-title">Catalog lookup link</h2>
+        <p>
+          Configure the publisher’s HTTPS search URL once here. Use <code>{"{catalogId}"}</code>{" "}
+          where the catalog number belongs; matching catalog rows will include a direct search link.
+        </p>
+      </div>
+      <form
+        className="music-publisher-settings__form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave();
+        }}
+      >
+        <label className="field">
+          Publisher search URL template
+          <input
+            aria-describedby="music-publisher-settings-help"
+            placeholder="https://publisher.example/search?catalog={catalogId}"
+            type="text"
+            value={template}
+            onChange={(event) => {
+              onTemplateChange(event.target.value);
+            }}
+          />
+          <small className="field-help" id="music-publisher-settings-help">
+            Leave blank to hide publisher links. HTTPS and the exact <code>{"{catalogId}"}</code>{" "}
+            placeholder are required.
+          </small>
+        </label>
+        <button
+          className="button button--secondary"
+          disabled={busy || template.trim() === savedTemplate}
+          type="submit"
+        >
+          {busy ? "Saving…" : "Save catalog link"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+interface MusicPracticeSettingsProps {
+  readonly busy: boolean;
+  readonly onLifetimeChange: (value: number) => void;
+  readonly onSave: () => void;
+  readonly lifetimeDays: number;
+  readonly savedLifetimeDays: number;
+}
+
+function MusicPracticeSettingsSection({
+  busy,
+  lifetimeDays,
+  onLifetimeChange,
+  onSave,
+  savedLifetimeDays,
+}: MusicPracticeSettingsProps) {
+  return (
+    <section className="music-practice-settings" aria-labelledby="music-practice-settings-title">
+      <div>
+        <p className="eyebrow">Practice player</p>
+        <h2 id="music-practice-settings-title">Public practice-link settings</h2>
+        <p>
+          Set how long newly created public practice-player links remain valid. This does not change
+          existing links; administrators can rotate them when needed.
+        </p>
+      </div>
+      <form
+        className="music-practice-settings__form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave();
+        }}
+      >
+        <label className="field">
+          Link lifetime (days)
+          <input
+            min="1"
+            max="3650"
+            type="number"
+            value={lifetimeDays}
+            onChange={(event) => {
+              onLifetimeChange(Number(event.target.value));
+            }}
+          />
+          <small className="field-help">
+            New links default to 180 days and can be rotated by an administrator.
+          </small>
+        </label>
+        <button
+          className="button button--secondary"
+          disabled={busy || lifetimeDays === savedLifetimeDays}
+          type="submit"
+        >
+          {busy ? "Saving…" : "Save practice settings"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function MusicGenreSettingsSection({
+  genreCounts,
+  genres,
+}: {
+  readonly genreCounts: ReadonlyMap<string, number>;
+  readonly genres: readonly string[];
+}) {
+  return (
+    <section className="music-library-genre-settings" aria-labelledby="music-library-genres-title">
+      <div>
+        <p className="eyebrow">Catalog tags</p>
+        <h2 id="music-library-genres-title">Genres in your catalog</h2>
+        <p>
+          These tags are collected from catalog pieces. Counts include each catalog item once per
+          genre, and the same colors are used by the catalog filter.
+        </p>
+      </div>
+      {genres.length > 0 ? (
+        <div className="music-library-genre-settings__list" aria-label="Catalog genres">
+          {genres.map((genre) => (
+            <GenreChip
+              count={genreCounts.get(genreKey(genre)) ?? 0}
+              genre={genre}
+              key={genreKey(genre)}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="music-library-genre-settings__empty">
+          No genres have been added to catalog pieces yet.
+        </p>
+      )}
+    </section>
+  );
+}
 
 export function MusicLibrarySettingsPage({
   enabled,
@@ -112,6 +268,53 @@ export function MusicLibrarySettingsPage({
     }
   }
 
+  const catalogDirty =
+    settings !== null &&
+    savedSettings !== null &&
+    settings.publisherSearchTemplate.trim() !== savedSettings.publisherSearchTemplate;
+
+  const practiceDirty =
+    settings !== null &&
+    savedSettings !== null &&
+    settings.practicePlayerLinkLifetimeDays !== savedSettings.practicePlayerLinkLifetimeDays;
+
+  useFloatingSaveAction({
+    busy,
+    dirty: catalogDirty,
+    id: "organization-music-library-catalog-settings",
+    onDiscard: () => {
+      if (savedSettings) {
+        setSettings((current) =>
+          current
+            ? { ...current, publisherSearchTemplate: savedSettings.publisherSearchTemplate }
+            : null,
+        );
+        setError(null);
+      }
+    },
+    onSave: () => save("catalog"),
+  });
+
+  useFloatingSaveAction({
+    busy,
+    dirty: practiceDirty,
+    id: "organization-music-library-practice-settings",
+    onDiscard: () => {
+      if (savedSettings) {
+        setSettings((current) =>
+          current
+            ? {
+                ...current,
+                practicePlayerLinkLifetimeDays: savedSettings.practicePlayerLinkLifetimeDays,
+              }
+            : null,
+        );
+        setError(null);
+      }
+    },
+    onSave: () => save("practice"),
+  });
+
   if (!enabled) {
     return (
       <OrganizationMfaPrompt message="Verify Organization MFA to change Music library settings." />
@@ -149,141 +352,33 @@ export function MusicLibrarySettingsPage({
       ) : null}
       {settings && savedSettings ? (
         <>
-          <section
-            className="music-publisher-settings"
-            aria-labelledby="music-library-settings-title"
-          >
-            <div>
-              <p className="eyebrow">Music library setting</p>
-              <h2 id="music-library-settings-title">Catalog lookup link</h2>
-              <p>
-                Configure the publisher’s HTTPS search URL once here. Use{" "}
-                <code>{"{catalogId}"}</code> where the catalog number belongs; matching catalog rows
-                will include a direct search link.
-              </p>
-            </div>
-            <form
-              className="music-publisher-settings__form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save("catalog");
-              }}
-            >
-              <label className="field">
-                Publisher search URL template
-                <input
-                  aria-describedby="music-publisher-settings-help"
-                  placeholder="https://publisher.example/search?catalog={catalogId}"
-                  type="text"
-                  value={settings.publisherSearchTemplate}
-                  onChange={(event) => {
-                    setSettings((current) =>
-                      current
-                        ? { ...current, publisherSearchTemplate: event.target.value }
-                        : current,
-                    );
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                />
-                <small className="field-help" id="music-publisher-settings-help">
-                  Leave blank to hide publisher links. HTTPS and the exact{" "}
-                  <code>{"{catalogId}"}</code> placeholder are required.
-                </small>
-              </label>
-              <button
-                className="button button--secondary"
-                disabled={
-                  busy ||
-                  settings.publisherSearchTemplate.trim() === savedSettings.publisherSearchTemplate
-                }
-                type="submit"
-              >
-                {busy ? "Saving…" : "Save catalog link"}
-              </button>
-            </form>
-          </section>
-          <section
-            className="music-practice-settings"
-            aria-labelledby="music-practice-settings-title"
-          >
-            <div>
-              <p className="eyebrow">Practice player</p>
-              <h2 id="music-practice-settings-title">Public practice-link settings</h2>
-              <p>
-                Set how long newly created public practice-player links remain valid. This does not
-                change existing links; administrators can rotate them when needed.
-              </p>
-            </div>
-            <form
-              className="music-practice-settings__form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save("practice");
-              }}
-            >
-              <label className="field">
-                Link lifetime (days)
-                <input
-                  min="1"
-                  max="3650"
-                  type="number"
-                  value={settings.practicePlayerLinkLifetimeDays}
-                  onChange={(event) => {
-                    setSettings((current) =>
-                      current
-                        ? { ...current, practicePlayerLinkLifetimeDays: Number(event.target.value) }
-                        : current,
-                    );
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                />
-                <small className="field-help">
-                  New links default to 180 days and can be rotated by an administrator.
-                </small>
-              </label>
-              <button
-                className="button button--secondary"
-                disabled={
-                  busy ||
-                  settings.practicePlayerLinkLifetimeDays ===
-                    savedSettings.practicePlayerLinkLifetimeDays
-                }
-                type="submit"
-              >
-                {busy ? "Saving…" : "Save practice settings"}
-              </button>
-            </form>
-          </section>
-          <section
-            className="music-library-genre-settings"
-            aria-labelledby="music-library-genres-title"
-          >
-            <div>
-              <p className="eyebrow">Catalog tags</p>
-              <h2 id="music-library-genres-title">Genres in your catalog</h2>
-              <p>
-                These tags are collected from catalog pieces. Counts include each catalog item once
-                per genre, and the same colors are used by the catalog filter.
-              </p>
-            </div>
-            {genres.length > 0 ? (
-              <div className="music-library-genre-settings__list" aria-label="Catalog genres">
-                {genres.map((genre) => (
-                  <GenreChip
-                    count={genreCounts.get(genreKey(genre)) ?? 0}
-                    genre={genre}
-                    key={genreKey(genre)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="music-library-genre-settings__empty">
-                No genres have been added to catalog pieces yet.
-              </p>
-            )}
-          </section>
+          <MusicPublisherSettingsSection
+            busy={busy}
+            onSave={() => void save("catalog")}
+            onTemplateChange={(value) => {
+              setSettings((current) =>
+                current ? { ...current, publisherSearchTemplate: value } : current,
+              );
+              setError(null);
+              setSuccess(null);
+            }}
+            savedTemplate={savedSettings.publisherSearchTemplate}
+            template={settings.publisherSearchTemplate}
+          />
+          <MusicPracticeSettingsSection
+            busy={busy}
+            lifetimeDays={settings.practicePlayerLinkLifetimeDays}
+            onLifetimeChange={(value) => {
+              setSettings((current) =>
+                current ? { ...current, practicePlayerLinkLifetimeDays: value } : current,
+              );
+              setError(null);
+              setSuccess(null);
+            }}
+            onSave={() => void save("practice")}
+            savedLifetimeDays={savedSettings.practicePlayerLinkLifetimeDays}
+          />
+          <MusicGenreSettingsSection genreCounts={genreCounts} genres={genres} />
         </>
       ) : null}
     </section>

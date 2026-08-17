@@ -3,7 +3,7 @@ import type {
   OrganizationMusicPiece,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import { useState, type ChangeEvent, type DragEvent } from "react";
 import {
   AuthApiError,
@@ -280,6 +280,13 @@ export function MusicDeleteControls({
             Delete music piece
           </button>
         ) : null}
+        {!deleteConfirm ? (
+          <DialogClose asChild>
+            <button className="button button--secondary" type="button">
+              Cancel
+            </button>
+          </DialogClose>
+        ) : null}
       </div>
       {deleteConfirm ? (
         <div className="danger-confirmation" role="group" aria-label="Confirm music deletion">
@@ -491,14 +498,11 @@ export function MusicBulkEditDialog({
           </div>
         </fieldset>
         <div className="dialog__actions">
-          <button
-            className="button button--secondary"
-            disabled={busy}
-            type="button"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={busy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button className="button button--primary" disabled={busy} type="submit">
             {busy ? "Updating…" : `Update ${String(selectedCount)} pieces`}
           </button>
