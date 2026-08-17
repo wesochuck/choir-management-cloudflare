@@ -4,7 +4,7 @@ import type {
   OrganizationAuditionCreateRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DropdownMenu } from "@choir/ui";
 
 import {
   STATUS_LABELS,
@@ -39,7 +39,31 @@ export function AuditionTable({
         <span role="columnheader">Actions</span>
       </div>
       {auditions.map((audition) => (
-        <div className="audition-table__row" key={audition.id} role="row">
+        <div
+          aria-label={
+            audition.status === "pending" ? `Schedule audition for ${audition.name}` : undefined
+          }
+          className={`audition-table__row${audition.status === "pending" ? " audition-table__row--interactive" : ""}`}
+          key={audition.id}
+          onClick={
+            audition.status === "pending"
+              ? () => {
+                  onSchedule(audition);
+                }
+              : undefined
+          }
+          onKeyDown={
+            audition.status === "pending"
+              ? (event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  onSchedule(audition);
+                }
+              : undefined
+          }
+          role="row"
+          tabIndex={audition.status === "pending" ? 0 : undefined}
+        >
           <span role="cell">
             <strong>{audition.name}</strong>
             <small className="table-secondary">
@@ -77,7 +101,15 @@ export function AuditionTable({
             </span>
           </span>
           <span role="cell">{formatDate(audition.createdAt)}</span>
-          <span role="cell">
+          <span
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+            }}
+            role="cell"
+          >
             <div className="table-actions">
               <button
                 className="button button--secondary button--small"
@@ -112,15 +144,26 @@ export function AuditionTable({
                   Schedule
                 </button>
               ) : null}
-              <button
-                className="button button--danger button--small"
-                onClick={() => {
-                  onDelete(audition);
-                }}
-                type="button"
-              >
-                Delete
-              </button>
+              <DropdownMenu
+                accessibleLabel={`More actions for ${audition.name}`}
+                items={[
+                  {
+                    label: "Delete",
+                    onSelect: () => {
+                      onDelete(audition);
+                    },
+                  },
+                ]}
+                trigger={
+                  <button
+                    aria-label={`More actions for ${audition.name}`}
+                    className="button button--secondary button--small audition-table__overflow"
+                    type="button"
+                  >
+                    <span aria-hidden="true">⋮</span>
+                  </button>
+                }
+              />
             </div>
           </span>
         </div>

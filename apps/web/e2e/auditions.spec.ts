@@ -540,6 +540,22 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await expect(page.getByText("Singer Two")).toBeVisible();
   await expect(page.getByText("Soprano")).toBeVisible();
 
+  const firstAuditionRow = page.locator(".audition-table__row").first();
+  await firstAuditionRow.getByRole("cell").first().click();
+  const scheduleDialog = page.getByRole("dialog", { name: "Schedule audition" });
+  await expect(scheduleDialog).toBeVisible();
+  await scheduleDialog.getByRole("button", { name: "Cancel" }).click();
+  await firstAuditionRow.focus();
+  await firstAuditionRow.press("Enter");
+  await expect(scheduleDialog).toBeVisible();
+  await scheduleDialog.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByRole("button", { name: "More actions for Singer One" }).click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  const deleteDialog = page.getByRole("dialog", { name: "Delete audition?" });
+  await expect(deleteDialog).toBeVisible();
+  await deleteDialog.getByRole("button", { name: "Cancel" }).click();
+
   await page.getByRole("button", { name: "Edit" }).first().click({ force: true });
   await expect(page.getByText("Edit Audition")).toBeVisible();
   await page.getByLabel("Status").selectOption("scheduled");
