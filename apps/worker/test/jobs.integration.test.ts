@@ -272,6 +272,24 @@ async function readJobLedger(
 
 beforeEach(async () => {
   await applyD1Migrations(controlDatabase, [...inject("controlMigrations")]);
+  for (const organizationId of ["organization-alpha", "organization-bravo"]) {
+    const response = await organizationStore
+      .get(organizationStore.idFromName(organizationId))
+      .fetch("https://organization.internal/internal/provision", {
+        body: JSON.stringify({
+          actorUserId: "queue-test",
+          canonicalHostname: `${organizationId}.localhost`,
+          canonicalStatus: "active",
+          name: organizationId,
+          organizationId,
+          requestId: crypto.randomUUID(),
+          slug: organizationId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+    expect(response.status).toBe(200);
+  }
 });
 
 afterEach(async () => {

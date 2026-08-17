@@ -1,11 +1,10 @@
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 
 export async function cleanupStaleCheckout(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
-  const response = await objectStub.fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(env, job.organizationId),
     "https://organization.internal/internal/payments/cleanup",
     {
       body: JSON.stringify({ organizationId: job.organizationId }),

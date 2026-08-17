@@ -1,6 +1,7 @@
 import { failure, success, type DomainResult } from "@choir/domain";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 interface MembershipProfileRow {
   readonly profileId: string | null;
@@ -20,8 +21,8 @@ export async function linkOrganizationProfile(
   },
   now = new Date(),
 ): Promise<DomainResult<OrganizationProfileLink>> {
-  const objectId = env.ORGANIZATION_STORE.idFromName(input.organizationId);
-  const profileResponse = await env.ORGANIZATION_STORE.get(objectId).fetch(
+  const profileResponse = await invokeOrganizationRpc(
+    organizationStoreStub(env, input.organizationId),
     `https://organization.internal/internal/profiles/${encodeURIComponent(input.profileId)}`,
   );
   if (profileResponse.status === 404) {

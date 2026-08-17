@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { renderCalendarIcs } from "./calendarIcs";
 
 const CALENDAR_FEED_LIFETIME_SECONDS = 10 * 365 * 24 * 60 * 60;
@@ -77,8 +78,8 @@ export async function createCalendarFeedUrls(
   if (!profileId) {
     return null;
   }
-  const objectId = env.ORGANIZATION_STORE.idFromName(input.organizationId);
-  const response = await env.ORGANIZATION_STORE.get(objectId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(env, input.organizationId),
     "https://organization.internal/internal/calendar/credential",
     {
       body: JSON.stringify({
@@ -139,8 +140,8 @@ export async function readCalendarFeed(
     return null;
   }
 
-  const objectId = env.ORGANIZATION_STORE.idFromName(organizationId);
-  const response = await env.ORGANIZATION_STORE.get(objectId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(env, organizationId),
     "https://organization.internal/internal/calendar/feed",
     {
       body: JSON.stringify({

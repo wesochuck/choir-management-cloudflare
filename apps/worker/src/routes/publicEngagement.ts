@@ -19,6 +19,7 @@ import {
   resolveAuditionDetails,
   submitAuditionUpdate,
 } from "../organization/organizationAuditions";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 import type { Hono } from "hono";
 
@@ -209,9 +210,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/audition/public-settings");
       url.searchParams.set("organizationId", resolved.value.organizationId);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(resolved.value.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, resolved.value.organizationId),
+        url,
+      );
       const settings = publicAuditionSettingsSchema.safeParse(await response.json());
       if (!response.ok || !settings.success) throw new Error("invalid_settings");
       return context.json({ ...settings.data, requestId: requestIdValue });

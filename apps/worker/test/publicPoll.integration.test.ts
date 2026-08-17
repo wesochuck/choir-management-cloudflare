@@ -149,7 +149,7 @@ describe("public poll signed flow", () => {
     >(stores.get(stores.idFromName("organization-alpha")), (_instance, state) => {
       state.storage.sql.exec("UPDATE polls SET expires_at = '' WHERE id = ?", ALPHA_POLL);
       state.storage.sql.exec("DELETE FROM organization_schema_migrations WHERE version = ?", 66);
-      migrateOrganization(state.storage.sql);
+      migrateOrganization(state.storage);
       return (
         state.storage.sql
           .exec<{ createdAt: string; expiresAt: string }>(

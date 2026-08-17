@@ -10,6 +10,7 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -32,8 +33,8 @@ function errorCode(value: unknown): string {
   return typeof value.code === "string" ? value.code : "unknown";
 }
 
-function stub(env: Env, organizationId: string): DurableObjectStub {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+function stub(env: Env, organizationId: string): ReturnType<typeof organizationStoreStub> {
+  return organizationStoreStub(env, organizationId);
 }
 
 async function post(
@@ -42,11 +43,15 @@ async function post(
   path: string,
   input: Readonly<Record<string, unknown>>,
 ): Promise<Response> {
-  const response = await stub(env, organizationId).fetch("https://organization.internal" + path, {
-    body: JSON.stringify(input),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
+    "https://organization.internal" + path,
+    {
+      body: JSON.stringify(input),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
     throw new MusicFolderReportError(errorCode(body), response.status);

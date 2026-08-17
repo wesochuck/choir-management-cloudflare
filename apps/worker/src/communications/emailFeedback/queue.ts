@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Env } from "../../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import {
   MAX_ATTEMPTS,
   organizationEmailProviderSourceKindSchema,
@@ -166,9 +167,10 @@ async function processEventRow(
         suppressed: suppressesFutureEmail(event),
       });
     }
-    const response = await organizationStore
-      .get(organizationStore.idFromName(route.organizationId))
-      .fetch("https://organization.internal/internal/email/provider-event", {
+    const response = await invokeOrganizationRpc(
+      organizationStoreStub({ ORGANIZATION_STORE: organizationStore }, route.organizationId),
+      "https://organization.internal/internal/email/provider-event",
+      {
         body: JSON.stringify({
           bounceType: event.bounceType,
           eventId: event.eventId,
@@ -188,7 +190,8 @@ async function processEventRow(
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
-      });
+      },
+    );
     if (!response.ok) throw new Error("The organization rejected the provider email event.");
     const feedback = z
       .object({
@@ -270,7 +273,8 @@ export async function reconcileEmailProviderEvents(
   env: Pick<Env, "CONTROL_DB" | "ORGANIZATION_STORE">,
 ): Promise<void> {
   await backfillEmailProviderRoutes(env.CONTROL_DB, async (organizationId, offset) =>
-    env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId)).fetch(
+    invokeOrganizationRpc(
+      organizationStoreStub(env, organizationId),
       `https://organization.internal/internal/email/provider-routes?organizationId=${encodeURIComponent(organizationId)}&offset=${String(offset)}`,
     ),
   );

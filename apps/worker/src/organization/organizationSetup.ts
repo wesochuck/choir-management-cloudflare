@@ -9,6 +9,7 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -28,7 +29,7 @@ export class SetupError extends Error {
 }
 
 function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  return organizationStoreStub(env, organizationId);
 }
 
 async function errorCode(response: Response): Promise<string> {
@@ -47,7 +48,7 @@ export async function getSetupStatus(
 ): Promise<SetupStatus> {
   const url = new URL("https://organization.internal/internal/setup/state");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     const code = await errorCode(response);
     throw new SetupError(code, response.status, "Setup status unavailable.");
@@ -59,7 +60,8 @@ export async function claimSetup(
   env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,
 ): Promise<{ readonly claimed: boolean; readonly organizationId: string }> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/setup/manage",
     {
       body: JSON.stringify({
@@ -83,7 +85,8 @@ export async function saveSetupProgress(
   progress: SetupProgressRequest,
 ): Promise<{ readonly saved: boolean }> {
   const validatedProgress = setupProgressRequestSchema.parse(progress);
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/setup/manage",
     {
       body: JSON.stringify({
@@ -107,7 +110,8 @@ export async function completeSetup(
   env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,
 ): Promise<{ readonly completed: boolean }> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/setup/manage",
     {
       body: JSON.stringify({
@@ -131,7 +135,7 @@ export async function getModuleState(
 ): Promise<readonly ModuleState[]> {
   const url = new URL("https://organization.internal/internal/setup/modules");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw new SetupError("modules_unavailable", 503, "Module state unavailable.");
   return moduleStatesResponseSchema.parse(await response.json()).modules;
 }

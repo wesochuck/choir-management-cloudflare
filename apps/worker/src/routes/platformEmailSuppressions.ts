@@ -10,6 +10,7 @@ import { z } from "zod";
 import { createAuth, isProductBaseHost } from "../auth/config";
 import { authorizePlatformAdministratorSession } from "../auth/platformAdministrator";
 import { validateStartupConfig } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 import type { Context, Hono } from "hono";
 
@@ -361,10 +362,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-    const organizationStub = context.env.ORGANIZATION_STORE.get(
-      context.env.ORGANIZATION_STORE.idFromName(input.organizationId),
-    );
-    const organizationResponse = await organizationStub.fetch(
+    const organizationResponse = await invokeOrganizationRpc(
+      organizationStoreStub(context.env, input.organizationId),
       "https://organization.internal/internal/email/provider-suppression-release",
       {
         body: JSON.stringify({

@@ -31,6 +31,7 @@ import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/st
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -60,7 +61,7 @@ export class TicketingError extends Error {
 }
 
 function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  return organizationStoreStub(env, organizationId);
 }
 
 const scanCredentialResponseSchema = z.object({
@@ -74,7 +75,8 @@ export async function issueOrganizationTicketScanCredential(
   organizationId: string,
   purchaseId: string,
 ) {
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -118,7 +120,8 @@ async function expirePendingTicketCheckout(
   checkoutRequestId: string,
   providerSessionId: string,
 ): Promise<void> {
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -161,7 +164,8 @@ export async function createPublicTicketCheckout(
   const purchaseId = crypto.randomUUID();
   if (checkoutMode === "stripe") {
     const pendingSessionId = `pending_${purchaseId}`;
-    const pendingResponse = await stub(env, organizationId).fetch(
+    const pendingResponse = await invokeOrganizationRpc(
+      stub(env, organizationId),
       "https://organization.internal/internal/ticketing/manage",
       {
         body: JSON.stringify({
@@ -221,7 +225,8 @@ export async function createPublicTicketCheckout(
         "Online ticket payments are not enabled for this Organization.",
       );
     }
-    const stripeStatusResponse = await stub(env, organizationId).fetch(
+    const stripeStatusResponse = await invokeOrganizationRpc(
+      stub(env, organizationId),
       `https://organization.internal/internal/stripe-connect?organizationId=${encodeURIComponent(organizationId)}`,
     );
     const stripeStatus = z
@@ -302,7 +307,8 @@ export async function createPublicTicketCheckout(
       }
       throw error;
     }
-    const attachedResponse = await stub(env, organizationId).fetch(
+    const attachedResponse = await invokeOrganizationRpc(
+      stub(env, organizationId),
       "https://organization.internal/internal/ticketing/manage",
       {
         body: JSON.stringify({
@@ -338,7 +344,8 @@ export async function createPublicTicketCheckout(
     };
   }
   const providerSessionId = `fake_session_${crypto.randomUUID()}`;
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -391,7 +398,7 @@ export async function readPublicTicketPurchase(
   const url = new URL("https://organization.internal/internal/ticketing/purchase");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("purchaseId", purchaseId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok)
     throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
   const purchase = publicTicketPurchaseSchema.parse(await response.json());
@@ -415,7 +422,7 @@ export async function listOrganizationTicketOrders(
 ): Promise<readonly OrganizationTicketOrder[]> {
   const url = new URL("https://organization.internal/internal/ticketing/orders");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok)
     throw new TicketingError("ticket_orders_unavailable", 503, "Ticket orders unavailable.");
   return organizationTicketOrdersResponseSchema
@@ -436,7 +443,7 @@ export async function readPublicTicketDiscountAvailability(
   url.searchParams.set("organizationId", organizationId);
   if (parsedTarget.eventId) url.searchParams.set("eventId", parsedTarget.eventId);
   if (parsedTarget.bundleId) url.searchParams.set("bundleId", parsedTarget.bundleId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     throw new TicketingError(
       await errorCode(response),
@@ -453,7 +460,8 @@ export async function quotePublicTicketCheckout(
   organizationId: string,
   quote: z.input<typeof ticketCheckoutQuoteRequestSchema>,
 ) {
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -482,7 +490,7 @@ export async function listOrganizationDiscountCodes(
 ): Promise<readonly DiscountCode[]> {
   const url = new URL("https://organization.internal/internal/ticketing/discount-codes");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     throw new TicketingError(
       await errorCode(response),
@@ -501,7 +509,8 @@ export async function saveOrganizationDiscountCode(
   code: DiscountCodeRequest,
   allowCreate: boolean,
 ): Promise<DiscountCode> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -530,7 +539,8 @@ export async function deactivateOrganizationDiscountCode(
   actor: ActorContext,
   codeId: string,
 ): Promise<DiscountCode> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -557,7 +567,8 @@ async function refundFakeTicketPurchaseInStore(
   actor: ActorContext,
   purchaseId: string,
 ): Promise<OrganizationTicketOrder> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -621,7 +632,8 @@ export async function validateOrganizationTicketScan(
   if (!envelope?.resourceId || !z.uuid().safeParse(envelope.resourceId).success) {
     throw new TicketingError("ticket_scan_invalid", 404, "Ticket credential not found.");
   }
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -654,7 +666,7 @@ export async function readOrganizationTicketWillCallCsv(
   const url = new URL("https://organization.internal/internal/ticketing/will-call");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("eventId", eventId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     throw new TicketingError("ticket_event_not_found", 404, "Ticketed event not found.");
   }
@@ -671,7 +683,7 @@ export async function listOrganizationTicketBundles(
 ): Promise<readonly TicketBundle[]> {
   const url = new URL("https://organization.internal/internal/ticketing/bundles");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok)
     throw new TicketingError("ticket_bundles_unavailable", 503, "Ticket bundles unavailable.");
   return ticketBundlesResponseSchema.omit({ requestId: true }).parse(await response.json()).bundles;
@@ -683,7 +695,8 @@ export async function saveOrganizationTicketBundle(
   bundleId: string,
   bundle: TicketBundleRequest,
 ): Promise<TicketBundle> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({
@@ -711,7 +724,8 @@ export async function deleteOrganizationTicketBundle(
   actor: ActorContext,
   bundleId: string,
 ): Promise<void> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({ action: "delete_ticket_bundle", ...actor, bundleId }),
@@ -734,7 +748,8 @@ export async function resendOrganizationTicketConfirmation(
   purchaseId: string,
   recipientEmail?: string,
 ): Promise<void> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/ticketing/manage",
     {
       body: JSON.stringify({

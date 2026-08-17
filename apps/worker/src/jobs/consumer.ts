@@ -21,6 +21,7 @@ import { deliverAuditionNotificationJob } from "./deliveries/auditions";
 import { deliverPaymentNotificationJob } from "./deliveries/payments";
 import { deliverOrganizationExportJob } from "./deliveries/export";
 import { cleanupStaleCheckout } from "./deliveries/cleanup";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   if (job.kind === "communication_delivery") {
     await deliverCommunicationJob(env, job);
@@ -83,9 +84,9 @@ async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Pr
   const job: DeliveryJob = { ...parsed.data, attempt: deliveryAttempt.data };
   let claimed = false;
   try {
-    const objectId = env.ORGANIZATION_STORE.idFromName(job.organizationId);
-    const objectStub = env.ORGANIZATION_STORE.get(objectId);
-    const claimResponse = await objectStub.fetch(
+    const objectStub = organizationStoreStub(env, job.organizationId);
+    const claimResponse = await invokeOrganizationRpc(
+      objectStub,
       "https://organization.internal/internal/jobs/claim",
       {
         body: JSON.stringify(job),
@@ -105,7 +106,8 @@ async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Pr
 
     await dispatchDeliveryJob(env, job);
 
-    const completeResponse = await objectStub.fetch(
+    const completeResponse = await invokeOrganizationRpc(
+      objectStub,
       "https://organization.internal/internal/jobs/complete",
       {
         body: JSON.stringify({
@@ -224,20 +226,22 @@ async function recordTerminalJob(
 ): Promise<void> {
   if (!job || !env.ORGANIZATION_STORE) return;
   try {
-    const response = await env.ORGANIZATION_STORE.get(
-      env.ORGANIZATION_STORE.idFromName(job.organizationId),
-    ).fetch("https://organization.internal/internal/jobs/terminal", {
-      body: JSON.stringify({
-        attempt: job.attempt,
-        errorCode: "queue_dead_lettered",
-        failedAt: new Date().toISOString(),
-        idempotencyKey: job.idempotencyKey,
-        jobId: job.jobId,
-        terminalAt: new Date().toISOString(),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
+    const response = await invokeOrganizationRpc(
+      organizationStoreStub(env, job.organizationId),
+      "https://organization.internal/internal/jobs/terminal",
+      {
+        body: JSON.stringify({
+          attempt: job.attempt,
+          errorCode: "queue_dead_lettered",
+          failedAt: new Date().toISOString(),
+          idempotencyKey: job.idempotencyKey,
+          jobId: job.jobId,
+          terminalAt: new Date().toISOString(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
     const result = terminalResponseSchema.safeParse(await response.json());
     if (!response.ok || !result.success || !result.data.terminal) {
       throw new Error("The terminal queue state was rejected.");

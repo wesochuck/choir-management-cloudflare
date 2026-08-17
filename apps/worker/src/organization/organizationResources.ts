@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 export class ResourceRepositoryError extends Error {
   constructor(
@@ -18,8 +19,8 @@ export class ResourceRepositoryError extends Error {
   }
 }
 
-function stub(env: Env, organizationId: string): DurableObjectStub {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+function stub(env: Env, organizationId: string): ReturnType<typeof organizationStoreStub> {
+  return organizationStoreStub(env, organizationId);
 }
 
 async function failure(response: Response): Promise<ResourceRepositoryError> {
@@ -44,7 +45,8 @@ async function mutate(
   organizationId: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/resources/manage",
     {
       body: JSON.stringify(body),
@@ -62,7 +64,7 @@ export async function listOrganizationResources(
 ): Promise<readonly OrganizationResource[]> {
   const url = new URL("https://organization.internal/internal/resources");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw await failure(response);
   return organizationResourcesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .resources;

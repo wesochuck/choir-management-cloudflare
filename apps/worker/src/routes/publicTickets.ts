@@ -21,6 +21,7 @@ import {
 } from "../organization/organizationTicketing";
 import { verifySignedLinkScope } from "../security/signedLinks";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -40,9 +41,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/ticket-confirmation-settings");
       url.searchParams.set("organizationId", resolvedOrganization.value.organizationId);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(resolvedOrganization.value.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, resolvedOrganization.value.organizationId),
+        url,
+      );
       const settings = ticketConfirmationSettingsSchema.safeParse(await response.json());
       if (!response.ok || !settings.success) throw new Error("invalid_settings");
       return context.json({ ...settings.data, requestId: context.get("requestId") });

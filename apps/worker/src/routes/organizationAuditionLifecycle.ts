@@ -13,6 +13,7 @@ import {
   createOrganizationProfile,
   OrganizationProfileMutationError,
 } from "../organization/profiles";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 import type { Hono } from "hono";
 
@@ -57,12 +58,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       if (body.data.email) {
         await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
       }
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      );
+      const stub = organizationStoreStub(context.env, authorization.organizationId);
       const url = new URL("https://organization.internal/internal/audition/update");
       url.searchParams.set("auditionId", auditionId.data);
-      const response = await stub.fetch(url, {
+      const response = await invokeOrganizationRpc(stub, url, {
         body: JSON.stringify({
           ...body.data,
           actorUserId: authorization.userId,
@@ -133,18 +132,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch("https://organization.internal/internal/audition/delete", {
-        body: JSON.stringify({
-          actorUserId: authorization.userId,
-          auditionId: auditionId.data,
-          organizationId: authorization.organizationId,
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/audition/delete",
+        {
+          body: JSON.stringify({
+            actorUserId: authorization.userId,
+            auditionId: auditionId.data,
+            organizationId: authorization.organizationId,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
       const result: unknown = await response.json();
       if (!response.ok) {
         return context.json(
@@ -194,13 +195,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      );
+      const stub = organizationStoreStub(context.env, authorization.organizationId);
       const detailUrl = new URL("https://organization.internal/internal/audition/admin-details");
       detailUrl.searchParams.set("auditionId", auditionId.data);
       detailUrl.searchParams.set("organizationId", authorization.organizationId);
-      const detailResponse = await stub.fetch(detailUrl);
+      const detailResponse = await invokeOrganizationRpc(stub, detailUrl);
       const audition = organizationAuditionSchema.safeParse(await detailResponse.json());
       if (!detailResponse.ok || !audition.success) {
         return context.json(
@@ -232,7 +231,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         }),
         requestId: context.get("requestId"),
       });
-      const updateResponse = await stub.fetch(
+      const updateResponse = await invokeOrganizationRpc(
+        stub,
         `https://organization.internal/internal/audition/update?auditionId=${encodeURIComponent(auditionId.data)}`,
         {
           body: JSON.stringify({

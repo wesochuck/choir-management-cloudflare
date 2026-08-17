@@ -9,6 +9,7 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 export class MusicRepositoryError extends Error {
   readonly code: string;
@@ -22,8 +23,11 @@ export class MusicRepositoryError extends Error {
   }
 }
 
-function organizationStub(env: Env, organizationId: string): DurableObjectStub {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+function organizationStub(
+  env: Env,
+  organizationId: string,
+): ReturnType<typeof organizationStoreStub> {
+  return organizationStoreStub(env, organizationId);
 }
 
 async function repositoryError(response: Response): Promise<MusicRepositoryError> {
@@ -50,7 +54,8 @@ async function mutate(
   organizationId: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await organizationStub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, organizationId),
     "https://organization.internal/internal/music/manage",
     {
       body: JSON.stringify(body),
@@ -68,7 +73,7 @@ export async function listOrganizationMusicPieces(
 ): Promise<readonly OrganizationMusicPiece[]> {
   const url = new URL("https://organization.internal/internal/music/pieces");
   url.searchParams.set("organizationId", organizationId);
-  const response = await organizationStub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(organizationStub(env, organizationId), url);
   if (!response.ok) throw await repositoryError(response);
   return organizationMusicPiecesResponseSchema
     .omit({ requestId: true })
@@ -81,7 +86,7 @@ export async function readOrganizationMusicLibrarySettings(
 ): Promise<OrganizationMusicLibrarySettings> {
   const url = new URL("https://organization.internal/internal/music/settings");
   url.searchParams.set("organizationId", organizationId);
-  const response = await organizationStub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(organizationStub(env, organizationId), url);
   if (!response.ok) throw await repositoryError(response);
   return organizationMusicLibrarySettingsRequestSchema.parse(await response.json());
 }

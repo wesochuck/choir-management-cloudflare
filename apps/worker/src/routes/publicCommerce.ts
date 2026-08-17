@@ -8,6 +8,7 @@ import {
   readPublishedOrganizationMedia,
 } from "../publication/publishOrganization";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -61,9 +62,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     const url = new URL("https://organization.internal/internal/website/commerce-projection");
     url.searchParams.set("organizationId", resolvedOrganization.value.organizationId);
-    const response = await context.env.ORGANIZATION_STORE.get(
-      context.env.ORGANIZATION_STORE.idFromName(resolvedOrganization.value.organizationId),
-    ).fetch(url);
+    const response = await invokeOrganizationRpc(
+      organizationStoreStub(context.env, resolvedOrganization.value.organizationId),
+      url,
+    );
     if (!response.ok) {
       return context.json(
         {
@@ -93,9 +95,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/transaction-fee-settings");
       url.searchParams.set("organizationId", resolvedOrganization.value.organizationId);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(resolvedOrganization.value.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, resolvedOrganization.value.organizationId),
+        url,
+      );
       const settings = transactionFeeSettingsSchema.safeParse(await response.json());
       if (!response.ok || !settings.success) throw new Error("invalid_settings");
       return context.json({ ...settings.data, requestId: context.get("requestId") });

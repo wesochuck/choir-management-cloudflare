@@ -22,6 +22,7 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { issueSignedLink } from "../security/signedLinks";
 import { listOrganizationProfileEmails } from "./profiles";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 const candidateResponseSchema = z.object({
   recipients: z.array(
@@ -78,8 +79,8 @@ export class CommunicationRepositoryError extends Error {
   }
 }
 
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string): DurableObjectStub {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
+  return organizationStoreStub(env, organizationId);
 }
 
 async function failure(response: Response): Promise<CommunicationRepositoryError> {
@@ -107,11 +108,15 @@ async function post(
   path: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await stub(env, organizationId).fetch(`https://organization.internal${path}`, {
-    body: JSON.stringify(body),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
+    `https://organization.internal${path}`,
+    {
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
   if (!response.ok) throw await failure(response);
   return response;
 }
@@ -277,7 +282,7 @@ export async function readOrganizationCommunicationTemplate(
   const url = new URL("https://organization.internal/internal/communications/template");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("templateId", templateId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw await failure(response);
   return communicationTemplateSchema.parse(await response.json());
 }
@@ -348,7 +353,7 @@ export async function listOrganizationCommunications(
 ): Promise<readonly CommunicationMessage[]> {
   const url = new URL("https://organization.internal/internal/communications");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw await failure(response);
   return communicationMessagesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .messages;
@@ -360,7 +365,7 @@ export async function listOrganizationScheduledMessages(
 ): Promise<readonly CommunicationScheduledMessage[]> {
   const url = new URL("https://organization.internal/internal/communications/scheduled");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw await failure(response);
   return communicationScheduledMessagesResponseSchema
     .omit({ requestId: true })
@@ -375,7 +380,7 @@ export async function readCommunicationDeliverySummary(
   const url = new URL("https://organization.internal/internal/communications/summary");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("messageId", messageId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw await failure(response);
   return communicationDeliverySummarySchema.parse(await response.json());
 }
@@ -412,7 +417,7 @@ export async function listCommunicationTemplates(
 ): Promise<readonly CommunicationTemplate[]> {
   const url = new URL("https://organization.internal/internal/communications/templates");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw await failure(response);
   return communicationTemplatesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .templates;
@@ -480,9 +485,7 @@ export async function readCommunicationDeliveryJob(
   const url = new URL("https://organization.internal/internal/communications/job");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("jobId", jobId);
-  const response = await env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(organizationId),
-  ).fetch(url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (!response.ok) throw new Error("The Organization store rejected the communication job.");
   return deliveryJobResponseSchema.parse(await response.json());
 }
@@ -500,13 +503,15 @@ export async function recordCommunicationDeliveryResults(
     }[];
   },
 ): Promise<void> {
-  const response = await env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(input.organizationId),
-  ).fetch("https://organization.internal/internal/communications/manage", {
-    body: JSON.stringify({ action: "delivery-result", ...input }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(env, input.organizationId),
+    "https://organization.internal/internal/communications/manage",
+    {
+      body: JSON.stringify({ action: "delivery-result", ...input }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
   if (!response.ok) throw new Error("The Organization store rejected communication results.");
 }
 

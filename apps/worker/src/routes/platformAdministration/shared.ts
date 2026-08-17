@@ -5,6 +5,7 @@ import { authorizePlatformAdministratorSession } from "../../auth/platformAdmini
 import { validateStartupConfig } from "../../env";
 import type { PlatformDeadLetterRow } from "../helpers";
 import { type Context } from "hono";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 
 export type PlatformAdministrationContext = Context<WorkerHonoEnvironment>;
 
@@ -291,12 +292,11 @@ export async function retryPlatformJobDeadLetter(
     )
     .run();
 
-  const objectStub = context.env.ORGANIZATION_STORE.get(
-    context.env.ORGANIZATION_STORE.idFromName(deadLetter.organizationId),
-  );
+  const objectStub = organizationStoreStub(context.env, deadLetter.organizationId);
   let requeueResponse: Response;
   try {
-    requeueResponse = await objectStub.fetch(
+    requeueResponse = await invokeOrganizationRpc(
+      objectStub,
       "https://organization.internal/internal/jobs/requeue",
       {
         body: JSON.stringify({

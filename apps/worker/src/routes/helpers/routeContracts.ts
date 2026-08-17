@@ -15,6 +15,7 @@ import type { Env } from "../../env";
 import { validateStartupConfig } from "../../env";
 import { authorizeOrganizationMember } from "../../tenancy/authorizeOrganization";
 import { organizationExportKey } from "../../organization/exportStore";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 
 import { resolveCanonicalOrganizationId } from "./routeUtilities";
 
@@ -516,9 +517,10 @@ export async function downloadOrganizationExportFile(
     const jobUrl = new URL("https://organization.internal/internal/export/job");
     jobUrl.searchParams.set("organizationId", organizationId);
     jobUrl.searchParams.set("exportId", exportId);
-    const jobResponse = await env.ORGANIZATION_STORE.get(
-      env.ORGANIZATION_STORE.idFromName(organizationId),
-    ).fetch(jobUrl);
+    const jobResponse = await invokeOrganizationRpc(
+      organizationStoreStub(env, organizationId),
+      jobUrl,
+    );
     const job = organizationExportJobResponseSchema.safeParse(
       await jobResponse.json().catch(() => null),
     );

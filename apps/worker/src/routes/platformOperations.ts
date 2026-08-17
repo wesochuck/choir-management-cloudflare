@@ -35,6 +35,7 @@ import type { Context, Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { resolveCanonicalOrganizationId } from "./helpers";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import {
   reconciliationReportSchema,
   type ReconciliationReport,
@@ -95,10 +96,8 @@ async function readAndMergeReconciliationReport(
   context: WorkerContext,
   organizationId: string,
 ): Promise<ReconciliationReport | Response> {
-  const organizationStub = context.env.ORGANIZATION_STORE.get(
-    context.env.ORGANIZATION_STORE.idFromName(organizationId),
-  );
-  const reportResponse = await organizationStub.fetch(
+  const reportResponse = await invokeOrganizationRpc(
+    organizationStoreStub(context.env, organizationId),
     `https://organization.internal/internal/reconciliation-report?organizationId=${encodeURIComponent(organizationId)}`,
   );
   const report = reconciliationReportSchema.safeParse(

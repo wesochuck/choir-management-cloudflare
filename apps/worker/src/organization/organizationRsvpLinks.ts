@@ -1,9 +1,10 @@
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import { organizationRsvpSchema, type OrganizationRsvp } from "@choir/contracts";
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
-  env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  organizationStoreStub(env, organizationId);
 
 const RSVP_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
 
@@ -56,7 +57,7 @@ async function readEventRsvp(
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("profileId", profileId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) return null;
   return response.json();
 }
@@ -157,7 +158,8 @@ export async function submitQuickRsvp(
     return { code: "invalid_link", status: 404 };
   }
   const objectStub = stub(env, organizationId);
-  const response = await objectStub.fetch(
+  const response = await invokeOrganizationRpc(
+    objectStub,
     "https://organization.internal/internal/calendar/manage",
     {
       body: JSON.stringify({

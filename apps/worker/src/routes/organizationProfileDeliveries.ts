@@ -6,6 +6,7 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute } from "./helpers";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/profiles/:profileId/deliveries", async (context) => {
@@ -30,9 +31,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const url = new URL("https://organization.internal/internal/communications/deliveries");
     url.searchParams.set("organizationId", authorization.organizationId);
     url.searchParams.set("profileId", profileId.data);
-    const response = await context.env.ORGANIZATION_STORE.get(
-      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-    ).fetch(url);
+    const response = await invokeOrganizationRpc(
+      organizationStoreStub(context.env, authorization.organizationId),
+      url,
+    );
     if (!response.ok) {
       return context.json(
         {

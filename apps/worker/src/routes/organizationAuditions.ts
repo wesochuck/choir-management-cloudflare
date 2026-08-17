@@ -8,6 +8,7 @@ import {
   assertEmailProviderRecipientAvailable,
   EmailRecipientSuppressedError,
 } from "../communications/emailFeedback";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 import type { Hono } from "hono";
 
@@ -39,18 +40,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     try {
       await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch("https://organization.internal/internal/audition/create", {
-        body: JSON.stringify({
-          ...body.data,
-          actorUserId: authorization.userId,
-          organizationId: authorization.organizationId,
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/audition/create",
+        {
+          body: JSON.stringify({
+            ...body.data,
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
       const responseBody: unknown = await response.json();
       if (!response.ok) {
         return context.json(
@@ -92,10 +95,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/auditions/list",
       );
-      const response = await stub.fetch("https://organization.internal/internal/auditions/list");
       const bodyJson: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         return context.json(

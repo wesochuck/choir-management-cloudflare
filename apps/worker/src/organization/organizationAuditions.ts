@@ -1,9 +1,10 @@
 import { verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 import { publicAuditionDetailsResponseSchema } from "@choir/contracts";
 
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
-  env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  organizationStoreStub(env, organizationId);
 
 type AuditionDetailResponse = Record<string, unknown>;
 
@@ -22,7 +23,7 @@ export async function resolveAuditionDetails(
   const url = new URL("https://organization.internal/internal/audition/details");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("auditionId", envelope.resourceId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     return { code: "audition_details_failed", status: response.status };
   }
@@ -55,7 +56,7 @@ export async function submitAuditionUpdate(
   if (voicePart !== undefined) {
     url.searchParams.set("voicePart", voicePart);
   }
-  const response = await stub(env, organizationId).fetch(url, { method: "POST" });
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url, { method: "POST" });
   if (!response.ok) {
     return { code: "audition_update_failed", status: response.status };
   }

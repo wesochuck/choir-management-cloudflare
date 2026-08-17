@@ -1,4 +1,5 @@
 import { deliverOrganizationCommunication } from "../../communications/provider";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import { auditionNotificationJobSchema, renderAuditionLink } from "./shared";
@@ -7,13 +8,11 @@ export async function deliverAuditionNotificationJob(
   env: JobConsumerEnv,
   job: DeliveryJob,
 ): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
+  const objectStub = organizationStoreStub(env, job.organizationId);
   const url = new URL("https://organization.internal/internal/audition/notification-job");
   url.searchParams.set("organizationId", job.organizationId);
   url.searchParams.set("jobId", job.jobId);
-  const response = await objectStub.fetch(url);
+  const response = await invokeOrganizationRpc(objectStub, url);
   const notification = auditionNotificationJobSchema.safeParse(
     await response.json().catch(() => null),
   );
@@ -40,7 +39,8 @@ export async function deliverAuditionNotificationJob(
     subject: notification.data.subject,
     unsubscribeUrl: null,
   });
-  const recordResponse = await objectStub.fetch(
+  const recordResponse = await invokeOrganizationRpc(
+    objectStub,
     "https://organization.internal/internal/audition/notification-result",
     {
       body: JSON.stringify({

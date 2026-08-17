@@ -16,6 +16,7 @@ import {
   readPublicDonationReceipt,
 } from "../organization/organizationDonations";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -98,9 +99,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/donations/settings");
       url.searchParams.set("organizationId", resolved.value.organizationId);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(resolved.value.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, resolved.value.organizationId),
+        url,
+      );
       const settings = donationSettingsSchema.safeParse(await response.json());
       if (!response.ok || !settings.success) throw new Error("invalid_settings");
       return context.json({ ...settings.data, requestId: requestIdValue });

@@ -3,6 +3,7 @@ import { organizationIdSchema } from "@choir/contracts";
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 export const MAX_PRIVATE_FILE_BYTES = 20 * 1024 * 1024;
 
@@ -161,16 +162,14 @@ export function isPrivateOrganizationFileKey(
 }
 
 async function abortReservation(
-  stub: DurableObjectStub,
+  stub: ReturnType<typeof organizationStoreStub>,
   transition: z.infer<typeof privateFileTransitionSchema>,
 ): Promise<void> {
-  await stub
-    .fetch("https://organization.internal/internal/files/abort", {
-      body: JSON.stringify(transition),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    })
-    .catch(() => undefined);
+  await invokeOrganizationRpc(stub, "https://organization.internal/internal/files/abort", {
+    body: JSON.stringify(transition),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  }).catch(() => undefined);
 }
 
 export async function uploadPrivateOrganizationFile(
@@ -181,9 +180,9 @@ export async function uploadPrivateOrganizationFile(
   if (input.body.byteLength !== parsed.sizeBytes) {
     throw new PrivateFileStorageError("conflict", "The private file size changed during upload.");
   }
-  const objectId = env.ORGANIZATION_STORE.idFromName(parsed.organizationId);
-  const stub = env.ORGANIZATION_STORE.get(objectId);
-  const reservationResponse = await stub.fetch(
+  const stub = organizationStoreStub(env, parsed.organizationId);
+  const reservationResponse = await invokeOrganizationRpc(
+    stub,
     "https://organization.internal/internal/files/reserve",
     {
       body: JSON.stringify(parsed),
@@ -219,11 +218,15 @@ export async function uploadPrivateOrganizationFile(
       customMetadata: { fileId: parsed.fileId, organizationId: parsed.organizationId },
       httpMetadata: { contentType: parsed.contentType },
     });
-    const readyResponse = await stub.fetch("https://organization.internal/internal/files/ready", {
-      body: JSON.stringify(transition),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
+    const readyResponse = await invokeOrganizationRpc(
+      stub,
+      "https://organization.internal/internal/files/ready",
+      {
+        body: JSON.stringify(transition),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
     const ready = readyResponseSchema.safeParse(await readyResponse.json());
     if (!readyResponse.ok || !ready.success) {
       throw new PrivateFileStorageError("unavailable", "Private file finalization failed.");
@@ -252,8 +255,8 @@ export async function readPrivateOrganizationFile(
   readonly object: R2ObjectBody;
   readonly range: { readonly length: number; readonly offset: number } | null;
 } | null> {
-  const objectId = env.ORGANIZATION_STORE.idFromName(organizationId);
-  const metadataResponse = await env.ORGANIZATION_STORE.get(objectId).fetch(
+  const metadataResponse = await invokeOrganizationRpc(
+    organizationStoreStub(env, organizationId),
     `https://organization.internal/internal/files/${encodeURIComponent(fileId)}`,
   );
   if (metadataResponse.status === 404) {
@@ -297,12 +300,16 @@ export async function reclaimPrivateOrganizationFile(
   input: z.infer<typeof privateFileReclamationSchema>,
 ): Promise<boolean> {
   const parsed = privateFileReclamationSchema.parse(input);
-  const stub = env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(parsed.organizationId));
-  const claim = await stub.fetch("https://organization.internal/internal/files/reclaim", {
-    body: JSON.stringify(parsed),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const stub = organizationStoreStub(env, parsed.organizationId);
+  const claim = await invokeOrganizationRpc(
+    stub,
+    "https://organization.internal/internal/files/reclaim",
+    {
+      body: JSON.stringify(parsed),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
   if (claim.status === 409) return false;
   const claimed = z
     .object({ claimed: z.literal(true), storageKey: z.string().min(1).max(512) })
@@ -313,18 +320,26 @@ export async function reclaimPrivateOrganizationFile(
   try {
     await env.ORGANIZATION_FILES.delete(claimed.data.storageKey);
   } catch (error: unknown) {
-    await stub.fetch("https://organization.internal/internal/files/reclaim-abort", {
+    await invokeOrganizationRpc(
+      stub,
+      "https://organization.internal/internal/files/reclaim-abort",
+      {
+        body: JSON.stringify(transition),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    throw error;
+  }
+  const finished = await invokeOrganizationRpc(
+    stub,
+    "https://organization.internal/internal/files/reclaimed",
+    {
       body: JSON.stringify(transition),
       headers: { "content-type": "application/json" },
       method: "POST",
-    });
-    throw error;
-  }
-  const finished = await stub.fetch("https://organization.internal/internal/files/reclaimed", {
-    body: JSON.stringify(transition),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+    },
+  );
   if (!finished.ok)
     throw new PrivateFileStorageError("unavailable", "Private file reclamation failed.");
   return true;

@@ -6,6 +6,19 @@ import { migrateOrganization } from "./migrations";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
 import { dispatchGetRequest } from "./organizationStore/read";
+import {
+  isOrganizationRpcRecord,
+  isOrganizationRpcValue,
+  organizationRpcDomainForPath,
+  organizationRpcOperationForPath,
+  parseOrganizationRpcCall,
+  type OrganizationRpcCall,
+  type OrganizationRpcResult,
+} from "./rpc/types";
+
+function responseHeaders(response: Response): Readonly<Record<string, string>> {
+  return Object.fromEntries(response.headers.entries());
+}
 
 const eventReminderResultSchema = z.object({
   attempt: z.number().int().min(1).max(10),
@@ -105,10 +118,148 @@ function recordEventReminderResult(storage: DurableObjectStorage, input: unknown
 export class OrganizationStore extends DurableObject<Env> {
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
-    migrateOrganization(state.storage.sql);
+    void state.blockConcurrencyWhile(() => {
+      migrateOrganization(state.storage);
+      return Promise.resolve();
+    });
   }
 
   override async fetch(request: Request): Promise<Response> {
+    return this.dispatchHttpRequest(request);
+  }
+
+  async lifecycleRpc(call: OrganizationRpcCall<"lifecycle">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async profileRpc(call: OrganizationRpcCall<"profile">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async calendarRpc(call: OrganizationRpcCall<"calendar">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async communicationRpc(
+    call: OrganizationRpcCall<"communication">,
+  ): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async contentRpc(call: OrganizationRpcCall<"content">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async engagementRpc(call: OrganizationRpcCall<"engagement">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async commerceRpc(call: OrganizationRpcCall<"commerce">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async fileRpc(call: OrganizationRpcCall<"file">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async jobRpc(call: OrganizationRpcCall<"job">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  async operationsRpc(call: OrganizationRpcCall<"operations">): Promise<OrganizationRpcResult> {
+    return this.dispatchRpcCall(call);
+  }
+
+  private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {
+    const parsedCall = parseOrganizationRpcCall(call);
+    if (!parsedCall) {
+      return {
+        error: {
+          body: { code: "invalid_organization_rpc_call" },
+          code: "invalid_organization_rpc_call",
+          headers: { "content-type": "application/json" },
+          status: 400,
+        },
+        ok: false,
+      };
+    }
+    if (
+      parsedCall.domain !== organizationRpcDomainForPath(parsedCall.path) ||
+      parsedCall.operation !== organizationRpcOperationForPath(parsedCall.method, parsedCall.path)
+    ) {
+      return {
+        error: {
+          body: { code: "invalid_organization_rpc_operation" },
+          code: "invalid_organization_rpc_operation",
+          headers: { "content-type": "application/json" },
+          status: 400,
+        },
+        ok: false,
+      };
+    }
+    if (parsedCall.path !== "/internal/provision" && !this.rpcIdentityMatches(parsedCall)) {
+      return {
+        error: {
+          body: { code: "organization_not_found" },
+          code: "organization_identity_conflict",
+          headers: { "content-type": "application/json" },
+          status: 404,
+        },
+        ok: false,
+      };
+    }
+    const url = new URL(`https://organization.internal${parsedCall.path}`);
+    for (const [key, value] of Object.entries(parsedCall.query ?? {})) {
+      url.searchParams.set(key, value);
+    }
+    const init: RequestInit = { method: parsedCall.method };
+    if (parsedCall.body !== undefined) {
+      init.body = JSON.stringify(parsedCall.body);
+      init.headers = { "content-type": "application/json" };
+    }
+    const response = await this.dispatchHttpRequest(new Request(url, init));
+    const contentType = response.headers.get("content-type") ?? "application/json";
+    const body: unknown = contentType.toLowerCase().includes("json")
+      ? await response.json().catch(() => null)
+      : await response.text();
+    if (!isOrganizationRpcValue(body)) {
+      throw new Error("Organization RPC response must be JSON-serializable.");
+    }
+    if (!response.ok) {
+      const code =
+        isOrganizationRpcRecord(body) && typeof body.code === "string"
+          ? body.code
+          : "organization_rpc_error";
+      return {
+        error: { body, code, headers: responseHeaders(response), status: response.status },
+        ok: false,
+      };
+    }
+    return { headers: responseHeaders(response), ok: true, status: response.status, value: body };
+  }
+
+  private rpcIdentityMatches(call: OrganizationRpcCall): boolean {
+    const storedOrganizationId = this.ctx.storage.sql
+      .exec<{ readonly organizationId: string }>(
+        "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+      )
+      .toArray()
+      .at(0)?.organizationId;
+    if (!storedOrganizationId) return false;
+
+    const requestedOrganizationIds: string[] = [];
+    const queryOrganizationId = call.query?.organizationId;
+    if (queryOrganizationId) requestedOrganizationIds.push(queryOrganizationId);
+    if (isOrganizationRpcRecord(call.body) && typeof call.body.organizationId === "string") {
+      requestedOrganizationIds.push(call.body.organizationId);
+    }
+    return (
+      requestedOrganizationIds.length > 0 &&
+      requestedOrganizationIds.every((organizationId) => organizationId === storedOrganizationId)
+    );
+  }
+
+  private async dispatchHttpRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === "POST") {

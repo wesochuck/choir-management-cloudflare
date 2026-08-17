@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Env } from "../../env";
 import { issuePlayerToken } from "../../organization/organizationPlayerLinks";
 import { issueRsvpToken } from "../../organization/organizationRsvpLinks";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import { issueSignedLink } from "../../security/signedLinks";
 import type { DeliveryJob } from "../contracts";
 export type JobConsumerEnv = Pick<
@@ -146,8 +147,8 @@ export function retryDelaySeconds(attempt: number): number {
 
 export async function recordJobFailure(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   try {
-    const objectId = env.ORGANIZATION_STORE.idFromName(job.organizationId);
-    const failureResponse = await env.ORGANIZATION_STORE.get(objectId).fetch(
+    const failureResponse = await invokeOrganizationRpc(
+      organizationStoreStub(env, job.organizationId),
       "https://organization.internal/internal/jobs/fail",
       {
         body: JSON.stringify({
@@ -203,8 +204,8 @@ export async function recordEventReminderResult(
   job: DeliveryJob,
   status: "failed" | "sent" | "terminal",
 ): Promise<void> {
-  const objectId = env.ORGANIZATION_STORE.idFromName(job.organizationId);
-  const response = await env.ORGANIZATION_STORE.get(objectId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(env, job.organizationId),
     "https://organization.internal/internal/scheduling/event-reminder-result",
     {
       body: JSON.stringify({

@@ -15,6 +15,7 @@ import {
   downloadOrganizationExportFile,
   organizationExportJobResponseSchema,
 } from "./helpers";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post("/api/organization/export", async (context) => {
@@ -39,10 +40,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      );
-      const createResponse = await stub.fetch(
+      const createResponse = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
         "https://organization.internal/internal/export/create",
         {
           body: JSON.stringify({
@@ -103,9 +102,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const url = new URL("https://organization.internal/internal/export/job");
       url.searchParams.set("organizationId", authorization.organizationId);
       url.searchParams.set("exportId", exportId.data);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        url,
+      );
       const job = organizationExportJobResponseSchema.safeParse(
         await response.json().catch(() => null),
       );

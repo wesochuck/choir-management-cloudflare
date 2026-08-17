@@ -24,6 +24,33 @@ import {
   seedOrganizations,
   signInInvitedUser,
 } from "./auth.integration.fixture";
+import { invokeOrganizationRpc, organizationStoreStub } from "../src/organization/rpc/client";
+
+async function provisionOrganizationStore(
+  organizationId: string,
+  name: string,
+  slug: string,
+): Promise<void> {
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(testEnv, organizationId),
+    "https://organization.internal/internal/provision",
+    {
+      body: JSON.stringify({
+        actorUserId: "auth-test",
+        canonicalHostname: `${slug}.localhost`,
+        canonicalStatus: "active",
+        name,
+        organizationId,
+        requestId: crypto.randomUUID(),
+        slug,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  expect(response.status).toBe(200);
+}
+
 beforeEach(async () => setupAuthIntegration());
 afterEach(async () => teardownAuthIntegration());
 
@@ -319,6 +346,9 @@ describe("host-derived Organization authorization", () => {
     const alphaProfileId = "c9ea355d-8ac2-4dc4-af06-27828846dba8";
     const bravoProfileId = "0cd25a2b-71cc-4437-8524-2445074bbd18";
     const now = new Date().toISOString();
+
+    await provisionOrganizationStore("organization-alpha", "Organization Alpha", "alpha");
+    await provisionOrganizationStore("organization-bravo", "Organization Bravo", "bravo");
 
     const alphaObjectId = testEnv.ORGANIZATION_STORE.idFromName("organization-alpha");
     await runInDurableObject(testEnv.ORGANIZATION_STORE.get(alphaObjectId), (_instance, state) => {

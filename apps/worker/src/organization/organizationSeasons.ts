@@ -23,6 +23,7 @@ import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/st
 import { ticketCheckoutMode } from "../payments/ticketCheckout";
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -42,12 +43,13 @@ export class SeasonError extends Error {
 }
 
 async function expirePendingDuesCheckout(
-  organizationStore: DurableObjectStub,
+  organizationStore: ReturnType<typeof organizationStoreStub>,
   organizationId: string,
   requestId: string,
   pendingSessionId: string,
 ): Promise<void> {
-  const response = await organizationStore.fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStore,
     "https://organization.internal/internal/seasons/manage",
     {
       body: JSON.stringify({
@@ -72,7 +74,7 @@ async function expirePendingDuesCheckout(
 }
 
 function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  return organizationStoreStub(env, organizationId);
 }
 
 async function mutateSeason(
@@ -80,7 +82,8 @@ async function mutateSeason(
   organizationId: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/seasons/manage",
     {
       body: JSON.stringify({ ...body, organizationId }),
@@ -135,7 +138,8 @@ export async function createDuesCheckoutSession(
     throw new SeasonError("dues_disabled", 501, "Online dues are disabled.");
   }
   if (checkoutMode === "fake") {
-    const response = await organizationStore.fetch(
+    const response = await invokeOrganizationRpc(
+      organizationStore,
       "https://organization.internal/internal/seasons/manage",
       {
         body: JSON.stringify({
@@ -158,13 +162,16 @@ export async function createDuesCheckoutSession(
   }
 
   const [seasonsResponse, feeResponse, stripeResponse] = await Promise.all([
-    organizationStore.fetch(
+    invokeOrganizationRpc(
+      organizationStore,
       `https://organization.internal/internal/seasons/list?organizationId=${encodeURIComponent(organizationId)}`,
     ),
-    organizationStore.fetch(
+    invokeOrganizationRpc(
+      organizationStore,
       `https://organization.internal/internal/transaction-fee-settings?organizationId=${encodeURIComponent(organizationId)}`,
     ),
-    organizationStore.fetch(
+    invokeOrganizationRpc(
+      organizationStore,
       `https://organization.internal/internal/stripe-connect?organizationId=${encodeURIComponent(organizationId)}`,
     ),
   ]);
@@ -217,7 +224,8 @@ export async function createDuesCheckoutSession(
   }
   const feeCents = transactionProcessingFeeCents(selectedSeason.duesAmountCents, feeSettings.data);
   const pendingSessionId = `pending_${requestId}`;
-  const pendingResponse = await organizationStore.fetch(
+  const pendingResponse = await invokeOrganizationRpc(
+    organizationStore,
     "https://organization.internal/internal/seasons/manage",
     {
       body: JSON.stringify({
@@ -279,7 +287,8 @@ export async function createDuesCheckoutSession(
     }
     throw error;
   }
-  const response = await organizationStore.fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStore,
     "https://organization.internal/internal/seasons/manage",
     {
       body: JSON.stringify({
@@ -310,7 +319,7 @@ export async function listSeasons(
 ): Promise<readonly Season[]> {
   const url = new URL("https://organization.internal/internal/seasons/list");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw new SeasonError("seasons_unavailable", 503, "Seasons unavailable.");
   return seasonsResponseSchema.omit({ requestId: true }).parse(await response.json()).seasons;
 }
@@ -321,7 +330,7 @@ export async function listDues(
 ): Promise<readonly DuesRecord[]> {
   const url = new URL("https://organization.internal/internal/seasons/dues");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw new SeasonError("dues_unavailable", 503, "Dues unavailable.");
   return duesRecordsResponseSchema.omit({ requestId: true }).parse(await response.json()).dues;
 }
@@ -407,7 +416,8 @@ export async function refundDues(
     throw error;
   }
   if (!refundRequest.fake) return { ...current, refundRequested: true };
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/seasons/manage",
     {
       body: JSON.stringify({
@@ -431,7 +441,8 @@ export async function markOrganizationDuesPaidInCash(
   actor: ActorContext,
   cashPayment: { readonly profileId: string; readonly seasonId: string },
 ): Promise<DuesRecord> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/seasons/manage",
     {
       body: JSON.stringify({

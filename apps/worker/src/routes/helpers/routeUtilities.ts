@@ -32,6 +32,7 @@ import {
   TicketingError,
 } from "../../organization/organizationTicketing";
 import { SeasonError } from "../../organization/organizationSeasons";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 
 import {
   platformOrganizationCursorSchema,
@@ -322,10 +323,10 @@ export async function submitPublicAuditionInquiry(
 ): Promise<Response> {
   try {
     await assertEmailProviderRecipientAvailable(env.CONTROL_DB, body.email);
-    const stub = env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+    const stub = organizationStoreStub(env, organizationId);
     const settingsUrl = new URL("https://organization.internal/internal/audition/settings");
     settingsUrl.searchParams.set("organizationId", organizationId);
-    const settingsResponse = await stub.fetch(settingsUrl);
+    const settingsResponse = await invokeOrganizationRpc(stub, settingsUrl);
     const settings = organizationAuditionSettingsSchema.safeParse(await settingsResponse.json());
     if (!settingsResponse.ok || !settings.success) throw new Error("settings_unavailable");
     const settingsProblem = publicAuditionInquiryProblem(
@@ -339,7 +340,8 @@ export async function submitPublicAuditionInquiry(
       sha256Hex(clientIp.trim() || "unknown"),
       sha256Hex(body.email.trim().toLowerCase()),
     ]);
-    const rateLimitResponse = await stub.fetch(
+    const rateLimitResponse = await invokeOrganizationRpc(
+      stub,
       "https://organization.internal/internal/audition/rate-limit",
       {
         body: JSON.stringify({ clientKey, emailKey, organizationId }),
@@ -367,20 +369,24 @@ export async function submitPublicAuditionInquiry(
       }
       throw new Error("rate_limit_unavailable");
     }
-    const response = await stub.fetch("https://organization.internal/internal/audition/create", {
-      body: JSON.stringify({
-        availabilityNotes: body.availabilityNotes ?? "",
-        email: body.email,
-        experience: body.experience ?? "",
-        name: body.name,
-        performanceId: settings.data.defaultPerformanceId,
-        phone: body.phone ?? "",
-        requestedSlots: body.requestedSlots,
-        voicePart: body.voicePart ?? "",
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
+    const response = await invokeOrganizationRpc(
+      stub,
+      "https://organization.internal/internal/audition/create",
+      {
+        body: JSON.stringify({
+          availabilityNotes: body.availabilityNotes ?? "",
+          email: body.email,
+          experience: body.experience ?? "",
+          name: body.name,
+          performanceId: settings.data.defaultPerformanceId,
+          phone: body.phone ?? "",
+          requestedSlots: body.requestedSlots,
+          voicePart: body.voicePart ?? "",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
     if (!response.ok) {
       return Response.json(
         {

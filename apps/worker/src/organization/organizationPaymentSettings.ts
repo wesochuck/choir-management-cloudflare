@@ -6,6 +6,7 @@ import {
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -25,7 +26,7 @@ export class PaymentSettingsError extends Error {
 }
 
 function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  return organizationStoreStub(env, organizationId);
 }
 
 async function errorCode(response: Response): Promise<string> {
@@ -47,7 +48,7 @@ export async function readOrganizationPaymentActivations(
 }> {
   const url = new URL("https://organization.internal/internal/payment-settings");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     throw new PaymentSettingsError(
       await errorCode(response),
@@ -79,7 +80,8 @@ export async function updateOrganizationPaymentActivation(
   enabled: boolean,
 ): Promise<z.infer<typeof paymentActivationSettingsSchema>> {
   const validatedModuleId = paymentModuleIdSchema.parse(moduleId);
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/payment-settings",
     {
       body: JSON.stringify({

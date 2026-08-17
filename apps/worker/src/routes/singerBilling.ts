@@ -16,6 +16,7 @@ import {
   listDues,
   SeasonError,
 } from "../organization/organizationSeasons";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 import type { Hono } from "hono";
 
@@ -104,9 +105,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const [seasons, dues, feeResponse] = await Promise.all([
         listSeasons(context.env, authorization.organizationId),
         listDues(context.env, authorization.organizationId),
-        context.env.ORGANIZATION_STORE.get(
-          context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-        ).fetch(
+        invokeOrganizationRpc(
+          organizationStoreStub(context.env, authorization.organizationId),
           `https://organization.internal/internal/transaction-fee-settings?organizationId=${encodeURIComponent(authorization.organizationId)}`,
         ),
       ]);

@@ -6,6 +6,7 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute } from "./helpers";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/polls", async (context) => {
@@ -23,10 +24,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         : "https://organization.internal/internal/polls",
     );
     url.searchParams.set("organizationId", authorization.organizationId);
-    const stub = context.env.ORGANIZATION_STORE.get(
-      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    const response = await invokeOrganizationRpc(
+      organizationStoreStub(context.env, authorization.organizationId),
+      url,
     );
-    const response = await stub.fetch(url);
     if (!response.ok) {
       return context.json(
         {
@@ -62,10 +63,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const url = new URL("https://organization.internal/internal/polls/poll");
     url.searchParams.set("organizationId", authorization.organizationId);
     url.searchParams.set("pollId", pollId.data);
-    const stub = context.env.ORGANIZATION_STORE.get(
-      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    const response = await invokeOrganizationRpc(
+      organizationStoreStub(context.env, authorization.organizationId),
+      url,
     );
-    const response = await stub.fetch(url);
     if (!response.ok) {
       return context.json(
         {
@@ -102,20 +103,21 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/polls/manage",
+        {
+          body: JSON.stringify({
+            action: "create_poll",
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            poll: body.data,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
       );
-      const response = await stub.fetch("https://organization.internal/internal/polls/manage", {
-        body: JSON.stringify({
-          action: "create_poll",
-          actorUserId: authorization.userId,
-          organizationId: authorization.organizationId,
-          poll: body.data,
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
       if (!response.ok) {
         return context.json(
           {
@@ -169,20 +171,21 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/polls/manage",
+        {
+          body: JSON.stringify({
+            action: "update_poll",
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            poll: { id: pollId.data, ...body.data },
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
       );
-      const response = await stub.fetch("https://organization.internal/internal/polls/manage", {
-        body: JSON.stringify({
-          action: "update_poll",
-          actorUserId: authorization.userId,
-          organizationId: authorization.organizationId,
-          poll: { id: pollId.data, ...body.data },
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
       if (!response.ok) {
         return context.json(
           {
@@ -230,20 +233,21 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/polls/manage",
+        {
+          body: JSON.stringify({
+            action: "archive_poll",
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            pollId: pollId.data,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
       );
-      const response = await stub.fetch("https://organization.internal/internal/polls/manage", {
-        body: JSON.stringify({
-          action: "archive_poll",
-          actorUserId: authorization.userId,
-          organizationId: authorization.organizationId,
-          pollId: pollId.data,
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
       if (!response.ok) {
         return context.json(
           {

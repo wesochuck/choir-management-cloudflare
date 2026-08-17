@@ -2,9 +2,10 @@ import { organizationMusicLibrarySettingsRequestSchema } from "@choir/contracts"
 import { z } from "zod";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
-  env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  organizationStoreStub(env, organizationId);
 
 const playerLinkRowSchema = z.object({
   eventId: z.uuid(),
@@ -76,13 +77,14 @@ export async function generatePublicPlayerToken(
 ): Promise<{ token: string }> {
   const settingsUrl = new URL("https://organization.internal/internal/music/settings");
   settingsUrl.searchParams.set("organizationId", organizationId);
-  const settingsResponse = await stub(env, organizationId).fetch(settingsUrl);
+  const settingsResponse = await invokeOrganizationRpc(stub(env, organizationId), settingsUrl);
   if (!settingsResponse.ok) throw new Error("Practice player settings are unavailable.");
   const settings = organizationMusicLibrarySettingsRequestSchema.parse(
     await settingsResponse.json(),
   );
   const issuedAt = Math.floor(Date.now() / 1000);
-  const linkResponse = await stub(env, organizationId).fetch(
+  const linkResponse = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/player/public-link",
     {
       body: JSON.stringify({
@@ -145,7 +147,7 @@ export async function resolvePlayerDetails(
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("eventId", envelope.resourceId);
   url.searchParams.set("profileId", envelope.subjectId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     return { code: "player_details_failed", status: response.status };
   }
@@ -166,7 +168,7 @@ export async function resolvePublicPlayerPlaylist(
   linkUrl.searchParams.set("eventId", envelope.resourceId);
   linkUrl.searchParams.set("nonce", envelope.nonce ?? "");
   linkUrl.searchParams.set("organizationId", organizationId);
-  const linkResponse = await stub(env, organizationId).fetch(linkUrl);
+  const linkResponse = await invokeOrganizationRpc(stub(env, organizationId), linkUrl);
   if (!linkResponse.ok) {
     const linkBody: unknown = await linkResponse.json().catch(() => null);
     if (
@@ -182,7 +184,7 @@ export async function resolvePublicPlayerPlaylist(
   const url = new URL("https://organization.internal/internal/player/playlist");
   url.searchParams.set("eventId", envelope.resourceId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) return { code: "player_playlist_failed", status: response.status };
   return await response.json();
 }

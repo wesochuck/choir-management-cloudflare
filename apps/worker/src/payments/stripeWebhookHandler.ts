@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { resolveOrganizationForStripeAccount } from "./stripeRouting";
 import {
   stripeChargeRefundIsComplete,
@@ -103,10 +104,8 @@ async function dispatch(
     readonly amountCents?: number;
   },
 ): Promise<DispatchResult> {
-  const stub = context.env.ORGANIZATION_STORE.get(
-    context.env.ORGANIZATION_STORE.idFromName(organizationId),
-  );
-  const response = await stub.fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(context.env, organizationId),
     `https://organization.internal/internal/${target.path}/manage`,
     {
       body: JSON.stringify({ organizationId, ...target, ...values }),

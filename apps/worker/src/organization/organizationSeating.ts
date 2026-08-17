@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -29,8 +30,8 @@ export class SeatingRepositoryError extends Error {
   }
 }
 
-function stub(env: Env, organizationId: string): DurableObjectStub {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+function stub(env: Env, organizationId: string): ReturnType<typeof organizationStoreStub> {
+  return organizationStoreStub(env, organizationId);
 }
 
 async function errorCode(response: Response): Promise<string> {
@@ -63,7 +64,8 @@ async function mutate(
   actor: ActorContext,
   operation: Readonly<Record<string, unknown>>,
 ): Promise<Response> {
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/seating/manage",
     {
       body: JSON.stringify({ ...actor, ...operation }),
@@ -81,7 +83,7 @@ export async function readOrganizationSeatingConfiguration(
 ): Promise<SeatingConfiguration> {
   const url = new URL("https://organization.internal/internal/seating/configuration");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   await assertOk(response);
   return z.object({ configuration: seatingConfigurationRequestSchema }).parse(await response.json())
     .configuration;
@@ -105,7 +107,7 @@ export async function listOrganizationSeatingCharts(
   const url = new URL("https://organization.internal/internal/seating/charts");
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   await assertOk(response);
   return z.object({ charts: z.array(organizationSeatingChartSchema) }).parse(await response.json())
     .charts;
@@ -176,7 +178,7 @@ export async function readSingerSeating(
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("profileId", profileId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   await assertOk(response);
   return singerSeatingResponseSchema.omit({ requestId: true }).parse(await response.json());
 }

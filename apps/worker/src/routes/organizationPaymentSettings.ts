@@ -34,6 +34,7 @@ import {
   stripePaymentsGlobalEnabled,
   readOrganizationStripeStatus,
 } from "./helpers";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/provider-status", async (context) => {
@@ -186,9 +187,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/stripe-connect");
       url.searchParams.set("organizationId", authorization.organizationId);
-      const storeResponse = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch(url);
+      const storeResponse = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        url,
+      );
       const stored = z
         .object({
           accountId: z
@@ -205,22 +207,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       if (!storeResponse.ok) throw new Error("stripe_connect_store_unavailable");
       if (secretKey && stored.accountId) {
         const account = await retrieveStripeConnectedAccount(secretKey, stored.accountId);
-        const syncResponse = await context.env.ORGANIZATION_STORE.get(
-          context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-        ).fetch("https://organization.internal/internal/stripe-connect", {
-          body: JSON.stringify({
-            accountId: account.id,
-            actorUserId: authorization.userId,
-            chargesEnabled: account.charges_enabled,
-            detailsSubmitted: account.details_submitted,
-            organizationId: authorization.organizationId,
-            payoutsEnabled: account.payouts_enabled,
-            requestId: context.get("requestId"),
-            requirementsDue: account.requirements.currently_due,
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        });
+        const syncResponse = await invokeOrganizationRpc(
+          organizationStoreStub(context.env, authorization.organizationId),
+          "https://organization.internal/internal/stripe-connect",
+          {
+            body: JSON.stringify({
+              accountId: account.id,
+              actorUserId: authorization.userId,
+              chargesEnabled: account.charges_enabled,
+              detailsSubmitted: account.details_submitted,
+              organizationId: authorization.organizationId,
+              payoutsEnabled: account.payouts_enabled,
+              requestId: context.get("requestId"),
+              requirementsDue: account.requirements.currently_due,
+            }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          },
+        );
         const synced = organizationStripeConnectStatusResponseSchema.shape.stripe.safeParse(
           await syncResponse.json(),
         );
@@ -288,12 +292,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const store = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      );
+      const store = organizationStoreStub(context.env, authorization.organizationId);
       const statusUrl = new URL("https://organization.internal/internal/stripe-connect");
       statusUrl.searchParams.set("organizationId", authorization.organizationId);
-      const statusResponse = await store.fetch(statusUrl);
+      const statusResponse = await invokeOrganizationRpc(store, statusUrl);
       const status = z
         .object({
           accountId: z
@@ -318,7 +320,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         );
       }
       const requestId = context.get("requestId");
-      const syncResponse = await store.fetch(
+      const syncResponse = await invokeOrganizationRpc(
+        store,
         "https://organization.internal/internal/stripe-connect",
         {
           body: JSON.stringify({

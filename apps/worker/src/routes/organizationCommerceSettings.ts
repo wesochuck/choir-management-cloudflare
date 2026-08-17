@@ -12,6 +12,7 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute } from "./helpers";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/donation-settings", async (context) => {
@@ -25,9 +26,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/donations/settings");
       url.searchParams.set("organizationId", authorization.organizationId);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        url,
+      );
       const settings = donationSettingsSchema.safeParse(await response.json());
       if (!response.ok || !settings.success) throw new Error("invalid_settings");
       return context.json({ ...settings.data, requestId: context.get("requestId") });
@@ -65,18 +67,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch("https://organization.internal/internal/donations/settings", {
-        body: JSON.stringify({
-          ...body.data,
-          actorUserId: authorization.userId,
-          organizationId: authorization.organizationId,
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/donations/settings",
+        {
+          body: JSON.stringify({
+            ...body.data,
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
       if (!response.ok) {
         return context.json(
           {
@@ -116,9 +120,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/transaction-fee-settings");
       url.searchParams.set("organizationId", authorization.organizationId);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        url,
+      );
       const settings = transactionFeeSettingsSchema.safeParse(await response.json());
       if (!response.ok || !settings.success) throw new Error("invalid_settings");
       return context.json(
@@ -161,18 +166,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch("https://organization.internal/internal/transaction-fee-settings", {
-        body: JSON.stringify({
-          ...body.data,
-          actorUserId: authorization.userId,
-          organizationId: authorization.organizationId,
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/transaction-fee-settings",
+        {
+          body: JSON.stringify({
+            ...body.data,
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
       if (!response.ok) {
         return context.json(
           {
@@ -220,9 +227,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const url = new URL("https://organization.internal/internal/ticket-confirmation-settings");
       url.searchParams.set("organizationId", authorization.organizationId);
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch(url);
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        url,
+      );
       const settings = ticketConfirmationSettingsSchema.safeParse(await response.json());
       if (!response.ok || !settings.success) throw new Error("invalid_settings");
       return context.json(
@@ -265,18 +273,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const response = await context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      ).fetch("https://organization.internal/internal/ticket-confirmation-settings", {
-        body: JSON.stringify({
-          ...body.data,
-          actorUserId: authorization.userId,
-          organizationId: authorization.organizationId,
-          requestId: context.get("requestId"),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
+        "https://organization.internal/internal/ticket-confirmation-settings",
+        {
+          body: JSON.stringify({
+            ...body.data,
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            requestId: context.get("requestId"),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
       if (!response.ok) {
         return context.json(
           {

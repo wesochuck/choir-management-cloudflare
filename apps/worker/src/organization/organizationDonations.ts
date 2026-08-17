@@ -16,6 +16,7 @@ import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/st
 import { TicketCheckoutUnavailableError, ticketCheckoutMode } from "../payments/ticketCheckout";
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -35,7 +36,7 @@ export class DonationError extends Error {
 }
 
 function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  return organizationStoreStub(env, organizationId);
 }
 
 async function errorCode(response: Response): Promise<string> {
@@ -55,7 +56,8 @@ async function expirePendingDonationCheckout(
   checkoutRequestId: string,
   providerSessionId: string,
 ): Promise<void> {
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/donations/manage",
     {
       body: JSON.stringify({
@@ -121,7 +123,8 @@ export async function createDonationCheckoutSession(
         "Online donation payments are not enabled for this Organization.",
       );
     }
-    const stripeStatusResponse = await stub(env, organizationId).fetch(
+    const stripeStatusResponse = await invokeOrganizationRpc(
+      stub(env, organizationId),
       `https://organization.internal/internal/stripe-connect?organizationId=${encodeURIComponent(organizationId)}`,
     );
     const stripeStatus = z
@@ -145,7 +148,8 @@ export async function createDonationCheckoutSession(
       throw new DonationError("stripe_not_configured", 503, "Online donations are not configured.");
     }
     const pendingSessionId = `pending_${donationId}`;
-    const pendingResponse = await stub(env, organizationId).fetch(
+    const pendingResponse = await invokeOrganizationRpc(
+      stub(env, organizationId),
       "https://organization.internal/internal/donations/manage",
       {
         body: JSON.stringify({
@@ -222,7 +226,8 @@ export async function createDonationCheckoutSession(
       }
       throw error;
     }
-    const attachedResponse = await stub(env, organizationId).fetch(
+    const attachedResponse = await invokeOrganizationRpc(
+      stub(env, organizationId),
       "https://organization.internal/internal/donations/manage",
       {
         body: JSON.stringify({
@@ -257,7 +262,8 @@ export async function createDonationCheckoutSession(
     };
   }
   const providerSessionId = `fake_session_${crypto.randomUUID()}`;
-  const response = await stub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, organizationId),
     "https://organization.internal/internal/donations/manage",
     {
       body: JSON.stringify({
@@ -303,7 +309,7 @@ export async function listOrganizationDonations(
 ): Promise<readonly DonationRecord[]> {
   const url = new URL("https://organization.internal/internal/donations/list");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw new DonationError("donations_unavailable", 503, "Donations unavailable.");
   return donationRecordsResponseSchema.omit({ requestId: true }).parse(await response.json())
     .donations;
@@ -315,7 +321,7 @@ export async function listOrganizationPatrons(
 ): Promise<readonly PatronRecord[]> {
   const url = new URL("https://organization.internal/internal/donations/patrons");
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw new DonationError("patrons_unavailable", 503, "Patrons unavailable.");
   return patronRecordsResponseSchema.omit({ requestId: true }).parse(await response.json()).patrons;
 }
@@ -335,7 +341,7 @@ export async function readPublicDonationReceipt(
   const url = new URL("https://organization.internal/internal/donations/donation");
   url.searchParams.set("donationId", envelope.resourceId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await stub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw new DonationError("donation_not_found", 404, "Donation not found.");
   const donation = donationRecordSchema.parse(await response.json());
   return publicDonationReceiptResponseSchema.parse({
@@ -369,7 +375,8 @@ export async function refundOrganizationDonation(
     throw error;
   }
   if (!refundRequest.fake) return { ...current, refundRequested: true };
-  const response = await stub(env, actor.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
     "https://organization.internal/internal/donations/manage",
     {
       body: JSON.stringify({

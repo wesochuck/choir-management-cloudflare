@@ -11,6 +11,7 @@ import { createAuth } from "../../auth/config";
 import { authorizePlatformAdministratorSession } from "../../auth/platformAdministrator";
 import { getPlatformOrganizationContext } from "../../auth/platformElevation";
 import type { Env } from "../../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import { validateStartupConfig } from "../../env";
 import { MusicRepositoryError } from "../../organization/organizationMusic";
 import { CommunicationRepositoryError } from "../../organization/organizationCommunications";
@@ -162,9 +163,7 @@ export async function readOrganizationStripeStatus(
 ) {
   const url = new URL("https://organization.internal/internal/stripe-connect");
   url.searchParams.set("organizationId", organizationId);
-  const response = await env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(organizationId),
-  ).fetch(url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   const status = z
     .object({
       accountId: z

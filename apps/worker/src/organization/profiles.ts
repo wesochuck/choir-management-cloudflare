@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 interface ProfileEmailRow {
   readonly email: string;
@@ -59,8 +60,8 @@ async function assertProfileMutationAccepted(response: Response, operation: stri
 function organizationStub(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
-): DurableObjectStub {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+): ReturnType<typeof organizationStoreStub> {
+  return organizationStoreStub(env, organizationId);
 }
 
 export async function listOrganizationProfiles(
@@ -69,7 +70,7 @@ export async function listOrganizationProfiles(
 ): Promise<readonly OrganizationProfile[]> {
   const url = new URL("https://organization.internal/internal/profiles");
   url.searchParams.set("organizationId", organizationId);
-  const response = await organizationStub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(organizationStub(env, organizationId), url);
   if (!response.ok) throw new Error("The Organization store rejected the Profile list request.");
   return organizationProfilesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .profiles;
@@ -83,7 +84,7 @@ export async function listOrganizationProfileStatusHistory(
   const url = new URL("https://organization.internal/internal/profiles/status-history");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("profileId", profileId);
-  const response = await organizationStub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(organizationStub(env, organizationId), url);
   if (response.status === 404) return null;
   if (!response.ok)
     throw new Error("The Organization store rejected the Profile status history request.");
@@ -114,7 +115,7 @@ export async function readOrganizationMemberProfile(
   const url = new URL("https://organization.internal/internal/profiles/member");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("profileId", profileId);
-  const response = await organizationStub(env, organizationId).fetch(url);
+  const response = await invokeOrganizationRpc(organizationStub(env, organizationId), url);
   if (!response.ok) throw new Error("The Organization store rejected the member Profile request.");
   return organizationProfileSchema.parse(await response.json());
 }
@@ -127,7 +128,7 @@ export async function listOrganizationDirectoryProfiles(
   const url = new URL("https://organization.internal/internal/profiles/directory");
   url.searchParams.set("organizationId", organizationId);
   const [response, emails] = await Promise.all([
-    organizationStub(env, organizationId).fetch(url),
+    invokeOrganizationRpc(organizationStub(env, organizationId), url),
     listOrganizationProfileEmails(database, organizationId),
   ]);
   if (!response.ok) throw new Error("The Organization store rejected the directory request.");
@@ -151,7 +152,8 @@ export async function createOrganizationProfile(
     await assertEmailProviderRecipientAvailable(env.CONTROL_DB, input.email);
   }
   const profileId = crypto.randomUUID();
-  const response = await organizationStub(env, input.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles",
     {
       body: JSON.stringify({
@@ -182,7 +184,8 @@ export async function deleteOrganizationProfile(
     readonly requestId: string;
   },
 ): Promise<void> {
-  const response = await organizationStub(env, input.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles/delete",
     {
       body: JSON.stringify(input),
@@ -205,7 +208,8 @@ export async function importOrganizationProfiles(
     readonly requestId: string;
   },
 ): Promise<number> {
-  const response = await organizationStub(env, input.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles/import",
     {
       body: JSON.stringify({
@@ -243,7 +247,8 @@ export async function updateOrganizationProfile(
   if (input.email) {
     await assertEmailProviderRecipientAvailable(env.CONTROL_DB, input.email);
   }
-  const response = await organizationStub(env, input.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles/update",
     {
       body: JSON.stringify({
@@ -275,7 +280,8 @@ export async function updateOrganizationMemberProfile(
     readonly requestId: string;
   },
 ): Promise<OrganizationProfile> {
-  const response = await organizationStub(env, input.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles/member-update",
     {
       body: JSON.stringify({
@@ -309,7 +315,8 @@ export async function setOrganizationProfilePhoto(
     readonly requestId: string;
   },
 ): Promise<{ readonly previousFileId: string | null; readonly profile: OrganizationProfile }> {
-  const response = await organizationStub(env, input.organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles/photo",
     {
       body: JSON.stringify({

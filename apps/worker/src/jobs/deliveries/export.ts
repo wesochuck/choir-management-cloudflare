@@ -1,5 +1,10 @@
 import { buildOrganizationExportArchive } from "../../organization/organizationExport";
 import { organizationExportKey } from "../../organization/exportStore";
+import {
+  invokeOrganizationRpc,
+  organizationStoreStub,
+  type OrganizationStoreStub,
+} from "../../organization/rpc/client";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import { organizationExportJobSchema, organizationExportSnapshotSchema } from "./shared";
@@ -87,7 +92,7 @@ async function readExportFiles(
 
 async function reconcileExportFailure(
   env: JobConsumerEnv,
-  objectStub: DurableObjectStub,
+  objectStub: OrganizationStoreStub,
   exportJob: {
     readonly actorType: string;
     readonly actorUserId: string;
@@ -111,7 +116,8 @@ async function reconcileExportFailure(
       );
     }
   }
-  const failureResponse = await objectStub.fetch(
+  const failureResponse = await invokeOrganizationRpc(
+    objectStub,
     "https://organization.internal/internal/export/fail",
     {
       body: JSON.stringify({
@@ -140,13 +146,11 @@ export async function deliverOrganizationExportJob(
   env: JobConsumerEnv,
   job: DeliveryJob,
 ): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
+  const objectStub = organizationStoreStub(env, job.organizationId);
   const jobUrl = new URL("https://organization.internal/internal/export/job");
   jobUrl.searchParams.set("organizationId", job.organizationId);
   jobUrl.searchParams.set("exportId", job.jobId);
-  const jobResponse = await objectStub.fetch(jobUrl);
+  const jobResponse = await invokeOrganizationRpc(objectStub, jobUrl);
   const exportJob = organizationExportJobSchema.safeParse(
     await jobResponse.json().catch(() => null),
   );
@@ -159,7 +163,7 @@ export async function deliverOrganizationExportJob(
   try {
     const snapshotUrl = new URL("https://organization.internal/internal/export/snapshot");
     snapshotUrl.searchParams.set("organizationId", job.organizationId);
-    const snapshotResponse = await objectStub.fetch(snapshotUrl);
+    const snapshotResponse = await invokeOrganizationRpc(objectStub, snapshotUrl);
     const snapshot = organizationExportSnapshotSchema.safeParse(
       await snapshotResponse.json().catch(() => null),
     );
@@ -181,7 +185,8 @@ export async function deliverOrganizationExportJob(
       },
       httpMetadata: { contentType: "application/json" },
     });
-    const completeResponse = await objectStub.fetch(
+    const completeResponse = await invokeOrganizationRpc(
+      objectStub,
       "https://organization.internal/internal/export/complete",
       {
         body: JSON.stringify({

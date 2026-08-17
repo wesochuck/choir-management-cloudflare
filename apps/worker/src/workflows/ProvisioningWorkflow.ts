@@ -2,6 +2,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { currentOrganizationSchemaVersion } from "../organization/schema";
 
 const provisioningParamsSchema = z.object({
@@ -20,13 +21,14 @@ export class ProvisioningWorkflow extends WorkflowEntrypoint<Env, ProvisioningPa
   override async run(event: WorkflowEvent<ProvisioningParams>, step: WorkflowStep): Promise<void> {
     const params = provisioningParamsSchema.parse(event.payload);
     await step.do("initialize organization store", async () => {
-      const objectId = this.env.ORGANIZATION_STORE.idFromName(params.organizationId);
-      const response = await this.env.ORGANIZATION_STORE.get(objectId).fetch(
-        new Request("https://organization.internal/internal/provision", {
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(this.env, params.organizationId),
+        "https://organization.internal/internal/provision",
+        {
           body: JSON.stringify(params),
           headers: { "content-type": "application/json" },
           method: "POST",
-        }),
+        },
       );
       if (!response.ok) {
         throw new Error("Organization store initialization failed");

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { createStripeRefund, StripeConnectError } from "./stripeConnect";
 
 export class PaymentRefundError extends Error {
@@ -65,8 +66,8 @@ export async function requestOrganizationProviderRefund(
   targetUrl.searchParams.set("organizationId", input.organizationId);
   targetUrl.searchParams.set("paymentType", input.paymentType);
   targetUrl.searchParams.set("resourceId", input.resourceId);
-  const stub = env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(input.organizationId));
-  const targetResponse = await stub.fetch(targetUrl);
+  const stub = organizationStoreStub(env, input.organizationId);
+  const targetResponse = await invokeOrganizationRpc(stub, targetUrl);
   const target = targetSchema.safeParse(await targetResponse.json().catch(() => null));
   if (!targetResponse.ok || !target.success) {
     throw new PaymentRefundError(
@@ -88,7 +89,7 @@ export async function requestOrganizationProviderRefund(
   }
   const statusUrl = new URL("https://organization.internal/internal/stripe-connect");
   statusUrl.searchParams.set("organizationId", input.organizationId);
-  const statusResponse = await stub.fetch(statusUrl);
+  const statusResponse = await invokeOrganizationRpc(stub, statusUrl);
   const status = z
     .object({
       accountId: z
@@ -122,7 +123,8 @@ export async function requestOrganizationProviderRefund(
     }
     throw error;
   }
-  const requestResponse = await stub.fetch(
+  const requestResponse = await invokeOrganizationRpc(
+    stub,
     "https://organization.internal/internal/payments/refund-request",
     {
       body: JSON.stringify({

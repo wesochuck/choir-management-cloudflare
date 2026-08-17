@@ -3,6 +3,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { currentOrganizationSchemaVersion } from "../organization/schema";
 
 const FLEET_SCHEMA_BATCH_SIZE = 20;
@@ -92,18 +93,19 @@ export class FleetSchemaWorkflow extends WorkflowEntrypoint<Env, FleetSchemaPara
     const preparation = await step.do("prepare bounded Organization batch", async () => {
       const results = await Promise.all(
         organizations.map(async (organization) => {
-          const objectId = this.env.ORGANIZATION_STORE.idFromName(organization.organizationId);
-          const response = await this.env.ORGANIZATION_STORE.get(objectId).fetch(
-            new Request("https://organization.internal/internal/schema/prepare", {
+          const response = await invokeOrganizationRpc(
+            organizationStoreStub(this.env, organization.organizationId),
+            "https://organization.internal/internal/schema/prepare",
+            {
               body: JSON.stringify({
                 organizationId: organization.organizationId,
                 targetVersion: params.targetVersion,
               }),
               headers: { "content-type": "application/json" },
               method: "POST",
-            }),
+            },
           );
-          if (response.status === 400 || response.status === 409) {
+          if (response.status === 400 || response.status === 404 || response.status === 409) {
             return {
               identityFailure: organization.organizationId,
               organizationId: organization.organizationId,

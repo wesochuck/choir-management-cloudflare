@@ -13,6 +13,7 @@ import {
   writePublishedOrganization,
 } from "../publication/publishOrganization";
 import { privateOrganizationFileKey } from "../storage/privateFiles";
+import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 
 const contextSchema = z.object({
   actorUserId: z.string().min(1).max(128),
@@ -53,7 +54,7 @@ export class PublicWebsiteError extends Error {
 type WebsiteContext = z.infer<typeof contextSchema>;
 
 function organizationStub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return env.ORGANIZATION_STORE.get(env.ORGANIZATION_STORE.idFromName(organizationId));
+  return organizationStoreStub(env, organizationId);
 }
 
 async function internalPost(
@@ -61,7 +62,8 @@ async function internalPost(
   context: WebsiteContext,
   body: Readonly<Record<string, unknown>>,
 ): Promise<Response> {
-  return organizationStub(env, context.organizationId).fetch(
+  return invokeOrganizationRpc(
+    organizationStub(env, context.organizationId),
     "https://organization.internal/internal/website/manage",
     {
       body: JSON.stringify({ ...context, ...body }),
@@ -75,7 +77,8 @@ export async function readOrganizationPublicWebsiteSettings(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ) {
-  const response = await organizationStub(env, organizationId).fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStub(env, organizationId),
     `https://organization.internal/internal/website/settings?organizationId=${encodeURIComponent(organizationId)}`,
   );
   const parsed = publicWebsiteSettingsSchema.safeParse(await response.json().catch(() => null));

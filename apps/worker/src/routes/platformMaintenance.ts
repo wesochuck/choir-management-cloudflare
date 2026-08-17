@@ -6,6 +6,7 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute, setupFailureStatus } from "./helpers";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 const statusAutomationFixtureRequestSchema = z.object({ profileId: z.uuid() });
 
@@ -26,10 +27,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      );
-      const response = await stub.fetch(
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
         "https://organization.internal/internal/scheduler/run-now",
         {
           body: JSON.stringify({ force: true, organizationId: authorization.organizationId }),
@@ -94,10 +93,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const stub = context.env.ORGANIZATION_STORE.get(
-        context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
-      );
-      const response = await stub.fetch(
+      const response = await invokeOrganizationRpc(
+        organizationStoreStub(context.env, authorization.organizationId),
         "https://organization.internal/internal/roster/status-automation-fixture",
         {
           body: JSON.stringify({

@@ -1,5 +1,6 @@
 import { renderCommunicationTemplate } from "@choir/domain";
 import { listOrganizationProfileEmails } from "../../organization/profiles";
+import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import {
   queueAutomatedOrganizationCommunication,
   readOrganizationCommunicationTemplate,
@@ -25,13 +26,11 @@ async function readScheduledEventJob(
   job: DeliveryJob,
   path: string,
 ): Promise<z.infer<typeof scheduledEventJobResponseSchema>> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
+  const objectStub = organizationStoreStub(env, job.organizationId);
   const url = new URL(`https://organization.internal${path}`);
   url.searchParams.set("organizationId", job.organizationId);
   url.searchParams.set("jobId", job.jobId);
-  const response = await objectStub.fetch(url);
+  const response = await invokeOrganizationRpc(objectStub, url);
   const parsed = scheduledEventJobResponseSchema.safeParse(await response.json().catch(() => null));
   if (!response.ok || !parsed.success) throw new Error("The scheduled event job is unavailable.");
   return parsed.data;
@@ -173,10 +172,8 @@ export async function deliverAttendanceReportJob(
   env: JobConsumerEnv,
   job: DeliveryJob,
 ): Promise<void> {
-  const objectStub = env.ORGANIZATION_STORE.get(
-    env.ORGANIZATION_STORE.idFromName(job.organizationId),
-  );
-  const response = await objectStub.fetch(
+  const response = await invokeOrganizationRpc(
+    organizationStoreStub(env, job.organizationId),
     "https://organization.internal/internal/scheduling/attendance-report-prepare",
     {
       body: JSON.stringify({ jobId: job.jobId, organizationId: job.organizationId }),
