@@ -6,7 +6,10 @@
   /* === Reports === */
   .reports-view {
     display: grid;
-    gap: 1rem;
+    gap: 2rem;
+    /* Keep the intro close to the shared page heading and use the recovered
+     * space between the description and report navigation. */
+    margin-top: -1rem;
   }
 
   .reports-intro {
