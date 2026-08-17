@@ -119,11 +119,7 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   return (
     <section className="reports-view" aria-label="Reports and insights">
       <div className="reports-intro">
-        <div>
-          <p className="eyebrow">Insights & settings</p>
-          <h2>Reports</h2>
-          <p>Review attendance, RSVPs, repertoire, roster, and giving activity.</p>
-        </div>
+        <p>Review attendance, RSVPs, repertoire, roster, and giving activity.</p>
       </div>
       <nav className="ticketing-tabs reports-tabs" aria-label="Report types" role="tablist">
         {TAB_LABELS.map((item) => (

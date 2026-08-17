@@ -471,6 +471,8 @@ test("supports multi-Performance history, staged edits, and immediate return upd
 }) => {
   await page.goto("/admin/reports");
   await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
+  await expect(page.locator(".reports-intro .eyebrow")).toHaveCount(0);
+  await expect(page.locator(".reports-intro h2")).toHaveCount(0);
   const musicFolderTab = page.getByRole("tab", { name: "Music Folder Report" });
   await expect(musicFolderTab).toHaveAttribute("aria-controls", "report-music-folders-panel");
   await musicFolderTab.click();
