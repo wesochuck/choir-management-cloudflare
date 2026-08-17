@@ -461,6 +461,30 @@ async function assertStackedFields(
   }
 }
 
+async function assertSeasonsLayout(page: Page, width: number): Promise<void> {
+  await expect(page.getByRole("tab", { name: "Seasons", exact: true })).toBeVisible();
+  if (width <= 1024) {
+    await assertStackedFields(page, "#dues-records-panel .dues-records-toolbar > .field", 2);
+    return;
+  }
+
+  await page.getByRole("tab", { name: "Seasons", exact: true }).click();
+  const addSeason = page.getByRole("button", { name: "Add season", exact: true });
+  await expect(addSeason).toBeVisible();
+  const [tabsBox, addSeasonBox] = await Promise.all([
+    page.locator(".seasons-manager-tabs").boundingBox(),
+    addSeason.boundingBox(),
+  ]);
+  expect(tabsBox).not.toBeNull();
+  expect(addSeasonBox).not.toBeNull();
+  if (tabsBox && addSeasonBox) {
+    const tabsCenter = tabsBox.y + tabsBox.height / 2;
+    const addSeasonCenter = addSeasonBox.y + addSeasonBox.height / 2;
+    expect(Math.abs(tabsCenter - addSeasonCenter)).toBeLessThanOrEqual(2);
+  }
+  await page.getByRole("tab", { name: "Dues records", exact: true }).click();
+}
+
 async function assertBreakpointSpecificLayout(
   page: Page,
   path: string,
@@ -475,8 +499,8 @@ async function assertBreakpointSpecificLayout(
       }));
     expect(searchFieldSize.labelHeight).toBeLessThanOrEqual(searchFieldSize.inputHeight + 1);
   }
-  if (path === "/admin/seasons" && width <= 1024) {
-    await assertStackedFields(page, "#dues-records-panel .dues-records-toolbar > .field", 2);
+  if (path === "/admin/seasons") {
+    await assertSeasonsLayout(page, width);
   }
   if (path === "/admin/donations" && width <= 1024) {
     await assertStackedFields(page, ".donation-dashboard__filters > .field", 4);

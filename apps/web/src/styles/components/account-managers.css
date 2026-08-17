@@ -5,7 +5,7 @@
 @layer components {
   .seasons-manager-controls {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
     /* Extend the tab rule to the panel edges, matching the full-width event tabs. */
@@ -14,7 +14,7 @@
     border-bottom: 1px solid var(--color-border);
   }
 
-  .seasons-manager-tabs {
+  .seasons-manager-controls > .seasons-manager-tabs {
     flex: 1 1 auto;
     display: flex;
     flex-wrap: wrap;

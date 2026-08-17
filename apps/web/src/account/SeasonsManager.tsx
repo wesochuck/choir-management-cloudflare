@@ -268,7 +268,7 @@ export function SeasonsManager({
               role="tab"
               type="button"
             >
-              Settings
+              Seasons
             </button>
           </nav>
           {tab === "settings" ? (
