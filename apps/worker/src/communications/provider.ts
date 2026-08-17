@@ -27,15 +27,15 @@ const brevoResponseSchema = z.object({ messageId: z.union([z.string(), z.number(
 type ProviderFetch = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface CommunicationProviderConfig {
-  readonly BREVO_API_KEY?: string;
-  readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string;
-  readonly BREVO_SMS_SENDER?: string;
-  readonly CONTROL_DB?: D1Database;
+  readonly BREVO_API_KEY?: string | undefined;
+  readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string | undefined;
+  readonly BREVO_SMS_SENDER?: string | undefined;
+  readonly CONTROL_DB?: D1Database | undefined;
   readonly EXTERNAL_EFFECTS_MODE: string;
-  readonly PLATFORM_EMAIL?: SendEmail;
-  readonly PLATFORM_EMAIL_ALLOWED_RECIPIENTS?: string;
-  readonly PLATFORM_EMAIL_FROM?: string;
-  readonly PLATFORM_EMAIL_MODE?: string;
+  readonly PLATFORM_EMAIL?: SendEmail | undefined;
+  readonly PLATFORM_EMAIL_ALLOWED_RECIPIENTS?: string | undefined;
+  readonly PLATFORM_EMAIL_FROM?: string | undefined;
+  readonly PLATFORM_EMAIL_MODE?: string | undefined;
 }
 
 export interface CommunicationProviderResult {

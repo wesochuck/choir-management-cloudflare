@@ -67,7 +67,7 @@ async function processBatch(
   body: unknown,
   attempts: number,
   id: string,
-  externalEffectsMode = "fake",
+  externalEffectsMode: "disabled" | "fake" | "sandbox" = "fake",
   includeControlDatabase = false,
 ) {
   const batch = createBatch(body, attempts, id);

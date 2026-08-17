@@ -12,7 +12,7 @@ const statusAutomationFixtureRequestSchema = z.object({ profileId: z.uuid() });
 
 function stagingStatusAutomationFixtureEnabled(env: {
   readonly APP_ENV: string;
-  readonly STATUS_AUTOMATION_FIXTURE_MODE?: string;
+  readonly STATUS_AUTOMATION_FIXTURE_MODE?: string | undefined;
 }): boolean {
   return env.APP_ENV === "staging" && env.STATUS_AUTOMATION_FIXTURE_MODE === "enabled";
 }

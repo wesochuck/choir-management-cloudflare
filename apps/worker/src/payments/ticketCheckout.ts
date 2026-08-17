@@ -48,7 +48,6 @@ export function ticketCheckoutMode(
   if (env.EXTERNAL_EFFECTS_MODE === "fake" && env.APP_ENV !== "production") return "fake";
   if (
     env.APP_ENV !== "local" &&
-    env.APP_ENV !== "preview" &&
     env.EXTERNAL_EFFECTS_MODE !== "disabled" &&
     env.STRIPE_PAYMENTS_ENABLED?.trim().toLowerCase() === "true"
   ) {

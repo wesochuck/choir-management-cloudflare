@@ -1,7 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
-import type { Env } from "../env";
 import { migrateOrganization } from "./migrations";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
@@ -115,8 +114,8 @@ function recordEventReminderResult(storage: DurableObjectStorage, input: unknown
   return Response.json({ recorded: true });
 }
 
-export class OrganizationStore extends DurableObject<Env> {
-  constructor(state: DurableObjectState, env: Env) {
+export class OrganizationStore extends DurableObject {
+  constructor(state: DurableObjectState, env: Cloudflare.Env) {
     super(state, env);
     void state.blockConcurrencyWhile(() => {
       migrateOrganization(state.storage);
@@ -266,9 +265,11 @@ export class OrganizationStore extends DurableObject<Env> {
       if (url.pathname === "/internal/scheduling/event-reminder-result") {
         return recordEventReminderResult(this.ctx.storage, await request.json().catch(() => null));
       }
+      const jobsQueue = this.env.JOBS_QUEUE;
+      if (!jobsQueue) throw new Error("The JOBS_QUEUE binding is not configured.");
       const response = await dispatchPostRequest(
         this.ctx.storage,
-        this.env.JOBS_QUEUE,
+        jobsQueue,
         url.pathname,
         request,
       );
@@ -288,7 +289,10 @@ export class OrganizationStore extends DurableObject<Env> {
 
   override async alarm(): Promise<void> {
     try {
-      await runOrganizationAlarm(this.ctx.storage, this.env.JOBS_QUEUE);
+      const jobsQueue = this.env.JOBS_QUEUE;
+      if (jobsQueue) {
+        await runOrganizationAlarm(this.ctx.storage, jobsQueue);
+      }
     } finally {
       clearUnsuccessfulEventReminderMarkers(this.ctx.storage);
     }

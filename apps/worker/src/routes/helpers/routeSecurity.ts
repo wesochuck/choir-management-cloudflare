@@ -151,7 +151,6 @@ export function stripePaymentsGlobalEnabled(
 ): boolean {
   return (
     env.APP_ENV !== "local" &&
-    env.APP_ENV !== "preview" &&
     env.EXTERNAL_EFFECTS_MODE !== "disabled" &&
     env.STRIPE_PAYMENTS_ENABLED?.trim().toLowerCase() === "true"
   );

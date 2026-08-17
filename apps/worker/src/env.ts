@@ -5,7 +5,8 @@ import type { CustomDomainParams } from "./workflows/CustomDomainWorkflow";
 import type { FleetSchemaParams } from "./workflows/FleetSchemaWorkflow";
 import type { ProvisioningParams } from "./workflows/ProvisioningWorkflow";
 
-export const appEnvironmentSchema = z.enum(["local", "preview", "staging", "production"]);
+export const appEnvironmentSchema = z.enum(["local", "staging", "production"]);
+export type AppEnvironment = z.infer<typeof appEnvironmentSchema>;
 
 const startupConfigSchema = z.object({
   APP_ENV: appEnvironmentSchema,
@@ -24,40 +25,40 @@ const betterAuthSecretSchema = z.string().min(32).max(4096);
 const signedLinkSecretSchema = z.string().min(32).max(4096);
 
 export interface Env {
-  readonly APP_ENV: string;
+  readonly APP_ENV: "staging" | "production" | "local";
   readonly ASSETS: Fetcher;
   readonly BETTER_AUTH_SECRET: string;
-  readonly BREVO_API_KEY?: string;
-  readonly BREVO_EMAIL_FROM?: string;
-  readonly BREVO_EMAIL_FROM_NAME?: string;
-  readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string;
-  readonly BREVO_SMS_SENDER?: string;
-  readonly BUILD_VERSION: string;
-  readonly CLOUDFLARE_API_TOKEN?: string;
-  readonly CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID?: string;
+  readonly BREVO_API_KEY?: string | undefined;
+  readonly BREVO_EMAIL_FROM?: string | undefined;
+  readonly BREVO_EMAIL_FROM_NAME?: string | undefined;
+  readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string | undefined;
+  readonly BREVO_SMS_SENDER?: string | undefined;
+  readonly BUILD_VERSION: "staging" | "unreleased" | "development";
+  readonly CLOUDFLARE_API_TOKEN?: string | undefined;
+  readonly CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID?: string | undefined;
   readonly CONTROL_DB: D1Database;
-  readonly CUSTOM_DOMAIN_PROVIDER_MODE: string;
+  readonly CUSTOM_DOMAIN_PROVIDER_MODE: "cloudflare" | "disabled" | "fake";
   readonly CUSTOM_DOMAIN_WORKFLOW: Workflow<CustomDomainParams>;
   readonly EMAIL_EVENTS_DLQ_NAME: string;
   readonly EMAIL_EVENTS_QUEUE_NAME: string;
-  readonly EXTERNAL_EFFECTS_MODE: string;
+  readonly EXTERNAL_EFFECTS_MODE: "sandbox" | "disabled" | "fake";
   readonly FLEET_SCHEMA_WORKFLOW: Workflow<FleetSchemaParams>;
   readonly JOBS_QUEUE: Queue;
   readonly JOBS_DLQ_NAME: string;
   readonly ORGANIZATION_FILES: R2Bucket;
   readonly ORGANIZATION_STORE: DurableObjectNamespace<OrganizationStore>;
-  readonly PLATFORM_EMAIL?: SendEmail;
-  readonly PLATFORM_EMAIL_ALLOWED_RECIPIENTS?: string;
+  readonly PLATFORM_EMAIL?: SendEmail | undefined;
+  readonly PLATFORM_EMAIL_ALLOWED_RECIPIENTS?: string | undefined;
   readonly PLATFORM_EMAIL_FROM: string;
-  readonly PLATFORM_EMAIL_MODE: string;
+  readonly PLATFORM_EMAIL_MODE: "sandbox" | "disabled" | "capture";
   readonly PRODUCT_BASE_DOMAIN: string;
   readonly PROVISIONING_WORKFLOW: Workflow<ProvisioningParams>;
   readonly ROUTING_CACHE: KVNamespace;
   readonly SIGNED_LINK_SECRET: string;
-  readonly STRIPE_SECRET_KEY?: string;
-  readonly STRIPE_PAYMENTS_ENABLED?: string;
-  readonly STRIPE_WEBHOOK_SECRET?: string;
-  readonly STATUS_AUTOMATION_FIXTURE_MODE?: string;
+  readonly STRIPE_SECRET_KEY?: string | undefined;
+  readonly STRIPE_PAYMENTS_ENABLED?: string | undefined;
+  readonly STRIPE_WEBHOOK_SECRET?: string | undefined;
+  readonly STATUS_AUTOMATION_FIXTURE_MODE?: string | undefined;
 }
 
 export type StartupConfig = z.infer<typeof startupConfigSchema>;
