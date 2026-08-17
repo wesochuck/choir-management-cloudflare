@@ -155,6 +155,140 @@ afterEach(async () => {
 });
 
 describe("Organization music catalog", () => {
+  it("renames exact composer and arranger credits atomically within one Organization", async () => {
+    const cookie = await signIn();
+    const first = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          arranger: "Jane Doe",
+          composer: "Jane Doe",
+          title: "First credit",
+        })
+      ).json(),
+    );
+    const second = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          arranger: "J. Doe",
+          composer: "Jane Doe",
+          title: "Second credit",
+        })
+      ).json(),
+    );
+    const third = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          arranger: "Jane Doe",
+          composer: "jane doe",
+          title: "Case-sensitive credit",
+        })
+      ).json(),
+    );
+    const bravoPiece = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("bravo.localhost", "/api/organization/music", cookie, {
+          arranger: "Jane Doe",
+          composer: "Jane Doe",
+          title: "Other Organization credit",
+        })
+      ).json(),
+    );
+
+    expect(
+      await write("alpha.localhost", "/api/organization/music/credits/rename", cookie, {
+        currentName: "Jane Doe",
+        newName: " Jane Doe ",
+      }),
+    ).toMatchObject({ status: 400 });
+    expect(
+      await write("alpha.localhost", "/api/organization/music/credits/rename", cookie, {}),
+    ).toMatchObject({ status: 400 });
+    const missingCredit = await write(
+      "alpha.localhost",
+      "/api/organization/music/credits/rename",
+      cookie,
+      { currentName: "Missing Credit", newName: "Replacement Credit" },
+    );
+    expect(missingCredit).toMatchObject({ status: 404 });
+    await expect(missingCredit.json()).resolves.toMatchObject({ code: "music_credit_not_found" });
+
+    const renamed = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music/credits/rename", cookie, {
+          currentName: "Jane Doe",
+          newName: "J. Doe",
+        })
+      ).json(),
+    );
+    expect(renamed.pieces.map(({ id }) => id).toSorted()).toEqual(
+      [first.id, second.id, third.id].toSorted(),
+    );
+    expect(renamed.pieces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: first.id, arranger: "J. Doe", composer: "J. Doe" }),
+        expect.objectContaining({ id: second.id, arranger: "J. Doe", composer: "J. Doe" }),
+        expect.objectContaining({ id: third.id, arranger: "J. Doe", composer: "jane doe" }),
+      ]),
+    );
+    const bravoCatalog = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("bravo.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(bravoCatalog.pieces).toEqual([
+      expect.objectContaining({ id: bravoPiece.id, arranger: "Jane Doe", composer: "Jane Doe" }),
+    ]);
+    const auditRows = await runInDurableObject<
+      OrganizationStore,
+      readonly {
+        readonly actorId: string;
+        readonly requestId: string;
+        readonly summary: string;
+        readonly targetId: string;
+      }[]
+    >(stores.get(stores.idFromName("organization-alpha")), (_instance, state) =>
+      state.storage.sql
+        .exec<{
+          readonly actorId: string;
+          readonly requestId: string;
+          readonly summary: string;
+          readonly targetId: string;
+        }>(
+          `SELECT actor_id AS actorId, request_id AS requestId, change_summary AS summary,
+             target_id AS targetId FROM audit_events WHERE action = 'music.credit.renamed'`,
+        )
+        .toArray(),
+    );
+    expect(auditRows).toHaveLength(3);
+    expect(new Set(auditRows.map(({ requestId }) => requestId))).toHaveLength(1);
+    expect(auditRows.map(({ actorId }) => actorId)).toEqual([
+      "music-manager",
+      "music-manager",
+      "music-manager",
+    ]);
+    expect(auditRows.map(({ targetId }) => targetId).toSorted()).toEqual(
+      [first.id, second.id, third.id].toSorted(),
+    );
+    expect(auditRows.map(({ summary }) => JSON.parse(summary) as unknown)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ currentName: "Jane Doe", newName: "J. Doe" }),
+      ]),
+    );
+
+    await database
+      .prepare(
+        `UPDATE member SET role = 'member'
+         WHERE userId = 'music-manager' AND organizationId = 'organization-alpha'`,
+      )
+      .run();
+    expect(
+      await write("alpha.localhost", "/api/organization/music/credits/rename", cookie, {
+        currentName: "J. Doe",
+        newName: "Jane Doe",
+      }),
+    ).toMatchObject({ status: 403 });
+  });
+
   it("stores publisher search templates per Organization and enforces HTTPS placeholders", async () => {
     const cookie = await signIn();
     const initial = organizationMusicLibrarySettingsResponseSchema.parse(

@@ -748,6 +748,8 @@
             "apps/worker/src/organization/musicStore.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/account/components/MusicCatalog/credits.tsx",
+            "apps/web/e2e/music-catalog.spec.ts",
           ],
       },
       {
@@ -2101,6 +2103,27 @@
           ],
       },
       {
+        "id": "api.organization.music-credit-rename",
+        "method": "POST",
+        "path": "/api/organization/music/credits/rename",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "implemented",
+        "baselineEvidence":
+          "User-requested restoration of the legacy composers/arrangers workflow; the read-only
+          Parity Bridge is unavailable in this environment.",
+        "targetEvidence":
+          [
+            "packages/contracts/src/music.ts",
+            "apps/worker/src/routes/organizationMusicMutations.ts",
+            "apps/worker/src/organization/musicStore.ts",
+            "apps/worker/test/music.integration.test.ts",
+            "apps/web/src/auth/api/music.ts",
+            "apps/web/src/account/components/MusicCatalog/credits.tsx",
+            "apps/web/e2e/music-catalog.spec.ts",
+          ],
+      },
+      {
         "id": "api.organization.music-folder-report-query",
         "method": "POST",
         "path": "/api/organization/reports/music-folders/query",
@@ -2378,6 +2401,8 @@
             "apps/worker/src/router.ts",
             "apps/worker/test/music.integration.test.ts",
             "apps/web/src/account/components/MusicCatalog/controller.tsx",
+            "apps/web/src/account/components/MusicCatalog/credits.tsx",
+            "apps/web/e2e/music-catalog.spec.ts",
             "apps/web/e2e/setlists.spec.ts",
           ],
       },

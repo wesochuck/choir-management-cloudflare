@@ -6,6 +6,7 @@ import { MusicCatalogTable, SectionBuckets } from "./table";
 import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
 import { MusicAudioTracks, MusicBulkEditDialog, MusicDeleteControls } from "./tracksAndBulkEdit";
+import { MusicCredits } from "./credits";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { AppLink } from "../AuthenticatedShell/navigation";
 import type { MusicCatalogModel } from "./hooks";
@@ -15,10 +16,12 @@ export function MusicCatalogView({
   model,
   navigate,
   returnTo,
+  view = "catalog",
 }: {
   readonly model: MusicCatalogModel;
   readonly navigate: (href: string) => void;
   readonly returnTo?: string | null | undefined;
+  readonly view?: "catalog" | "credits";
 }) {
   const {
     applyBulkChanges,
@@ -65,6 +68,7 @@ export function MusicCatalogView({
     piece,
     pieces,
     publisherSearchTemplate,
+    renameCredit,
     remove,
     roster,
     save,
@@ -100,6 +104,47 @@ export function MusicCatalogView({
     unlinkChildren,
     venues,
   } = model;
+  if (view === "credits") {
+    return (
+      <section
+        className="account-section music-catalog-section"
+        aria-label="Composers and arrangers"
+      >
+        <div className="section-heading section-heading--compact">
+          <p className="section-description">
+            Review exact catalog credits and correct a composer or arranger name everywhere it is
+            used.
+          </p>
+        </div>
+        <nav className="music-library-tabs" aria-label="Music library sections">
+          <AppLink href="/admin/library" onNavigate={navigate}>
+            Music Catalog
+          </AppLink>
+          <AppLink ariaCurrent="page" href="/admin/library?view=credits" onNavigate={navigate}>
+            Composers &amp; arrangers <span className="sr-only">(current)</span>
+          </AppLink>
+          <AppLink href="/admin/library/settings" onNavigate={navigate}>
+            Library Settings
+          </AppLink>
+        </nav>
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {message ? (
+          <p className="notice notice--success" role="status">
+            {message}
+          </p>
+        ) : null}
+        {!roster ? (
+          <p role="status">Loading music credits…</p>
+        ) : (
+          <MusicCredits busy={busy} onRename={renameCredit} pieces={pieces} />
+        )}
+      </section>
+    );
+  }
   return (
     <section className="account-section music-catalog-section" aria-label="Music catalog">
       {returnTo && !dialogOpen ? (
@@ -118,6 +163,9 @@ export function MusicCatalogView({
       <nav className="music-library-tabs" aria-label="Music library sections">
         <AppLink ariaCurrent="page" href="/admin/library" onNavigate={navigate}>
           Music Catalog <span className="sr-only">(current)</span>
+        </AppLink>
+        <AppLink href="/admin/library?view=credits" onNavigate={navigate}>
+          Composers &amp; arrangers
         </AppLink>
         <AppLink href="/admin/library/settings" onNavigate={navigate}>
           Library Settings

@@ -1,5 +1,6 @@
 import {
   organizationMusicBulkUpdateRequestSchema,
+  organizationMusicCreditRenameRequestSchema,
   organizationMusicPieceRequestSchema,
   type ProblemDetails,
 } from "@choir/contracts";
@@ -11,6 +12,7 @@ import {
   deleteOrganizationMusicPiece,
   importOrganizationMusicPieces,
   MusicRepositoryError,
+  renameOrganizationMusicCredit,
   updateOrganizationMusicPiece,
 } from "../organization/organizationMusic";
 
@@ -159,6 +161,51 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
           message: "The music pieces could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+  });
+
+  router.post("/api/organization/music/credits/rename", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const body = organizationMusicCreditRenameRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!body.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Provide different current and new credit names.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const pieces = await renameOrganizationMusicCredit(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        body.data,
+      );
+      return context.json({ pieces, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      const status = error instanceof MusicRepositoryError ? error.status : 503;
+      return context.json(
+        {
+          code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+          message: "The music credit could not be renamed.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         status,

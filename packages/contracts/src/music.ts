@@ -132,6 +132,17 @@ export const organizationMusicBulkUpdateRequestSchema = z
   })
   .strict();
 
+export const organizationMusicCreditRenameRequestSchema = z
+  .object({
+    currentName: z.string().trim().min(1).max(300),
+    newName: z.string().trim().min(1).max(300),
+  })
+  .strict()
+  .refine(({ currentName, newName }) => currentName !== newName, {
+    message: "The new credit name must differ from the current name.",
+    path: ["newName"],
+  });
+
 export const organizationMusicPieceSchema = organizationMusicPieceRequestSchema.extend({
   createdAt: z.iso.datetime(),
   id: z.uuid(),
@@ -178,6 +189,9 @@ export const organizationMusicImportResponseSchema = z.object({
 export type OrganizationMusicPieceRequest = z.infer<typeof organizationMusicPieceRequestSchema>;
 export type OrganizationMusicBulkUpdateRequest = z.infer<
   typeof organizationMusicBulkUpdateRequestSchema
+>;
+export type OrganizationMusicCreditRenameRequest = z.infer<
+  typeof organizationMusicCreditRenameRequestSchema
 >;
 export type OrganizationMusicPiece = z.infer<typeof organizationMusicPieceSchema>;
 export type OrganizationMusicImportResponse = z.infer<typeof organizationMusicImportResponseSchema>;

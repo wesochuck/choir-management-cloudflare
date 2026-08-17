@@ -335,6 +335,9 @@ export function MusicLibrarySettingsPage({
         <AppLink href="/admin/library" onNavigate={navigate}>
           Music Catalog
         </AppLink>
+        <AppLink href="/admin/library?view=credits" onNavigate={navigate}>
+          Composers &amp; arrangers
+        </AppLink>
         <AppLink ariaCurrent="page" href="/admin/library/settings" onNavigate={navigate}>
           Library Settings <span className="sr-only">(current)</span>
         </AppLink>

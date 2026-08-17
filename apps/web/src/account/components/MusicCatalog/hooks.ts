@@ -38,6 +38,7 @@ import {
   listOrganizationMusic,
   listOrganizationEvents,
   listOrganizationVenues,
+  renameOrganizationMusicCredit,
   uploadPrivateOrganizationFile,
   updateOrganizationMusicPiece,
 } from "../../../auth/api";
@@ -539,6 +540,25 @@ export function useMusicCatalogController({
     }
   }
 
+  async function renameCredit(currentName: string, newName: string): Promise<number> {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await renameOrganizationMusicCredit({ currentName, newName });
+      const updatedById = new Map(updated.map((candidate) => [candidate.id, candidate]));
+      setPieces((current) =>
+        current.map((candidate) => updatedById.get(candidate.id) ?? candidate),
+      );
+      setMessage(
+        `Renamed ${currentName} to ${newName} across ${String(updated.length)} distinct music piece${updated.length === 1 ? "" : "s"}.`,
+      );
+      return updated.length;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove(): Promise<void> {
     if (!editingId) return;
     setBusy(true);
@@ -647,6 +667,7 @@ export function useMusicCatalogController({
     piece,
     pieces,
     publisherSearchTemplate,
+    renameCredit,
     remove,
     roster,
     save,

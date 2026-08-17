@@ -1,5 +1,50 @@
 import type { OrganizationMusicPiece, OrganizationMusicPieceRequest } from "@choir/contracts";
 
+export interface MusicCreditSummary {
+  readonly arrangerPieces: number;
+  readonly composerPieces: number;
+  readonly name: string;
+  readonly totalPieces: number;
+}
+
+interface MusicCreditCounts {
+  readonly arrangerPieceIds: Set<string>;
+  readonly composerPieceIds: Set<string>;
+  readonly pieceIds: Set<string>;
+}
+
+export function summarizeMusicCredits(
+  pieces: readonly OrganizationMusicPiece[],
+): readonly MusicCreditSummary[] {
+  const credits = new Map<string, MusicCreditCounts>();
+  for (const piece of pieces) {
+    for (const [role, rawName] of [
+      ["composer", piece.composer],
+      ["arranger", piece.arranger],
+    ] as const) {
+      const name = rawName.trim();
+      if (!name) continue;
+      const counts = credits.get(name) ?? {
+        arrangerPieceIds: new Set<string>(),
+        composerPieceIds: new Set<string>(),
+        pieceIds: new Set<string>(),
+      };
+      counts.pieceIds.add(piece.id);
+      if (role === "composer") counts.composerPieceIds.add(piece.id);
+      else counts.arrangerPieceIds.add(piece.id);
+      credits.set(name, counts);
+    }
+  }
+  return [...credits]
+    .map(([name, counts]) => ({
+      arrangerPieces: counts.arrangerPieceIds.size,
+      composerPieces: counts.composerPieceIds.size,
+      name,
+      totalPieces: counts.pieceIds.size,
+    }))
+    .toSorted((left, right) => left.name.localeCompare(right.name));
+}
+
 export const maximumAudioBytes = 20 * 1024 * 1024;
 
 export type MusicEditorTab = "details" | "performances" | "tracks";

@@ -1,5 +1,6 @@
 import {
   organizationMusicBulkUpdateRequestSchema,
+  organizationMusicCreditRenameRequestSchema,
   organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceRequestSchema,
   organizationMusicPieceSchema,
@@ -35,6 +36,10 @@ const musicOperationSchema = z.discriminatedUnion("action", [
     action: z.literal("bulk_update"),
     changes: organizationMusicBulkUpdateRequestSchema.shape.changes,
     pieceIds: organizationMusicBulkUpdateRequestSchema.shape.pieceIds,
+  }),
+  operationContextSchema.extend({
+    action: z.literal("rename_credit"),
+    credit: organizationMusicCreditRenameRequestSchema,
   }),
   operationContextSchema.extend({
     action: z.literal("delete"),
@@ -459,6 +464,63 @@ function bulkUpdatePieces(
   return Response.json({ pieces: addPerformanceHistory(storage, updated) });
 }
 
+function renameMusicCredit(
+  storage: DurableObjectStorage,
+  operation: Extract<z.infer<typeof musicOperationSchema>, { readonly action: "rename_credit" }>,
+): Response {
+  const affected = storage.sql
+    .exec<MusicPieceRow>(
+      `SELECT ${musicColumns} FROM music_pieces
+       WHERE composer = ? OR arranger = ?
+       ORDER BY created_at ASC, id ASC`,
+      operation.credit.currentName,
+      operation.credit.currentName,
+    )
+    .toArray()
+    .map(parseStoredPiece);
+  if (affected.length === 0) {
+    return Response.json({ code: "music_credit_not_found" }, { status: 404 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    for (const piece of affected) {
+      const roles = [
+        ...(piece.composer === operation.credit.currentName ? (["composer"] as const) : []),
+        ...(piece.arranger === operation.credit.currentName ? (["arranger"] as const) : []),
+      ];
+      storage.sql.exec(
+        `UPDATE music_pieces
+         SET composer = CASE WHEN composer = ? THEN ? ELSE composer END,
+             arranger = CASE WHEN arranger = ? THEN ? ELSE arranger END,
+             updated_at = ?
+         WHERE id = ?`,
+        operation.credit.currentName,
+        operation.credit.newName,
+        operation.credit.currentName,
+        operation.credit.newName,
+        occurredAt,
+        piece.id,
+      );
+      insertAudit(
+        storage,
+        { actorUserId: operation.actorUserId, pieceId: piece.id, requestId: operation.requestId },
+        "music.credit.renamed",
+        {
+          currentName: operation.credit.currentName,
+          newName: operation.credit.newName,
+          roles,
+        },
+        occurredAt,
+        `${operation.requestId}:${piece.id}`,
+      );
+    }
+  });
+  const updated = affected
+    .map(({ id }) => readPiece(storage, id))
+    .filter((piece): piece is OrganizationMusicPiece => piece !== null);
+  return Response.json({ pieces: addPerformanceHistory(storage, updated) });
+}
+
 function importPieces(
   storage: DurableObjectStorage,
   operation: Extract<z.infer<typeof musicOperationSchema>, { readonly action: "import" }>,
@@ -655,6 +717,7 @@ export async function manageMusicInStore(
   if (operation.data.action === "delete") return deletePiece(storage, operation.data);
   if (operation.data.action === "import") return importPieces(storage, operation.data);
   if (operation.data.action === "bulk_update") return bulkUpdatePieces(storage, operation.data);
+  if (operation.data.action === "rename_credit") return renameMusicCredit(storage, operation.data);
   if (operation.data.action === "update_settings") {
     return updateMusicLibrarySettings(storage, operation.data);
   }

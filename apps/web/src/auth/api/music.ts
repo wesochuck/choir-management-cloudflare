@@ -8,6 +8,7 @@ import {
   type OrganizationMusicPiece,
   type OrganizationMusicLibrarySettings,
   type OrganizationMusicBulkUpdateRequest,
+  type OrganizationMusicCreditRenameRequest,
   type OrganizationMusicPieceRequest,
   type SingerLearningTrackPiece,
 } from "@choir/contracts";
@@ -73,6 +74,16 @@ export async function bulkUpdateOrganizationMusicPieces(
 ): Promise<readonly OrganizationMusicPiece[]> {
   const response = await request("/api/organization/music/bulk-update", {
     body: JSON.stringify(changesRequest),
+    method: "POST",
+  });
+  return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;
+}
+
+export async function renameOrganizationMusicCredit(
+  renameRequest: OrganizationMusicCreditRenameRequest,
+): Promise<readonly OrganizationMusicPiece[]> {
+  const response = await request("/api/organization/music/credits/rename", {
+    body: JSON.stringify(renameRequest),
     method: "POST",
   });
   return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;

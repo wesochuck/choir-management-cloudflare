@@ -71,6 +71,7 @@ export function renderOrganizationPage(
       ? requestedRosterSection
       : "roster";
   const musicPieceId = routeParams.get("pieceId");
+  const musicCatalogView = routeParams.get("view") === "credits" ? "credits" : "catalog";
   const rsvpEventId = routeParams.get("eventId");
   const route =
     pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
@@ -88,6 +89,7 @@ export function renderOrganizationPage(
         initialPieceId={musicPieceId}
         navigate={navigate}
         returnTo={returnToSetList ? "/admin/setlists" : null}
+        view={musicCatalogView}
       />
     ),
     "/admin/library/settings": (

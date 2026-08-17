@@ -5,6 +5,7 @@ import {
   type OrganizationMusicLibrarySettings,
   type OrganizationMusicPiece,
   type OrganizationMusicBulkUpdateRequest,
+  type OrganizationMusicCreditRenameRequest,
   type OrganizationMusicPieceRequest,
 } from "@choir/contracts";
 
@@ -166,6 +167,25 @@ export async function bulkUpdateOrganizationMusicPieces(
     ...context,
     changes: request.changes,
     pieceIds: request.pieceIds,
+  });
+  return organizationMusicPiecesResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json()).pieces;
+}
+
+export async function renameOrganizationMusicCredit(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  credit: OrganizationMusicCreditRenameRequest,
+): Promise<readonly OrganizationMusicPiece[]> {
+  const response = await mutate(env, context.organizationId, {
+    action: "rename_credit",
+    ...context,
+    credit,
   });
   return organizationMusicPiecesResponseSchema
     .omit({ requestId: true })

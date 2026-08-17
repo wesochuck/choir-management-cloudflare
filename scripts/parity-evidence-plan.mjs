@@ -96,6 +96,7 @@ export const probePlan = new Map([
   ["api.organization.music-folder-report-folder-numbers", { kind: "skip-fixture" }],
   ["api.organization.music-folder-return-status", { kind: "skip-fixture" }],
   ["api.organization.music-folder-report-export", { kind: "skip-fixture" }],
+  ["api.organization.music-credit-rename", { kind: "validation", expected: 400 }],
   // Empty-body validation is safe here: the route rejects the request before
   ["api.singer.profile-email-change", { kind: "validation", expected: 400 }],
   ["api.account.email-change-confirm", { kind: "validation", expected: 400 }],
