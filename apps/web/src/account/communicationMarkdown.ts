@@ -27,7 +27,7 @@ function renderInline(value: string): string {
     .replace(/_([^_]+)_/g, "<em>$1</em>")
     .replace(
       /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/gi,
-      '<span class="communication-poll-link-placeholder">Personalized poll response link</span>',
+      '<span class="communication-poll-link-placeholder">Respond Here (No login required)</span>',
     )
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label: string, url: string) =>
       isSafeHttpUrl(url)

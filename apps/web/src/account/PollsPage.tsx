@@ -239,7 +239,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
           voiceParts: [],
         },
         channel: "Email",
-        contentMarkdown: `Hi {singerName},\n\nPlease share your response:\n{{POLL_LINK:${poll.id}}}\n\nThank you!`,
+        contentMarkdown: `Hi {singerName},\n\nPlease respond to this poll:\n\nPoll: ${poll.title}\n\n{{POLL_LINK:${poll.id}}}\n\nThank you!`,
         subject: `Poll: ${poll.title}`,
       });
       setCommunicationsDraftId(draft.id);

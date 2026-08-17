@@ -440,7 +440,8 @@ export async function renderTicketLinks(
 }
 
 export async function renderPollLinks(
-  env: JobConsumerEnv,
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET"> &
+    Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
   organizationId: string,
   content: string,
   delivery: {
@@ -479,7 +480,7 @@ export async function renderPollLinks(
   return content.replace(pollPlaceholderPattern, (_match, pollId: string) => {
     const token = tokens.get(pollId);
     return token
-      ? `${origin}/poll?token=${encodeURIComponent(token)}`
+      ? `[Respond Here (No login required)](${origin}/poll?token=${encodeURIComponent(token)})`
       : "Poll link unavailable; please contact your organization.";
   });
 }

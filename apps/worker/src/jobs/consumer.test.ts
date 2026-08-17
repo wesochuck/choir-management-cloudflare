@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderPlayerLinks, renderRsvpLinks } from "./consumer";
+import { renderCommunicationMarkdown } from "../communications/provider";
 import { verifySignedLink } from "../security/signedLinks";
+import { renderPlayerLinks, renderRsvpLinks } from "./consumer";
+import { renderPollLinks } from "./deliveries/shared";
 
 const secret = "unit-test-rsvp-link-secret-that-is-at-least-thirty-two-characters";
 
@@ -92,5 +94,41 @@ describe("communication practice-player links", () => {
         { profileId: "11111111-1111-4111-8111-111111111111", unsubscribeUrl: null },
       ),
     ).resolves.toBe("Practice player unavailable; select an event before sending this message.");
+  });
+});
+
+describe("communication poll links", () => {
+  it("renders a personalized no-login call to action with an exact signed URL", async () => {
+    const content = await renderPollLinks(
+      { PRODUCT_BASE_DOMAIN: "staging.example.test", SIGNED_LINK_SECRET: secret },
+      "organization-alpha",
+      "Poll: Favorite color?\n\n{{POLL_LINK:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa}}",
+      {
+        profileId: "11111111-1111-4111-8111-111111111111",
+        unsubscribeUrl: "https://alpha.staging.example.test/unsubscribe?token=test",
+      },
+    );
+    const link = /\[Respond Here \(No login required\)\]\((https:\/\/[^)]+)\)/.exec(content)?.[1];
+    expect(link).toBeTruthy();
+    expect(content).toContain("Poll: Favorite color?");
+    expect(content).not.toMatch(/^https?:\/\//m);
+    expect(renderCommunicationMarkdown(content)).toContain(
+      `<a href="${link ?? ""}">Respond Here (No login required)</a>`,
+    );
+
+    const token = new URL(link ?? "https://invalid.test").searchParams.get("token");
+    await expect(
+      verifySignedLink(secret, token ?? "", {
+        expectedOrganizationId: "organization-alpha",
+        expectedPurpose: "poll",
+        expectedResourceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        expectedSubjectId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).resolves.toMatchObject({
+      organizationId: "organization-alpha",
+      purpose: "poll",
+      resourceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      subjectId: "11111111-1111-4111-8111-111111111111",
+    });
   });
 });
