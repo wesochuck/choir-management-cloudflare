@@ -12,6 +12,10 @@
     overflow: visible;
   }
 
+  .music-library-return {
+    margin-bottom: 1rem;
+  }
+
   .music-catalog-section > .section-heading,
   .music-catalog-section > .section-heading > .section-description {
     max-width: none;

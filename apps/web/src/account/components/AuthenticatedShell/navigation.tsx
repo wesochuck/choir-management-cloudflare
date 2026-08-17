@@ -17,11 +17,13 @@ export function ThemeIcon({ preference }: { readonly preference: ThemePreference
 export function AppLink({
   ariaCurrent,
   children,
+  className,
   href,
   onNavigate,
 }: {
   readonly ariaCurrent?: "page" | undefined;
   readonly children: ReactNode;
+  readonly className?: string | undefined;
   readonly href: string;
   readonly onNavigate: (href: string) => void;
 }) {
@@ -29,6 +31,7 @@ export function AppLink({
     <a
       href={href}
       aria-current={ariaCurrent}
+      className={className}
       onClick={(event) => {
         if (
           event.button !== 0 ||

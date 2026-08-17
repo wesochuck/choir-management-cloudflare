@@ -48,10 +48,25 @@ export function audioTimeText(seconds: number): string {
   return `${String(Math.floor(wholeSeconds / 60))}:${String(wholeSeconds % 60).padStart(2, "0")}`;
 }
 
-export function parseDuration(value: string): number | null | undefined {
+export function normalizeDurationInput(value: string): string {
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  const match = /^(\d{1,4}):([0-5]\d)$/.exec(trimmed);
+  if (!trimmed) return "";
+
+  const minutesOnly = /^(\d{1,4})$/.exec(trimmed);
+  if (minutesOnly) return `${String(Number(minutesOnly[1]))}:00`;
+
+  const minutesAndSeconds = /^(\d{1,4}):(\d{0,2})$/.exec(trimmed);
+  if (!minutesAndSeconds) return trimmed;
+  const minutes = Number(minutesAndSeconds[1]);
+  const seconds = minutesAndSeconds[2] ? Number(minutesAndSeconds[2]) : 0;
+  if (seconds > 59) return trimmed;
+  return `${String(minutes)}:${String(seconds).padStart(2, "0")}`;
+}
+
+export function parseDuration(value: string): number | null | undefined {
+  const normalized = normalizeDurationInput(value);
+  if (!normalized) return null;
+  const match = /^(\d{1,4}):([0-5]\d)$/.exec(normalized);
   if (!match) return undefined;
   const minutes = Number(match[1]);
   const seconds = Number(match[2]);

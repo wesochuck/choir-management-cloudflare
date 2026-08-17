@@ -4,12 +4,26 @@ import type { Dispatch, SetStateAction, SyntheticEvent } from "react";
 
 import type { DiscountDraft } from "./shared";
 
+function getEligibleItem(draft: DiscountDraft): string {
+  if (draft.eventId) return "event:" + draft.eventId;
+  if (draft.bundleId) return "bundle:" + draft.bundleId;
+  return "";
+}
+
+function getFixedValue(draft: DiscountDraft): string {
+  if (draft.discountType === "fixed" && draft.discountValue && !draft.discountValue.includes(".")) {
+    return (Number(draft.discountValue) / 100).toFixed(2);
+  }
+  return draft.discountValue;
+}
+
 export function DiscountCodeForm({
   bundles,
   busy,
   closeDiscountDialog,
   discountDialogOpen,
   discountDraft,
+  discountError,
   editingDiscountCodeId,
   saveDiscountCode,
   setDiscountDraft,
@@ -20,22 +34,14 @@ export function DiscountCodeForm({
   readonly closeDiscountDialog: () => void;
   readonly discountDialogOpen: boolean;
   readonly discountDraft: DiscountDraft;
+  readonly discountError?: string | null | undefined;
   readonly editingDiscountCodeId: string | null;
   readonly saveDiscountCode: (event: SyntheticEvent<HTMLFormElement>) => Promise<void>;
   readonly setDiscountDraft: Dispatch<SetStateAction<DiscountDraft>>;
   readonly ticketEvents: readonly OrganizationEvent[];
 }) {
-  const eligibleItem = discountDraft.eventId
-    ? "event:" + discountDraft.eventId
-    : discountDraft.bundleId
-      ? "bundle:" + discountDraft.bundleId
-      : "";
-  const fixedValue =
-    discountDraft.discountType === "fixed" &&
-    discountDraft.discountValue &&
-    !discountDraft.discountValue.includes(".")
-      ? (Number(discountDraft.discountValue) / 100).toFixed(2)
-      : discountDraft.discountValue;
+  const eligibleItem = getEligibleItem(discountDraft);
+  const fixedValue = getFixedValue(discountDraft);
 
   return (
     <Dialog
@@ -44,6 +50,11 @@ export function DiscountCodeForm({
       open={discountDialogOpen}
       title={editingDiscountCodeId ? "Edit discount code" : "New discount code"}
     >
+      {discountError ? (
+        <p className="notice notice--error" role="alert">
+          {discountError}
+        </p>
+      ) : null}
       <form className="form-stack" onSubmit={(event) => void saveDiscountCode(event)}>
         <label className="field">
           Code

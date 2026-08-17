@@ -77,6 +77,8 @@ export function TicketingManager({
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [editingDiscountCodeId, setEditingDiscountCodeId] = useState<string | null>(null);
   const [discountDraft, setDiscountDraft] = useState<DiscountDraft>(EMPTY_DISCOUNT_DRAFT);
+  const [bundleError, setBundleError] = useState<string | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
   const [deactivateDiscountCodeId, setDeactivateDiscountCodeId] = useState<string | null>(null);
 
   function selectTicketingTab(value: TicketingTab): void {
@@ -195,12 +197,14 @@ export function TicketingManager({
   function closeBundleDialog(): void {
     if (busy) return;
     setBundleDialogOpen(false);
+    setBundleError(null);
     clearBundleForm();
   }
 
   function openNewBundle(): void {
     clearBundleForm();
     setMessage(null);
+    setBundleError(null);
     setBundleDialogOpen(true);
   }
 
@@ -208,6 +212,7 @@ export function TicketingManager({
     formEvent.preventDefault();
     setBusy(true);
     setMessage(null);
+    setBundleError(null);
     try {
       const saved = await saveTicketBundle(
         {
@@ -224,8 +229,10 @@ export function TicketingManager({
       clearBundleForm();
       setBundleDialogOpen(false);
       setMessage("Ticket bundle saved. Publish the public website to make it visible.");
-    } catch {
-      setMessage("The ticket bundle could not be saved.");
+    } catch (failure: unknown) {
+      setBundleError(
+        failure instanceof Error ? failure.message : "The ticket bundle could not be saved.",
+      );
     } finally {
       setBusy(false);
     }
@@ -242,6 +249,7 @@ export function TicketingManager({
     );
     setBundleEventIds(bundle.eventIds);
     setBundleIsActive(bundle.isActive);
+    setBundleError(null);
     setBundleDialogOpen(true);
   }
 
@@ -319,6 +327,7 @@ export function TicketingManager({
       ...EMPTY_DISCOUNT_DRAFT,
       eventId: ticketEvents[0]?.id ?? null,
     });
+    setDiscountError(null);
     setDiscountDialogOpen(true);
     setMessage(null);
   }
@@ -335,6 +344,7 @@ export function TicketingManager({
       eventId: code.eventId,
       redemptionLimit: code.redemptionLimit === null ? "" : String(code.redemptionLimit),
     });
+    setDiscountError(null);
     setDiscountDialogOpen(true);
     setMessage(null);
   }
@@ -342,6 +352,7 @@ export function TicketingManager({
   function closeDiscountDialog(): void {
     if (busy) return;
     setDiscountDialogOpen(false);
+    setDiscountError(null);
     setEditingDiscountCodeId(null);
     setDiscountDraft(EMPTY_DISCOUNT_DRAFT);
   }
@@ -363,13 +374,14 @@ export function TicketingManager({
     };
     setBusy(true);
     setMessage(null);
+    setDiscountError(null);
     try {
       const saved = await saveOrganizationDiscountCode(request, editingDiscountCodeId ?? undefined);
       setDiscountCodes((current) => [saved, ...current.filter(({ id }) => id !== saved.id)]);
       closeDiscountDialog();
       setMessage("Discount code saved.");
     } catch (failure: unknown) {
-      setMessage(
+      setDiscountError(
         failure instanceof Error ? failure.message : "The discount code could not be saved.",
       );
     } finally {
@@ -490,7 +502,7 @@ export function TicketingManager({
           setConfirmationDraft={setConfirmationDraft}
         />
       ) : null}
-      {message ? (
+      {message && !bundleDialogOpen && !discountDialogOpen ? (
         <p className="notice notice--info" role="status">
           {message}
         </p>
@@ -507,6 +519,7 @@ export function TicketingManager({
           discountCodesLoading={discountCodesLoading}
           discountDialogOpen={discountDialogOpen}
           discountDraft={discountDraft}
+          discountError={discountError}
           editDiscountCode={editDiscountCode}
           editingDiscountCodeId={editingDiscountCodeId}
           openNewDiscountCode={openNewDiscountCode}
@@ -543,6 +556,7 @@ export function TicketingManager({
         <BundlePanel
           bundleCapacity={bundleCapacity}
           bundleDialogOpen={bundleDialogOpen}
+          bundleError={bundleError}
           bundleEventIds={bundleEventIds}
           bundleIsActive={bundleIsActive}
           bundlePrice={bundlePrice}

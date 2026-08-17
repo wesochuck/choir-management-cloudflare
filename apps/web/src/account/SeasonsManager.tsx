@@ -233,7 +233,7 @@ export function SeasonsManager({
             {error}
           </p>
         ) : null}
-        {message ? (
+        {message && !seasonDialogOpen && !confirmSeason ? (
           <p className="notice notice--success" role="status">
             {message}
           </p>

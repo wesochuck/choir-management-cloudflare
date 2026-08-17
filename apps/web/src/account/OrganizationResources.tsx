@@ -1,5 +1,5 @@
 import type { OrganizationResource, OrganizationResourceRequest } from "@choir/contracts";
-import { DataTable, Dialog, useConfirmation } from "@choir/ui";
+import { DataTable, Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import {
   useEffect,
   useRef,
@@ -380,12 +380,12 @@ export function OrganizationResources({
   return (
     <section className="panel organization-resources" aria-label="Organization resources">
       <p className="section-description">Shared files and trusted links for this Organization.</p>
-      {error ? (
+      {error && !dialogOpen ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
       ) : null}
-      {success ? (
+      {success && !dialogOpen ? (
         <p className="notice notice--success" role="status">
           {success}
         </p>
@@ -555,78 +555,124 @@ export function OrganizationResources({
           <button className="button button--primary" onClick={openAdd} type="button">
             Add resource
           </button>
-          <Dialog
-            description="Share a file or trusted HTTPS link with Organization members."
-            onClose={closeDialog}
-            open={dialogOpen}
-            title={editingResource ? "Edit resource" : "Add resource"}
-          >
-            <form
-              className="form-stack"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void saveResource();
-              }}
-            >
-              {error ? (
-                <p className="notice notice--error" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              <label className="field" htmlFor="resource-title">
-                Title
-                <input
-                  autoFocus
-                  id="resource-title"
-                  maxLength={300}
-                  onChange={(event) => {
-                    setTitle(event.target.value);
-                  }}
-                  required
-                  value={title}
-                />
-              </label>
-              <label className="field" htmlFor="resource-url">
-                HTTPS link
-                <input
-                  id="resource-url"
-                  onChange={(event) => {
-                    if (event.target.value) setFile(null);
-                    setUrl(event.target.value);
-                  }}
-                  placeholder="https://"
-                  type="url"
-                  value={url}
-                />
-              </label>
-              <label className="field" htmlFor="resource-file">
-                {editingResource ? "Replace file (optional)" : "Or upload a file"}
-                <input
-                  id="resource-file"
-                  onChange={(event) => {
-                    setFile(event.target.files?.[0] ?? null);
-                    if (event.target.files?.[0]) setUrl("");
-                  }}
-                  type="file"
-                />
-              </label>
-              <p className="field-help">
-                Choose exactly one source. Leave the file blank when editing a link or keeping the
-                existing file.
-              </p>
-              <div className="dialog__actions">
-                <button className="button button--secondary" onClick={closeDialog} type="button">
-                  Cancel
-                </button>
-                <button className="button button--primary" disabled={busy} type="submit">
-                  {busy ? "Saving…" : editingResource ? "Save changes" : "Add resource"}
-                </button>
-              </div>
-            </form>
-          </Dialog>
+          <ResourceDialog
+            busy={busy}
+            closeDialog={closeDialog}
+            dialogOpen={dialogOpen}
+            editingResource={editingResource}
+            error={error}
+            file={file}
+            saveResource={saveResource}
+            setFile={setFile}
+            setTitle={setTitle}
+            setUrl={setUrl}
+            title={title}
+            url={url}
+          />
           {confirmationDialog}
         </>
       ) : null}
     </section>
+  );
+}
+
+function ResourceDialog({
+  busy,
+  closeDialog,
+  dialogOpen,
+  editingResource,
+  error,
+  saveResource,
+  setFile,
+  setTitle,
+  setUrl,
+  title,
+  url,
+}: {
+  readonly busy: boolean;
+  readonly closeDialog: () => void;
+  readonly dialogOpen: boolean;
+  readonly editingResource: OrganizationResource | null;
+  readonly error: string | null;
+  readonly file: File | null;
+  readonly saveResource: () => Promise<void>;
+  readonly setFile: (file: File | null) => void;
+  readonly setTitle: (title: string) => void;
+  readonly setUrl: (url: string) => void;
+  readonly title: string;
+  readonly url: string;
+}) {
+  return (
+    <Dialog
+      description="Share a file or trusted HTTPS link with Organization members."
+      onClose={closeDialog}
+      open={dialogOpen}
+      title={editingResource ? "Edit resource" : "Add resource"}
+    >
+      <form
+        className="form-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void saveResource();
+        }}
+      >
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <label className="field" htmlFor="resource-title">
+          Title
+          <input
+            autoFocus
+            id="resource-title"
+            maxLength={300}
+            onChange={(event) => {
+              setTitle(event.target.value);
+            }}
+            required
+            value={title}
+          />
+        </label>
+        <label className="field" htmlFor="resource-url">
+          HTTPS link
+          <input
+            id="resource-url"
+            onChange={(event) => {
+              if (event.target.value) setFile(null);
+              setUrl(event.target.value);
+            }}
+            placeholder="https://"
+            type="url"
+            value={url}
+          />
+        </label>
+        <label className="field" htmlFor="resource-file">
+          {editingResource ? "Replace file (optional)" : "Or upload a file"}
+          <input
+            id="resource-file"
+            onChange={(event) => {
+              setFile(event.target.files?.[0] ?? null);
+              if (event.target.files?.[0]) setUrl("");
+            }}
+            type="file"
+          />
+        </label>
+        <p className="field-help">
+          Choose exactly one source. Leave the file blank when editing a link or keeping the
+          existing file.
+        </p>
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button className="button button--secondary" type="button">
+              Cancel
+            </button>
+          </DialogClose>
+          <button className="button button--primary" disabled={busy} type="submit">
+            {busy ? "Saving…" : editingResource ? "Save changes" : "Add resource"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

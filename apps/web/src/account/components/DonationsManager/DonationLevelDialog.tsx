@@ -4,6 +4,7 @@ import type { SyntheticEvent } from "react";
 export function DonationLevelDialog({
   busy,
   editingLevelId,
+  error,
   levelAmount,
   levelBenefit,
   levelLabel,
@@ -16,6 +17,7 @@ export function DonationLevelDialog({
 }: {
   readonly busy: boolean;
   readonly editingLevelId: string | null;
+  readonly error?: string | null | undefined;
   readonly levelAmount: string;
   readonly levelBenefit: string;
   readonly levelLabel: string;
@@ -33,6 +35,11 @@ export function DonationLevelDialog({
       open={open}
       title={editingLevelId ? "Edit donation level" : "New donation level"}
     >
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <form className="form-stack" onSubmit={(event) => void saveLevel(event)}>
         <label className="field">
           Level label

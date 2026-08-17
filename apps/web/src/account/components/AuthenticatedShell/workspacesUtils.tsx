@@ -65,6 +65,7 @@ export function renderOrganizationPage(
   const routeParams = new URLSearchParams(routeState.search);
   const rosterProfileId = routeParams.get("profileId");
   const requestedRosterSection = routeParams.get("section");
+  const returnToSetList = routeParams.get("returnTo") === "/admin/setlists";
   const rosterSection =
     requestedRosterSection === "settings" || requestedRosterSection === "automation"
       ? requestedRosterSection
@@ -82,7 +83,12 @@ export function renderOrganizationPage(
     "/admin/donations": <DonationsManager enabled={focusedEnabled} />,
     "/admin/patrons": <DonationsManager enabled={focusedEnabled} />,
     "/admin/library": (
-      <MusicCatalog enabled={focusedEnabled} initialPieceId={musicPieceId} navigate={navigate} />
+      <MusicCatalog
+        enabled={focusedEnabled}
+        initialPieceId={musicPieceId}
+        navigate={navigate}
+        returnTo={returnToSetList ? "/admin/setlists" : null}
+      />
     ),
     "/admin/library/settings": (
       <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />

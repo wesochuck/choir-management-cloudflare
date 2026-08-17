@@ -30,7 +30,10 @@ export function EditItemDialog({
   const linkedMusicPiece = musicPieceForSetListItem(editingItem, resources.music);
   const editingItemIsLinked = Boolean(editingItem.pieceId);
   const linkedMusicHref = linkedMusicPiece
-    ? `/admin/library?pieceId=${encodeURIComponent(linkedMusicPiece.id)}`
+    ? `/admin/library?${new URLSearchParams({
+        pieceId: linkedMusicPiece.id,
+        returnTo: "/admin/setlists",
+      }).toString()}`
     : undefined;
   const editingTitle = linkedMusicPiece?.title ?? editingItem.title;
   const editingComposer = linkedMusicPiece?.composer ?? editingItem.composer ?? "";

@@ -6,6 +6,7 @@ import { money } from "./shared";
 export function BundlePanel({
   bundleCapacity,
   bundleDialogOpen,
+  bundleError,
   bundleEventIds,
   bundleIsActive,
   bundlePrice,
@@ -29,6 +30,7 @@ export function BundlePanel({
 }: {
   readonly bundleCapacity: string;
   readonly bundleDialogOpen: boolean;
+  readonly bundleError?: string | null | undefined;
   readonly bundleEventIds: readonly string[];
   readonly bundleIsActive: boolean;
   readonly bundlePrice: string;
@@ -70,6 +72,11 @@ export function BundlePanel({
         open={bundleDialogOpen}
         title={editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}
       >
+        {bundleError ? (
+          <p className="notice notice--error" role="alert">
+            {bundleError}
+          </p>
+        ) : null}
         <form className="form-stack" onSubmit={(formEvent) => void saveBundle(formEvent)}>
           <h3>{editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}</h3>
           <label className="field">

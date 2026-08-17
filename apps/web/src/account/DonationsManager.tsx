@@ -35,6 +35,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   });
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
+  const [levelError, setLevelError] = useState<string | null>(null);
   const [levelLabel, setLevelLabel] = useState("");
   const [levelAmount, setLevelAmount] = useState("");
   const [levelBenefit, setLevelBenefit] = useState("");
@@ -89,6 +90,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     setLevelLabel("");
     setLevelAmount("");
     setLevelBenefit("");
+    setLevelError(null);
     setSettingsDialogOpen(true);
   }
 
@@ -97,6 +99,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     setLevelLabel(level.label);
     setLevelAmount((level.amountCents / 100).toFixed(2));
     setLevelBenefit(level.benefit);
+    setLevelError(null);
     setSettingsDialogOpen(true);
   }
 
@@ -119,8 +122,12 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   async function saveLevel(formEvent: SyntheticEvent<HTMLFormElement>): Promise<void> {
     formEvent.preventDefault();
     if (settingsState.status !== "ready") return;
+    setLevelError(null);
     const amountCents = Math.round(Number(levelAmount) * 100);
-    if (!levelLabel.trim() || !Number.isFinite(amountCents) || amountCents <= 0) return;
+    if (!levelLabel.trim() || !Number.isFinite(amountCents) || amountCents <= 0) {
+      setLevelError("Provide a level label and a valid positive amount.");
+      return;
+    }
     const level: DonationLevel = {
       amountCents,
       benefit: levelBenefit.trim(),
@@ -132,8 +139,23 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           candidate.id === editingLevelId ? level : candidate,
         )
       : [...settingsState.settings.levels, level];
-    await saveSettings({ ...settingsState.settings, levels });
-    setSettingsDialogOpen(false);
+    setBusy(true);
+    setMessage(null);
+    try {
+      const saved = await updateOrganizationDonationSettings({ ...settingsState.settings, levels });
+      setSettingsState({ settings: saved, status: "ready" });
+      setPortalButtonText(saved.buttonText);
+      setPortalDescription(saved.description);
+      setLevelError(null);
+      setSettingsDialogOpen(false);
+      setMessage("Donation level saved.");
+    } catch (saveError: unknown) {
+      setLevelError(
+        saveError instanceof Error ? saveError.message : "The donation level could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function deleteLevel(levelId: string): Promise<void> {
@@ -233,7 +255,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       : undefined;
   return (
     <section className="panel" aria-label="Donations and giving management">
-      {message ? (
+      {message && !settingsDialogOpen ? (
         <p className="notice notice--info" role="status">
           {message}
         </p>
@@ -343,6 +365,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       <DonationLevelDialog
         busy={busy}
         editingLevelId={editingLevelId}
+        error={levelError}
         levelAmount={levelAmount}
         levelBenefit={levelBenefit}
         levelLabel={levelLabel}

@@ -141,7 +141,7 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
           {error}
         </p>
       ) : null}
-      {success ? (
+      {success && !createOpen && !confirmVenue ? (
         <p className="notice notice--success" role="status">
           {success}
         </p>

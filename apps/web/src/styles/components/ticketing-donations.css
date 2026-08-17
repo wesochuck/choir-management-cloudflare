@@ -18,6 +18,13 @@
     gap: 1rem;
   }
 
+  .ticket-scanner__toolbar .button {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: 0.55rem 0.75rem;
+    box-sizing: border-box;
+  }
+
   .ticket-scanner__grid {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);

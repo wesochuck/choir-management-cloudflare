@@ -1,7 +1,7 @@
 import { musicCsvColumnOptions } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 import { MusicGenreFilter, MusicGenrePicker } from "./shared";
-import { uniqueLabels } from "./utils";
+import { normalizeDurationInput, uniqueLabels } from "./utils";
 import { MusicCatalogTable, SectionBuckets } from "./table";
 import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
@@ -14,9 +14,11 @@ import type { MusicCatalogModel } from "./hooks";
 export function MusicCatalogView({
   model,
   navigate,
+  returnTo,
 }: {
   readonly model: MusicCatalogModel;
   readonly navigate: (href: string) => void;
+  readonly returnTo?: string | null | undefined;
 }) {
   const {
     applyBulkChanges,
@@ -100,6 +102,13 @@ export function MusicCatalogView({
   } = model;
   return (
     <section className="account-section music-catalog-section" aria-label="Music catalog">
+      {returnTo && !dialogOpen ? (
+        <div className="music-library-return">
+          <AppLink className="button button--secondary" href={returnTo} onNavigate={navigate}>
+            ← Back to set list
+          </AppLink>
+        </div>
+      ) : null}
       <div className="section-heading section-heading--compact">
         <p className="section-description">
           Manage owned works and movements. Audio tracks are stored securely as Organization files
@@ -114,12 +123,12 @@ export function MusicCatalogView({
           Library Settings
         </AppLink>
       </nav>
-      {error ? (
+      {error && !dialogOpen && !importDialogOpen && !bulkDialogOpen ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
       ) : null}
-      {message ? (
+      {message && !dialogOpen && !importDialogOpen && !bulkDialogOpen ? (
         <p className="notice notice--success" role="status">
           {message}
         </p>
@@ -209,6 +218,23 @@ export function MusicCatalogView({
               editingId ? "Edit music piece" : piece.parentId ? "Add movement" : "Add music piece"
             }
           >
+            {error && dialogOpen ? (
+              <p className="notice notice--error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {returnTo ? (
+              <div className="music-library-return">
+                <AppLink className="button button--secondary" href={returnTo} onNavigate={navigate}>
+                  ← Back to set list
+                </AppLink>
+              </div>
+            ) : null}
+            {message && dialogOpen ? (
+              <p className="notice notice--success" role="status">
+                {message}
+              </p>
+            ) : null}
             <form
               className="form-stack music-piece-form"
               onSubmit={(event) => {
@@ -351,8 +377,12 @@ export function MusicCatalogView({
                     <label className="field">
                       Duration (minutes:seconds)
                       <input
-                        placeholder="4:05"
+                        placeholder="4:05 or 4"
                         value={durationInput}
+                        onBlur={() => {
+                          const normalized = normalizeDurationInput(durationInput);
+                          if (normalized !== durationInput) setDurationValue(normalized, true);
+                        }}
                         onChange={(event) => {
                           setDurationValue(event.target.value, true);
                         }}

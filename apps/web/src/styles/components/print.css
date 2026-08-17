@@ -170,6 +170,10 @@
   }
 
   .calendar-feed-url-row .button {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: 0.55rem 0.75rem;
+    box-sizing: border-box;
     white-space: nowrap;
   }
 }

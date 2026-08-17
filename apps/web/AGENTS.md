@@ -60,6 +60,13 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   in both themes.
 - For custom `<details>` dropdowns, match `.music-genre-filter summary::after`: use `⌃`, rotate it
   180 degrees while closed, and return it to 0 degrees while open.
+- Inline form action buttons placed in the same row as `<input>` or `<select>` controls (such as
+  inline search bars, copy rows, quick-add performance actions, or scanner toolbars) must match
+  `--control-height` (`2.5rem` / `40px`) using
+  `height: var(--control-height); min-height: var(--control-height); padding: 0.55rem 0.75rem; box-sizing: border-box;`
+  (or `.button--control-height`) so that their top and bottom baselines align seamlessly with
+  neighboring inputs. Standalone buttons in dialog footers (`.dialog__actions`) and floating save
+  bars retains standard full-size control styling (`min-height: 3rem`).
 
 ## Web Verification
 

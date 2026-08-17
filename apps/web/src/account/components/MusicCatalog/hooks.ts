@@ -18,6 +18,7 @@ import {
   durationText,
   emptyPiece,
   genreKey,
+  normalizeDurationInput,
   parseDuration,
   requestFrom,
   uniqueGenreLabels,
@@ -437,16 +438,22 @@ export function useMusicCatalogController({
     setDialogOpen(true);
   }
 
+  function commitDurationInput(value: string): string {
+    const normalized = normalizeDurationInput(value);
+    if (normalized !== value) setDurationValue(normalized, true);
+    return normalized;
+  }
+
   async function save(): Promise<void> {
     const currentRoster = roster;
     if (!currentRoster) {
       setError("Roster configuration is still loading.");
       return;
     }
-    const durationSeconds = parseDuration(durationInput);
+    const durationSeconds = parseDuration(commitDurationInput(durationInput));
     const copies = copiesInput.trim() ? Number(copiesInput) : null;
     if (durationSeconds === undefined) {
-      setError("Duration must use minutes:seconds, such as 4:05.");
+      setError("Duration must be a time such as 4:05 or a whole number of minutes such as 4.");
       return;
     }
     if (copies !== null && (!Number.isInteger(copies) || copies < 0 || copies > 1_000_000)) {

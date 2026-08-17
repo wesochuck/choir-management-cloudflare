@@ -38,6 +38,14 @@
     font-weight: var(--font-weight-medium);
   }
 
+  /* Inline form row action buttons: match the shared 2.5rem control geometry. */
+  .button--control-height {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: 0.55rem 0.75rem;
+    box-sizing: border-box;
+  }
+
   .sidebar-context strong {
     font-weight: var(--font-weight-medium);
   }

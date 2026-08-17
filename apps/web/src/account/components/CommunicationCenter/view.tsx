@@ -301,12 +301,12 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                   <span>3</span> Review &amp; send
                 </li>
               </ol>
-              {error ? (
+              {error && !previewOpen ? (
                 <p className="notice notice--error" role="alert">
                   {error}
                 </p>
               ) : null}
-              {success ? (
+              {success && !previewOpen ? (
                 <p className="notice notice--success" role="status">
                   {success}
                 </p>

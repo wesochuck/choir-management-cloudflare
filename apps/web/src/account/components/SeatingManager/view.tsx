@@ -536,7 +536,12 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
             </div>
           </div>
 
-          {error ? (
+          {error &&
+          !chartDialog &&
+          !copyOpen &&
+          !profileDialog &&
+          !selectedSeat &&
+          !confirmState ? (
             <p className="notice notice--error no-print" role="alert">
               {error}
             </p>

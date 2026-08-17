@@ -16,6 +16,7 @@ export function DiscountCodesPanel({
   discountCodesLoading,
   discountDialogOpen,
   discountDraft,
+  discountError,
   editDiscountCode,
   editingDiscountCodeId,
   openNewDiscountCode,
@@ -34,6 +35,7 @@ export function DiscountCodesPanel({
   readonly discountCodesLoading: boolean;
   readonly discountDialogOpen: boolean;
   readonly discountDraft: DiscountDraft;
+  readonly discountError?: string | null | undefined;
   readonly editDiscountCode: (code: DiscountCode) => void;
   readonly editingDiscountCodeId: string | null;
   readonly openNewDiscountCode: () => void;
@@ -68,6 +70,7 @@ export function DiscountCodesPanel({
         closeDiscountDialog={closeDiscountDialog}
         discountDialogOpen={discountDialogOpen}
         discountDraft={discountDraft}
+        discountError={discountError}
         editingDiscountCodeId={editingDiscountCodeId}
         saveDiscountCode={saveDiscountCode}
         setDiscountDraft={setDiscountDraft}

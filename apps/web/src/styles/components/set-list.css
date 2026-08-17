@@ -206,7 +206,10 @@
 
   .set-list-copy-row .button {
     min-width: 6.5rem;
+    height: var(--control-height);
     min-height: var(--control-height);
+    padding: 0.55rem 0.75rem;
+    box-sizing: border-box;
   }
 
   .set-list-visibility {

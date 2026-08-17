@@ -267,19 +267,19 @@ export function MusicDeleteControls({
   return (
     <>
       <div className="form-actions music-piece-form__actions">
-        <button className="button button--primary" disabled={busy} type="submit">
-          {busy ? "Saving music…" : "Save music piece"}
-        </button>
-        {editingId ? (
-          <button className="button button--secondary" type="button" onClick={onAddMovement}>
-            Add movement
-          </button>
-        ) : null}
         {editingId && !deleteConfirm ? (
           <button className="button button--danger" type="button" onClick={onRequest}>
             Delete music piece
           </button>
         ) : null}
+        {editingId ? (
+          <button className="button button--secondary" type="button" onClick={onAddMovement}>
+            Add movement
+          </button>
+        ) : null}
+        <button className="button button--primary" disabled={busy} type="submit">
+          {busy ? "Saving music…" : "Save music piece"}
+        </button>
         {!deleteConfirm ? (
           <DialogClose asChild>
             <button className="button button--secondary" type="button">
