@@ -65,6 +65,18 @@ export function requestedScheduleValue(
     : "";
 }
 
+export function requestedSlotState(
+  requestedSlots: readonly string[] | undefined,
+  now = Date.now(),
+): { readonly passedCount: number; readonly remainingCount: number } {
+  const slots = requestedSlots ?? [];
+  const passedCount = slots.filter((slot) => {
+    const timestamp = Date.parse(slot);
+    return !Number.isNaN(timestamp) && timestamp <= now;
+  }).length;
+  return { passedCount, remainingCount: slots.length - passedCount };
+}
+
 export function localScheduleInputValue(
   value: string | null | undefined,
   timezone: string,

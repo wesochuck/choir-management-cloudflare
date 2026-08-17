@@ -928,6 +928,11 @@
     font-size: var(--font-size-md);
   }
 
+  .audition-time-status {
+    color: var(--color-danger, #fca5a5);
+    font-weight: var(--font-weight-bold);
+  }
+
   .audition-table {
     width: 100%;
     overflow-x: auto;

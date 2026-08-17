@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { localScheduleInputValue, requestedScheduleValue, slotUtcValue } from "./utils";
+import {
+  localScheduleInputValue,
+  requestedScheduleValue,
+  requestedSlotState,
+  slotUtcValue,
+} from "./utils";
 
 describe("audition scheduling timezone helpers", () => {
   const timezone = "America/New_York";
@@ -20,5 +25,17 @@ describe("audition scheduling timezone helpers", () => {
     expect(utc).toBe("2026-07-15T18:30:00.000Z");
     if (utc === null) throw new Error("Expected a valid UTC slot.");
     expect(localScheduleInputValue(utc, timezone)).toBe("2026-07-15T14:30");
+  });
+
+  it("identifies passed and remaining requested audition times", () => {
+    expect(
+      requestedSlotState(
+        ["2026-08-16T18:00:00.000Z", "2026-08-18T18:00:00.000Z"],
+        Date.parse("2026-08-17T12:00:00.000Z"),
+      ),
+    ).toEqual({ passedCount: 1, remainingCount: 1 });
+    expect(
+      requestedSlotState(["2026-08-16T18:00:00.000Z"], Date.parse("2026-08-17T12:00:00.000Z")),
+    ).toEqual({ passedCount: 1, remainingCount: 0 });
   });
 });

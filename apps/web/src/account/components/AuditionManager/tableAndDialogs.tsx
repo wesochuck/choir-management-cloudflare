@@ -11,6 +11,7 @@ import {
   formatDate,
   localScheduleInputValue,
   requestedScheduleValue,
+  requestedSlotState,
 } from "./utils";
 
 import { EditAuditionForm, CreateAuditionForm } from "./shared";
@@ -51,7 +52,23 @@ export function AuditionTable({
             {audition.scheduledTimeSlot
               ? formatDate(audition.scheduledTimeSlot)
               : audition.requestedSlots.length > 0
-                ? `${String(audition.requestedSlots.length)} requested`
+                ? (() => {
+                    const requestedState = requestedSlotState(audition.requestedSlots);
+                    return (
+                      <>
+                        <span>{String(audition.requestedSlots.length)} requested</span>
+                        {requestedState.passedCount === audition.requestedSlots.length ? (
+                          <small className="table-secondary audition-time-status audition-time-status--past">
+                            All requested times passed
+                          </small>
+                        ) : requestedState.passedCount > 0 ? (
+                          <small className="table-secondary audition-time-status audition-time-status--past">
+                            {String(requestedState.passedCount)} passed
+                          </small>
+                        ) : null}
+                      </>
+                    );
+                  })()
                 : "Any time"}
           </span>
           <span role="cell">
