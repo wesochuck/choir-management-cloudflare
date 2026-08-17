@@ -50,7 +50,7 @@ function trackBelongsToPiece(track: LearningTrack, pieceId: string): boolean {
 
 // eslint-disable-next-line complexity -- this is the standalone practice player and its controls.
 export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel } = useOrganizationTerminology();
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const eventId = params.get("eventId");
   const pieceId = params.get("pieceId");
@@ -292,8 +292,8 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
         <p className="eyebrow">Practice</p>
         <h2 id="practice-player-title">{title}</h2>
         <p className="section-description">
-          Play learning tracks one at a time, switch {performerLabel.toLowerCase()} tracks, and
-          rehearse without opening a separate audio tab.
+          Play learning tracks one at a time, switch {partLabel.toLowerCase()} tracks, and rehearse
+          without opening a separate audio tab.
         </p>
       </div>
       {error ? (
@@ -319,8 +319,8 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
                 value={query}
               />
             </label>
-            <div className="practice-player__voice-filter" aria-label={`${performerLabel} filter`}>
-              <span className="field-label">{performerLabel}</span>
+            <div className="practice-player__voice-filter" aria-label={`${partLabel} filter`}>
+              <span className="field-label">{partLabel}</span>
               <div className="button-row">
                 <button
                   className={`button button--small ${voiceFilter === "all" ? "button--primary" : "button--secondary"}`}

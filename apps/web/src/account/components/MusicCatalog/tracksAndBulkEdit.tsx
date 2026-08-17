@@ -32,7 +32,7 @@ export function MusicAudioTracks({
   readonly onTrackDurationDetected: (trackKey: string, durationSeconds: number | null) => void;
   readonly piece: OrganizationMusicPiece;
 }) {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel } = useOrganizationTerminology();
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
@@ -138,8 +138,8 @@ export function MusicAudioTracks({
     <fieldset className="music-audio-tracks">
       <legend>Learning tracks</legend>
       <p className="field-help">
-        Attach a full mix, section, or {performerLabel.toLowerCase()} track. Organization members
-        can play or download these files after signing in.
+        Attach a full mix, section, or {partLabel.toLowerCase()} track. Organization members can
+        play or download these files after signing in.
       </p>
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -217,7 +217,7 @@ export function MusicAudioTracks({
       {addableVoiceParts.length > 0 ? (
         <div className="music-audio-track-add">
           <label htmlFor="music-add-voice-part">
-            Add {performerLabel.toLowerCase()} track slot
+            Add {partLabel.toLowerCase()} track slot
             <select
               id="music-add-voice-part"
               value=""
@@ -227,7 +227,7 @@ export function MusicAudioTracks({
                 setAddedVoicePartLabels((current) => [...current, label]);
               }}
             >
-              <option value="">Select {performerLabel.toLowerCase()}…</option>
+              <option value="">Select {partLabel.toLowerCase()}…</option>
               {addableVoiceParts.map(({ fullName, label }) => (
                 <option key={label} value={label}>
                   {label} ({fullName})

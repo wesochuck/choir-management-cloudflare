@@ -29,7 +29,7 @@ type SessionState =
 const moduleCards = [
   {
     description:
-      "Profiles, invitations, performer assignments, directory preferences, seasons, and dues.",
+      "Profiles, invitations, part assignments, directory preferences, seasons, and dues.",
     title: "People",
   },
   {

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { DataTable } from "@choir/ui";
 import { Status } from "./shared";
 import { downloadCsv } from "./reportHelpers";
+import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 export function RosterReport({
   profiles,
   performerLabel,
@@ -10,6 +11,7 @@ export function RosterReport({
   readonly performerLabel: string;
   readonly profiles: readonly OrganizationProfile[];
 }) {
+  const { partLabel } = useOrganizationTerminology();
   const [query, setQuery] = useState("");
   const filtered = profiles.filter((profile) =>
     `${profile.displayName} ${profile.voicePart} ${profile.globalStatus}`
@@ -70,7 +72,7 @@ export function RosterReport({
               sortValue: (profile) => profile.displayName,
             },
             {
-              header: performerLabel,
+              header: partLabel,
               id: "voicePart",
               render: (profile) => profile.voicePart || "—",
               sortValue: (profile) => profile.voicePart,

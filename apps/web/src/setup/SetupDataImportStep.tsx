@@ -70,10 +70,10 @@ function mapImportColumns(
   return kind === "roster" ? mapRosterCsvColumns(csv, mappings) : mapMusicCsvColumns(csv, mappings);
 }
 
-function mapOptions(kind: ImportKind, performerLabel: string): readonly CsvImportMappingOption[] {
+function mapOptions(kind: ImportKind, partLabel: string): readonly CsvImportMappingOption[] {
   const options = kind === "roster" ? rosterCsvColumnOptions : musicCsvColumnOptions;
   return options.map((value) => ({
-    label: value === "Voice Part" ? performerLabel : value,
+    label: value === "Voice Part" ? partLabel : value,
     value,
   }));
 }
@@ -100,7 +100,7 @@ function SetupDataImportDialog({
   onConfirmationChange,
   onFileChange,
   onImport,
-  performerLabel,
+  partLabel,
   state,
 }: {
   readonly importing: boolean;
@@ -110,7 +110,7 @@ function SetupDataImportDialog({
   readonly onConfirmationChange: (confirmed: boolean) => void;
   readonly onFileChange: (file: File | null) => void;
   readonly onImport: () => void;
-  readonly performerLabel: string;
+  readonly partLabel: string;
   readonly state: ImportState;
 }) {
   return (
@@ -135,7 +135,7 @@ function SetupDataImportDialog({
           : "Existing catalog entries are retained. Practice tracks and publisher links can be added after import."
       }
       invalid={Boolean(state.inspection?.fatalError)}
-      mappingOptions={mapOptions(kind, performerLabel)}
+      mappingOptions={mapOptions(kind, partLabel)}
       onClose={onClose}
       onConfirmationChange={onConfirmationChange}
       onFileChange={onFileChange}
@@ -148,7 +148,7 @@ function SetupDataImportDialog({
 }
 
 export function SetupDataImportStep() {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel, performerLabel } = useOrganizationTerminology();
   const [activeImport, setActiveImport] = useState<ImportKind | null>(null);
   const [importing, setImporting] = useState<ImportKind | null>(null);
   const [roster, setRoster] = useState<ImportState>(emptyImportState);
@@ -305,7 +305,7 @@ export function SetupDataImportStep() {
           <div>
             <h3 id="setup-roster-import-title">Roster CSV</h3>
             <p>
-              Add Profiles, {performerLabel.toLowerCase()} assignments, statuses, notes, and
+              Add Profiles, {partLabel.toLowerCase()} assignments, statuses, notes, and
               section-leader assignments.
             </p>
             {roster.imported !== null ? (
@@ -368,7 +368,7 @@ export function SetupDataImportStep() {
           onImport={() => {
             void importData(activeImport);
           }}
-          performerLabel={performerLabel}
+          partLabel={partLabel}
           state={stateFor(activeImport)}
         />
       ) : null}

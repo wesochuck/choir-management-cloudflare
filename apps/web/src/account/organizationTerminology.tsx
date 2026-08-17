@@ -24,6 +24,8 @@ export function OrganizationTerminologyProvider({
 }) {
   const value = useMemo(
     () => ({
+      partLabel: "Part",
+      partLabelPlural: "Parts",
       performerLabel: normalizePerformerLabel(performerLabel),
       performerLabelPlural: pluralizePerformerLabel(normalizePerformerLabel(performerLabel)),
       setPerformerLabel: onLabelChange,

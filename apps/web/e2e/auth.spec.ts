@@ -1701,7 +1701,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const unassignedRsvpEntry = visibleRsvpContent
     .locator("tr, .data-table-card")
     .filter({ hasText: "Unassigned Singer" });
-  await expect(unassignedRsvpEntry).toContainText("Assign a voice part before managing RSVP.");
+  await expect(unassignedRsvpEntry).toContainText("Assign a part before managing RSVP.");
   await expect(unassignedRsvpEntry.getByRole("button")).toHaveCount(0);
   await page.goto("/admin/events");
   const eventsPageAfterRsvp = page.getByRole("main");

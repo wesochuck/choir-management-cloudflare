@@ -51,9 +51,9 @@ boundary. _Avoid_: Platform Administrator, Organization Owner
 ## Organization Member
 
 An Organization Membership role with self-service access to the member-facing experience. Performer
-status, voice part, section leadership, and notification responsibilities are profile attributes
-rather than Organization Membership roles, and a profile may exist without login access. _Avoid_:
-Singer as an authorization role
+status, Part assignment, section leadership, and notification responsibilities are profile
+attributes rather than Organization Membership roles, and a profile may exist without login access.
+_Avoid_: Singer as an authorization role
 
 ## Organization Member Dashboard
 
@@ -94,18 +94,18 @@ consecutive missed Performances and restore any non-Active Profile to Active aft
 attending RSVP, unless manual status control is enabled. Automatic recovery is enabled by default.
 It automates Profile Status, not RSVP Status. Manual status control may be used for any Organization
 Profile, including a Profile used for administration. _Avoid_: RSVP automation Automatic status
-changes apply only to Performer-eligible Profiles with a non-empty voice part and a Performance
-roster entry; administrator-only Profiles are not automatically changed. Re-enabling automatic
-management immediately evaluates the Profile's existing Performance history. Corrections to past
-Performance RSVPs or attendance immediately reevaluate the Profile Status decision. Changing the
-miss threshold or related automation setting also immediately reevaluates existing Profiles and
-previews the affected transitions before saving. Selecting On Break does not itself enable manual
-status control; the separate manual control is the explicit opt-out from Profile Status Automation
-and the On Break Timeout. Directly selecting a Profile Status does not silently enable manual
-control; the Profile explains that automation may later change the status until the administrator
-explicitly opts out. Archived or canceled Performances do not count as missed Performances. An
-active Performance becomes eligible for miss evaluation only after it ends, using its scheduled
-duration when available or the end of its Organization-local calendar day otherwise.
+changes apply only to Performer-eligible Profiles with a Part assignment and a Performance roster
+entry; administrator-only Profiles are not automatically changed. Re-enabling automatic management
+immediately evaluates the Profile's existing Performance history. Corrections to past Performance
+RSVPs or attendance immediately reevaluate the Profile Status decision. Changing the miss threshold
+or related automation setting also immediately reevaluates existing Profiles and previews the
+affected transitions before saving. Selecting On Break does not itself enable manual status control;
+the separate manual control is the explicit opt-out from Profile Status Automation and the On Break
+Timeout. Directly selecting a Profile Status does not silently enable manual control; the Profile
+explains that automation may later change the status until the administrator explicitly opts out.
+Archived or canceled Performances do not count as missed Performances. An active Performance becomes
+eligible for miss evaluation only after it ends, using its scheduled duration when available or the
+end of its Organization-local calendar day otherwise.
 
 ## On Break Timeout
 
@@ -324,7 +324,7 @@ restoration, or whole-archive import. _Avoid_: Platform-wide export, backup-and-
 > keeps its own roster, settings, and records. **Support:** I need to investigate an event-delivery
 > problem. **Developer:** Enter that Organization's scope first; support tools do not search message
 > or roster data across Organizations. **Director:** Our accompanist needs portal access but does
-> not sing. **Developer:** Give them an Organization Member membership without a voice part;
+> not sing. **Developer:** Give them an Organization Member membership without a Part assignment;
 > Performer eligibility remains a profile attribute. **Administrator:** I want to add the whole
 > roster before everyone needs an account. **Developer:** Create their Organization Profiles now,
 > then send Organization Invitations only to the people who need portal access. **Owner:** We want
@@ -399,12 +399,17 @@ incomplete, or not applicable when its owning Module is disabled.
 > activated an account yet. **Developer:** You may still complete First-Run Setup and perform
 > Organization Launch; the Owner can join later.
 
-## Voice Part Definition
+## Performer
 
-A classification of a singer's vocal range and role within the choir (e.g., Soprano 1, Bass 2).
-Admins can customize the list of voice parts in settings, defining a short label (e.g., "S1"), a
-descriptive full name (e.g., "Soprano 1"), and optionally a custom color for visual identity on
-seating charts.
+An Organization Profile with a Part assignment and therefore eligible for performer-specific
+workflows. Each Organization may configure the person-facing label, such as Singer, Musician, or
+Performer. _Avoid_: Part when referring to a person
+
+## Part
+
+An Organization-defined assignment classification for a Performer, such as Soprano 1 or Bass 2. Each
+Part has a short label, a descriptive full name, and a Section Bucket. _Avoid_: Performer when
+referring to the assignment, Voice Part in user-facing language
 
 ## Personalized Magic Link
 
@@ -497,14 +502,14 @@ Profiles. _Avoid_: Folder accountability report, complete roster folder census
 
 ## RSVP Balance
 
-A real-time breakdown of RSVP statuses grouped by voice parts. This allows directors to quickly
-identify imbalances (e.g., zero or low Tenor 1 attendance) before rehearsals or performances.
+A real-time breakdown of RSVP statuses grouped by Parts. This allows directors to quickly identify
+imbalances (e.g., zero or low Tenor 1 attendance) before rehearsals or performances.
 
 ## RSVP Decline Notice
 
 An automated email notification sent to administrators who have opted to receive alerts when a
-singer declines a rehearsal or performance RSVP. It includes the singer's name, voice part, the
-event, and any reason or note provided by the singer.
+singer declines a rehearsal or performance RSVP. It includes the singer's name, Part, the event, and
+any reason or note provided by the singer.
 
 ## Catalog Lookup URL Template
 
@@ -572,17 +577,16 @@ sections or movements (e.g. masses, cantatas, or oratorios).
 
 ## Section Bucket
 
-A top-level classification used to group related voice parts (e.g., "Sopranos" as a bucket for "S1"
-and "S2"). These buckets serve as the primary units for standard seating distribution, filtering,
-and visual identification throughout the application.
+A top-level classification used to group related Parts (e.g., "Sopranos" as a bucket for "S1" and
+"S2"). These buckets serve as the primary units for standard seating distribution, filtering, and
+visual identification throughout the application.
 
 ## Seating Formation
 
 A global, reusable configuration template managed in system settings that defines the layout
-strategy (Columns or Rows) and the sequence of categories (either Section Buckets or Voice Parts)
-used by the auto-paint engine to fill stage layouts. Can optionally be configured in "Voice Part
-Layout" mode to lay out and mismatch-check by exact voice parts instead of top-level section
-buckets.
+strategy (Columns or Rows) and the sequence of categories (either Section Buckets or Parts) used by
+the auto-paint engine to fill stage layouts. Can optionally be configured in "Part Layout" mode to
+lay out and mismatch-check by exact Parts instead of top-level Section Buckets.
 
 ## Seating Column
 
@@ -594,15 +598,14 @@ A horizontal tier of seats on a stage layout arranged sequentially from front to
 
 ## Distinct Section Palette
 
-A predefined set of high-contrast color values assigned to section and voice part definitions to
-guarantee clear visual separation on seating charts and grid layouts.
+A predefined set of high-contrast color values assigned to Section Buckets and Parts to guarantee
+clear visual separation on seating charts and grid layouts.
 
 ## Unassigned Singer Dock
 
 A shelf at the bottom of the seating chart containing active singers who have not yet been assigned
 to a seat. It dynamically groups unassigned singers into columns/lanes matching the active formation
-(either section buckets or voice parts), displaying only the categories that are present in the
-formation.
+(either Section Buckets or Parts), displaying only the categories that are present in the formation.
 
 ## Automated Reminder
 
@@ -675,12 +678,12 @@ A physical arrangement of singers in rows and columns on a stage or venue layout
 performance can support multiple distinct seating charts, each identified by a custom user-defined
 name (e.g., "Chamber Choir", "Combined Finale"). Each seating chart is linked to a Seating
 Formation, which dynamically filters the unassigned singer pool and available seats to match only
-the voice parts or section buckets specified in that formation.
+the Parts or Section Buckets specified in that formation.
 
 ## Standing Neighbors HUD
 
-A user interface component in the seating finder that displays the names and voice parts of the
-immediate standing neighbors (Left, Right, Behind, In Front) relative to the singer's assigned seat.
+A user interface component in the seating finder that displays the names and Parts of the immediate
+standing neighbors (Left, Right, Behind, In Front) relative to the singer's assigned seat.
 
 ## Seating Grid Mirroring
 
@@ -733,13 +736,13 @@ An Organization-level configuration governing whether prospective singers must s
 ## Audition Inquiry
 
 A request submitted by a prospective singer via the public audition form, detailing their name,
-contact information, preferred audition time slot, voice part, and musical experience.
+contact information, preferred audition time slot, Part, and musical experience.
 
 ## Open Join Inquiry
 
 A request submitted by a prospective singer when the Organization operates in open inquiry mode,
-detailing their name, contact information, preferred or tentative voice part (including an option
-for undetermined voice placement), musical experience, and notes.
+detailing their name, contact information, preferred or tentative Part (including an option for
+undetermined voice placement), musical experience, and notes.
 
 ## Rehearsal Schedule
 
@@ -845,7 +848,7 @@ the `appSettings` PocketBase collection. Any new entry requires a corresponding 
 
 Settings that configure a specific feature's behavior or define templates/presets for that feature.
 Configured directly inside the relevant product view under a settings/config tab, NOT in the global
-`SettingsView`. Examples: Roster Settings (Voice Parts, Season, Section Buckets & Colors) inside
+`SettingsView`. Examples: Roster Settings (Parts, Season, Section Buckets & Colors) inside
 `RosterView`, Music Catalog Settings (Genres, Catalog URL Lookup) inside the Music Library, Seating
 Formations Templates inside `SeatingView`. Draft state is managed with a `FloatingSaveBar` and
 persisted via `dialog.confirm`/`dialog.showMessage` flows.

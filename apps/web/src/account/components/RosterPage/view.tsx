@@ -8,6 +8,7 @@ import { ProfilePhotoEditor } from "../../MemberProfileDirectory";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
+import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { useEffect, useRef, useState } from "react";
 import type { RosterPageModel } from "./hooks";
 
@@ -21,6 +22,7 @@ export function RosterPageView({
   readonly initialSection?: RosterSection;
   readonly model: RosterPageModel;
 }) {
+  const { partLabel } = useOrganizationTerminology();
   const [activeTab, setActiveTab] = useState<RosterSection>(initialSection);
   const {
     busy,
@@ -221,7 +223,7 @@ export function RosterPageView({
             <VoicePartBalance
               configuration={roster.configuration}
               onToggle={toggleVoiceFilter}
-              performerLabel={performerLabel}
+              partLabel={partLabel}
               profiles={roster.profiles}
               selectedFilters={selectedVoiceFilters}
             />
@@ -378,7 +380,7 @@ export function RosterPageView({
                     "",
                 },
                 {
-                  header: performerLabel,
+                  header: partLabel,
                   id: "voicePart",
                   render: (candidate) => candidate.voicePart || "Not assigned",
                   sortValue: (candidate) => candidate.voicePart,
@@ -701,7 +703,7 @@ export function RosterPageView({
                 ) : null}
               </div>
               <div className="field">
-                <label htmlFor="roster-profile-voice-part">{performerLabel}</label>
+                <label htmlFor="roster-profile-voice-part">{partLabel}</label>
                 <select
                   id="roster-profile-voice-part"
                   onChange={(event) => {
@@ -709,7 +711,7 @@ export function RosterPageView({
                   }}
                   value={profile.voicePart}
                 >
-                  <option value="">No {performerLabel.toLowerCase()}</option>
+                  <option value="">No {partLabel.toLowerCase()}</option>
                   {roster.status === "ready"
                     ? roster.configuration.voiceParts.map(({ fullName, label }) => (
                         <option key={label} value={label}>
@@ -893,7 +895,7 @@ export function RosterPageView({
         helpText="Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
         invalid={Boolean(rosterImportInspection?.fatalError)}
         mappingOptions={rosterCsvColumnOptions.map((value) => ({
-          label: value === "Voice Part" ? performerLabel : value,
+          label: value === "Voice Part" ? partLabel : value,
           required: value === "Name",
           value,
         }))}

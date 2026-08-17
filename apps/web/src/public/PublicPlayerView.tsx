@@ -165,7 +165,6 @@ function PublicPracticePlayer({
   readonly details: PlayerDetails;
   readonly token: string;
 }) {
-  const performerLabel = details.performerLabel ?? "Performer";
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoplayRef = useRef(false);
   const gapTimerRef = useRef<number | null>(null);
@@ -342,15 +341,15 @@ function PublicPracticePlayer({
           ))}
           {voicePartKeys.length > 0 ? (
             <label className="public-player__voice-part-select">
-              <span className="sr-only">Add individual {performerLabel.toLowerCase()}</span>
+              <span className="sr-only">Add individual part</span>
               <select
-                aria-label={`Add individual ${performerLabel.toLowerCase()}`}
+                aria-label="Add individual part"
                 value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
                 onChange={(event) => {
                   if (event.target.value) selectTrackKey(event.target.value);
                 }}
               >
-                <option value="">Add {performerLabel.toLowerCase()}…</option>
+                <option value="">Add part…</option>
                 {voicePartKeys.map((key) => (
                   <option key={key} value={key}>
                     {formatTrackKey(key)}
@@ -385,15 +384,15 @@ function PublicPracticePlayer({
         ))}
         {voicePartKeys.length > 0 ? (
           <label className="public-player__voice-part-select">
-            <span className="sr-only">Add individual {performerLabel.toLowerCase()}</span>
+            <span className="sr-only">Add individual part</span>
             <select
-              aria-label={`Add individual ${performerLabel.toLowerCase()}`}
+              aria-label="Add individual part"
               value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
               onChange={(event) => {
                 if (event.target.value) selectTrackKey(event.target.value);
               }}
             >
-              <option value="">Add {performerLabel.toLowerCase()}…</option>
+              <option value="">Add part…</option>
               {voicePartKeys.map((key) => (
                 <option key={key} value={key}>
                   {formatTrackKey(key)}

@@ -153,7 +153,7 @@ export function RsvpManagerPage({
   readonly enabled: boolean;
   readonly eventId?: string | null;
 }) {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel } = useOrganizationTerminology();
   const [eventId, setEventId] = useState(initialEventId ?? "");
   const [state, setState] = useState<RsvpState>({ status: "loading" });
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
@@ -365,7 +365,7 @@ export function RsvpManagerPage({
       sortValue: (row) => lastName(row.displayName),
     },
     {
-      header: performerLabel,
+      header: partLabel,
       id: "performer",
       render: (row) => row.voicePart || "—",
       sortValue: (row) => row.voicePart,
@@ -387,9 +387,7 @@ export function RsvpManagerPage({
         if (!row.voicePart.trim()) {
           return (
             <div className="rsvp-row-actions">
-              <span className="rsvp-row-actions__message">
-                Assign a voice part before managing RSVP.
-              </span>
+              <span className="rsvp-row-actions__message">Assign a part before managing RSVP.</span>
             </div>
           );
         }
@@ -463,9 +461,9 @@ export function RsvpManagerPage({
         <div className="roster-balance__header">
           <div>
             <p className="eyebrow">Event response</p>
-            <h2 id="rsvp-balance-title">{performerLabel} RSVP balance</h2>
+            <h2 id="rsvp-balance-title">{partLabel} RSVP balance</h2>
             <p className="field-help">
-              Select a section or {performerLabel.toLowerCase()} to filter the roster below.
+              Select a section or {partLabel.toLowerCase()} to filter the roster below.
             </p>
             <label className="field rsvp-manager__performance">
               <span>Performance</span>
@@ -596,7 +594,7 @@ export function RsvpManagerPage({
                 onChange={(event) => {
                   setQuery(event.target.value);
                 }}
-                placeholder={`Name or ${performerLabel.toLowerCase()}`}
+                placeholder={`Name or ${partLabel.toLowerCase()}`}
                 value={query}
               />
             </label>

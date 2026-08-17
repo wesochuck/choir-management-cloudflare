@@ -129,14 +129,103 @@
     gap: 0.35rem;
   }
 
-  .roster-configuration-assignment {
+  .roster-performer-list {
     display: grid;
-    align-items: end;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .roster-performer-card {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .roster-performer-card__heading,
+  .roster-performer-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .roster-performer-card__heading {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .roster-performer-card__heading > div {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+
+  .roster-performer-card__heading > div > span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .roster-performer-card__heading strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .roster-performer-card__status {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .roster-performer-card__status--assigned {
+    border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+
+  .roster-performer-card__fields {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.7fr) minmax(12rem, 1.7fr) minmax(9rem, 1fr);
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .roster-performer-card__fields label {
+    display: grid;
+    min-width: 0;
     gap: 0.35rem;
   }
 
-  .roster-configuration-assignment .field-help {
-    max-width: 18rem;
+  .roster-performer-card__fields input,
+  .roster-performer-card__fields select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .roster-performer-card__footer {
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 50%, transparent);
+  }
+
+  .roster-performer-card__footer p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+  }
+
+  .roster-performer-card__footer .button {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   /* The pinned workspace navigation can leave the roster editor narrower than
@@ -145,6 +234,29 @@
   @media (max-width: 64rem) {
     .roster-configuration-row {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .roster-performer-card__fields {
+      grid-template-columns: 1fr;
+    }
+
+    .roster-performer-card__footer {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .roster-performer-card__footer .button {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 30rem) {
+    .roster-performer-card__heading {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.6rem;
     }
   }
 

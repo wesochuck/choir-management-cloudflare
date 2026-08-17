@@ -474,7 +474,7 @@ function MemberProfileEditor({
   readonly enabled: boolean;
   readonly onSaved: () => void;
 }) {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel } = useOrganizationTerminology();
   const [state, setState] = useState<ProfileState>({ status: "loading" });
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -581,7 +581,7 @@ function MemberProfileEditor({
               <strong>Current sign-in email:</strong> {state.profile.email}
             </p>
             <p>
-              <strong>{performerLabel}:</strong> {state.profile.voicePart || "Not assigned"}
+              <strong>{partLabel}:</strong> {state.profile.voicePart || "Not assigned"}
             </p>
             <p>
               <strong>Status:</strong>{" "}
@@ -662,7 +662,7 @@ function MemberProfileEditor({
             Show me in the Organization directory
           </label>
           <p className="field-help">
-            Organization managers control {performerLabel.toLowerCase()} assignments and lifecycle
+            Organization managers control {partLabel.toLowerCase()} assignments and lifecycle
             status.
           </p>
           <button className="button button--primary" disabled={busy} type="submit">
@@ -691,7 +691,7 @@ function Directory({
   readonly enabled: boolean;
   readonly revision: number;
 }) {
-  const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
+  const { partLabel, partLabelPlural } = useOrganizationTerminology();
   const [state, setState] = useState<DirectoryState>({ status: "loading" });
   const [search, setSearch] = useState("");
   const [voicePart, setVoicePart] = useState("");
@@ -753,7 +753,7 @@ function Directory({
             <label className="field">
               Search directory
               <input
-                placeholder={`Name, ${performerLabel.toLowerCase()}, phone, or email`}
+                placeholder={`Name, ${partLabel.toLowerCase()}, phone, or email`}
                 type="search"
                 value={search}
                 onChange={(event) => {
@@ -762,14 +762,14 @@ function Directory({
               />
             </label>
             <label className="field">
-              {performerLabel}
+              {partLabel}
               <select
                 value={voicePart}
                 onChange={(event) => {
                   setVoicePart(event.target.value);
                 }}
               >
-                <option value="">All {performerLabelPlural.toLowerCase()}</option>
+                <option value="">All {partLabelPlural.toLowerCase()}</option>
                 {voiceParts.map((part) => (
                   <option key={part} value={part}>
                     {part}
@@ -797,7 +797,7 @@ function Directory({
                     )}
                   </div>
                   <h3>{profile.displayName}</h3>
-                  <p>{profile.voicePart || `${performerLabel} not assigned`}</p>
+                  <p>{profile.voicePart || `${partLabel} not assigned`}</p>
                   <p>
                     Email:{" "}
                     {profile.email ? (

@@ -74,7 +74,7 @@ interface AttendanceGroupProps {
   readonly bulkBusy: boolean;
   readonly group: AttendanceGroup;
   readonly onChange: (profileId: string) => void;
-  readonly performerLabel: string;
+  readonly partLabel: string;
   readonly savingIds: ReadonlySet<string>;
 }
 
@@ -82,7 +82,7 @@ function AttendanceGroup({
   bulkBusy,
   group,
   onChange,
-  performerLabel,
+  partLabel,
   savingIds,
 }: AttendanceGroupProps) {
   const [voicePart, rows] = group;
@@ -111,7 +111,7 @@ function AttendanceGroup({
               <span className="attendance-row__identity">
                 <strong>{row.displayName}</strong>
                 <span>
-                  {row.voicePart || `${performerLabel} not set`} · {attendanceLabel(row.attendance)}
+                  {row.voicePart || `${partLabel} not set`} · {attendanceLabel(row.attendance)}
                 </span>
               </span>
               {row.rsvp !== "Yes" ? (
@@ -179,7 +179,7 @@ function UnexpectedAttendanceDialog({
 }
 
 export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
-  const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
+  const { partLabel, performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [eventId, setEventId] = useState("");
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
@@ -465,7 +465,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             onChange={(event) => {
               setQuery(event.target.value);
             }}
-            placeholder={`Search name or ${performerLabel.toLowerCase()}`}
+            placeholder={`Search name or ${partLabel.toLowerCase()}`}
             type="search"
             value={query}
           />
@@ -548,7 +548,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             group={group}
             key={group[0]}
             onChange={changeAttendance}
-            performerLabel={performerLabel}
+            partLabel={partLabel}
             savingIds={savingIds}
           />
         ))}
@@ -567,7 +567,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             group={group}
             key={`not-rsvped-${group[0]}`}
             onChange={changeAttendance}
-            performerLabel={performerLabel}
+            partLabel={partLabel}
             savingIds={savingIds}
           />
         ))}

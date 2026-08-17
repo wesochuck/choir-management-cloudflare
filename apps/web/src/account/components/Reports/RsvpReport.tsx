@@ -4,6 +4,7 @@ import { DataTable } from "@choir/ui";
 import { listOrganizationEventAttendance } from "../../../auth/api";
 import { EventPicker, Status, type LoadState } from "./shared";
 import { downloadCsv, reportEvents } from "./reportHelpers";
+import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 export function RsvpReport({
   events,
   onChange,
@@ -15,6 +16,7 @@ export function RsvpReport({
   readonly performerLabel: string;
   readonly selectedId: string;
 }) {
+  const { partLabel } = useOrganizationTerminology();
   const [state, setState] = useState<LoadState>("ready");
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
   const performances = useMemo(() => reportEvents(events), [events]);
@@ -106,7 +108,7 @@ export function RsvpReport({
                   sortValue: (row) => row.displayName,
                 },
                 {
-                  header: performerLabel,
+                  header: partLabel,
                   id: "voicePart",
                   render: (row) => row.voicePart || "—",
                   sortValue: (row) => row.voicePart,

@@ -226,6 +226,27 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
 
   await page.goto("/admin/roster");
   const rosterPage = page.getByRole("main");
+  await rosterPage.getByRole("tab", { name: "Settings" }).click();
+  await expect(rosterPage.getByRole("heading", { name: "Sections and parts" })).toBeVisible();
+  await expect(rosterPage.getByRole("group", { name: "Parts" })).toBeVisible();
+  const performerCard = rosterPage.locator(".roster-performer-card").filter({
+    hasText: "Soprano 2",
+  });
+  await expect(performerCard).toBeVisible();
+  await expect(performerCard.getByText("1 Profile assigned", { exact: true })).toBeVisible();
+  await expect(performerCard.getByLabel("Part 1 label")).toBeDisabled();
+  await expect(performerCard.getByRole("button", { name: "Manage assignments" })).toBeVisible();
+  const performerFieldColumns = await performerCard
+    .locator(".roster-performer-card__fields")
+    .evaluate((fields) => getComputedStyle(fields).gridTemplateColumns.split(" ").length);
+  expect(performerFieldColumns).toBe((page.viewportSize()?.width ?? 0) <= 768 ? 1 : 3);
+
+  await performerCard.getByRole("button", { name: "Manage assignments" }).click();
+  const assignmentsDialog = page.getByRole("dialog", { name: "Review S2 assignments" });
+  await expect(assignmentsDialog).toContainText("1 Profile currently uses S2");
+  await assignmentsDialog.getByRole("button", { name: "Cancel" }).click();
+
+  await rosterPage.getByRole("tab", { name: "Roster", exact: true }).click();
   await expect(rosterPage.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
   await rosterPage.getByRole("button", { name: "Edit", exact: true }).click();
 

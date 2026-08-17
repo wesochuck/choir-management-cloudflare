@@ -53,7 +53,7 @@ export function FormationOrderEditor({
   readonly onChange: (sectionOrder: readonly string[]) => void;
   readonly roster: OrganizationRosterConfiguration;
 }) {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel } = useOrganizationTerminology();
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const options = formationOrderOptions(formation, roster);
@@ -75,13 +75,13 @@ export function FormationOrderEditor({
   return (
     <div className="formation-order-editor">
       <div className="formation-order-editor__heading">
-        <span>Section or {performerLabel.toLowerCase()} order</span>
+        <span>Section or {partLabel.toLowerCase()} order</span>
         <small>
           Drag the handles to set the order. The highlighted line shows where it will land.
         </small>
       </div>
       <div
-        aria-label={`${formation.isVoicePartLayout ? performerLabel : "Section"} order`}
+        aria-label={`${formation.isVoicePartLayout ? partLabel : "Section"} order`}
         className={`formation-order-list${formation.strategy === "horizontal_row" ? " formation-order-list--rows" : ""}`}
         role="list"
       >
@@ -154,7 +154,7 @@ export function FormationOrderEditor({
       </div>
       {options.some(({ value }) => !order.includes(value)) ? (
         <label className="formation-order-editor__add">
-          <span>Add {formation.isVoicePartLayout ? performerLabel.toLowerCase() : "section"}</span>
+          <span>Add {formation.isVoicePartLayout ? partLabel.toLowerCase() : "section"}</span>
           <select
             value=""
             onChange={(event) => {

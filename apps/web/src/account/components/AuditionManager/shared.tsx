@@ -52,7 +52,7 @@ export function EditAuditionForm({
     readonly voicePart: string;
   }) => Promise<void>;
 }) {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel } = useOrganizationTerminology();
   const [name, setName] = useState(audition.name);
   const [email, setEmail] = useState(audition.email);
   const [phone, setPhone] = useState(audition.phone ?? "");
@@ -125,7 +125,7 @@ export function EditAuditionForm({
           />
         </label>
         <label className="field">
-          {performerLabel}
+          {partLabel}
           <input
             value={voicePart}
             onChange={(event) => {
@@ -202,7 +202,7 @@ export function CreateAuditionForm({
   readonly onSave: (audition: OrganizationAuditionCreateRequest) => Promise<void>;
   readonly rosterConfiguration: OrganizationRosterConfiguration | null;
 }) {
-  const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
+  const { partLabel, partLabelPlural } = useOrganizationTerminology();
   const [draft, setDraft] = useState(emptyCreate);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -265,7 +265,7 @@ export function CreateAuditionForm({
         />
       </label>
       <label className="field">
-        {performerLabel}
+        {partLabel}
         <select
           disabled={rosterConfiguration === null}
           value={draft.voicePart}
@@ -275,8 +275,8 @@ export function CreateAuditionForm({
         >
           <option value="">
             {rosterConfiguration === null
-              ? `Loading ${performerLabelPlural.toLowerCase()}…`
-              : `No ${performerLabel.toLowerCase()}`}
+              ? `Loading ${partLabelPlural.toLowerCase()}…`
+              : `No ${partLabel.toLowerCase()}`}
           </option>
           {rosterConfiguration
             ? (() => {

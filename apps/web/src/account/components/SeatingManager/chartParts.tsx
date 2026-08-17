@@ -34,7 +34,7 @@ export function SeatTile({
   seatKey,
   suggestion,
 }: SeatTileProps) {
-  const { performerLabel } = useOrganizationTerminology();
+  const { partLabel } = useOrganizationTerminology();
   const draggable = useDraggable({ id: `seat:${seatKey}`, disabled: !assigned });
   const droppable = useDroppable({ id: `seat:${seatKey}` });
   return (
@@ -78,7 +78,7 @@ export function SeatTile({
       <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>
       <SeatName displayName={assigned?.displayName} />
       {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
-      {mismatch ? <span className="seating-seat__warning">{performerLabel} mismatch</span> : null}
+      {mismatch ? <span className="seating-seat__warning">{partLabel} mismatch</span> : null}
       <button
         aria-label={
           assigned ? `Remove ${assigned.displayName} from ${label}` : `Delete empty ${label}`

@@ -47,11 +47,11 @@ function profileRequestFrom(profile: OrganizationProfile) {
   };
 }
 
-// eslint-disable-next-line complexity -- this editor coordinates sections, performer assignments, and reassignment dialogs.
+// eslint-disable-next-line complexity -- this editor coordinates sections, part assignments, and reassignment dialogs.
 export function RosterConfiguration({ enabled }: Props) {
-  const { performerLabel, performerLabelPlural, setPerformerLabel } = useOrganizationTerminology();
-  const performerTerm = performerLabel.toLowerCase();
-  const performerPluralTerm = performerLabelPlural.toLowerCase();
+  const { partLabel, partLabelPlural, performerLabel, setPerformerLabel } =
+    useOrganizationTerminology();
+  const partTerm = partLabel.toLowerCase();
   const [configuration, setConfiguration] = useState<OrganizationRosterConfiguration | null>(null);
   const [savedConfiguration, setSavedConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
@@ -151,7 +151,7 @@ export function RosterConfiguration({ enabled }: Props) {
       setAssignmentMessage(
         replacementVoicePart
           ? `Updated ${String(affectedProfiles.length)} profiles to ${replacementVoicePart}.`
-          : `Cleared the ${performerLabel.toLowerCase()} assignment for ${String(affectedProfiles.length)} profiles.`,
+          : `Cleared the ${partTerm} assignment for ${String(affectedProfiles.length)} Profiles.`,
       );
       setReassigningLabel(null);
     } catch (caught: unknown) {
@@ -171,6 +171,9 @@ export function RosterConfiguration({ enabled }: Props) {
   }
 
   const dirty = configurationKey(configuration) !== configurationKey(savedConfiguration);
+  const reassigningProfileCount = reassigningLabel
+    ? (assignedProfilesByLabel.get(reassigningLabel)?.length ?? 0)
+    : 0;
   useFloatingSaveAction({
     busy,
     dirty,
@@ -192,12 +195,12 @@ export function RosterConfiguration({ enabled }: Props) {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Organization setup</p>
-          <h2 id="roster-configuration-title">Sections and {performerPluralTerm}</h2>
+          <h2 id="roster-configuration-title">Sections and {partLabelPlural.toLowerCase()}</h2>
         </div>
       </div>
       <p className="section-description">
-        Keep the order used by roster exports and seating tools. A {performerTerm} assignment used
-        by Profiles is protected until those assignments are moved or cleared.
+        Keep the order used by roster exports and seating tools. A {partTerm} assignment used by
+        Profiles is protected until those assignments are moved or cleared.
       </p>
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -339,9 +342,7 @@ export function RosterConfiguration({ enabled }: Props) {
                     <button
                       className="button button--secondary"
                       disabled={configuration.sections.length === 1 || referenced}
-                      title={
-                        referenced ? `Remove its ${performerTerm} assignments first.` : undefined
-                      }
+                      title={referenced ? `Remove its ${partTerm} assignments first.` : undefined}
                       type="button"
                       onClick={() => {
                         setConfiguration(
@@ -386,85 +387,107 @@ export function RosterConfiguration({ enabled }: Props) {
           </fieldset>
 
           <fieldset disabled={busy}>
-            <legend>{performerLabelPlural}</legend>
-            <div className="roster-configuration-list">
+            <legend>{partLabelPlural}</legend>
+            <div className="roster-performer-list">
               {configuration.voiceParts.map((voicePart, index) => {
                 const assignedProfiles = assignedProfilesByLabel.get(voicePart.label) ?? [];
                 const assigned = assignedProfiles.length > 0;
                 return (
-                  <div className="roster-configuration-row" key={`voice-part-row-${String(index)}`}>
-                    <label>
-                      Label
-                      <input
-                        aria-label={`${performerLabel} ${String(index + 1)} label`}
-                        disabled={assigned}
-                        maxLength={50}
-                        required
-                        value={voicePart.label}
-                        onChange={(event) => {
-                          const label = event.target.value;
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                voiceParts: current.voiceParts.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, label } : item,
-                                ),
-                              },
-                          );
-                        }}
-                      />
-                    </label>
-                    <label>
-                      Full name
-                      <input
-                        aria-label={`${performerLabel} ${String(index + 1)} full name`}
-                        maxLength={100}
-                        required
-                        value={voicePart.fullName}
-                        onChange={(event) => {
-                          const fullName = event.target.value;
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                voiceParts: current.voiceParts.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, fullName } : item,
-                                ),
-                              },
-                          );
-                        }}
-                      />
-                    </label>
-                    <label>
-                      Section
-                      <select
-                        aria-label={`${performerLabel} ${String(index + 1)} section`}
-                        value={voicePart.sectionCode}
-                        onChange={(event) => {
-                          const sectionCode = event.target.value;
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                voiceParts: current.voiceParts.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, sectionCode } : item,
-                                ),
-                              },
-                          );
-                        }}
+                  <div className="roster-performer-card" key={`voice-part-row-${String(index)}`}>
+                    <div className="roster-performer-card__heading">
+                      <div>
+                        <span>
+                          {partLabel} {String(index + 1)}
+                        </span>
+                        <strong>{voicePart.fullName || voicePart.label}</strong>
+                      </div>
+                      <span
+                        className={`roster-performer-card__status${assigned ? " roster-performer-card__status--assigned" : ""}`}
                       >
-                        {configuration.sections.map(({ code, name }) => (
-                          <option key={code} value={code}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="roster-configuration-assignment">
+                        {assigned
+                          ? `${String(assignedProfiles.length)} Profile${assignedProfiles.length === 1 ? "" : "s"} assigned`
+                          : "No Profiles assigned"}
+                      </span>
+                    </div>
+                    <div className="roster-performer-card__fields">
+                      <label>
+                        Label
+                        <input
+                          aria-label={`${partLabel} ${String(index + 1)} label`}
+                          disabled={assigned}
+                          maxLength={50}
+                          required
+                          value={voicePart.label}
+                          onChange={(event) => {
+                            const label = event.target.value;
+                            setConfiguration(
+                              (current) =>
+                                current && {
+                                  ...current,
+                                  voiceParts: current.voiceParts.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, label } : item,
+                                  ),
+                                },
+                            );
+                          }}
+                        />
+                      </label>
+                      <label>
+                        Full name
+                        <input
+                          aria-label={`${partLabel} ${String(index + 1)} full name`}
+                          maxLength={100}
+                          required
+                          value={voicePart.fullName}
+                          onChange={(event) => {
+                            const fullName = event.target.value;
+                            setConfiguration(
+                              (current) =>
+                                current && {
+                                  ...current,
+                                  voiceParts: current.voiceParts.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, fullName } : item,
+                                  ),
+                                },
+                            );
+                          }}
+                        />
+                      </label>
+                      <label>
+                        Section
+                        <select
+                          aria-label={`${partLabel} ${String(index + 1)} section`}
+                          value={voicePart.sectionCode}
+                          onChange={(event) => {
+                            const sectionCode = event.target.value;
+                            setConfiguration(
+                              (current) =>
+                                current && {
+                                  ...current,
+                                  voiceParts: current.voiceParts.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, sectionCode } : item,
+                                  ),
+                                },
+                            );
+                          }}
+                        >
+                          {configuration.sections.map(({ code, name }) => (
+                            <option key={code} value={code}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="roster-performer-card__footer">
+                      <p>
+                        {assigned
+                          ? `Move or clear assigned Profiles before removing this ${partTerm}.`
+                          : `This ${partTerm} can be removed because it has no assigned Profiles.`}
+                      </p>
                       <button
-                        className="button button--secondary"
-                        disabled={configuration.voiceParts.length === 1}
+                        className="button button--secondary button--control-height"
+                        disabled={!assigned && configuration.voiceParts.length === 1}
                         type="button"
                         onClick={() => {
                           if (assigned) {
@@ -482,15 +505,8 @@ export function RosterConfiguration({ enabled }: Props) {
                           );
                         }}
                       >
-                        {assigned ? "Review assignments" : "Remove"}
+                        {assigned ? "Manage assignments" : `Remove ${partTerm}`}
                       </button>
-                      {assigned ? (
-                        <span className="field-help">
-                          Used by {String(assignedProfiles.length)} Profile
-                          {assignedProfiles.length === 1 ? "" : "s"}. Move or clear these
-                          assignments before removing this part.
-                        </span>
-                      ) : null}
                     </div>
                   </div>
                 );
@@ -512,19 +528,19 @@ export function RosterConfiguration({ enabled }: Props) {
                     ...current,
                     voiceParts: [
                       ...current.voiceParts,
-                      { fullName: `New ${performerTerm}`, label, sectionCode: firstSection.code },
+                      { fullName: `New ${partTerm}`, label, sectionCode: firstSection.code },
                     ],
                   };
                 });
               }}
             >
-              Add {performerTerm}
+              Add {partTerm}
             </button>
           </fieldset>
         </div>
       )}
       <Dialog
-        description={`Choose a new ${performerTerm} assignment for these Profiles, or clear their assignments so this assignment can be removed.`}
+        description={`Choose a new ${partTerm} assignment for these Profiles, or clear their assignments so this assignment can be removed.`}
         onClose={() => {
           if (!busy) setReassigningLabel(null);
         }}
@@ -538,7 +554,7 @@ export function RosterConfiguration({ enabled }: Props) {
         ) : null}
         <p>
           {reassigningLabel
-            ? `${String(assignedProfilesByLabel.get(reassigningLabel)?.length ?? 0)} Profiles currently use ${reassigningLabel}. This change is saved immediately; the configuration save bar is only for section and ${performerTerm} setup.`
+            ? `${String(reassigningProfileCount)} Profile${reassigningProfileCount === 1 ? "" : "s"} currently ${reassigningProfileCount === 1 ? "uses" : "use"} ${reassigningLabel}. This change is saved immediately; the configuration save bar is only for section and ${partTerm} setup.`
             : "Review the affected Profiles before changing their assignments."}
         </p>
         <div className="field">
@@ -551,7 +567,7 @@ export function RosterConfiguration({ enabled }: Props) {
               setReplacementVoicePart(event.target.value);
             }}
           >
-            <option value="">No {performerTerm} (clear assignment)</option>
+            <option value="">No {partTerm} (clear assignment)</option>
             {(savedConfiguration?.voiceParts ?? configuration?.voiceParts ?? [])
               .filter(({ label }) => label !== reassigningLabel)
               .map(({ label, fullName }) => (
