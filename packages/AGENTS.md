@@ -13,5 +13,8 @@ These instructions inherit the repository root `AGENTS.md` and apply under `pack
   explicit coverage.
 - Contract changes require browser-client and server parsing tests, including valid input,
   validation failure, authorization failure where applicable, and backward compatibility.
+- Reusable `@choir/ui` `Dialog` owns dirty change tracking and confirmation prompts; all close paths
+  (escape, backdrop click, header close icon, and `DialogClose` buttons) must route through
+  `requestClose()` to prevent accidental data loss.
 - Preserve public package exports unless the task explicitly includes a coordinated API change and
   all consumers are updated atomically.

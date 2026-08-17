@@ -25,8 +25,16 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 
 - Use repository-owned primitives from `@choir/ui`, built on Radix, for dialogs, confirmations,
   tables, and other shared interactions. Do not introduce Shoelace or Web Awesome implementations.
-- Preserve responsive table/card layouts, mobile dialogs, focus management, keyboard use, and clear
-  loading, error, empty, and success states.
+- Full-page settings views, configuration forms, and editable entity pages must register with
+  `useFloatingSaveAction` with a computed `dirty` state, `onSave`, and `onDiscard` handlers so the
+  floating save bar appears and navigation away or tab closure is intercepted with a confirmation
+  prompt.
+- Modal dialogs with editable form fields must use the `@choir/ui` `Dialog` component and pass
+  `dirty` (or rely on `Dialog`'s built-in input dirty tracking). Cancel buttons inside dialogs must
+  be wrapped in `<DialogClose asChild><button ... type="button">Cancel</button></DialogClose>`
+  rather than calling `onClose()` directly, ensuring that dismissal attempts (Cancel button, Escape
+  key, backdrop click, or header close button) prompt with a confirmation dialog before discarding
+  unsaved edits.
 - Destructive actions require a danger-styled confirmation with a visible Cancel action.
 - Icon-only controls require accessible labels. Hide decorative icons from assistive technology.
 - Use the shared `DataTable` for tabular data and preserve its mobile-card behavior.
