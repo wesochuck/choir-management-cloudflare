@@ -4,6 +4,7 @@ import {
   configuredPlatformEmailSender,
   deliverOrganizationCommunication,
   renderCommunicationMarkdown,
+  renderCommunicationText,
 } from "./provider";
 
 const delivery = {
@@ -64,6 +65,10 @@ describe("Organization communication provider", () => {
     });
     expect(sent?.html).toContain("Hello &lt;Singer&gt;");
     expect(sent?.html).toContain(delivery.unsubscribeUrl);
+    expect(sent?.html).toContain("<!doctype html>");
+    expect(sent?.html).toContain('role="presentation"');
+    expect(sent?.html).toContain("<!--[if mso]>");
+    expect(sent?.html).toContain(">Rehearsal</h1>");
   });
 
   it("suppresses a sandbox email recipient that is not allowlisted without calling the binding", async () => {
@@ -196,9 +201,64 @@ describe("Organization communication provider", () => {
     // URL fail parsing, and it degrades to plain escaped text.
     const rendered = renderCommunicationMarkdown('[click](https://example.com" onclick="x=1)');
     expect(rendered).not.toContain('onclick="');
-    expect(rendered).toContain("&quot;");
+    expect(rendered).toBe("<p>click</p>");
     // Normal links still render with the single-escaped href.
     const normal = renderCommunicationMarkdown("[docs](https://example.com?a=1&b=2)");
-    expect(normal).toContain('<a href="https://example.com?a=1&amp;b=2">docs</a>');
+    expect(normal).toContain('href="https://example.com?a=1&amp;b=2"');
+    expect(normal).toContain(">docs</a>");
+    const underscored = renderCommunicationMarkdown(
+      "Read [the event details](https://example.com/event_details?id=1_2).",
+    );
+    expect(underscored).toContain('href="https://example.com/event_details?id=1_2"');
+    expect(underscored).toContain(">the event details</a>");
+  });
+
+  it("turns standalone links into prominent table-based actions", () => {
+    const rendered = renderCommunicationMarkdown(
+      "Please review the details.\n\n[Open your tickets](https://example.com/tickets?id=1&order=2)",
+    );
+
+    expect(rendered).toContain('role="presentation"');
+    expect(rendered).toContain('bgcolor="#1b4d3e"');
+    expect(rendered).toContain(">Open your tickets</a>");
+    expect(rendered).toContain('href="https://example.com/tickets?id=1&amp;order=2"');
+  });
+
+  it("removes Markdown decoration while preserving destinations in plain text", () => {
+    expect(
+      renderCommunicationText(
+        "## Order confirmed\n\n- **Total:** $20\n\n[Open tickets](https://example.com/tickets)",
+      ),
+    ).toBe("Order confirmed\n\n- Total: $20\n\nOpen tickets: https://example.com/tickets");
+  });
+
+  it("preserves base64url underscores in sent HTML and plain-text link and code spans", async () => {
+    const email = platformEmailBinding();
+    const signedUrl = "https://example.com/tickets?token=header_part_middle_tail";
+    const credential = "ticket_part_middle_tail";
+
+    await deliverOrganizationCommunication(
+      {
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_FROM: "communications@mail.staging.example.com",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      {
+        ...delivery,
+        contentMarkdown: `[Open tickets](${signedUrl})\n\n\`${credential}\``,
+        unsubscribeUrl: "https://example.com/unsubscribe?token=unsubscribe_part_tail",
+      },
+    );
+
+    const sent = email.send.mock.calls[0]?.[0];
+    expect(sent?.text).toContain(`Open tickets: ${signedUrl}`);
+    expect(sent?.text).toContain(credential);
+    expect(sent?.text).toContain("token=unsubscribe_part_tail");
+    expect(sent?.html).toContain(
+      'href="https://example.com/tickets?token=header_part_middle_tail"',
+    );
+    expect(sent?.html).toContain(`>${credential}</code>`);
+    expect(sent?.html).not.toContain("<em>part</em>");
   });
 });

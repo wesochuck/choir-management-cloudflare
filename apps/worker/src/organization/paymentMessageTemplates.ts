@@ -15,7 +15,7 @@ export const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hello {singerName},\n\nThank you for your donation to {organizationName}.\n\nAmount: {paymentAmount}\nStatus: {paymentStatus}\n\n{{DONATION_RECEIPT_LINK}}\n\nPlease keep this message for your records.",
+      "Hi {singerName},\n\n## Thank you for your donation\n\nYour donation to {organizationName} was received.\n\n- **Amount:** {paymentAmount}\n- **Status:** {paymentStatus}\n\n{{DONATION_RECEIPT_LINK}}\n\nPlease keep this receipt for your records.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000013",
     kind: "donation_confirmation",
     subject: "Donation receipt from {organizationName}",
@@ -24,7 +24,7 @@ export const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hello {singerName},\n\nYour seasonal dues payment to {organizationName} has been received.\n\nAmount: {paymentAmount}\nStatus: {paymentStatus}\n\nPlease keep this message for your records.",
+      "Hi {singerName},\n\n## Dues payment received\n\nYour seasonal dues payment to {organizationName} is confirmed.\n\n- **Amount:** {paymentAmount}\n- **Status:** {paymentStatus}\n\nPlease keep this receipt for your records.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000014",
     kind: "dues_confirmation",
     subject: "Dues payment receipt from {organizationName}",
@@ -92,6 +92,23 @@ export function seedPaymentSystemCommunicationTemplates(sql: SqlStorage): void {
       template.subject,
       template.contentMarkdown,
       now,
+      now,
+      template.id,
+    );
+  }
+}
+
+export function refreshUnmodifiedPaymentMessageTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of paymentMessageTemplates) {
+    sql.exec(
+      `UPDATE communication_templates
+       SET title = ?, channel = ?, subject = ?, content_markdown = ?, updated_at = ?
+       WHERE id = ? AND is_system = 1 AND updated_at = created_at`,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
       now,
       template.id,
     );

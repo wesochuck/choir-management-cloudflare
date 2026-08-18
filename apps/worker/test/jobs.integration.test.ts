@@ -526,7 +526,7 @@ describe("Organization queue delivery", () => {
         .one().reminderSentAt,
     }));
     expect(stored.attendance).toBe("Absent");
-    expect(stored.content).toContain("Attendance rate:");
+    expect(stored.content).toContain("0% attendance for Scheduled Report Performance");
     expect(stored.deliveryStatus).toBe("sent");
     expect(stored.messageCount).toBe(3);
     expect(stored.reminderSentAt).toEqual(expect.any(String));

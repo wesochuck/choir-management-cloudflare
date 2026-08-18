@@ -1,3 +1,10 @@
+import {
+  escapeEmailHtml,
+  renderEmailAction,
+  renderEmailDocument,
+  renderEmailHighlight,
+} from "../communications/emailPresentation";
+
 export type OneTimeCodeEmailPurpose = "sign-in" | "verify-email";
 
 export interface OneTimeCodeEmailContent {
@@ -12,66 +19,36 @@ export interface EmailChangeEmailContent {
   readonly html: string;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+const paragraphStyle =
+  "color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 18px;";
+const mutedStyle =
+  "color:#626971;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;margin:20px 0 0;";
+
+function paragraph(value: string, muted = false): string {
+  return `<p style="${muted ? mutedStyle : paragraphStyle}">${escapeEmailHtml(value)}</p>`;
 }
 
-function buildEmailChangeHtml(
-  heading: string,
-  introduction: string,
-  detail: string,
-  footer: string,
-): string {
-  const safeHeading = escapeHtml(heading);
-  const safeIntroduction = escapeHtml(introduction);
-  const safeDetail = escapeHtml(detail);
-  const safeFooter = escapeHtml(footer);
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${safeHeading}</title>
-  </head>
-  <body style="margin:0;background:#f5f4fb;color:#17181d;font-family:Arial,Helvetica,sans-serif;">
-    <div style="padding:32px 16px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e3e2e9;border-radius:20px;">
-        <tr>
-          <td style="padding:40px 40px 36px;text-align:center;">
-            <div style="display:inline-block;width:44px;height:44px;line-height:44px;border-radius:12px;background:#1b4d3e;color:#ffffff;font-size:16px;font-weight:700;letter-spacing:.04em;">CM</div>
-            <div style="margin-top:10px;color:#1b4d3e;font-size:15px;font-weight:700;letter-spacing:.02em;">Choir Management</div>
-            <h1 style="margin:44px 0 20px;font-size:32px;line-height:1.2;font-weight:700;">${safeHeading}</h1>
-            <p style="max-width:520px;margin:0 auto;color:#30323a;font-size:17px;line-height:1.55;">${safeIntroduction}</p>
-            <div style="margin:34px 0 28px;padding:20px;background:#f0f2f1;border-radius:14px;color:#17181d;font-size:17px;line-height:1.55;">${safeDetail}</div>
-            <p style="max-width:520px;margin:0 auto;color:#6d6f77;font-size:15px;line-height:1.55;">${safeFooter}</p>
-            <div style="height:1px;margin:40px auto 24px;background:#e3e2e9;"></div>
-            <p style="margin:0;color:#777982;font-size:13px;line-height:1.5;">This is an automated message from Choir Management.</p>
-          </td>
-        </tr>
-      </table>
-    </div>
-  </body>
-</html>`;
+function emphasizedValue(value: string): string {
+  return renderEmailHighlight(
+    `<p style="color:#17181d;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;line-height:26px;margin:0;overflow-wrap:anywhere;">${escapeEmailHtml(value)}</p>`,
+  );
 }
 
 export function buildEmailChangeConfirmationEmail(
   confirmationUrl: string,
   newEmail: string,
 ): EmailChangeEmailContent {
-  const subject = "Confirm your new Choir Management email";
-  const introduction = "Someone requested to use this address for a Choir Management account.";
-  const detail = `Confirm ${newEmail}: ${confirmationUrl}`;
-  const footer =
-    "This link expires in 30 minutes. If you did not request this change, you can ignore this message.";
+  const subject = "Confirm your new email address";
+  const introduction = "Confirm this address to finish updating your Choir Management account.";
+  const footer = "This confirmation link expires in 30 minutes.";
   return {
-    html: buildEmailChangeHtml(subject, introduction, detail, footer),
+    html: renderEmailDocument({
+      bodyHtml: `${paragraph(introduction)}${emphasizedValue(newEmail)}${renderEmailAction("Confirm email address", confirmationUrl)}${paragraph(footer, true)}${paragraph("If you did not request this change, you can ignore this message. Your account will keep its current email address.", true)}`,
+      heading: subject,
+      preheader: `${footer} Confirm ${newEmail}.`,
+    }),
     subject,
-    text: `${detail}\n\n${introduction}\n\n${footer}`,
+    text: `${subject}\n\n${introduction}\n\nNew email: ${newEmail}\n\nConfirm email address: ${confirmationUrl}\n\n${footer}\n\nIf you did not request this change, you can ignore this message. Your account will keep its current email address.`,
   };
 }
 
@@ -80,12 +57,10 @@ export function buildEmailChangeNoticeEmail(
   stage: "confirmed" | "requested",
 ): EmailChangeEmailContent {
   const confirmed = stage === "confirmed";
-  const subject = confirmed
-    ? "Your Choir Management email address changed"
-    : "A Choir Management email change was requested";
+  const subject = confirmed ? "Your email address was changed" : "Email address change requested";
   const introduction = confirmed
-    ? "Your Choir Management sign-in email address is now confirmed."
-    : "A request was made to change the sign-in email for your Choir Management account.";
+    ? "Your Choir Management sign-in email address has been updated."
+    : "A request was made to change the sign-in email address for your Choir Management account.";
   const detail = confirmed
     ? `The new sign-in email is ${newEmail}.`
     : `The requested new sign-in email is ${newEmail}.`;
@@ -93,9 +68,46 @@ export function buildEmailChangeNoticeEmail(
     ? "If you did not make this change, sign in and update your password, then contact your Organization administrator."
     : "If you did not request this change, sign in and update your password, then contact your Organization administrator. The change will not complete unless the new address is confirmed.";
   return {
-    html: buildEmailChangeHtml(subject, introduction, detail, footer),
+    html: renderEmailDocument({
+      bodyHtml: `${paragraph(introduction)}${emphasizedValue(detail)}${paragraph(footer, true)}`,
+      heading: subject,
+      preheader: detail,
+    }),
     subject,
-    text: `${detail}\n\n${introduction}\n\n${footer}`,
+    text: `${subject}\n\n${introduction}\n\n${detail}\n\n${footer}`,
+  };
+}
+
+export function buildPasswordResetEmail(resetUrl: string): OneTimeCodeEmailContent {
+  const subject = "Reset your Choir Management password";
+  const introduction = "A password reset was requested for your Choir Management account.";
+  const expiry = "This link expires in 30 minutes and can be used only once.";
+  return {
+    html: renderEmailDocument({
+      bodyHtml: `${paragraph(introduction)}${renderEmailAction("Reset password", resetUrl)}${paragraph(expiry, true)}${paragraph("If you did not request a password reset, you can ignore this message. Your password has not changed.", true)}`,
+      heading: "Reset your password",
+      preheader: expiry,
+    }),
+    subject,
+    text: `Reset your password\n\n${introduction}\n\nReset password: ${resetUrl}\n\n${expiry}\n\nIf you did not request a password reset, you can ignore this message. Your password has not changed.`,
+  };
+}
+
+export function buildOrganizationInvitationEmail(
+  invitationUrl: string,
+  organizationName: string,
+): OneTimeCodeEmailContent {
+  const subject = `You're invited to join ${organizationName}`;
+  const introduction = `${organizationName} invited you to join its Choir Management workspace.`;
+  const expiry = "This invitation expires in 8 days.";
+  return {
+    html: renderEmailDocument({
+      bodyHtml: `${paragraph(introduction)}${renderEmailAction("Review invitation", invitationUrl)}${paragraph(expiry, true)}${paragraph("If you were not expecting this invitation, you can ignore this message.", true)}`,
+      heading: `Join ${organizationName}`,
+      preheader: `${introduction} ${expiry}`,
+    }),
+    subject,
+    text: `Join ${organizationName}\n\n${introduction}\n\nReview invitation: ${invitationUrl}\n\n${expiry}\n\nIf you were not expecting this invitation, you can ignore this message.`,
   };
 }
 
@@ -111,37 +123,13 @@ export function buildOneTimeCodeEmail(
   const introduction = signIn
     ? "We received a request to sign in to Choir Management. Enter the code below in the browser window where you started signing in."
     : "Use the code below to verify your email address for Choir Management.";
-  const text = `${signIn ? `Use ${otp} to sign in.` : `Use ${otp} to verify your email.`}\n\n${introduction}\n\nThis code expires in 10 minutes. If you did not request it, you can safely ignore this email.`;
-  const safeOtp = escapeHtml(otp);
-  const safeHeading = escapeHtml(heading);
-  const safeIntroduction = escapeHtml(introduction);
-
-  const html = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${safeHeading}</title>
-  </head>
-  <body style="margin:0;background:#f5f4fb;color:#17181d;font-family:Arial,Helvetica,sans-serif;">
-    <div style="padding:32px 16px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e3e2e9;border-radius:20px;">
-        <tr>
-          <td style="padding:40px 40px 36px;text-align:center;">
-            <div style="display:inline-block;width:44px;height:44px;line-height:44px;border-radius:12px;background:#1b4d3e;color:#ffffff;font-size:16px;font-weight:700;letter-spacing:.04em;">CM</div>
-            <div style="margin-top:10px;color:#1b4d3e;font-size:15px;font-weight:700;letter-spacing:.02em;">Choir Management</div>
-            <h1 style="margin:44px 0 20px;font-size:32px;line-height:1.2;font-weight:700;">${safeHeading}</h1>
-            <p style="max-width:520px;margin:0 auto;color:#30323a;font-size:17px;line-height:1.55;">${safeIntroduction}</p>
-            <div style="margin:34px 0 28px;padding:28px 20px;background:#f0f2f1;border-radius:14px;color:#17181d;font-size:42px;line-height:1;font-weight:700;letter-spacing:.18em;">${safeOtp}</div>
-            <p style="max-width:520px;margin:0 auto;color:#6d6f77;font-size:15px;line-height:1.55;">This code expires in 10 minutes. If you did not request it, you can safely ignore this email.</p>
-            <div style="height:1px;margin:40px auto 24px;background:#e3e2e9;"></div>
-            <p style="margin:0;color:#777982;font-size:13px;line-height:1.5;">This is an automated message from Choir Management.</p>
-          </td>
-        </tr>
-      </table>
-    </div>
-  </body>
-</html>`;
+  const expiry = "This code expires in 10 minutes.";
+  const text = `${heading}\n\n${signIn ? `Use ${otp} to sign in.` : `Use ${otp} to verify your email.`}\n\n${introduction}\n\n${expiry} If you did not request it, you can safely ignore this message.`;
+  const html = renderEmailDocument({
+    bodyHtml: `${paragraph(introduction)}${renderEmailHighlight(`<p style="color:#17181d;font-family:Arial,Helvetica,sans-serif;font-size:40px;font-weight:700;letter-spacing:8px;line-height:48px;margin:0;text-align:center;">${escapeEmailHtml(otp)}</p>`)}${paragraph(expiry, true)}${paragraph("If you did not request this code, you can safely ignore this message.", true)}`,
+    heading,
+    preheader: `${signIn ? "Sign-in" : "Verification"} code: ${otp}. ${expiry}`,
+  });
 
   return { html, subject, text };
 }

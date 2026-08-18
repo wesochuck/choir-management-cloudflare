@@ -112,9 +112,10 @@ describe("communication poll links", () => {
     expect(link).toBeTruthy();
     expect(content).toContain("Poll: Favorite color?");
     expect(content).not.toMatch(/^https?:\/\//m);
-    expect(renderCommunicationMarkdown(content)).toContain(
-      `<a href="${link ?? ""}">Respond Here (No login required)</a>`,
-    );
+    const rendered = renderCommunicationMarkdown(content);
+    expect(rendered).toContain(`href="${link ?? ""}"`);
+    expect(rendered).toContain(">Respond Here (No login required)</a>");
+    expect(rendered).toContain('role="presentation"');
 
     const token = new URL(link ?? "https://invalid.test").searchParams.get("token");
     await expect(

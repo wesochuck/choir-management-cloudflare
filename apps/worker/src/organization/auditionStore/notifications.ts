@@ -83,13 +83,13 @@ export function queueCreateNotifications(
     for (const destination of settings.adminNotifyUsers) {
       queueAuditionNotification(storage, {
         auditionId,
-        contentMarkdown: `${name} submitted an audition inquiry.`,
+        contentMarkdown: `## New audition inquiry\n\n**${name}** submitted an audition inquiry.\n\nReview the inquiry in Audition Manager.`,
         dedupeKey: `audition-admin-alert:${auditionId}:${destination}`,
         destination,
         kind: "admin_alert",
         recipientName: "Organization administrator",
         scheduledFor: now,
-        subject: `New audition inquiry from ${name}`,
+        subject: `Audition inquiry: ${name}`,
       });
     }
   }

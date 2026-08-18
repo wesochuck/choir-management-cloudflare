@@ -370,9 +370,8 @@ describe("Better Auth Worker integration", () => {
     const resetEmail = readCapturedPlatformEmailsForTest().find(
       (message) => message.kind === "password-reset" && message.recipient === INVITED_EMAIL,
     );
-    const linkPrefix = "Use this link to reset your password: ";
-    expect(resetEmail?.text.startsWith(linkPrefix)).toBe(true);
-    const resetLinkValue = resetEmail?.text.slice(linkPrefix.length);
+    expect(resetEmail?.html).toContain(">Reset password</a>");
+    const resetLinkValue = /Reset password: (\S+)/.exec(resetEmail?.text ?? "")?.[1];
     if (!resetLinkValue) {
       throw new Error("The captured reset email did not contain a link.");
     }

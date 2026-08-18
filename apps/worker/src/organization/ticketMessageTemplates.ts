@@ -13,25 +13,25 @@ export const ticketMessageTemplates: readonly TicketMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hello {singerName},\n\nYour ticket order is confirmed.\n\nEvent: {eventTitle}\nDate: {eventDate}\nQuantity: {ticketQuantity}\nTotal paid: {ticketAmount}\n\n{{TICKET_LINK}}\n\nWe look forward to seeing you!",
+      "Hi {singerName},\n\n## Your ticket order is confirmed\n\n- **Event:** {eventTitle}\n- **Date:** {eventDate}\n- **Tickets:** {ticketQuantity}\n- **Total paid:** {ticketAmount}\n\n{{TICKET_LINK}}\n\nOpen your tickets before arriving and keep this confirmation for your records. We look forward to seeing you.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000007",
     kind: "confirmation",
-    subject: "Your tickets for {eventTitle}",
+    subject: "Tickets confirmed: {eventTitle}",
     title: "Ticket Confirmation",
   },
   {
     channel: "Email",
     contentMarkdown:
-      "Hello {singerName},\n\nYour bundle order is confirmed.\n\nBundle: {ticketBundleName}\nQuantity: {ticketQuantity}\nTotal paid: {ticketAmount}\n\n{{TICKET_LINK}}\n\nWe look forward to seeing you!",
+      "Hi {singerName},\n\n## Your ticket bundle is confirmed\n\n- **Bundle:** {ticketBundleName}\n- **Tickets:** {ticketQuantity}\n- **Total paid:** {ticketAmount}\n\n{{TICKET_LINK}}\n\nOpen your tickets before arriving and keep this confirmation for your records. We look forward to seeing you.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000008",
     kind: "bundle_confirmation",
-    subject: "Your {ticketBundleName} order is confirmed",
+    subject: "Ticket bundle confirmed: {ticketBundleName}",
     title: "Bundle Ticket Confirmation",
   },
   {
     channel: "Email",
     contentMarkdown:
-      "Hello {singerName},\n\nThis is a reminder for {eventTitle}.\n\nDate: {eventDate}\nQuantity: {ticketQuantity}\n\n{{TICKET_LINK}}\n\nWe look forward to seeing you!",
+      "Hi {singerName},\n\n## Your event is coming up\n\n- **Event:** {eventTitle}\n- **Date:** {eventDate}\n- **Tickets:** {ticketQuantity}\n\n{{TICKET_LINK}}\n\nOpen your tickets before arriving. We look forward to seeing you.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000009",
     kind: "reminder",
     subject: "Reminder: {eventTitle}",

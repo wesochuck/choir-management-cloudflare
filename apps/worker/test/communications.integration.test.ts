@@ -365,6 +365,14 @@ describe("Organization communications", () => {
       "Ticket Confirmation",
       "Weather / Schedule Delay Alert",
     ]);
+    const systemEmailTemplates = templates.templates.filter(
+      ({ channel, isSystem }) => isSystem && channel === "Email",
+    );
+    expect(systemEmailTemplates).toHaveLength(15);
+    for (const systemTemplate of systemEmailTemplates) {
+      expect(systemTemplate.contentMarkdown, systemTemplate.title).toMatch(/^## |\n## /);
+      expect(systemTemplate.subject, systemTemplate.title).not.toMatch(/^[A-Z\s!]+:/);
+    }
     expect(
       templates.templates.find(({ title }) => title === "Audition Submission Thanks"),
     ).toMatchObject({ channel: "Email", isSystem: true });

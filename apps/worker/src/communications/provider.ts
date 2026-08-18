@@ -8,6 +8,7 @@ import {
   prepareEmailProviderRoute,
   type EmailProviderSourceKind,
 } from "./emailFeedback";
+import { escapeEmailHtml, renderEmailAction, renderEmailDocument } from "./emailPresentation";
 
 const deliverySchema = z.object({
   channel: z.enum(["email", "sms"]),
@@ -79,15 +80,6 @@ function allowedSmsRecipients(value: string | undefined): ReadonlySet<string> {
   );
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function isSafeHttpUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -97,27 +89,58 @@ function isSafeHttpUrl(value: string): boolean {
   }
 }
 
-function renderMarkdownInline(value: string): string {
-  const links: string[] = [];
-  const escaped = escapeHtml(value);
-  const withLinks = escaped.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    (match, label: string, url: string) => {
-      if (!isSafeHttpUrl(url)) return match;
-      const index = links.length;
-      links.push(`<a href="${url}">${label}</a>`);
-      return `@@LINK_${String(index)}@@`;
-    },
-  );
-
-  const formatted = withLinks
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+function renderMarkdownEmphasis(value: string): string {
+  return escapeEmailHtml(value)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#17181d;font-weight:700;">$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong style="color:#17181d;font-weight:700;">$1</strong>')
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/_([^_]+)_/g, "<em>$1</em>");
+}
 
-  return formatted.replace(/@@LINK_(\d+)@@/g, (_, index: string) => links[Number(index)] ?? "");
+function renderMarkdownText(value: string): string {
+  let cursor = 0;
+  let rendered = "";
+  for (const code of value.matchAll(/`([^`]+)`/g)) {
+    rendered += renderMarkdownEmphasis(value.slice(cursor, code.index));
+    rendered += `<code style="background-color:#f1f1f4;border-radius:3px;font-family:Consolas,Monaco,monospace;font-size:14px;overflow-wrap:anywhere;padding:2px 4px;word-break:break-all;">${escapeEmailHtml(code[1] ?? "")}</code>`;
+    cursor = code.index + code[0].length;
+  }
+  return rendered + renderMarkdownEmphasis(value.slice(cursor));
+}
+
+function renderMarkdownInline(value: string): string {
+  let cursor = 0;
+  let rendered = "";
+  for (const link of value.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
+    const rawLink = link[0];
+    const label = link[1] ?? "Open link";
+    const url = link[2] ?? "";
+    rendered += renderMarkdownText(value.slice(cursor, link.index));
+    rendered += isSafeHttpUrl(url)
+      ? `<a href="${escapeEmailHtml(url)}" style="color:#1b4d3e;font-weight:700;text-decoration:underline;">${renderMarkdownText(label)}</a>`
+      : renderMarkdownText(rawLink);
+    cursor = link.index + rawLink.length;
+  }
+  return rendered + renderMarkdownText(value.slice(cursor));
+}
+
+function renderMarkdownBlock(trimmed: string): string {
+  if (trimmed.startsWith("### ")) {
+    return `<h3 style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;line-height:24px;margin:24px 0 10px;">${renderMarkdownInline(trimmed.slice(4))}</h3>`;
+  }
+  if (trimmed.startsWith("## ")) {
+    return `<h2 style="color:#1b4d3e;font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;line-height:29px;margin:28px 0 12px;">${renderMarkdownInline(trimmed.slice(3))}</h2>`;
+  }
+  if (trimmed.startsWith("# ")) {
+    return `<h2 style="color:#1b4d3e;font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;line-height:31px;margin:28px 0 12px;">${renderMarkdownInline(trimmed.slice(2))}</h2>`;
+  }
+  const standaloneLink = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(trimmed);
+  if (standaloneLink) {
+    return renderEmailAction(standaloneLink[1] ?? "Open link", standaloneLink[2] ?? "");
+  }
+  return trimmed
+    ? `<p style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 18px;">${renderMarkdownInline(trimmed)}</p>`
+    : "";
 }
 
 /** Render the deliberately small Markdown subset exposed by the message editor. */
@@ -129,7 +152,9 @@ export function renderCommunicationMarkdown(value: string): string {
     const trimmed = line.trim();
     const listItem = trimmed.startsWith("- ") || trimmed.startsWith("* ");
     if (listItem && !inList) {
-      output.push("<ul>");
+      output.push(
+        '<ul style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 20px;padding-left:24px;">',
+      );
       inList = true;
     }
     if (!listItem && inList) {
@@ -137,32 +162,55 @@ export function renderCommunicationMarkdown(value: string): string {
       inList = false;
     }
     if (listItem) {
-      output.push(`<li>${renderMarkdownInline(trimmed.slice(2))}</li>`);
-    } else if (trimmed.startsWith("### ")) {
-      output.push(`<h5>${renderMarkdownInline(trimmed.slice(4))}</h5>`);
-    } else if (trimmed.startsWith("## ")) {
-      output.push(`<h4>${renderMarkdownInline(trimmed.slice(3))}</h4>`);
-    } else if (trimmed.startsWith("# ")) {
-      output.push(`<h3>${renderMarkdownInline(trimmed.slice(2))}</h3>`);
-    } else if (trimmed) {
-      output.push(`<p>${renderMarkdownInline(trimmed)}</p>`);
+      output.push(`<li style="margin:0 0 8px;">${renderMarkdownInline(trimmed.slice(2))}</li>`);
+    } else {
+      output.push(renderMarkdownBlock(trimmed));
     }
   }
   if (inList) output.push("</ul>");
   return output.join("");
 }
 
-function emailContents(contentMarkdown: string, unsubscribeUrl: string | null) {
+export function renderCommunicationText(value: string): string {
+  const normalized = value.replace(/^#{1,3}\s+/gm, "").replace(/^\s*\*\s+/gm, "- ");
+  let cursor = 0;
+  let rendered = "";
+  for (const protectedSpan of normalized.matchAll(/`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g)) {
+    rendered += stripMarkdownEmphasis(normalized.slice(cursor, protectedSpan.index));
+    rendered +=
+      protectedSpan[1] ??
+      `${stripMarkdownEmphasis(protectedSpan[2] ?? "Open link")}: ${protectedSpan[3] ?? ""}`;
+    cursor = protectedSpan.index + protectedSpan[0].length;
+  }
+  return (rendered + stripMarkdownEmphasis(normalized.slice(cursor))).trim();
+}
+
+function stripMarkdownEmphasis(value: string): string {
+  return value
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1");
+}
+
+function emailContents(subject: string, contentMarkdown: string, unsubscribeUrl: string | null) {
   const unsubscribeText = unsubscribeUrl
     ? `\n\nUnsubscribe from Organization email: ${unsubscribeUrl}`
     : "";
   const renderedBody = renderCommunicationMarkdown(contentMarkdown);
+  const plainBody = renderCommunicationText(contentMarkdown);
+  const preheader = plainBody.split("\n").find((line) => line.trim()) ?? subject;
   const unsubscribeHtml = unsubscribeUrl
-    ? `<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from Organization email</a></p>`
+    ? `<p style="margin:0 0 8px;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;"><a href="${escapeEmailHtml(unsubscribeUrl)}" style="color:#4d5962;text-decoration:underline;">Unsubscribe from Organization email</a></p>`
     : "";
   return {
-    htmlContent: `<div>${renderedBody}</div>${unsubscribeHtml}`,
-    textContent: `${contentMarkdown}${unsubscribeText}`,
+    htmlContent: renderEmailDocument({
+      bodyHtml: renderedBody,
+      footerHtml: `${unsubscribeHtml}<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">Sent using Choir Management.</p>`,
+      heading: subject,
+      preheader,
+    }),
+    textContent: `${plainBody}${unsubscribeText}`,
   };
 }
 
@@ -257,7 +305,11 @@ async function deliverOrganizationEmail(
   }
   const sender = configuredPlatformEmailSender(config);
   const senderEmail = sender.fromEmail ?? required(config.PLATFORM_EMAIL_FROM, "email sender");
-  const contents = emailContents(delivery.contentMarkdown, delivery.unsubscribeUrl);
+  const contents = emailContents(
+    delivery.subject,
+    delivery.contentMarkdown,
+    delivery.unsubscribeUrl,
+  );
   let result: Awaited<ReturnType<SendEmail["send"]>>;
   try {
     result = await config.PLATFORM_EMAIL.send({

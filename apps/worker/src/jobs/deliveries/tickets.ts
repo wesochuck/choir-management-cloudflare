@@ -67,14 +67,17 @@ export async function deliverTicketNotificationJob(
     ? [
         "",
         "",
-        "Discount code: " + notification.data.discountCode,
-        "Original subtotal: " +
+        "### Payment summary",
+        "",
+        "- **Discount code:** " + notification.data.discountCode,
+        "- **Original subtotal:** " +
           money(notification.data.originalSubtotalCents, notification.data.currency),
-        "Discount: -" + money(notification.data.discountAmountCents, notification.data.currency),
-        "Discounted subtotal: " +
+        "- **Discount:** -" +
+          money(notification.data.discountAmountCents, notification.data.currency),
+        "- **Discounted subtotal:** " +
           money(notification.data.discountedSubtotalCents, notification.data.currency),
-        "Processing fee: " + money(notification.data.feeCents, notification.data.currency),
-        "Total: " + money(notification.data.amountPaidCents, notification.data.currency),
+        "- **Processing fee:** " + money(notification.data.feeCents, notification.data.currency),
+        "- **Total:** " + money(notification.data.amountPaidCents, notification.data.currency),
       ].join("\n")
     : "";
   const credential = await issueOrganizationTicketScanCredential(
@@ -95,7 +98,7 @@ export async function deliverTicketNotificationJob(
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
     contentMarkdown:
-      contentWithTicketLink + discountSummary + "\n\nTicket credential: " + scanToken,
+      contentWithTicketLink + discountSummary + "\n\n### Ticket credential\n\n`" + scanToken + "`",
     deliveryId: notification.data.id,
     destination: notification.data.destination,
     messageId: notification.data.id,

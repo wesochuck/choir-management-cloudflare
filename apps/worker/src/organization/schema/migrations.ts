@@ -4,8 +4,12 @@ import {
   defaultSeatingConfiguration,
 } from "@choir/domain";
 
-import { seedPaymentSystemCommunicationTemplates } from "../paymentMessageTemplates";
 import {
+  refreshUnmodifiedPaymentMessageTemplates,
+  seedPaymentSystemCommunicationTemplates,
+} from "../paymentMessageTemplates";
+import {
+  refreshUnmodifiedSystemCommunicationTemplates,
   seedAuditionSystemCommunicationTemplates,
   seedPlayerSystemCommunicationTemplates,
   seedRsvpSystemCommunicationTemplates,
@@ -1181,6 +1185,14 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
   {
     version: 69,
     statements: ["ALTER TABLE communication_messages ADD COLUMN canceled_at TEXT"],
+  },
+  {
+    apply: (sql) => {
+      refreshUnmodifiedSystemCommunicationTemplates(sql);
+      refreshUnmodifiedPaymentMessageTemplates(sql);
+    },
+    statements: [],
+    version: 70,
   },
 ] as const;
 

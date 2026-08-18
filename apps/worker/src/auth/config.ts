@@ -2,7 +2,11 @@ import { betterAuth } from "better-auth";
 import { emailOTP, organization, twoFactor } from "better-auth/plugins";
 
 import type { Env } from "../env";
-import { buildOneTimeCodeEmail } from "./emailTemplates";
+import {
+  buildOneTimeCodeEmail,
+  buildOrganizationInvitationEmail,
+  buildPasswordResetEmail,
+} from "./emailTemplates";
 import { sendPlatformEmail } from "./platformEmail";
 
 export const authenticationPolicy = {
@@ -85,11 +89,13 @@ export function createAuth(context: AuthRequestContext) {
       sendResetPassword: async ({ token, user }) => {
         const resetUrl = new URL("/reset-password", origin);
         resetUrl.hash = new URLSearchParams({ token }).toString();
+        const content = buildPasswordResetEmail(resetUrl.toString());
         await sendPlatformEmail(env, {
           kind: "password-reset",
+          html: content.html,
           recipient: user.email,
-          subject: "Reset your Choir Management password",
-          text: `Use this link to reset your password: ${resetUrl.toString()}`,
+          subject: content.subject,
+          text: content.text,
         });
       },
     },
@@ -133,13 +139,18 @@ export function createAuth(context: AuthRequestContext) {
             canonicalOrganizationOrigin(env, invitedOrganization.slug),
           );
           invitationUrl.searchParams.set("id", id);
+          const content = buildOrganizationInvitationEmail(
+            invitationUrl.toString(),
+            invitedOrganization.name,
+          );
           await sendPlatformEmail(env, {
             kind: "organization-invitation",
+            html: content.html,
             organizationId: invitedOrganization.id,
             recipient: email,
             sourceId: id,
-            subject: `Invitation to ${invitedOrganization.name}`,
-            text: `Accept your invitation: ${invitationUrl.toString()}`,
+            subject: content.subject,
+            text: content.text,
           });
         },
       }),
