@@ -548,7 +548,7 @@ describe("member dashboard", () => {
             (id, channel, status, subject, content_markdown, audience_json, reach_json,
              created_by, created_at, updated_at, sent_at)
            VALUES (?, 'Email', 'Sent', 'Update for {singerName}: {eventTitle}',
-                   'Hello {singerName}, here are details for {eventTitle} ({eventType}) on {eventDate}. {{RSVP_LINKS}} {{PLAYER_LINK}}',
+                   'Hello {singerName}, here are details for {eventTitle} ({eventType}) on {eventDate}. {{RSVP_LINKS}} {{PLAYER_LINK}} {{POLL_LINK:${POLL_ID}}}',
                    ?, '{"total":1}', 'bootstrap', ?, ?, ?)`,
           messageId,
           JSON.stringify({ eventId: PERFORMANCE_ID, targetAudiences: ["Members"] }),
@@ -586,11 +586,15 @@ describe("member dashboard", () => {
     expect(bulletin.contentMarkdown).toContain("Spring Performance (Performance)");
     expect(bulletin.contentMarkdown).toContain("[Open RSVP](/schedule)");
     expect(bulletin.contentMarkdown).toContain("[Open practice player](/practice)");
+    expect(bulletin.contentMarkdown).toContain("[Respond to poll](/poll?token=");
     expect(bulletin.contentMarkdown).not.toContain("{singerName}");
     expect(bulletin.contentMarkdown).not.toContain("{eventTitle}");
     expect(bulletin.contentMarkdown).not.toContain("{{RSVP_LINKS}}");
     expect(bulletin.contentMarkdown).not.toContain("{{PLAYER_LINK}}");
+    expect(bulletin.contentMarkdown).not.toContain("{{POLL_LINK:");
     expect(bulletin.preview).toContain("Hello Dashboard Member");
+    expect(bulletin.preview).toContain("Respond to poll");
     expect(bulletin.preview).not.toContain("{singerName}");
+    expect(bulletin.preview).not.toContain("{{POLL_LINK:");
   });
 });

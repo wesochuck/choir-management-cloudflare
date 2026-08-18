@@ -211,10 +211,25 @@ export async function readOrganizationMemberDashboard(
     pollsResult,
   );
 
+  const pollTokenMap = new Map(polls.polls.map((poll) => [poll.id, poll.linkToken]));
+  const rawBulletins = bulletinsResult.status === "fulfilled" ? bulletinsResult.value : [];
+  const bulletins = rawBulletins.map((bulletin) => {
+    const contentMarkdown = bulletin.contentMarkdown.replace(
+      /\{\{POLL_LINK:([0-9a-f-]{36})\}\}/gi,
+      (_, pollId: string) => {
+        const token = pollTokenMap.get(pollId);
+        return token
+          ? `[Respond to poll](/poll?token=${encodeURIComponent(token)})`
+          : "[Respond to poll](/dashboard)";
+      },
+    );
+    return { ...bulletin, contentMarkdown };
+  });
+
   return memberDashboardResponseSchema.omit({ requestId: true }).parse({
     activeSeason: activeSeasonResult.status === "fulfilled" ? activeSeasonResult.value : null,
     activeSeasonState: widgetState(core.peopleEnabled, true, profileId, activeSeasonResult),
-    bulletins: bulletinsResult.status === "fulfilled" ? bulletinsResult.value : [],
+    bulletins,
     bulletinsState: widgetState(core.programsEnabled, true, profileId, bulletinsResult),
     events: core.events.map((event) => singerEventSchema.parse(event)),
     modules: core.modules,

@@ -33,6 +33,9 @@ export function listCommunicationMessagesFromStore(
 
 function bulletinPreview(value: string): string {
   return value
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\{\{POLL_LINK:[0-9a-f-]{36}\}\}/gi, "Respond to poll")
+    .replace(/\{\{[^}]+\}\}/g, "")
     .replace(/[`*_#>()!-]/g, " ")
     .replace(/[[]/g, " ")
     .replace(/]/g, " ")
@@ -59,14 +62,17 @@ export function listMemberBulletinsFromStore(
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
   const profileId = z.uuid().safeParse(input.profileId);
-  if (!profileId.success) return Response.json({ code: "profile_not_found" }, { status: 404 });
+  if (!profileId.success) {
+    return Response.json({ bulletins: [] });
+  }
+
   const rawBulletins = storage.sql
     .exec<MemberBulletinQueryResult>(
       `SELECT m.id, m.subject, m.content_markdown AS contentMarkdown,
-         m.audience_json AS audienceJson,
-         COALESCE(MAX(d.recipient_name), (SELECT display_name FROM profiles WHERE id = ?), '') AS recipientName,
-         COALESCE(m.sent_at, MAX(d.updated_at)) AS sentAt
+         m.audience_json AS audienceJson, m.sent_at AS sentAt,
+         COALESCE(NULLIF(d.recipient_name, ''), p.display_name, '') AS recipientName
        FROM communication_messages m
+       LEFT JOIN profiles p ON p.id = ?
        JOIN communication_deliveries d ON d.message_id = m.id
        WHERE m.status = 'Sent' AND d.profile_id = ? AND d.status = 'sent'
        GROUP BY m.id
@@ -112,7 +118,6 @@ export function listMemberBulletinsFromStore(
         /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi,
         eventId ? "[Open practice player](/practice)" : "Practice player unavailable",
       )
-      .replace(/\{\{POLL_LINK:([0-9a-f-]{36})\}\}/gi, "[Respond to poll](/dashboard)")
       .replace(/\{\{TICKET_LINK\}\}|\{ticketLink\}/gi, "[View ticket order](/tickets)")
       .replace(/\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi, "[Review audition details](/auditions)");
 

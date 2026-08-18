@@ -493,6 +493,7 @@ function DashboardDialogs({
           <>
             <p className="eyebrow">Bulletin</p>
             <div
+              className="communication-markdown-content"
               dangerouslySetInnerHTML={{
                 __html: renderCommunicationMarkdownPreview(selectedBulletin.contentMarkdown),
               }}
