@@ -3,14 +3,13 @@ import {
   communicationScheduledMessageSchema,
   communicationTemplateSchema,
 } from "@choir/contracts";
-import { summarizeCommunicationDeliveries } from "@choir/domain";
+import { renderCommunicationTemplate, summarizeCommunicationDeliveries } from "@choir/domain";
 import { z } from "zod";
 
 import {
   messageColumns,
   unsubscribeOperationSchema,
   type DeliveryRow,
-  type MemberBulletinRow,
   type MessageRow,
   type TemplateRow,
 } from "./contracts";
@@ -42,6 +41,16 @@ function bulletinPreview(value: string): string {
     .slice(0, 320);
 }
 
+interface MemberBulletinQueryResult {
+  readonly [column: string]: SqlStorageValue;
+  readonly audienceJson: string;
+  readonly contentMarkdown: string;
+  readonly id: string;
+  readonly recipientName: string;
+  readonly sentAt: string;
+  readonly subject: string;
+}
+
 export function listMemberBulletinsFromStore(
   storage: DurableObjectStorage,
   input: { readonly organizationId: string | null; readonly profileId: string | null },
@@ -51,9 +60,11 @@ export function listMemberBulletinsFromStore(
   }
   const profileId = z.uuid().safeParse(input.profileId);
   if (!profileId.success) return Response.json({ code: "profile_not_found" }, { status: 404 });
-  const bulletins = storage.sql
-    .exec<MemberBulletinRow>(
+  const rawBulletins = storage.sql
+    .exec<MemberBulletinQueryResult>(
       `SELECT m.id, m.subject, m.content_markdown AS contentMarkdown,
+         m.audience_json AS audienceJson,
+         COALESCE(MAX(d.recipient_name), (SELECT display_name FROM profiles WHERE id = ?), '') AS recipientName,
          COALESCE(m.sent_at, MAX(d.updated_at)) AS sentAt
        FROM communication_messages m
        JOIN communication_deliveries d ON d.message_id = m.id
@@ -61,9 +72,59 @@ export function listMemberBulletinsFromStore(
        GROUP BY m.id
        ORDER BY sentAt DESC, m.id DESC LIMIT 5`,
       profileId.data,
+      profileId.data,
     )
-    .toArray()
-    .map((bulletin) => ({ ...bulletin, preview: bulletinPreview(bulletin.contentMarkdown) }));
+    .toArray();
+
+  const bulletins = rawBulletins.map((raw) => {
+    let eventId: string | null = null;
+    try {
+      const parsedAudience: unknown = JSON.parse(raw.audienceJson);
+      if (
+        typeof parsedAudience === "object" &&
+        parsedAudience !== null &&
+        "eventId" in parsedAudience &&
+        typeof parsedAudience.eventId === "string" &&
+        parsedAudience.eventId.length > 0
+      ) {
+        eventId = parsedAudience.eventId;
+      }
+    } catch {
+      // Ignore malformed audienceJson
+    }
+    const context = eventCommunicationContext(storage, eventId);
+    const templatedContent = renderCommunicationTemplate(
+      raw.contentMarkdown,
+      raw.recipientName,
+      context ?? undefined,
+    );
+    const templatedSubject = renderCommunicationTemplate(
+      raw.subject,
+      raw.recipientName,
+      context ?? undefined,
+    );
+    const contentWithLinks = templatedContent
+      .replace(
+        /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi,
+        eventId ? "[Open RSVP](/schedule)" : "RSVP link unavailable",
+      )
+      .replace(
+        /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi,
+        eventId ? "[Open practice player](/practice)" : "Practice player unavailable",
+      )
+      .replace(/\{\{POLL_LINK:([0-9a-f-]{36})\}\}/gi, "[Respond to poll](/dashboard)")
+      .replace(/\{\{TICKET_LINK\}\}|\{ticketLink\}/gi, "[View ticket order](/tickets)")
+      .replace(/\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi, "[Review audition details](/auditions)");
+
+    return {
+      contentMarkdown: contentWithLinks,
+      id: raw.id,
+      preview: bulletinPreview(contentWithLinks),
+      sentAt: raw.sentAt,
+      subject: templatedSubject,
+    };
+  });
+
   return Response.json({ bulletins });
 }
 

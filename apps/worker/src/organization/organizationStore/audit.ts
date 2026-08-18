@@ -226,10 +226,19 @@ export async function validateCalendarFeed(
       },
     ];
   });
+  const setupRow = storage.sql
+    .exec<{ readonly organizationName: string }>(
+      "SELECT organization_name AS organizationName FROM setup_state LIMIT 1",
+    )
+    .toArray()
+    .at(0);
+  const configuredName = setupRow?.organizationName.trim();
+  const organizationName =
+    configuredName && configuredName.length > 0 ? configuredName : organization.name;
   return Response.json({
     calendarFeedVersion: profile.calendarFeedVersion,
     events,
-    organizationName: organization.name,
+    organizationName,
     profileId: parsed.data.profileId,
     profileName: profile.displayName,
     timezone:

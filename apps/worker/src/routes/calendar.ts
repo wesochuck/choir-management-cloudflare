@@ -34,7 +34,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-    context.header("content-disposition", `attachment; filename="${feed.filename}"`);
+    context.header("content-disposition", `inline; filename="${feed.filename}"`);
     context.header("content-type", "text/calendar; charset=utf-8");
     return context.body(feed.body);
   });

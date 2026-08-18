@@ -221,10 +221,12 @@ function RsvpEventBody({ details }: { readonly details: RsvpDetails }) {
 }
 
 export function PublicRsvpView() {
-  const token = new URLSearchParams(window.location.search).get("token");
-  const [pageStatus, setPageStatus] = useState<PageStatus>({
+  const [token] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("token"),
+  );
+  const [pageStatus, setPageStatus] = useState<PageStatus>(() => ({
     type: token ? "loading" : "no_token",
-  });
+  }));
 
   useEffect(() => {
     window.history.replaceState(null, "", "/rsvp");

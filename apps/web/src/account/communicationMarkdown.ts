@@ -10,6 +10,7 @@ function escapeHtml(value: string): string {
 }
 
 function isSafeHttpUrl(value: string): boolean {
+  if (value.startsWith("/") && !value.startsWith("//")) return true;
   try {
     const parsed = new URL(value);
     return parsed.protocol === "http:" || parsed.protocol === "https:";
@@ -30,7 +31,8 @@ function renderInline(value: string): string {
     (match, label: string, url: string) => {
       if (!isSafeHttpUrl(url)) return match;
       const index = links.length;
-      links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+      const target = url.startsWith("/") ? "" : ' target="_blank" rel="noopener noreferrer"';
+      links.push(`<a href="${url}"${target}>${label}</a>`);
       return `@@LINK_${String(index)}@@`;
     },
   );

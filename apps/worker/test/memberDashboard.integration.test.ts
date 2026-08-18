@@ -535,4 +535,62 @@ describe("member dashboard", () => {
       expect(response.status).toBe(404);
     }
   });
+
+  it("populates placeholders and link tags in member dashboard bulletins", async () => {
+    const messageId = "88888888-8888-4888-8888-888888888888";
+    const deliveryId = "77777777-7777-4777-8777-777777777777";
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const nowIso = new Date().toISOString();
+        state.storage.sql.exec(
+          `INSERT INTO communication_messages
+            (id, channel, status, subject, content_markdown, audience_json, reach_json,
+             created_by, created_at, updated_at, sent_at)
+           VALUES (?, 'Email', 'Sent', 'Update for {singerName}: {eventTitle}',
+                   'Hello {singerName}, here are details for {eventTitle} ({eventType}) on {eventDate}. {{RSVP_LINKS}} {{PLAYER_LINK}}',
+                   ?, '{"total":1}', 'bootstrap', ?, ?, ?)`,
+          messageId,
+          JSON.stringify({ eventId: PERFORMANCE_ID, targetAudiences: ["Members"] }),
+          nowIso,
+          nowIso,
+          nowIso,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO communication_deliveries
+            (id, message_id, profile_id, recipient_name, channel, destination, status,
+             created_at, updated_at)
+           VALUES (?, ?, ?, 'Dashboard Member', 'email', 'member@example.test', 'sent', ?, ?)`,
+          deliveryId,
+          messageId,
+          PROFILE_ID,
+          nowIso,
+          nowIso,
+        );
+        return null;
+      },
+    );
+    const cookie = await signIn();
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/dashboard", cookie),
+    );
+    expect(response.status).toBe(200);
+    const dashboard = memberDashboardResponseSchema.parse(await response.json());
+    expect(dashboard.bulletinsState).toBe("ready");
+    expect(dashboard.bulletins).toHaveLength(1);
+    const bulletin = dashboard.bulletins[0];
+    expect(bulletin).toBeDefined();
+    if (!bulletin) throw new Error("Expected bulletin");
+    expect(bulletin.subject).toBe("Update for Dashboard Member: Spring Performance");
+    expect(bulletin.contentMarkdown).toContain("Hello Dashboard Member");
+    expect(bulletin.contentMarkdown).toContain("Spring Performance (Performance)");
+    expect(bulletin.contentMarkdown).toContain("[Open RSVP](/schedule)");
+    expect(bulletin.contentMarkdown).toContain("[Open practice player](/practice)");
+    expect(bulletin.contentMarkdown).not.toContain("{singerName}");
+    expect(bulletin.contentMarkdown).not.toContain("{eventTitle}");
+    expect(bulletin.contentMarkdown).not.toContain("{{RSVP_LINKS}}");
+    expect(bulletin.contentMarkdown).not.toContain("{{PLAYER_LINK}}");
+    expect(bulletin.preview).toContain("Hello Dashboard Member");
+    expect(bulletin.preview).not.toContain("{singerName}");
+  });
 });

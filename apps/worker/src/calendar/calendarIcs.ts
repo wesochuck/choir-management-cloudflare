@@ -119,10 +119,14 @@ export function renderCalendarIcs(input: CalendarProjection): string {
     "VERSION:2.0",
     "PRODID:-//Choir Management Tool//EN",
     "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
     `NAME:${escapeIcsText(input.organizationName)}`,
     `X-WR-CALNAME:${escapeIcsText(input.organizationName)}`,
+    `DESCRIPTION:${escapeIcsText(`Personal schedule for ${input.profileName}`)}`,
     `X-WR-CALDESC:${escapeIcsText(`Personal schedule for ${input.profileName}`)}`,
     `X-WR-TIMEZONE:${input.timezone}`,
+    "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+    "X-PUBLISHED-TTL:PT1H",
   ];
   for (const event of input.events) {
     const start = new Date(event.startsAt);
