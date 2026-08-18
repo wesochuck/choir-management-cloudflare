@@ -222,4 +222,33 @@ describe("platform queue dead-letter API", () => {
       "/api/platform/job-dead-letters/jobs-dlq%3Amessage-1/dismiss",
     );
   });
+
+  it("updates singer event RSVP with notes", async () => {
+    const rsvpBody = {
+      eventId: "00000000-0000-4000-8000-000000000001",
+      profileId: "00000000-0000-4000-8000-000000000003",
+      rsvp: "No" as const,
+      rsvpNote: "Out of town",
+      updatedAt: "2026-08-18T14:00:00.000Z",
+    };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(rsvpBody), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { setMyEventRsvp } = await import("./api/singer");
+    await expect(
+      setMyEventRsvp("00000000-0000-4000-8000-000000000001", "No", "Out of town"),
+    ).resolves.toEqual(rsvpBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/singer/events/00000000-0000-4000-8000-000000000001/rsvp",
+      expect.objectContaining({
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "Out of town" }),
+        method: "PUT",
+      }),
+    );
+  });
 });
