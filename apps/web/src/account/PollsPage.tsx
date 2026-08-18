@@ -448,14 +448,12 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     setOptions(["Yes", "No"]);
     setOptionIds([crypto.randomUUID(), crypto.randomUUID()]);
     setMessage(null);
-    setDialogError(null);
     setDialogOpen(true);
   }
 
   async function openEditDialog(poll: Poll): Promise<void> {
     setLoadingPollId(poll.id);
     setMessage(null);
-    setDialogError(null);
     try {
       const response = await fetch(`/api/organization/polls/${encodeURIComponent(poll.id)}`, {
         credentials: "same-origin",
@@ -511,7 +509,6 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     event.preventDefault();
     setSaving(true);
     setMessage(null);
-    setDialogError(null);
     const request = organizationPollRequestSchema.safeParse({
       archivedAt,
       description,
@@ -528,7 +525,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     });
     if (!request.success) {
       setSaving(false);
-      setDialogError("Add a title, expiration date, and at least two poll options.");
+      setMessage("Add a title, expiration date, and at least two poll options.");
       return;
     }
     try {
@@ -596,7 +593,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       setMessage(editingPollId ? "Poll updated." : "Poll created.");
       setEditingPollId(null);
     } catch {
-      setDialogError(
+      setMessage(
         editingPollId
           ? "The poll could not be updated. Try again."
           : "The poll could not be created. Try again.",

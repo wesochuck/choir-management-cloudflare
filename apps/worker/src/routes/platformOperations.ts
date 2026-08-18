@@ -629,7 +629,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         503,
       );
     }
-    const mode: string = context.env.EXTERNAL_EFFECTS_MODE || "fake";
+    const mode: string = context.env.EXTERNAL_EFFECTS_MODE;
     if (mode === "fake") {
       return context.json({
         sent: true,
@@ -652,7 +652,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     const parsed = z.object({ to: z.string().min(1).max(20) }).safeParse(body);
     if (!parsed.success) return context.json({ error: "Invalid phone number" }, 400);
-    const mode: string = context.env.EXTERNAL_EFFECTS_MODE || "fake";
+    const mode: string = context.env.EXTERNAL_EFFECTS_MODE;
     if (mode === "fake") {
       return context.json({
         sent: true,
@@ -670,7 +670,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     return context.json({
       queue: "choir-management-jobs-local",
       deadLetterQueue: "choir-management-jobs-dlq-local",
-      mode: context.env.EXTERNAL_EFFECTS_MODE || "fake",
+      mode: context.env.EXTERNAL_EFFECTS_MODE,
       requestId: context.get("requestId"),
     });
   });

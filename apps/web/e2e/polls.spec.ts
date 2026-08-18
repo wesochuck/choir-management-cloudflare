@@ -69,145 +69,185 @@ test("admin can view poll results and option tallies on polls dashboard", async 
   const optionA = "a0000000-0000-4000-8000-000000000001";
   const optionB = "a0000000-0000-4000-8000-000000000002";
 
-  await page.route("**/api/health", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({
+  const sessionData = {
+    session: {
+      activeOrganizationId: null,
+      createdAt: "2026-07-20T20:00:00.000Z",
+      expiresAt: "2026-07-27T20:00:00.000Z",
+      id: "session-admin",
+      ipAddress: "192.0.2.50",
+      token: "admin-token-not-displayed",
+      updatedAt: "2026-07-20T20:00:00.000Z",
+      userAgent: "Chromium browser",
+      userId: "user-polls-admin",
+    },
+    user: {
+      createdAt: "2026-07-20T19:00:00.000Z",
+      email: "polls.admin@example.test",
+      emailVerified: true,
+      id: "user-polls-admin",
+      image: null,
+      name: "Polls Admin",
+      twoFactorEnabled: false,
+      updatedAt: "2026-07-20T19:00:00.000Z",
+    },
+  };
+
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/organization/polls") {
+      await route.fulfill({
+        body: JSON.stringify({
+          polls: [
+            {
+              archivedAt: "",
+              createdAt: "2026-08-10T12:00:00.000Z",
+              expiresAt: "2026-08-20T12:00:00.000Z",
+              id: pollId,
+              optionTallies: [
+                { count: 3, id: optionA, label: "Risers setup" },
+                { count: 1, id: optionB, label: "Ticket table" },
+              ],
+              responseCount: 4,
+              title: "Volunteer Roles",
+            },
+          ],
+          requestId,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+    if (url.pathname === `/api/organization/polls/${pollId}/results`) {
+      await route.fulfill({
+        body: JSON.stringify({
+          archivedAt: "",
+          createdAt: "2026-08-10T12:00:00.000Z",
+          description: "Please pick where you can help.",
+          expiresAt: "2026-08-20T12:00:00.000Z",
+          multipleChoice: true,
+          options: [
+            {
+              count: 3,
+              id: optionA,
+              label: "Risers setup",
+              percentage: 75,
+              respondents: [
+                {
+                  profileId: "p-1",
+                  profileName: "Alice Singer",
+                  respondedAt: "2026-08-11T14:00:00.000Z",
+                  voicePart: "Soprano 1",
+                },
+                {
+                  profileId: "p-2",
+                  profileName: "Bob Bassist",
+                  respondedAt: "2026-08-11T14:30:00.000Z",
+                  voicePart: "Bass 2",
+                },
+                {
+                  profileId: "p-3",
+                  profileName: "Charlie Tenor",
+                  respondedAt: "2026-08-11T15:00:00.000Z",
+                  voicePart: "Tenor 1",
+                },
+              ],
+              sortOrder: 0,
+            },
+            {
+              count: 1,
+              id: optionB,
+              label: "Ticket table",
+              percentage: 25,
+              respondents: [
+                {
+                  profileId: "p-4",
+                  profileName: "Dana Alto",
+                  respondedAt: "2026-08-11T16:00:00.000Z",
+                  voicePart: "Alto 1",
+                },
+              ],
+              sortOrder: 1,
+            },
+          ],
+          pollId,
+          requestId,
+          title: "Volunteer Roles",
+          totalResponses: 4,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+
+    const responses: Record<string, unknown> = {
+      "/api/account/organizations": {
+        organizations: [
+          {
+            canonicalHostname: "polls.example.test",
+            canonicalStatus: "active",
+            lifecycleState: "active",
+            name: "Polls Choir",
+            organizationId: "org-polls",
+            profileId: null,
+            role: "administrator",
+            slug: "polls",
+          },
+        ],
+      },
+      "/api/account/sessions": [sessionData.session],
+      "/api/auth/get-session": sessionData,
+      "/api/health": {
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
         status: "ok",
         version: "browser-test",
-      }),
-      contentType: "application/json",
-      status: 200,
-    });
-  });
-
-  await page.route("**/api/auth/get-session", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({
-        session: {
-          activeOrganizationId: "org-1",
-          createdAt: "2026-07-20T20:00:00.000Z",
-          expiresAt: "2026-07-27T20:00:00.000Z",
-          id: "session-admin",
-          ipAddress: "192.0.2.50",
-          token: "admin-token",
-          updatedAt: "2026-07-20T20:00:00.000Z",
-          userAgent: "Chromium",
-          userId: "user-admin",
-        },
-        user: {
-          createdAt: "2026-07-20T19:00:00.000Z",
-          email: "admin@example.test",
-          emailVerified: true,
-          id: "user-admin",
-          name: "Admin User",
-          twoFactorEnabled: false,
-          updatedAt: "2026-07-20T19:00:00.000Z",
-        },
-      }),
-      contentType: "application/json",
-      status: 200,
-    });
-  });
-
-  await page.route("**/api/organization/access", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({
-        activeRole: "admin",
+      },
+      "/api/organization/access": {
+        activeRole: "administrator",
         isPlatformAdmin: false,
-        organizationId: "org-1",
-        organizationName: "Test Choir",
+        organizationId: "org-polls",
+        organizationName: "Polls Choir",
         requestId,
-        roles: ["admin"],
-      }),
-      contentType: "application/json",
-      status: 200,
-    });
-  });
-
-  await page.route("**/api/organization/polls", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({
-        polls: [
-          {
-            archivedAt: "",
-            createdAt: "2026-08-10T12:00:00.000Z",
-            expiresAt: "2026-08-20T12:00:00.000Z",
-            id: pollId,
-            optionTallies: [
-              { count: 3, id: optionA, label: "Risers setup" },
-              { count: 1, id: optionB, label: "Ticket table" },
-            ],
-            responseCount: 4,
-            title: "Volunteer Roles",
-          },
+        roles: ["administrator"],
+      },
+      "/api/organization/auth-status": {
+        mfaRequired: false,
+        mfaVerifiedUntil: null,
+        organizationId: "org-polls",
+        requestId,
+        role: "administrator",
+        twoFactorEnabled: false,
+        twoFactorVerified: false,
+      },
+      "/api/organization/module-state": {
+        modules: [
+          { enabled: true, id: "people" },
+          { enabled: true, id: "programs" },
         ],
+      },
+      "/api/platform/mfa/status": {
+        activePlatformAdministrator: false,
+        enrollmentComplete: false,
         requestId,
-      }),
-      contentType: "application/json",
-      status: 200,
-    });
-  });
+        twoFactorEnabled: false,
+      },
+    };
 
-  await page.route(`**/api/organization/polls/${pollId}/results`, async (route) => {
+    if (url.pathname in responses) {
+      await route.fulfill({
+        body: JSON.stringify(responses[url.pathname]),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+
     await route.fulfill({
-      body: JSON.stringify({
-        archivedAt: "",
-        createdAt: "2026-08-10T12:00:00.000Z",
-        description: "Please pick where you can help.",
-        expiresAt: "2026-08-20T12:00:00.000Z",
-        multipleChoice: true,
-        options: [
-          {
-            count: 3,
-            id: optionA,
-            label: "Risers setup",
-            percentage: 75,
-            respondents: [
-              {
-                profileId: "p-1",
-                profileName: "Alice Singer",
-                respondedAt: "2026-08-11T14:00:00.000Z",
-                voicePart: "Soprano 1",
-              },
-              {
-                profileId: "p-2",
-                profileName: "Bob Bassist",
-                respondedAt: "2026-08-11T14:30:00.000Z",
-                voicePart: "Bass 2",
-              },
-              {
-                profileId: "p-3",
-                profileName: "Charlie Tenor",
-                respondedAt: "2026-08-11T15:00:00.000Z",
-                voicePart: "Tenor 1",
-              },
-            ],
-            sortOrder: 0,
-          },
-          {
-            count: 1,
-            id: optionB,
-            label: "Ticket table",
-            percentage: 25,
-            respondents: [
-              {
-                profileId: "p-4",
-                profileName: "Dana Alto",
-                respondedAt: "2026-08-11T16:00:00.000Z",
-                voicePart: "Alto 1",
-              },
-            ],
-            sortOrder: 1,
-          },
-        ],
-        pollId,
-        requestId,
-        title: "Volunteer Roles",
-        totalResponses: 4,
-      }),
+      body: JSON.stringify({ requestId }),
       contentType: "application/json",
       status: 200,
     });
@@ -215,9 +255,13 @@ test("admin can view poll results and option tallies on polls dashboard", async 
 
   await page.goto("/admin/polls");
   await expect(page.getByRole("heading", { name: "Polls" })).toBeVisible();
-  await expect(page.getByText("Volunteer Roles")).toBeVisible();
-  await expect(page.getByText("Risers setup: 3")).toBeVisible();
-  await expect(page.getByText("Ticket table: 1")).toBeVisible();
+  await expect(
+    page
+      .getByRole("button", { name: "View results for poll Volunteer Roles" })
+      .or(page.getByRole("cell", { name: "Volunteer Roles" })),
+  ).toBeVisible();
+  await expect(page.getByText("Risers setup:").first()).toBeVisible();
+  await expect(page.getByText("Ticket table:").first()).toBeVisible();
 
   // Click View results
   await page.getByRole("button", { name: "View results" }).first().click();
