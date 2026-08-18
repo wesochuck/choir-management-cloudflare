@@ -597,4 +597,131 @@ describe("member dashboard", () => {
     expect(bulletin.preview).not.toContain("{singerName}");
     expect(bulletin.preview).not.toContain("{{POLL_LINK:");
   });
+
+  it("handles linked rehearsal RSVP overrides, required decline notes, and performance-bound visibility", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const futurePerformance = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString();
+        const futureRehearsal = new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString();
+        state.storage.sql.exec(
+          `UPDATE events SET starts_at = ? WHERE id = ?`,
+          futurePerformance,
+          PERFORMANCE_ID,
+        );
+        state.storage.sql.exec(
+          `UPDATE events SET starts_at = ? WHERE id = ?`,
+          futureRehearsal,
+          REHEARSAL_ID,
+        );
+        return null;
+      },
+    );
+    const cookie = await signIn();
+
+    // 1. Initially, performance is Pending -> Rehearsal is visible and inherits Pending
+    const initialSchedule = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/events", cookie),
+    );
+    expect(initialSchedule.status).toBe(200);
+    const initialEvents = singerEventsResponseSchema.parse(await initialSchedule.json()).events;
+    expect(initialEvents.some((event) => event.id === REHEARSAL_ID)).toBe(true);
+
+    // 2. Declining a rehearsal without a note fails with 400 rsvp_decline_note_required
+    const emptyNoteDecline = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "   " }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(emptyNoteDecline.status).toBe(400);
+    expect(await emptyNoteDecline.json()).toMatchObject({
+      code: "rsvp_decline_note_required",
+    });
+
+    // 3. Declining a rehearsal with a note succeeds
+    const validDecline = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "Family conflict" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(validDecline.status).toBe(200);
+    expect(await validDecline.json()).toMatchObject({
+      rsvp: "No",
+      rsvpNote: "Family conflict",
+    });
+
+    // 4. Switching rehearsal back to Yes succeeds and clears the decline note
+    const attendRehearsal = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes", rsvpNote: "" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(attendRehearsal.status).toBe(200);
+    expect(await attendRehearsal.json()).toMatchObject({
+      rsvp: "Yes",
+      rsvpNote: "",
+    });
+
+    // Re-decline rehearsal with note for testing performance cascade
+    await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "Travel" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+
+    // 5. Declining the parent performance hides linked rehearsal from member schedule and dashboard
+    const declinePerformance = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${PERFORMANCE_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No", rsvpNote: "" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(declinePerformance.status).toBe(200);
+
+    const scheduleAfterPerfDecline = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/events", cookie),
+    );
+    const eventsAfterPerfDecline = singerEventsResponseSchema.parse(
+      await scheduleAfterPerfDecline.json(),
+    ).events;
+    expect(eventsAfterPerfDecline.some((event) => event.id === PERFORMANCE_ID)).toBe(true);
+    expect(eventsAfterPerfDecline.some((event) => event.id === REHEARSAL_ID)).toBe(false);
+
+    const dashboardAfterPerfDecline = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/dashboard", cookie),
+    );
+    const dashboardEvents = memberDashboardResponseSchema.parse(
+      await dashboardAfterPerfDecline.json(),
+    ).events;
+    expect(dashboardEvents.some((event) => event.id === PERFORMANCE_ID)).toBe(true);
+    expect(dashboardEvents.some((event) => event.id === REHEARSAL_ID)).toBe(false);
+
+    // 6. Attending the parent performance restores linked rehearsal visibility with its saved direct response
+    const attendPerformance = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${PERFORMANCE_ID}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes", rsvpNote: "" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(attendPerformance.status).toBe(200);
+
+    const restoredSchedule = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/events", cookie),
+    );
+    const restoredEvents = singerEventsResponseSchema.parse(await restoredSchedule.json()).events;
+    const restoredRehearsal = restoredEvents.find((event) => event.id === REHEARSAL_ID);
+    expect(restoredRehearsal).toBeDefined();
+    expect(restoredRehearsal?.directRsvp).toBe("No");
+    expect(restoredRehearsal?.rsvpNote).toBe("Travel");
+  });
 });

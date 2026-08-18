@@ -546,7 +546,15 @@ An approved Set List may have partial practice-track coverage; one published pla
 enough to make Practice available while missing tracks remain unavailable. A linked Rehearsal uses
 its own approved list when present and otherwise inherits the parent Performance's approved list.
 When that inherited list is used, the Rehearsal reuses the parent Performance's stable Practice
-Player Link; a Rehearsal with its own approved list has its own link.
+
+## Linked Rehearsal RSVP
+
+The participation state for a Rehearsal that is linked to a parent Performance. When a member is
+attending the parent Performance (either `Yes` or unanswered `Pending`), linked Rehearsals appear on
+the Member Dashboard and My Schedule, inheriting the parent Performance's RSVP by default. A member
+may override individual Rehearsals by marking themselves as declined (`No`), which strictly requires
+providing a note explaining the reason for absence. If a member explicitly declines the parent
+Performance (`No`), all linked Rehearsals are hidden from their member schedule and dashboard.
 
 ## Featured Number
 
