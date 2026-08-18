@@ -103,10 +103,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const url = new URL("https://organization.internal/internal/polls/results");
     url.searchParams.set("organizationId", authorization.organizationId);
     url.searchParams.set("pollId", pollId.data);
-    const stub = context.env.ORGANIZATION_STORE.get(
-      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    const response = await invokeOrganizationRpc(
+      organizationStoreStub(context.env, authorization.organizationId),
+      url,
     );
-    const response = await stub.fetch(url);
     if (!response.ok) {
       return context.json(
         {

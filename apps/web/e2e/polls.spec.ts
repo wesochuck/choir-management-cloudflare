@@ -135,19 +135,19 @@ test("admin can view poll results and option tallies on polls dashboard", async 
               percentage: 75,
               respondents: [
                 {
-                  profileId: "p-1",
+                  profileId: "c0000000-0000-4000-8000-000000000001",
                   profileName: "Alice Singer",
                   respondedAt: "2026-08-11T14:00:00.000Z",
                   voicePart: "Soprano 1",
                 },
                 {
-                  profileId: "p-2",
+                  profileId: "c0000000-0000-4000-8000-000000000002",
                   profileName: "Bob Bassist",
                   respondedAt: "2026-08-11T14:30:00.000Z",
                   voicePart: "Bass 2",
                 },
                 {
-                  profileId: "p-3",
+                  profileId: "c0000000-0000-4000-8000-000000000003",
                   profileName: "Charlie Tenor",
                   respondedAt: "2026-08-11T15:00:00.000Z",
                   voicePart: "Tenor 1",
@@ -162,7 +162,7 @@ test("admin can view poll results and option tallies on polls dashboard", async 
               percentage: 25,
               respondents: [
                 {
-                  profileId: "p-4",
+                  profileId: "c0000000-0000-4000-8000-000000000004",
                   profileName: "Dana Alto",
                   respondedAt: "2026-08-11T16:00:00.000Z",
                   voicePart: "Alto 1",
@@ -260,11 +260,15 @@ test("admin can view poll results and option tallies on polls dashboard", async 
       .getByRole("button", { name: "View results for poll Volunteer Roles" })
       .or(page.getByRole("cell", { name: "Volunteer Roles" })),
   ).toBeVisible();
-  await expect(page.getByText("Risers setup:").first()).toBeVisible();
-  await expect(page.getByText("Ticket table:").first()).toBeVisible();
+  await expect(page.getByText("Risers setup:").filter({ visible: true })).toBeVisible();
+  await expect(page.getByText("Ticket table:").filter({ visible: true })).toBeVisible();
 
   // Click View results
-  await page.getByRole("button", { name: "View results" }).first().click();
+  await page
+    .getByRole("button", { name: "View results" })
+    .filter({ visible: true })
+    .first()
+    .click();
   await expect(page.getByRole("heading", { name: "Results: Volunteer Roles" })).toBeVisible();
   await expect(page.getByText("Alice Singer")).toBeVisible();
   await expect(page.getByText("Soprano 1")).toBeVisible();

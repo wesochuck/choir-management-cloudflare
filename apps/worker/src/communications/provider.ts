@@ -98,15 +98,26 @@ function isSafeHttpUrl(value: string): boolean {
 }
 
 function renderMarkdownInline(value: string): string {
-  return escapeHtml(value)
+  const links: string[] = [];
+  const escaped = escapeHtml(value);
+  const withLinks = escaped.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (match, label: string, url: string) => {
+      if (!isSafeHttpUrl(url)) return match;
+      const index = links.length;
+      links.push(`<a href="${url}">${label}</a>`);
+      return `@@LINK_${String(index)}@@`;
+    },
+  );
+
+  const formatted = withLinks
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label: string, url: string) =>
-      isSafeHttpUrl(url) ? `<a href="${url}">${label}</a>` : match,
-    );
+    .replace(/_([^_]+)_/g, "<em>$1</em>");
+
+  return formatted.replace(/@@LINK_(\d+)@@/g, (_, index: string) => links[Number(index)] ?? "");
 }
 
 /** Render the deliberately small Markdown subset exposed by the message editor. */

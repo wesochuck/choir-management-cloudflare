@@ -102,11 +102,10 @@ interface DataTableProps<T> {
   readonly rows: readonly T[];
 }
 
-function isInteractiveTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    Boolean(target.closest("a,button,input,select,textarea,[role='button']"))
-  );
+function isInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const closest = target.closest("a,button,input,select,textarea,[role='button']");
+  return closest !== null && closest !== currentTarget;
 }
 
 function isActionColumn<T>(column: DataTableColumn<T>): boolean {
@@ -238,11 +237,13 @@ export function DataTable<T>({
                   className={rowClassName}
                   draggable={customRowProps?.draggable}
                   onClick={(event) => {
-                    if (!onRowClick || isInteractiveTarget(event.target)) return;
+                    if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
+                      return;
                     onRowClick(row);
                   }}
                   onKeyDown={(event) => {
-                    if (!onRowClick || isInteractiveTarget(event.target)) return;
+                    if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
+                      return;
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();
                     onRowClick(row);
@@ -295,11 +296,11 @@ export function DataTable<T>({
                 className={cardClassName}
                 draggable={customRowProps?.draggable}
                 onClick={(event) => {
-                  if (!onRowClick || isInteractiveTarget(event.target)) return;
+                  if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget)) return;
                   onRowClick(row);
                 }}
                 onKeyDown={(event) => {
-                  if (!onRowClick || isInteractiveTarget(event.target)) return;
+                  if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget)) return;
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
                   onRowClick(row);
