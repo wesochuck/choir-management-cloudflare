@@ -16,6 +16,7 @@ import {
   organizationAuditionResponseSchema,
   organizationAuditionSettingsSchema,
   organizationAuditionSettingsResponseSchema,
+  organizationPollSummariesResponseSchema,
   publicAuditionSettingsSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
@@ -774,7 +775,7 @@ describe("Organization calendar management", () => {
     const now = new Date("2030-01-01T00:00:00.000Z");
     const createdAt = new Date("2029-12-01T00:00:00.000Z").toISOString();
     const stub = stores.get(stores.idFromName("organization-alpha"));
-    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
       for (let offset = 0; offset < 5_000; offset += 25) {
         const rows = Array.from({ length: 25 }, (_, index) => {
           const sequence = String(offset + index);
@@ -806,6 +807,7 @@ describe("Organization calendar management", () => {
           ...rows.flat(),
         );
       }
+      return null;
     });
 
     const startedAt = performance.now();
@@ -953,7 +955,7 @@ describe("Organization calendar management", () => {
 
     const donationId = crypto.randomUUID();
     const now = new Date().toISOString();
-    await runInDurableObject<OrganizationStore, undefined>(
+    await runInDurableObject<OrganizationStore, null>(
       stores.get(stores.idFromName("organization-alpha")),
       (_instance, state) => {
         state.storage.sql.exec(
@@ -981,6 +983,7 @@ describe("Organization calendar management", () => {
           `payment-attempt:${donationId}`,
           donationId,
         );
+        return null;
       },
     );
     const refundedDonation = await exports.default.fetch(
@@ -1128,6 +1131,82 @@ describe("Organization calendar management", () => {
     expect(await archived.json()).toMatchObject({
       polls: [expect.objectContaining({ id: pollId, title: "Initial question" })],
     });
+
+    // Record response on createdPollId
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO poll_responses (poll_id, profile_id, option_ids, profile_name, responded_at)
+         VALUES (?, ?, ?, 'Poll Recipient', ?)`,
+        createdPollId,
+        profileId,
+        JSON.stringify([createdOptionIds[0]]),
+        now,
+      );
+      return null;
+    });
+
+    // Verify option tallies on list endpoint
+    const listWithTallies = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/polls", cookie),
+    );
+    expect(listWithTallies.status).toBe(200);
+    const listData = organizationPollSummariesResponseSchema.parse(await listWithTallies.json());
+    const createdPollSummary = listData.polls.find((p) => p.id === createdPollId);
+    expect(createdPollSummary).toBeDefined();
+    expect(createdPollSummary?.optionTallies).toEqual([
+      expect.objectContaining({ count: 1, id: createdOptionIds[0] }),
+      expect.objectContaining({ count: 0, id: createdOptionIds[1] }),
+    ]);
+
+    // Verify results endpoint
+    const resultsResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/polls/${createdPollId}/results`, cookie),
+    );
+    expect(resultsResponse.status).toBe(200);
+    const resultsJson = await resultsResponse.json();
+    expect(resultsJson).toMatchObject({
+      pollId: createdPollId,
+      title: "Updated question",
+      totalResponses: 1,
+      options: [
+        expect.objectContaining({
+          count: 1,
+          id: createdOptionIds[0],
+          percentage: 100,
+          respondents: [
+            expect.objectContaining({
+              profileId,
+              profileName: "Poll Recipient",
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          count: 0,
+          id: createdOptionIds[1],
+          percentage: 0,
+          respondents: [],
+        }),
+      ],
+    });
+
+    // Verify updating options is rejected now that responses exist
+    const invalidOptionUpdate = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/polls/${createdPollId}`, cookie, {
+        body: JSON.stringify({
+          description: "Trying to remove options",
+          expiresAt,
+          multipleChoice: true,
+          options: [
+            { id: createdOptionIds[0], label: "Only one option", sortOrder: 0 },
+            { id: crypto.randomUUID(), label: "New brand option", sortOrder: 1 },
+          ],
+          title: "Updated question",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(invalidOptionUpdate.status).toBe(400);
   });
 
   it("creates isolated venue/event/RSVP data that populates the signed calendar feed", async () => {

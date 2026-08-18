@@ -28,6 +28,7 @@ import {
   listPollsFromStore,
   listArchivedPollsFromStore,
   readPollFromStore,
+  readPollResultsFromStore,
   readProfilePollFromStore,
 } from "../pollStore";
 import { listMusicPiecesFromStore, readMusicLibrarySettingsFromStore } from "../musicStore";
@@ -165,6 +166,11 @@ export const contentGetHandlers: Record<
     url: URL,
     organizationId: string | null,
   ) => readPollFromStore(storage, organizationId, url.searchParams.get("pollId")),
+  "/internal/polls/results": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) => readPollResultsFromStore(storage, organizationId, url.searchParams.get("pollId")),
   "/internal/polls/profile-poll": (
     storage: DurableObjectStorage,
     url: URL,

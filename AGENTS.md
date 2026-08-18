@@ -58,6 +58,8 @@ provider instructions against current authoritative documentation before changin
 - All external work must be bounded, retryable, idempotent, and attributable to exactly one
   Organization.
 - Keep provider calls outside Durable Object transactions.
+- Implement new Durable Object features and operational methods using Cloudflare Workers RPC
+  (`stub.methodName(...)`) instead of internal HTTP `fetch()` routing.
 - Every schema change is forward-only. Never rewrite an applied migration. Use expand/contract
   changes compatible with rollback.
 - Preserve raw provider errors for typed internal formatters while redacting secrets from logs and

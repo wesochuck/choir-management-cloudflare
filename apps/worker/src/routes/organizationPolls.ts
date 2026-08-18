@@ -81,6 +81,46 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     return context.json({ ...poll, requestId: context.get("requestId") });
   });
 
+  router.get("/api/organization/polls/:pollId/results", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const pollId = z.uuid().safeParse(context.req.param("pollId"));
+    if (!pollId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid poll ID is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    const url = new URL("https://organization.internal/internal/polls/results");
+    url.searchParams.set("organizationId", authorization.organizationId);
+    url.searchParams.set("pollId", pollId.data);
+    const stub = context.env.ORGANIZATION_STORE.get(
+      context.env.ORGANIZATION_STORE.idFromName(authorization.organizationId),
+    );
+    const response = await stub.fetch(url);
+    if (!response.ok) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "Poll results not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const results: object = await response.json();
+    return context.json({ ...results, requestId: context.get("requestId") });
+  });
+
   router.post("/api/organization/polls", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
     if (!authorization.ok) {

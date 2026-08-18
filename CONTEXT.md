@@ -432,10 +432,13 @@ specific tasks.
 
 ## Polls Dashboard
 
-A central management interface for reviewing affirmative responses to Engagement Polls. The
-dashboard provides an overview of volunteer counts and detailed lists of specific singer names to
-help administrators assess organizational capability. Event-linked polls are grouped by
-performance/rehearsal and automatically archive when the event passes.
+A central administrative interface for reviewing responses to Engagement Polls. The dashboard
+provides an overview of total response counts and option distributions directly on the main view,
+along with a detailed Results view displaying option tallies, percentage distributions, and
+identified respondent rosters (including singer display names, voice parts, and submission
+timestamps) with CSV/list export capability. To protect audit integrity, poll option structures are
+locked once responses have been recorded. Event-linked polls are grouped by performance/rehearsal
+and automatically archive when the event passes.
 
 ## RSVP Status
 

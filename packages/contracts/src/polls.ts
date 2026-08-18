@@ -71,11 +71,20 @@ export const organizationPollSchema = organizationPollRequestSchema.extend({
 
 export type OrganizationPoll = z.infer<typeof organizationPollSchema>;
 
+export const organizationPollOptionTallySchema = z.object({
+  count: z.number().int().nonnegative(),
+  id: z.uuid(),
+  label: z.string(),
+});
+
+export type OrganizationPollOptionTally = z.infer<typeof organizationPollOptionTallySchema>;
+
 export const organizationPollSummarySchema = z.object({
   archivedAt: z.string(),
   createdAt: z.iso.datetime(),
   expiresAt: z.iso.datetime(),
   id: z.uuid(),
+  optionTallies: z.array(organizationPollOptionTallySchema).default([]),
   responseCount: z.number().int().nonnegative(),
   title: z.string(),
 });
@@ -89,6 +98,41 @@ export type OrganizationPollSummary = z.infer<typeof organizationPollSummarySche
 export type OrganizationPollSummariesResponse = z.infer<
   typeof organizationPollSummariesResponseSchema
 >;
+
+export const organizationPollRespondentSchema = z.object({
+  profileId: z.uuid(),
+  profileName: z.string(),
+  respondedAt: z.iso.datetime(),
+  voicePart: z.string(),
+});
+
+export type OrganizationPollRespondent = z.infer<typeof organizationPollRespondentSchema>;
+
+export const organizationPollResultOptionSchema = z.object({
+  count: z.number().int().nonnegative(),
+  id: z.uuid(),
+  label: z.string(),
+  percentage: z.number().min(0).max(100),
+  respondents: z.array(organizationPollRespondentSchema),
+  sortOrder: z.number().int().nonnegative(),
+});
+
+export type OrganizationPollResultOption = z.infer<typeof organizationPollResultOptionSchema>;
+
+export const organizationPollResultsResponseSchema = z.object({
+  archivedAt: z.string(),
+  createdAt: z.iso.datetime(),
+  description: z.string(),
+  expiresAt: z.iso.datetime(),
+  multipleChoice: z.boolean(),
+  options: z.array(organizationPollResultOptionSchema),
+  pollId: z.uuid(),
+  requestId: requestIdSchema,
+  title: z.string(),
+  totalResponses: z.number().int().nonnegative(),
+});
+
+export type OrganizationPollResultsResponse = z.infer<typeof organizationPollResultsResponseSchema>;
 
 export const organizationPollResponseSchema = z.object({
   optionIds: z.array(z.uuid()).min(1).max(100),

@@ -75,6 +75,87 @@ interface PollRow {
   readonly updatedAt: string;
 }
 
+interface PollSummaryRow extends PollRow {
+  readonly responseCount: number;
+}
+
+interface PollOptionRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly id: string;
+  readonly label: string;
+  readonly pollId: string;
+  readonly sortOrder: number;
+}
+
+interface PollResponseOptionRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly optionIds: string;
+  readonly pollId: string;
+}
+
+function attachOptionTallies(storage: DurableObjectStorage, polls: readonly PollSummaryRow[]) {
+  if (polls.length === 0) return [];
+  const pollIds = polls.map((p) => p.id);
+  const placeholders = pollIds.map(() => "?").join(", ");
+  const options = storage.sql
+    .exec<PollOptionRow>(
+      `SELECT id, poll_id AS pollId, label, sort_order AS sortOrder
+       FROM poll_options
+       WHERE poll_id IN (${placeholders})
+       ORDER BY sort_order, id`,
+      ...pollIds,
+    )
+    .toArray();
+
+  const responses = storage.sql
+    .exec<PollResponseOptionRow>(
+      `SELECT poll_id AS pollId, option_ids AS optionIds
+       FROM poll_responses
+       WHERE poll_id IN (${placeholders})`,
+      ...pollIds,
+    )
+    .toArray();
+
+  const optionsByPoll = new Map<string, PollOptionRow[]>();
+  for (const opt of options) {
+    const list = optionsByPoll.get(opt.pollId) ?? [];
+    list.push(opt);
+    optionsByPoll.set(opt.pollId, list);
+  }
+
+  const countsByPollOption = new Map<string, Map<string, number>>();
+  for (const resp of responses) {
+    let pollMap = countsByPollOption.get(resp.pollId);
+    if (!pollMap) {
+      pollMap = new Map<string, number>();
+      countsByPollOption.set(resp.pollId, pollMap);
+    }
+    const ids = safeParseStringArray(JSON.parse(resp.optionIds));
+    for (const id of ids) {
+      pollMap.set(id, (pollMap.get(id) ?? 0) + 1);
+    }
+  }
+
+  return polls.map((p) => {
+    const pollOptions = optionsByPoll.get(p.id) ?? [];
+    const pollCounts = countsByPollOption.get(p.id);
+    const optionTallies = pollOptions.map((opt) => ({
+      count: pollCounts?.get(opt.id) ?? 0,
+      id: opt.id,
+      label: opt.label,
+    }));
+    return {
+      archivedAt: p.archivedAt,
+      createdAt: p.createdAt,
+      expiresAt: p.expiresAt,
+      id: p.id,
+      optionTallies,
+      responseCount: p.responseCount,
+      title: p.title,
+    };
+  });
+}
+
 export function listPollsFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -83,7 +164,7 @@ export function listPollsFromStore(
     return Response.json({ error: "not_found" }, { status: 404 });
   }
   const rows = storage.sql
-    .exec<PollRow & { responseCount: number }>(
+    .exec<PollSummaryRow>(
       `SELECT p.id, p.title, p.expires_at AS expiresAt, p.archived_at AS archivedAt,
               p.created_at AS createdAt,
               (SELECT COUNT(*) FROM poll_responses r WHERE r.poll_id = p.id) AS responseCount
@@ -92,7 +173,7 @@ export function listPollsFromStore(
        ORDER BY p.created_at DESC`,
     )
     .toArray();
-  return Response.json(rows);
+  return Response.json(attachOptionTallies(storage, rows));
 }
 
 export function listArchivedPollsFromStore(
@@ -103,7 +184,7 @@ export function listArchivedPollsFromStore(
     return Response.json({ error: "not_found" }, { status: 404 });
   }
   const rows = storage.sql
-    .exec<PollRow & { responseCount: number }>(
+    .exec<PollSummaryRow>(
       `SELECT p.id, p.title, p.expires_at AS expiresAt, p.archived_at AS archivedAt,
               p.created_at AS createdAt,
               (SELECT COUNT(*) FROM poll_responses r WHERE r.poll_id = p.id) AS responseCount
@@ -111,7 +192,7 @@ export function listArchivedPollsFromStore(
        ORDER BY p.created_at DESC`,
     )
     .toArray();
-  return Response.json(rows);
+  return Response.json(attachOptionTallies(storage, rows));
 }
 
 export function readPollFromStore(
@@ -146,6 +227,108 @@ export function readPollFromStore(
     ...pollRow,
     multipleChoice: pollRow.multipleChoice === 1,
     options,
+  });
+}
+
+export function readPollResultsFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+  pollId: string | null,
+): Response {
+  if (!identityMatches(storage, organizationId) || !z.uuid().safeParse(pollId).success) {
+    return Response.json({ code: "poll_not_found" }, { status: 404 });
+  }
+  const pollRow = storage.sql
+    .exec<PollRow>(
+      `SELECT id, title, description, multiple_choice AS multipleChoice,
+              expires_at AS expiresAt, archived_at AS archivedAt,
+              created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt
+       FROM polls WHERE id = ? LIMIT 1`,
+      pollId,
+    )
+    .toArray()
+    .at(0);
+  if (!pollRow) {
+    return Response.json({ code: "poll_not_found" }, { status: 404 });
+  }
+  const options = storage.sql
+    .exec<OrganizationPollOption>(
+      `SELECT id, label, sort_order AS sortOrder
+       FROM poll_options WHERE poll_id = ? ORDER BY sort_order, id`,
+      pollId,
+    )
+    .toArray();
+
+  const responses = storage.sql
+    .exec<{
+      optionIds: string;
+      profileId: string;
+      profileName: string;
+      respondedAt: string;
+      voicePart: string | null;
+    }>(
+      `SELECT r.profile_id AS profileId,
+              COALESCE(p.display_name, r.profile_name) AS profileName,
+              COALESCE(p.voice_part, '') AS voicePart,
+              r.option_ids AS optionIds,
+              r.responded_at AS respondedAt
+       FROM poll_responses r
+       LEFT JOIN profiles p ON p.id = r.profile_id
+       WHERE r.poll_id = ?
+       ORDER BY r.responded_at DESC`,
+      pollId,
+    )
+    .toArray();
+
+  const totalResponses = responses.length;
+
+  const optionRespondentsMap = new Map<
+    string,
+    { profileId: string; profileName: string; respondedAt: string; voicePart: string }[]
+  >();
+  for (const opt of options) {
+    optionRespondentsMap.set(opt.id, []);
+  }
+
+  for (const resp of responses) {
+    const selectedIds = safeParseStringArray(JSON.parse(resp.optionIds));
+    for (const optId of selectedIds) {
+      const list = optionRespondentsMap.get(optId);
+      if (list) {
+        list.push({
+          profileId: resp.profileId,
+          profileName: resp.profileName,
+          respondedAt: resp.respondedAt,
+          voicePart: resp.voicePart ?? "",
+        });
+      }
+    }
+  }
+
+  const resultOptions = options.map((opt) => {
+    const respondents = optionRespondentsMap.get(opt.id) ?? [];
+    const count = respondents.length;
+    const percentage = totalResponses > 0 ? Math.round((count / totalResponses) * 1000) / 10 : 0;
+    return {
+      count,
+      id: opt.id,
+      label: opt.label,
+      percentage,
+      respondents,
+      sortOrder: opt.sortOrder,
+    };
+  });
+
+  return Response.json({
+    archivedAt: pollRow.archivedAt,
+    createdAt: pollRow.createdAt,
+    description: pollRow.description,
+    expiresAt: pollRow.expiresAt,
+    multipleChoice: pollRow.multipleChoice === 1,
+    options: resultOptions,
+    pollId: pollRow.id,
+    title: pollRow.title,
+    totalResponses,
   });
 }
 
@@ -284,6 +467,29 @@ export async function managePollInStore(
     }
     case "update_poll": {
       const { id, ...poll } = parsed.data.poll;
+      const responseCountRow = storage.sql
+        .exec<{ count: number }>(
+          `SELECT COUNT(*) AS count FROM poll_responses WHERE poll_id = ?`,
+          id,
+        )
+        .toArray()
+        .at(0);
+      const responseCount = responseCountRow?.count ?? 0;
+      if (responseCount > 0) {
+        const existingOptions = storage.sql
+          .exec<{ id: string }>(
+            `SELECT id FROM poll_options WHERE poll_id = ? ORDER BY sort_order, id`,
+            id,
+          )
+          .toArray();
+        const existingIds = new Set(existingOptions.map((o) => o.id));
+        const isSameStructure =
+          existingOptions.length === poll.options.length &&
+          poll.options.every((opt) => existingIds.has(opt.id));
+        if (!isSameStructure) {
+          return Response.json({ code: "poll_options_locked" }, { status: 400 });
+        }
+      }
       const updatedAt = nowIso();
       storage.sql.exec(
         `UPDATE polls SET title = ?, description = ?, multiple_choice = ?,

@@ -25,6 +25,9 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 - Do not remove `organization_memberships` without a rollback-safe forward migration.
 - Use versioned D1 and Organization-store migrations with explicit schema registries.
 - Keep Durable Object transactions short. Provider calls never occur inside them.
+- New features and operations on Durable Objects (e.g. `OrganizationStore`) must use strongly-typed
+  Cloudflare Workers RPC methods on the class (`stub.methodName(...)`) rather than internal HTTP
+  `fetch()` dispatch.
 - Organization alarms transactionally create stable jobs and advance the next alarm.
 - Public traffic reads versioned Published Projections from R2 or edge cache; bursts must not
   serialize through the Organization object.
