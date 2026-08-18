@@ -356,7 +356,7 @@ describe("public poll signed flow", () => {
     expect(response.status).toBe(404);
   });
 
-  it("prevents duplicate submission", async () => {
+  it("allows updating vote before expiry and reports previous response options", async () => {
     const token = await issuePollToken("organization-alpha", ALPHA_POLL, ALPHA_PROFILE);
     const first = await exports.default.fetch(
       api("alpha.localhost", "/api/public/poll-vote", {
@@ -367,15 +367,44 @@ describe("public poll signed flow", () => {
     );
     expect(first.status).toBe(200);
 
-    const second = await exports.default.fetch(
+    const detailsResponse = await exports.default.fetch(
       api("alpha.localhost", "/api/public/poll-details", {
         body: JSON.stringify({ token }),
         headers: { "content-type": "application/json" },
         method: "POST",
       }),
     );
-    expect(second.status).toBe(200);
-    const body: unknown = await second.json();
-    expect(body).toMatchObject({ canSubmit: false });
+    expect(detailsResponse.status).toBe(200);
+    const details: unknown = await detailsResponse.json();
+    expect(details).toMatchObject({
+      canSubmit: true,
+      responseOptionIds: [ALPHA_OPTION_A],
+    });
+
+    const updateResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/poll-vote", {
+        body: JSON.stringify({ optionIds: [ALPHA_OPTION_B], token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(updateResponse.status).toBe(200);
+
+    const updatedRow = await runInDurableObject<OrganizationStore, string[] | null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const result = state.storage.sql
+          .exec<{ optionIds: string }>(
+            `SELECT option_ids AS optionIds FROM poll_responses
+             WHERE poll_id = ? AND profile_id = ?`,
+            ALPHA_POLL,
+            ALPHA_PROFILE,
+          )
+          .toArray()
+          .at(0);
+        return result ? safeParseStringArray(JSON.parse(result.optionIds)) : null;
+      },
+    );
+    expect(updatedRow).toEqual([ALPHA_OPTION_B]);
   });
 });

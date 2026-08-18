@@ -86,6 +86,60 @@ function submitRsvp(
   });
 }
 
+function RsvpClosedNotice({ details }: { readonly details: RsvpDetails }) {
+  return (
+    <div className="notice notice--warning" role="status">
+      <p>
+        RSVP responses are closed for this event.
+        {details.rsvp !== "Pending" && (
+          <>
+            {" "}
+            Your recorded response is{" "}
+            <strong>{details.rsvp === "Yes" ? "Attending" : "Not attending"}</strong>
+            {details.rsvpNote ? ` ("${details.rsvpNote}")` : ""}.
+          </>
+        )}{" "}
+        Contact an Organization manager if you need to update your response.
+      </p>
+    </div>
+  );
+}
+
+function RsvpDeclineNoteField({
+  noteRequired,
+  rsvpNote,
+  onChange,
+}: {
+  readonly noteRequired: boolean;
+  readonly rsvpNote: string;
+  readonly onChange: (note: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label htmlFor="public-rsvp-note">
+        Decline note{noteRequired ? " (required for rehearsals)" : " (optional)"}
+      </label>
+      <textarea
+        aria-required={noteRequired}
+        className="w-full rounded border p-3 text-sm"
+        id="public-rsvp-note"
+        maxLength={2000}
+        onChange={(e) => {
+          onChange(e.target.value);
+        }}
+        placeholder={
+          noteRequired
+            ? "Tell the Organization why you cannot attend..."
+            : "Let us know why (optional)..."
+        }
+        required={noteRequired}
+        rows={3}
+        value={rsvpNote}
+      />
+    </div>
+  );
+}
+
 function RsvpForm({
   details,
   busy,
@@ -101,20 +155,18 @@ function RsvpForm({
   const noteRequired = details.event.type === "Rehearsal" && rsvp === "No";
 
   if (!details.canSubmit) {
-    return (
-      <p className="notice notice--warning" role="status">
-        RSVP responses are closed for this event. Contact an Organization manager if you need to
-        update your response.
-      </p>
-    );
+    return <RsvpClosedNotice details={details} />;
   }
+
+  const isAttending = rsvp === "Yes";
+  const isDeclining = rsvp === "No";
 
   return (
     <div className="mt-4 space-y-3">
       <div className="flex gap-2">
         <button
           className={`flex-1 rounded border px-4 py-3 text-center font-medium transition-colors ${
-            rsvp === "Yes" ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+            isAttending ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
           }`}
           onClick={() => {
             setRsvp("Yes");
@@ -125,7 +177,7 @@ function RsvpForm({
         </button>
         <button
           className={`flex-1 rounded border px-4 py-3 text-center font-medium transition-colors ${
-            rsvp === "No"
+            isDeclining
               ? "border-destructive bg-destructive text-destructive-foreground"
               : "hover:bg-muted"
           }`}
@@ -138,29 +190,12 @@ function RsvpForm({
         </button>
       </div>
 
-      {rsvp === "No" && (
-        <div className="space-y-1">
-          <label htmlFor="public-rsvp-note">
-            Decline note{noteRequired ? " (required for rehearsals)" : " (optional)"}
-          </label>
-          <textarea
-            aria-required={noteRequired}
-            className="w-full rounded border p-3 text-sm"
-            id="public-rsvp-note"
-            maxLength={2000}
-            onChange={(e) => {
-              setRsvpNote(e.target.value);
-            }}
-            placeholder={
-              noteRequired
-                ? "Tell the Organization why you cannot attend..."
-                : "Let us know why (optional)..."
-            }
-            required={noteRequired}
-            rows={3}
-            value={rsvpNote}
-          />
-        </div>
+      {isDeclining && (
+        <RsvpDeclineNoteField
+          noteRequired={noteRequired}
+          onChange={setRsvpNote}
+          rsvpNote={rsvpNote}
+        />
       )}
 
       <button
@@ -171,7 +206,7 @@ function RsvpForm({
         }}
         type="button"
       >
-        {busy ? "Submitting..." : "Submit RSVP"}
+        {busy ? "Submitting..." : details.rsvp !== "Pending" ? "Update RSVP" : "Submit RSVP"}
       </button>
     </div>
   );
@@ -211,10 +246,13 @@ function RsvpEventBody({ details }: { readonly details: RsvpDetails }) {
       </p>
 
       {details.rsvp !== "Pending" && (
-        <p className="text-sm text-muted-foreground">
-          Your current response:{" "}
-          <strong>{details.rsvp === "Yes" ? "Attending" : "Not attending"}</strong>
-        </p>
+        <div className="notice notice--info my-2">
+          <p>
+            Your current response:{" "}
+            <strong>{details.rsvp === "Yes" ? "Attending" : "Not attending"}</strong>
+            {details.rsvpNote ? ` — "${details.rsvpNote}"` : ""}
+          </p>
+        </div>
       )}
     </>
   );
@@ -248,7 +286,8 @@ export function PublicRsvpView() {
     setPageStatus({ type: "submitting", details });
     submitRsvp(token, rsvpValue, rsvpNote)
       .then(() => {
-        setPageStatus({ type: "submitted", details });
+        const updatedDetails: RsvpDetails = { ...details, rsvp: rsvpValue, rsvpNote };
+        setPageStatus({ type: "submitted", details: updatedDetails });
       })
       .catch(() => {
         setPageStatus({ type: "submit_error", details });
@@ -304,11 +343,25 @@ export function PublicRsvpView() {
           <p className="eyebrow">RSVP</p>
           <h1 id="rsvp-title">RSVP Submitted</h1>
           <p className="notice notice--success" role="status">
-            Thank you, {pageStatus.details.profileName}. Your response has been recorded.
+            Thank you, {pageStatus.details.profileName}. Your response has been recorded as{" "}
+            <strong>{pageStatus.details.rsvp === "Yes" ? "Attending" : "Not attending"}</strong>.
           </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
+          <div className="flex flex-col gap-2 mt-4">
+            {pageStatus.details.canSubmit && (
+              <button
+                className="button button--primary"
+                onClick={() => {
+                  setPageStatus({ type: "ready", details: pageStatus.details });
+                }}
+                type="button"
+              >
+                Change response
+              </button>
+            )}
+            <a className="button button--secondary" href="/">
+              Return to the Organization site
+            </a>
+          </div>
         </section>
       </main>
     );

@@ -7,8 +7,6 @@ type PageStatus =
   | { type: "loading" }
   | { type: "no_token" }
   | { type: "not_found" }
-  | { type: "poll_closed" }
-  | { type: "already_voted" }
   | { type: "ready"; details: PollDetails }
   | { type: "submitting"; details: PollDetails }
   | { type: "submit_error"; details: PollDetails }
@@ -49,10 +47,6 @@ function formatExpiry(iso: string): string {
   });
 }
 
-function isExpired(iso: string): boolean {
-  return Boolean(iso) && !Number.isNaN(Date.parse(iso)) && Date.parse(iso) <= Date.now();
-}
-
 function PollForm({
   details,
   busy,
@@ -65,6 +59,7 @@ function PollForm({
   const [selected, setSelected] = useState<string[]>(details.responseOptionIds);
 
   function toggleOption(optionId: string) {
+    if (!details.canSubmit) return;
     if (details.multipleChoice) {
       setSelected((prev) =>
         prev.includes(optionId) ? prev.filter((id) => id !== optionId) : [...prev, optionId],
@@ -74,8 +69,44 @@ function PollForm({
     }
   }
 
+  const hasExistingVote = details.responseOptionIds.length > 0;
+
+  if (!details.canSubmit) {
+    return (
+      <div className="mt-4 space-y-3">
+        <p className="notice notice--warning" role="status">
+          This poll is no longer accepting responses.
+        </p>
+        {hasExistingVote && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Your recorded vote:</p>
+            {details.options
+              .filter((opt) => details.responseOptionIds.includes(opt.id))
+              .map((option) => (
+                <div
+                  className="w-full rounded border border-primary bg-primary/10 p-3 text-left font-medium"
+                  key={option.id}
+                >
+                  ✓ {option.label}
+                </div>
+              ))}
+          </div>
+        )}
+        <a className="button button--secondary w-full" href="/">
+          Return to the Organization site
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4 space-y-3">
+      {hasExistingVote && (
+        <p className="notice notice--info" role="status">
+          Your vote is currently recorded. You can change your response until{" "}
+          {details.expiresAt ? formatExpiry(details.expiresAt) : "the poll closes"}.
+        </p>
+      )}
       {details.options
         .slice()
         .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -129,7 +160,7 @@ function PollForm({
         }}
         type="button"
       >
-        {busy ? "Submitting..." : "Submit Vote"}
+        {busy ? "Submitting..." : hasExistingVote ? "Update Vote" : "Submit Vote"}
       </button>
     </div>
   );
@@ -148,10 +179,6 @@ export function PublicPollView() {
     if (!token) return;
     fetchPollDetails(token)
       .then((details) => {
-        if (!details.canSubmit) {
-          setPageStatus({ type: isExpired(details.expiresAt) ? "poll_closed" : "already_voted" });
-          return;
-        }
         setPageStatus({ type: "ready", details });
       })
       .catch(() => {
@@ -167,7 +194,8 @@ export function PublicPollView() {
     setPageStatus({ type: "submitting", details });
     submitPollVote(token, optionIds)
       .then(() => {
-        setPageStatus({ type: "submitted", details });
+        const updatedDetails: PollDetails = { ...details, responseOptionIds: optionIds };
+        setPageStatus({ type: "submitted", details: updatedDetails });
       })
       .catch(() => {
         setPageStatus({ type: "submit_error", details });
@@ -216,38 +244,6 @@ export function PublicPollView() {
     );
   }
 
-  if (pageStatus.type === "already_voted") {
-    return (
-      <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="poll-title">
-          <h1 id="poll-title">Vote Recorded</h1>
-          <p className="notice notice--success" role="status">
-            You have already voted on this poll. Thank you for your participation.
-          </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
-        </section>
-      </main>
-    );
-  }
-
-  if (pageStatus.type === "poll_closed") {
-    return (
-      <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="poll-title">
-          <h1 id="poll-title">Poll closed</h1>
-          <p className="notice notice--warning" role="status">
-            This poll is no longer accepting responses.
-          </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
-        </section>
-      </main>
-    );
-  }
-
   if (pageStatus.type === "submitted") {
     return (
       <main className="auth-layout">
@@ -257,9 +253,22 @@ export function PublicPollView() {
           <p className="notice notice--success" role="status">
             Thank you, {pageStatus.details.profileName}. Your vote has been recorded.
           </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
+          <div className="flex flex-col gap-2 mt-4">
+            {pageStatus.details.canSubmit && (
+              <button
+                className="button button--primary"
+                onClick={() => {
+                  setPageStatus({ type: "ready", details: pageStatus.details });
+                }}
+                type="button"
+              >
+                Change Vote
+              </button>
+            )}
+            <a className="button button--secondary" href="/">
+              Return to the Organization site
+            </a>
+          </div>
         </section>
       </main>
     );

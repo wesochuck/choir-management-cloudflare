@@ -391,7 +391,7 @@ export function readProfilePollFromStore(
     ? safeParseStringArray(JSON.parse(responseRow.optionIds))
     : [];
   return Response.json({
-    canSubmit: pollRow.archivedAt === "" && !responseRow && !isExpired(pollRow.expiresAt),
+    canSubmit: pollRow.archivedAt === "" && !isExpired(pollRow.expiresAt),
     description: pollRow.description,
     expiresAt: pollRow.expiresAt,
     multipleChoice: pollRow.multipleChoice === 1,
