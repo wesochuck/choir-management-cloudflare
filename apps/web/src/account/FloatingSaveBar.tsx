@@ -90,7 +90,12 @@ export function FloatingSaveBarProvider({ children }: { readonly children: React
     <FloatingSaveBarContext.Provider value={contextValue}>
       {children}
       {dirtyActions.length > 0 || saving ? (
-        <div className="floating-save-bar" role="status" aria-live="polite">
+        <div
+          aria-label="Unsaved changes"
+          aria-live="polite"
+          className="floating-save-bar"
+          role="region"
+        >
           <span>{saving ? "Saving changes…" : "You have unsaved changes"}</span>
           <div className="floating-save-bar__actions">
             <button

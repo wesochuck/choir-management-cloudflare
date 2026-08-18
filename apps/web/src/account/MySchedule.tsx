@@ -92,7 +92,7 @@ function ScheduleRsvpButtons({
             }}
             type="button"
           >
-            {rsvp === "Yes" ? "Yes (Attend)" : "No (Decline)"}
+            {rsvp}
           </button>
         );
       })}
