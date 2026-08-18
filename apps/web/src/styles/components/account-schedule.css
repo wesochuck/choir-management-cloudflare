@@ -126,7 +126,10 @@
     padding: 1.15rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
-    background: var(--color-surface-raised, color-mix(in srgb, var(--color-surface) 90%, var(--color-background)));
+    background: var(
+      --color-surface-raised,
+      color-mix(in srgb, var(--color-surface) 90%, var(--color-background))
+    );
   }
 
   .schedule-rsvp__choices {
