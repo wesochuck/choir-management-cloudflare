@@ -62,6 +62,78 @@ function performerCredit(
   return `Featured: ${credits.join(", ")}`;
 }
 
+function ScheduleRsvpButtons({
+  busy,
+  directRsvp,
+  onSelectRsvp,
+  rsvpSelfServiceOpen,
+}: {
+  readonly busy: boolean;
+  readonly directRsvp: "No" | "Pending" | "Yes";
+  readonly onSelectRsvp: (rsvp: "No" | "Yes") => void;
+  readonly rsvpSelfServiceOpen: boolean;
+}) {
+  return (
+    <div className="schedule-rsvp__buttons">
+      {RSVP_OPTIONS.map((rsvp) => {
+        const isSelected = directRsvp === rsvp;
+        let buttonClass = "button button--secondary";
+        if (isSelected) {
+          buttonClass = rsvp === "Yes" ? "button button--primary" : "button button--danger";
+        }
+        return (
+          <button
+            aria-pressed={isSelected}
+            className={buttonClass}
+            disabled={busy || !rsvpSelfServiceOpen}
+            key={rsvp}
+            onClick={() => {
+              onSelectRsvp(rsvp);
+            }}
+            type="button"
+          >
+            {rsvp === "Yes" ? "Yes (Attend)" : "No (Decline)"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ScheduleRsvpNoteField({
+  busy,
+  event,
+  onChangeNote,
+}: {
+  readonly busy: boolean;
+  readonly event: SingerEvent;
+  readonly onChangeNote: (note: string) => void;
+}) {
+  if (event.directRsvp !== "No") return null;
+  return (
+    <>
+      <label htmlFor={`my-rsvp-note-${event.id}`}>
+        Decline note{event.type === "Rehearsal" ? " (required)" : ""}
+      </label>
+      <textarea
+        aria-required={event.type === "Rehearsal"}
+        disabled={busy || !event.rsvpSelfServiceOpen}
+        id={`my-rsvp-note-${event.id}`}
+        maxLength={2000}
+        onChange={(change) => {
+          onChangeNote(change.target.value);
+        }}
+        placeholder={
+          event.type === "Rehearsal" ? "Please explain reason for absence…" : "Optional note…"
+        }
+        required={event.type === "Rehearsal"}
+        rows={3}
+        value={event.rsvpNote}
+      />
+    </>
+  );
+}
+
 function ScheduleRsvpField({
   busy,
   event,
@@ -77,64 +149,48 @@ function ScheduleRsvpField({
   readonly onSave: () => void;
   readonly onSelectRsvp: (rsvp: "No" | "Yes") => void;
 }) {
+  const saveDisabled =
+    busy ||
+    !event.rsvpSelfServiceOpen ||
+    !isDirty ||
+    event.directRsvp === "Pending" ||
+    (rsvpNoteRequired(event) && !event.rsvpNote.trim());
+
   return (
-    <div className="field schedule-rsvp">
+    <div className="schedule-rsvp">
       <fieldset className="schedule-rsvp__choices">
-        <legend>Your RSVP</legend>
-        <div className="schedule-rsvp__buttons">
-          {RSVP_OPTIONS.map((rsvp) => (
-            <button
-              aria-pressed={event.directRsvp === rsvp}
-              className={
-                event.directRsvp === rsvp ? "button button--primary" : "button button--secondary"
-              }
-              disabled={busy || !event.rsvpSelfServiceOpen}
-              key={rsvp}
-              onClick={() => {
-                onSelectRsvp(rsvp);
-              }}
-              type="button"
+        <div className="schedule-rsvp__header">
+          <legend className="schedule-rsvp__title">Your RSVP</legend>
+          {event.directRsvp !== "Pending" ? (
+            <span
+              className={`schedule-card__badge ${
+                event.directRsvp === "Yes"
+                  ? "schedule-card__badge--performance"
+                  : "schedule-card__badge--rehearsal"
+              }`}
             >
-              {rsvp}
-            </button>
-          ))}
+              {event.directRsvp === "Yes" ? "Attending" : "Declined"}
+            </span>
+          ) : null}
         </div>
+        <ScheduleRsvpButtons
+          busy={busy}
+          directRsvp={event.directRsvp}
+          onSelectRsvp={onSelectRsvp}
+          rsvpSelfServiceOpen={event.rsvpSelfServiceOpen}
+        />
       </fieldset>
       {event.directRsvp === "Pending" ? (
-        <p className="field-help">Choose Yes or No before saving your RSVP.</p>
+        <p className="field-help">Choose Yes or No to record your attendance.</p>
       ) : null}
-      {event.directRsvp === "No" ? (
-        <>
-          <label htmlFor={`my-rsvp-note-${event.id}`}>
-            Decline note{event.type === "Rehearsal" ? " (required)" : ""}
-          </label>
-          <textarea
-            aria-required={event.type === "Rehearsal"}
-            disabled={busy || !event.rsvpSelfServiceOpen}
-            id={`my-rsvp-note-${event.id}`}
-            maxLength={2000}
-            onChange={(change) => {
-              onChangeNote(change.target.value);
-            }}
-            required={event.type === "Rehearsal"}
-            rows={3}
-            value={event.rsvpNote}
-          />
-        </>
-      ) : null}
+      <ScheduleRsvpNoteField busy={busy} event={event} onChangeNote={onChangeNote} />
       <button
         className={`button ${isDirty ? "button--primary" : "button--secondary"}`}
-        disabled={
-          busy ||
-          !event.rsvpSelfServiceOpen ||
-          !isDirty ||
-          event.directRsvp === "Pending" ||
-          (rsvpNoteRequired(event) && !event.rsvpNote.trim())
-        }
+        disabled={saveDisabled}
         onClick={onSave}
         type="button"
       >
-        Save RSVP
+        {isDirty ? "Save RSVP" : "RSVP Saved"}
       </button>
     </div>
   );
@@ -392,7 +448,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
             {showPastEvents ? "No upcoming or recent events are available." : "No upcoming events."}
           </p>
         ) : (
-          <ul className="account-list schedule-list">
+          <ul className="schedule-list">
             {state.events.map((event) => {
               const location = eventLocation(event);
               const baseline = baselineEvents[event.id];
@@ -400,30 +456,73 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                 ? event.directRsvp !== baseline.directRsvp || event.rsvpNote !== baseline.rsvpNote
                 : false;
               return (
-                <li key={event.id}>
-                  <div>
-                    <h3>{event.title}</h3>
-                    <p>
-                      {event.type} · {displayDate(event.startsAt, state.timezone)} ({state.timezone}
-                      )
-                    </p>
-                    {location ? <p>{location}</p> : null}
+                <li className="schedule-card" key={event.id}>
+                  <div className="schedule-card__main">
+                    <div className="schedule-card__header">
+                      <h3 className="schedule-card__title">{event.title}</h3>
+                      <span
+                        className={`schedule-card__badge ${
+                          event.type === "Performance"
+                            ? "schedule-card__badge--performance"
+                            : "schedule-card__badge--rehearsal"
+                        }`}
+                      >
+                        {event.type}
+                      </span>
+                      {event.inheritedFromParent ? (
+                        <span className="schedule-card__badge schedule-card__badge--inherited">
+                          Inherited from Performance: {event.resolvedRsvp}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="schedule-card__meta-grid">
+                      <div className="schedule-card__meta-item">
+                        <span className="schedule-card__meta-label">Date &amp; Time</span>
+                        <span className="schedule-card__meta-value">
+                          {displayDate(event.startsAt, state.timezone)} ({state.timezone})
+                        </span>
+                      </div>
+                      {location ? (
+                        <div className="schedule-card__meta-item">
+                          <span className="schedule-card__meta-label">Location</span>
+                          <span className="schedule-card__meta-value">{location}</span>
+                        </div>
+                      ) : null}
+                      {event.callTime ? (
+                        <div className="schedule-card__meta-item">
+                          <span className="schedule-card__meta-label">Call Time</span>
+                          <span className="schedule-card__meta-value">{event.callTime}</span>
+                        </div>
+                      ) : null}
+                      {event.durationMinutes ? (
+                        <div className="schedule-card__meta-item">
+                          <span className="schedule-card__meta-label">Duration</span>
+                          <span className="schedule-card__meta-value">
+                            {event.durationMinutes} minutes
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {event.details ? (
+                      <p className="schedule-card__details">{event.details}</p>
+                    ) : null}
+
                     {event.type === "Performance" && displayRsvpDeadline(event, state.timezone) ? (
                       <p
-                        className={
+                        className={`schedule-card__deadline ${
                           event.rsvpDeadlinePassed
                             ? "notice notice--warning"
                             : "notice notice--info"
-                        }
+                        }`}
                       >
                         {displayRsvpDeadline(event, state.timezone)}{" "}
                         {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
                         <a href="/admin/roster?section=settings">Roster Settings</a>
                       </p>
                     ) : null}
-                    {event.inheritedFromParent ? (
-                      <p>Currently inherited from the parent performance: {event.resolvedRsvp}</p>
-                    ) : null}
+
                     {event.setList.length > 0 ? (
                       <div className="schedule-set-list">
                         <h4>Approved set list</h4>
@@ -444,6 +543,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                       </div>
                     ) : null}
                   </div>
+
                   <ScheduleRsvpField
                     busy={busyEventId !== null}
                     event={event}
