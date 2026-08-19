@@ -253,9 +253,10 @@ export async function deliverEmailChangeNotifications(
 ): Promise<void> {
   const now = Date.now();
   const notifications = await listPendingNotifications(env.CONTROL_DB, requestId, now);
-  for (const notification of notifications) {
-    await deliverNotification(env, notification, now);
-  }
+  if (notifications.length === 0) return;
+  await Promise.allSettled(
+    notifications.map((notification) => deliverNotification(env, notification, now)),
+  );
 }
 
 export async function reconcileEmailChangeNotifications(

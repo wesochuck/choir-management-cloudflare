@@ -282,7 +282,6 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
-  // eslint-disable-next-line complexity -- bulk generation validates inputs and coordinates creation state.
   async function bulkAddRehearsals() {
     if (state.status !== "ready") return;
     const target = state.events.find(({ id }) => id === bulkRehearsalPerformanceId);
@@ -318,10 +317,9 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const created: OrganizationEvent[] = [];
-      for (const start of startsAt) {
-        created.push(
-          await createOrganizationEvent({
+      const created = await Promise.all(
+        startsAt.map((start) =>
+          createOrganizationEvent({
             ...emptyEvent,
             parentPerformanceId: target.id,
             startsAt: start,
@@ -329,8 +327,8 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
             type: "Rehearsal",
             venueId: bulkRehearsalVenueId || null,
           }),
-        );
-      }
+        ),
+      );
       setState((current) =>
         current.status === "ready"
           ? {
