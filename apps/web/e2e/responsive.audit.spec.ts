@@ -865,14 +865,16 @@ test("member schedule uses Yes and No buttons for RSVP choices", async ({ page }
   await expect(scheduleRehearsal.getByRole("button", { name: "No", exact: true })).toBeVisible();
 
   await scheduleRehearsal.getByRole("button", { name: "No", exact: true }).click();
-  const declineNote = scheduleRehearsal.getByLabel("Decline note (required)", { exact: true });
+  const declineDialog = page.getByRole("dialog", { name: "Decline rehearsal" });
+  await expect(declineDialog).toBeVisible();
+  const declineNote = declineDialog.getByLabel("Note", { exact: true });
   await expect(declineNote).toBeVisible();
-  await expect(scheduleRehearsal.getByRole("button", { name: "Save RSVP" })).toBeDisabled();
+  await expect(declineDialog.getByRole("button", { name: "Decline rehearsal" })).toBeDisabled();
   await declineNote.fill("Travel conflict");
-  await scheduleRehearsal.getByRole("button", { name: "Save RSVP" }).click();
+  await declineDialog.getByRole("button", { name: "Decline rehearsal" }).click();
   await expect(page.getByRole("status")).toContainText("Your RSVP was updated.");
-  await expect(scheduleRehearsal.getByRole("button", { name: "No", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
+  await expect(scheduleRehearsal.locator(".schedule-rsvp .schedule-card__badge")).toContainText(
+    "Declined",
   );
+  await expect(scheduleRehearsal.locator(".schedule-rsvp__note")).toContainText("Travel conflict");
 });

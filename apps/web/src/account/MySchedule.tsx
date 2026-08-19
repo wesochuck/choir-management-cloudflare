@@ -1,26 +1,18 @@
 import type { SingerEvent, SingerEventsResponse } from "@choir/contracts";
 import { normalizeSetListDuration } from "@choir/domain";
-import { useConfirmation } from "@choir/ui";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Dialog, DialogClose } from "@choir/ui";
+import { useCallback, useEffect, useState } from "react";
 
 import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
 import { CalendarSubscription } from "./CalendarSubscription";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
-import { useFloatingSaveAction } from "./useFloatingSaveAction";
 
 type ScheduleState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly status: "missing" }
   | ({ readonly status: "ready" } & SingerEventsResponse);
-
-interface EventBaseline {
-  readonly directRsvp: "No" | "Pending" | "Yes";
-  readonly rsvpNote: string;
-}
-
-const RSVP_OPTIONS = ["Yes", "No"] as const;
 
 function displayDate(value: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -48,10 +40,6 @@ function eventLocation(event: SingerEvent): string {
   return event.location;
 }
 
-function rsvpNoteRequired(event: SingerEvent): boolean {
-  return event.type === "Rehearsal" && event.directRsvp === "No";
-}
-
 function performerCredit(
   item: SingerEvent["setList"][number],
   performerLabelPlural: string,
@@ -62,74 +50,91 @@ function performerCredit(
   return `Featured: ${credits.join(", ")}`;
 }
 
-function ScheduleRsvpButtons({
-  busy,
-  directRsvp,
-  onSelectRsvp,
-  rsvpSelfServiceOpen,
+function ScheduleRsvpHeader({
+  resolvedRsvp,
 }: {
-  readonly busy: boolean;
-  readonly directRsvp: "No" | "Pending" | "Yes";
-  readonly onSelectRsvp: (rsvp: "No" | "Yes") => void;
-  readonly rsvpSelfServiceOpen: boolean;
+  readonly resolvedRsvp: SingerEvent["resolvedRsvp"];
 }) {
   return (
-    <div className="schedule-rsvp__buttons">
-      {RSVP_OPTIONS.map((rsvp) => {
-        const isSelected = directRsvp === rsvp;
-        let buttonClass = "button button--secondary";
-        if (isSelected) {
-          buttonClass = rsvp === "Yes" ? "button button--primary" : "button button--danger";
-        }
-        return (
-          <button
-            aria-pressed={isSelected}
-            className={buttonClass}
-            disabled={busy || !rsvpSelfServiceOpen}
-            key={rsvp}
-            onClick={() => {
-              onSelectRsvp(rsvp);
-            }}
-            type="button"
-          >
-            {rsvp}
-          </button>
-        );
-      })}
+    <div className="schedule-rsvp__header">
+      <span className="schedule-rsvp__title">Your RSVP</span>
+      {resolvedRsvp !== "Pending" ? (
+        <span
+          className={`schedule-card__badge ${
+            resolvedRsvp === "Yes"
+              ? "schedule-card__badge--performance"
+              : "schedule-card__badge--rehearsal"
+          }`}
+        >
+          {resolvedRsvp === "Yes" ? "Attending" : "Declined"}
+        </span>
+      ) : null}
     </div>
   );
 }
 
-function ScheduleRsvpNoteField({
+function ScheduleRsvpButtons({
   busy,
   event,
-  onChangeNote,
+  onDeclineRehearsal,
+  onRsvp,
 }: {
   readonly busy: boolean;
   readonly event: SingerEvent;
-  readonly onChangeNote: (note: string) => void;
+  readonly onDeclineRehearsal: (event: SingerEvent) => void;
+  readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
 }) {
-  if (event.directRsvp !== "No") return null;
+  const isSelectedYes = event.resolvedRsvp === "Yes";
+  const isSelectedNo = event.resolvedRsvp === "No";
+
+  return (
+    <div className="schedule-rsvp__buttons">
+      <button
+        aria-busy={busy}
+        className={isSelectedYes ? "button button--primary" : "button button--secondary"}
+        disabled={busy || !event.rsvpSelfServiceOpen}
+        onClick={() => {
+          onRsvp(event, "Yes");
+        }}
+        type="button"
+      >
+        {busy && isSelectedYes ? "Updating…" : "Yes"}
+      </button>
+      <button
+        aria-busy={busy}
+        className={isSelectedNo ? "button button--danger" : "button button--secondary"}
+        disabled={busy || !event.rsvpSelfServiceOpen}
+        onClick={() => {
+          if (event.type === "Rehearsal") {
+            onDeclineRehearsal(event);
+          } else {
+            onRsvp(event, "No");
+          }
+        }}
+        type="button"
+      >
+        {busy && isSelectedNo ? "Updating…" : "No"}
+      </button>
+    </div>
+  );
+}
+
+function ScheduleRsvpFooter({ event }: { readonly event: SingerEvent }) {
   return (
     <>
-      <label htmlFor={`my-rsvp-note-${event.id}`}>
-        Decline note{event.type === "Rehearsal" ? " (required)" : ""}
-      </label>
-      <textarea
-        aria-required={event.type === "Rehearsal"}
-        disabled={busy || !event.rsvpSelfServiceOpen}
-        id={`my-rsvp-note-${event.id}`}
-        maxLength={2000}
-        onChange={(change) => {
-          onChangeNote(change.target.value);
-        }}
-        placeholder={
-          event.type === "Rehearsal" ? "Please explain reason for absence…" : "Optional note…"
-        }
-        required={event.type === "Rehearsal"}
-        rows={3}
-        value={event.rsvpNote}
-      />
+      {event.inheritedFromParent ? (
+        <small className="field-help">
+          This rehearsal follows your RSVP for the linked performance.
+        </small>
+      ) : null}
+      {!event.rsvpSelfServiceOpen ? (
+        <small className="field-help">RSVP changes are closed for this event.</small>
+      ) : null}
+      {event.type === "Rehearsal" && event.directRsvp === "No" && event.rsvpNote ? (
+        <small className="field-help schedule-rsvp__note">
+          <strong>Decline note:</strong> {event.rsvpNote}
+        </small>
+      ) : null}
     </>
   );
 }
@@ -137,73 +142,130 @@ function ScheduleRsvpNoteField({
 function ScheduleRsvpField({
   busy,
   event,
-  isDirty,
-  onChangeNote,
-  onSave,
-  onSelectRsvp,
+  onDeclineRehearsal,
+  onRsvp,
 }: {
   readonly busy: boolean;
   readonly event: SingerEvent;
-  readonly isDirty: boolean;
-  readonly onChangeNote: (note: string) => void;
-  readonly onSave: () => void;
-  readonly onSelectRsvp: (rsvp: "No" | "Yes") => void;
+  readonly onDeclineRehearsal: (event: SingerEvent) => void;
+  readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
 }) {
-  const saveDisabled =
-    busy ||
-    !event.rsvpSelfServiceOpen ||
-    !isDirty ||
-    event.directRsvp === "Pending" ||
-    (rsvpNoteRequired(event) && !event.rsvpNote.trim());
-
   return (
     <div className="schedule-rsvp">
-      <fieldset className="schedule-rsvp__choices">
-        <div className="schedule-rsvp__header">
-          <legend className="schedule-rsvp__title">Your RSVP</legend>
-          {event.directRsvp !== "Pending" ? (
-            <span
-              className={`schedule-card__badge ${
-                event.directRsvp === "Yes"
-                  ? "schedule-card__badge--performance"
-                  : "schedule-card__badge--rehearsal"
-              }`}
-            >
-              {event.directRsvp === "Yes" ? "Attending" : "Declined"}
-            </span>
-          ) : null}
-        </div>
-        <ScheduleRsvpButtons
-          busy={busy}
-          directRsvp={event.directRsvp}
-          onSelectRsvp={onSelectRsvp}
-          rsvpSelfServiceOpen={event.rsvpSelfServiceOpen}
-        />
-      </fieldset>
-      {event.directRsvp === "Pending" ? (
-        <p className="field-help">Choose Yes or No to record your attendance.</p>
-      ) : null}
-      <ScheduleRsvpNoteField busy={busy} event={event} onChangeNote={onChangeNote} />
-      <button
-        className={`button ${isDirty ? "button--primary" : "button--secondary"}`}
-        disabled={saveDisabled}
-        onClick={onSave}
-        type="button"
-      >
-        {isDirty ? "Save RSVP" : "RSVP Saved"}
-      </button>
+      <ScheduleRsvpHeader resolvedRsvp={event.resolvedRsvp} />
+      <ScheduleRsvpButtons
+        busy={busy}
+        event={event}
+        onDeclineRehearsal={onDeclineRehearsal}
+        onRsvp={onRsvp}
+      />
+      <ScheduleRsvpFooter event={event} />
     </div>
+  );
+}
+
+function DeclineRehearsalDialog({
+  actionError,
+  busy,
+  declineEvent,
+  declineNote,
+  onChangeDeclineNote,
+  onClose,
+  onDecline,
+}: {
+  readonly actionError: string | null;
+  readonly busy: boolean;
+  readonly declineEvent: SingerEvent | null;
+  readonly declineNote: string;
+  readonly onChangeDeclineNote: (note: string) => void;
+  readonly onClose: () => void;
+  readonly onDecline: () => void;
+}) {
+  return (
+    <Dialog
+      description="Please add a note so the Organization knows why you cannot attend."
+      onClose={onClose}
+      open={declineEvent !== null}
+      title="Decline rehearsal"
+    >
+      <form
+        className="form-stack"
+        onSubmit={(formEvent) => {
+          formEvent.preventDefault();
+          onDecline();
+        }}
+      >
+        {actionError ? (
+          <p className="notice notice--error" role="alert">
+            {actionError}
+          </p>
+        ) : null}
+        {busy ? (
+          <p className="notice notice--info" role="status">
+            Saving your RSVP…
+          </p>
+        ) : null}
+        <div className="field">
+          <label htmlFor="decline-rehearsal-note">Note</label>
+          <textarea
+            aria-describedby="decline-rehearsal-note-help"
+            aria-required="true"
+            id="decline-rehearsal-note"
+            maxLength={2_000}
+            onChange={(event) => {
+              onChangeDeclineNote(event.target.value);
+            }}
+            required
+            value={declineNote}
+          />
+          <small className="field-help" id="decline-rehearsal-note-help">
+            Required for rehearsals. {String(declineNote.length)} of 2,000 characters.
+          </small>
+        </div>
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={busy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
+          <button
+            className="button button--danger"
+            disabled={!declineNote.trim() || busy}
+            type="submit"
+          >
+            {busy ? "Saving…" : "Decline rehearsal"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 
 export function MySchedule({ enabled }: { readonly enabled: boolean }) {
   const { performerLabelPlural } = useOrganizationTerminology();
-  const { confirm, confirmationDialog } = useConfirmation();
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [declineEvent, setDeclineEvent] = useState<SingerEvent | null>(null);
+  const [declineNote, setDeclineNote] = useState("");
   const [state, setState] = useState<ScheduleState>({ status: "loading" });
-  const [baselineEvents, setBaselineEvents] = useState<Record<string, EventBaseline>>({});
   const [showPastEvents, setShowPastEvents] = useState(false);
+
+  const loadSchedule = useCallback(
+    async (past = showPastEvents): Promise<void> => {
+      if (!enabled) return;
+      try {
+        const schedule = await getMySchedule(undefined, past);
+        setState({ ...schedule, status: "ready" });
+      } catch (error: unknown) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setState({
+          status: error instanceof AuthApiError && error.status === 404 ? "missing" : "error",
+        });
+      }
+    },
+    [enabled, showPastEvents],
+  );
 
   useEffect(() => {
     if (!enabled) return;
@@ -211,11 +273,6 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
     getMySchedule(controller.signal, showPastEvents)
       .then((schedule) => {
         setState({ ...schedule, status: "ready" });
-        const baselines: Record<string, EventBaseline> = {};
-        for (const ev of schedule.events) {
-          baselines[ev.id] = { directRsvp: ev.directRsvp, rsvpNote: ev.rsvpNote };
-        }
-        setBaselineEvents(baselines);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -228,171 +285,43 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled, showPastEvents]);
 
-  const dirtyEvents = useMemo(() => {
-    if (state.status !== "ready") return [];
-    return state.events.filter((event) => {
-      const baseline = baselineEvents[event.id];
-      if (!baseline) return false;
-      return event.directRsvp !== baseline.directRsvp || event.rsvpNote !== baseline.rsvpNote;
-    });
-  }, [state, baselineEvents]);
-
-  const handleDiscardAll = useCallback((): void => {
-    if (state.status !== "ready") return;
-    setState((current) => {
-      if (current.status !== "ready") return current;
-      return {
-        ...current,
-        events: current.events.map((event) => {
-          const baseline = baselineEvents[event.id];
-          if (!baseline) return event;
-          return {
-            ...event,
-            directRsvp: baseline.directRsvp,
-            rsvpNote: baseline.rsvpNote,
-          };
-        }),
-      };
-    });
-    setFeedback(null);
-  }, [baselineEvents, state.status]);
-
-  const handleSaveAll = useCallback(async (): Promise<void> => {
-    if (state.status !== "ready" || dirtyEvents.length === 0) return;
-    const invalidRehearsals = dirtyEvents.filter(
-      (event) => event.type === "Rehearsal" && event.directRsvp === "No" && !event.rsvpNote.trim(),
-    );
-    if (invalidRehearsals.length > 0) {
-      setFeedback(
-        `A decline note is required for: ${invalidRehearsals.map((e) => e.title).join(", ")}.`,
-      );
-      throw new Error("rehearsal_decline_note_required");
-    }
-    setBusyEventId("all");
-    setFeedback(null);
-    try {
-      await Promise.all(
-        dirtyEvents.map((event) => setMyEventRsvp(event.id, event.directRsvp, event.rsvpNote)),
-      );
-      const refreshed = await getMySchedule(undefined, showPastEvents);
-      setState({ ...refreshed, status: "ready" });
-      const newBaselines: Record<string, EventBaseline> = {};
-      for (const ev of refreshed.events) {
-        newBaselines[ev.id] = { directRsvp: ev.directRsvp, rsvpNote: ev.rsvpNote };
-      }
-      setBaselineEvents(newBaselines);
-      setFeedback("All RSVPs were updated.");
-    } catch (error: unknown) {
-      setFeedback(
-        error instanceof AuthApiError ? error.message : "Your RSVPs could not be updated.",
-      );
-      throw error;
-    } finally {
-      setBusyEventId(null);
-    }
-  }, [dirtyEvents, showPastEvents, state.status]);
-
-  useFloatingSaveAction({
-    busy: busyEventId !== null,
-    dirty: dirtyEvents.length > 0,
-    id: "my-schedule",
-    onDiscard: handleDiscardAll,
-    onSave: handleSaveAll,
-  });
-
-  async function togglePastEvents(includePast: boolean): Promise<void> {
-    if (dirtyEvents.length > 0) {
-      const shouldDiscard = await confirm({
-        confirmLabel: "Discard changes",
-        description: "You have unsaved RSVP changes. Discard them to switch the past events view?",
-        destructive: true,
-        title: "Discard unsaved changes?",
-      });
-      if (!shouldDiscard) return;
-    }
+  function togglePastEvents(includePast: boolean): void {
     setShowPastEvents(includePast);
     setState({ status: "loading" });
   }
 
-  async function changeRsvp(eventId: string, rsvp: "No" | "Pending" | "Yes", rsvpNote: string) {
+  async function changeRsvp(
+    eventId: string,
+    rsvp: "No" | "Pending" | "Yes",
+    rsvpNote: string,
+  ): Promise<boolean> {
     setBusyEventId(eventId);
     setFeedback(null);
     try {
-      const saved = await setMyEventRsvp(eventId, rsvp, rsvpNote);
-      try {
-        const refreshed = await getMySchedule(undefined, showPastEvents);
-        setState({ ...refreshed, status: "ready" });
-        const newBaselines: Record<string, EventBaseline> = {};
-        for (const ev of refreshed.events) {
-          newBaselines[ev.id] = { directRsvp: ev.directRsvp, rsvpNote: ev.rsvpNote };
-        }
-        setBaselineEvents(newBaselines);
-      } catch {
-        setState((current) =>
-          current.status === "ready"
-            ? {
-                ...current,
-                events: current.events.map((event) =>
-                  event.id === eventId
-                    ? {
-                        ...event,
-                        directRsvp: saved.rsvp,
-                        inheritedFromParent: false,
-                        resolvedRsvp: saved.rsvp,
-                        rsvpNote: saved.rsvpNote,
-                      }
-                    : event,
-                ),
-              }
-            : current,
-        );
-        setBaselineEvents((current) => ({
-          ...current,
-          [eventId]: { directRsvp: saved.rsvp, rsvpNote: saved.rsvpNote },
-        }));
-      }
+      await setMyEventRsvp(eventId, rsvp, rsvpNote);
+      await loadSchedule(showPastEvents);
       setFeedback("Your RSVP was updated.");
+      return true;
     } catch (error: unknown) {
       setFeedback(
         error instanceof AuthApiError ? error.message : "Your RSVP could not be updated.",
       );
+      return false;
     } finally {
       setBusyEventId(null);
     }
   }
 
-  function updateDraftRsvp(eventId: string, rsvp: "No" | "Yes"): void {
-    setState((current) =>
-      current.status === "ready"
-        ? {
-            ...current,
-            events: current.events.map((candidate) =>
-              candidate.id === eventId
-                ? {
-                    ...candidate,
-                    directRsvp: rsvp,
-                    inheritedFromParent: false,
-                    resolvedRsvp: rsvp,
-                    rsvpNote: rsvp === "No" ? candidate.rsvpNote : "",
-                  }
-                : candidate,
-            ),
-          }
-        : current,
-    );
-  }
-
-  function updateDraftRsvpNote(eventId: string, rsvpNote: string): void {
-    setState((current) =>
-      current.status === "ready"
-        ? {
-            ...current,
-            events: current.events.map((candidate) =>
-              candidate.id === eventId ? { ...candidate, rsvpNote } : candidate,
-            ),
-          }
-        : current,
-    );
+  async function handleDeclineRehearsal(): Promise<void> {
+    if (!declineEvent || !declineNote.trim()) return;
+    setActionError(null);
+    const success = await changeRsvp(declineEvent.id, "No", declineNote);
+    if (success) {
+      setDeclineEvent(null);
+      setDeclineNote("");
+    } else {
+      setActionError("Your RSVP could not be updated. Please try again.");
+    }
   }
 
   return (
@@ -411,7 +340,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
             disabled={!enabled}
             id="my-schedule-show-past"
             onChange={(event) => {
-              void togglePastEvents(event.target.checked);
+              togglePastEvents(event.target.checked);
             }}
             type="checkbox"
           />
@@ -451,10 +380,6 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
           <ul className="schedule-list">
             {state.events.map((event) => {
               const location = eventLocation(event);
-              const baseline = baselineEvents[event.id];
-              const isEventDirty = baseline
-                ? event.directRsvp !== baseline.directRsvp || event.rsvpNote !== baseline.rsvpNote
-                : false;
               return (
                 <li className="schedule-card" key={event.id}>
                   <div className="schedule-card__main">
@@ -545,17 +470,15 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                   </div>
 
                   <ScheduleRsvpField
-                    busy={busyEventId !== null}
+                    busy={busyEventId === event.id}
                     event={event}
-                    isDirty={isEventDirty}
-                    onChangeNote={(rsvpNote) => {
-                      updateDraftRsvpNote(event.id, rsvpNote);
+                    onDeclineRehearsal={(targetEvent) => {
+                      setDeclineEvent(targetEvent);
+                      setDeclineNote(targetEvent.rsvpNote || "");
+                      setActionError(null);
                     }}
-                    onSave={() => {
-                      void changeRsvp(event.id, event.directRsvp, event.rsvpNote);
-                    }}
-                    onSelectRsvp={(rsvp) => {
-                      updateDraftRsvp(event.id, rsvp);
+                    onRsvp={(targetEvent, rsvp) => {
+                      void changeRsvp(targetEvent.id, rsvp, "");
                     }}
                   />
                 </li>
@@ -565,7 +488,20 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
         )
       ) : null}
       <CalendarSubscription enabled={enabled} />
-      {confirmationDialog}
+      <DeclineRehearsalDialog
+        actionError={actionError}
+        busy={busyEventId === declineEvent?.id}
+        declineEvent={declineEvent}
+        declineNote={declineNote}
+        onChangeDeclineNote={setDeclineNote}
+        onClose={() => {
+          setDeclineEvent(null);
+          setActionError(null);
+        }}
+        onDecline={() => {
+          void handleDeclineRehearsal();
+        }}
+      />
     </section>
   );
 }
