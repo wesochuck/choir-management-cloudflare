@@ -428,11 +428,15 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
                           </span>
                         </div>
                       ) : null}
+                      {event.details ? (
+                        <div className="schedule-card__meta-item schedule-card__meta-item--full">
+                          <span className="schedule-card__meta-label">Notes</span>
+                          <span className="schedule-card__meta-value schedule-card__meta-value--multiline">
+                            {event.details}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
-
-                    {event.details ? (
-                      <p className="schedule-card__details">{event.details}</p>
-                    ) : null}
 
                     {event.type === "Performance" && displayRsvpDeadline(event, state.timezone) ? (
                       <p

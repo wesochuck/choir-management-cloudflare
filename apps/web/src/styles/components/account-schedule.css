@@ -90,6 +90,12 @@
     font-size: var(--font-size-md);
   }
 
+  .schedule-card__meta-item--full {
+    grid-column: 1 / -1;
+    padding-top: 0.5rem;
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  }
+
   .schedule-card__meta-label {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
@@ -104,12 +110,9 @@
     line-height: var(--line-height-snug);
   }
 
-  .schedule-card__details {
-    margin: 0;
-    font-size: var(--font-size-md);
-    color: var(--color-text-muted);
-    line-height: var(--line-height-normal);
+  .schedule-card__meta-value--multiline {
     white-space: pre-wrap;
+    line-height: var(--line-height-normal);
   }
 
   .schedule-card__deadline {
