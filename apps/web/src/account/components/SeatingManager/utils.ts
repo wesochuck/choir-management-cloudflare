@@ -235,3 +235,22 @@ export function moveFormationOrderItem(
   if (moved !== undefined) next.splice(to, 0, moved);
   return next;
 }
+
+export function resolveDraggingProfile(
+  token: string | null,
+  assignments: Readonly<Record<string, string>>,
+  profilesById: ReadonlyMap<string, OrganizationProfile>,
+): {
+  readonly profile: OrganizationProfile | undefined;
+  readonly fallbackName: string;
+} {
+  if (!token) return { profile: undefined, fallbackName: "Profile" };
+  const profileId = token.startsWith("profile:")
+    ? token.slice("profile:".length)
+    : token.startsWith("seat:")
+      ? assignments[token.slice("seat:".length)]
+      : undefined;
+  const profile = profileId ? profilesById.get(profileId) : undefined;
+  const fallbackName = token.startsWith("profile:") ? "Profile" : "Assigned Profile";
+  return { profile, fallbackName };
+}
