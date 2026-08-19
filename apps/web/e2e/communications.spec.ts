@@ -627,6 +627,71 @@ test("keeps audition system templates in the management tab only", async ({ page
   await expect(page.getByRole("button", { name: "Edit wording" }).first()).toBeVisible();
 });
 
+test("edits template wording in a dirty modal", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  let updateBody: unknown = null;
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (
+      pathname === `/api/organization/communications/templates/${firstTemplateId}` &&
+      route.request().method() === "PUT"
+    ) {
+      updateBody = route.request().postDataJSON();
+      await fulfillJson(route, {
+        channel: "Email",
+        contentMarkdown: "Updated content.",
+        createdAt: "2026-07-20T20:00:00.000Z",
+        id: firstTemplateId,
+        isSystem: false,
+        requestId,
+        subject: "Updated subject",
+        title: "Updated title",
+        updatedAt: "2026-08-18T20:00:00.000Z",
+      });
+      return;
+    }
+    await handleRoute(route, previewBodies);
+  });
+
+  await page.goto("/admin/communications?tab=templates");
+  const templateRow = page.getByRole("listitem").filter({ hasText: "First template" });
+  await templateRow.getByRole("button", { name: "Edit wording" }).click();
+
+  const editor = page.getByRole("dialog", { name: "Edit template wording" });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel("Template name")).toHaveValue("First template");
+  await expect(editor.getByRole("region", { name: "Unsaved template changes" })).toHaveCount(0);
+
+  await editor.getByLabel("Template name").fill("Discarded title");
+  const saveBar = editor.getByRole("region", { name: "Unsaved template changes" });
+  await expect(saveBar).toBeVisible();
+  await saveBar.getByRole("button", { name: "Cancel" }).click();
+
+  const discardDialog = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+  await expect(discardDialog).toBeVisible();
+  await discardDialog.getByRole("button", { name: "Discard changes" }).click();
+  await expect(editor).toBeHidden();
+
+  await templateRow.getByRole("button", { name: "Edit wording" }).click();
+  await expect(editor).toBeVisible();
+  await editor.getByLabel("Template name").fill("Updated title");
+  await editor.getByLabel("Subject").fill("Updated subject");
+  await editor.getByLabel("Message").fill("Updated content.");
+  await editor
+    .getByRole("region", { name: "Unsaved template changes" })
+    .getByRole("button", { name: "Save template" })
+    .click();
+
+  await expect(editor).toBeHidden();
+  await expect(page.getByText("Updated title", { exact: true })).toBeVisible();
+  expect(updateBody).toEqual({
+    channel: "Email",
+    contentMarkdown: "Updated content.",
+    subject: "Updated subject",
+    title: "Updated title",
+  });
+});
+
 test("searches and filters the template list", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));

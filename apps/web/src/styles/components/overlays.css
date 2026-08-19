@@ -339,6 +339,19 @@
       flex: 1;
     }
 
+    .communication-template-editor-save-bar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .communication-template-editor-save-bar .dialog__actions {
+      justify-content: stretch;
+    }
+
+    .communication-template-editor-save-bar .dialog__actions .button {
+      flex: 1;
+    }
+
     .page-heading {
       align-items: start;
       flex-direction: column;

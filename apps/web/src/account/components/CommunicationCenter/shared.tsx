@@ -4,7 +4,7 @@ import type {
   CommunicationTemplate,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { useConfirmation } from "@choir/ui";
+import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import { useEffect, useState } from "react";
 import {
   deleteOrganizationCommunicationTemplate,
@@ -208,6 +208,138 @@ function TemplateFilters({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function TemplateEditorDialog({
+  busy,
+  dirty,
+  editingContent,
+  editingSubject,
+  editingTemplate,
+  editingTitle,
+  error,
+  onClose,
+  onContentChange,
+  onSave,
+  onSubjectChange,
+  onTitleChange,
+}: {
+  readonly busy: boolean;
+  readonly dirty: boolean;
+  readonly editingContent: string;
+  readonly editingSubject: string;
+  readonly editingTemplate: CommunicationTemplate | null;
+  readonly editingTitle: string;
+  readonly error: string | null;
+  readonly onClose: () => void;
+  readonly onContentChange: (value: string) => void;
+  readonly onSave: () => Promise<void>;
+  readonly onSubjectChange: (value: string) => void;
+  readonly onTitleChange: (value: string) => void;
+}) {
+  return (
+    <Dialog
+      description="Customize the name, subject, and message for this template."
+      dirty={dirty}
+      onClose={onClose}
+      open={editingTemplate !== null}
+      title="Edit template wording"
+    >
+      {editingTemplate ? (
+        <form
+          className="form-stack communication-template-editor"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onSave();
+          }}
+        >
+          {error ? (
+            <p className="notice notice--error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <p className="field-help communication-template-editor__intro">
+            Updating <strong>{editingTemplate.title}</strong> changes what appears when this
+            template is used and, for system templates, what future automated messages contain.
+          </p>
+          <div className="field">
+            <label htmlFor="communication-template-edit-title">Template name</label>
+            <input
+              autoFocus
+              id="communication-template-edit-title"
+              maxLength={200}
+              onChange={(event) => {
+                onTitleChange(event.target.value);
+              }}
+              value={editingTitle}
+            />
+          </div>
+          {editingTemplate.channel !== "SMS" ? (
+            <div className="field">
+              <label htmlFor="communication-template-edit-subject">Subject</label>
+              <input
+                id="communication-template-edit-subject"
+                maxLength={300}
+                onChange={(event) => {
+                  onSubjectChange(event.target.value);
+                }}
+                value={editingSubject}
+              />
+            </div>
+          ) : null}
+          <div className="field">
+            <label htmlFor="communication-template-edit-content">Message</label>
+            <textarea
+              id="communication-template-edit-content"
+              maxLength={100_000}
+              onChange={(event) => {
+                onContentChange(event.target.value);
+              }}
+              rows={10}
+              value={editingContent}
+            />
+            <p className="field-help">
+              Markdown and the placeholders shown in the composer are supported. System templates
+              cannot be deleted, but their wording can be customized for this Organization.
+            </p>
+            {editingTemplate.title.toLowerCase().includes("audition") ? (
+              <p className="field-help">
+                Audition templates also support {"{auditionDate}"}, {"{auditionTime}"},{" "}
+                {"{auditionDateTime}"}, {"{auditionLocation}"}, and {"{{AUDITION_LINK}}"} when the
+                message is sent automatically. Scheduling an applicant sends this link
+                automatically; no login is required.
+              </p>
+            ) : null}
+          </div>
+          {dirty ? (
+            <div
+              aria-label="Unsaved template changes"
+              className="communication-template-editor-save-bar"
+              role="region"
+            >
+              <span className="communication-template-editor-save-bar__message">
+                Unsaved changes
+              </span>
+              <div className="dialog__actions">
+                <DialogClose asChild>
+                  <button className="button button--secondary" disabled={busy} type="button">
+                    Cancel
+                  </button>
+                </DialogClose>
+                <button
+                  className="button button--primary"
+                  disabled={busy || !editingTitle.trim() || !editingContent.trim()}
+                  type="submit"
+                >
+                  {busy ? "Saving…" : "Save template"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </form>
+      ) : null}
+    </Dialog>
   );
 }
 
@@ -442,6 +574,20 @@ export function TemplateLibrary({
     }
   }
 
+  function closeEdit(): void {
+    if (busy) return;
+    setEditingTemplate(null);
+    setEditingTitle("");
+    setEditingSubject("");
+    setEditingContent("");
+  }
+
+  const editingDirty =
+    editingTemplate !== null &&
+    (editingTitle !== editingTemplate.title ||
+      editingSubject !== editingTemplate.subject ||
+      editingContent !== editingTemplate.contentMarkdown);
+
   return (
     <div className="form-stack" aria-labelledby="communication-templates-heading">
       <h3 id="communication-templates-heading">Templates</h3>
@@ -450,7 +596,7 @@ export function TemplateLibrary({
         message. System templates power automated messages for this Organization: they can be
         edited, but not deleted.
       </p>
-      {error ? (
+      {error && !editingTemplate ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
@@ -500,82 +646,20 @@ export function TemplateLibrary({
       ) : (
         <p>No templates match the current search and filters.</p>
       )}
-      {editingTemplate ? (
-        <fieldset className="form-stack communication-template-editor">
-          <legend>Edit template wording</legend>
-          <p className="field-help communication-template-editor__intro">
-            Updating <strong>{editingTemplate.title}</strong> changes what appears when this
-            template is used and, for system templates, what future automated messages contain.
-          </p>
-          <div className="field">
-            <label htmlFor="communication-template-edit-title">Template name</label>
-            <input
-              id="communication-template-edit-title"
-              maxLength={200}
-              onChange={(event) => {
-                setEditingTitle(event.target.value);
-              }}
-              value={editingTitle}
-            />
-          </div>
-          {editingTemplate.channel !== "SMS" ? (
-            <div className="field">
-              <label htmlFor="communication-template-edit-subject">Subject</label>
-              <input
-                id="communication-template-edit-subject"
-                maxLength={300}
-                onChange={(event) => {
-                  setEditingSubject(event.target.value);
-                }}
-                value={editingSubject}
-              />
-            </div>
-          ) : null}
-          <div className="field">
-            <label htmlFor="communication-template-edit-content">Message</label>
-            <textarea
-              id="communication-template-edit-content"
-              maxLength={100_000}
-              onChange={(event) => {
-                setEditingContent(event.target.value);
-              }}
-              rows={10}
-              value={editingContent}
-            />
-            <p className="field-help">
-              Markdown and the placeholders shown in the composer are supported. System templates
-              cannot be deleted, but their wording can be customized for this Organization.
-            </p>
-            {editingTemplate.title.toLowerCase().includes("audition") ? (
-              <p className="field-help">
-                Audition templates also support {"{auditionDate}"}, {"{auditionTime}"},{" "}
-                {"{auditionDateTime}"}, {"{auditionLocation}"}, and {"{{AUDITION_LINK}}"} when the
-                message is sent automatically. Scheduling an applicant sends this link
-                automatically; no login is required.
-              </p>
-            ) : null}
-          </div>
-          <div className="form-actions">
-            <button
-              disabled={busy}
-              onClick={() => {
-                setEditingTemplate(null);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="button button--primary"
-              disabled={busy || !editingTitle.trim() || !editingContent.trim()}
-              onClick={() => void saveEdit()}
-              type="button"
-            >
-              {busy ? "Saving…" : "Save template"}
-            </button>
-          </div>
-        </fieldset>
-      ) : null}
+      <TemplateEditorDialog
+        busy={busy}
+        dirty={editingDirty}
+        editingContent={editingContent}
+        editingSubject={editingSubject}
+        editingTemplate={editingTemplate}
+        editingTitle={editingTitle}
+        error={error}
+        onClose={closeEdit}
+        onContentChange={setEditingContent}
+        onSave={saveEdit}
+        onSubjectChange={setEditingSubject}
+        onTitleChange={setEditingTitle}
+      />
       <div className="field">
         <label htmlFor="communication-template-title">Save current message as a template</label>
         <input
