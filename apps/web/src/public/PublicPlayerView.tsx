@@ -157,7 +157,324 @@ function playerMediaUrl(fileId: string, token: string): string {
   return `/api/public/player/media/${encodeURIComponent(fileId)}?token=${encodeURIComponent(token)}`;
 }
 
-// eslint-disable-next-line complexity -- this player keeps transport and rehearsal controls together.
+function TrackSelectionNav({
+  activeTrackKey,
+  onSelectTrackKey,
+  trackKeys,
+  voicePartKeys,
+}: {
+  readonly activeTrackKey: string;
+  readonly onSelectTrackKey: (key: string) => void;
+  readonly trackKeys: readonly string[];
+  readonly voicePartKeys: readonly string[];
+}) {
+  return (
+    <nav aria-label="Track selection" className="public-player__track-pills">
+      {trackKeys.map((key) => (
+        <button
+          aria-pressed={activeTrackKey === key}
+          className={activeTrackKey === key ? "is-active" : undefined}
+          key={key}
+          onClick={() => {
+            onSelectTrackKey(key);
+          }}
+          type="button"
+        >
+          {formatTrackKey(key)}
+        </button>
+      ))}
+      {voicePartKeys.length > 0 ? (
+        <label className="public-player__voice-part-select">
+          <span className="sr-only">Add individual part</span>
+          <select
+            aria-label="Add individual part"
+            onChange={(event) => {
+              if (event.target.value) onSelectTrackKey(event.target.value);
+            }}
+            value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
+          >
+            <option value="">Add part…</option>
+            {voicePartKeys.map((key) => (
+              <option key={key} value={key}>
+                {formatTrackKey(key)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+    </nav>
+  );
+}
+
+function PlayerProgressBar({
+  currentTime,
+  duration,
+  onSeek,
+  title,
+}: {
+  readonly currentTime: number;
+  readonly duration: number;
+  readonly onSeek: (nextTime: number) => void;
+  readonly title: string;
+}) {
+  return (
+    <div className="public-player__progress">
+      <input
+        aria-label={`Seek ${title}`}
+        max={duration || 1}
+        min={0}
+        onChange={(event) => {
+          onSeek(Number(event.target.value));
+        }}
+        step={0.1}
+        type="range"
+        value={Math.min(currentTime, duration || 0)}
+      />
+      <div>
+        <span>{formatTime(currentTime)}</span>
+        <span>{formatTime(duration)}</span>
+      </div>
+    </div>
+  );
+}
+
+function PlayerTransportControls({
+  currentIndex,
+  loopMode,
+  onNext,
+  onPrevious,
+  onToggleLoop,
+  onTogglePlay,
+  playableCount,
+  playing,
+}: {
+  readonly currentIndex: number;
+  readonly loopMode: "all" | "none" | "one";
+  readonly onNext: () => void;
+  readonly onPrevious: () => void;
+  readonly onToggleLoop: () => void;
+  readonly onTogglePlay: () => void;
+  readonly playableCount: number;
+  readonly playing: boolean;
+}) {
+  return (
+    <div className="public-player__transport">
+      <button
+        aria-label="Previous track"
+        className="button button--secondary button--small"
+        disabled={currentIndex <= 0}
+        onClick={onPrevious}
+        type="button"
+      >
+        Previous
+      </button>
+      <button
+        className="button button--primary public-player__play"
+        onClick={onTogglePlay}
+        type="button"
+      >
+        {playing ? "Pause" : "Play"}
+      </button>
+      <button
+        aria-label="Next track"
+        className="button button--secondary button--small"
+        disabled={currentIndex >= playableCount - 1 && loopMode !== "all"}
+        onClick={onNext}
+        type="button"
+      >
+        Next
+      </button>
+      <button
+        aria-pressed={loopMode !== "none"}
+        className="public-player__repeat"
+        onClick={onToggleLoop}
+        type="button"
+      >
+        {loopMode === "none" ? "No repeat" : loopMode === "all" ? "Repeat all" : "Repeat one"}
+      </button>
+    </div>
+  );
+}
+
+function PlayerRehearsalOptions({
+  countdown,
+  gapSeconds,
+  onChangeGapSeconds,
+  onChangeStartAt,
+  onChangeVolume,
+  onToggleGuide,
+  showGuide,
+  startAt,
+  volume,
+}: {
+  readonly countdown: number | null;
+  readonly gapSeconds: number;
+  readonly onChangeGapSeconds: (gap: number) => void;
+  readonly onChangeStartAt: (start: string) => void;
+  readonly onChangeVolume: (volume: number) => void;
+  readonly onToggleGuide: () => void;
+  readonly showGuide: boolean;
+  readonly startAt: number;
+  readonly volume: number;
+}) {
+  return (
+    <>
+      <div className="public-player__options">
+        <label className="public-player__option">
+          <span>Start track at</span>
+          <span className="public-player__inline-input">
+            <input
+              inputMode="decimal"
+              min={0}
+              onChange={(event) => {
+                onChangeStartAt(event.target.value);
+              }}
+              step={1}
+              type="number"
+              value={startAt}
+            />
+            <small>seconds</small>
+          </span>
+          <small>Skips the beginning of this track every time you play it.</small>
+        </label>
+        <label className="public-player__option">
+          <span className="public-player__option-heading">
+            <span>Volume</span>
+            <small>{String(volume)}%</small>
+          </span>
+          <input
+            aria-label="Volume"
+            max={100}
+            min={0}
+            onChange={(event) => {
+              onChangeVolume(Number(event.target.value));
+            }}
+            type="range"
+            value={volume}
+          />
+        </label>
+        <label className="public-player__option">
+          <span>Gap between tracks</span>
+          <select
+            onChange={(event) => {
+              onChangeGapSeconds(Number(event.target.value));
+            }}
+            value={gapSeconds}
+          >
+            <option value={0}>None</option>
+            <option value={2}>2 seconds</option>
+            <option value={5}>5 seconds</option>
+            <option value={10}>10 seconds</option>
+          </select>
+        </label>
+      </div>
+      {countdown !== null ? (
+        <p className="notice notice--info" role="status">
+          Next track starts in {countdown} seconds.
+        </p>
+      ) : null}
+      <button
+        aria-expanded={showGuide}
+        className="public-player__guide-toggle"
+        onClick={onToggleGuide}
+        type="button"
+      >
+        {showGuide ? "Hide control guide" : "Show control guide"}
+      </button>
+      {showGuide ? (
+        <div className="public-player__guide">
+          <div>
+            <strong>Start track at</strong>
+            <span>Skips the beginning of this track every time you play it.</span>
+          </div>
+          <div>
+            <strong>Gap between tracks</strong>
+            <span>Adds silence before the next track starts.</span>
+          </div>
+          <div>
+            <strong>Repeat</strong>
+            <span>Choose whether to stop, repeat the set list, or repeat one track.</span>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function PlayerSetList({
+  activeTrackKey,
+  currentIndex,
+  items,
+  onSelectItem,
+  playableItems,
+  token,
+}: {
+  readonly activeTrackKey: string;
+  readonly currentIndex: number;
+  readonly items: readonly PlayerPlaylistItem[];
+  readonly onSelectItem: (itemIndex: number) => void;
+  readonly playableItems: readonly PlayerPlaylistItem[];
+  readonly token: string;
+}) {
+  return (
+    <section aria-labelledby="public-player-set-list" className="public-player__set-list">
+      <div className="public-player__set-list-heading">
+        <div>
+          <h2 id="public-player-set-list">Set List</h2>
+          <p>{String(items.length)} tracks</p>
+        </div>
+      </div>
+      <p className="public-player__set-list-help">
+        Choose a track to start practicing. Part and section tracks fall back to Tutti when a
+        specific recording is not available.
+      </p>
+      <ol>
+        {items.map((item, index) => {
+          const track = resolveTrack(item, activeTrackKey);
+          const itemIndex = playableItems.indexOf(item);
+          const active = itemIndex === currentIndex;
+          return (
+            <li
+              className={active ? "is-active" : undefined}
+              key={item.pieceId ?? `${item.title}-${String(index)}`}
+            >
+              <button
+                className="public-player__set-list-item"
+                disabled={track === null}
+                onClick={() => {
+                  onSelectItem(itemIndex);
+                }}
+                type="button"
+              >
+                <span>
+                  <strong>{item.title}</strong>
+                  {item.composer ? <small>{item.composer}</small> : null}
+                </span>
+                {track ? (
+                  <span className="public-player__item-track">
+                    {track.fallback ? "Tutti" : formatTrackKey(track.key)}
+                  </span>
+                ) : (
+                  <span className="public-player__item-track">Unavailable</span>
+                )}
+              </button>
+              {track ? (
+                <a
+                  className="button button--secondary button--small"
+                  download
+                  href={playerMediaUrl(track.fileId, token)}
+                >
+                  Download file
+                </a>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 function PublicPracticePlayer({
   details,
   token,
@@ -176,7 +493,7 @@ function PublicPracticePlayer({
   const [startAt, setStartAt] = useState(0);
   const [volume, setVolume] = useState(100);
   const [gapSeconds, setGapSeconds] = useState(0);
-  const [loopMode, setLoopMode] = useState<"none" | "all" | "one">("none");
+  const [loopMode, setLoopMode] = useState<"all" | "none" | "one">("none");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showGuide, setShowGuide] = useState(true);
 
@@ -325,40 +642,12 @@ function PublicPracticePlayer({
   if (!currentItem || !currentTrack) {
     return (
       <>
-        <div className="public-player__track-pills" aria-label="Track selection">
-          {trackKeys.map((key) => (
-            <button
-              aria-pressed={activeTrackKey === key}
-              className={activeTrackKey === key ? "is-active" : undefined}
-              key={key}
-              type="button"
-              onClick={() => {
-                selectTrackKey(key);
-              }}
-            >
-              {formatTrackKey(key)}
-            </button>
-          ))}
-          {voicePartKeys.length > 0 ? (
-            <label className="public-player__voice-part-select">
-              <span className="sr-only">Add individual part</span>
-              <select
-                aria-label="Add individual part"
-                value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
-                onChange={(event) => {
-                  if (event.target.value) selectTrackKey(event.target.value);
-                }}
-              >
-                <option value="">Add part…</option>
-                {voicePartKeys.map((key) => (
-                  <option key={key} value={key}>
-                    {formatTrackKey(key)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </div>
+        <TrackSelectionNav
+          activeTrackKey={activeTrackKey}
+          onSelectTrackKey={selectTrackKey}
+          trackKeys={trackKeys}
+          voicePartKeys={voicePartKeys}
+        />
         <p className="public-player__empty" role="status">
           No practice tracks are available for this set list yet.
         </p>
@@ -368,42 +657,14 @@ function PublicPracticePlayer({
 
   return (
     <>
-      <nav className="public-player__track-pills" aria-label="Track selection">
-        {trackKeys.map((key) => (
-          <button
-            aria-pressed={activeTrackKey === key}
-            className={activeTrackKey === key ? "is-active" : undefined}
-            key={key}
-            type="button"
-            onClick={() => {
-              selectTrackKey(key);
-            }}
-          >
-            {formatTrackKey(key)}
-          </button>
-        ))}
-        {voicePartKeys.length > 0 ? (
-          <label className="public-player__voice-part-select">
-            <span className="sr-only">Add individual part</span>
-            <select
-              aria-label="Add individual part"
-              value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
-              onChange={(event) => {
-                if (event.target.value) selectTrackKey(event.target.value);
-              }}
-            >
-              <option value="">Add part…</option>
-              {voicePartKeys.map((key) => (
-                <option key={key} value={key}>
-                  {formatTrackKey(key)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-      </nav>
+      <TrackSelectionNav
+        activeTrackKey={activeTrackKey}
+        onSelectTrackKey={selectTrackKey}
+        trackKeys={trackKeys}
+        voicePartKeys={voicePartKeys}
+      />
 
-      <section className="public-player__now-playing" aria-labelledby="public-player-now-playing">
+      <section aria-labelledby="public-player-now-playing" className="public-player__now-playing">
         <div className="public-player__track-heading">
           <div>
             <p className="eyebrow">Now playing</p>
@@ -422,9 +683,6 @@ function PublicPracticePlayer({
         <audio
           aria-label={`${currentItem.title} ${formatTrackKey(currentTrack.key)} track`}
           className="public-player__audio"
-          preload="metadata"
-          ref={audioRef}
-          src={source}
           onEnded={handleEnded}
           onLoadedMetadata={(event) => {
             const nextDuration = Number.isFinite(event.currentTarget.duration)
@@ -448,207 +706,63 @@ function PublicPracticePlayer({
           onTimeUpdate={(event) => {
             setCurrentTime(event.currentTarget.currentTime);
           }}
+          preload="metadata"
+          ref={audioRef}
+          src={source}
         >
           <track kind="captions" />
         </audio>
 
-        <div className="public-player__progress">
-          <input
-            aria-label={`Seek ${currentItem.title}`}
-            max={duration || 1}
-            min={0}
-            step={0.1}
-            type="range"
-            value={Math.min(currentTime, duration || 0)}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setCurrentTime(next);
-              if (audioRef.current) audioRef.current.currentTime = next;
-            }}
-          />
-          <div>
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
-          </div>
-        </div>
+        <PlayerProgressBar
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={(nextTime) => {
+            setCurrentTime(nextTime);
+            if (audioRef.current) audioRef.current.currentTime = nextTime;
+          }}
+          title={currentItem.title}
+        />
 
-        <div className="public-player__transport">
-          <button
-            aria-label="Previous track"
-            className="button button--secondary button--small"
-            disabled={currentIndex <= 0}
-            type="button"
-            onClick={() => {
-              selectItem(currentIndex - 1, false);
-            }}
-          >
-            Previous
-          </button>
-          <button
-            className="button button--primary public-player__play"
-            type="button"
-            onClick={togglePlay}
-          >
-            {playing ? "Pause" : "Play"}
-          </button>
-          <button
-            aria-label="Next track"
-            className="button button--secondary button--small"
-            disabled={currentIndex >= playableItems.length - 1 && loopMode !== "all"}
-            type="button"
-            onClick={nextTrack}
-          >
-            Next
-          </button>
-          <button
-            aria-pressed={loopMode !== "none"}
-            className="public-player__repeat"
-            type="button"
-            onClick={() => {
-              setLoopMode((mode) => (mode === "none" ? "all" : mode === "all" ? "one" : "none"));
-            }}
-          >
-            {loopMode === "none" ? "No repeat" : loopMode === "all" ? "Repeat all" : "Repeat one"}
-          </button>
-        </div>
+        <PlayerTransportControls
+          currentIndex={currentIndex}
+          loopMode={loopMode}
+          onNext={nextTrack}
+          onPrevious={() => {
+            selectItem(currentIndex - 1, false);
+          }}
+          onToggleLoop={() => {
+            setLoopMode((mode) => (mode === "none" ? "all" : mode === "all" ? "one" : "none"));
+          }}
+          onTogglePlay={togglePlay}
+          playableCount={playableItems.length}
+          playing={playing}
+        />
 
-        <div className="public-player__options">
-          <label className="public-player__option">
-            <span>Start track at</span>
-            <span className="public-player__inline-input">
-              <input
-                inputMode="decimal"
-                min={0}
-                step={1}
-                type="number"
-                value={startAt}
-                onChange={(event) => {
-                  updateStartAt(event.target.value);
-                }}
-              />
-              <small>seconds</small>
-            </span>
-            <small>Skips the beginning of this track every time you play it.</small>
-          </label>
-          <label className="public-player__option">
-            <span className="public-player__option-heading">
-              <span>Volume</span>
-              <small>{String(volume)}%</small>
-            </span>
-            <input
-              aria-label="Volume"
-              max={100}
-              min={0}
-              type="range"
-              value={volume}
-              onChange={(event) => {
-                setVolume(Number(event.target.value));
-              }}
-            />
-          </label>
-          <label className="public-player__option">
-            <span>Gap between tracks</span>
-            <select
-              value={gapSeconds}
-              onChange={(event) => {
-                setGapSeconds(Number(event.target.value));
-              }}
-            >
-              <option value={0}>None</option>
-              <option value={2}>2 seconds</option>
-              <option value={5}>5 seconds</option>
-              <option value={10}>10 seconds</option>
-            </select>
-          </label>
-        </div>
-        {countdown !== null ? (
-          <p className="notice notice--info" role="status">
-            Next track starts in {countdown} seconds.
-          </p>
-        ) : null}
-        <button
-          aria-expanded={showGuide}
-          className="public-player__guide-toggle"
-          type="button"
-          onClick={() => {
+        <PlayerRehearsalOptions
+          countdown={countdown}
+          gapSeconds={gapSeconds}
+          onChangeGapSeconds={setGapSeconds}
+          onChangeStartAt={updateStartAt}
+          onChangeVolume={setVolume}
+          onToggleGuide={() => {
             setShowGuide((current) => !current);
           }}
-        >
-          {showGuide ? "Hide control guide" : "Show control guide"}
-        </button>
-        {showGuide ? (
-          <div className="public-player__guide">
-            <div>
-              <strong>Start track at</strong>
-              <span>Skips the beginning of this track every time you play it.</span>
-            </div>
-            <div>
-              <strong>Gap between tracks</strong>
-              <span>Adds silence before the next track starts.</span>
-            </div>
-            <div>
-              <strong>Repeat</strong>
-              <span>Choose whether to stop, repeat the set list, or repeat one track.</span>
-            </div>
-          </div>
-        ) : null}
+          showGuide={showGuide}
+          startAt={startAt}
+          volume={volume}
+        />
       </section>
 
-      <section className="public-player__set-list" aria-labelledby="public-player-set-list">
-        <div className="public-player__set-list-heading">
-          <div>
-            <h2 id="public-player-set-list">Set List</h2>
-            <p>{String(details.items.length)} tracks</p>
-          </div>
-        </div>
-        <p className="public-player__set-list-help">
-          Choose a track to start practicing. Part and section tracks fall back to Tutti when a
-          specific recording is not available.
-        </p>
-        <ol>
-          {details.items.map((item, index) => {
-            const track = resolveTrack(item, activeTrackKey);
-            const itemIndex = playableItems.indexOf(item);
-            const active = itemIndex === currentIndex;
-            return (
-              <li
-                className={active ? "is-active" : undefined}
-                key={item.pieceId ?? `${item.title}-${String(index)}`}
-              >
-                <button
-                  className="public-player__set-list-item"
-                  disabled={track === null}
-                  type="button"
-                  onClick={() => {
-                    selectItem(itemIndex);
-                  }}
-                >
-                  <span>
-                    <strong>{item.title}</strong>
-                    {item.composer ? <small>{item.composer}</small> : null}
-                  </span>
-                  {track ? (
-                    <span className="public-player__item-track">
-                      {track.fallback ? "Tutti" : formatTrackKey(track.key)}
-                    </span>
-                  ) : (
-                    <span className="public-player__item-track">Unavailable</span>
-                  )}
-                </button>
-                {track ? (
-                  <a
-                    className="button button--secondary button--small"
-                    download
-                    href={playerMediaUrl(track.fileId, token)}
-                  >
-                    Download file
-                  </a>
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
-      </section>
+      <PlayerSetList
+        activeTrackKey={activeTrackKey}
+        currentIndex={currentIndex}
+        items={details.items}
+        onSelectItem={(itemIndex) => {
+          selectItem(itemIndex);
+        }}
+        playableItems={playableItems}
+        token={token}
+      />
     </>
   );
 }
