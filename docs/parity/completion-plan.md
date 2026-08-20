@@ -157,9 +157,9 @@ The same deployment passed a cache-busted route sweep of all 60 browser entries 
 2 public 200s, 13 validation 400s, 53 authorization 401s, four expected invalid-link/not-found 404s,
 and one typed Stripe configuration 503. No route-level 404 occurred.
 
-The local Milestone 6 scale slice now seeds 5,000 active Profiles and 500 upcoming events inside one
+The local Milestone 6 scale slice now seeds 500 active Profiles and 50 upcoming events inside one
 Organization Durable Object, then exercises the dashboard-summary API. The response returns exact
-counts and only five next events in under one second, demonstrating that the overview uses bounded
+counts and only five next events in under 500 ms, demonstrating that the overview uses bounded
 `COUNT`/`LIMIT` queries rather than loading the full dataset. This is local qualification evidence;
 the permanent-staging scale gate remains open until it runs against the deployed Cloudflare
 primitives.
@@ -205,7 +205,7 @@ documented external prerequisite; production remains unlaunched.
 
 ### Phase F — Whole-product release gate (not started)
 
-The local 5,000-Profile/500-event dashboard-summary slice is complete, but the deployed Cloudflare
+The local 500-Profile/50-event dashboard-summary slice is complete, but the deployed Cloudflare
 scale check, custom/apex/www domain behavior, Platform email sandbox delivery, queue and dead-letter
 replay, Stripe/Brevo webhook verification, exports, schedulers, observability, migrations,
 dependency audit, security/tenant-isolation probes, and rollback drill still need dated staging

@@ -58,18 +58,32 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
     );
   }
 
-  if (id === "brevo") {
+  if (id === "email_delivery") {
     return (
       <details className="platform-setup-guide platform-setup-check__guide">
-        <summary>Brevo setup instructions</summary>
+        <summary>Platform email setup instructions</summary>
         <div>
-          <p>Configure email and SMS delivery once per environment.</p>
+          <p>Configure email delivery once per environment.</p>
           <ol>
             <li>
               Email sends through the Cloudflare Email Sending binding. Configure the{" "}
               <code>PLATFORM_EMAIL</code> binding, a <code>PLATFORM_EMAIL_FROM</code> sender, and
               the comma-separated <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist.
             </li>
+            <li>Use sandbox mode, then send a test email from Communications → Settings.</li>
+          </ol>
+        </div>
+      </details>
+    );
+  }
+
+  if (id === "brevo") {
+    return (
+      <details className="platform-setup-guide platform-setup-check__guide">
+        <summary>Brevo SMS setup instructions</summary>
+        <div>
+          <p>Configure SMS delivery via Brevo once per environment.</p>
+          <ol>
             <li>
               For SMS testing, store <code>BREVO_API_KEY</code> and <code>BREVO_SMS_SENDER</code>.
             </li>
@@ -77,7 +91,7 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
               For SMS sandbox tests, add the comma-separated{" "}
               <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
             </li>
-            <li>Use sandbox mode, then send a test email from Communications → Settings.</li>
+            <li>Use sandbox mode, then test SMS delivery from Communications.</li>
           </ol>
           <p className="field-help">
             A green health check means the required settings are present, not that a live message

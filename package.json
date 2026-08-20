@@ -40,6 +40,8 @@
     "qualify:staging:clear-cache": "node scripts/staging-auth-helper.mjs --clear-cache",
     "qualify:staging:scheduler": "node scripts/qualify-staging-scheduler.mjs",
     "qualify:staging:ticket-reminder": "node scripts/qualify-staging-ticket-reminder.mjs",
+    "qualify:staging:stripe-commerce": "node scripts/qualify-staging-stripe-commerce.mjs",
+    "qualify:staging:setup-maintenance": "node scripts/qualify-staging-setup-maintenance.mjs",
     "setup:env": "node scripts/setup-developer-environment.mjs",
     "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",
     "format": "prettier --write .",

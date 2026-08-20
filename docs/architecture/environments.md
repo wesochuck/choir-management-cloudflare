@@ -50,14 +50,13 @@ Cloudflare authentication remain on the maintainer workstation.
 
 ## Organization communications sandbox gate
 
-The Worker has a Brevo adapter, but staging remains in deterministic `fake` mode until the operator
-supplies a staging-only API key, verifies the Organization email sender, configures an SMS sender,
-and records an explicit SMS recipient allowlist as Worker secrets/variables. Email qualification
-uses Brevo's documented `X-Sib-Sandbox: drop` request header, which validates the request without
-sending or creating an email log. Brevo does not provide the same no-send behavior for transactional
-SMS, so sandbox SMS is suppressed unless its exact destination is allowlisted. Provider response
-bodies and credentials are never copied into delivery failures or logs.
+The Worker uses Cloudflare Email Sending for email delivery and a Brevo adapter for SMS. Staging
+remains in deterministic `fake` mode until the operator configures the Cloudflare email
+binding/sender/allowlist and, if SMS testing is needed, supplies a staging-only Brevo API key, SMS
+sender, and an explicit SMS recipient allowlist as Worker secrets/variables. Transactional SMS is
+suppressed unless its exact destination is allowlisted. Provider response bodies and credentials are
+never copied into delivery failures or logs.
 
-References: [Brevo email sandbox mode](https://developers.brevo.com/docs/using-sandbox-mode),
-[transactional email API](https://developers.brevo.com/reference/send-transac-email), and
-[transactional SMS API](https://developers.brevo.com/reference/send-async-transactional-sms).
+References:
+[Cloudflare Email Sending](https://developers.cloudflare.com/email-routing/email-sending/), and
+[Brevo transactional SMS API](https://developers.brevo.com/reference/send-async-transactional-sms).

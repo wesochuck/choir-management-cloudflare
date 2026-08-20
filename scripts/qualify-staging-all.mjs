@@ -77,6 +77,16 @@ const PHASES = [
     label: "Scheduler, Event Reminders & Attendance Reports",
     name: "scheduler",
   },
+  {
+    args: ["scripts/qualify-staging-stripe-commerce.mjs"],
+    label: "Stripe Sandbox & Commercial Flow Qualification",
+    name: "stripe-commerce",
+  },
+  {
+    args: ["scripts/qualify-staging-setup-maintenance.mjs"],
+    label: "Setup Wizard & Maintenance Tasks Qualification",
+    name: "setup-maintenance",
+  },
 ];
 
 function runPhase(scriptArgs, environment) {

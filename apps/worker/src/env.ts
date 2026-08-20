@@ -28,8 +28,6 @@ export interface Env {
   readonly ASSETS: Fetcher;
   readonly BETTER_AUTH_SECRET: string;
   readonly BREVO_API_KEY?: string | undefined;
-  readonly BREVO_EMAIL_FROM?: string | undefined;
-  readonly BREVO_EMAIL_FROM_NAME?: string | undefined;
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string | undefined;
   readonly BREVO_SMS_SENDER?: string | undefined;
   readonly BUILD_VERSION: "staging" | "unreleased" | "development";

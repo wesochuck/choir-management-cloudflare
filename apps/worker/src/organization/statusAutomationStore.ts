@@ -71,7 +71,7 @@ interface StatusAutomationActor {
   readonly requestId: string;
 }
 
-const MAX_AUTOMATION_PROFILES = 5_000;
+const MAX_AUTOMATION_PROFILES = 500;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1_000;
 const STATUS_AUTOMATION_FIXTURE_DISPLAY_PREFIX = "QUAL-STATUS-AUTOMATION-";
 

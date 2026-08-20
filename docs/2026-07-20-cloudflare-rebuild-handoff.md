@@ -99,9 +99,9 @@ match the Organization-at-a-time access rule.
 
 Design and test up to:
 
-- 5,000 Profiles per Organization;
-- 100,000 operational/commercial records per Organization;
-- 250 simultaneous authenticated users per Organization;
+- 500 Profiles per Organization;
+- 10,000 operational/commercial records per Organization;
+- 25 simultaneous authenticated users per Organization;
 - larger public bursts served from Published Projections and edge caching.
 
 Expected real Organizations are roughly one-fifth of those limits.

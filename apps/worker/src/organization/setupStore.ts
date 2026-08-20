@@ -270,7 +270,7 @@ function completeSetup(
       operation.organizationId,
     );
     storage.sql.exec(
-      `INSERT INTO audit_events
+      `INSERT OR REPLACE INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
        VALUES (?, 'system', 'setup', 'organization.setup_completed',

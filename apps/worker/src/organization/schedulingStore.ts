@@ -295,7 +295,7 @@ function readAttendanceReportJobFromStore(
            WHERE e.parent_performance_id = ? AND e.type = 'Rehearsal'
              AND e.is_archived = 0 AND e.is_canceled = 0
            ORDER BY e.starts_at, e.id, p.display_name COLLATE NOCASE, p.id
-           LIMIT 5000`,
+           LIMIT 500`,
           performanceEventId,
         )
         .toArray()

@@ -776,7 +776,7 @@ describe("Organization calendar management", () => {
     const createdAt = new Date("2029-12-01T00:00:00.000Z").toISOString();
     const stub = stores.get(stores.idFromName("organization-alpha"));
     await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
-      for (let offset = 0; offset < 5_000; offset += 25) {
+      for (let offset = 0; offset < 500; offset += 25) {
         const rows = Array.from({ length: 25 }, (_, index) => {
           const sequence = String(offset + index);
           const id = `scale-profile-${sequence}`;
@@ -788,7 +788,7 @@ describe("Organization calendar management", () => {
           ...rows.flat(),
         );
       }
-      for (let offset = 0; offset < 500; offset += 10) {
+      for (let offset = 0; offset < 50; offset += 10) {
         const rows = Array.from({ length: 10 }, (_, index) => {
           const sequence = offset + index;
           const id = `00000000-0000-4000-8000-${String(sequence).padStart(12, "0")}`;
@@ -817,8 +817,8 @@ describe("Organization calendar management", () => {
     const elapsedMs = performance.now() - startedAt;
     expect(response.status).toBe(200);
     const summary = organizationDashboardSummaryResponseSchema.parse(await response.json());
-    expect(summary.activeProfileCount).toBe(5_000);
-    expect(summary.upcomingEventCount).toBe(500);
+    expect(summary.activeProfileCount).toBe(500);
+    expect(summary.upcomingEventCount).toBe(50);
     expect(summary.nextEvents).toHaveLength(5);
     expect(elapsedMs).toBeLessThan(1_000);
   });

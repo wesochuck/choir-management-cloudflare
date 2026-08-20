@@ -166,7 +166,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
   const brevoNeedsAttention = brevoStatus === "attention" || brevoStatus === "error";
   const brevoStatusMessage =
     brevoStatus === "error"
-      ? "Email delivery is not configured. Audition notices and other organization emails cannot be sent until Brevo is configured."
+      ? "Email delivery is not configured. Audition notices and other organization emails cannot be sent until email delivery is configured."
       : "Email delivery is not active in this environment. Messages will not reach recipients until delivery is enabled.";
   const selectedEvent = audience.eventId
     ? (events.find((event) => event.id === audience.eventId) ?? null)
@@ -194,7 +194,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
         <p className="notice notice--error communication-center__provider-warning" role="alert">
           <strong>Email delivery needs setup.</strong> {brevoStatusMessage}{" "}
           <a href="/admin/settings/setup-checklist#provider-status-title">
-            Open Brevo setup status.
+            Open communications setup status.
           </a>
         </p>
       ) : null}

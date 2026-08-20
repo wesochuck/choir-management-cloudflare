@@ -106,10 +106,10 @@ export function sessionCookieFromResponse(response) {
     .join("; ");
 }
 
-export function readCachedSession(productUrl, email) {
-  if (!existsSync(CACHE_FILE)) return null;
+export function readCachedSession(productUrl, email, cacheFile = CACHE_FILE) {
+  if (!existsSync(cacheFile)) return null;
   try {
-    const content = JSON.parse(readFileSync(CACHE_FILE, "utf-8"));
+    const content = JSON.parse(readFileSync(cacheFile, "utf-8"));
     if (
       typeof content?.sessionCookie === "string" &&
       hasUsableSessionCookie(content.sessionCookie) &&
@@ -126,10 +126,11 @@ export function readCachedSession(productUrl, email) {
   return null;
 }
 
-export function saveCachedSession(productUrl, email, sessionCookie) {
+export function saveCachedSession(productUrl, email, sessionCookie, cacheFile = CACHE_FILE) {
   try {
-    if (!existsSync(CACHE_DIR)) {
-      mkdirSync(CACHE_DIR, { recursive: true });
+    const cacheDir = dirname(cacheFile);
+    if (!existsSync(cacheDir)) {
+      mkdirSync(cacheDir, { recursive: true });
     }
     const data = {
       email: email.trim().toLowerCase(),
@@ -137,15 +138,15 @@ export function saveCachedSession(productUrl, email, sessionCookie) {
       savedAt: Date.now(),
       sessionCookie,
     };
-    writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
+    writeFileSync(cacheFile, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
   } catch {
     // Non-fatal if cache cannot be written
   }
 }
 
-export function clearCachedSession() {
-  if (existsSync(CACHE_FILE)) {
-    rmSync(CACHE_FILE, { force: true });
+export function clearCachedSession(cacheFile = CACHE_FILE) {
+  if (existsSync(cacheFile)) {
+    rmSync(cacheFile, { force: true });
     console.log("Cached staging session was cleared.");
   }
 }

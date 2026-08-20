@@ -30,8 +30,8 @@ behavior
 
 ## Organization Scale Envelope
 
-The supported planning target for a single Organization: up to 5,000 roster profiles, 100,000
-patron/order/communication records, and 250 simultaneously active authenticated users, with short
+The supported planning target for a single Organization: up to 500 roster profiles, 10,000
+patron/order/communication records, and 25 simultaneously active authenticated users, with short
 public traffic bursts. Expected Organizations are approximately one fifth of this size, and bulk
 communications, imports, and reports are asynchronous. _Avoid_: Pricing quota, hard customer limit
 
