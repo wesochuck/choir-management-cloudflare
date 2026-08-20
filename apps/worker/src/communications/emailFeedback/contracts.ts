@@ -26,7 +26,7 @@ export const emailProviderSourceKindSchema = z.enum([
 ]);
 
 export type EmailProviderSourceKind = z.infer<typeof emailProviderSourceKindSchema>;
-export type EmailProviderStatus = z.infer<typeof emailProviderStatusSchema>;
+type EmailProviderStatus = z.infer<typeof emailProviderStatusSchema>;
 
 export const organizationEmailProviderSourceKindSchema = z.enum([
   "communication_delivery",
@@ -44,7 +44,7 @@ export const cloudflareEventTypeSchema = z.enum([
   "cf.email.sending.message.complained",
 ]);
 
-export const deliverySchema = z
+const deliverySchema = z
   .looseObject({
     smtpEnhancedStatusCode: z.string().trim().max(32).optional(),
     smtpResponse: z.string().trim().max(MAX_SMTP_RESPONSE_LENGTH).optional(),
@@ -92,7 +92,7 @@ export const cloudflareEmailEventSchema = z.looseObject({
   type: cloudflareEventTypeSchema,
 });
 
-export const providerRouteBackfillRowSchema = z.object({
+const providerRouteBackfillRowSchema = z.object({
   destination: z.email(),
   providerMessageId: z.string().trim().min(1).max(512),
   sourceId: z.string().trim().min(1).max(256),

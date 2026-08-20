@@ -13,7 +13,7 @@ import {
 const MAX_RECONCILIATION_ATTEMPTS = 12;
 const RECONCILIATION_DELAY = "5 minutes";
 
-export const customDomainParamsSchema = z.object({
+const customDomainParamsSchema = z.object({
   actorUserId: z.string().min(1).max(128),
   attempt: z.number().int().nonnegative().max(MAX_RECONCILIATION_ATTEMPTS),
   domainId: z.uuid(),

@@ -6,7 +6,7 @@ import {
   prepareEmailProviderRoute,
 } from "../communications/emailFeedback";
 
-export type PlatformEmailKind =
+type PlatformEmailKind =
   | "communication-test"
   | "email-change-confirmation"
   | "email-change-notice"

@@ -1,4 +1,4 @@
-export const MAX_ORGANIZATION_EXPORT_BYTES = 50 * 1024 * 1024;
+const MAX_ORGANIZATION_EXPORT_BYTES = 50 * 1024 * 1024;
 
 export interface OrganizationExportArchive {
   readonly archive: string;

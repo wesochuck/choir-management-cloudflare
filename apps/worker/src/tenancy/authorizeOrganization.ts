@@ -1,6 +1,6 @@
 import { failure, success, type DomainResult } from "@choir/domain";
 
-export type OrganizationRole = "administrator" | "member" | "owner";
+type OrganizationRole = "administrator" | "member" | "owner";
 
 interface BetterAuthMemberRow {
   readonly assertionExpiresAt: number | null;

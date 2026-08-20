@@ -37,7 +37,7 @@ const cloudflareHostnameSchema = z.object({
 });
 const cloudflareHostnameListSchema = z.array(cloudflareHostnameSchema);
 
-export type CustomDomainProviderStatus = "active" | "error" | "not_configured" | "pending";
+type CustomDomainProviderStatus = "active" | "error" | "not_configured" | "pending";
 
 export interface CustomDomainProviderState {
   readonly providerHostnameId: string;

@@ -1127,7 +1127,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/profiles.ts",
-            "apps/worker/test/auth.integration.test.ts",
+            "apps/worker/test/auth.platform.integration.test.ts",
           ],
       },
       {

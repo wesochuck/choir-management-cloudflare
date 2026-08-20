@@ -11,7 +11,7 @@ import type {
 } from "./contracts";
 import { seasonById, seasonResult } from "./shared";
 
-export function validateSeasonInput(
+function validateSeasonInput(
   storage: DurableObjectStorage,
   season: z.infer<typeof seasonCreateRequestSchema>,
   excludedSeasonId?: string,

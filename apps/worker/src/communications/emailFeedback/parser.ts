@@ -40,11 +40,11 @@ export function emailDomain(value: string | undefined): string | undefined {
   return parsed.data.slice(parsed.data.lastIndexOf("@") + 1).toLowerCase();
 }
 
-export function eventTypeFromCloudflareType(value: z.infer<typeof cloudflareEventTypeSchema>) {
+function eventTypeFromCloudflareType(value: z.infer<typeof cloudflareEventTypeSchema>) {
   return emailProviderStatusSchema.parse(value.slice(CLOUDFLARE_EVENT_PREFIX.length));
 }
 
-export function normalizedRejectionParty(
+function normalizedRejectionParty(
   value: string | undefined,
 ): "sender" | "recipient" | "other" | null {
   const normalized = value?.trim().toLowerCase();
@@ -54,9 +54,7 @@ export function normalizedRejectionParty(
   return "other";
 }
 
-export function eventReason(
-  payload: z.infer<typeof cloudflareEmailEventSchema>["payload"],
-): string {
+function eventReason(payload: z.infer<typeof cloudflareEmailEventSchema>["payload"]): string {
   const rejectionParty = payload.rejection?.party
     ? `rejection_party=${payload.rejection.party}`
     : "";

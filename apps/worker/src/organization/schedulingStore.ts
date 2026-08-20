@@ -216,7 +216,7 @@ interface LinkedRehearsalRosterRow {
   readonly rsvp: string | null;
 }
 
-export function readAttendanceReportJobFromStore(
+function readAttendanceReportJobFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
   jobId: string | null,

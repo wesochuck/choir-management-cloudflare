@@ -1002,6 +1002,75 @@ describe("Organization calendar management", () => {
       }),
     );
     expect(crossTenantRefund.status).toBe(404);
+
+    const seasonId = crypto.randomUUID();
+    const duesId = crypto.randomUUID();
+    const duesProfileId = crypto.randomUUID();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+          duesProfileId,
+          "Dues Payer",
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO seasons (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+           VALUES (?, 'Refund Season', ?, ?, 2500, ?, ?)`,
+          seasonId,
+          now,
+          now,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO dues
+            (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+             provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+           VALUES (?, ?, ?, 2500, 0, ?, ?, 'dues@example.test', 'paid', 'online', ?, ?, ?)`,
+          duesId,
+          seasonId,
+          duesProfileId,
+          `fake_session_${duesId}`,
+          `fake_payment_${duesId}`,
+          now,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO payment_attempts
+            (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+             provider_payment_id, status, amount_cents, created_at, updated_at)
+           VALUES (?, 'dues', ?, ?, ?, ?, 'paid', 2500, ?, ?)`,
+          `payment-attempt:${duesId}`,
+          duesId,
+          crypto.randomUUID(),
+          `fake_session_${duesId}`,
+          `fake_payment_${duesId}`,
+          now,
+          now,
+        );
+        return null;
+      },
+    );
+    const refundedDues = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/dues/${duesId}/refund`, cookie, {
+        method: "POST",
+      }),
+    );
+    expect(refundedDues.status).toBe(200);
+    expect(await refundedDues.json()).toMatchObject({
+      id: duesId,
+      status: "refunded",
+    });
+    const crossTenantDuesRefund = await exports.default.fetch(
+      api("bravo.localhost", `/api/organization/dues/${duesId}/refund`, cookie, {
+        method: "POST",
+      }),
+    );
+    expect(crossTenantDuesRefund.status).toBe(404);
   });
 
   it("manages Organization polls and issues recipient-scoped poll tokens", async () => {

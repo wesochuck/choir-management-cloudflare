@@ -11,7 +11,7 @@ import { purchaseSelect, type TicketPurchaseRow } from "./contracts";
 import { queueTicketConfirmation } from "./notifications";
 import { purchaseResult } from "./readModel";
 
-export function purchaseByStripeOperation(
+function purchaseByStripeOperation(
   storage: DurableObjectStorage,
   providerSessionId: string,
   checkoutRequestId?: string,

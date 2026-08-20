@@ -152,7 +152,7 @@ export function printTimeOnly(value: string): string {
   }).format(new Date(value));
 }
 
-export function printRowsFor(
+function printRowsFor(
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
 ): SetListPrintRow[] {

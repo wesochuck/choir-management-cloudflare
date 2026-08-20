@@ -49,7 +49,7 @@ import {
 } from "./utils";
 import type { SeatingResources, ViewMode, SaveState, ConfirmState } from "./types";
 
-export function useIsNarrowScreen(): boolean {
+function useIsNarrowScreen(): boolean {
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 700px)");

@@ -88,7 +88,7 @@ export function listProfiles(
   return Response.json({ profiles });
 }
 
-export function readProfile(storage: DurableObjectStorage, profileId: string) {
+function readProfile(storage: DurableObjectStorage, profileId: string) {
   const row = storage.sql
     .exec<OrganizationProfileRow>(
       `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
@@ -173,7 +173,7 @@ export function listDirectoryProfiles(
   return Response.json({ profiles });
 }
 
-export function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: string): boolean {
+function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: string): boolean {
   if (voicePart === "") return true;
   try {
     const raw = storage.sql

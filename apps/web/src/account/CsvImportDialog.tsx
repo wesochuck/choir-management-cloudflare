@@ -23,7 +23,7 @@ interface CsvImportDialogProps {
   readonly title: string;
 }
 
-export interface CsvImportColumnWarning {
+interface CsvImportColumnWarning {
   readonly header: string;
   readonly message: string;
   readonly rows?: readonly number[];

@@ -148,7 +148,7 @@ export function privateOrganizationUploadKey(
   return `organizations/${organizationId}/private/${privateFileStorageName(fileName)}-${fileId}.mp3`;
 }
 
-export function isPrivateOrganizationFileKey(
+function isPrivateOrganizationFileKey(
   organizationId: string,
   fileId: string,
   fileName: string,

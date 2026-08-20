@@ -195,7 +195,7 @@ export async function dispatchPostRequest(
   return dispatchOperationalPostRequest(storage, pathname, request);
 }
 
-export async function auditionCreateHandler(
+async function auditionCreateHandler(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
@@ -238,7 +238,7 @@ export async function auditionCreateHandler(
   return readAuditionFromStore(storage, null, id);
 }
 
-export interface AuditionUpdatePayload {
+interface AuditionUpdatePayload {
   readonly actor?: { readonly actorUserId: string; readonly requestId: string };
   readonly input: {
     readonly adminNotes?: string;
@@ -255,7 +255,7 @@ export interface AuditionUpdatePayload {
   };
 }
 
-export function auditionInputFromParsed(
+function auditionInputFromParsed(
   data: z.infer<typeof organizationAuditionUpdateRequestSchema>,
 ): AuditionUpdatePayload["input"] {
   const input: {
@@ -285,7 +285,7 @@ export function auditionInputFromParsed(
   return input;
 }
 
-export function parseAuditionUpdatePayload(raw: unknown, url: URL): AuditionUpdatePayload {
+function parseAuditionUpdatePayload(raw: unknown, url: URL): AuditionUpdatePayload {
   const parsedBody = organizationAuditionUpdateRequestSchema.safeParse(raw);
   const actor = z.object({ actorUserId: z.string().min(1), requestId: z.uuid() }).safeParse(raw);
   if (parsedBody.success) {
@@ -314,7 +314,7 @@ export function parseAuditionUpdatePayload(raw: unknown, url: URL): AuditionUpda
   };
 }
 
-export async function auditionUpdateHandler(
+async function auditionUpdateHandler(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
@@ -324,10 +324,7 @@ export async function auditionUpdateHandler(
   return updateAuditionInStore(storage, auditionId, payload.input, payload.actor);
 }
 
-export function auditionPublicUpdateHandler(
-  storage: DurableObjectStorage,
-  request: Request,
-): Response {
+function auditionPublicUpdateHandler(storage: DurableObjectStorage, request: Request): Response {
   const url = new URL(request.url);
   const auditionId = url.searchParams.get("auditionId") ?? "";
   const payload = z
@@ -348,7 +345,7 @@ export function auditionPublicUpdateHandler(
   return updatePublicAuditionInStore(storage, auditionId, input);
 }
 
-export async function auditionSettingsUpdateHandler(
+async function auditionSettingsUpdateHandler(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
@@ -369,7 +366,7 @@ export async function auditionSettingsUpdateHandler(
   });
 }
 
-export async function auditionDeleteHandler(
+async function auditionDeleteHandler(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
@@ -387,7 +384,7 @@ export async function auditionDeleteHandler(
   });
 }
 
-export async function auditionNotificationResultHandler(
+async function auditionNotificationResultHandler(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
@@ -404,7 +401,7 @@ export async function auditionNotificationResultHandler(
   return recordAuditionNotificationResult(storage, body.data.organizationId, body.data);
 }
 
-export async function dispatchAuditionPostRequest(
+async function dispatchAuditionPostRequest(
   storage: DurableObjectStorage,
   pathname: string,
   request: Request,
@@ -438,7 +435,7 @@ export async function dispatchAuditionPostRequest(
 }
 
 // eslint-disable-next-line complexity -- dispatches the bounded internal mutation union without changing its routing semantics.
-export async function dispatchOperationalPostRequest(
+async function dispatchOperationalPostRequest(
   storage: DurableObjectStorage,
   pathname: string,
   request: Request,

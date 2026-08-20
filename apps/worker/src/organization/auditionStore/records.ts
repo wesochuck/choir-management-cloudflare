@@ -17,7 +17,7 @@ import {
 } from "./helpers";
 import { queueAuditionNotification, queueCreateNotifications } from "./notifications";
 
-export function readSlotsForAudition(
+function readSlotsForAudition(
   storage: DurableObjectStorage,
   auditionId: string,
 ): { id: string; startsAt: string; endsAt: string }[] {
@@ -30,7 +30,7 @@ export function readSlotsForAudition(
     .toArray();
 }
 
-export function readAuditionRow(
+function readAuditionRow(
   storage: DurableObjectStorage,
   auditionId: string,
 ): AuditionRow | undefined {
@@ -48,7 +48,7 @@ export function readAuditionRow(
     .at(0);
 }
 
-export function responseForRow(storage: DurableObjectStorage, row: AuditionRow): Response {
+function responseForRow(storage: DurableObjectStorage, row: AuditionRow): Response {
   return Response.json({
     adminNotes: row.adminNotes || undefined,
     availabilityNotes: row.availabilityNotes || undefined,
@@ -68,7 +68,7 @@ export function responseForRow(storage: DurableObjectStorage, row: AuditionRow):
   });
 }
 
-export function publicResponseForRow(storage: DurableObjectStorage, row: AuditionRow): Response {
+function publicResponseForRow(storage: DurableObjectStorage, row: AuditionRow): Response {
   const rosterOptions = publicAuditionRosterOptions(storage);
   return Response.json({
     availabilityNotes: row.availabilityNotes || undefined,
@@ -227,7 +227,7 @@ export function updatePublicAuditionInStore(
   return updateAuditionResponseInStore(storage, auditionId, input, undefined, "public");
 }
 
-export function updateAuditionResponseInStore(
+function updateAuditionResponseInStore(
   storage: DurableObjectStorage,
   auditionId: string,
   input: AuditionUpdateInput,
@@ -284,10 +284,7 @@ export function deleteAuditionInStore(
   return Response.json({ auditionId, status: "deleted" });
 }
 
-export function hasActivePerformance(
-  storage: DurableObjectStorage,
-  performanceId: string,
-): boolean {
+function hasActivePerformance(storage: DurableObjectStorage, performanceId: string): boolean {
   return (
     storage.sql
       .exec(
@@ -298,7 +295,7 @@ export function hasActivePerformance(
   );
 }
 
-export function auditionUpdateFields(input: AuditionUpdateInput): {
+function auditionUpdateFields(input: AuditionUpdateInput): {
   readonly params: readonly unknown[];
   readonly updates: readonly string[];
 } {
@@ -330,7 +327,7 @@ export function auditionUpdateFields(input: AuditionUpdateInput): {
   return { params, updates };
 }
 
-export function recordAuditionUpdateSideEffects(
+function recordAuditionUpdateSideEffects(
   storage: DurableObjectStorage,
   auditionId: string,
   input: AuditionUpdateInput,

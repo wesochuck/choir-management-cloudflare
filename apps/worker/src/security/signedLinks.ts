@@ -6,7 +6,7 @@ const MAX_ENVELOPE_BYTES = 2048;
 const SIGNATURE_BYTES = 32;
 const textEncoder = new TextEncoder();
 
-export const signedLinkPurposeSchema = z.enum([
+const signedLinkPurposeSchema = z.enum([
   "audition",
   "calendar_feed",
   "donation_receipt",

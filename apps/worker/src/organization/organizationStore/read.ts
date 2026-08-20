@@ -115,7 +115,7 @@ import {
   getPrivateFileMetadata,
 } from "./files";
 
-export const contentGetHandlers: Record<
+const contentGetHandlers: Record<
   string,
   (storage: DurableObjectStorage, url: URL, organizationId: string | null) => Response | null
 > = {
@@ -294,7 +294,7 @@ export const contentGetHandlers: Record<
     }),
 };
 
-export function dispatchContentGetRequest(
+function dispatchContentGetRequest(
   storage: DurableObjectStorage,
   url: URL,
   organizationId: string | null,
@@ -388,7 +388,7 @@ export async function dispatchProfilePostRequest(
   }
 }
 
-export function dispatchProfileGetRequest(
+function dispatchProfileGetRequest(
   storage: DurableObjectStorage,
   url: URL,
   organizationId: string | null,
@@ -412,7 +412,7 @@ export function dispatchProfileGetRequest(
     : null;
 }
 
-export function dispatchCalendarGetRequest(
+function dispatchCalendarGetRequest(
   storage: DurableObjectStorage,
   url: URL,
   organizationId: string | null,
@@ -535,7 +535,7 @@ export function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Res
   return null;
 }
 
-export function readExportSnapshot(
+function readExportSnapshot(
   storage: DurableObjectStorage,
   organizationId: string | null,
 ): Response {

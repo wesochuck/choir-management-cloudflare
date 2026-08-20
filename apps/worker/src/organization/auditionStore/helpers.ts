@@ -78,7 +78,7 @@ export function publicAuditionRosterOptions(storage: DurableObjectStorage): {
   return { performerLabel: configuration.performerLabel, sections, voiceParts };
 }
 
-export function readAuditionSystemCommunicationTemplate(
+function readAuditionSystemCommunicationTemplate(
   storage: DurableObjectStorage,
   templateId: string,
 ): AuditionSystemCommunicationTemplate {

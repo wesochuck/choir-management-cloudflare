@@ -124,7 +124,7 @@ export async function boundJsonRequestBody(context: JsonRequestContext): Promise
   return true;
 }
 
-export async function readJsonValue(context: Context<WorkerHonoEnvironment>): Promise<unknown> {
+async function readJsonValue(context: Context<WorkerHonoEnvironment>): Promise<unknown> {
   const value: unknown = await context.req.json<unknown>().catch(() => null);
   return value;
 }

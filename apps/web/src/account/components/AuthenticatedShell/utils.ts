@@ -8,7 +8,7 @@ import type {
   Workspace,
 } from "./types";
 
-export const themeStoragePrefix = "choir-theme:";
+const themeStoragePrefix = "choir-theme:";
 
 export function themeStorageKey(): string {
   return `${themeStoragePrefix}${window.location.hostname}`;
@@ -220,7 +220,7 @@ export function routeHasModule(
   return modules.find((module) => module.id === item.module)?.enabled ?? true;
 }
 
-export const moduleRoutePrefixes: Record<
+const moduleRoutePrefixes: Record<
   Exclude<NavigationItem["module"], undefined>,
   readonly string[]
 > = {

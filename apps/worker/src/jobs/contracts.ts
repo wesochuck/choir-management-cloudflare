@@ -1,7 +1,7 @@
 import { organizationIdSchema } from "@choir/contracts";
 import { z } from "zod";
 
-export const jobKindSchema = z.enum([
+const jobKindSchema = z.enum([
   "attendance_report",
   "audition_notification",
   "communication_delivery",

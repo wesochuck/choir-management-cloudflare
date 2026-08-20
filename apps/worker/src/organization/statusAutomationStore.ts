@@ -300,7 +300,7 @@ function countRsvpExpirations(
   return { count, profileIds };
 }
 
-export function previewRosterAutomation(
+function previewRosterAutomation(
   storage: DurableObjectStorage,
   organizationId: string | null,
   input: unknown,

@@ -117,10 +117,3 @@ export async function invokeOrganizationRpc(
   const result = await invokeDomainRpc(stub, call);
   return responseFromRpcResult(result);
 }
-
-export function rpcBody(value: unknown): OrganizationRpcValue {
-  if (!isOrganizationRpcValue(value)) {
-    throw new Error("Organization RPC payload must be JSON-serializable.");
-  }
-  return value;
-}

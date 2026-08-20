@@ -6,7 +6,7 @@ import {
 import { OrganizationAdminOverview } from "../../OrganizationAdminOverview";
 
 import { AppLink } from "./navigation";
-import { OrganizationAccess, PlatformAccess, PlatformSetupMonitor } from "./lazyComponents";
+import { PlatformAccess, PlatformSetupMonitor } from "./lazyComponents";
 
 import { routeHasModule, routeModule, workspaceLabel } from "./utils";
 import {
@@ -17,7 +17,7 @@ import {
 } from "./workspacesUtils";
 import type { AccessState, RouteState, Workspace } from "./types";
 
-export function OverviewPage({
+function OverviewPage({
   context,
   displayName,
   modules,
@@ -122,7 +122,7 @@ export function OverviewPage({
   );
 }
 
-export function AccessDeniedPage({ workspace }: { readonly workspace: string }) {
+function AccessDeniedPage({ workspace }: { readonly workspace: string }) {
   return (
     <section className="surface-card empty-page" aria-labelledby="access-denied-title">
       <p className="eyebrow">Restricted workspace</p>
@@ -135,7 +135,7 @@ export function AccessDeniedPage({ workspace }: { readonly workspace: string }) 
   );
 }
 
-export function NotFoundPage({ navigate }: { readonly navigate: (href: string) => void }) {
+function NotFoundPage({ navigate }: { readonly navigate: (href: string) => void }) {
   return (
     <section className="surface-card empty-page" aria-labelledby="not-found-title">
       <p className="eyebrow">Page not found</p>
@@ -161,11 +161,7 @@ export function WorkspacePageLoading() {
   );
 }
 
-export function OrganizationInvitationsRoute() {
-  return <OrganizationAccess section="invitations" />;
-}
-
-export function OrganizationWorkspacePage({
+function OrganizationWorkspacePage({
   access,
   displayName,
   navigate,
@@ -210,7 +206,7 @@ export function OrganizationWorkspacePage({
   );
 }
 
-export function PlatformWorkspacePage({
+function PlatformWorkspacePage({
   navigate,
   platformAvailable,
   pathname,

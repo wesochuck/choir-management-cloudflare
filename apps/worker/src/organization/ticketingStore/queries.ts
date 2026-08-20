@@ -157,34 +157,6 @@ export function readTicketPurchaseFromStore(
     : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
 }
 
-export function readTicketPurchaseByProviderSessionFromStore(
-  storage: DurableObjectStorage,
-  organizationId: string | null,
-  purchaseId: string | null,
-  providerSessionId: string | null,
-): Response {
-  const parsedPurchaseId = z.uuid().safeParse(purchaseId);
-  if (
-    identity(storage)?.organizationId !== organizationId ||
-    !parsedPurchaseId.success ||
-    !providerSessionId ||
-    providerSessionId.length > 256
-  ) {
-    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
-  }
-  const row = storage.sql
-    .exec<TicketPurchaseRow>(
-      `${purchaseSelect} WHERE id = ? AND provider_session_id = ? LIMIT 1`,
-      parsedPurchaseId.data,
-      providerSessionId,
-    )
-    .toArray()
-    .at(0);
-  return row
-    ? Response.json(purchaseResult(row))
-    : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
-}
-
 export function readTicketWillCallFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,

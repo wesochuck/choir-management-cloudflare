@@ -8,7 +8,7 @@ import { z } from "zod";
 
 export const MAX_COMMUNICATION_DELIVERIES = 1_000;
 
-export const contextSchema = z.object({
+const contextSchema = z.object({
   actorUserId: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
   requestId: z.uuid(),
@@ -161,13 +161,6 @@ export interface MessageRow {
   readonly updatedAt: string;
 }
 
-export interface MemberBulletinRow {
-  readonly [column: string]: SqlStorageValue;
-  readonly contentMarkdown: string;
-  readonly id: string;
-  readonly sentAt: string;
-  readonly subject: string;
-}
 export interface DeliveryRow {
   readonly [column: string]: SqlStorageValue;
   readonly attempts: number;

@@ -1,7 +1,7 @@
 import type { DurableObjectStorage } from "@cloudflare/workers-types";
 import { transactionFeeSettingsSchema, type TransactionFeeSettings } from "@choir/contracts";
 
-export const defaultTransactionFeeSettings: TransactionFeeSettings = {
+const defaultTransactionFeeSettings: TransactionFeeSettings = {
   fixedCents: 30,
   passFeeToDonor: false,
   percentage: 2.9,

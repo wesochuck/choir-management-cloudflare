@@ -4,7 +4,7 @@ import {
   type TicketConfirmationSettings,
 } from "@choir/contracts";
 
-export const defaultTicketConfirmationSettings: TicketConfirmationSettings = {
+const defaultTicketConfirmationSettings: TicketConfirmationSettings = {
   pendingMessage:
     "We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.",
   qrCodeInstructions:
@@ -14,7 +14,7 @@ export const defaultTicketConfirmationSettings: TicketConfirmationSettings = {
     "A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.",
 };
 
-export function ticketConfirmationSettingsFromStore(
+function ticketConfirmationSettingsFromStore(
   storage: DurableObjectStorage,
 ): TicketConfirmationSettings {
   try {

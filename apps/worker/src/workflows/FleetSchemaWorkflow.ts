@@ -8,7 +8,7 @@ import { currentOrganizationSchemaVersion } from "../organization/schema";
 
 const FLEET_SCHEMA_BATCH_SIZE = 20;
 
-export const fleetSchemaParamsSchema = z.object({
+const fleetSchemaParamsSchema = z.object({
   cursorOrganizationId: organizationIdSchema.nullable(),
   requestId: z.uuid(),
   runId: z.uuid(),

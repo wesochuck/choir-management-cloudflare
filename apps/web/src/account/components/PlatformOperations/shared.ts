@@ -121,7 +121,7 @@ export function organizationAccessHref(hostname: string): string {
   return `${protocol}//${hostname}/platform/access`;
 }
 
-export function platformProductHref(pathname: string): string {
+function platformProductHref(pathname: string): string {
   const { hostname, port, protocol } = window.location;
   const isIpv4Address = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
   const baseHostname = hostname.endsWith(".localhost")

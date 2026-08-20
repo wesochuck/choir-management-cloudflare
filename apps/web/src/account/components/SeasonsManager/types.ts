@@ -52,7 +52,7 @@ export function money(cents: number): string {
   );
 }
 
-export function dateOnly(value: string, timezone: string): string {
+function dateOnly(value: string, timezone: string): string {
   return utcToZonedLocalDateTime(value, timezone)?.slice(0, 10) ?? value.slice(0, 10);
 }
 
