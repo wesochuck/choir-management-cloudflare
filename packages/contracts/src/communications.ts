@@ -276,3 +276,54 @@ export type OrganizationProfileDelivery = z.infer<typeof organizationProfileDeli
 export type OrganizationProfileDeliveriesResponse = z.infer<
   typeof organizationProfileDeliveriesResponseSchema
 >;
+
+export const organizationEmailDomainDnsRecordSchema = z.object({
+  name: z.string().min(1).max(253),
+  priority: z.number().int().optional(),
+  purpose: z.enum(["spf", "dkim", "return_path", "dmarc"]),
+  status: z.enum(["pending", "valid", "invalid"]),
+  type: z.enum(["TXT", "CNAME", "MX"]),
+  value: z.string().min(1).max(2048),
+});
+
+export const organizationEmailSettingsSchema = z.object({
+  customDomain: z.string().min(1).max(253).nullable(),
+  customDomainStatus: z.enum(["none", "pending", "active", "degraded"]),
+  dnsRecords: z.array(organizationEmailDomainDnsRecordSchema),
+  fromName: z.string().max(100).nullable(),
+  lastCheckedAt: z.string().nullable(),
+  replyToEmail: z.email().max(320).nullable(),
+  verifiedAt: z.string().nullable(),
+});
+
+export const organizationEmailSettingsUpdateRequestSchema = z.object({
+  customDomain: z.string().trim().min(1).max(253).nullable().optional(),
+  fromName: z.string().trim().max(100).nullable().optional(),
+  replyToEmail: z.email().max(320).nullable().optional(),
+});
+
+export const organizationEmailSettingsResponseSchema = z.object({
+  requestId: requestIdSchema,
+  settings: organizationEmailSettingsSchema,
+});
+
+export const organizationEmailDomainVerifyResponseSchema = z.object({
+  allValid: z.boolean(),
+  dnsRecords: z.array(organizationEmailDomainDnsRecordSchema),
+  requestId: requestIdSchema,
+  status: z.enum(["none", "pending", "active", "degraded"]),
+});
+
+export type OrganizationEmailDomainDnsRecord = z.infer<
+  typeof organizationEmailDomainDnsRecordSchema
+>;
+export type OrganizationEmailSettings = z.infer<typeof organizationEmailSettingsSchema>;
+export type OrganizationEmailSettingsUpdateRequest = z.infer<
+  typeof organizationEmailSettingsUpdateRequestSchema
+>;
+export type OrganizationEmailSettingsResponse = z.infer<
+  typeof organizationEmailSettingsResponseSchema
+>;
+export type OrganizationEmailDomainVerifyResponse = z.infer<
+  typeof organizationEmailDomainVerifyResponseSchema
+>;

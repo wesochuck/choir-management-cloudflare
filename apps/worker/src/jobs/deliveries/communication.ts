@@ -6,13 +6,19 @@ import {
 } from "../../organization/organizationCommunications";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
-import { renderPlayerLinks, renderPollLinks, renderRsvpLinks } from "./shared";
+import {
+  readOrganizationEmailSenderConfig,
+  renderPlayerLinks,
+  renderPollLinks,
+  renderRsvpLinks,
+} from "./shared";
 
 export async function deliverCommunicationJob(
   env: JobConsumerEnv,
   job: DeliveryJob,
 ): Promise<void> {
   const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
+  const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
   for (const delivery of deliveryJob.deliveries) {
     const templatedContent = renderCommunicationTemplate(
       deliveryJob.contentMarkdown,
@@ -44,9 +50,12 @@ export async function deliverCommunicationJob(
       contentMarkdown: renderedContent,
       deliveryId: delivery.id,
       destination: delivery.destination,
+      fromName: senderConfig.fromName ?? undefined,
       messageId: deliveryJob.messageId,
       organizationId: job.organizationId,
       recipientName: delivery.recipientName,
+      replyTo: senderConfig.replyTo ?? undefined,
+      sendingDomain: senderConfig.sendingDomain ?? undefined,
       sourceId: delivery.id,
       sourceKind: delivery.channel === "email" ? "communication_delivery" : undefined,
       subject: renderCommunicationTemplate(

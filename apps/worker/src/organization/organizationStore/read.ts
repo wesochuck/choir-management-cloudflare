@@ -47,6 +47,11 @@ import {
   unsubscribeCommunicationProfileInStore,
 } from "../communicationStore";
 import {
+  readOrganizationEmailSettingsFromStore,
+  updateOrganizationEmailSettingsInStore,
+  verifyOrganizationEmailDomainInStore,
+} from "../organizationEmailSettingsStore";
+import {
   listSeatingChartsFromStore,
   readSeatingConfigurationFromStore,
   readSingerSeatingFromStore,
@@ -150,6 +155,10 @@ export const contentGetHandlers: Record<
     const offset = Number.isInteger(rawOffset) ? Math.max(0, Math.min(100_000, rawOffset)) : 0;
     return listEmailProviderRoutesFromStore(storage, organizationId, offset);
   },
+  "/internal/email-settings": (storage, _url, organizationId) =>
+    organizationId
+      ? readOrganizationEmailSettingsFromStore(storage, organizationId)
+      : Response.json({ code: "organization_identity_conflict" }, { status: 409 }),
   "/internal/export/snapshot": (storage, _url, organizationId) =>
     readExportSnapshot(storage, organizationId),
   "/internal/export/job": (storage, url, organizationId) =>
@@ -317,6 +326,18 @@ export async function dispatchCommunicationPostRequest(
   }
   if (pathname === "/internal/communications/unsubscribe") {
     return unsubscribeCommunicationProfileInStore(storage, request);
+  }
+  if (pathname === "/internal/email-settings/manage") {
+    const url = new URL(request.url);
+    const orgId = url.searchParams.get("organizationId");
+    if (!orgId) return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+    return updateOrganizationEmailSettingsInStore(storage, orgId, request);
+  }
+  if (pathname === "/internal/email-settings/verify") {
+    const url = new URL(request.url);
+    const orgId = url.searchParams.get("organizationId");
+    if (!orgId) return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+    return verifyOrganizationEmailDomainInStore(storage, orgId);
   }
   return null;
 }

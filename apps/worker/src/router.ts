@@ -56,6 +56,7 @@ import { registerRoutes as registerOrganizationEventAttendanceRoutes } from "./r
 import { registerRoutes as registerOrganizationInvitationsRoutes } from "./routes/organizationInvitations";
 import { registerRoutes as registerOrganizationAccessRoutes } from "./routes/organizationAccess";
 import { registerRoutes as registerOrganizationDomainsRoutes } from "./routes/organizationDomains";
+import { registerRoutes as registerOrganizationEmailSettingsRoutes } from "./routes/organizationEmailSettings";
 import { registerRoutes as registerPlatformAdministrationRoutes } from "./routes/platformAdministration";
 import { registerRoutes as registerPlatformEmailSuppressionRoutes } from "./routes/platformEmailSuppressions";
 import { registerRoutes as registerPlatformEmailFeedbackRoutes } from "./routes/platformEmailFeedback";
@@ -246,6 +247,7 @@ registerOrganizationEventAttendanceRoutes(router);
 registerOrganizationInvitationsRoutes(router);
 registerOrganizationAccessRoutes(router);
 registerOrganizationDomainsRoutes(router);
+registerOrganizationEmailSettingsRoutes(router);
 registerPlatformAdministrationRoutes(router);
 registerPlatformEmailSuppressionRoutes(router);
 registerPlatformEmailFeedbackRoutes(router);

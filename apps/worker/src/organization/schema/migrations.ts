@@ -1194,6 +1194,22 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [],
     version: 70,
   },
+  {
+    version: 71,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS organization_email_settings (
+        organization_id TEXT PRIMARY KEY,
+        from_name TEXT,
+        reply_to_email TEXT,
+        custom_domain TEXT,
+        custom_domain_status TEXT NOT NULL DEFAULT 'none' CHECK (custom_domain_status IN ('none', 'pending', 'active', 'degraded')),
+        dns_records_json TEXT NOT NULL DEFAULT '[]',
+        verified_at TEXT,
+        last_checked_at TEXT,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

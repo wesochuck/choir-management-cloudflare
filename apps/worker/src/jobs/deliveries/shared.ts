@@ -484,3 +484,42 @@ export async function renderPollLinks(
       : "Poll link unavailable; please contact your organization.";
   });
 }
+
+export async function readOrganizationEmailSenderConfig(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+): Promise<{
+  readonly fromName: string | null;
+  readonly replyTo: string | null;
+  readonly sendingDomain: string | null;
+}> {
+  try {
+    const stub = organizationStoreStub(env, organizationId);
+    const url = new URL("https://organization.internal/internal/email-settings");
+    url.searchParams.set("organizationId", organizationId);
+    const response = await invokeOrganizationRpc(stub, url);
+    if (!response.ok) return { fromName: null, replyTo: null, sendingDomain: null };
+    const raw: unknown = await response.json();
+    const parsed = z
+      .object({
+        settings: z
+          .object({
+            customDomain: z.string().nullable().optional(),
+            customDomainStatus: z.string().nullable().optional(),
+            fromName: z.string().nullable().optional(),
+            replyToEmail: z.string().nullable().optional(),
+          })
+          .optional(),
+      })
+      .safeParse(raw);
+    const settings = parsed.success ? parsed.data.settings : undefined;
+    return {
+      fromName: settings?.fromName ?? null,
+      replyTo: settings?.replyToEmail ?? null,
+      sendingDomain:
+        settings?.customDomainStatus === "active" ? (settings.customDomain ?? null) : null,
+    };
+  } catch {
+    return { fromName: null, replyTo: null, sendingDomain: null };
+  }
+}

@@ -12,6 +12,7 @@ import {
   updateOrganizationTransactionFeeSettings,
 } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
+import { OrganizationEmailSettingsPanel } from "./OrganizationEmailSettingsPanel";
 import type {
   OrganizationExportStatusResponse,
   OrganizationPaymentSettingsResponse,
@@ -635,6 +636,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
           </div>
         ) : null}
       </section>
+      <OrganizationEmailSettingsPanel />
       <OrganizationExportPanel />
     </div>
   );

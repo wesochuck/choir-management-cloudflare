@@ -3,7 +3,7 @@ import { invokeOrganizationRpc, organizationStoreStub } from "../../organization
 import { issueSignedLink } from "../../security/signedLinks";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
-import { paymentNotificationJobSchema } from "./shared";
+import { paymentNotificationJobSchema, readOrganizationEmailSenderConfig } from "./shared";
 import type { z } from "zod";
 
 async function renderPaymentNotificationContent(
@@ -59,14 +59,18 @@ export async function deliverPaymentNotificationJob(
     job.organizationId,
     notification.data,
   );
+  const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
     contentMarkdown,
     deliveryId: notification.data.id,
     destination: notification.data.destination,
+    fromName: senderConfig.fromName ?? undefined,
     messageId: notification.data.id,
     organizationId: job.organizationId,
     recipientName: notification.data.recipientName,
+    replyTo: senderConfig.replyTo ?? undefined,
+    sendingDomain: senderConfig.sendingDomain ?? undefined,
     sourceId: notification.data.id,
     sourceKind: "payment_notification",
     subject: notification.data.subject,

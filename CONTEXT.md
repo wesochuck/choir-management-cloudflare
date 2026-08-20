@@ -235,6 +235,20 @@ Organizations connect their own provider account so sending cost, branding, cons
 behavior, and reputation remain isolated; Brevo is the initial supported provider. _Avoid_: Platform
 Transactional Email, shared platform campaign sender, platform-funded SMS
 
+## Organization Custom Email Domain
+
+A dedicated sending subdomain (e.g., `mail.seattlechorus.org`) configured by an Organization for its
+outbound communications, event reminders, ticket receipts, and announcements. It is verified via DNS
+records (SPF, DKIM, DMARC, and bounce routing) while delivered through Cloudflare Email Sending.
+_Avoid_: Apex domain for mass sending, platform auth sender replacement
+
+## Organization Reply-To Email
+
+An Organization-configured contact email address (e.g., `info@seattlechorus.org`) attached as the
+`Reply-To` header on all outbound Organization Communications. It allows members and patrons to
+reply directly to organization directors or staff regardless of whether a custom sending domain is
+active. _Avoid_: Unmonitored no-reply address when member replies are expected
+
 ## Functional Parity Release
 
 The first production release of the Cloudflare application, which must include every current product

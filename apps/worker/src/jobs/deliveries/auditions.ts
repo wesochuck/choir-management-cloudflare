@@ -2,7 +2,11 @@ import { deliverOrganizationCommunication } from "../../communications/provider"
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
-import { auditionNotificationJobSchema, renderAuditionLink } from "./shared";
+import {
+  auditionNotificationJobSchema,
+  readOrganizationEmailSenderConfig,
+  renderAuditionLink,
+} from "./shared";
 
 export async function deliverAuditionNotificationJob(
   env: JobConsumerEnv,
@@ -26,14 +30,18 @@ export async function deliverAuditionNotificationJob(
     notification.data.auditionId,
     notification.data.kind,
   );
+  const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
     contentMarkdown,
     deliveryId: notification.data.id,
     destination: notification.data.destination,
+    fromName: senderConfig.fromName ?? undefined,
     messageId: notification.data.id,
     organizationId: job.organizationId,
     recipientName: notification.data.recipientName,
+    replyTo: senderConfig.replyTo ?? undefined,
+    sendingDomain: senderConfig.sendingDomain ?? undefined,
     sourceId: notification.data.id,
     sourceKind: "audition_notification",
     subject: notification.data.subject,

@@ -5,7 +5,11 @@ import { invokeOrganizationRpc, organizationStoreStub } from "../../organization
 import { issueSignedLink } from "../../security/signedLinks";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
-import { renderTicketLinks, ticketNotificationJobSchema } from "./shared";
+import {
+  readOrganizationEmailSenderConfig,
+  renderTicketLinks,
+  ticketNotificationJobSchema,
+} from "./shared";
 
 function money(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", {
@@ -95,15 +99,19 @@ export async function deliverTicketNotificationJob(
     resourceId: notification.data.purchaseId,
     version: 1,
   });
+  const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
     contentMarkdown:
       contentWithTicketLink + discountSummary + "\n\n### Ticket credential\n\n`" + scanToken + "`",
     deliveryId: notification.data.id,
     destination: notification.data.destination,
+    fromName: senderConfig.fromName ?? undefined,
     messageId: notification.data.id,
     organizationId: job.organizationId,
     recipientName: notification.data.buyerName,
+    replyTo: senderConfig.replyTo ?? undefined,
+    sendingDomain: senderConfig.sendingDomain ?? undefined,
     sourceId: notification.data.id,
     sourceKind: "ticket_notification",
     subject: renderCommunicationTemplate(

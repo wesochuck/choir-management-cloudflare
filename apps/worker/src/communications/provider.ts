@@ -15,9 +15,12 @@ const deliverySchema = z.object({
   contentMarkdown: z.string().max(100_000),
   deliveryId: z.uuid(),
   destination: z.string().min(1).max(320),
+  fromName: z.string().max(100).optional(),
   messageId: z.uuid(),
   organizationId: z.string().min(1).max(128).optional(),
   recipientName: z.string().min(1).max(200),
+  replyTo: z.email().max(320).optional(),
+  sendingDomain: z.string().min(1).max(253).optional(),
   sourceId: z.string().trim().min(1).max(256).optional(),
   sourceKind: emailProviderSourceKindSchema.optional(),
   subject: z.string().max(300),
@@ -304,7 +307,11 @@ async function deliverOrganizationEmail(
     return { failureDetail: "", providerMessageId: route.providerMessageId, status: "sent" };
   }
   const sender = configuredPlatformEmailSender(config);
-  const senderEmail = sender.fromEmail ?? required(config.PLATFORM_EMAIL_FROM, "email sender");
+  const senderEmail = delivery.sendingDomain
+    ? `announcements@${delivery.sendingDomain}`
+    : (sender.fromEmail ?? required(config.PLATFORM_EMAIL_FROM, "email sender"));
+  const senderName = delivery.fromName ?? sender.fromName ?? DEFAULT_PLATFORM_EMAIL_FROM_NAME;
+  const replyTo = delivery.replyTo ? { email: delivery.replyTo, name: senderName } : undefined;
   const contents = emailContents(
     delivery.subject,
     delivery.contentMarkdown,
@@ -313,8 +320,9 @@ async function deliverOrganizationEmail(
   let result: Awaited<ReturnType<SendEmail["send"]>>;
   try {
     result = await config.PLATFORM_EMAIL.send({
-      from: { email: senderEmail, name: sender.fromName ?? DEFAULT_PLATFORM_EMAIL_FROM_NAME },
+      from: { email: senderEmail, name: senderName },
       html: contents.htmlContent,
+      ...(replyTo ? { replyTo } : {}),
       subject: delivery.subject,
       text: contents.textContent,
       to: recipient,

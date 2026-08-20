@@ -182,6 +182,7 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/communications/summary",
       "/internal/communications/job",
       "/internal/email/provider-routes",
+      "/internal/email-settings",
     ),
     ...postOperations(
       "/internal/communications/audience",
@@ -189,6 +190,8 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/communications/unsubscribe",
       "/internal/email/provider-event",
       "/internal/email/provider-suppression-release",
+      "/internal/email-settings/manage",
+      "/internal/email-settings/verify",
     ),
   ]),
   content: operationMapFor([
@@ -353,7 +356,7 @@ const organizationRpcDomainRules: readonly {
   {
     domain: "communication",
     exact: [],
-    prefixes: ["/internal/communications", "/internal/email"],
+    prefixes: ["/internal/communications", "/internal/email", "/internal/email-settings"],
   },
   {
     domain: "content",

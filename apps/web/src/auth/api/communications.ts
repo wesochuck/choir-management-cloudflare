@@ -10,6 +10,8 @@ import {
   communicationTemplatesResponseSchema,
   communicationTestEmailResponseSchema,
   communicationUnsubscribeResponseSchema,
+  organizationEmailDomainVerifyResponseSchema,
+  organizationEmailSettingsResponseSchema,
   organizationProfileDeliveriesResponseSchema,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
@@ -20,6 +22,9 @@ import {
   type CommunicationTemplate,
   type CommunicationTemplateRequest,
   type CommunicationTestEmailRequest,
+  type OrganizationEmailDomainVerifyResponse,
+  type OrganizationEmailSettings,
+  type OrganizationEmailSettingsUpdateRequest,
   type OrganizationProfileDeliveriesResponse,
 } from "@choir/contracts";
 
@@ -181,4 +186,30 @@ export async function getOrganizationProfileDeliveries(
     { signal: signal ?? null },
   );
   return organizationProfileDeliveriesResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationEmailSettings(
+  signal?: AbortSignal,
+): Promise<OrganizationEmailSettings> {
+  const response = await request("/api/organization/email-settings", {
+    signal: signal ?? null,
+  });
+  return organizationEmailSettingsResponseSchema.parse(await response.json()).settings;
+}
+
+export async function updateOrganizationEmailSettings(
+  update: OrganizationEmailSettingsUpdateRequest,
+): Promise<OrganizationEmailSettings> {
+  const response = await request("/api/organization/email-settings", {
+    body: JSON.stringify(update),
+    method: "PUT",
+  });
+  return organizationEmailSettingsResponseSchema.parse(await response.json()).settings;
+}
+
+export async function verifyOrganizationEmailDomain(): Promise<OrganizationEmailDomainVerifyResponse> {
+  const response = await request("/api/organization/email-settings/verify", {
+    method: "POST",
+  });
+  return organizationEmailDomainVerifyResponseSchema.parse(await response.json());
 }
