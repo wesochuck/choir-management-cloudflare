@@ -118,6 +118,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     deleteDraft,
     draftMessages,
     editQueuedMessage,
+    emailSettings,
     enabled,
     error,
     events,
@@ -870,51 +871,50 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               <div>
                 <dt>From name</dt>
                 <dd>
-                  {providerStatus
-                    ? (providerStatus.emailSender.fromName ?? "Not configured")
-                    : "Loading…"}
+                  {emailSettings?.fromName ??
+                    providerStatus?.emailSender.fromName ??
+                    "Choir Management"}
                 </dd>
               </div>
               <div>
                 <dt>From email</dt>
                 <dd>
-                  {providerStatus
-                    ? (providerStatus.emailSender.fromEmail ?? "Not configured")
-                    : "Loading…"}
+                  {emailSettings?.customDomainStatus === "active" && emailSettings.customDomain
+                    ? `announcements@${emailSettings.customDomain}`
+                    : (providerStatus?.emailSender.fromEmail ?? "Not configured")}
+                </dd>
+              </div>
+              <div>
+                <dt>Reply-to email</dt>
+                <dd>{emailSettings?.replyToEmail ?? "None (replies sent to sender address)"}</dd>
+              </div>
+              <div>
+                <dt>Sending domain</dt>
+                <dd>
+                  {emailSettings?.customDomain
+                    ? `${emailSettings.customDomain} (${emailSettings.customDomainStatus})`
+                    : "Platform default"}
                 </dd>
               </div>
             </dl>
             <p className="field-help">
-              These values are read-only here because they identify the verified sender used by the
-              delivery provider.
+              These values show how recipients see outbound emails sent from this organization.
             </p>
             <section
               aria-labelledby="communication-sender-setup-title"
               className="communication-sender-setup"
             >
-              <h3 id="communication-sender-setup-title">Where to configure the sender</h3>
+              <h3 id="communication-sender-setup-title">
+                Configuring sender &amp; reply-to details
+              </h3>
               <p>
-                A Platform Administrator sets these Worker environment values for the current
-                deployment. They are not entered in a message or Organization form.
+                Organization Administrators can customize the sender display name, reply-to address,
+                and custom sending domain in{" "}
+                <a href="/admin/settings/email-settings">Email &amp; Sender Settings</a>.
               </p>
-              <dl>
-                <div>
-                  <dt>From email</dt>
-                  <dd>
-                    <code>BREVO_EMAIL_FROM</code> — a sender address whose domain is verified in
-                    Brevo.
-                  </dd>
-                </div>
-                <div>
-                  <dt>From name</dt>
-                  <dd>
-                    <code>BREVO_EMAIL_FROM_NAME</code> — the name recipients see in their inbox.
-                  </dd>
-                </div>
-              </dl>
               <p className="field-help">
-                After changing either value, refresh the provider status and send a test email. A
-                sender marked “Not configured” must be corrected before live delivery can work.
+                If custom values are not configured, messages automatically use the verified
+                platform default sender.
               </p>
             </section>
             <div className="form-actions form-actions--start">

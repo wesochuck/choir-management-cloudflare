@@ -91,6 +91,7 @@ describe("Organization invitations", () => {
     expect(invitationEmail?.text).toContain(
       `http://alpha.localhost/accept-invitation?id=${invitation.id}`,
     );
+    expect(invitationEmail?.fromName).toBe("Organization Alpha");
 
     const wrongRecipientDetailsResponse = await fetchWorker(
       authRequest(

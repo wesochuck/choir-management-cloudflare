@@ -8,6 +8,7 @@ import {
   buildPasswordResetEmail,
 } from "./emailTemplates";
 import { sendPlatformEmail } from "./platformEmail";
+import { readOrganizationEmailSenderConfig } from "../jobs/deliveries/shared";
 
 export interface AuthRequestContext {
   readonly env: Env;
@@ -133,11 +134,15 @@ export function createAuth(context: AuthRequestContext) {
             invitationUrl.toString(),
             invitedOrganization.name,
           );
+          const senderConfig = await readOrganizationEmailSenderConfig(env, invitedOrganization.id);
           await sendPlatformEmail(env, {
-            kind: "organization-invitation",
+            fromName: senderConfig.fromName ?? invitedOrganization.name,
             html: content.html,
+            kind: "organization-invitation",
             organizationId: invitedOrganization.id,
             recipient: email,
+            ...(senderConfig.replyTo ? { replyTo: senderConfig.replyTo } : {}),
+            ...(senderConfig.sendingDomain ? { sendingDomain: senderConfig.sendingDomain } : {}),
             sourceId: id,
             subject: content.subject,
             text: content.text,

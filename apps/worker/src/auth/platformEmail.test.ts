@@ -124,4 +124,37 @@ describe("platform email delivery", () => {
       },
     ]);
   });
+
+  it("applies custom fromName, replyTo, and sendingDomain when provided", async () => {
+    const delivered: EmailMessageBuilder[] = [];
+    const email: SendEmail = {
+      send(candidate: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> {
+        if ("subject" in candidate) delivered.push(candidate);
+        return Promise.resolve({ messageId: "test-message" });
+      },
+    };
+    await sendPlatformEmail(
+      {
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: message.recipient,
+        PLATFORM_EMAIL_FROM: "auth@mail.example.test",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      {
+        ...message,
+        fromName: "Seattle Men's Chorus",
+        replyTo: "director@seattlechorus.org",
+        sendingDomain: "mail.seattlechorus.org",
+      },
+    );
+    expect(delivered).toEqual([
+      {
+        from: { email: "announcements@mail.seattlechorus.org", name: "Seattle Men's Chorus" },
+        replyTo: { email: "director@seattlechorus.org", name: "Seattle Men's Chorus" },
+        subject: message.subject,
+        text: message.text,
+        to: message.recipient,
+      },
+    ]);
+  });
 });

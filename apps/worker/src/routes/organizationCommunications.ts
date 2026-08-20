@@ -10,6 +10,7 @@ import { renderCommunicationTemplate } from "@choir/domain";
 import { z } from "zod";
 import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
 import { deliverOrganizationCommunication } from "../communications/provider";
+import { readOrganizationEmailSenderConfig } from "../jobs/deliveries/shared";
 import {
   CommunicationRepositoryError,
   listOrganizationCommunications,
@@ -452,14 +453,21 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
       const testRecipientName = "Test recipient";
+      const senderConfig = await readOrganizationEmailSenderConfig(
+        context.env,
+        authorization.organizationId,
+      );
       const delivery = await deliverOrganizationCommunication(context.env, {
         channel: "email",
         contentMarkdown: renderCommunicationTemplate(body.data.contentMarkdown, testRecipientName),
         deliveryId: crypto.randomUUID(),
         destination: body.data.email,
+        fromName: senderConfig.fromName ?? undefined,
         messageId: crypto.randomUUID(),
         organizationId: authorization.organizationId,
         recipientName: testRecipientName,
+        replyTo: senderConfig.replyTo ?? undefined,
+        sendingDomain: senderConfig.sendingDomain ?? undefined,
         sourceId: idempotencyKey.data ?? crypto.randomUUID(),
         sourceKind: "test_email",
         subject: "[Test] " + renderCommunicationTemplate(body.data.subject, testRecipientName),

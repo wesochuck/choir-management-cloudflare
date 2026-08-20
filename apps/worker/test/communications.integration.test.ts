@@ -883,4 +883,32 @@ describe("Organization communications", () => {
       "communication_delivery_started",
     );
   });
+
+  it("delivers a test email using the organization's custom sender name and reply-to", async () => {
+    const cookie = await signIn();
+    const updateSettingsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/email-settings", cookie, {
+        body: JSON.stringify({
+          fromName: "Alpha Choir Director",
+          replyToEmail: "director@alpha.example.test",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(updateSettingsResponse.status).toBe(200);
+
+    const testEmailResponse = await write(
+      "alpha.localhost",
+      "/api/organization/communications/test-email",
+      cookie,
+      {
+        contentMarkdown: "Hello {singerName}, this is a test.",
+        email: "test-recipient@example.test",
+        subject: "Test Subject",
+      },
+    );
+    expect(testEmailResponse.status).toBe(202);
+    expect(await testEmailResponse.json()).toMatchObject({ sent: true });
+  });
 });
