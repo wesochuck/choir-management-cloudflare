@@ -683,11 +683,11 @@ async function inspectEvents(cookie, eventIds) {
   };
 }
 
-function reportAggregateMatched(state) {
+export function reportAggregateMatched(state) {
   return state.messages.some(
     ({ contentMarkdown }) =>
-      /Attendance rate:\s*\*\*100%\*\*/.test(contentMarkdown) &&
-      /Present:\s*1\s*\/\s*1/.test(contentMarkdown),
+      /(?:attendance rate:\s*\*\*100%\*\*|100%\s*attendance)/i.test(contentMarkdown) &&
+      /(?:\*\*Present:\*\*|Present:)\s*1\s*(?:\/|of)\s*1/i.test(contentMarkdown),
   );
 }
 
