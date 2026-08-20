@@ -262,8 +262,8 @@ describe("Organization calendar management", () => {
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       const now = new Date().toISOString();
       state.storage.transactionSync(() => {
-        for (let index = 0; index < 5_001; index += 1) {
-          const suffix = String(index).padStart(4, "0");
+        for (let index = 0; index < 10_001; index += 1) {
+          const suffix = String(index).padStart(5, "0");
           state.storage.sql.exec(
             `INSERT INTO audit_events
                 (id, actor_type, actor_id, action, target_type, target_id,
@@ -304,8 +304,8 @@ describe("Organization calendar management", () => {
     const snapshot = organizationExportSnapshotSchema.parse(await snapshotResponse.json());
     expect(snapshotResponse.status).toBe(200);
     expect(snapshot.safety.tooLarge).toBe(true);
-    expect(snapshot.safety.tableCounts.audit_events).toBeGreaterThan(5_000);
-    expect(snapshot.records.audit_events).toHaveLength(5_000);
+    expect(snapshot.safety.tableCounts.audit_events).toBeGreaterThan(10_000);
+    expect(snapshot.records.audit_events).toHaveLength(10_000);
 
     const message = {
       attempts: 1,

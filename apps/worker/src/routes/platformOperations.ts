@@ -87,7 +87,7 @@ async function listOrganizationExportArchives(
         : { limit: RECONCILIATION_ARCHIVE_PAGE_SIZE, prefix },
     );
     objects.push(...page.objects);
-    if (objects.length > 5_000) return { objects, truncated: true };
+    if (objects.length > 10_000) return { objects, truncated: true };
     if (!page.truncated || !page.cursor) return { objects, truncated: false };
     cursor = page.cursor;
   }

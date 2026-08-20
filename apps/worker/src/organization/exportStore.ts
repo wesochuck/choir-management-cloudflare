@@ -39,7 +39,7 @@ const EXPORT_TABLES = [
 ] as const;
 
 const exportOrganizationIdSchema = z.string().min(1).max(128);
-const MAX_ROWS_PER_TABLE = 5_000;
+const MAX_ROWS_PER_TABLE = 10_000;
 const EXPORT_PAGE_SIZE = 1_000;
 const exportFormatSchema = z.literal("json");
 const exportContextSchema = z.object({
