@@ -22,7 +22,7 @@ const targetProfilePrefix = (
 const reportProfileId = process.env.STAGING_SCHEDULER_REPORT_PROFILE_ID?.trim() ?? "";
 const organizationHost = `https://${organizationSlug}.${productHostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${productHostname}`;
-const pollingAttempts = 24;
+const pollingAttempts = 48;
 const pollingDelayMs = 2_500;
 const planOnly = process.argv.includes("--plan-only");
 

@@ -601,7 +601,19 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/test-smtp", async (context) => {
-    const authorization = await authorizePlatformRead(context, new URL(context.req.url));
+    const requestUrl = new URL(context.req.url);
+    const config = validateStartupConfig(context.env);
+    if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "Platform test endpoints are available only on the product base hostname.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const authorization = await authorizePlatformRead(context, requestUrl);
     if (authorization instanceof Response) return authorization;
     let body: unknown;
     try {
@@ -684,7 +696,19 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/test-sms", async (context) => {
-    const authorization = await authorizePlatformRead(context, new URL(context.req.url));
+    const requestUrl = new URL(context.req.url);
+    const config = validateStartupConfig(context.env);
+    if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "Platform test endpoints are available only on the product base hostname.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const authorization = await authorizePlatformRead(context, requestUrl);
     if (authorization instanceof Response) return authorization;
     let body: unknown;
     try {
