@@ -192,14 +192,9 @@ export function providerSetupChecks(
   const platformEmailReady =
     Boolean(env.PLATFORM_EMAIL) &&
     z.email().safeParse(env.PLATFORM_EMAIL_FROM).success &&
-    (env.PLATFORM_EMAIL_ALLOWED_RECIPIENTS ?? "")
-      .split(",")
-      .some((recipient) => recipient.trim().length > 0);
-  const brevoSmsReady =
-    Boolean(env.BREVO_SMS_SENDER?.trim()) &&
-    (env.BREVO_SMS_ALLOWED_RECIPIENTS ?? "")
-      .split(",")
-      .some((recipient) => recipient.trim().length > 0);
+    env.PLATFORM_EMAIL_MODE !== "disabled";
+  const brevoApiKeyConfigured = Boolean(env.BREVO_API_KEY?.trim());
+  const brevoSmsSenderConfigured = Boolean(env.BREVO_SMS_SENDER?.trim());
   const stripeWebhookReady = Boolean(env.STRIPE_WEBHOOK_SECRET?.trim());
   const stripePlatformReady = Boolean(env.STRIPE_SECRET_KEY?.trim());
 
@@ -207,7 +202,7 @@ export function providerSetupChecks(
     mode === "fake"
       ? {
           detail:
-            "Fake mode is active, so no provider request is sent. Configure the Cloudflare email binding and Brevo SMS sender before sandbox delivery.",
+            "Fake mode is active, so no provider request is sent. Configure the Cloudflare email binding and Brevo SMS sender before live delivery.",
           status: "attention" as const,
         }
       : mode === "disabled"
@@ -217,14 +212,17 @@ export function providerSetupChecks(
           }
         : platformEmailReady
           ? {
-              detail: brevoSmsReady
-                ? "Email sends through the Cloudflare Email Sending binding, restricted to the configured allowlist. SMS is restricted to the configured Brevo allowlist."
-                : "Email sends through the Cloudflare Email Sending binding, restricted to the configured allowlist. Add a Brevo SMS sender and allowlist only if SMS testing is needed.",
+              detail:
+                brevoApiKeyConfigured && brevoSmsSenderConfigured
+                  ? "Email sends through the Cloudflare Email Sending binding. SMS delivery is configured via Brevo."
+                  : brevoApiKeyConfigured
+                    ? "Email sends through the Cloudflare Email Sending binding. Set BREVO_SMS_SENDER if transactional SMS is needed."
+                    : "Email sends through the Cloudflare Email Sending binding. Brevo API key can be added if SMS delivery is needed.",
               status: "ok" as const,
             }
           : {
               detail:
-                "Add the PLATFORM_EMAIL binding, a PLATFORM_EMAIL_FROM sender, and a PLATFORM_EMAIL_ALLOWED_RECIPIENTS allowlist before sandbox email delivery.",
+                "Configure the PLATFORM_EMAIL binding and a valid PLATFORM_EMAIL_FROM sender before email delivery.",
               status: "error" as const,
             };
 

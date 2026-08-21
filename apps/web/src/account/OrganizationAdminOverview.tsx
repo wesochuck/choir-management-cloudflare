@@ -52,6 +52,13 @@ const quickActions: readonly QuickAction[] = [
   { href: "/admin/library", icon: "🎼", label: "Add Music", module: "programs" },
 ];
 
+const setupQuickActions: readonly QuickAction[] = [
+  { href: "/admin/settings/modules", icon: "🧩", label: "Configure Modules" },
+  { href: "/admin/settings/setup-checklist", icon: "📋", label: "Setup Checklist" },
+  { href: "/admin/settings", icon: "⚙️", label: "Organization Settings" },
+  { href: "/admin/security", icon: "🔒", label: "Organization Security" },
+];
+
 function moduleIsEnabled(
   modules: readonly ModuleState[],
   module: OverviewModule | undefined,
@@ -276,6 +283,204 @@ function greetingForCurrentTime(): string {
   return "Good evening";
 }
 
+function OverviewBanner({
+  activeProfileCount,
+  displayName,
+  doNotEmailCount,
+  modules,
+  navigate,
+  pendingAuditionCount,
+  performerLabelPlural,
+  recentBounceCount,
+  upcomingEventCount,
+}: {
+  readonly activeProfileCount: number | null;
+  readonly displayName: string;
+  readonly doNotEmailCount: number | null;
+  readonly modules: readonly ModuleState[];
+  readonly navigate: (href: string) => void;
+  readonly pendingAuditionCount: number | null;
+  readonly performerLabelPlural: string;
+  readonly recentBounceCount: number | null;
+  readonly upcomingEventCount: number | null;
+}) {
+  const greetingName = displayName.trim() || "Admin";
+  const greeting = `${greetingForCurrentTime()}, ${greetingName}`;
+  const hasEnabledStats = moduleIsEnabled(modules, "people") || moduleIsEnabled(modules, "events");
+
+  return (
+    <section className="admin-overview__banner" aria-labelledby="admin-overview-greeting">
+      <div className="admin-overview__banner-inner">
+        <h1 id="admin-overview-greeting">{greeting}</h1>
+        {hasEnabledStats ? (
+          <div className="admin-overview__stats" aria-label="Organization summary">
+            {moduleIsEnabled(modules, "people") ? (
+              <DashboardLink href="/admin/roster" onNavigate={navigate}>
+                <span>Active {performerLabelPlural}</span>
+                <strong>{displayCount(activeProfileCount)}</strong>
+              </DashboardLink>
+            ) : null}
+            {moduleIsEnabled(modules, "events") ? (
+              <DashboardLink href="/admin/events" onNavigate={navigate}>
+                <span>Upcoming Events</span>
+                <strong>{displayCount(upcomingEventCount)}</strong>
+              </DashboardLink>
+            ) : null}
+            {moduleIsEnabled(modules, "people") ? (
+              <DashboardLink href="/admin/auditions" onNavigate={navigate}>
+                <span>Pending Inquiries</span>
+                <strong>{displayCount(pendingAuditionCount)}</strong>
+              </DashboardLink>
+            ) : null}
+            {moduleIsEnabled(modules, "people") ? (
+              <DashboardLink href="/admin/roster" onNavigate={navigate}>
+                <span>Recent Email Bounces</span>
+                <strong>{displayCount(recentBounceCount)}</strong>
+              </DashboardLink>
+            ) : null}
+            {moduleIsEnabled(modules, "people") ? (
+              <DashboardLink href="/admin/roster" onNavigate={navigate}>
+                <span>Email Disabled</span>
+                <strong>{displayCount(doNotEmailCount)}</strong>
+              </DashboardLink>
+            ) : null}
+          </div>
+        ) : (
+          <div className="admin-overview__banner-onboarding">
+            <p className="admin-overview__banner-welcome">
+              Welcome to your organization workspace. Get started by completing your setup checklist
+              and configuring modules.
+            </p>
+            <div className="admin-overview__banner-actions">
+              <DashboardLink href="/admin/settings/setup-checklist" onNavigate={navigate}>
+                <span>📋 Setup Checklist</span>
+              </DashboardLink>
+              <DashboardLink href="/admin/settings/modules" onNavigate={navigate}>
+                <span>🧩 Configure Modules</span>
+              </DashboardLink>
+              <DashboardLink href="/admin/settings" onNavigate={navigate}>
+                <span>⚙️ Settings</span>
+              </DashboardLink>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function QuickActionsSection({
+  actions,
+  navigate,
+  performerLabel,
+  title,
+}: {
+  readonly actions: readonly QuickAction[];
+  readonly navigate: (href: string) => void;
+  readonly performerLabel: string;
+  readonly title: string;
+}) {
+  return (
+    <section className="admin-overview__quick-actions" aria-labelledby="admin-quick-actions-title">
+      <p id="admin-quick-actions-title">{title}</p>
+      <div>
+        {actions.map((action) => (
+          <DashboardLink href={action.href} key={action.href} onNavigate={navigate}>
+            <span aria-hidden="true">{action.icon}</span>
+            {action.label === "Add performer" ? `Add ${performerLabel}` : action.label}
+          </DashboardLink>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GettingStartedGuide({
+  navigate,
+  performerLabelPlural,
+}: {
+  readonly navigate: (href: string) => void;
+  readonly performerLabelPlural: string;
+}) {
+  return (
+    <section
+      className="admin-overview__getting-started"
+      aria-labelledby="admin-getting-started-title"
+    >
+      <div className="admin-overview__getting-started-header">
+        <div>
+          <h2 id="admin-getting-started-title">Next steps for your organization</h2>
+          <p>
+            Follow these recommended steps to finish setting up your organization and unlock all
+            management tools.
+          </p>
+        </div>
+        <DashboardLink href="/admin/settings/setup-checklist" onNavigate={navigate}>
+          <span>View full checklist →</span>
+        </DashboardLink>
+      </div>
+      <div className="admin-overview__guide-steps">
+        <div className="admin-overview__guide-step">
+          <span className="admin-overview__guide-step-num" aria-hidden="true">
+            1
+          </span>
+          <div className="admin-overview__guide-step-content">
+            <strong>Configure Modules</strong>
+            <p>
+              Enable People (Roster & Directory), Events (Rehearsals & RSVPs), or Music & Programs.
+            </p>
+            <DashboardLink href="/admin/settings/modules" onNavigate={navigate}>
+              <span>Configure modules →</span>
+            </DashboardLink>
+          </div>
+        </div>
+        <div className="admin-overview__guide-step">
+          <span className="admin-overview__guide-step-num" aria-hidden="true">
+            2
+          </span>
+          <div className="admin-overview__guide-step-content">
+            <strong>Complete Setup Checklist</strong>
+            <p>Review organization info, branding theme, and verify launch readiness.</p>
+            <DashboardLink href="/admin/settings/setup-checklist" onNavigate={navigate}>
+              <span>Open setup checklist →</span>
+            </DashboardLink>
+          </div>
+        </div>
+        <div className="admin-overview__guide-step">
+          <span className="admin-overview__guide-step-num" aria-hidden="true">
+            3
+          </span>
+          <div className="admin-overview__guide-step-content">
+            <strong>System Settings & Terminology</strong>
+            <p>
+              Customize labels ({performerLabelPlural.toLowerCase()}), timezone, and security
+              preferences.
+            </p>
+            <DashboardLink href="/admin/settings" onNavigate={navigate}>
+              <span>System settings →</span>
+            </DashboardLink>
+          </div>
+        </div>
+        <div className="admin-overview__guide-step">
+          <span className="admin-overview__guide-step-num" aria-hidden="true">
+            4
+          </span>
+          <div className="admin-overview__guide-step-content">
+            <strong>Add {performerLabelPlural} & Music</strong>
+            <p>
+              Once modules are active, add your ensemble members and repertoire manually or via CSV
+              import.
+            </p>
+            <DashboardLink href="/admin/roster" onNavigate={navigate}>
+              <span>Manage {performerLabelPlural.toLowerCase()} →</span>
+            </DashboardLink>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function OrganizationAdminOverview({
   context,
   displayName,
@@ -338,8 +543,11 @@ export function OrganizationAdminOverview({
     () => quickActions.filter((action) => moduleIsEnabled(modules, action.module)),
     [modules],
   );
-  const greetingName = displayName.trim() || "Admin";
-  const greeting = `${greetingForCurrentTime()}, ${greetingName}`;
+  const displayedQuickActions =
+    visibleQuickActions.length > 0 ? visibleQuickActions : setupQuickActions;
+  const hasEnabledStats = moduleIsEnabled(modules, "people") || moduleIsEnabled(modules, "events");
+  const isNewOrgOrSetupPending = !hasEnabledStats || sections.length <= 1;
+
   const summaryError = summary.status === "error";
   const activeProfileCount = summary.status === "ready" ? summary.data.activeProfileCount : null;
   const upcomingEventCount = summary.status === "ready" ? summary.data.upcomingEventCount : null;
@@ -348,43 +556,17 @@ export function OrganizationAdminOverview({
 
   return (
     <div className="admin-overview">
-      <section className="admin-overview__banner" aria-labelledby="admin-overview-greeting">
-        <div className="admin-overview__banner-inner">
-          <h1 id="admin-overview-greeting">{greeting}</h1>
-          <div className="admin-overview__stats" aria-label="Organization summary">
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/roster" onNavigate={navigate}>
-                <span>Active {performerLabelPlural}</span>
-                <strong>{displayCount(activeProfileCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "events") ? (
-              <DashboardLink href="/admin/events" onNavigate={navigate}>
-                <span>Upcoming Events</span>
-                <strong>{displayCount(upcomingEventCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/auditions" onNavigate={navigate}>
-                <span>Pending Inquiries</span>
-                <strong>{displayCount(pendingAuditionCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/roster" onNavigate={navigate}>
-                <span>Recent Email Bounces</span>
-                <strong>{displayCount(recentBounceCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/roster" onNavigate={navigate}>
-                <span>Email Disabled</span>
-                <strong>{displayCount(doNotEmailCount)}</strong>
-              </DashboardLink>
-            ) : null}
-          </div>
-        </div>
-      </section>
+      <OverviewBanner
+        activeProfileCount={activeProfileCount}
+        displayName={displayName}
+        doNotEmailCount={doNotEmailCount}
+        modules={modules}
+        navigate={navigate}
+        pendingAuditionCount={pendingAuditionCount}
+        performerLabelPlural={performerLabelPlural}
+        recentBounceCount={recentBounceCount}
+        upcomingEventCount={upcomingEventCount}
+      />
 
       {summaryError ? (
         <p className="admin-overview__error" role="status">
@@ -393,20 +575,16 @@ export function OrganizationAdminOverview({
         </p>
       ) : null}
 
-      <section
-        className="admin-overview__quick-actions"
-        aria-labelledby="admin-quick-actions-title"
-      >
-        <p id="admin-quick-actions-title">Quick actions</p>
-        <div>
-          {visibleQuickActions.map((action) => (
-            <DashboardLink href={action.href} key={action.href} onNavigate={navigate}>
-              <span aria-hidden="true">{action.icon}</span>
-              {action.label === "Add performer" ? `Add ${performerLabel}` : action.label}
-            </DashboardLink>
-          ))}
-        </div>
-      </section>
+      <QuickActionsSection
+        actions={displayedQuickActions}
+        navigate={navigate}
+        performerLabel={performerLabel}
+        title={visibleQuickActions.length > 0 ? "Quick actions" : "Get started"}
+      />
+
+      {isNewOrgOrSetupPending ? (
+        <GettingStartedGuide navigate={navigate} performerLabelPlural={performerLabelPlural} />
+      ) : null}
 
       <div className="admin-overview__sections">
         {sections.map((section) => (

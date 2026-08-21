@@ -157,4 +157,25 @@ describe("platform email delivery", () => {
       },
     ]);
   });
+
+  it("allows any recipient when allowed recipients list is empty (unrestricted production mode)", async () => {
+    const delivered: EmailMessageBuilder[] = [];
+    const email: SendEmail = {
+      send(candidate: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> {
+        if ("subject" in candidate) delivered.push(candidate);
+        return Promise.resolve({ messageId: "test-message" });
+      },
+    };
+    await sendPlatformEmail(
+      {
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+        PLATFORM_EMAIL_FROM: "auth@mail.example.test",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      message,
+    );
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0]?.to).toBe(message.recipient);
+  });
 });

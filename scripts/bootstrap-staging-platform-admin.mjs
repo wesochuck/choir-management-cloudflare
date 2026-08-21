@@ -92,7 +92,7 @@ INSERT INTO user
   (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
 SELECT
   ${sqlString(userId)}, ${sqlString(normalizedName)}, ${sqlString(normalizedEmail)},
-  0, ${nowMilliseconds}, ${nowMilliseconds}, 0
+  1, ${nowMilliseconds}, ${nowMilliseconds}, 0
 WHERE NOT EXISTS (SELECT 1 FROM user WHERE email = ${sqlString(normalizedEmail)});
 
 INSERT OR IGNORE INTO platform_administrators

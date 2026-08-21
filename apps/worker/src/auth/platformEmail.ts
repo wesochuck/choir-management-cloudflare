@@ -75,7 +75,7 @@ export async function sendPlatformEmail(
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean),
   );
-  if (!allowedRecipients.has(recipient)) {
+  if (allowedRecipients.size > 0 && !allowedRecipients.has(recipient)) {
     return Promise.reject(new Error("The platform email recipient is not allowlisted."));
   }
   if (env.CONTROL_DB && (await isEmailProviderSuppressed(env.CONTROL_DB, recipient))) {

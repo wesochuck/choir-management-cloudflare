@@ -257,3 +257,98 @@ test("explains legacy Stripe return and refresh links on organization settings",
     "/admin/settings/setup-checklist?stripe=refresh#provider-status-title",
   );
 });
+
+test("shows onboarding guidance and next steps on admin overview when brand new", async ({
+  page,
+}) => {
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    const responses: Record<string, unknown> = {
+      "/api/account/organizations": {
+        organizations: [
+          {
+            canonicalHostname: "setup-checklist.example.test",
+            canonicalStatus: "active",
+            lifecycleState: "active",
+            name: "Brand New Choir",
+            organizationId,
+            profileId: null,
+            role: "administrator",
+            slug: "setup-checklist",
+          },
+        ],
+      },
+      "/api/auth/get-session": session,
+      "/api/health": {
+        baseHostname: "127.0.0.1",
+        environment: "local",
+        requestId,
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      },
+      "/api/organization/auth-status": {
+        mfaRequired: false,
+        mfaVerifiedUntil: null,
+        organizationId,
+        requestId,
+        role: "administrator",
+        twoFactorEnabled: false,
+        twoFactorVerified: false,
+      },
+      "/api/organization/dashboard-summary": {
+        activeProfileCount: 0,
+        doNotEmailCount: 0,
+        nextEvents: [],
+        recentBounceCount: 0,
+        requestId,
+        upcomingEventCount: 0,
+      },
+      "/api/organization/module-state": {
+        modules: [
+          { enabled: false, id: "events" },
+          { enabled: false, id: "people" },
+          { enabled: false, id: "programs" },
+        ],
+      },
+      "/api/platform/mfa/status": {
+        activePlatformAdministrator: false,
+        enrollmentComplete: false,
+        requestId,
+        twoFactorEnabled: false,
+      },
+      "/api/setup/status": {
+        allModulesConfigured: false,
+        completedSteps: ["organization_info"],
+        currentStep: "modules",
+        launched: false,
+        organizationName: "Brand New Choir",
+        suggestedNextStep: "modules",
+      },
+    };
+    if (responses[pathname]) {
+      await fulfillJson(route, responses[pathname]);
+      return;
+    }
+    await fulfillJson(route, {});
+  });
+
+  await page.goto("/admin");
+
+  // Verify welcoming banner with no blank state
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(
+    page.getByText("Welcome to your organization workspace", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "📋 Setup Checklist" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "🧩 Configure Modules" })).toBeVisible();
+
+  // Verify Getting started quick actions
+  await expect(page.getByText("Get started", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Configure Modules", exact: true })).toBeVisible();
+
+  // Verify next steps guidance cards
+  await expect(page.getByText("Next steps for your organization")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Configure modules →" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open setup checklist →" })).toBeVisible();
+});

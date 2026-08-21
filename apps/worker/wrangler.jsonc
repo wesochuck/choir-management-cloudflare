@@ -257,19 +257,122 @@
       },
     },
     "production": {
-      "name": "choir-management-cloudflare-production-inert",
+      "name": "choir-management-cloudflare-production",
       "workers_dev": false,
+      "routes": [
+        {
+          "pattern": "musicsite.org",
+          "custom_domain": true,
+        },
+        {
+          "pattern": "*.musicsite.org/*",
+          "zone_name": "musicsite.org",
+        },
+      ],
+      "triggers": {
+        "crons": ["*/5 * * * *"],
+      },
+      "d1_databases": [
+        {
+          "binding": "CONTROL_DB",
+          "database_name": "choir-management-control-production",
+          "database_id": "1a186163-f95c-47a2-848d-6a4deff662a2",
+          "migrations_dir": "src/control/migrations",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "ORGANIZATION_STORE",
+            "class_name": "OrganizationStore",
+          },
+        ],
+      },
+      "kv_namespaces": [
+        {
+          "binding": "ROUTING_CACHE",
+          "id": "8d04b56101754939b390cd1c87ce05be",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "ORGANIZATION_FILES",
+          "bucket_name": "choir-management-production",
+        },
+      ],
+      "send_email": [
+        {
+          "name": "PLATFORM_EMAIL",
+          "allowed_sender_addresses": ["auth@mail.musicsite.org"],
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "JOBS_QUEUE",
+            "queue": "choir-management-jobs-production",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "choir-management-email-events-production",
+            "dead_letter_queue": "choir-management-email-events-dlq-production",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 5,
+          },
+          {
+            "queue": "choir-management-email-events-dlq-production",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 10,
+          },
+          {
+            "queue": "choir-management-jobs-production",
+            "dead_letter_queue": "choir-management-jobs-dlq-production",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 5,
+          },
+          {
+            "queue": "choir-management-jobs-dlq-production",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 10,
+          },
+        ],
+      },
+      "workflows": [
+        {
+          "binding": "FLEET_SCHEMA_WORKFLOW",
+          "name": "choir-management-fleet-schema-production",
+          "class_name": "FleetSchemaWorkflow",
+        },
+        {
+          "binding": "PROVISIONING_WORKFLOW",
+          "name": "choir-management-provisioning-production",
+          "class_name": "ProvisioningWorkflow",
+        },
+        {
+          "binding": "CUSTOM_DOMAIN_WORKFLOW",
+          "name": "choir-management-custom-domain-production",
+          "class_name": "CustomDomainWorkflow",
+        },
+      ],
       "vars": {
         "APP_ENV": "production",
-        "BUILD_VERSION": "unreleased",
-        "CUSTOM_DOMAIN_PROVIDER_MODE": "disabled",
+        "BUILD_VERSION": "production",
+        "CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID": "06291d6d14ca953912365e8f2df2eea8",
+        "CUSTOM_DOMAIN_PROVIDER_MODE": "cloudflare",
         "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-production",
         "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-production",
-        "EXTERNAL_EFFECTS_MODE": "disabled",
+        "EXTERNAL_EFFECTS_MODE": "sandbox",
         "JOBS_DLQ_NAME": "choir-management-jobs-dlq-production",
-        "PLATFORM_EMAIL_FROM": "auth@invalid.example",
-        "PLATFORM_EMAIL_MODE": "disabled",
-        "PRODUCT_BASE_DOMAIN": "invalid.example",
+        "PLATFORM_EMAIL_FROM": "auth@mail.musicsite.org",
+        "PLATFORM_EMAIL_MODE": "sandbox",
+        "PRODUCT_BASE_DOMAIN": "musicsite.org",
+        "STATUS_AUTOMATION_FIXTURE_MODE": "disabled",
+        "STRIPE_PAYMENTS_ENABLED": "true",
       },
     },
   },

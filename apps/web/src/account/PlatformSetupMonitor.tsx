@@ -67,10 +67,14 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
           <ol>
             <li>
               Email sends through the Cloudflare Email Sending binding. Configure the{" "}
-              <code>PLATFORM_EMAIL</code> binding, a <code>PLATFORM_EMAIL_FROM</code> sender, and
-              the comma-separated <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist.
+              <code>PLATFORM_EMAIL</code> binding and a valid <code>PLATFORM_EMAIL_FROM</code>{" "}
+              sender address.
             </li>
-            <li>Use sandbox mode, then send a test email from Communications → Settings.</li>
+            <li>
+              For staging/sandbox environments, an optional{" "}
+              <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist can restrict outbound
+              delivery.
+            </li>
           </ol>
         </div>
       </details>
@@ -82,16 +86,16 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
       <details className="platform-setup-guide platform-setup-check__guide">
         <summary>Brevo SMS setup instructions</summary>
         <div>
-          <p>Configure SMS delivery via Brevo once per environment.</p>
+          <p>Configure transactional SMS delivery via Brevo once per environment.</p>
           <ol>
             <li>
-              For SMS testing, store <code>BREVO_API_KEY</code> and <code>BREVO_SMS_SENDER</code>.
+              Store <code>BREVO_API_KEY</code> as a Worker secret and set{" "}
+              <code>BREVO_SMS_SENDER</code>.
             </li>
             <li>
-              For SMS sandbox tests, add the comma-separated{" "}
-              <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist.
+              For staging/sandbox testing, an optional <code>BREVO_SMS_ALLOWED_RECIPIENTS</code>{" "}
+              allowlist can restrict SMS recipients.
             </li>
-            <li>Use sandbox mode, then test SMS delivery from Communications.</li>
           </ol>
           <p className="field-help">
             A green health check means the required settings are present, not that a live message
