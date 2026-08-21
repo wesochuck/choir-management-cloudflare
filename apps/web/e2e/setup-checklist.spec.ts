@@ -340,12 +340,6 @@ test("shows onboarding guidance and next steps on admin overview when brand new"
   await expect(
     page.getByText("Welcome to your organization workspace", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "📋 Setup Checklist" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "🧩 Configure Modules" })).toBeVisible();
-
-  // Verify Getting started quick actions
-  await expect(page.getByText("Get started", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Configure Modules", exact: true })).toBeVisible();
 
   // Verify next steps guidance cards
   await expect(page.getByText("Next steps for your organization")).toBeVisible();

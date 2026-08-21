@@ -52,13 +52,6 @@ const quickActions: readonly QuickAction[] = [
   { href: "/admin/library", icon: "🎼", label: "Add Music", module: "programs" },
 ];
 
-const setupQuickActions: readonly QuickAction[] = [
-  { href: "/admin/settings/modules", icon: "🧩", label: "Configure Modules" },
-  { href: "/admin/settings/setup-checklist", icon: "📋", label: "Setup Checklist" },
-  { href: "/admin/settings", icon: "⚙️", label: "Organization Settings" },
-  { href: "/admin/security", icon: "🔒", label: "Organization Security" },
-];
-
 function moduleIsEnabled(
   modules: readonly ModuleState[],
   module: OverviewModule | undefined,
@@ -346,23 +339,10 @@ function OverviewBanner({
             ) : null}
           </div>
         ) : (
-          <div className="admin-overview__banner-onboarding">
-            <p className="admin-overview__banner-welcome">
-              Welcome to your organization workspace. Get started by completing your setup checklist
-              and configuring modules.
-            </p>
-            <div className="admin-overview__banner-actions">
-              <DashboardLink href="/admin/settings/setup-checklist" onNavigate={navigate}>
-                <span>📋 Setup Checklist</span>
-              </DashboardLink>
-              <DashboardLink href="/admin/settings/modules" onNavigate={navigate}>
-                <span>🧩 Configure Modules</span>
-              </DashboardLink>
-              <DashboardLink href="/admin/settings" onNavigate={navigate}>
-                <span>⚙️ Settings</span>
-              </DashboardLink>
-            </div>
-          </div>
+          <p className="admin-overview__banner-welcome">
+            Welcome to your organization workspace. Follow the next steps below to finish setting up
+            your organization and unlock all management tools.
+          </p>
         )}
       </div>
     </section>
@@ -543,8 +523,6 @@ export function OrganizationAdminOverview({
     () => quickActions.filter((action) => moduleIsEnabled(modules, action.module)),
     [modules],
   );
-  const displayedQuickActions =
-    visibleQuickActions.length > 0 ? visibleQuickActions : setupQuickActions;
   const hasEnabledStats = moduleIsEnabled(modules, "people") || moduleIsEnabled(modules, "events");
   const isNewOrgOrSetupPending = !hasEnabledStats || sections.length <= 1;
 
@@ -575,12 +553,14 @@ export function OrganizationAdminOverview({
         </p>
       ) : null}
 
-      <QuickActionsSection
-        actions={displayedQuickActions}
-        navigate={navigate}
-        performerLabel={performerLabel}
-        title={visibleQuickActions.length > 0 ? "Quick actions" : "Get started"}
-      />
+      {visibleQuickActions.length > 0 ? (
+        <QuickActionsSection
+          actions={visibleQuickActions}
+          navigate={navigate}
+          performerLabel={performerLabel}
+          title="Quick actions"
+        />
+      ) : null}
 
       {isNewOrgOrSetupPending ? (
         <GettingStartedGuide navigate={navigate} performerLabelPlural={performerLabelPlural} />
