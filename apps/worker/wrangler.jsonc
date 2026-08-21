@@ -134,6 +134,10 @@
           "custom_domain": true,
         },
         {
+          "pattern": "staging.musicsite.org/*",
+          "zone_name": "musicsite.org",
+        },
+        {
           "pattern": "*.staging.musicsite.org/*",
           "zone_name": "musicsite.org",
         },
