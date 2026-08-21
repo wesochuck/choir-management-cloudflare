@@ -1957,9 +1957,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     .getByLabel("Organization role")
     .selectOption({ label: "Organization Administrator" });
   await invitationSection.getByRole("button", { name: "Create invitation" }).click();
-  await expect(invitationSection.getByRole("status")).toContainText(
-    "Invitation created for future.member@example.test",
-  );
+  await expect(
+    invitationSection.getByRole("status").filter({ hasText: "Invitation created" }),
+  ).toContainText("Invitation created for future.member@example.test");
 
   await page.goto("/admin/settings/setup-checklist");
   const providerStatus = page.getByRole("region", { name: "Payments and email setup" });
