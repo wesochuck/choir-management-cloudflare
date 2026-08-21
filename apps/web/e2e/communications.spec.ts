@@ -719,3 +719,24 @@ test("searches and filters the template list", async ({ page }) => {
   await expect(templateList.getByText("First template", { exact: true })).toBeVisible();
   await expect(templateList.getByText("Text reminder", { exact: true })).toBeVisible();
 });
+
+test("hides delivery mode notice banner in production", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+
+  // Override provider-status to production environment
+  await page.route("**/api/organization/provider-status", async (route) => {
+    await fulfillJson(route, {
+      brevo: { detail: "Email sends live", status: "ok" },
+      emailSender: { fromEmail: null, fromName: null },
+      environment: "production",
+      externalEffectsMode: "sandbox",
+      requestId,
+      stripe: { detail: "Stripe live", status: "ok" },
+    });
+  });
+
+  await page.goto("/admin/communications");
+
+  await expect(page.getByText(/Delivery mode:/i)).toHaveCount(0);
+});

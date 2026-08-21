@@ -49,6 +49,88 @@ function ProviderRow({
   );
 }
 
+function deliveryStatusLabel(environment: string, externalEffectsMode: string): string {
+  if (environment === "production") return "Live";
+  if (externalEffectsMode === "fake") return "Simulated";
+  if (externalEffectsMode === "disabled") return "Disabled";
+  return "Staging sandbox";
+}
+
+function connectStatusLabel(status: "not_started" | "onboarding" | "restricted" | "ready"): string {
+  if (status === "ready") return "Ready";
+  if (status === "restricted") return "Needs information";
+  if (status === "onboarding") return "Onboarding started";
+  return "Not connected";
+}
+
+function StripeConnectAccountDetails({
+  beginConnectOnboarding,
+  connectBusy,
+  connectError,
+  connectState,
+}: {
+  readonly beginConnectOnboarding: () => void;
+  readonly connectBusy: boolean;
+  readonly connectError: string | null;
+  readonly connectState: ConnectStatusState;
+}) {
+  if (connectState.status === "loading") return <p>Checking connected-account status…</p>;
+  if (connectState.status === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Connected-account status could not be loaded.
+      </p>
+    );
+  }
+  const stripe = connectState.data.stripe;
+  return (
+    <>
+      <p>
+        Each Organization uses its own Stripe connected account. Stripe handles the identity and
+        payout details; this app stores only the account ID and readiness state.
+      </p>
+      <p className="field-help">
+        Status: <strong>{connectStatusLabel(stripe.status)}</strong>
+        {stripe.accountId ? ` · ${stripe.accountId}` : ""}
+      </p>
+      {stripe.requirementsDue.length > 0 ? (
+        <p className="field-help">
+          Stripe still needs {stripe.requirementsDue.length} item(s) before payments can be enabled.
+        </p>
+      ) : null}
+      {stripe.status === "ready" ? (
+        <p className="field-help">Stripe Connect is ready for payments.</p>
+      ) : (
+        <>
+          {connectError ? (
+            <p className="notice notice--error" role="alert">
+              {connectError}
+            </p>
+          ) : null}
+          <button
+            className="button button--secondary"
+            disabled={!connectState.data.platformConfigured || connectBusy}
+            onClick={beginConnectOnboarding}
+            type="button"
+          >
+            {connectBusy
+              ? "Opening Stripe…"
+              : stripe.status === "not_started"
+                ? "Connect Stripe account"
+                : "Continue Stripe onboarding"}
+          </button>
+          {!connectState.data.platformConfigured ? (
+            <p className="field-help">
+              A Platform Administrator must configure the Stripe platform key before this
+              Organization can connect.
+            </p>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+}
+
 export function OrganizationProviderStatus() {
   const [state, setState] = useState<ProviderStatusState>({ status: "loading" });
   const [connectState, setConnectState] = useState<ConnectStatusState>({ status: "loading" });
@@ -80,9 +162,6 @@ export function OrganizationProviderStatus() {
     setConnectBusy(true);
     setConnectError(null);
     try {
-      // The page can remain open while Stripe finishes onboarding in another tab. Re-read the
-      // provider state before creating another one-time Account Link so a stale button cannot
-      // send an already-ready account through Stripe's onboarding flow again.
       const latest = await getOrganizationStripeConnectStatus();
       setConnectState({ data: latest, status: "ready" });
       if (latest.stripe.status === "ready") return;
@@ -90,16 +169,13 @@ export function OrganizationProviderStatus() {
       const result = await startOrganizationStripeConnectOnboarding();
       window.location.assign(result.url);
     } catch (error: unknown) {
-      // A concurrent completion may be observed by the server after the preflight above. Refresh
-      // once so the UI settles on the ready state instead of showing a misleading onboarding
-      // failure for an account that no longer needs onboarding.
       if (error instanceof AuthApiError && error.status === 409) {
         try {
           const latest = await getOrganizationStripeConnectStatus();
           setConnectState({ data: latest, status: "ready" });
           if (latest.stripe.status === "ready") return;
         } catch {
-          // Fall through to the normal actionable error below.
+          // Fall through to error below.
         }
       }
       setConnectError(
@@ -107,13 +183,6 @@ export function OrganizationProviderStatus() {
       );
       setConnectBusy(false);
     }
-  }
-
-  function connectStatusLabel(status: "not_started" | "onboarding" | "restricted" | "ready") {
-    if (status === "ready") return "Ready";
-    if (status === "restricted") return "Needs information";
-    if (status === "onboarding") return "Onboarding started";
-    return "Not connected";
   }
 
   return (
@@ -137,7 +206,10 @@ export function OrganizationProviderStatus() {
         <>
           <div className="provider-status-card__meta">
             <span>Environment: {state.data.environment}</span>
-            <span>External effects: {state.data.externalEffectsMode}</span>
+            <span>
+              Delivery:{" "}
+              {deliveryStatusLabel(state.data.environment, state.data.externalEffectsMode)}
+            </span>
           </div>
           <div className="provider-status-card__rows">
             <ProviderRow label="Stripe" {...state.data.stripe} />
@@ -147,64 +219,14 @@ export function OrganizationProviderStatus() {
             <div>
               <p className="eyebrow">Organization payments</p>
               <h3>Stripe Connect account</h3>
-              {connectState.status === "loading" ? <p>Checking connected-account status…</p> : null}
-              {connectState.status === "error" ? (
-                <p className="notice notice--error" role="alert">
-                  Connected-account status could not be loaded.
-                </p>
-              ) : null}
-              {connectState.status === "ready" ? (
-                <>
-                  <p>
-                    Each Organization uses its own Stripe connected account. Stripe handles the
-                    identity and payout details; this app stores only the account ID and readiness
-                    state.
-                  </p>
-                  <p className="field-help">
-                    Status: <strong>{connectStatusLabel(connectState.data.stripe.status)}</strong>
-                    {connectState.data.stripe.accountId
-                      ? ` · ${connectState.data.stripe.accountId}`
-                      : ""}
-                  </p>
-                  {connectState.data.stripe.requirementsDue.length > 0 ? (
-                    <p className="field-help">
-                      Stripe still needs {connectState.data.stripe.requirementsDue.length} item(s)
-                      before payments can be enabled.
-                    </p>
-                  ) : null}
-                  {connectState.data.stripe.status === "ready" ? (
-                    <p className="field-help">Stripe Connect is ready for staging payments.</p>
-                  ) : (
-                    <>
-                      {connectError ? (
-                        <p className="notice notice--error" role="alert">
-                          {connectError}
-                        </p>
-                      ) : null}
-                      <button
-                        className="button button--secondary"
-                        disabled={!connectState.data.platformConfigured || connectBusy}
-                        onClick={() => {
-                          void beginConnectOnboarding();
-                        }}
-                        type="button"
-                      >
-                        {connectBusy
-                          ? "Opening Stripe…"
-                          : connectState.data.stripe.status === "not_started"
-                            ? "Connect Stripe account"
-                            : "Continue Stripe onboarding"}
-                      </button>
-                      {!connectState.data.platformConfigured ? (
-                        <p className="field-help">
-                          A Platform Administrator must configure the Stripe platform key before
-                          this Organization can connect.
-                        </p>
-                      ) : null}
-                    </>
-                  )}
-                </>
-              ) : null}
+              <StripeConnectAccountDetails
+                beginConnectOnboarding={() => {
+                  void beginConnectOnboarding();
+                }}
+                connectBusy={connectBusy}
+                connectError={connectError}
+                connectState={connectState}
+              />
             </div>
           </div>
         </>

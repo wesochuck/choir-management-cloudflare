@@ -71,9 +71,8 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
               sender address.
             </li>
             <li>
-              For staging/sandbox environments, an optional{" "}
-              <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code> allowlist can restrict outbound
-              delivery.
+              For staging environments, an optional <code>PLATFORM_EMAIL_ALLOWED_RECIPIENTS</code>{" "}
+              allowlist can restrict outbound delivery.
             </li>
           </ol>
         </div>
@@ -93,8 +92,8 @@ function ProviderSetupInstructions({ id }: { readonly id: PlatformSetupCheck["id
               <code>BREVO_SMS_SENDER</code>.
             </li>
             <li>
-              For staging/sandbox testing, an optional <code>BREVO_SMS_ALLOWED_RECIPIENTS</code>{" "}
-              allowlist can restrict SMS recipients.
+              For staging testing, an optional <code>BREVO_SMS_ALLOWED_RECIPIENTS</code> allowlist
+              can restrict SMS recipients.
             </li>
           </ol>
           <p className="field-help">

@@ -27,6 +27,26 @@ function queuedReachMessage(total: number): string {
   return `${String(total)} ${total === 1 ? "recipient was" : "recipients were"} queued for delivery.`;
 }
 
+function deliveryModeLabel(environment: string, externalEffectsMode: string): string {
+  if (environment === "production") return "Live";
+  if (externalEffectsMode === "fake") return "Simulated";
+  if (externalEffectsMode === "disabled") return "Disabled";
+  return "Staging sandbox";
+}
+
+function deliveryModeDescription(environment: string, externalEffectsMode: string): string {
+  if (environment === "production") {
+    return "Messages are delivered live to recipients via Cloudflare Email Sending.";
+  }
+  if (externalEffectsMode === "fake") {
+    return "Messages are recorded as sent for testing, but no external provider request is made.";
+  }
+  if (externalEffectsMode === "disabled") {
+    return "Messages are recorded as suppressed and are not sent.";
+  }
+  return "Messages are delivered under staging sandbox restrictions (allowlisted QA recipients only).";
+}
+
 function DeliveryDetails({
   busy,
   message,
@@ -166,7 +186,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
   const brevoNeedsAttention = brevoStatus === "attention" || brevoStatus === "error";
   const brevoStatusMessage =
     brevoStatus === "error"
-      ? "Email delivery is not configured. Audition notices and other organization emails cannot be sent until email delivery is configured."
+      ? (providerStatus?.brevo.detail ?? "Email delivery is not configured.")
       : "Email delivery is not active in this environment. Messages will not reach recipients until delivery is enabled.";
   const selectedEvent = audience.eventId
     ? (events.find((event) => event.id === audience.eventId) ?? null)
@@ -177,14 +197,13 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
         Build a message in three steps: choose the audience, write with Markdown and placeholders,
         then review it before queueing delivery.
       </p>
-      {providerStatus ? (
+      {providerStatus && providerStatus.environment !== "production" ? (
         <p className="notice notice--info" role="status">
-          <strong>Delivery mode: {providerStatus.externalEffectsMode}.</strong>{" "}
-          {providerStatus.externalEffectsMode === "fake"
-            ? "Messages are recorded as sent but no external provider request is made."
-            : providerStatus.externalEffectsMode === "disabled"
-              ? "Messages are recorded as suppressed and are not sent."
-              : "Provider requests are made under sandbox restrictions."}{" "}
+          <strong>
+            Delivery mode:{" "}
+            {deliveryModeLabel(providerStatus.environment, providerStatus.externalEffectsMode)}.
+          </strong>{" "}
+          {deliveryModeDescription(providerStatus.environment, providerStatus.externalEffectsMode)}{" "}
           <a href="/admin/settings/setup-checklist#provider-status-title">
             View provider status details.
           </a>

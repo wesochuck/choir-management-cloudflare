@@ -177,7 +177,7 @@ test("hides Stripe onboarding when the connected account is ready", async ({ pag
 
   await expect(page.getByRole("heading", { name: "Stripe Connect account" })).toBeVisible();
   await expect(page.getByText("Status: Ready", { exact: false })).toBeVisible();
-  await expect(page.getByText("Stripe Connect is ready for staging payments.")).toBeVisible();
+  await expect(page.getByText("Stripe Connect is ready for payments.")).toBeVisible();
   await expect(page.getByRole("button", { name: /Stripe onboarding/i })).toHaveCount(0);
 });
 
@@ -231,7 +231,7 @@ test("refreshes a stale onboarding view before opening Stripe", async ({ page })
   await expect(continueButton).toBeVisible();
   await continueButton.click();
   await expect(page.getByText("Status: Ready", { exact: false })).toBeVisible();
-  await expect(page.getByText("Stripe Connect is ready for staging payments.")).toBeVisible();
+  await expect(page.getByText("Stripe Connect is ready for payments.")).toBeVisible();
   await expect(page.getByRole("button", { name: /Stripe onboarding/i })).toHaveCount(0);
 });
 
