@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeVersionId,
   assertEmailFeedbackSubscription,
+  assertEmailSendingEnabled,
   assertReleaseCheckout,
   sanitizeExternalOutput,
   uploadedVersionId,
@@ -56,6 +57,25 @@ describe("local staging deployment safeguards", () => {
     );
     expect(() => activeVersionId({ versions: [] })).toThrow(/100%/u);
     expect(() => uploadedVersionId("not json")).toThrow(/version ID/u);
+  });
+
+  it("accepts only verified and enabled email sending domains", () => {
+    const tableOutput = `
+┌───────────────┬────────────────────────────┬─────────┬──────────────────────────────────┐
+│ zone          │ name                       │ enabled │ tag                              │
+├───────────────┼────────────────────────────┼─────────┼──────────────────────────────────┤
+│ musicsite.org │ mail.staging.musicsite.org │ yes     │ 672a6796460e4004886dd48c96715849 │
+├───────────────┼────────────────────────────┼─────────┼──────────────────────────────────┤
+│ musicsite.org │ mail.musicsite.org         │ yes     │ ddf97609ef204c588f9d1c3e2802e37c │
+└───────────────┴────────────────────────────┴─────────┴──────────────────────────────────┘
+`;
+    expect(() =>
+      assertEmailSendingEnabled(tableOutput, "mail.staging.musicsite.org"),
+    ).not.toThrow();
+    expect(() => assertEmailSendingEnabled(tableOutput, "mail.musicsite.org")).not.toThrow();
+    expect(() => assertEmailSendingEnabled(tableOutput, "unverified.musicsite.org")).toThrow(
+      /Email Sending is not enabled/u,
+    );
   });
 
   it("redacts email addresses and secret-like values from captured failures", () => {

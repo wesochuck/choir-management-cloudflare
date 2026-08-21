@@ -61,8 +61,13 @@ npx wrangler queues create choir-management-email-events-dlq-production
 
 ### E. Cloudflare Email Sending
 
-Onboard `auth@mail.musicsite.org` as a verified sender domain in Cloudflare Email Service with
-appropriate SPF, DKIM, and DMARC records.
+Enable Email Sending for the production sending subdomain and verify DNS SPF, DKIM, and DMARC:
+
+```bash
+npx wrangler email sending enable mail.musicsite.org
+npx wrangler email sending list
+npx wrangler email sending settings mail.musicsite.org
+```
 
 ---
 

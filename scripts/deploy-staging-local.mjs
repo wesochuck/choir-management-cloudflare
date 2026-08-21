@@ -69,6 +69,20 @@ function verifyCheckout() {
   return state.head;
 }
 
+export function assertEmailSendingEnabled(output, domain) {
+  const normalizedDomain = domain.trim().toLowerCase();
+  const lines = String(output).split(/\r?\n/u);
+  const isEnabled = lines.some((line) => {
+    const parts = line.split("│").map((part) => part.trim().toLowerCase());
+    return parts.length >= 4 && parts[2] === normalizedDomain && parts[3] === "yes";
+  });
+  if (!isEnabled) {
+    throw new Error(
+      `Email Sending is not enabled for '${domain}'. Run 'npx wrangler email sending enable ${domain}'.`,
+    );
+  }
+}
+
 export function assertEmailFeedbackSubscription(subscriptions) {
   if (!Array.isArray(subscriptions)) throw new Error("Unexpected queue subscription response.");
   const valid = subscriptions.some(
@@ -186,6 +200,9 @@ export async function deployStaging() {
     await prepareArtifact(releaseRoot, commitSha);
 
     wrangler(["whoami"], { capture: true });
+    const emailSendingList = wrangler(["email", "sending", "list"], { capture: true });
+    assertEmailSendingEnabled(emailSendingList, "mail.staging.musicsite.org");
+
     const subscriptions = JSON.parse(
       wrangler(["queues", "subscription", "list", emailFeedbackQueue, "--json"], {
         capture: true,
