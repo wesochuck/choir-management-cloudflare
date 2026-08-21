@@ -544,22 +544,6 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .signed-in-main.signed-in-main--platform .platform-section__heading {
-    display: grid;
-    gap: 0.35rem;
-    margin: 0;
-    max-width: none;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-section__heading .eyebrow,
-  .signed-in-main.signed-in-main--platform .platform-section__heading h2 {
-    margin: 0;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-section__heading h2 {
-    font-size: var(--font-size-2xl);
-  }
-
   .signed-in-main.signed-in-main--platform .platform-access-status {
     margin: 0;
   }
