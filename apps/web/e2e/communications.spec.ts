@@ -83,6 +83,10 @@ async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void
     await fulfillJson(route, queuedMessage, 202);
     return;
   }
+  if (pathname === "/api/organization/communications/test-email") {
+    await fulfillJson(route, { requestId, sent: true }, 202);
+    return;
+  }
 
   const responses: Record<string, unknown> = {
     "/api/account/organizations": {
@@ -739,4 +743,53 @@ test("hides delivery mode notice banner in production", async ({ page }) => {
   await page.goto("/admin/communications");
 
   await expect(page.getByText(/Delivery mode:/i)).toHaveCount(0);
+});
+
+test("shows success feedback when sending a test email from settings", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+
+  await page.goto("/admin/communications");
+  await page.getByRole("tab", { exact: true, name: "Settings" }).click();
+
+  const settingsPanel = page.locator("#communication-settings-panel");
+  await expect(settingsPanel).toBeVisible();
+
+  await settingsPanel.getByLabel("Test recipient").fill("test@example.com");
+  await settingsPanel.getByRole("button", { name: "Send test email" }).click();
+
+  await expect(
+    settingsPanel.getByRole("status").filter({ hasText: "Test email accepted for delivery" }),
+  ).toBeVisible();
+});
+
+test("shows error feedback when sending a test email fails", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+
+  // Override test-email route to return failure
+  await page.route("**/api/organization/communications/test-email", async (route) => {
+    await fulfillJson(
+      route,
+      {
+        code: "delivery_failed",
+        message: "The test email could not be sent. Mail server rejected recipient.",
+        requestId,
+      },
+      400,
+    );
+  });
+
+  await page.goto("/admin/communications");
+  await page.getByRole("tab", { exact: true, name: "Settings" }).click();
+
+  const settingsPanel = page.locator("#communication-settings-panel");
+  await expect(settingsPanel).toBeVisible();
+
+  await settingsPanel.getByLabel("Test recipient").fill("bad@example.com");
+  await settingsPanel.getByRole("button", { name: "Send test email" }).click();
+
+  await expect(
+    settingsPanel.getByRole("alert").filter({ hasText: "Mail server rejected recipient" }),
+  ).toBeVisible();
 });

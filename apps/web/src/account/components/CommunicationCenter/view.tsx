@@ -936,6 +936,16 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
                 platform default sender.
               </p>
             </section>
+            {error ? (
+              <p className="notice notice--error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {success ? (
+              <p className="notice notice--success" role="status">
+                {success}
+              </p>
+            ) : null}
             <div className="form-actions form-actions--start">
               <div className="field communication-test-send__address">
                 <label htmlFor="communication-settings-test-email">Test recipient</label>
