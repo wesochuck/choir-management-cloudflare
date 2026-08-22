@@ -385,7 +385,6 @@ export function AuthenticatedShell({
           {route.pathname === "/admin" || route.pathname === "/admin/seating" ? null : (
             <div className="page-heading">
               <div>
-                <p className="eyebrow">{workspaceLabel(workspace)}</p>
                 <h1>{pageTitle(route.pathname)}</h1>
                 {pageDescription(route.pathname, route.search) ? (
                   <p className="page-heading__description">
