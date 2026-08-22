@@ -158,6 +158,102 @@ export function workspaceLabel(workspace: Workspace): string {
   }
 }
 
+const staticPageDescriptions: readonly [string, string][] = [
+  [
+    "/admin/events",
+    "Create and manage rehearsals, performances, and call times. Track attendance and edit seating charts.",
+  ],
+  ["/admin/venues", "Manage performance and rehearsal venues and locations."],
+  ["/admin/rsvp", "Track singer availability and RSVP responses for rehearsals and performances."],
+  [
+    "/admin/attendance",
+    "Track singer attendance, review roll calls, and export attendance records.",
+  ],
+  [
+    "/admin/setlists",
+    "Build concert set lists, link musical pieces from the catalog, and share performance order.",
+  ],
+  [
+    "/admin/auditions",
+    "Review candidate submissions, manage audition slots, and track singer inquiries.",
+  ],
+  ["/admin/tickets", "Manage ticket sales, bundles, and check-in."],
+  [
+    "/admin/tickets/scan",
+    "Scan a ticket QR code at the door or validate a ticket credential manually.",
+  ],
+  [
+    "/admin/donations",
+    "Monitor your choir’s incoming donations, giving activity, and donor recognition tiers.",
+  ],
+  [
+    "/admin/patrons",
+    "Monitor your choir’s incoming donations, giving activity, and donor recognition tiers.",
+  ],
+  [
+    "/admin/communications",
+    "Build a message in three steps: choose the audience, write with Markdown and placeholders, then review it before queueing delivery.",
+  ],
+  [
+    "/admin/website",
+    "Edit a private draft, then publish an immutable edge-cached version for Organization visitors.",
+  ],
+  ["/admin/resources", "Shared files and trusted links for this Organization."],
+  ["/member/resources", "Shared files and trusted links for this Organization."],
+  [
+    "/admin/roster",
+    "Manage the organization roster, section assignments, member statuses, and contact details.",
+  ],
+  ["/admin/reports", "Generate and review attendance, repertoire, and roster reports."],
+  ["/admin/seasons", "Manage choir performance seasons, dues schedules, and payment tracking."],
+  ["/admin/polls", "Create polls, collect member votes, and review real-time tally results."],
+  ["/admin/settings", "Manage organization preferences, terminology, and defaults."],
+  [
+    "/admin/settings/invitations",
+    "Invite new members, managers, and administrators to the organization.",
+  ],
+  [
+    "/admin/settings/security",
+    "Manage two-factor authentication and organization security policies.",
+  ],
+  ["/admin/settings/modules", "Enable or disable feature modules for your organization."],
+  [
+    "/admin/settings/setup-checklist",
+    "Review configuration steps to prepare your organization for launch.",
+  ],
+  ["/directory", "Search and browse member directory contacts and section assignments."],
+  [
+    "/profile",
+    "View and update your member profile details, voice part, and directory preferences.",
+  ],
+  ["/schedule", "View your upcoming rehearsals, performances, call times, and locations."],
+  ["/calendar", "View your upcoming rehearsals, performances, call times, and locations."],
+  ["/practice", "Listen to rehearsal learning tracks and audio recordings."],
+  ["/dues", "View and pay season membership dues and track payment history."],
+  ["/account", "Manage your personal account, sign-in security, and organization memberships."],
+  ["/account/organizations", "Switch between your organizations or view invitations."],
+  ["/account/security", "Manage your sign-in password, email address, and authentication methods."],
+  ["/account/sessions", "Review and manage active sign-in sessions across your devices."],
+];
+
+export function pageDescription(pathname: string, search = ""): string | null {
+  if (pathname === "/admin/library") {
+    const params = new URLSearchParams(search);
+    if (params.get("view") === "credits") {
+      return "Review exact catalog credits and correct a composer or arranger name everywhere it is used.";
+    }
+    return "Manage owned works and movements. Audio tracks are stored securely as Organization files and will appear here when linked through the track workflow.";
+  }
+  if (pathname === "/admin/library/settings") {
+    return "Configure publisher catalog links and the expiry period for public practice-player links.";
+  }
+  return (
+    staticPageDescriptions.find(
+      ([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    )?.[1] ?? null
+  );
+}
+
 export function pageTitle(pathname: string): string {
   const titles: readonly [string, string][] = [
     ["/admin/settings/invitations", "Membership invitations"],

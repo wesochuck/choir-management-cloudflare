@@ -233,7 +233,10 @@
   }
 
   .page-heading {
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
     margin-bottom: 1.5rem;
     padding-bottom: 1rem;
   }
@@ -250,11 +253,12 @@
     font-size: var(--font-size-2xs);
   }
 
-  .page-heading__location {
-    max-width: 20rem;
+  .page-heading__description {
+    max-width: 48rem;
+    margin: 0.2rem 0 0;
     color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-regular);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
   }
 
   .workspace-hero {

@@ -193,10 +193,6 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     : null;
   return (
     <section className="panel communication-center" aria-label="Communication center">
-      <p className="section-description">
-        Build a message in three steps: choose the audience, write with Markdown and placeholders,
-        then review it before queueing delivery.
-      </p>
       {providerStatus && providerStatus.environment !== "production" ? (
         <p className="notice notice--info" role="status">
           <strong>

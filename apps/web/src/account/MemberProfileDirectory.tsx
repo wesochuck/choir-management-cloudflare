@@ -736,11 +736,7 @@ function Directory({
   }, [search, state, voicePart]);
 
   return (
-    <section className="account-section" aria-labelledby="organization-directory-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Member contacts</p>
-        <h2 id="organization-directory-title">Organization directory</h2>
-      </div>
+    <section className="account-section" aria-label="Organization directory">
       {!enabled || state.status === "loading" ? <p>Loading the directory…</p> : null}
       {enabled && state.status === "error" ? (
         <p className="notice notice--error" role="alert">

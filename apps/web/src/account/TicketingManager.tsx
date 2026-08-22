@@ -451,11 +451,9 @@ export function TicketingManager({
     );
   }
   return (
-    <section className="panel" aria-labelledby="ticketing-manager-heading">
+    <section className="panel" aria-label="Ticket sales and check-in management">
       <header className="ticketing-page-header">
         <div>
-          <p className="eyebrow">Manager tools</p>
-          <h2 id="ticketing-manager-heading">Ticketing Dashboard</h2>
           <p>Manage ticket sales, bundles, and check-in.</p>
         </div>
         <a className="button button--primary" href="/admin/tickets/scan">

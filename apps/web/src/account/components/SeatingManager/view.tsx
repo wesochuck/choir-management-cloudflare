@@ -1,3 +1,4 @@
+import { AppLink } from "../AuthenticatedShell/navigation";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { FormationEditor } from "./shared";
 import { SeatingChartPanel } from "./SeatingChartPanel";
@@ -5,7 +6,13 @@ import { SeatingHeader } from "./SeatingHeader";
 import { SeatingTabs } from "./SeatingTabs";
 import type { SeatingManagerModel } from "./hooks";
 
-export function SeatingManagerView({ model }: { readonly model: SeatingManagerModel }) {
+export function SeatingManagerView({
+  model,
+  navigate,
+}: {
+  readonly model: SeatingManagerModel;
+  readonly navigate?: ((href: string) => void) | undefined;
+}) {
   const {
     chart,
     eligibleProfiles,
@@ -44,8 +51,22 @@ export function SeatingManagerView({ model }: { readonly model: SeatingManagerMo
   if (resources.events.length === 0) {
     return (
       <div className="empty-state">
-        <h2>Create a Performance first</h2>
+        <h2>Create an event first</h2>
         <p>Seating charts belong to active Performance events.</p>
+        <div className="button-row" style={{ marginTop: "1rem" }}>
+          <AppLink
+            className="button button--primary"
+            href="/admin/events?action=create&type=Performance&returnTo=/admin/seating"
+            onNavigate={
+              navigate ??
+              ((href) => {
+                window.location.assign(href);
+              })
+            }
+          >
+            Create an event
+          </AppLink>
+        </div>
       </div>
     );
   }

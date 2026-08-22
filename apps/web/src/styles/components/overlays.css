@@ -358,11 +358,6 @@
       margin-bottom: 1.25rem;
     }
 
-    .page-heading__location {
-      max-width: none;
-      text-align: left;
-    }
-
     .workspace-card-grid,
     .ticket-scanner__toolbar,
     .ticket-scanner__grid {

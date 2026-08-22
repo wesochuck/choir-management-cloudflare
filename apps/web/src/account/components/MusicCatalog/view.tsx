@@ -110,12 +110,6 @@ export function MusicCatalogView({
         className="account-section music-catalog-section"
         aria-label="Composers and arrangers"
       >
-        <div className="section-heading section-heading--compact">
-          <p className="section-description">
-            Review exact catalog credits and correct a composer or arranger name everywhere it is
-            used.
-          </p>
-        </div>
         <nav className="music-library-tabs" aria-label="Music library sections">
           <AppLink href="/admin/library" onNavigate={navigate}>
             Music Catalog
@@ -154,12 +148,7 @@ export function MusicCatalogView({
           </AppLink>
         </div>
       ) : null}
-      <div className="section-heading section-heading--compact">
-        <p className="section-description">
-          Manage owned works and movements. Audio tracks are stored securely as Organization files
-          and will appear here when linked through the track workflow.
-        </p>
-      </div>
+
       <nav className="music-library-tabs" aria-label="Music library sections">
         <AppLink ariaCurrent="page" href="/admin/library" onNavigate={navigate}>
           Music Catalog <span className="sr-only">(current)</span>

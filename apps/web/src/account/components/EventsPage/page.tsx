@@ -16,6 +16,7 @@ import {
 } from "../../../auth/api";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 
+import { AppLink } from "../AuthenticatedShell/navigation";
 import {
   emptyEvent,
   eventRequestFrom,
@@ -31,7 +32,26 @@ import { EventEditorDialog, ArchiveEventDialog, CancelEventDialog } from "./dial
 
 import { BulkRehearsalDialog } from "./bulkRehearsals";
 
-export function EventsPage({ enabled }: { readonly enabled: boolean }) {
+function buildEventReturnUrl(returnTo: string, eventId: string): string {
+  return returnTo.includes("?")
+    ? `${returnTo}&eventId=${encodeURIComponent(eventId)}`
+    : `${returnTo}?eventId=${encodeURIComponent(eventId)}`;
+}
+
+// eslint-disable-next-line complexity -- the main events manager screen coordinates multiple modals, bulk actions, and filters.
+export function EventsPage({
+  enabled,
+  initialAction = null,
+  initialType = null,
+  navigate,
+  returnTo = null,
+}: {
+  readonly enabled: boolean;
+  readonly initialAction?: "create" | null | undefined;
+  readonly initialType?: "Performance" | "Rehearsal" | null | undefined;
+  readonly navigate?: ((href: string) => void) | undefined;
+  readonly returnTo?: string | null | undefined;
+}) {
   const [archiveCandidate, setArchiveCandidate] = useState<OrganizationEvent | null>(null);
   const [busy, setBusy] = useState(false);
   const [bulkRehearsalOpen, setBulkRehearsalOpen] = useState(false);
@@ -41,13 +61,22 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const [bulkRehearsalPerformanceId, setBulkRehearsalPerformanceId] = useState("");
   const [bulkRehearsalTime, setBulkRehearsalTime] = useState("19:00");
   const [bulkRehearsalVenueId, setBulkRehearsalVenueId] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(initialAction === "create");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [event, setEvent] = useState<OrganizationEventRequest>(emptyEvent);
+  const [event, setEvent] = useState<OrganizationEventRequest>(() => ({
+    ...emptyEvent,
+    type: initialType ?? emptyEvent.type,
+  }));
   const [eventStart, setEventStart] = useState("");
   const [graphicFile, setGraphicFile] = useState<File | null>(null);
-  const [eventTab, setEventTab] = useState<EventTab>("all");
+  const [eventTab, setEventTab] = useState<EventTab>(
+    initialType === "Performance"
+      ? "performances"
+      : initialType === "Rehearsal"
+        ? "rehearsals"
+        : "all",
+  );
   const [currentTime] = useState(() => Date.now());
   const [query, setQuery] = useState("");
   const [showPastEvents, setShowPastEvents] = useState(false);
@@ -169,6 +198,7 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
     setDialogOpen(true);
   }
 
+  // eslint-disable-next-line complexity -- saveEvent handles graphic upload/cleanup, updates vs creation, and returnTo navigation.
   async function saveEvent(eventDraft: OrganizationEventRequest = event) {
     if (state.status !== "ready") return;
     const startsAt = zonedLocalDateTimeToUtc(eventStart, state.timezone);
@@ -210,6 +240,9 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
       setEvent(emptyEvent);
       setEventStart("");
       setGraphicFile(null);
+      if (returnTo && !editingId && navigate) {
+        navigate(buildEventReturnUrl(returnTo, saved.id));
+      }
     } catch (saveError: unknown) {
       if (uploadedGraphicId)
         await deletePrivateOrganizationFile(uploadedGraphicId).catch(() => undefined);
@@ -359,10 +392,26 @@ export function EventsPage({ enabled }: { readonly enabled: boolean }) {
   const readyState = state.status === "ready" ? state : null;
   return (
     <>
-      <p className="section-description event-manager-description">
-        Create and manage rehearsals, performances, and call times. Track attendance and edit
-        seating charts.
-      </p>
+      {returnTo ? (
+        <div className="music-library-return" style={{ marginBottom: "1rem" }}>
+          <AppLink
+            className="button button--secondary"
+            href={returnTo}
+            onNavigate={
+              navigate ??
+              ((href) => {
+                window.location.assign(href);
+              })
+            }
+          >
+            {returnTo.startsWith("/admin/setlists")
+              ? "← Back to set lists"
+              : returnTo.startsWith("/admin/seating")
+                ? "← Back to seating"
+                : "← Back"}
+          </AppLink>
+        </div>
+      ) : null}
       <nav aria-label="Event sections" className="ticketing-tabs event-manager-tabs" role="tablist">
         {(
           [

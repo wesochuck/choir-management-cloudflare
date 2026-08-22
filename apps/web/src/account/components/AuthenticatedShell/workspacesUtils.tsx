@@ -53,6 +53,22 @@ export function renderAccountPage(
   return <AccountView currentSession={session} onSignedOut={onSignedOut} section="overview" />;
 }
 
+function eventsPagePropsFromSearch(search: string) {
+  const routeParams = new URLSearchParams(search);
+  const eventsAction = routeParams.get("action");
+  const eventsTypeParam = routeParams.get("type");
+  const initialType: "Performance" | "Rehearsal" | null =
+    eventsTypeParam === "Performance" || eventsTypeParam === "Rehearsal" ? eventsTypeParam : null;
+  return {
+    initialAction:
+      eventsAction === "create" || routeParams.get("create") === "true"
+        ? ("create" as const)
+        : null,
+    initialType,
+    returnTo: routeParams.get("returnTo"),
+  };
+}
+
 export function renderOrganizationPage(
   routeState: RouteState,
   enabled: boolean,
@@ -73,6 +89,7 @@ export function renderOrganizationPage(
   const musicPieceId = routeParams.get("pieceId");
   const musicCatalogView = routeParams.get("view") === "credits" ? "credits" : "catalog";
   const rsvpEventId = routeParams.get("eventId");
+  const eventsProps = eventsPagePropsFromSearch(routeState.search);
   const route =
     pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
       ? "event-roster"
@@ -107,13 +124,24 @@ export function renderOrganizationPage(
         }}
       />
     ),
-    "/admin/seating": <SeatingManager enabled={focusedEnabled} />,
-    "/admin/setlists": <SetListManager enabled={focusedEnabled} />,
+    "/admin/seating": <SeatingManager enabled={focusedEnabled} navigate={navigate} />,
+    "/admin/setlists": (
+      <SetListManager enabled={focusedEnabled} initialEventId={rsvpEventId} navigate={navigate} />
+    ),
     "/admin/tickets": <TicketingManager enabled={focusedEnabled} />,
     "/admin/tickets/scan": <TicketingManager enabled={focusedEnabled} scanOnly />,
     "/admin/venues": <VenuesPage enabled={focusedEnabled} />,
     "/admin/website": <PublicWebsiteManager enabled={focusedEnabled} />,
-    "/admin/events": <EventsPage enabled={focusedEnabled} />,
+    "/admin/events": (
+      <EventsPage
+        enabled={focusedEnabled}
+        initialAction={eventsProps.initialAction}
+        initialType={eventsProps.initialType}
+        key={`events:${eventsProps.initialAction ?? "list"}:${eventsProps.initialType ?? "default"}`}
+        navigate={navigate}
+        returnTo={eventsProps.returnTo}
+      />
+    ),
     "/admin/roster": (
       <RosterPage
         enabled={focusedEnabled}
