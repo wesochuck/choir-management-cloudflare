@@ -66,6 +66,14 @@ export function Autocomplete({
     };
   }, [lastSelectedLabel, listOpen, onValueChange]);
 
+  const [previousValue, setPreviousValue] = useState(value);
+  if (previousValue !== value) {
+    setPreviousValue(value);
+    if (value === "" && lastSelectedLabel !== null) {
+      setLastSelectedLabel(null);
+    }
+  }
+
   function choose(option: AutocompleteOption): void {
     setOpen(false);
     setActiveIndex(-1);
