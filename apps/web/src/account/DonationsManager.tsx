@@ -4,6 +4,7 @@ import {
   type DonationSettings,
   type ManualDonationCreateRequest,
 } from "@choir/contracts";
+import { buildDonorSuggestions, type DonorSuggestion } from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 
@@ -11,6 +12,8 @@ import {
   createManualOrganizationDonation,
   getOrganizationCalendarSettings,
   getOrganizationDonationSettings,
+  listOrganizationDirectory,
+  listOrganizationTicketOrders,
   updateOrganizationDonationSettings,
   updateOrganizationDonationThankYou,
 } from "../auth/api";
@@ -43,6 +46,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   });
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [donorSuggestions, setDonorSuggestions] = useState<readonly DonorSuggestion[]>([]);
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
   const [levelError, setLevelError] = useState<string | null>(null);
   const [levelLabel, setLevelLabel] = useState("");
@@ -93,6 +97,45 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       controller.abort();
     };
   }, [enabled]);
+
+  useEffect(() => {
+    if (!manualModalOpen) return;
+    let cancelled = false;
+    async function gather(): Promise<void> {
+      const [ordersResult, directoryResult] = await Promise.allSettled([
+        listOrganizationTicketOrders(),
+        listOrganizationDirectory(),
+      ]);
+      if (cancelled) return;
+      const patrons =
+        patronState.status === "ready"
+          ? patronState.patrons.map((patron) => ({
+              email: patron.email,
+              name: patron.name,
+              totalDonatedCents: patron.totalDonatedCents,
+            }))
+          : [];
+      const buyers =
+        ordersResult.status === "fulfilled"
+          ? ordersResult.value.map((order) => ({
+              buyerEmail: order.buyerEmail,
+              buyerName: order.buyerName,
+            }))
+          : [];
+      const members =
+        directoryResult.status === "fulfilled"
+          ? directoryResult.value.map((profile) => ({
+              displayName: profile.displayName,
+              email: profile.email,
+            }))
+          : [];
+      setDonorSuggestions(buildDonorSuggestions(patrons, buyers, members));
+    }
+    void gather();
+    return () => {
+      cancelled = true;
+    };
+  }, [manualModalOpen, patronState]);
 
   function openNewLevel(): void {
     setEditingLevelId(null);
@@ -420,6 +463,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
         }}
         onSave={handleSaveManualDonation}
         open={manualModalOpen}
+        suggestions={donorSuggestions}
       />
       <DonationLevelDialog
         busy={busy}

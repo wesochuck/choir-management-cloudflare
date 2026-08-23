@@ -5,19 +5,24 @@ import {
   type DonationTributeType,
   type ManualDonationCreateRequest,
 } from "@choir/contracts";
-import { Dialog, DialogClose } from "@choir/ui";
-import { useState, type SyntheticEvent } from "react";
+import { filterDonorSuggestions, type DonorSuggestion } from "@choir/domain";
+import { Autocomplete, Dialog, DialogClose } from "@choir/ui";
+import { useMemo, useState, type SyntheticEvent } from "react";
+
+import { money } from "./types";
 
 export function ManualDonationModal({
   busy,
   onClose,
   onSave,
   open,
+  suggestions,
 }: {
   readonly busy: boolean;
   readonly onClose: () => void;
   readonly onSave: (donation: ManualDonationCreateRequest) => Promise<void>;
   readonly open: boolean;
+  readonly suggestions: readonly DonorSuggestion[];
 }) {
   const [amount, setAmount] = useState("");
   const [donorName, setDonorName] = useState("");
@@ -34,6 +39,19 @@ export function ManualDonationModal({
   const [anonymous, setAnonymous] = useState(false);
   const [thankYouSent, setThankYouSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filteredSuggestions = useMemo(
+    () => filterDonorSuggestions(suggestions, donorName),
+    [donorName, suggestions],
+  );
+  const suggestionById = useMemo(
+    () => new Map(filteredSuggestions.map((suggestion) => [suggestion.key, suggestion])),
+    [filteredSuggestions],
+  );
+  const donorOptions = useMemo(
+    () => filteredSuggestions.map((suggestion) => ({ id: suggestion.key, label: suggestion.name })),
+    [filteredSuggestions],
+  );
 
   function reset(): void {
     setAmount("");
@@ -141,15 +159,47 @@ export function ManualDonationModal({
 
         <label className="field">
           Donor name
-          <input
+          <Autocomplete
+            ariaLabel="Donor name"
             disabled={busy}
-            maxLength={200}
-            onChange={(event) => {
-              setDonorName(event.target.value);
+            id="manual-donation-donor-name"
+            onSelect={(option) => {
+              setDonorName(option.label);
+              const suggestion = suggestionById.get(option.id);
+              if (suggestion?.email) setDonorEmail(suggestion.email);
             }}
+            onValueChange={(next) => {
+              setDonorName(next);
+            }}
+            options={donorOptions}
             placeholder="Jane Doe or Acme Foundation"
+            renderOption={(option) => {
+              const suggestion = suggestionById.get(option.id);
+              if (!suggestion) return option.label;
+              return (
+                <>
+                  <span>{suggestion.name}</span>
+                  {suggestion.email ? (
+                    <span className="autocomplete__option-meta">{suggestion.email}</span>
+                  ) : null}
+                  {suggestion.sources.includes("donor") ? (
+                    <span className="autocomplete__badge">
+                      Donor
+                      {suggestion.totalDonatedCents !== null
+                        ? ` · ${money(suggestion.totalDonatedCents)}`
+                        : ""}
+                    </span>
+                  ) : null}
+                  {suggestion.sources.includes("buyer") ? (
+                    <span className="autocomplete__badge">Ticket buyer</span>
+                  ) : null}
+                  {suggestion.sources.includes("member") ? (
+                    <span className="autocomplete__badge">Member</span>
+                  ) : null}
+                </>
+              );
+            }}
             required
-            type="text"
             value={donorName}
           />
         </label>
