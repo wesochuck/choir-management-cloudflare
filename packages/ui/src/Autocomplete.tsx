@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 export interface AutocompleteOption {
@@ -36,6 +36,7 @@ export function Autocomplete({
   const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [lastSelectedLabel, setLastSelectedLabel] = useState<string | null>(null);
   const activeOptionRef = useRef<HTMLLIElement | null>(null);
   const maxIndex = options.length - 1;
   const activeIndexSafe = activeIndex < 0 ? -1 : Math.min(activeIndex, maxIndex);
@@ -47,13 +48,32 @@ export function Autocomplete({
     activeOptionRef.current?.scrollIntoView({ block: "nearest" });
   }, [activeIndexSafe, listOpen]);
 
+  useEffect(() => {
+    if (!listOpen) return;
+    function preventHostEscape(event: KeyboardEvent): void {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setOpen(false);
+      setActiveIndex(-1);
+      if (lastSelectedLabel !== null) {
+        onValueChange(lastSelectedLabel);
+      }
+    }
+    window.addEventListener("keydown", preventHostEscape, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", preventHostEscape, { capture: true });
+    };
+  }, [lastSelectedLabel, listOpen, onValueChange]);
+
   function choose(option: AutocompleteOption): void {
     setOpen(false);
     setActiveIndex(-1);
+    setLastSelectedLabel(option.label);
     onSelect(option);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
     if (!listOpen) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         if (options.length === 0) return;
@@ -96,6 +116,9 @@ export function Autocomplete({
         event.stopPropagation();
         setOpen(false);
         setActiveIndex(-1);
+        if (lastSelectedLabel !== null) {
+          onValueChange(lastSelectedLabel);
+        }
       }
     }
   }
