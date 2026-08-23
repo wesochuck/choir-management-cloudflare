@@ -20,6 +20,11 @@ describe("Worker foundation", () => {
     });
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("content-security-policy")).toBe(CONTENT_SECURITY_POLICY);
+    const csp = response.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("https://static.cloudflareinsights.com");
+    expect(csp).toContain("https://challenges.cloudflare.com");
+    expect(csp).toContain("https://cloudflareinsights.com");
+    expect(csp).toContain("'sha256-JRw80qwSLwB6+oqpjJSn2aJLmtN2pQ2CJxUulGgtJYo='");
   });
 
   it("returns typed API not-found responses without falling through to static assets", async () => {

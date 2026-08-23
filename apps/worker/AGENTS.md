@@ -62,3 +62,15 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 - Cloudflare Email Sending feedback uses provider event subscriptions, not an inbound `email()`
   bounce parser. Follow `docs/runbooks/cloudflare-email-feedback.md` and verify current Cloudflare
   documentation before changing the subscription.
+
+## Security Headers and Content Security Policy
+
+- `CONTENT_SECURITY_POLICY` in `router.ts` must remain compatible with Cloudflare platform services
+  active on staging and production zones:
+  - Cloudflare Web Analytics / Browser Insights: `https://static.cloudflareinsights.com` and inline
+    beacon script hash `'sha256-JRw80qwSLwB6+oqpjJSn2aJLmtN2pQ2CJxUulGgtJYo='` in `script-src`, and
+    `https://cloudflareinsights.com` in `connect-src`.
+  - Cloudflare Challenges / Turnstile: `https://challenges.cloudflare.com` in `script-src`,
+    `connect-src`, and `frame-src`.
+- Do not restrict `script-src`, `frame-src`, or `connect-src` without maintaining compatibility with
+  these Cloudflare edge integrations.

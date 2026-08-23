@@ -25,7 +25,6 @@ import { DonationPageSettingsTab } from "./components/DonationsManager/DonationP
 import { DonationPortalTab } from "./components/DonationsManager/DonationPortalTab";
 import { ManualDonationModal } from "./components/DonationsManager/ManualDonationModal";
 import {
-  donationsCsv,
   parseDonations,
   parsePatrons,
   type DonationSettingsState,
@@ -345,10 +344,6 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   });
 
   if (!enabled) return null;
-  const donationExportHref =
-    donationState.status === "ready"
-      ? `data:text/csv;charset=utf-8,${encodeURIComponent(donationsCsv(donationState.donations))}`
-      : undefined;
   return (
     <section className="panel" aria-label="Donations and giving management">
       {message && !settingsDialogOpen && !manualModalOpen ? (
@@ -356,11 +351,6 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           {message}
         </p>
       ) : null}
-      <header className="ticketing-page-header">
-        <a className="button button--secondary" download="donations.csv" href={donationExportHref}>
-          Export CSV
-        </a>
-      </header>
       <nav aria-label="Donation sections" className="ticketing-tabs" role="tablist">
         <button
           aria-controls="donation-history-panel"

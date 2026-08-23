@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 
 import {
   EMPTY_DONATIONS,
+  donationsCsv,
   money,
   tributeLabel,
   type DonationSort,
@@ -148,6 +149,8 @@ export function DonationHistoryTab({
   if (donationState.status === "error")
     return <p className="notice notice--error">Donations could not be loaded.</p>;
 
+  const donationExportHref = `data:text/csv;charset=utf-8,${encodeURIComponent(donationsCsv(donationState.donations))}`;
+
   return (
     <div className="donation-history">
       <section
@@ -185,6 +188,13 @@ export function DonationHistoryTab({
             <p>Search donation history, track thank-you letters, and record gifts.</p>
           </div>
           <div className="form-actions">
+            <a
+              className="button button--secondary"
+              download="donations.csv"
+              href={donationExportHref}
+            >
+              Export CSV
+            </a>
             <button
               className="button button--primary"
               disabled={busy}
