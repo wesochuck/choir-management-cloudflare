@@ -1,9 +1,22 @@
 import type { KeyboardEvent, ReactNode } from "react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export interface AutocompleteOption {
   readonly id: string;
   readonly label: string;
+}
+
+interface AutocompleteProps {
+  readonly ariaLabel?: string;
+  readonly disabled?: boolean;
+  readonly id?: string;
+  readonly onSelect: (option: AutocompleteOption) => void;
+  readonly onValueChange: (value: string) => void;
+  readonly options: readonly AutocompleteOption[];
+  readonly placeholder?: string;
+  readonly renderOption?: (option: AutocompleteOption) => ReactNode;
+  readonly required?: boolean;
+  readonly value: string;
 }
 
 export function Autocomplete({
@@ -17,24 +30,22 @@ export function Autocomplete({
   renderOption,
   required = false,
   value,
-}: {
-  readonly ariaLabel?: string;
-  readonly disabled?: boolean;
-  readonly id?: string;
-  readonly onSelect: (option: AutocompleteOption) => void;
-  readonly onValueChange: (value: string) => void;
-  readonly options: readonly AutocompleteOption[];
-  readonly placeholder?: string;
-  readonly renderOption?: (option: AutocompleteOption) => ReactNode;
-  readonly required?: boolean;
-  readonly value: string;
-}) {
+}: AutocompleteProps) {
   const fallbackId = useId();
   const id = idProp ?? fallbackId;
   const listboxId = `${id}-listbox`;
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const activeOptionRef = useRef<HTMLLIElement | null>(null);
+  const maxIndex = options.length - 1;
+  const activeIndexSafe = activeIndex < 0 ? -1 : Math.min(activeIndex, maxIndex);
+  const active = activeIndexSafe >= 0 ? options[activeIndexSafe] : undefined;
   const listOpen = open && options.length > 0;
+
+  useEffect(() => {
+    if (!listOpen) return;
+    activeOptionRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeIndexSafe, listOpen]);
 
   function choose(option: AutocompleteOption): void {
     setOpen(false);
@@ -43,12 +54,19 @@ export function Autocomplete({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
-    if (!listOpen) return;
-    const active = activeIndex >= 0 ? options[activeIndex] : undefined;
+    if (!listOpen) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (options.length === 0) return;
+        event.preventDefault();
+        setOpen(true);
+        setActiveIndex(event.key === "ArrowDown" ? 0 : maxIndex);
+      }
+      return;
+    }
     switch (event.key) {
       case "ArrowDown": {
         event.preventDefault();
-        setActiveIndex((current) => (current < 0 ? 0 : Math.min(current + 1, options.length - 1)));
+        setActiveIndex((current) => (current < 0 ? 0 : Math.min(current + 1, maxIndex)));
         return;
       }
       case "ArrowUp": {
@@ -63,7 +81,7 @@ export function Autocomplete({
       }
       case "End": {
         event.preventDefault();
-        setActiveIndex(options.length - 1);
+        setActiveIndex(maxIndex);
         return;
       }
       case "Enter": {
@@ -86,7 +104,9 @@ export function Autocomplete({
     <span className="autocomplete">
       <input
         aria-activedescendant={
-          listOpen && activeIndex >= 0 ? `${listboxId}-option-${String(activeIndex)}` : undefined
+          listOpen && activeIndexSafe >= 0
+            ? `${listboxId}-option-${String(activeIndexSafe)}`
+            : undefined
         }
         aria-autocomplete="list"
         aria-controls={listboxId}
@@ -123,10 +143,11 @@ export function Autocomplete({
         >
           {options.map((option, index) => (
             <li
-              aria-selected={index === activeIndex}
+              aria-selected={index === activeIndexSafe}
               className="autocomplete__option"
               id={`${listboxId}-option-${String(index)}`}
               key={option.id}
+              ref={index === activeIndexSafe ? activeOptionRef : undefined}
               onClick={() => {
                 choose(option);
               }}
