@@ -8,9 +8,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    /* Extend the tab rule to the panel edges, matching the full-width event tabs. */
-    margin: 0 -1.15rem 1.25rem;
-    padding-inline: 1.15rem;
+    margin-bottom: 1.25rem;
     border-bottom: 1px solid var(--color-border);
   }
 

@@ -125,8 +125,6 @@
     }
 
     .signed-in-main .surface-card,
-    .signed-in-main .account-section,
-    .signed-in-main .panel,
     .signed-in-main .compact-card {
       padding: 0.9rem;
     }

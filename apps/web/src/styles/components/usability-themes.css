@@ -339,8 +339,6 @@
   }
 
   .signed-in-main .surface-card,
-  .signed-in-main .account-section,
-  .signed-in-main .panel,
   .signed-in-main .compact-card {
     padding: 1.15rem;
     border-radius: var(--radius-lg);
