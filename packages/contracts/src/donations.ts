@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { requestIdSchema } from "./primitives";
+
 export const donationStatusSchema = z.enum(["pending", "paid", "refunded", "expired"]);
+
+export const donationPaymentMethodSchema = z.enum([
+  "stripe",
+  "check",
+  "cash",
+  "bank_transfer",
+  "card_offline",
+  "other",
+]);
 
 export const donationTributeTypeSchema = z.enum(["honor", "memory", "anonymous", "none"]);
 
@@ -54,6 +64,26 @@ export const donationCheckoutRequestSchema = z.object({
   tributeType: donationTributeTypeSchema.default("none"),
 });
 
+export const manualDonationCreateRequestSchema = z.object({
+  amountCents: z.number().int().positive().max(10_000_000),
+  anonymous: z.boolean().default(false),
+  buyerEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
+  buyerName: z.string().trim().min(1).max(200),
+  marketingConsent: z.boolean().default(false),
+  paymentMethod: donationPaymentMethodSchema.exclude(["stripe"]).default("check"),
+  paymentReference: z.string().trim().max(500).default(""),
+  receivedAt: z.iso.datetime().optional(),
+  thankYouSent: z.boolean().default(false),
+  tributeName: z.string().trim().max(500).default(""),
+  tributeNotifyEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
+  tributeType: donationTributeTypeSchema.default("none"),
+});
+
+export const donationThankYouUpdateRequestSchema = z.object({
+  donationId: z.uuid(),
+  thankYouSent: z.boolean(),
+});
+
 export const donationRefundRequestSchema = z.object({
   donationId: z.uuid(),
 });
@@ -61,7 +91,7 @@ export const donationRefundRequestSchema = z.object({
 export const donationRecordSchema = z.object({
   amountCents: z.number().int().nonnegative(),
   anonymous: z.boolean(),
-  buyerEmail: z.email().max(320),
+  buyerEmail: z.string().max(320),
   buyerName: z.string().min(1).max(200),
   createdAt: z.iso.datetime(),
   expiredAt: z.iso.datetime().nullable(),
@@ -69,12 +99,20 @@ export const donationRecordSchema = z.object({
   id: z.uuid(),
   marketingConsent: z.boolean(),
   patronId: z.uuid().nullable(),
+  paymentMethod: donationPaymentMethodSchema.default("stripe"),
+  paymentReference: z.string().max(500).default(""),
   refundRequested: z.boolean().default(false),
   status: donationStatusSchema,
+  thankYouSentAt: z.iso.datetime().nullable().default(null),
   tributeName: z.string().max(500),
   tributeNotifyEmail: z.string().max(320),
   tributeType: donationTributeTypeSchema,
   updatedAt: z.iso.datetime(),
+});
+
+export const donationResponseSchema = z.object({
+  donation: donationRecordSchema,
+  requestId: requestIdSchema,
 });
 
 export const donationRecordsResponseSchema = z.object({
@@ -109,14 +147,18 @@ export const patronRecordsResponseSchema = z.object({
 });
 
 export type DonationStatus = z.infer<typeof donationStatusSchema>;
+export type DonationPaymentMethod = z.infer<typeof donationPaymentMethodSchema>;
 export type DonationTributeType = z.infer<typeof donationTributeTypeSchema>;
 export type DonationLevel = z.infer<typeof donationLevelSchema>;
 export type DonationSettings = z.infer<typeof donationSettingsSchema>;
 export type TransactionFeeSettings = z.infer<typeof transactionFeeSettingsSchema>;
 export type TicketConfirmationSettings = z.infer<typeof ticketConfirmationSettingsSchema>;
 export type DonationCheckoutRequest = z.infer<typeof donationCheckoutRequestSchema>;
+export type ManualDonationCreateRequest = z.infer<typeof manualDonationCreateRequestSchema>;
+export type DonationThankYouUpdateRequest = z.infer<typeof donationThankYouUpdateRequestSchema>;
 export type DonationRecord = z.infer<typeof donationRecordSchema>;
 export type DonationRefundRequest = z.infer<typeof donationRefundRequestSchema>;
+export type DonationResponse = z.infer<typeof donationResponseSchema>;
 export type DonationCheckoutResponse = z.infer<typeof donationCheckoutResponseSchema>;
 export type PublicDonationReceiptResponse = z.infer<typeof publicDonationReceiptResponseSchema>;
 export type PatronRecord = z.infer<typeof patronRecordSchema>;

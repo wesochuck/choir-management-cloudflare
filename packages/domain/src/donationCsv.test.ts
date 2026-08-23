@@ -31,7 +31,7 @@ describe("renderDonationCsv", () => {
     const csv = renderDonationCsv([]);
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(
-      '"ID","Donor Name","Donor Email","Amount","Tribute","Tribute Name","Anonymous","Status","Date"',
+      '"ID","Donor Name","Donor Email","Amount","Payment Method","Reference","Tribute","Tribute Name","Anonymous","Status","Thank You Status","Thank You Sent At","Date"',
     );
     expect(lines[1]).toBe("");
   });
@@ -41,7 +41,29 @@ describe("renderDonationCsv", () => {
     const lines = csv.split("\r\n");
     expect(lines[0]).toContain('"ID"');
     expect(lines[1]).toBe(
-      '"don-1","Alice Anderson","alice@example.test","25.00","none","","No","paid","2026-01-15T12:34:56.000Z"',
+      '"don-1","Alice Anderson","alice@example.test","25.00","stripe","","none","","No","paid","Pending","","2026-01-15T12:34:56.000Z"',
+    );
+  });
+
+  it("renders manual donation with payment method, reference, and thank you sent status", () => {
+    const manualRow: DonationExportRow = {
+      amountPaidCents: 150_00,
+      anonymous: false,
+      createdAt: "2026-01-18T10:00:00.000Z",
+      donorEmail: "bob@example.test",
+      donorName: "Bob Builder",
+      id: "don-manual",
+      paymentMethod: "check",
+      paymentReference: "Check #1042",
+      status: "paid",
+      thankYouSentAt: "2026-01-19T14:30:00.000Z",
+      tributeName: "",
+      tributeType: "none",
+    };
+    const csv = renderDonationCsv([manualRow]);
+    const lines = csv.split("\r\n");
+    expect(lines[1]).toBe(
+      '"don-manual","Bob Builder","bob@example.test","150.00","check","Check #1042","none","","No","paid","Sent","2026-01-19T14:30:00.000Z","2026-01-18T10:00:00.000Z"',
     );
   });
 
@@ -69,7 +91,7 @@ describe("renderDonationCsv", () => {
     const csv = renderDonationCsv([baseNamed, baseAnonymous]);
     const lines = csv.split("\r\n");
     expect(lines[1]).toContain('"don-1"');
-    expect(lines[2]).toBe('"","ANONYMOUS DONORS","","","","","","",""');
+    expect(lines[2]).toBe('"","ANONYMOUS DONORS","","","","","","","","","","",""');
     expect(lines[3]).toContain('"don-2"');
     expect(lines[4]).toBe(""); // trailing
   });

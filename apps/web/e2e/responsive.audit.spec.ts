@@ -503,7 +503,7 @@ async function assertBreakpointSpecificLayout(
     await assertSeasonsLayout(page, width);
   }
   if (path === "/admin/donations" && width <= 1024) {
-    await assertStackedFields(page, ".donation-dashboard__filters > .field", 4);
+    await assertStackedFields(page, ".donation-dashboard__filters > .field", 6);
   }
   if (path === "/admin/tickets" && width <= 1024) {
     const metricsLocator = page.locator(

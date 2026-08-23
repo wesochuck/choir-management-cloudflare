@@ -1,5 +1,6 @@
 import {
   calendarFeedUrlsResponseSchema,
+  donationResponseSchema,
   organizationCalendarSettingsResponseSchema,
   organizationDashboardSummaryResponseSchema,
   organizationEventSchema,
@@ -1002,6 +1003,88 @@ describe("Organization calendar management", () => {
       }),
     );
     expect(crossTenantRefund.status).toBe(404);
+
+    // Record a manual check donation with email
+    const manualCheckResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations/manual", cookie, {
+        body: JSON.stringify({
+          amountCents: 5000,
+          anonymous: false,
+          buyerEmail: "manual-donor@example.test",
+          buyerName: "Manual Donor",
+          paymentMethod: "check",
+          paymentReference: "Check #789",
+          thankYouSent: false,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(manualCheckResponse.status).toBe(201);
+    const manualCheck = donationResponseSchema.parse(await manualCheckResponse.json());
+    expect(manualCheck.donation.thankYouSentAt).toBeNull();
+
+    // Verify patron was linked
+    const patronsAfterManual = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/patrons", cookie),
+    );
+    expect(patronsAfterManual.status).toBe(200);
+    expect(await patronsAfterManual.json()).toMatchObject({
+      patrons: [
+        expect.objectContaining({
+          email: "manual-donor@example.test",
+          name: "Manual Donor",
+          totalDonatedCents: 5000,
+        }),
+      ],
+    });
+
+    // Toggle thank-you letter status to sent
+    const thankYouSentResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations/thank-you", cookie, {
+        body: JSON.stringify({
+          donationId: manualCheck.donation.id,
+          thankYouSent: true,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(thankYouSentResponse.status).toBe(200);
+    const thankYouSentData = donationResponseSchema.parse(await thankYouSentResponse.json());
+    expect(thankYouSentData.donation.thankYouSentAt).not.toBeNull();
+
+    // Toggle thank-you letter status back to pending
+    const thankYouPendingResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations/thank-you", cookie, {
+        body: JSON.stringify({
+          donationId: manualCheck.donation.id,
+          thankYouSent: false,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(thankYouPendingResponse.status).toBe(200);
+    const thankYouPendingData = donationResponseSchema.parse(await thankYouPendingResponse.json());
+    expect(thankYouPendingData.donation.thankYouSentAt).toBeNull();
+
+    // Refund manual check donation
+    const refundManualResponse = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/donations/${manualCheck.donation.id}/refund`,
+        cookie,
+        {
+          method: "POST",
+        },
+      ),
+    );
+    expect(refundManualResponse.status).toBe(200);
+    expect(await refundManualResponse.json()).toMatchObject({
+      id: manualCheck.donation.id,
+      status: "refunded",
+    });
 
     const seasonId = crypto.randomUUID();
     const duesId = crypto.randomUUID();

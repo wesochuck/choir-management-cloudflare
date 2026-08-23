@@ -213,6 +213,22 @@ closed without payment; and `refunded` means a verified provider refund was appl
 return page is informational and never changes lifecycle state. _Avoid_: Client-confirmed payment,
 success URL
 
+## Manual Donation
+
+A donation recorded directly by an Organization Administrator (for offline payment methods such as
+check, cash, bank transfer, or offline card) that is immediately created in `paid` status without
+initiating an online checkout session. A manual donation may omit the donor email address and does
+not attempt external payment gateway refunds when refunded or voided. _Avoid_: Offline charge,
+simulated checkout
+
+## Thank-You Letter Status
+
+The trackable acknowledgment state of a donation record indicating whether and when a formal donor
+acknowledgment, tax receipt, or thank-you letter was issued by the Organization. It applies to both
+online and manual donations and can be toggled by Organization Administrators without altering
+financial accounting records. _Avoid_: Automated receipt when referring to physical/formal
+acknowledgment letters
+
 ## Platform Access
 
 The free, Platform Administrator-provisioned right for an Organization to use the software. Modules

@@ -1,4 +1,9 @@
-import { donationCheckoutRequestSchema, donationTributeTypeSchema } from "@choir/contracts";
+import {
+  donationCheckoutRequestSchema,
+  donationPaymentMethodSchema,
+  donationTributeTypeSchema,
+  manualDonationCreateRequestSchema,
+} from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { z } from "zod";
 
@@ -22,6 +27,22 @@ const createPendingCheckoutOperationSchema = organizationContextSchema.extend({
   checkout: donationCheckoutRequestSchema,
   donationId: z.uuid(),
   providerSessionId: z.string().min(1).max(256),
+});
+
+const createManualDonationOperationSchema = organizationContextSchema.extend({
+  action: z.literal("create_manual_donation"),
+  actorUserId: z.string().min(1).max(128),
+  donation: manualDonationCreateRequestSchema,
+  donationId: z.uuid(),
+  requestId: z.uuid(),
+});
+
+const updateDonationThankYouOperationSchema = organizationContextSchema.extend({
+  action: z.literal("update_donation_thank_you"),
+  actorUserId: z.string().min(1).max(128),
+  donationId: z.uuid(),
+  requestId: z.uuid(),
+  thankYouSent: z.boolean(),
 });
 
 const attachStripeSessionOperationSchema = organizationContextSchema.extend({
@@ -58,6 +79,8 @@ const stripeDonationRefundedOperationSchema = organizationContextSchema.extend({
 const operationSchema = z.discriminatedUnion("action", [
   createFakeCheckoutOperationSchema,
   createPendingCheckoutOperationSchema,
+  createManualDonationOperationSchema,
+  updateDonationThankYouOperationSchema,
   attachStripeSessionOperationSchema,
   refundOperationSchema,
   stripeDonationCompletedOperationSchema,
@@ -82,10 +105,13 @@ interface DonationRow {
   readonly id: string;
   readonly marketingConsent: number;
   readonly patronId: string | null;
+  readonly paymentMethod: string;
+  readonly paymentReference: string;
   readonly providerPaymentId: string;
   readonly providerSessionId: string;
   readonly refundRequested: number;
   readonly status: "expired" | "paid" | "pending" | "refunded";
+  readonly thankYouSentAt: string | null;
   readonly tributeName: string;
   readonly tributeNotifyEmail: string;
   readonly tributeType: string;
@@ -107,6 +133,9 @@ const donationSelect = `SELECT d.id,
   CASE WHEN de.donation_id IS NOT NULL AND d.status = 'pending' THEN 'expired' ELSE d.status END AS status,
   de.expired_at AS expiredAt, d.amount_cents AS amountCents,
   d.fee_cents AS feeCents,
+  COALESCE(d.payment_method, 'stripe') AS paymentMethod,
+  COALESCE(d.payment_reference, '') AS paymentReference,
+  d.thank_you_sent_at AS thankYouSentAt,
   d.tribute_type AS tributeType, d.tribute_name AS tributeName,
   d.tribute_notify_email AS tributeNotifyEmail, d.anonymous,
   d.marketing_consent AS marketingConsent,
@@ -151,6 +180,8 @@ function identity(storage: DurableObjectStorage): IdentityRow | undefined {
 function donationResult(row: DonationRow) {
   const tributeTypeParsed = donationTributeTypeSchema.safeParse(row.tributeType);
   const tributeType = tributeTypeParsed.success ? tributeTypeParsed.data : "none";
+  const paymentMethodParsed = donationPaymentMethodSchema.safeParse(row.paymentMethod);
+  const paymentMethod = paymentMethodParsed.success ? paymentMethodParsed.data : "stripe";
   return {
     amountCents: row.amountCents,
     anonymous: row.anonymous === 1,
@@ -162,8 +193,11 @@ function donationResult(row: DonationRow) {
     id: row.id,
     marketingConsent: row.marketingConsent === 1,
     patronId: row.patronId,
+    paymentMethod,
+    paymentReference: row.paymentReference,
     refundRequested: row.refundRequested === 1,
     status: row.status,
+    thankYouSentAt: row.thankYouSentAt,
     tributeName: row.tributeName,
     tributeNotifyEmail: row.tributeNotifyEmail,
     tributeType,
@@ -381,6 +415,109 @@ function createDonationCheckout(
   return created
     ? Response.json(donationResult(created), { status: 201 })
     : Response.json({ code: "donation_not_created" }, { status: 503 });
+}
+
+function createManualDonation(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof createManualDonationOperationSchema>,
+): Response {
+  const donation = operation.donation;
+  const occurredAt = donation.receivedAt ?? new Date().toISOString();
+  const now = new Date().toISOString();
+  const thankYouSentAt = donation.thankYouSent ? now : null;
+  const buyerEmail = donation.buyerEmail.trim().toLowerCase();
+
+  storage.transactionSync(() => {
+    let patronId: string | null = null;
+    if (buyerEmail) {
+      patronId = findOrCreatePatron(storage, donation.buyerName, buyerEmail, occurredAt);
+      upsertPatronAfterDonation(storage, patronId, donation.amountCents, occurredAt);
+    }
+    const checkoutRequestId = crypto.randomUUID();
+    const providerSessionId = `manual_${operation.donationId}`;
+    storage.sql.exec(
+      `INSERT INTO donations (
+        id, checkout_request_id, status, amount_cents, fee_cents,
+        payment_method, payment_reference, thank_you_sent_at,
+        tribute_type, tribute_name, tribute_notify_email,
+        anonymous, marketing_consent, buyer_name, buyer_email,
+        patron_id, provider_session_id, provider_payment_id,
+        created_at, updated_at
+      ) VALUES (?, ?, 'paid', ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)`,
+      operation.donationId,
+      checkoutRequestId,
+      donation.amountCents,
+      donation.paymentMethod,
+      donation.paymentReference,
+      thankYouSentAt,
+      donation.tributeType,
+      donation.tributeName,
+      donation.tributeNotifyEmail,
+      donation.anonymous ? 1 : 0,
+      donation.marketingConsent ? 1 : 0,
+      donation.buyerName,
+      buyerEmail,
+      patronId,
+      providerSessionId,
+      occurredAt,
+      now,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'donation.manual_created', 'donation', ?, ?, ?, ?)`,
+      `manual-donation:${operation.requestId}`,
+      operation.actorUserId,
+      operation.donationId,
+      operation.requestId,
+      JSON.stringify({
+        amountCents: donation.amountCents,
+        buyerName: donation.buyerName,
+        paymentMethod: donation.paymentMethod,
+      }),
+      now,
+    );
+  });
+  const created = donationById(storage, operation.donationId);
+  return created
+    ? Response.json(donationResult(created), { status: 201 })
+    : Response.json({ code: "donation_not_created" }, { status: 503 });
+}
+
+function updateDonationThankYou(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof updateDonationThankYouOperationSchema>,
+): Response {
+  const donation = donationById(storage, operation.donationId);
+  if (!donation) return Response.json({ code: "donation_not_found" }, { status: 404 });
+  const now = new Date().toISOString();
+  const thankYouSentAt = operation.thankYouSent ? now : null;
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE donations SET thank_you_sent_at = ?, updated_at = ? WHERE id = ?",
+      thankYouSentAt,
+      now,
+      operation.donationId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'donation.thank_you_updated', 'donation', ?, ?, ?, ?)`,
+      `donation-thank-you:${operation.requestId}`,
+      operation.actorUserId,
+      operation.donationId,
+      operation.requestId,
+      JSON.stringify({
+        thankYouSent: operation.thankYouSent,
+        thankYouSentAt,
+      }),
+      now,
+    );
+  });
+  const updated = donationById(storage, operation.donationId);
+  return updated
+    ? Response.json(donationResult(updated))
+    : Response.json({ code: "donation_not_found" }, { status: 404 });
 }
 
 function attachStripeDonationSession(
@@ -738,6 +875,10 @@ export async function manageDonationsInStore(
       return createDonationCheckout(storage, operation.data);
     case "create_stripe_pending_donation":
       return createDonationCheckout(storage, operation.data);
+    case "create_manual_donation":
+      return createManualDonation(storage, operation.data);
+    case "update_donation_thank_you":
+      return updateDonationThankYou(storage, operation.data);
     case "attach_stripe_donation_session":
       return attachStripeDonationSession(storage, operation.data);
     case "refund_donation":

@@ -1626,6 +1626,38 @@
           ],
       },
       {
+        "id": "api.manual-donation",
+        "method": "POST",
+        "path": "/api/organization/donations/manual",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1521",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationDonations.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.update-donation-thank-you",
+        "method": "POST",
+        "path": "/api/organization/donations/thank-you",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1521",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationDonations.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
         "id": "api.resend-ticket",
         "method": "POST",
         "path": "/api/organization/tickets/:purchaseId/confirmation",

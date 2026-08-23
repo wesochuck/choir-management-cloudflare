@@ -8,7 +8,10 @@ export interface DonationExportRow {
   readonly donorEmail: string;
   readonly donorName: string;
   readonly id: string;
+  readonly paymentMethod?: string;
+  readonly paymentReference?: string;
   readonly status: DonationStatus;
+  readonly thankYouSentAt?: string | null;
   readonly tributeName: string;
   readonly tributeType: DonationTributeType;
 }
@@ -26,7 +29,7 @@ function formatAmount(cents: number): string {
 }
 
 function anonymousSeparatorRow(): string {
-  return ["", "ANONYMOUS DONORS", "", "", "", "", "", "", ""]
+  return ["", "ANONYMOUS DONORS", "", "", "", "", "", "", "", "", "", "", ""]
     .map((cell) => csvField(cell))
     .join(",");
 }
@@ -37,10 +40,14 @@ function donationRow(row: DonationExportRow): string {
     row.donorName,
     row.donorEmail,
     formatAmount(row.amountPaidCents),
+    row.paymentMethod ?? "stripe",
+    row.paymentReference ?? "",
     row.tributeType,
     row.tributeName,
     row.anonymous ? "Yes" : "No",
     row.status,
+    row.thankYouSentAt ? "Sent" : "Pending",
+    row.thankYouSentAt ?? "",
     row.createdAt,
   ]
     .map(csvField)
@@ -71,10 +78,14 @@ export function renderDonationCsv(rows: readonly DonationExportRow[]): string {
     "Donor Name",
     "Donor Email",
     "Amount",
+    "Payment Method",
+    "Reference",
     "Tribute",
     "Tribute Name",
     "Anonymous",
     "Status",
+    "Thank You Status",
+    "Thank You Sent At",
     "Date",
   ]
     .map(csvField)
