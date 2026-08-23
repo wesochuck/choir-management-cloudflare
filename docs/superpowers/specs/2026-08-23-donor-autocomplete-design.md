@@ -39,7 +39,10 @@ name and the donor email when one is chosen.
 3. Suggestions filter as the administrator types: case-insensitive substring match on name or email,
    ranked deterministically, maximum 8 rows.
 4. Selecting a suggestion (click or Enter) sets both form fields and closes the popup. Subsequent
-   edits keep working normally.
+   edits keep working normally. Escape with the popup open dismisses only the popup and, following
+   ARIA list-autocomplete cancel semantics, restores the last accepted suggestion label when one
+   exists in the current selection history; typed text with no prior selection is left untouched.
+   The popup's Escape never triggers a host dialog's discard-changes confirmation.
 5. Each row displays `Name — email` with badges for every matching source and lifetime giving
    formatted as money when the merged person includes patron data.
 6. The listbox supports ArrowUp/ArrowDown/Home/End/Enter/Escape, click selection, active-option
