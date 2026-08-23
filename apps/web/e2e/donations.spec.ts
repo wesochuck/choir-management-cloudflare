@@ -332,3 +332,253 @@ test("toggles thank-you letter status", async ({ page }) => {
   await expect(danaRow.getByRole("button", { name: "Undo" })).toBeVisible();
   await expect(danaRow.getByText(/^Sent/)).toBeVisible();
 });
+
+test("suggests known patrons, buyers, and members while typing", async ({ page }) => {
+  await page.route("**/api/organization/patrons", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        patrons: [
+          {
+            donationCount: 2,
+            email: "marcus@example.test",
+            firstDonatedAt: "2026-01-05T12:00:00.000Z",
+            id: "abababab-abab-4aba-8aba-abababababab",
+            lastDonatedAt: "2026-07-01T12:00:00.000Z",
+            name: "Marcus Meadows",
+            totalDonatedCents: 7500,
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/tickets/orders", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        orders: [
+          {
+            amountPaidCents: 3000,
+            bundleId: null,
+            bundleTitle: "",
+            buyerEmail: "marcus@example.test",
+            buyerName: "Marcus Meadows",
+            checkoutMode: "fake",
+            createdAt: "2026-07-22T20:00:00.000Z",
+            currency: "usd",
+            discountAmountCents: 0,
+            discountCode: null,
+            discountType: null,
+            discountValue: null,
+            discountedSubtotalCents: 3000,
+            eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            eventStartsAt: "2026-05-01T23:00:00.000Z",
+            eventTitle: "Spring Concert",
+            feeCents: 75,
+            id: "bcbcbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+            includedEvents: [],
+            marketingOptIn: false,
+            originalSubtotalCents: 3000,
+            originalUnitPriceCents: 1500,
+            providerPaymentId: "payment-test",
+            providerSessionId: "session-test",
+            quantity: 2,
+            refundRequested: false,
+            status: "paid",
+            timezone: "America/New_York",
+            unitPriceCents: 1500,
+            updatedAt: "2026-07-22T20:00:00.000Z",
+          },
+          {
+            amountPaidCents: 1500,
+            bundleId: null,
+            bundleTitle: "",
+            buyerEmail: "nora@example.test",
+            buyerName: "Nora Noble",
+            checkoutMode: "fake",
+            createdAt: "2026-07-23T20:00:00.000Z",
+            currency: "usd",
+            discountAmountCents: 0,
+            discountCode: null,
+            discountType: null,
+            discountValue: null,
+            discountedSubtotalCents: 1500,
+            eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            eventStartsAt: "2026-05-01T23:00:00.000Z",
+            eventTitle: "Spring Concert",
+            feeCents: 40,
+            id: "bcbcbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+            includedEvents: [],
+            marketingOptIn: false,
+            originalSubtotalCents: 1500,
+            originalUnitPriceCents: 1500,
+            providerPaymentId: "payment-test-2",
+            providerSessionId: "session-test-2",
+            quantity: 1,
+            refundRequested: false,
+            status: "paid",
+            timezone: "America/New_York",
+            unitPriceCents: 1500,
+            updatedAt: "2026-07-23T20:00:00.000Z",
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/singer/directory", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        profiles: [
+          {
+            displayName: "Nora Noble",
+            email: "nora@example.test",
+            id: "cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd",
+            photoFileId: null,
+            phone: "",
+            voicePart: "",
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/admin/donations");
+  await page.getByRole("button", { name: "Record donation" }).click();
+  const dialog = page.getByRole("dialog", { name: "Record donation" });
+  const nameInput = dialog.getByRole("combobox", { name: "Donor name" });
+  const emailInput = dialog.getByRole("textbox", { name: /Donor email/ });
+
+  const suggestions = dialog.getByRole("listbox").getByRole("option");
+
+  await nameInput.fill("Mar");
+  await expect(suggestions).toHaveCount(1);
+  const marcusOption = suggestions.first();
+  await expect(marcusOption).toContainText("Marcus Meadows");
+  await expect(marcusOption).toContainText("marcus@example.test");
+  await expect(marcusOption).toContainText("Donor · $75.00");
+  await expect(marcusOption).toContainText("Ticket buyer");
+  await expect(marcusOption).not.toContainText("Member");
+
+  await marcusOption.click();
+  await expect(nameInput).toHaveValue("Marcus Meadows");
+  await expect(emailInput).toHaveValue("marcus@example.test");
+  await expect(dialog.getByRole("listbox")).toHaveCount(0);
+
+  await nameInput.fill("Nor");
+  await expect(suggestions).toHaveCount(1);
+  const noraOption = suggestions.first();
+  await expect(noraOption).toContainText("Nora Noble");
+  await expect(noraOption).toContainText("Ticket buyer");
+  await expect(noraOption).toContainText("Member");
+  await noraOption.click();
+  await expect(nameInput).toHaveValue("Nora Noble");
+  await expect(emailInput).toHaveValue("nora@example.test");
+});
+
+test("keyboard selection works and a degraded directory stays silent", async ({ page }) => {
+  let manualPayload: unknown = null;
+  await page.route("**/api/organization/tickets/orders", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        orders: [
+          {
+            amountPaidCents: 1500,
+            bundleId: null,
+            bundleTitle: "",
+            buyerEmail: "nora@example.test",
+            buyerName: "Nora Noble",
+            checkoutMode: "fake",
+            createdAt: "2026-07-23T20:00:00.000Z",
+            currency: "usd",
+            discountAmountCents: 0,
+            discountCode: null,
+            discountType: null,
+            discountValue: null,
+            discountedSubtotalCents: 1500,
+            eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            eventStartsAt: "2026-05-01T23:00:00.000Z",
+            eventTitle: "Spring Concert",
+            feeCents: 40,
+            id: "bcbcbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3",
+            includedEvents: [],
+            marketingOptIn: false,
+            originalSubtotalCents: 1500,
+            originalUnitPriceCents: 1500,
+            providerPaymentId: "payment-test-3",
+            providerSessionId: "session-test-3",
+            quantity: 1,
+            refundRequested: false,
+            status: "paid",
+            timezone: "America/New_York",
+            unitPriceCents: 1500,
+            updatedAt: "2026-07-23T20:00:00.000Z",
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/singer/directory", async (route) => {
+    await route.fulfill({ status: 500 });
+  });
+  await page.route("**/api/organization/donations/manual", async (route) => {
+    manualPayload = route.request().postDataJSON();
+    await route.fulfill({
+      body: JSON.stringify({
+        donation: donation({
+          buyerEmail: "nora@example.test",
+          buyerName: "Nora Noble",
+          id: createdDonationId,
+          paymentMethod: "cash",
+          paymentReference: "Hat proceeds",
+          thankYouSentAt: null,
+        }),
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 201,
+    });
+  });
+
+  await page.goto("/admin/donations");
+  await page.getByRole("button", { name: "Record donation" }).click();
+  const dialog = page.getByRole("dialog", { name: "Record donation" });
+  const nameInput = dialog.getByRole("combobox", { name: "Donor name" });
+  const emailInput = dialog.getByRole("textbox", { name: /Donor email/ });
+
+  const options = dialog.getByRole("listbox").getByRole("option");
+  await nameInput.fill("nor");
+  await expect(options).toHaveCount(1);
+
+  await nameInput.press("ArrowDown");
+  await nameInput.press("Enter");
+  await expect(nameInput).toHaveValue("Nora Noble");
+  await expect(emailInput).toHaveValue("nora@example.test");
+  await expect(dialog.getByRole("listbox")).toHaveCount(0);
+
+  await nameInput.fill("no");
+  await expect(options).toHaveCount(1);
+  await nameInput.press("Escape");
+  await expect(dialog.getByRole("listbox")).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByLabel("Amount (USD)").fill("25");
+  await dialog.getByRole("button", { name: "Record donation" }).click();
+
+  expect(manualPayload).toMatchObject({
+    amountCents: 2500,
+    buyerEmail: "nora@example.test",
+    buyerName: "Nora Noble",
+    paymentMethod: "check",
+  });
+  await expect(page.getByRole("status")).toHaveText("Manual donation recorded.");
+});
