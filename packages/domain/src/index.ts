@@ -153,6 +153,15 @@ export {
 } from "./attendanceReportCsv";
 export { donationExportFilename, renderDonationCsv, type DonationExportRow } from "./donationCsv";
 export {
+  buildDonorSuggestions,
+  filterDonorSuggestions,
+  type DonorSuggestion,
+  type DonorSuggestionMemberInput,
+  type DonorSuggestionPatronInput,
+  type DonorSuggestionSource,
+  type DonorSuggestionTicketBuyerInput,
+} from "./donorSuggestions";
+export {
   defaultPollExpirationAt,
   pollArchiveDueAt,
   POLL_ARCHIVE_DELAY_DAYS,

@@ -96,9 +96,14 @@ describe("filterDonorSuggestions", () => {
       { email: "anne.early@example.test", name: "Anne Early", totalDonatedCents: 3000 },
       { email: "arthur@example.test", name: "Arthur Plimpton", totalDonatedCents: 5000 },
       { email: "bob.marley@example.test", name: "Bob Marley", totalDonatedCents: 0 },
+      { email: "granny@example.test", name: "Granny Smith", totalDonatedCents: 9000 },
     ],
     [{ buyerEmail: "annette@example.test", buyerName: "Mrs. Annette Late" }],
-    [{ displayName: "Anne Zellweger", email: "" }],
+    [
+      { displayName: "Anne Zellweger", email: "" },
+      { displayName: "Anna Baker", email: "" },
+      { displayName: "Anna Adams", email: "" },
+    ],
   );
 
   it("returns nothing for an empty or whitespace-only query", () => {
@@ -119,8 +124,11 @@ describe("filterDonorSuggestions", () => {
     const ranked = filterDonorSuggestions(suggestions, "ann");
     expect(ranked.map((entry) => entry.name)).toEqual([
       "Anne Early",
+      "Anna Adams",
+      "Anna Baker",
       "Anne Zellweger",
       "Mrs. Annette Late",
+      "Granny Smith",
     ]);
   });
 
@@ -128,6 +136,19 @@ describe("filterDonorSuggestions", () => {
     const ranked = filterDonorSuggestions(suggestions, "e");
     const giving = ranked.map((entry) => entry.totalDonatedCents ?? -1);
     expect([...giving].sort((a, b) => b - a)).toEqual(giving);
+  });
+
+  it("pins equal names by input order when nothing else differs", () => {
+    const tied = buildDonorSuggestions(
+      [],
+      [{ buyerEmail: "", buyerName: "Dana Fox" }],
+      [{ displayName: "dana fox", email: "dana@fox.example.test" }],
+    );
+    const ranked = filterDonorSuggestions(tied, "dana");
+    expect(ranked.map((entry) => entry.email || "no-email")).toEqual([
+      "no-email",
+      "dana@fox.example.test",
+    ]);
   });
 
   it("caps results at eight rows", () => {
