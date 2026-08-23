@@ -261,12 +261,6 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
         </p>
       ) : null}
       <header className="ticketing-page-header">
-        <div>
-          <p>
-            Monitor your choir&apos;s incoming donations, giving activity, and donor recognition
-            tiers.
-          </p>
-        </div>
         <a className="button button--secondary" download="donations.csv" href={donationExportHref}>
           Export CSV
         </a>

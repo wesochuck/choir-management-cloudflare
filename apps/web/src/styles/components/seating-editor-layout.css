@@ -334,6 +334,13 @@
     color: var(--color-text);
   }
 
+  .seating-tab-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
   .seating-toolbar {
     display: grid;
     grid-template-columns: minmax(10rem, 1fr) minmax(12rem, 1.15fr) minmax(16rem, 1.45fr) auto;

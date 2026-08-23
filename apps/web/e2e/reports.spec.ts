@@ -471,19 +471,15 @@ test("supports multi-Performance history, staged edits, and immediate return upd
 }) => {
   await page.goto("/admin/reports");
   await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
-  await expect(page.locator(".reports-intro .eyebrow")).toHaveCount(0);
-  await expect(page.locator(".reports-intro h2")).toHaveCount(0);
-  const [pageHeadingBox, introBox, tabsBox] = await Promise.all([
+  await expect(page.locator(".reports-intro")).toHaveCount(0);
+  const [pageHeadingBox, tabsBox] = await Promise.all([
     page.locator(".page-heading").boundingBox(),
-    page.locator(".reports-intro").boundingBox(),
     page.locator(".reports-tabs").boundingBox(),
   ]);
   expect(pageHeadingBox).not.toBeNull();
-  expect(introBox).not.toBeNull();
   expect(tabsBox).not.toBeNull();
-  if (pageHeadingBox && introBox && tabsBox) {
-    expect(introBox.y - (pageHeadingBox.y + pageHeadingBox.height)).toBeLessThanOrEqual(32);
-    expect(tabsBox.y - (introBox.y + introBox.height)).toBeGreaterThanOrEqual(24);
+  if (pageHeadingBox && tabsBox) {
+    expect(tabsBox.y - (pageHeadingBox.y + pageHeadingBox.height)).toBeGreaterThanOrEqual(16);
   }
   const musicFolderTab = page.getByRole("tab", { name: "Music Folder Report" });
   await expect(musicFolderTab).toHaveAttribute("aria-controls", "report-music-folders-panel");

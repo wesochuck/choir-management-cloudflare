@@ -24,7 +24,6 @@
     container-type: inline-size;
     min-width: 0;
     overflow: visible;
-    padding: clamp(1rem, 2.5vw, 1.5rem);
   }
 
   .set-list-print-view {

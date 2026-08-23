@@ -118,9 +118,6 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   }
   return (
     <section className="reports-view" aria-label="Reports and insights">
-      <div className="reports-intro">
-        <p>Review attendance, RSVPs, repertoire, roster, and giving activity.</p>
-      </div>
       <nav className="ticketing-tabs reports-tabs" aria-label="Report types" role="tablist">
         {TAB_LABELS.map((item) => (
           <button

@@ -167,7 +167,7 @@ const staticPageDescriptions: readonly [string, string][] = [
   ["/admin/rsvp", "Track singer availability and RSVP responses for rehearsals and performances."],
   [
     "/admin/attendance",
-    "Track singer attendance, review roll calls, and export attendance records.",
+    "Tap a name to cycle Pending, Present, and Absent. Changes save immediately.",
   ],
   [
     "/admin/setlists",
