@@ -88,7 +88,7 @@ function OverviewPage({
       {!platform ? (
         <div className="workspace-hero">
           <p className="eyebrow">{workspaceLabel(workspace)}</p>
-          <h1>Your choir at a glance</h1>
+          <h1>At a glance</h1>
           <p>Everything you need for the next rehearsal, performance, and practice session.</p>
         </div>
       ) : null}

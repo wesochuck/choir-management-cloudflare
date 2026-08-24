@@ -112,7 +112,6 @@ export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
   return (
     <section className="account-section member-dues-page" aria-labelledby="member-dues-title">
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Your choir</p>
         <h2 id="member-dues-title">Season dues</h2>
         <p>Review what you owe and pay securely with Stripe.</p>
       </div>

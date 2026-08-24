@@ -64,11 +64,8 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
   }
 
   return (
-    <section className="account-section" aria-labelledby="calendar-subscription-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Personal schedule</p>
-        <h2 id="calendar-subscription-title">Calendar subscription</h2>
-      </div>
+    <fieldset className="calendar-subscription-card">
+      <legend className="calendar-subscription-card__legend">Calendar subscription</legend>
       {!enabled ? (
         <OrganizationMfaPrompt message="Verify Organization MFA to manage this feed." />
       ) : null}
@@ -156,6 +153,6 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
           )}
         </>
       ) : null}
-    </section>
+    </fieldset>
   );
 }

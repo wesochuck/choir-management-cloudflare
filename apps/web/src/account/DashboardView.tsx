@@ -194,19 +194,18 @@ function DashboardEventCard({
     <fieldset className="member-dashboard__event-card">
       <legend className="member-dashboard__event-legend">
         <span className="member-dashboard__event-legend-left">
-          <span className="member-dashboard__event-type">{eventTypeLabel(event)}</span>
           {isNextUp ? <span className="member-dashboard__next-badge">Next up</span> : null}
+          <strong className="member-dashboard__event-title">{event.title}</strong>
         </span>
         <span className={`rsvp-status-badge rsvp-status-badge--${event.resolvedRsvp}`}>
           {rsvpLabel(event.resolvedRsvp)}
         </span>
       </legend>
-      <div className="member-dashboard__event-heading">
-        <div>
-          <h3>{event.title}</h3>
-          <p className="member-dashboard__event-date">{formatDate(event.startsAt, timezone)}</p>
-        </div>
-      </div>
+      <p className="member-dashboard__event-date">
+        <span className="member-dashboard__event-type">{eventTypeLabel(event)}</span>
+        <span aria-hidden="true"> • </span>
+        <span>{formatDate(event.startsAt, timezone)}</span>
+      </p>
       <div className="member-dashboard__event-details">
         <span>{event.venueName || event.location || "Location to be announced"}</span>
         {event.callTime ? <span>Call {event.callTime}</span> : null}

@@ -320,7 +320,6 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
       aria-labelledby="my-schedule-title"
     >
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Your events</p>
         <h2 id="my-schedule-title">My schedule</h2>
       </div>
       <div className="my-schedule__controls">
@@ -371,110 +370,115 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
             {state.events.map((event) => {
               const location = eventLocation(event);
               return (
-                <li className="schedule-card" key={event.id}>
-                  <div className="schedule-card__main">
-                    <div className="schedule-card__header">
+                <li className="schedule-card-item" key={event.id}>
+                  <fieldset className="schedule-card">
+                    <legend className="schedule-card__legend">
                       <h3 className="schedule-card__title">{event.title}</h3>
-                      <span
-                        className={`schedule-card__badge ${
-                          event.type === "Performance"
-                            ? "schedule-card__badge--performance"
-                            : "schedule-card__badge--rehearsal"
-                        }`}
-                      >
-                        {event.type}
-                      </span>
-                      {event.inheritedFromParent ? (
-                        <span className="schedule-card__badge schedule-card__badge--inherited">
-                          Inherited from Performance: {event.resolvedRsvp}
+                      <div className="schedule-card__legend-badges">
+                        <span
+                          className={`schedule-card__badge ${
+                            event.type === "Performance"
+                              ? "schedule-card__badge--performance"
+                              : "schedule-card__badge--rehearsal"
+                          }`}
+                        >
+                          {event.type}
                         </span>
-                      ) : null}
-                    </div>
-
-                    <div className="schedule-card__meta-grid">
-                      <div className="schedule-card__meta-item">
-                        <span className="schedule-card__meta-label">Date &amp; Time</span>
-                        <span className="schedule-card__meta-value">
-                          {displayDate(event.startsAt, state.timezone)} ({state.timezone})
-                        </span>
+                        {event.inheritedFromParent ? (
+                          <span className="schedule-card__badge schedule-card__badge--inherited">
+                            Inherited from Performance: {event.resolvedRsvp}
+                          </span>
+                        ) : null}
                       </div>
-                      {location ? (
+                    </legend>
+
+                    <div className="schedule-card__main">
+                      <div className="schedule-card__meta-grid">
                         <div className="schedule-card__meta-item">
-                          <span className="schedule-card__meta-label">Location</span>
-                          <span className="schedule-card__meta-value">{location}</span>
-                        </div>
-                      ) : null}
-                      {event.callTime ? (
-                        <div className="schedule-card__meta-item">
-                          <span className="schedule-card__meta-label">Call Time</span>
-                          <span className="schedule-card__meta-value">{event.callTime}</span>
-                        </div>
-                      ) : null}
-                      {event.durationMinutes ? (
-                        <div className="schedule-card__meta-item">
-                          <span className="schedule-card__meta-label">Duration</span>
+                          <span className="schedule-card__meta-label">Date &amp; Time</span>
                           <span className="schedule-card__meta-value">
-                            {event.durationMinutes} minutes
+                            {displayDate(event.startsAt, state.timezone)} ({state.timezone})
                           </span>
                         </div>
+                        {location ? (
+                          <div className="schedule-card__meta-item">
+                            <span className="schedule-card__meta-label">Location</span>
+                            <span className="schedule-card__meta-value">{location}</span>
+                          </div>
+                        ) : null}
+                        {event.callTime ? (
+                          <div className="schedule-card__meta-item">
+                            <span className="schedule-card__meta-label">Call Time</span>
+                            <span className="schedule-card__meta-value">{event.callTime}</span>
+                          </div>
+                        ) : null}
+                        {event.durationMinutes ? (
+                          <div className="schedule-card__meta-item">
+                            <span className="schedule-card__meta-label">Duration</span>
+                            <span className="schedule-card__meta-value">
+                              {event.durationMinutes} minutes
+                            </span>
+                          </div>
+                        ) : null}
+                        {event.details ? (
+                          <div className="schedule-card__meta-item schedule-card__meta-item--full">
+                            <span className="schedule-card__meta-label">Notes</span>
+                            <span className="schedule-card__meta-value schedule-card__meta-value--multiline">
+                              {event.details}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {event.type === "Performance" &&
+                      displayRsvpDeadline(event, state.timezone) ? (
+                        <p
+                          className={`schedule-card__deadline ${
+                            event.rsvpDeadlinePassed
+                              ? "notice notice--warning"
+                              : "notice notice--info"
+                          }`}
+                        >
+                          {displayRsvpDeadline(event, state.timezone)}{" "}
+                          {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
+                          <a href="/admin/roster?section=settings">Roster Settings</a>
+                        </p>
                       ) : null}
-                      {event.details ? (
-                        <div className="schedule-card__meta-item schedule-card__meta-item--full">
-                          <span className="schedule-card__meta-label">Notes</span>
-                          <span className="schedule-card__meta-value schedule-card__meta-value--multiline">
-                            {event.details}
-                          </span>
-                        </div>
+
+                      {event.setList.length > 0 ? (
+                        <fieldset className="schedule-set-list">
+                          <legend className="schedule-set-list__legend">Approved set list</legend>
+                          <ol>
+                            {event.setList.map((item, index) => {
+                              const credit = performerCredit(item, performerLabelPlural);
+                              const duration = normalizeSetListDuration(item.duration);
+                              return (
+                                <li key={item.id ?? `${item.title}-${String(index)}`}>
+                                  <strong>{item.title}</strong>
+                                  {item.composer ? ` — ${item.composer}` : ""}
+                                  {duration ? ` (${duration})` : ""}
+                                  {credit ? <span>{credit}</span> : null}
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </fieldset>
                       ) : null}
                     </div>
 
-                    {event.type === "Performance" && displayRsvpDeadline(event, state.timezone) ? (
-                      <p
-                        className={`schedule-card__deadline ${
-                          event.rsvpDeadlinePassed
-                            ? "notice notice--warning"
-                            : "notice notice--info"
-                        }`}
-                      >
-                        {displayRsvpDeadline(event, state.timezone)}{" "}
-                        {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
-                        <a href="/admin/roster?section=settings">Roster Settings</a>
-                      </p>
-                    ) : null}
-
-                    {event.setList.length > 0 ? (
-                      <div className="schedule-set-list">
-                        <h4>Approved set list</h4>
-                        <ol>
-                          {event.setList.map((item, index) => {
-                            const credit = performerCredit(item, performerLabelPlural);
-                            const duration = normalizeSetListDuration(item.duration);
-                            return (
-                              <li key={item.id ?? `${item.title}-${String(index)}`}>
-                                <strong>{item.title}</strong>
-                                {item.composer ? ` — ${item.composer}` : ""}
-                                {duration ? ` (${duration})` : ""}
-                                {credit ? <span>{credit}</span> : null}
-                              </li>
-                            );
-                          })}
-                        </ol>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <ScheduleRsvpField
-                    busy={busyEventId === event.id}
-                    event={event}
-                    onDeclineRehearsal={(targetEvent) => {
-                      setDeclineEvent(targetEvent);
-                      setDeclineNote(targetEvent.rsvpNote || "");
-                      setActionError(null);
-                    }}
-                    onRsvp={(targetEvent, rsvp) => {
-                      void changeRsvp(targetEvent.id, rsvp, "");
-                    }}
-                  />
+                    <ScheduleRsvpField
+                      busy={busyEventId === event.id}
+                      event={event}
+                      onDeclineRehearsal={(targetEvent) => {
+                        setDeclineEvent(targetEvent);
+                        setDeclineNote(targetEvent.rsvpNote || "");
+                        setActionError(null);
+                      }}
+                      onRsvp={(targetEvent, rsvp) => {
+                        void changeRsvp(targetEvent.id, rsvp, "");
+                      }}
+                    />
+                  </fieldset>
                 </li>
               );
             })}

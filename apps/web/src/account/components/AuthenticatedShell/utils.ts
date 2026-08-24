@@ -45,7 +45,7 @@ export const accountGroups: readonly NavigationGroup[] = [
 
 export const memberGroups: readonly NavigationGroup[] = [
   {
-    label: "Your choir",
+    label: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard" },
       { href: "/schedule", label: "My schedule", module: "events" },
@@ -182,14 +182,8 @@ const staticPageDescriptions: readonly [string, string][] = [
     "/admin/tickets/scan",
     "Scan a ticket QR code at the door or validate a ticket credential manually.",
   ],
-  [
-    "/admin/donations",
-    "Monitor your choir’s incoming donations, giving activity, and donor recognition tiers.",
-  ],
-  [
-    "/admin/patrons",
-    "Monitor your choir’s incoming donations, giving activity, and donor recognition tiers.",
-  ],
+  ["/admin/donations", "Monitor incoming donations, giving activity, and donor recognition tiers."],
+  ["/admin/patrons", "Monitor incoming donations, giving activity, and donor recognition tiers."],
   [
     "/admin/communications",
     "Build a message in three steps: choose the audience, write with Markdown and placeholders, then review it before queueing delivery.",
@@ -205,7 +199,7 @@ const staticPageDescriptions: readonly [string, string][] = [
     "Manage the organization roster, section assignments, member statuses, and contact details.",
   ],
   ["/admin/reports", "Generate and review attendance, repertoire, and roster reports."],
-  ["/admin/seasons", "Manage choir performance seasons, dues schedules, and payment tracking."],
+  ["/admin/seasons", "Manage performance seasons, dues schedules, and payment tracking."],
   ["/admin/polls", "Create polls, collect member votes, and review real-time tally results."],
   ["/admin/settings", "Manage organization preferences, terminology, and defaults."],
   [
