@@ -23,6 +23,11 @@
     font-weight: var(--font-weight-semibold);
   }
 
+  .signed-in-main .module-settings-group__modules {
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
   .setup-checklist__item {
     align-items: flex-start;
   }

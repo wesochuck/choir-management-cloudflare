@@ -155,13 +155,13 @@ export function ModuleSettingsView() {
       {groupedModules.length === 0 ? (
         <p>No modules configured.</p>
       ) : (
-        <div className="form-stack">
+        <div className="form-stack module-settings-groups">
           {groupedModules.map((group) => (
-            <fieldset className="panel" key={group.category} style={{ margin: "1rem 0" }}>
+            <fieldset className="panel module-settings-group" key={group.category}>
               <legend>
                 <strong>{group.label}</strong>
               </legend>
-              <div className="form-stack" style={{ gap: "0.75rem", marginTop: "0.5rem" }}>
+              <div className="form-stack module-settings-group__modules">
                 {group.modules.map((mod) => (
                   <label className="checkbox-row" key={mod.id}>
                     <input

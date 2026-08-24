@@ -134,6 +134,13 @@ test("renders categorized granular modules and allows toggling individual featur
   await expect(panel.getByText("Music & Content", { exact: true })).toBeVisible();
   await expect(panel.getByText("Music Library", { exact: true })).toBeVisible();
   await expect(panel.getByText("Set Lists", { exact: true })).toBeVisible();
+  const categoryGroups = panel.locator("fieldset.module-settings-group");
+  await expect(categoryGroups).toHaveCount(2);
+  for (const name of ["People", "Music & Content"]) {
+    const group = panel.getByRole("group", { name });
+    await expect(group).toHaveClass(/module-settings-group/);
+    await expect(group.locator("legend")).toHaveText(name);
+  }
 
   // Initially both Music library and Set lists should be visible in navigation (on desktop)
   if (test.info().project.name === "chromium") {
