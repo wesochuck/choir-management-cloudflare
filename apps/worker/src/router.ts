@@ -71,17 +71,42 @@ import { registerRoutes as registerMemberEmailChangeRoutes } from "./routes/memb
 
 export const router = new Hono<WorkerHonoEnvironment>();
 
-export const CONTENT_SECURITY_POLICY =
-  "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'";
+export function generateCspNonce(): string {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+export function buildContentSecurityPolicy(nonce?: string): string {
+  const scriptDirective = nonce
+    ? `script-src 'self' 'nonce-${nonce}' https://static.cloudflareinsights.com https://challenges.cloudflare.com`
+    : "script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com";
+
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    scriptDirective,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com",
+    "frame-src 'self' https://challenges.cloudflare.com",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+  ].join("; ");
+}
 
 export function setSecurityHeaders(
   headers: Headers,
   referrerPolicy = "strict-origin-when-cross-origin",
+  nonce = generateCspNonce(),
 ): void {
   headers.set("referrer-policy", referrerPolicy);
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-frame-options", "DENY");
-  headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
+  headers.set("content-security-policy", buildContentSecurityPolicy(nonce));
 }
 
 router.use("*", requestId());

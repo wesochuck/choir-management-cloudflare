@@ -65,10 +65,11 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 
 ## Security Headers and Content Security Policy
 
-- `CONTENT_SECURITY_POLICY` in `router.ts` must remain compatible with Cloudflare platform services
-  active on staging and production zones:
-  - Cloudflare Web Analytics / Browser Insights: `https://static.cloudflareinsights.com` and
-    `'unsafe-inline'` in `script-src` to allow dynamically tokenized proxy beacon injections, and
+- `buildContentSecurityPolicy()` in `router.ts` must remain compatible with Cloudflare platform
+  services active on staging and production zones:
+  - Cloudflare Web Analytics / Browser Insights & Bot Management:
+    `https://static.cloudflareinsights.com` and a per-response `'nonce-<value>'` in `script-src` to
+    allow dynamically tokenized proxy beacon injections and JavaScript Detections, and
     `https://cloudflareinsights.com` in `connect-src`.
   - Cloudflare Challenges / Turnstile: `https://challenges.cloudflare.com` in `script-src`,
     `connect-src`, and `frame-src`.
