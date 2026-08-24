@@ -108,11 +108,11 @@ async function handleShellRoute(route: Route): Promise<boolean> {
     },
     "/api/organization/module-state": {
       modules: [
-        { enabled: true, id: "events" },
-        { enabled: true, id: "people" },
-        { enabled: true, id: "programs" },
-        { enabled: true, id: "communications" },
-        { enabled: true, id: "finance" },
+        { category: "people", enabled: true, id: "roster", label: "Roster & Members" },
+        { category: "events", enabled: true, id: "events", label: "Events & Rehearsals" },
+        { category: "content", enabled: true, id: "music_library", label: "Music Library" },
+        { category: "finance", enabled: true, id: "communications", label: "Communications" },
+        { category: "insights", enabled: true, id: "reports", label: "Reports & Analytics" },
       ],
     },
     "/api/organization/auth-status": {
@@ -550,7 +550,13 @@ async function assertOrganizationSettingsLayout(
 
 async function assertModuleSettingsLayout(page: Page, path: string, width: number): Promise<void> {
   if (path !== "/admin/settings/modules" || width !== widths[0]) return;
-  for (const name of ["People", "Events", "Programs"]) {
+  for (const name of [
+    "People",
+    "Events",
+    "Music & Content",
+    "Communications & Finance",
+    "Insights & Reports",
+  ]) {
     const group = page.getByRole("group", { name });
     await expect(group).toBeVisible();
     await expect(group.locator("legend")).toHaveText(name);
