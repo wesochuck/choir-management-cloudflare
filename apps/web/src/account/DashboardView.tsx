@@ -101,6 +101,26 @@ function DashboardEventActions({
   const busy = busyEventId === event.id;
   return (
     <div className="member-dashboard__event-actions">
+      {practiceEnabled || seatingEnabled ? (
+        <div className="member-dashboard__secondary-actions">
+          {practiceEnabled ? (
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                onOpenPractice(event);
+              }}
+              type="button"
+            >
+              Practice
+            </button>
+          ) : null}
+          {seatingEnabled ? (
+            <AppLink href={`/seating/${event.id}`} onNavigate={navigate}>
+              {seatingLabel(event)}
+            </AppLink>
+          ) : null}
+        </div>
+      ) : null}
       <div className="member-dashboard__rsvp-actions" aria-label={`${event.title} RSVP`}>
         <button
           className={
@@ -133,26 +153,6 @@ function DashboardEventActions({
           {busy ? "Updating…" : "Decline"}
         </button>
       </div>
-      {practiceEnabled || seatingEnabled ? (
-        <div className="member-dashboard__secondary-actions">
-          {practiceEnabled ? (
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                onOpenPractice(event);
-              }}
-              type="button"
-            >
-              Practice
-            </button>
-          ) : null}
-          {seatingEnabled ? (
-            <AppLink href={`/seating/${event.id}`} onNavigate={navigate}>
-              {seatingLabel(event)}
-            </AppLink>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

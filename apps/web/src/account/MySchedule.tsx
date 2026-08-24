@@ -107,50 +107,142 @@ function ScheduleRsvpFooter({ event }: { readonly event: SingerEvent }) {
       {!event.rsvpSelfServiceOpen ? (
         <small className="field-help">RSVP changes are closed for this event.</small>
       ) : null}
-      {event.type === "Rehearsal" && event.directRsvp === "No" && event.rsvpNote ? (
-        <small className="field-help schedule-rsvp__note">
-          <strong>Decline note:</strong> {event.rsvpNote}
-        </small>
-      ) : null}
     </>
   );
 }
 
-function ScheduleRsvpField({
+function ScheduleEventDeadline({
+  event,
+  timezone,
+}: {
+  readonly event: SingerEvent;
+  readonly timezone: string;
+}) {
+  if (event.type !== "Performance") {
+    return null;
+  }
+  const deadlineText = displayRsvpDeadline(event, timezone);
+  if (!deadlineText) {
+    return null;
+  }
+  return (
+    <p
+      className={`schedule-card__deadline ${
+        event.rsvpDeadlinePassed ? "notice notice--warning" : "notice notice--info"
+      }`}
+    >
+      {deadlineText} {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
+      <a href="/admin/roster?section=settings">Roster Settings</a>
+    </p>
+  );
+}
+
+function ScheduleEventSetList({
+  event,
+  performerLabelPlural,
+}: {
+  readonly event: SingerEvent;
+  readonly performerLabelPlural: string;
+}) {
+  if (event.setList.length === 0) {
+    return null;
+  }
+  return (
+    <fieldset className="schedule-set-list">
+      <legend className="schedule-set-list__legend">Approved set list</legend>
+      <ol>
+        {event.setList.map((item, index) => {
+          const credit = performerCredit(item, performerLabelPlural);
+          const duration = normalizeSetListDuration(item.duration);
+          return (
+            <li key={item.id ?? `${item.title}-${String(index)}`}>
+              <strong>{item.title}</strong>
+              {item.composer ? ` — ${item.composer}` : ""}
+              {duration ? ` (${duration})` : ""}
+              {credit ? <span>{credit}</span> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </fieldset>
+  );
+}
+
+function ScheduleEventCard({
   busy,
   event,
   onDeclineRehearsal,
   onRsvp,
+  performerLabelPlural,
+  timezone,
 }: {
   readonly busy: boolean;
   readonly event: SingerEvent;
   readonly onDeclineRehearsal: (event: SingerEvent) => void;
   readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
+  readonly performerLabelPlural: string;
+  readonly timezone: string;
 }) {
+  const location = eventLocation(event);
   return (
-    <fieldset className="schedule-rsvp">
-      <legend className="schedule-rsvp__legend">
-        <span>Your RSVP</span>
-        {event.resolvedRsvp !== "Pending" ? (
-          <span
-            className={`schedule-card__badge ${
-              event.resolvedRsvp === "Yes"
-                ? "schedule-card__badge--performance"
-                : "schedule-card__badge--rehearsal"
-            }`}
-          >
-            {event.resolvedRsvp === "Yes" ? "Attending" : "Declined"}
+    <li className="schedule-card-item" key={event.id}>
+      <fieldset className="schedule-card schedule-rsvp">
+        <legend className="schedule-card__legend">
+          <h3 className="schedule-card__title">{event.title}</h3>
+          <div className="schedule-card__legend-badges">
+            {event.inheritedFromParent ? (
+              <span className="schedule-card__badge schedule-card__badge--inherited">
+                Inherited: {event.resolvedRsvp}
+              </span>
+            ) : null}
+            <span
+              className={`rsvp-status-badge schedule-card__badge rsvp-status-badge--${event.resolvedRsvp}`}
+            >
+              {event.resolvedRsvp === "Yes"
+                ? "Attending"
+                : event.resolvedRsvp === "No"
+                  ? "Declined"
+                  : "Pending"}
+            </span>
+          </div>
+        </legend>
+
+        <p className="schedule-card__date">
+          <span className="schedule-card__type">{event.type}</span>
+          <span aria-hidden="true"> • </span>
+          <span>
+            {displayDate(event.startsAt, timezone)} ({timezone})
           </span>
-        ) : null}
-      </legend>
-      <ScheduleRsvpButtons
-        busy={busy}
-        event={event}
-        onDeclineRehearsal={onDeclineRehearsal}
-        onRsvp={onRsvp}
-      />
-      <ScheduleRsvpFooter event={event} />
-    </fieldset>
+        </p>
+
+        <div className="schedule-card__details">
+          <span>{location || "Location to be announced"}</span>
+          {event.callTime ? <span>Call {event.callTime}</span> : null}
+          {event.durationMinutes ? <span>{event.durationMinutes} minutes</span> : null}
+          {event.details ? <div className="schedule-card__notes">{event.details}</div> : null}
+        </div>
+
+        <ScheduleEventDeadline event={event} timezone={timezone} />
+        <ScheduleEventSetList event={event} performerLabelPlural={performerLabelPlural} />
+
+        <div className="schedule-card__actions">
+          <div className="schedule-card__actions-left">
+            {event.type === "Rehearsal" && event.directRsvp === "No" && event.rsvpNote ? (
+              <p className="schedule-rsvp__note">
+                <strong>Decline note:</strong> {event.rsvpNote}
+              </p>
+            ) : null}
+            <ScheduleRsvpFooter event={event} />
+          </div>
+          <ScheduleRsvpButtons
+            busy={busy}
+            event={event}
+            onDeclineRehearsal={onDeclineRehearsal}
+            onRsvp={onRsvp}
+          />
+        </div>
+      </fieldset>
+    </li>
   );
 }
 
@@ -367,121 +459,23 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
           </p>
         ) : (
           <ul className="schedule-list">
-            {state.events.map((event) => {
-              const location = eventLocation(event);
-              return (
-                <li className="schedule-card-item" key={event.id}>
-                  <fieldset className="schedule-card">
-                    <legend className="schedule-card__legend">
-                      <h3 className="schedule-card__title">{event.title}</h3>
-                      <div className="schedule-card__legend-badges">
-                        <span
-                          className={`schedule-card__badge ${
-                            event.type === "Performance"
-                              ? "schedule-card__badge--performance"
-                              : "schedule-card__badge--rehearsal"
-                          }`}
-                        >
-                          {event.type}
-                        </span>
-                        {event.inheritedFromParent ? (
-                          <span className="schedule-card__badge schedule-card__badge--inherited">
-                            Inherited from Performance: {event.resolvedRsvp}
-                          </span>
-                        ) : null}
-                      </div>
-                    </legend>
-
-                    <div className="schedule-card__main">
-                      <div className="schedule-card__meta-grid">
-                        <div className="schedule-card__meta-item">
-                          <span className="schedule-card__meta-label">Date &amp; Time</span>
-                          <span className="schedule-card__meta-value">
-                            {displayDate(event.startsAt, state.timezone)} ({state.timezone})
-                          </span>
-                        </div>
-                        {location ? (
-                          <div className="schedule-card__meta-item">
-                            <span className="schedule-card__meta-label">Location</span>
-                            <span className="schedule-card__meta-value">{location}</span>
-                          </div>
-                        ) : null}
-                        {event.callTime ? (
-                          <div className="schedule-card__meta-item">
-                            <span className="schedule-card__meta-label">Call Time</span>
-                            <span className="schedule-card__meta-value">{event.callTime}</span>
-                          </div>
-                        ) : null}
-                        {event.durationMinutes ? (
-                          <div className="schedule-card__meta-item">
-                            <span className="schedule-card__meta-label">Duration</span>
-                            <span className="schedule-card__meta-value">
-                              {event.durationMinutes} minutes
-                            </span>
-                          </div>
-                        ) : null}
-                        {event.details ? (
-                          <div className="schedule-card__meta-item schedule-card__meta-item--full">
-                            <span className="schedule-card__meta-label">Notes</span>
-                            <span className="schedule-card__meta-value schedule-card__meta-value--multiline">
-                              {event.details}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      {event.type === "Performance" &&
-                      displayRsvpDeadline(event, state.timezone) ? (
-                        <p
-                          className={`schedule-card__deadline ${
-                            event.rsvpDeadlinePassed
-                              ? "notice notice--warning"
-                              : "notice notice--info"
-                          }`}
-                        >
-                          {displayRsvpDeadline(event, state.timezone)}{" "}
-                          {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
-                          <a href="/admin/roster?section=settings">Roster Settings</a>
-                        </p>
-                      ) : null}
-
-                      {event.setList.length > 0 ? (
-                        <fieldset className="schedule-set-list">
-                          <legend className="schedule-set-list__legend">Approved set list</legend>
-                          <ol>
-                            {event.setList.map((item, index) => {
-                              const credit = performerCredit(item, performerLabelPlural);
-                              const duration = normalizeSetListDuration(item.duration);
-                              return (
-                                <li key={item.id ?? `${item.title}-${String(index)}`}>
-                                  <strong>{item.title}</strong>
-                                  {item.composer ? ` — ${item.composer}` : ""}
-                                  {duration ? ` (${duration})` : ""}
-                                  {credit ? <span>{credit}</span> : null}
-                                </li>
-                              );
-                            })}
-                          </ol>
-                        </fieldset>
-                      ) : null}
-                    </div>
-
-                    <ScheduleRsvpField
-                      busy={busyEventId === event.id}
-                      event={event}
-                      onDeclineRehearsal={(targetEvent) => {
-                        setDeclineEvent(targetEvent);
-                        setDeclineNote(targetEvent.rsvpNote || "");
-                        setActionError(null);
-                      }}
-                      onRsvp={(targetEvent, rsvp) => {
-                        void changeRsvp(targetEvent.id, rsvp, "");
-                      }}
-                    />
-                  </fieldset>
-                </li>
-              );
-            })}
+            {state.events.map((event) => (
+              <ScheduleEventCard
+                busy={busyEventId === event.id}
+                event={event}
+                key={event.id}
+                onDeclineRehearsal={(targetEvent) => {
+                  setDeclineEvent(targetEvent);
+                  setDeclineNote(targetEvent.rsvpNote || "");
+                  setActionError(null);
+                }}
+                onRsvp={(targetEvent, rsvp) => {
+                  void changeRsvp(targetEvent.id, rsvp, "");
+                }}
+                performerLabelPlural={performerLabelPlural}
+                timezone={state.timezone}
+              />
+            ))}
           </ul>
         )
       ) : null}

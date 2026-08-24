@@ -744,6 +744,10 @@
     justify-content: space-between;
   }
 
+  .member-dashboard__rsvp-actions {
+    margin-left: auto;
+  }
+
   .member-dashboard__secondary-actions a {
     display: inline-flex;
     align-items: center;
