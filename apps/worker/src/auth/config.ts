@@ -44,6 +44,27 @@ export function isProductBaseHost(hostname: string, productBaseDomain: string): 
   return normalizeHostname(hostname) === normalizeHostname(productBaseDomain);
 }
 
+export function trustedAuthOrigins(
+  appEnvironment: Env["APP_ENV"],
+  productBaseDomain: string,
+  currentOrigin: string,
+): string[] {
+  const baseDomain = normalizeHostname(productBaseDomain);
+  const protocol = appEnvironment === "local" ? "http" : "https";
+  const origins = new Set<string>([currentOrigin]);
+  if (baseDomain === "localhost") {
+    origins.add("http://localhost");
+    origins.add("http://localhost:5173");
+    origins.add("http://localhost:8787");
+    origins.add("http://*.localhost:5173");
+    origins.add("http://*.localhost:8787");
+  } else {
+    origins.add(`${protocol}://${baseDomain}`);
+    origins.add(`${protocol}://*.${baseDomain}`);
+  }
+  return Array.from(origins);
+}
+
 function canonicalOrganizationOrigin(env: Env, slug: string): string {
   const baseDomain = normalizeHostname(env.PRODUCT_BASE_DOMAIN);
   const hostname = baseDomain.endsWith(".workers.dev") ? baseDomain : `${slug}.${baseDomain}`;
@@ -184,6 +205,6 @@ export function createAuth(context: AuthRequestContext) {
       updateAge: 24 * 60 * 60,
     },
     telemetry: { enabled: false },
-    trustedOrigins: [origin],
+    trustedOrigins: trustedAuthOrigins(env.APP_ENV, env.PRODUCT_BASE_DOMAIN, origin),
   });
 }

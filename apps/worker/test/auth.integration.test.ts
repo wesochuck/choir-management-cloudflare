@@ -105,7 +105,10 @@ describe("Better Auth Worker integration", () => {
       readonly session?: Record<string, unknown>;
       readonly user?: Record<string, unknown>;
     } = await sessionResponse.json();
-    expect(sessionBody).toMatchObject({ user: { email: INVITED_EMAIL, emailVerified: true } });
+    expect(sessionBody).toMatchObject({
+      session: { userId: "user-invited-member" },
+      user: { email: INVITED_EMAIL, emailVerified: true },
+    });
     expect(sessionBody.session).not.toHaveProperty("token");
   });
 
