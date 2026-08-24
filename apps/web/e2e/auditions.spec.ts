@@ -133,9 +133,9 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
         sections: [],
         slots: [
           {
-            endsAt: "2026-08-01T15:30:00.000Z",
+            endsAt: "2026-09-01T15:30:00.000Z",
             id: "slot-001",
-            startsAt: "2026-08-01T15:00:00.000Z",
+            startsAt: "2026-09-01T15:00:00.000Z",
           },
         ],
         timezone: "UTC",
@@ -216,9 +216,9 @@ test("shows configured public audition availability and scheduled details", asyn
         sections: [],
         slots: [
           {
-            endsAt: "2026-08-01T15:30:00.000Z",
+            endsAt: "2026-09-01T15:30:00.000Z",
             id: "slot-001",
-            startsAt: "2026-08-01T15:00:00.000Z",
+            startsAt: "2026-09-01T15:00:00.000Z",
           },
         ],
         timezone: "UTC",

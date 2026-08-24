@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { publicAuditionSettingsSchema, type DayOfWeek } from "@choir/contracts";
+import { areAuditionDatesPassed } from "@choir/domain";
 import { responseError } from "../auth/api/client";
 
 interface AuditionSlot {
@@ -675,7 +676,10 @@ export function PublicAuditionView() {
           const isClosed =
             !settings.enabled ||
             (settings.mode === "audition" &&
-              (!settings.defaultPerformanceId || settings.slots.length === 0));
+              (!settings.defaultPerformanceId ||
+                settings.slots.length === 0 ||
+                areAuditionDatesPassed(settings)));
+
           if (isClosed) {
             setPageStatus({
               type: "closed",

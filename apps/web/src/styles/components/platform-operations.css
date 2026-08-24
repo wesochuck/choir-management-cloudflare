@@ -475,12 +475,47 @@
 
   .organization-settings-panel {
     min-width: 0;
+    padding: clamp(0.85rem, 2vw, 1.25rem);
   }
 
   .organization-settings-panel > legend {
     padding-inline: 0.35rem;
     color: var(--color-text);
     font-weight: var(--font-weight-semibold);
+  }
+
+  .organization-settings-panel .section-heading {
+    margin: 0;
+  }
+
+  .organization-settings-panel .section-description {
+    margin: 0.25rem 0 0.75rem;
+  }
+
+  .organization-settings-panel .settings-grid {
+    gap: 0.65rem 0.75rem;
+  }
+
+  .organization-settings-panel .settings-grid > .notice,
+  .settings-grid > .notice {
+    margin: 0;
+  }
+
+  .organization-settings-panel .field-help {
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .organization-settings-panel .form-stack {
+    gap: 0.65rem;
+  }
+
+  .organization-settings-panel details {
+    margin-top: 0.75rem;
+  }
+
+  .organization-settings-panel .notice:not(.settings-grid *) {
+    margin: 0.65rem 0;
   }
 
   .organization-payment-settings__heading {

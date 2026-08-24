@@ -138,7 +138,11 @@ function reportableVoiceParts(roster: OrganizationRosterConfiguration) {
 function RsvpDeadlineNotice({ event }: { readonly event: OrganizationEvent | null }) {
   if (event?.type !== "Performance" || !event.rsvpDeadlineDate) return null;
   return (
-    <p className={event.rsvpDeadlinePassed ? "notice notice--warning" : "notice notice--info"}>
+    <p
+      className={`rsvp-manager__deadline-notice ${
+        event.rsvpDeadlinePassed ? "notice notice--warning" : "notice notice--info"
+      }`}
+    >
       {event.rsvpDeadlinePassed
         ? `Member self-service RSVP is closed. The deadline was ${event.rsvpDeadlineDate}. Administrators can still override responses.`
         : `Member RSVP deadline: ${event.rsvpDeadlineDate} through 11:59 p.m.`}
@@ -460,37 +464,38 @@ export function RsvpManagerPage({
       >
         <div className="roster-balance__header">
           <div>
-            <p className="eyebrow">Event response</p>
             <h2 id="rsvp-balance-title">{partLabel} RSVP balance</h2>
             <p className="field-help">
               Select a section or {partLabel.toLowerCase()} to filter the roster below.
             </p>
-            <label className="field rsvp-manager__performance">
-              <span>Performance</span>
-              <select
-                onChange={(event) => {
-                  setEventId(event.target.value);
-                  setRows([]);
-                  setFeedback(null);
-                  setAssignmentFilter(null);
-                  setView("roster");
-                  setHistoryFilter("All");
-                  setHistoryQuery("");
-                }}
-                value={eventId}
-              >
-                <option value="">Choose performance</option>
-                {state.events
-                  .filter((event) => event.type === "Performance")
-                  .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
-                  .map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.title} · {displayEventDate(event.startsAt)}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <RsvpDeadlineNotice event={selectedEvent} />
+            <div className="rsvp-manager__performance-row">
+              <label className="field rsvp-manager__performance">
+                <span>Performance</span>
+                <select
+                  onChange={(event) => {
+                    setEventId(event.target.value);
+                    setRows([]);
+                    setFeedback(null);
+                    setAssignmentFilter(null);
+                    setView("roster");
+                    setHistoryFilter("All");
+                    setHistoryQuery("");
+                  }}
+                  value={eventId}
+                >
+                  <option value="">Choose performance</option>
+                  {state.events
+                    .filter((event) => event.type === "Performance")
+                    .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
+                    .map((event) => (
+                      <option key={event.id} value={event.id}>
+                        {event.title} · {displayEventDate(event.startsAt)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <RsvpDeadlineNotice event={selectedEvent} />
+            </div>
           </div>
           <div className="rsvp-manager__summary-actions">
             <span className="status-pill">Total: {counts.active} active</span>

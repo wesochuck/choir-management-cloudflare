@@ -164,9 +164,9 @@ export function QRCodeShareCard({
   const cardContent = (
     <>
       <div className="public-link-share__details">
-        <p className="eyebrow">Public link</p>
         {asFieldset ? null : <h3>{title}</h3>}
         <p>{description}</p>
+
         <div className="public-link-share__url-row">
           <a href={absoluteUrl} rel="noreferrer" target="_blank">
             {absoluteUrl}

@@ -1,5 +1,13 @@
 import type { DeliveryJob } from "../jobs/contracts";
-import { calculateRsvpDeadline, POLL_ARCHIVE_DELAY_DAYS } from "@choir/domain";
+import {
+  areAuditionDatesPassed,
+  calculateRsvpDeadline,
+  POLL_ARCHIVE_DELAY_DAYS,
+} from "@choir/domain";
+import {
+  organizationAuditionSettingsSchema,
+  type OrganizationAuditionSettings,
+} from "@choir/contracts";
 import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 import { readRosterAutomationConfiguration, runRosterAutomations } from "./statusAutomationStore";
 
@@ -525,6 +533,54 @@ async function scheduleNextAlarm(
   await storage.setAlarm(scheduledTime);
 }
 
+function autoDisableExpiredAuditions(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const row = storage.sql
+    .exec<{ readonly settings: string }>(
+      "SELECT audition_settings_json AS settings FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0);
+  if (!row?.settings) return;
+  try {
+    const parsed = organizationAuditionSettingsSchema.safeParse(JSON.parse(row.settings));
+    if (parsed.success && parsed.data.enabled && areAuditionDatesPassed(parsed.data, now)) {
+      const disabled: OrganizationAuditionSettings = { ...parsed.data, enabled: false };
+      const nowIso = now.toISOString();
+      storage.transactionSync(() => {
+        storage.sql.exec(
+          "UPDATE organization_metadata SET audition_settings_json = ?, updated_at = ?",
+          JSON.stringify(disabled),
+          nowIso,
+        );
+        storage.sql.exec(
+          `INSERT OR IGNORE INTO audit_events
+            (id, actor_type, actor_id, action, target_type, target_id,
+             request_id, change_summary, occurred_at)
+           VALUES (?, 'organization_system', 'system:scheduler', 'audition.settings_auto_disabled',
+             'audition_settings', ?, ?, ?, ?)`,
+          `audition-auto-disabled:${organizationId}:${nowIso}`,
+          organizationId,
+          `audition-auto-disabled:${organizationId}:${nowIso}`,
+          JSON.stringify({
+            defaultPerformanceId: disabled.defaultPerformanceId,
+            enabled: false,
+            mode: disabled.mode,
+            reason: "audition_dates_passed",
+            slotCount: disabled.slots.length,
+          }),
+          nowIso,
+        );
+      });
+    }
+  } catch {
+    // Ignore invalid audition settings in scheduler loop
+  }
+}
+
 export async function runOrganizationAlarm(
   storage: DurableObjectStorage,
   queue: Queue<DeliveryJob>,
@@ -538,7 +594,9 @@ export async function runOrganizationAlarm(
   }
   runRosterAutomations(storage, organizationId, now);
   archiveDuePolls(storage, organizationId, now);
+  autoDisableExpiredAuditions(storage, organizationId, now);
   createDueJobs(storage, organizationId, now, options.force === true);
+
   const pendingJobs = readPendingJobs(storage);
   if (pendingJobs.length === 0) {
     await scheduleNextAlarm(storage, now, false);

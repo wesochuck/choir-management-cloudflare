@@ -56,12 +56,12 @@ export function VoicePartBalance({
     <section className="surface-card roster-balance" aria-labelledby="roster-balance-title">
       <div className="roster-balance__header">
         <div>
-          <p className="eyebrow">Roster overview</p>
           <h2 id="roster-balance-title">{partLabel} balance</h2>
           <p className="field-help">
             Select a section or {partLabel.toLowerCase()} to filter the roster below.
           </p>
         </div>
+
         <div className="roster-balance__meta">
           <span className="status-pill">{profiles.length} profiles</span>
           {counts.unassigned > 0 ? (

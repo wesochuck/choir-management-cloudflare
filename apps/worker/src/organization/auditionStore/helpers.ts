@@ -3,7 +3,11 @@ import {
   organizationRosterConfigurationRequestSchema,
   type OrganizationAuditionSettings,
 } from "@choir/contracts";
-import { defaultRosterConfiguration, renderCommunicationTemplate } from "@choir/domain";
+import {
+  areAuditionDatesPassed,
+  defaultRosterConfiguration,
+  renderCommunicationTemplate,
+} from "@choir/domain";
 
 import { auditionSystemCommunicationTemplates } from "../schema";
 import {
@@ -25,6 +29,7 @@ export function parseRequestedSlots(value: string): string[] {
 
 export function storedAuditionSettings(
   storage: DurableObjectStorage,
+  now: Date = new Date(),
 ): OrganizationAuditionSettings {
   try {
     const raw = storage.sql
@@ -35,7 +40,21 @@ export function storedAuditionSettings(
       .at(0)?.settings;
     if (raw) {
       const parsed = organizationAuditionSettingsSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) return parsed.data;
+      if (parsed.success) {
+        if (parsed.data.enabled && areAuditionDatesPassed(parsed.data, now)) {
+          const disabled: OrganizationAuditionSettings = { ...parsed.data, enabled: false };
+          const nowIso = now.toISOString();
+          storage.transactionSync(() => {
+            storage.sql.exec(
+              "UPDATE organization_metadata SET audition_settings_json = ?, updated_at = ?",
+              JSON.stringify(disabled),
+              nowIso,
+            );
+          });
+          return disabled;
+        }
+        return parsed.data;
+      }
     }
   } catch {
     // Use the backwards-compatible defaults for Organizations provisioned before audition settings.

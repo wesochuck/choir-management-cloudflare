@@ -5,8 +5,10 @@ import {
   type OrganizationInvitationSummary,
   type ProblemDetails,
 } from "@choir/contracts";
+import { areAuditionDatesPassed } from "@choir/domain";
 import { type Context } from "hono";
 import { z } from "zod";
+
 import type { createAuth } from "../../auth/config";
 import { isCanonicalAuthHost, isProductBaseHost } from "../../auth/config";
 import {
@@ -279,7 +281,7 @@ function publicAuditionInquiryProblem(
   requestedSlots: readonly string[],
   requestIdValue: string,
 ): { readonly problem: ProblemDetails; readonly status: 400 | 409 } | null {
-  if (!settings.enabled) {
+  if (!settings.enabled || areAuditionDatesPassed(settings)) {
     return {
       problem: {
         code: "auditions_closed",
@@ -289,6 +291,7 @@ function publicAuditionInquiryProblem(
       status: 409,
     };
   }
+
   const allowedSlots = new Set(settings.slots.map(({ startsAt }) => startsAt));
   if (requestedSlots.some((slot) => !allowedSlots.has(slot))) {
     return {

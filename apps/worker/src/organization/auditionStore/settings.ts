@@ -4,6 +4,7 @@ import {
   publicAuditionSettingsSchema,
   type OrganizationAuditionSettings,
 } from "@choir/contracts";
+import { areAuditionDatesPassed } from "@choir/domain";
 import { z } from "zod";
 
 import type {
@@ -15,9 +16,53 @@ import { defaultAuditionSettings } from "./contracts";
 import { insertAudit } from "./records";
 import { publicAuditionRosterOptions } from "./helpers";
 
+export function syncAuditionSettingsExpiration(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  settings: OrganizationAuditionSettings,
+  now: Date = new Date(),
+): OrganizationAuditionSettings {
+  if (!settings.enabled || !areAuditionDatesPassed(settings, now)) {
+    return settings;
+  }
+  const updatedSettings: OrganizationAuditionSettings = {
+    ...settings,
+    enabled: false,
+  };
+  const nowIso = now.toISOString();
+  const requestId = `audition-auto-disabled:${organizationId}:${nowIso}`;
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET audition_settings_json = ?, updated_at = ?",
+      JSON.stringify(updatedSettings),
+      nowIso,
+    );
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_system', 'system:audition_expiration', 'audition.settings_auto_disabled',
+         'audition_settings', ?, ?, ?, ?)`,
+      requestId,
+      organizationId,
+      requestId,
+      JSON.stringify({
+        defaultPerformanceId: updatedSettings.defaultPerformanceId,
+        enabled: false,
+        mode: updatedSettings.mode,
+        reason: "audition_dates_passed",
+        slotCount: updatedSettings.slots.length,
+      }),
+      nowIso,
+    );
+  });
+  return updatedSettings;
+}
+
 export function readAuditionSettingsFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
+  now: Date = new Date(),
 ): Response {
   if (!organizationId)
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
@@ -38,12 +83,15 @@ export function readAuditionSettingsFromStore(
     raw = defaultAuditionSettings;
   }
   const parsed = organizationAuditionSettingsSchema.safeParse(raw);
-  return Response.json(parsed.success ? parsed.data : defaultAuditionSettings);
+  const initialSettings = parsed.success ? parsed.data : defaultAuditionSettings;
+  const settings = syncAuditionSettingsExpiration(storage, organizationId, initialSettings, now);
+  return Response.json(settings);
 }
 
 export function readPublicAuditionSettingsFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
+  now: Date = new Date(),
 ): Response {
   if (!organizationId)
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
@@ -68,7 +116,8 @@ export function readPublicAuditionSettingsFromStore(
     raw = defaultAuditionSettings;
   }
   const settingsResult = organizationAuditionSettingsSchema.safeParse(raw);
-  const settings = settingsResult.success ? settingsResult.data : defaultAuditionSettings;
+  const initialSettings = settingsResult.success ? settingsResult.data : defaultAuditionSettings;
+  const settings = syncAuditionSettingsExpiration(storage, organizationId, initialSettings, now);
   const performance = settings.defaultPerformanceId
     ? storage.sql
         .exec<{ readonly id: string; readonly startsAt: string; readonly title: string }>(

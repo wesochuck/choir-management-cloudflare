@@ -182,6 +182,11 @@ export {
   type RepertoireReportPiece,
 } from "./repertoireReportCsv";
 export { canTransitionDues, type DuesRecord, type DuesStatus, type SeasonInput } from "./seasons";
+export {
+  areAuditionDatesPassed,
+  type AuditionSettingsLike,
+  type AuditionSlotLike,
+} from "./auditions";
 export { MODULE_DEFINITIONS, resolveModuleEnabled, nextSetupStep, isSetupComplete } from "./setup";
 export type {
   ModuleCategory,

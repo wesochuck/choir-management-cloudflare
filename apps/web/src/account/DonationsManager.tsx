@@ -351,7 +351,11 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           {message}
         </p>
       ) : null}
-      <nav aria-label="Donation sections" className="ticketing-tabs" role="tablist">
+      <nav
+        aria-label="Donation sections"
+        className="ticketing-tabs donation-manager-tabs"
+        role="tablist"
+      >
         <button
           aria-controls="donation-history-panel"
           aria-selected={tab === "history"}

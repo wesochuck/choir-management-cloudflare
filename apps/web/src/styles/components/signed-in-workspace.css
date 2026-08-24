@@ -126,7 +126,7 @@
 
   .surface-card + .surface-card,
   .settings-stack > * + * {
-    margin-top: 1.25rem;
+    margin-top: 1rem;
   }
 
   .roster-automation__flow {
@@ -426,11 +426,27 @@
 
   .rsvp-manager__balance .roster-balance__header > div:first-child {
     min-width: 0;
+    flex: 1;
+  }
+
+  .rsvp-manager__performance-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+    margin: 0.75rem 0;
   }
 
   .rsvp-manager__performance {
     width: min(100%, 32rem);
-    margin: 0.75rem 0;
+    margin: 0;
+  }
+
+  .rsvp-manager__deadline-notice {
+    margin: 0;
+    align-self: flex-end;
+    font-size: var(--font-size-sm);
+    padding: 0.65rem 0.85rem;
   }
 
   .rsvp-manager__summary-actions {

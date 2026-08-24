@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { publicAuditionInquiryResponseSchema } from "@choir/contracts";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
+import { z } from "zod";
 
 import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
@@ -641,5 +642,123 @@ describe("public audition signed flow", () => {
       }),
     );
     expect(response.status).toBe(404);
+  });
+
+  it("automatically flips audition settings to off when audition dates have passed, while preserving management of submitted auditions", async () => {
+    // 1. Create a submitted audition while auditions were open
+    const auditionId = await createAuditionInOrg(
+      ALPHA_ORG,
+      "Existing Singer",
+      "existing@example.com",
+    );
+    const candidateToken = await issueAuditionToken(ALPHA_ORG, auditionId);
+
+    // 2. Configure audition settings with slots in the past, but enabled: true
+    const pastSlotsSettings = {
+      adminNotifyEnabled: false,
+      adminNotifyUsers: [],
+      confirmationMessage: "Thank you",
+      defaultPerformanceId: null,
+      enabled: true,
+      mode: "audition",
+      rehearsalNotes: "",
+      rehearsalSchedule: [],
+      slots: [
+        {
+          endsAt: "2020-01-01T15:00:00.000Z",
+          id: crypto.randomUUID(),
+          startsAt: "2020-01-01T14:00:00.000Z",
+        },
+      ],
+      startDate: null,
+      venueId: null,
+    };
+
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE organization_metadata SET audition_settings_json = ?",
+          JSON.stringify(pastSlotsSettings),
+        );
+        return null;
+      },
+    );
+
+    // 3. Fetch public settings -> should return enabled: false and have updated DB
+    const publicSettingsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-settings"),
+    );
+    expect(publicSettingsResponse.status).toBe(200);
+    const publicSettingsBody: unknown = await publicSettingsResponse.json();
+    expect(publicSettingsBody).toMatchObject({
+      enabled: false,
+    });
+
+    // Verify DB metadata was auto-updated to enabled: false
+    const storedSettings = await runInDurableObject<OrganizationStore, { enabled: boolean }>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) => {
+        const row = state.storage.sql
+          .exec<{ settings: string }>(
+            "SELECT audition_settings_json AS settings FROM organization_metadata LIMIT 1",
+          )
+          .one();
+        return z.object({ enabled: z.boolean() }).parse(JSON.parse(row.settings));
+      },
+    );
+    expect(storedSettings.enabled).toBe(false);
+
+    // 4. Public signup inquiry is rejected
+    const inquiryResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-inquiry", {
+        body: JSON.stringify({ email: "late@example.com", name: "Late Singer" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(inquiryResponse.status).toBe(409);
+
+    // 5. Existing candidate can still view and submit updates to their audition details
+    const candidateDetailsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-details", {
+        body: JSON.stringify({ token: candidateToken }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(candidateDetailsResponse.status).toBe(200);
+
+    const candidateUpdateResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/audition-submit", {
+        body: JSON.stringify({
+          availabilityNotes: "Available anytime",
+          token: candidateToken,
+          voicePart: "Alto",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(candidateUpdateResponse.status).toBe(200);
+
+    // 6. Organization admin can manage the submitted audition
+    const updatedResponse = await runInDurableObject<OrganizationStore, Response>(
+      stores.get(stores.idFromName(ALPHA_ORG)),
+      (_instance, state) =>
+        updateAuditionInStore(state.storage, auditionId, {
+          adminNotes: "Reviewed by director",
+          availabilityNotes: "Available anytime",
+          email: "existing@example.com",
+          experience: "5 years",
+          name: "Existing Singer Updated",
+          phone: "555-9999",
+          status: "completed",
+          voicePart: "Alto",
+        }),
+    );
+    expect(updatedResponse.status).toBe(200);
+    const updatedBody: unknown = await updatedResponse.json();
+    expect(updatedBody).toMatchObject({ name: "Existing Singer Updated" });
   });
 });
