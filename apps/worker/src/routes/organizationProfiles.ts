@@ -9,6 +9,77 @@ import type { WorkerHonoEnvironment } from "./helpers";
 
 import { browserOrganizationAuthAllowlist, isAuthorizedPlatformHostname } from "./helpers";
 
+interface AuthCookieAttributes {
+  readonly domain?: string;
+  readonly httpOnly?: boolean;
+  readonly path?: string;
+  readonly sameSite?: boolean | string;
+  readonly secure?: boolean;
+}
+
+interface AuthCookieDefinitionLike {
+  readonly name: string;
+  readonly attributes: AuthCookieAttributes;
+}
+
+function presentedCookieNames(headerValue: string | undefined): ReadonlySet<string> {
+  if (!headerValue) return new Set();
+  const names = headerValue
+    .split(";")
+    .map((pair) => pair.split("=", 1)[0]?.trim() ?? "")
+    .filter(Boolean);
+  return new Set(names);
+}
+
+function sameSiteAttributeValue(sameSite: boolean | string | undefined): string {
+  if (typeof sameSite === "boolean") return sameSite ? "Strict" : "Lax";
+  if (!sameSite) return "Lax";
+  return `${sameSite.charAt(0).toUpperCase()}${sameSite.slice(1)}`;
+}
+
+function expiredAuthCookie(
+  name: string,
+  attributes: AuthCookieAttributes,
+  includeDomain: boolean,
+): string {
+  const parts = [
+    `${name}=`,
+    `Path=${attributes.path ?? "/"}`,
+    "Max-Age=0",
+    "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+  ];
+  if (includeDomain && attributes.domain) parts.push(`Domain=${attributes.domain}`);
+  if (attributes.httpOnly ?? true) parts.push("HttpOnly");
+  if (attributes.secure) parts.push("Secure");
+  parts.push(`SameSite=${sameSiteAttributeValue(attributes.sameSite)}`);
+  return parts.join("; ");
+}
+
+async function staleAuthCookieExpiries(
+  cookieHeader: string | undefined,
+  auth: ReturnType<typeof createAuth>,
+): Promise<string[]> {
+  const presented = presentedCookieNames(cookieHeader);
+  if (presented.size === 0) return [];
+  const authContext = await auth.$context;
+  const pluginDefinitions = ["two_factor", "trust_device"].map((name) =>
+    authContext.createAuthCookie(name),
+  );
+  const definitions: AuthCookieDefinitionLike[] = [
+    ...Object.values(authContext.authCookies),
+    ...pluginDefinitions,
+  ];
+  const expiries: string[] = [];
+  for (const definition of definitions) {
+    if (!presented.has(definition.name)) continue;
+    expiries.push(expiredAuthCookie(definition.name, definition.attributes, false));
+    if (definition.attributes.domain) {
+      expiries.push(expiredAuthCookie(definition.name, definition.attributes, true));
+    }
+  }
+  return expiries;
+}
+
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/auth/get-session", async (context) => {
     const requestUrl = new URL(context.req.url);
@@ -30,7 +101,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       },
     });
     const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) return context.json(null);
+    if (!session) {
+      const expiryCookies = await staleAuthCookieExpiries(context.req.header("cookie"), auth);
+      const response = Response.json(null);
+      for (const cookie of expiryCookies) response.headers.append("set-cookie", cookie);
+      return response;
+    }
     return context.json({
       session: {
         activeOrganizationId: session.session.activeOrganizationId ?? null,

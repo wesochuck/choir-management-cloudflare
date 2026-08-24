@@ -112,6 +112,31 @@ describe("Better Auth Worker integration", () => {
     expect(sessionBody.session).not.toHaveProperty("token");
   });
 
+  it("expires stale auth cookies when a presented token fails verification", async () => {
+    const response = await fetchWorker(
+      authRequest("/api/auth/get-session", {
+        headers: {
+          cookie:
+            "__Secure-choir-management.session_token=stale.value; choir-management.session_token=older",
+        },
+        method: "GET",
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toBeNull();
+    const expirations = response.headers
+      .getSetCookie()
+      .filter((cookie) => cookie.includes("Max-Age=0"));
+    expect(
+      expirations.some(
+        (cookie) =>
+          cookie.includes("choir-management.session_token=") &&
+          cookie.includes("HttpOnly") &&
+          cookie.includes("Path=/"),
+      ),
+    ).toBe(true);
+  });
+
   it("keeps the email-and-password sign-up path disabled", async () => {
     const response = await fetchWorker(
       authRequest("/api/auth/sign-up/email", {
