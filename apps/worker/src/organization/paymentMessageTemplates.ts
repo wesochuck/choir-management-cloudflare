@@ -2,7 +2,7 @@ import { renderCommunicationTemplate } from "@choir/domain";
 
 export type PaymentMessageTemplateKind = "donation_confirmation" | "dues_confirmation";
 
-export interface PaymentMessageTemplate {
+interface PaymentMessageTemplate {
   readonly channel: "Email";
   readonly contentMarkdown: string;
   readonly id: string;
@@ -11,7 +11,7 @@ export interface PaymentMessageTemplate {
   readonly title: string;
 }
 
-export const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
+const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
@@ -32,15 +32,13 @@ export const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   },
 ] as const;
 
-export function paymentMessageTemplateFor(
-  kind: PaymentMessageTemplateKind,
-): PaymentMessageTemplate {
+function paymentMessageTemplateFor(kind: PaymentMessageTemplateKind): PaymentMessageTemplate {
   const template = paymentMessageTemplates.find((candidate) => candidate.kind === kind);
   if (!template) throw new Error(`Unknown payment message template: ${kind}`);
   return template;
 }
 
-export function readPaymentMessageTemplate(
+function readPaymentMessageTemplate(
   storage: DurableObjectStorage,
   kind: PaymentMessageTemplateKind,
 ): PaymentMessageTemplate {

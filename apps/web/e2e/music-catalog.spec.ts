@@ -1,3 +1,5 @@
+import type { OrganizationEvent } from "@choir/contracts";
+import { organizationEventRequestSchema } from "@choir/contracts";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const requestId = "90909090-9090-4090-8090-909090909090";
@@ -41,11 +43,58 @@ function isCreditRenameRequest(
   );
 }
 
+function mockEvent(
+  id: string,
+  title: string,
+  startsAt: string,
+  setList: OrganizationEvent["setList"] = [],
+): OrganizationEvent {
+  return {
+    advancePriceCents: 0,
+    callTime: "",
+    createdAt: "2026-08-17T00:00:00.000Z",
+    dayOfPriceCents: 0,
+    details: "",
+    doorsOpenTime: "",
+    durationMinutes: null,
+    id,
+    isCanceled: false,
+    isTicketingEnabled: false,
+    location: "",
+    parentPerformanceId: null,
+    publicDetails: "",
+    publicGraphicFileId: null,
+    publishOnWebsite: false,
+    rsvpDeadlineAt: null,
+    rsvpDeadlineDate: null,
+    rsvpDeadlinePassed: false,
+    rsvpFollowUpLeadHours: null,
+    rsvpFollowUpMode: "inherit",
+    rsvpSelfServiceOpen: false,
+    setList,
+    setListApproved: false,
+    startsAt,
+    ticketCapacity: null,
+    title,
+    type: "Performance",
+    updatedAt: "2026-08-17T00:00:00.000Z",
+    venueId: null,
+  };
+}
+
 async function installRoutes(page: Page): Promise<void> {
   let pieces = [
     piece("11111111-1111-4111-8111-111111111111", "First Work", "Jane Doe", "J. Smith"),
     piece("22222222-2222-4222-8222-222222222222", "Second Work", "Jane Doe", "Jane Doe"),
   ];
+  let events: OrganizationEvent[] = [
+    mockEvent(
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "Spring Gala 2026",
+      "2026-09-15T19:00:00.000Z",
+    ),
+  ];
+
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/organization/music/credits/rename") {
@@ -62,6 +111,42 @@ async function installRoutes(page: Page): Promise<void> {
       }));
       await fulfill(route, { pieces, requestId });
       return;
+    }
+    if (url.pathname === "/api/organization/events" && route.request().method() === "POST") {
+      const parsed = organizationEventRequestSchema.safeParse(route.request().postDataJSON());
+      if (parsed.success) {
+        const newEvent = mockEvent(
+          crypto.randomUUID(),
+          parsed.data.title,
+          parsed.data.startsAt,
+          parsed.data.setList,
+        );
+        events = [...events, newEvent];
+        await fulfill(route, newEvent);
+        return;
+      }
+    }
+    if (
+      url.pathname.startsWith("/api/organization/events/") &&
+      route.request().method() === "PUT"
+    ) {
+      const id = url.pathname.split("/").pop() ?? "";
+      const parsed = organizationEventRequestSchema.safeParse(route.request().postDataJSON());
+      if (parsed.success) {
+        events = events.map((e): OrganizationEvent => {
+          if (e.id !== id) return e;
+          return {
+            ...e,
+            ...parsed.data,
+            updatedAt: "2026-08-17T00:00:00.000Z",
+          };
+        });
+        const updated = events.find((e) => e.id === id);
+        if (updated) {
+          await fulfill(route, updated);
+          return;
+        }
+      }
     }
     const responses: Record<string, unknown> = {
       "/api/account/organizations": {
@@ -119,12 +204,13 @@ async function installRoutes(page: Page): Promise<void> {
         twoFactorVerified: false,
       },
       "/api/organization/calendar-settings": { requestId, timezone: "America/New_York" },
-      "/api/organization/events": { events: [], requestId },
+      "/api/organization/events": { events, requestId },
       "/api/organization/module-state": {
         modules: [
           { enabled: true, id: "events" },
-          { enabled: true, id: "people" },
-          { enabled: true, id: "programs" },
+          { enabled: true, id: "music_library" },
+          { enabled: true, id: "roster" },
+          { enabled: true, id: "setlists" },
         ],
       },
       "/api/organization/music": { pieces, requestId },
@@ -211,5 +297,45 @@ test("renames a composer credit from the bookmarkable directory and updates the 
     mobile < 600
       ? page.locator(".data-table-card:visible").filter({ hasText: "Jane Q. Doe / arr. J. Smith" })
       : page.locator("tbody tr:visible").filter({ hasText: "Jane Q. Doe / arr. J. Smith" }),
+  ).toBeVisible();
+});
+
+test("multi-selects pieces in music catalog and adds them to existing and new concert set lists", async ({
+  page,
+}) => {
+  await installRoutes(page);
+  await page.goto("/admin/library");
+
+  // Select both music pieces
+  const selectFirst = page.getByRole("checkbox", { name: "Select First Work" });
+  const selectSecond = page.getByRole("checkbox", { name: "Select Second Work" });
+  await selectFirst.click();
+  await selectSecond.click();
+
+  // Verify toolbar buttons show count
+  const addToSetListBtn = page.getByRole("button", { name: "Add to set list (2)" });
+  await expect(addToSetListBtn).toBeVisible();
+  await addToSetListBtn.click();
+
+  // Dialog opens
+  await expect(page.getByRole("heading", { name: "Add to set list" })).toBeVisible();
+  await expect(page.getByText("First Work, Second Work")).toBeVisible();
+
+  // 1. Test adding to existing concert
+  await page.getByRole("button", { name: "Add to set list", exact: true }).click();
+  await expect(page.getByText('Added 2 piece(s) to "Spring Gala 2026".')).toBeVisible();
+
+  // 2. Select pieces again and create a new concert set list
+  await selectFirst.click();
+  await selectSecond.click();
+  await page.getByRole("button", { name: "Add to set list (2)" }).click();
+
+  await page.getByLabel("Create new concert").click();
+  await page.getByLabel("Concert / Performance title").fill("Winter Concert 2026");
+  await page.getByLabel("Date and time").fill("2026-12-10T19:30");
+  await page.getByRole("button", { name: "Create concert & add set list" }).click();
+
+  await expect(
+    page.getByText('Created "Winter Concert 2026" and added 2 piece(s) to its set list.'),
   ).toBeVisible();
 });

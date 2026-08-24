@@ -14,7 +14,7 @@ import { ConfirmDialog } from "./shared";
 import type { ConfirmState } from "./types";
 import { groupSeatAssignmentProfiles, seatingRowSummary, statusLabel } from "./utils";
 
-export interface ChartDialogProps {
+interface ChartDialogProps {
   readonly changeNewChartRowCount: (value: number) => void;
   readonly changeNewChartSingerCount: (value: number) => void;
   readonly chartDialog: "create" | "rename" | null;
@@ -28,7 +28,7 @@ export interface ChartDialogProps {
   readonly setChartName: (name: string) => void;
 }
 
-export function ChartDialog({
+function ChartDialog({
   changeNewChartRowCount,
   changeNewChartSingerCount,
   chartDialog,
@@ -143,7 +143,7 @@ export function ChartDialog({
   );
 }
 
-export interface CopyChartDialogProps {
+interface CopyChartDialogProps {
   readonly copyBusy: boolean;
   readonly copyChartId: string;
   readonly copyCharts: readonly OrganizationSeatingChart[];
@@ -157,7 +157,7 @@ export interface CopyChartDialogProps {
   readonly setCopyOpen: (open: boolean) => void;
 }
 
-export function CopyChartDialog({
+function CopyChartDialog({
   copyBusy,
   copyChartId,
   copyCharts,
@@ -243,7 +243,7 @@ export function CopyChartDialog({
   );
 }
 
-export interface AddProfileDialogProps {
+interface AddProfileDialogProps {
   readonly partLabel: string;
   readonly profileBusy: boolean;
   readonly profileDialog: "add" | "lookup" | null;
@@ -255,7 +255,7 @@ export interface AddProfileDialogProps {
   readonly setProfileForm: Dispatch<SetStateAction<OrganizationProfileRequest>>;
 }
 
-export function AddProfileDialog({
+function AddProfileDialog({
   partLabel,
   profileBusy,
   profileDialog,
@@ -354,7 +354,7 @@ export function AddProfileDialog({
   );
 }
 
-export interface ProfileLookupDialogProps {
+interface ProfileLookupDialogProps {
   readonly eventId: string;
   readonly lookupProfiles: readonly OrganizationProfile[];
   readonly lookupQuery: string;
@@ -369,7 +369,7 @@ export interface ProfileLookupDialogProps {
   readonly setProfileDialog: (dialog: "add" | "lookup" | null) => void;
 }
 
-export function ProfileLookupDialog({
+function ProfileLookupDialog({
   eventId,
   lookupProfiles,
   lookupQuery,
@@ -438,7 +438,7 @@ export function ProfileLookupDialog({
   );
 }
 
-export interface SeatDetailDialogProps {
+interface SeatDetailDialogProps {
   readonly applyChart: (chart: OrganizationSeatingChartRequest) => void;
   readonly chart: OrganizationSeatingChartRequest;
   readonly eligibleProfiles: readonly OrganizationProfile[];
@@ -451,7 +451,7 @@ export interface SeatDetailDialogProps {
   readonly setSelectedSeat: (seatKey: string | null) => void;
 }
 
-export function SeatDetailDialog({
+function SeatDetailDialog({
   applyChart,
   chart,
   eligibleProfiles,

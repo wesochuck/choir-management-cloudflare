@@ -1210,6 +1210,14 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
   },
+  {
+    version: 72,
+    statements: [
+      "ALTER TABLE donations ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'stripe'",
+      "ALTER TABLE donations ADD COLUMN payment_reference TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE donations ADD COLUMN thank_you_sent_at TEXT",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

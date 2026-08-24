@@ -130,7 +130,7 @@ export function uniqueLabels(value: string): string[] {
   ];
 }
 
-export const genreChipColors = [
+const genreChipColors = [
   "teal",
   "blue",
   "violet",

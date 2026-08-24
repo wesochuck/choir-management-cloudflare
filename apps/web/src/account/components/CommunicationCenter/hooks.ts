@@ -5,6 +5,7 @@ import type {
   CommunicationMessage,
   CommunicationReach,
   CommunicationScheduledMessage,
+  OrganizationEmailSettings,
   OrganizationEvent,
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
@@ -24,6 +25,7 @@ import {
   cancelOrganizationCommunication,
   deleteOrganizationCommunicationDraft,
   getOrganizationCommunicationDeliverySummary,
+  getOrganizationEmailSettings,
   getOrganizationProviderStatus,
   listOrganizationCommunications,
   getOrganizationRosterConfiguration,
@@ -54,6 +56,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
     null,
   );
+  const [emailSettings, setEmailSettings] = useState<OrganizationEmailSettings | null>(null);
   const [rosterConfiguration, setRosterConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
   const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
@@ -164,6 +167,21 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     getOrganizationProviderStatus(controller.signal)
       .then((status) => {
         if (!controller.signal.aborted) setProviderStatus(status);
+      })
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted) setError(failureMessage(failure));
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    getOrganizationEmailSettings(controller.signal)
+      .then((settings) => {
+        if (!controller.signal.aborted) setEmailSettings(settings);
       })
       .catch((failure: unknown) => {
         if (!controller.signal.aborted) setError(failureMessage(failure));
@@ -487,6 +505,7 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     deleteDraft,
     draftMessages,
     editQueuedMessage,
+    emailSettings,
     enabled,
     error,
     events,

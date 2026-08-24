@@ -20,7 +20,7 @@ import {
   type MusicFolderSummaryFilter,
 } from "./model";
 
-export type MusicFolderReportLoadState = "loading" | "ready" | "error";
+type MusicFolderReportLoadState = "loading" | "ready" | "error";
 
 export interface MusicFolderReportController {
   readonly actionError: string | null;

@@ -72,7 +72,7 @@ export function messageQueueFailure(status, body) {
   return `HTTP ${String(status)}${code ? ` (${code})` : ""}`;
 }
 
-export function messageQueueAudience(profileId) {
+function messageQueueAudience(profileId) {
   return {
     eventId: null,
     globalStatuses: ["Active"],
@@ -315,7 +315,7 @@ async function wrongOrganizationBoundary(cookie, messageId) {
   return result.response.status;
 }
 
-export async function runMessageQueueQualification() {
+async function runMessageQueueQualification() {
   const cookie = await signIn();
   const profile = await resolveTargetProfile(cookie);
   const profileId = profile.id;

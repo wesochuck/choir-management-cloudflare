@@ -31,24 +31,16 @@ interface EnrollmentSecrets {
 interface PlatformSectionProps {
   readonly actionError: string | null;
   readonly children: ReactNode;
-  readonly eyebrow?: string;
   readonly title?: string;
-  readonly titleId?: string;
 }
 
 function PlatformSection({
   actionError,
   children,
-  eyebrow = "Platform security",
   title = "Platform Administrator access",
-  titleId = "platform-title",
 }: PlatformSectionProps) {
   return (
-    <section className="account-section account-section--platform" aria-labelledby={titleId}>
-      <div className="section-heading section-heading--compact platform-section__heading">
-        <p className="eyebrow">{eyebrow}</p>
-        <h2 id={titleId}>{title}</h2>
-      </div>
+    <section className="account-section account-section--platform" aria-label={title}>
       {actionError ? (
         <p className="notice notice--error" role="alert">
           {actionError}
@@ -312,48 +304,24 @@ interface PlatformAccessProps {
   readonly view?: PlatformAccessView;
 }
 
-function viewCopy(view: PlatformAccessView): {
-  readonly eyebrow: string;
-  readonly title: string;
-  readonly titleId: string;
-} {
+function viewTitle(view: PlatformAccessView): string {
   if (view === "organizations") {
-    return {
-      eyebrow: "Platform operations",
-      title: "Organizations",
-      titleId: "platform-organizations-title",
-    };
+    return "Organizations";
   }
   if (view === "access") {
-    return {
-      eyebrow: "Platform operations",
-      title: "Organization access",
-      titleId: "platform-access-title",
-    };
+    return "Organization access";
   }
   if (view === "email-suppressions") {
-    return {
-      eyebrow: "Provider safety",
-      title: "Global email suppressions",
-      titleId: "platform-email-suppressions-title",
-    };
+    return "Global email suppressions";
   }
   if (view === "dead-letters") {
-    return {
-      eyebrow: "Queue operations",
-      title: "Queue dead letters",
-      titleId: "platform-dead-letters-title",
-    };
+    return "Queue dead letters";
   }
-  return {
-    eyebrow: "Platform security",
-    title: "Platform Administrator access",
-    titleId: "platform-title",
-  };
+  return "Platform Administrator access";
 }
 
 export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
-  const copy = viewCopy(view);
+  const title = viewTitle(view);
   const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
   const [acknowledgedRecoveryCodes, setAcknowledgedRecoveryCodes] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -487,7 +455,7 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
   }
   if (accessState.status === "error") {
     return (
-      <PlatformSection actionError={actionError} {...copy}>
+      <PlatformSection actionError={actionError} title={title}>
         <p className="notice notice--error" role="alert">
           Platform Administrator status could not be checked. Refresh the page and try again.
         </p>
@@ -496,7 +464,7 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
   }
   if (accessState.status === "ready") {
     return (
-      <PlatformSection actionError={actionError} {...copy}>
+      <PlatformSection actionError={actionError} title={title}>
         <div className="notice notice--success platform-access-status" role="status">
           <strong>Platform access is ready.</strong> Verified with {accessState.context.mfaMethod};
           expires {displayDate(accessState.context.mfaVerifiedUntil)}.
@@ -511,7 +479,7 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
   }
   if (accessState.status === "needs_verification") {
     return (
-      <PlatformSection actionError={actionError} {...copy}>
+      <PlatformSection actionError={actionError} title={title}>
         <VerificationPanel
           busy={busy}
           code={verificationCode}
@@ -529,7 +497,7 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
     );
   }
   return (
-    <PlatformSection actionError={actionError} {...copy}>
+    <PlatformSection actionError={actionError} title={title}>
       <EnrollmentPanel
         acknowledgedRecoveryCodes={acknowledgedRecoveryCodes}
         busy={busy}

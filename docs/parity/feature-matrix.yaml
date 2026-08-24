@@ -951,13 +951,16 @@
         "path": "/api/organization/dues/:duesId/refund",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts (dues refund)",
         "targetEvidence":
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
+            "scripts/qualify-staging-stripe-commerce.mjs",
+            "scripts/qualify-staging-stripe-commerce.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -1072,7 +1075,7 @@
         "path": "/api/setup/claim",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1486",
         "targetEvidence":
           [
@@ -1080,6 +1083,9 @@
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
+            "scripts/qualify-staging-setup-maintenance.mjs",
+            "scripts/qualify-staging-setup-maintenance.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -1104,7 +1110,7 @@
         "path": "/api/setup/complete",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1488",
         "targetEvidence":
           [
@@ -1112,6 +1118,9 @@
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
+            "scripts/qualify-staging-setup-maintenance.mjs",
+            "scripts/qualify-staging-setup-maintenance.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -1120,14 +1129,17 @@
         "path": "/api/setup/recover-admin",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1489",
         "targetEvidence":
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/profiles.ts",
-            "apps/worker/test/auth.integration.test.ts",
+            "apps/worker/test/auth.platform.integration.test.ts",
+            "scripts/qualify-staging-setup-maintenance.mjs",
+            "scripts/qualify-staging-setup-maintenance.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -1357,10 +1369,14 @@
         "path": "/api/test-smtp",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1500",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/test/auth.platform.integration.test.ts",
+            "scripts/qualify-staging-setup-maintenance.mjs",
+          ],
       },
       {
         "id": "api.test-sms",
@@ -1368,10 +1384,14 @@
         "path": "/api/test-sms",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1501",
         "targetEvidence":
-          ["apps/worker/src/router.ts", "apps/worker/test/auth.platform.integration.test.ts"],
+          [
+            "apps/worker/src/router.ts",
+            "apps/worker/test/auth.platform.integration.test.ts",
+            "scripts/qualify-staging-setup-maintenance.mjs",
+          ],
       },
       {
         "id": "api.player-token",
@@ -1574,13 +1594,16 @@
         "path": "/api/organization/tickets/:purchaseId/refund",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1517",
         "targetEvidence":
           [
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/test/ticketing.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
+            "scripts/qualify-staging-stripe-commerce.mjs",
+            "scripts/qualify-staging-stripe-commerce.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -1589,11 +1612,46 @@
         "path": "/api/organization/donations/:donationId/refund",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1521",
         "targetEvidence":
           [
             "apps/worker/src/router.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+            "scripts/qualify-staging-stripe-commerce.mjs",
+            "scripts/qualify-staging-stripe-commerce.test.mjs",
+            "docs/goal/READINESS.md",
+          ],
+      },
+      {
+        "id": "api.manual-donation",
+        "method": "POST",
+        "path": "/api/organization/donations/manual",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1521",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationDonations.ts",
+            "apps/worker/src/organization/organizationDonations.ts",
+            "apps/worker/src/organization/donationStore.ts",
+            "apps/worker/test/calendarManagement.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.update-donation-thank-you",
+        "method": "POST",
+        "path": "/api/organization/donations/thank-you",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1521",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationDonations.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
             "apps/worker/test/calendarManagement.integration.test.ts",
@@ -1605,7 +1663,7 @@
         "path": "/api/organization/tickets/:purchaseId/confirmation",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/generate-main-pb-js.ts:1522",
         "targetEvidence":
           [
@@ -1613,6 +1671,9 @@
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/test/ticketing.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
+            "scripts/qualify-staging-stripe-commerce.mjs",
+            "scripts/qualify-staging-stripe-commerce.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -2108,7 +2169,7 @@
         "path": "/api/organization/music/credits/rename",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "User-requested restoration of the legacy composers/arrangers workflow; the read-only
           Parity Bridge is unavailable in this environment.",
@@ -2121,6 +2182,9 @@
             "apps/web/src/auth/api/music.ts",
             "apps/web/src/account/components/MusicCatalog/credits.tsx",
             "apps/web/e2e/music-catalog.spec.ts",
+            "scripts/qualify-staging-setup-maintenance.mjs",
+            "scripts/qualify-staging-setup-maintenance.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -2361,13 +2425,16 @@
         "task": "cleanup-stale-payments",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence": "pocketbase/pb_hooks_src/maintenance/cleanupTask.ts",
         "targetEvidence":
           [
             "apps/worker/src/organization/scheduler.ts",
             "apps/worker/test/scheduler.integration.test.ts",
             "apps/worker/test/paymentCleanup.integration.test.ts",
+            "scripts/qualify-staging-setup-maintenance.mjs",
+            "scripts/qualify-staging-setup-maintenance.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
     ],
@@ -2726,7 +2793,7 @@
         "workflow": "seasons, dues status, member/admin views, and checkout",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/services/seasonService.ts; src/services/duesService.ts; test/duesService.test.ts",
         "targetEvidence":
@@ -2737,6 +2804,9 @@
             "apps/worker/test/ticketing.integration.test.ts",
             "apps/worker/test/dues.integration.test.ts",
             "apps/web/src/account/SeasonsManager.tsx",
+            "scripts/qualify-staging-stripe-commerce.mjs",
+            "scripts/qualify-staging-stripe-commerce.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -3001,7 +3071,7 @@
         "workflow": "event/bundle sale, capacity, checkout, scan, will-call, and refund",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/services/ticketService.ts; src/views/admin/ticketing; test/pb-hooks/ticketing.test.ts",
         "targetEvidence":
@@ -3012,6 +3082,9 @@
             "apps/web/src/public/PublicTickets.tsx",
             "apps/web/src/account/TicketingManager.tsx",
             "apps/web/e2e/ticketing.spec.ts",
+            "scripts/qualify-staging-stripe-commerce.mjs",
+            "scripts/qualify-staging-stripe-commerce.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {
@@ -3019,7 +3092,7 @@
         "workflow": "donation checkout, tribute, anonymous, consent, patron linking, and refund",
         "owner": "apps/worker",
         "milestone": 5,
-        "status": "implemented",
+        "status": "verified",
         "baselineEvidence":
           "src/services/donationService.ts; src/views/admin/DonationsView.tsx;
           test/donationService.test.ts",
@@ -3031,6 +3104,9 @@
             "apps/worker/test/dues.integration.test.ts",
             "apps/web/src/public/PublicDonationView.tsx",
             "apps/web/src/account/DonationsManager.tsx",
+            "scripts/qualify-staging-stripe-commerce.mjs",
+            "scripts/qualify-staging-stripe-commerce.test.mjs",
+            "docs/goal/READINESS.md",
           ],
       },
       {

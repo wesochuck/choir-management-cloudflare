@@ -124,9 +124,9 @@ export function OrganizationDirectory() {
   }
 
   return (
-    <div className="platform-operations" aria-labelledby="platform-organizations-title">
+    <div className="platform-operations" aria-labelledby="platform-provisioning-title">
       <div className="section-heading section-heading--nested platform-operation__heading">
-        <h3 id="platform-organizations-title">Organization provisioning</h3>
+        <h3 id="platform-provisioning-title">Organization provisioning</h3>
         <p>
           Create one audited Organization registry and Durable Object at a time. Canonical hostname
           activation stays pending on workers.dev until a managed Cloudflare domain is available.

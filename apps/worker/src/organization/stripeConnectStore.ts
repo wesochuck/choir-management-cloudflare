@@ -24,7 +24,7 @@ interface StripeConnectRow {
   readonly updatedAt: string;
 }
 
-export interface StripeConnectStatus {
+interface StripeConnectStatus {
   readonly accountId: string | null;
   readonly chargesEnabled: boolean;
   readonly detailsSubmitted: boolean;

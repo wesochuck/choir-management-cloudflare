@@ -268,10 +268,6 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   }
   return (
     <section className="panel public-website-settings" aria-label="Public website settings">
-      <p className="section-description">
-        Edit a private draft, then publish an immutable edge-cached version for Organization
-        visitors.
-      </p>
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}

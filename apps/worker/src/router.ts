@@ -71,17 +71,42 @@ import { registerRoutes as registerMemberEmailChangeRoutes } from "./routes/memb
 
 export const router = new Hono<WorkerHonoEnvironment>();
 
-export const CONTENT_SECURITY_POLICY =
-  "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'";
+export function generateCspNonce(): string {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+export function buildContentSecurityPolicy(nonce?: string): string {
+  const scriptDirective = nonce
+    ? `script-src 'self' 'nonce-${nonce}' https://static.cloudflareinsights.com https://challenges.cloudflare.com`
+    : "script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com";
+
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    scriptDirective,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com",
+    "frame-src 'self' https://challenges.cloudflare.com",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+  ].join("; ");
+}
 
 export function setSecurityHeaders(
   headers: Headers,
   referrerPolicy = "strict-origin-when-cross-origin",
+  nonce = generateCspNonce(),
 ): void {
   headers.set("referrer-policy", referrerPolicy);
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-frame-options", "DENY");
-  headers.set("content-security-policy", CONTENT_SECURITY_POLICY);
+  headers.set("content-security-policy", buildContentSecurityPolicy(nonce));
 }
 
 router.use("*", requestId());
@@ -112,20 +137,22 @@ router.use("*", async (context, next) => {
   }
   await next();
 });
-function resolveCorsOrigin(requestOrigin: string | undefined, baseDomain: string): string {
-  if (!requestOrigin) {
-    return baseDomain === "localhost" ? "*" : `https://${baseDomain}`;
-  }
+function resolveCorsOrigin(
+  requestOrigin: string | undefined,
+  requestUrl: URL,
+  baseDomain: string,
+): string {
+  const candidate = requestOrigin ?? requestUrl.origin;
   try {
-    const originUrl = new URL(requestOrigin);
+    const originUrl = new URL(candidate);
     if (baseDomain === "localhost") {
       if (originUrl.hostname === "localhost" || originUrl.hostname.endsWith(".localhost")) {
-        return requestOrigin;
+        return candidate;
       }
       return "*";
     }
     if (originUrl.hostname === baseDomain || originUrl.hostname.endsWith(`.${baseDomain}`)) {
-      return requestOrigin;
+      return candidate;
     }
   } catch {
     // Fall back on invalid origin URLs
@@ -135,9 +162,10 @@ function resolveCorsOrigin(requestOrigin: string | undefined, baseDomain: string
 
 router.use("*", async (context, next) => {
   if (context.req.method === "OPTIONS") {
+    const requestUrl = new URL(context.req.url);
     context.res.headers.set(
       "access-control-allow-origin",
-      resolveCorsOrigin(context.req.header("origin"), context.env.PRODUCT_BASE_DOMAIN),
+      resolveCorsOrigin(context.req.header("origin"), requestUrl, context.env.PRODUCT_BASE_DOMAIN),
     );
     context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
     context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
@@ -149,7 +177,8 @@ router.use("*", async (context, next) => {
 });
 router.use("*", async (context, next) => {
   await next();
-  const responsePath = new URL(context.req.url).pathname;
+  const requestUrl = new URL(context.req.url);
+  const responsePath = requestUrl.pathname;
   const publicProjectionResponse =
     responsePath === "/api/public/projection" &&
     (context.res.status === 200 || context.res.status === 304);
@@ -173,7 +202,7 @@ router.use("*", async (context, next) => {
   );
   context.res.headers.set(
     "access-control-allow-origin",
-    resolveCorsOrigin(context.req.header("origin"), context.env.PRODUCT_BASE_DOMAIN),
+    resolveCorsOrigin(context.req.header("origin"), requestUrl, context.env.PRODUCT_BASE_DOMAIN),
   );
   context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
   context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");

@@ -1,9 +1,7 @@
 import type {
   OrganizationEvent,
   OrganizationProfile,
-  OrganizationProfileRequest,
   OrganizationRosterConfiguration,
-  OrganizationSeatingChartRequest,
   SeatingConfiguration,
 } from "@choir/contracts";
 
@@ -40,5 +38,3 @@ export interface SeatTileProps {
   readonly seatKey: string;
   readonly suggestion: string | undefined;
 }
-
-export type { OrganizationProfileRequest, OrganizationSeatingChartRequest };

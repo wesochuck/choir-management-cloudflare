@@ -143,8 +143,8 @@ export async function isEmailProviderSuppressed(
   return row?.active === 1;
 }
 
-export const emailRecipientSuppressedCode = "email_recipient_suppressed" as const;
-export const emailRecipientSuppressedMessage =
+const emailRecipientSuppressedCode = "email_recipient_suppressed" as const;
+const emailRecipientSuppressedMessage =
   "This email address is on the application-wide email suppression list. Contact a Platform Administrator to review the suppression.";
 
 export class EmailRecipientSuppressedError extends Error {

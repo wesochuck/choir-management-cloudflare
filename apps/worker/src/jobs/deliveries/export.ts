@@ -23,8 +23,8 @@ async function listOrganizationExportFiles(
       : { limit: EXPORT_FILE_PAGE_SIZE, prefix };
     const page = await bucket.list(options);
     objects.push(...page.objects);
-    if (!page.truncated || !page.cursor || objects.length > 5_000) {
-      return { objects, truncated: page.truncated || objects.length > 5_000 };
+    if (!page.truncated || !page.cursor || objects.length > 10_000) {
+      return { objects, truncated: page.truncated || objects.length > 10_000 };
     }
     cursor = page.cursor;
   }

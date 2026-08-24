@@ -44,7 +44,7 @@ export function ConfirmDialog({
   );
 }
 
-export function FormationOrderEditor({
+function FormationOrderEditor({
   formation,
   onChange,
   roster,

@@ -1,9 +1,6 @@
 export {
   emailProviderSourceKindSchema,
   type EmailProviderSourceKind,
-  type EmailProviderStatus,
-  type EmailProviderRouteInput,
-  type NormalizedEmailProviderEvent,
 } from "./emailFeedback/contracts";
 export { parseCloudflareEmailEvent } from "./emailFeedback/parser";
 export {
@@ -11,14 +8,11 @@ export {
   assertEmailProviderRecipientsAvailable,
   attachEmailProviderMessage,
   backfillEmailProviderRoutes,
-  emailRecipientSuppressedCode,
-  emailRecipientSuppressedMessage,
   EmailRecipientSuppressedError,
   isEmailProviderSuppressed,
   markEmailProviderRouteUnknown,
   prepareEmailProviderRoute,
 } from "./emailFeedback/routes";
-export { ingestEmailProviderEvent } from "./emailFeedback/ingestion";
 export {
   acknowledgeEmailProviderDeadLetter,
   acknowledgeEmailProviderEvent,

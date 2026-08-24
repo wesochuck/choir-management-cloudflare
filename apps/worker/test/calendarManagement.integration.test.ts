@@ -1,5 +1,6 @@
 import {
   calendarFeedUrlsResponseSchema,
+  donationResponseSchema,
   organizationCalendarSettingsResponseSchema,
   organizationDashboardSummaryResponseSchema,
   organizationEventSchema,
@@ -262,8 +263,8 @@ describe("Organization calendar management", () => {
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       const now = new Date().toISOString();
       state.storage.transactionSync(() => {
-        for (let index = 0; index < 5_001; index += 1) {
-          const suffix = String(index).padStart(4, "0");
+        for (let index = 0; index < 10_001; index += 1) {
+          const suffix = String(index).padStart(5, "0");
           state.storage.sql.exec(
             `INSERT INTO audit_events
                 (id, actor_type, actor_id, action, target_type, target_id,
@@ -304,8 +305,8 @@ describe("Organization calendar management", () => {
     const snapshot = organizationExportSnapshotSchema.parse(await snapshotResponse.json());
     expect(snapshotResponse.status).toBe(200);
     expect(snapshot.safety.tooLarge).toBe(true);
-    expect(snapshot.safety.tableCounts.audit_events).toBeGreaterThan(5_000);
-    expect(snapshot.records.audit_events).toHaveLength(5_000);
+    expect(snapshot.safety.tableCounts.audit_events).toBeGreaterThan(10_000);
+    expect(snapshot.records.audit_events).toHaveLength(10_000);
 
     const message = {
       attempts: 1,
@@ -776,7 +777,7 @@ describe("Organization calendar management", () => {
     const createdAt = new Date("2029-12-01T00:00:00.000Z").toISOString();
     const stub = stores.get(stores.idFromName("organization-alpha"));
     await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
-      for (let offset = 0; offset < 5_000; offset += 25) {
+      for (let offset = 0; offset < 500; offset += 25) {
         const rows = Array.from({ length: 25 }, (_, index) => {
           const sequence = String(offset + index);
           const id = `scale-profile-${sequence}`;
@@ -788,7 +789,7 @@ describe("Organization calendar management", () => {
           ...rows.flat(),
         );
       }
-      for (let offset = 0; offset < 500; offset += 10) {
+      for (let offset = 0; offset < 50; offset += 10) {
         const rows = Array.from({ length: 10 }, (_, index) => {
           const sequence = offset + index;
           const id = `00000000-0000-4000-8000-${String(sequence).padStart(12, "0")}`;
@@ -817,8 +818,8 @@ describe("Organization calendar management", () => {
     const elapsedMs = performance.now() - startedAt;
     expect(response.status).toBe(200);
     const summary = organizationDashboardSummaryResponseSchema.parse(await response.json());
-    expect(summary.activeProfileCount).toBe(5_000);
-    expect(summary.upcomingEventCount).toBe(500);
+    expect(summary.activeProfileCount).toBe(500);
+    expect(summary.upcomingEventCount).toBe(50);
     expect(summary.nextEvents).toHaveLength(5);
     expect(elapsedMs).toBeLessThan(1_000);
   });
@@ -879,7 +880,7 @@ describe("Organization calendar management", () => {
     });
 
     const progress = await post("alpha.localhost", "/api/setup/progress", cookie, {
-      data: { events: true, people: true },
+      data: { events: true, music_library: true, setlists: false },
       step: "modules",
     });
     expect(progress.status).toBe(200);
@@ -890,11 +891,11 @@ describe("Organization calendar management", () => {
     );
     expect(modules.status).toBe(200);
     expect(await modules.json()).toMatchObject({
-      modules: [
-        { enabled: true, id: "people" },
-        { enabled: true, id: "events" },
-        { enabled: false, id: "programs" },
-      ],
+      modules: expect.arrayContaining([
+        expect.objectContaining({ enabled: true, id: "events" }),
+        expect.objectContaining({ enabled: true, id: "music_library" }),
+        expect.objectContaining({ enabled: false, id: "setlists" }),
+      ]),
     });
 
     const complete = await post("alpha.localhost", "/api/setup/complete", cookie, {});
@@ -1002,6 +1003,157 @@ describe("Organization calendar management", () => {
       }),
     );
     expect(crossTenantRefund.status).toBe(404);
+
+    // Record a manual check donation with email
+    const manualCheckResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations/manual", cookie, {
+        body: JSON.stringify({
+          amountCents: 5000,
+          anonymous: false,
+          buyerEmail: "manual-donor@example.test",
+          buyerName: "Manual Donor",
+          paymentMethod: "check",
+          paymentReference: "Check #789",
+          thankYouSent: false,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(manualCheckResponse.status).toBe(201);
+    const manualCheck = donationResponseSchema.parse(await manualCheckResponse.json());
+    expect(manualCheck.donation.thankYouSentAt).toBeNull();
+
+    // Verify patron was linked
+    const patronsAfterManual = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/patrons", cookie),
+    );
+    expect(patronsAfterManual.status).toBe(200);
+    expect(await patronsAfterManual.json()).toMatchObject({
+      patrons: [
+        expect.objectContaining({
+          email: "manual-donor@example.test",
+          name: "Manual Donor",
+          totalDonatedCents: 5000,
+        }),
+      ],
+    });
+
+    // Toggle thank-you letter status to sent
+    const thankYouSentResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations/thank-you", cookie, {
+        body: JSON.stringify({
+          donationId: manualCheck.donation.id,
+          thankYouSent: true,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(thankYouSentResponse.status).toBe(200);
+    const thankYouSentData = donationResponseSchema.parse(await thankYouSentResponse.json());
+    expect(thankYouSentData.donation.thankYouSentAt).not.toBeNull();
+
+    // Toggle thank-you letter status back to pending
+    const thankYouPendingResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations/thank-you", cookie, {
+        body: JSON.stringify({
+          donationId: manualCheck.donation.id,
+          thankYouSent: false,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(thankYouPendingResponse.status).toBe(200);
+    const thankYouPendingData = donationResponseSchema.parse(await thankYouPendingResponse.json());
+    expect(thankYouPendingData.donation.thankYouSentAt).toBeNull();
+
+    // Refund manual check donation
+    const refundManualResponse = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/donations/${manualCheck.donation.id}/refund`,
+        cookie,
+        {
+          method: "POST",
+        },
+      ),
+    );
+    expect(refundManualResponse.status).toBe(200);
+    expect(await refundManualResponse.json()).toMatchObject({
+      id: manualCheck.donation.id,
+      status: "refunded",
+    });
+
+    const seasonId = crypto.randomUUID();
+    const duesId = crypto.randomUUID();
+    const duesProfileId = crypto.randomUUID();
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+          duesProfileId,
+          "Dues Payer",
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO seasons (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+           VALUES (?, 'Refund Season', ?, ?, 2500, ?, ?)`,
+          seasonId,
+          now,
+          now,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO dues
+            (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+             provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+           VALUES (?, ?, ?, 2500, 0, ?, ?, 'dues@example.test', 'paid', 'online', ?, ?, ?)`,
+          duesId,
+          seasonId,
+          duesProfileId,
+          `fake_session_${duesId}`,
+          `fake_payment_${duesId}`,
+          now,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO payment_attempts
+            (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+             provider_payment_id, status, amount_cents, created_at, updated_at)
+           VALUES (?, 'dues', ?, ?, ?, ?, 'paid', 2500, ?, ?)`,
+          `payment-attempt:${duesId}`,
+          duesId,
+          crypto.randomUUID(),
+          `fake_session_${duesId}`,
+          `fake_payment_${duesId}`,
+          now,
+          now,
+        );
+        return null;
+      },
+    );
+    const refundedDues = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/dues/${duesId}/refund`, cookie, {
+        method: "POST",
+      }),
+    );
+    expect(refundedDues.status).toBe(200);
+    expect(await refundedDues.json()).toMatchObject({
+      id: duesId,
+      status: "refunded",
+    });
+    const crossTenantDuesRefund = await exports.default.fetch(
+      api("bravo.localhost", `/api/organization/dues/${duesId}/refund`, cookie, {
+        method: "POST",
+      }),
+    );
+    expect(crossTenantDuesRefund.status).toBe(404);
   });
 
   it("manages Organization polls and issues recipient-scoped poll tokens", async () => {

@@ -279,9 +279,6 @@ export function AuditionManager({ enabled }: Props) {
   return (
     <section className="panel" aria-label="Audition management">
       <div className="page-toolbar">
-        <p className="section-description">
-          Review inquiries, schedule time slots, and convert candidates into Organization Profiles.
-        </p>
         <div className="table-actions">
           <button
             className="button button--primary"

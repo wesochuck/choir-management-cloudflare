@@ -40,7 +40,7 @@
   .attendance-manager__sync {
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
-    margin: 0.4rem 0 0;
+    margin: 0;
   }
 
   .attendance-manager__sync span {

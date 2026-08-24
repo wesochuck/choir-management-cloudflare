@@ -1,11 +1,21 @@
-import { donationRecordSchema, type DonationLevel, type DonationSettings } from "@choir/contracts";
+import {
+  donationRecordSchema,
+  type DonationLevel,
+  type DonationSettings,
+  type ManualDonationCreateRequest,
+} from "@choir/contracts";
+import { buildDonorSuggestions, type DonorSuggestion } from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 
 import {
+  createManualOrganizationDonation,
   getOrganizationCalendarSettings,
   getOrganizationDonationSettings,
+  listOrganizationDirectory,
+  listOrganizationTicketOrders,
   updateOrganizationDonationSettings,
+  updateOrganizationDonationThankYou,
 } from "../auth/api";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
 import { DonationHistoryTab } from "./components/DonationsManager/DonationHistoryTab";
@@ -13,8 +23,8 @@ import { DonationLevelDialog } from "./components/DonationsManager/DonationLevel
 import { DonationLevelsTab } from "./components/DonationsManager/DonationLevelsTab";
 import { DonationPageSettingsTab } from "./components/DonationsManager/DonationPageSettingsTab";
 import { DonationPortalTab } from "./components/DonationsManager/DonationPortalTab";
+import { ManualDonationModal } from "./components/DonationsManager/ManualDonationModal";
 import {
-  donationsCsv,
   parseDonations,
   parsePatrons,
   type DonationSettingsState,
@@ -34,6 +44,8 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     status: "loading",
   });
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [donorSuggestions, setDonorSuggestions] = useState<readonly DonorSuggestion[]>([]);
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
   const [levelError, setLevelError] = useState<string | null>(null);
   const [levelLabel, setLevelLabel] = useState("");
@@ -84,6 +96,45 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
       controller.abort();
     };
   }, [enabled]);
+
+  useEffect(() => {
+    if (!manualModalOpen) return;
+    let cancelled = false;
+    async function gather(): Promise<void> {
+      const [ordersResult, directoryResult] = await Promise.allSettled([
+        listOrganizationTicketOrders(),
+        listOrganizationDirectory(),
+      ]);
+      if (cancelled) return;
+      const patrons =
+        patronState.status === "ready"
+          ? patronState.patrons.map((patron) => ({
+              email: patron.email,
+              name: patron.name,
+              totalDonatedCents: patron.totalDonatedCents,
+            }))
+          : [];
+      const buyers =
+        ordersResult.status === "fulfilled"
+          ? ordersResult.value.map((order) => ({
+              buyerEmail: order.buyerEmail,
+              buyerName: order.buyerName,
+            }))
+          : [];
+      const members =
+        directoryResult.status === "fulfilled"
+          ? directoryResult.value.map((profile) => ({
+              displayName: profile.displayName,
+              email: profile.email,
+            }))
+          : [];
+      setDonorSuggestions(buildDonorSuggestions(patrons, buyers, members));
+    }
+    void gather();
+    return () => {
+      cancelled = true;
+    };
+  }, [manualModalOpen, patronState]);
 
   function openNewLevel(): void {
     setEditingLevelId(null);
@@ -220,6 +271,50 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function handleSaveManualDonation(payload: ManualDonationCreateRequest): Promise<void> {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const created = await createManualOrganizationDonation(payload);
+      setDonationState((current) =>
+        current.status === "ready"
+          ? { donations: [created, ...current.donations], status: "ready" }
+          : current,
+      );
+      const patronsRes = await fetch("/api/organization/patrons", { credentials: "same-origin" });
+      if (patronsRes.ok) {
+        const patronsBody: unknown = await patronsRes.json();
+        setPatronState({ patrons: parsePatrons(patronsBody), status: "ready" });
+      }
+      setMessage("Manual donation recorded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateThankYou(donationId: string, thankYouSent: boolean): Promise<void> {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const updated = await updateOrganizationDonationThankYou({ donationId, thankYouSent });
+      setDonationState((current) =>
+        current.status === "ready"
+          ? {
+              donations: current.donations.map((d) => (d.id === updated.id ? updated : d)),
+              status: "ready",
+            }
+          : current,
+      );
+      setMessage(
+        thankYouSent ? "Thank-you letter marked as sent." : "Thank-you letter marked as pending.",
+      );
+    } catch {
+      setMessage("The thank-you letter status could not be updated.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const portalCopyDirty = useMemo(() => {
     if (settingsState.status !== "ready") return false;
     return (
@@ -249,28 +344,13 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   });
 
   if (!enabled) return null;
-  const donationExportHref =
-    donationState.status === "ready"
-      ? `data:text/csv;charset=utf-8,${encodeURIComponent(donationsCsv(donationState.donations))}`
-      : undefined;
   return (
     <section className="panel" aria-label="Donations and giving management">
-      {message && !settingsDialogOpen ? (
+      {message && !settingsDialogOpen && !manualModalOpen ? (
         <p className="notice notice--info" role="status">
           {message}
         </p>
       ) : null}
-      <header className="ticketing-page-header">
-        <div>
-          <p>
-            Monitor your choir&apos;s incoming donations, giving activity, and donor recognition
-            tiers.
-          </p>
-        </div>
-        <a className="button button--secondary" download="donations.csv" href={donationExportHref}>
-          Export CSV
-        </a>
-      </header>
       <nav aria-label="Donation sections" className="ticketing-tabs" role="tablist">
         <button
           aria-controls="donation-history-panel"
@@ -334,11 +414,15 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           <DonationHistoryTab
             busy={busy}
             donationState={donationState}
+            onOpenManualModal={() => {
+              setManualModalOpen(true);
+            }}
             patronState={patronState}
             refund={refund}
             refundId={refundId}
             setRefundId={setRefundId}
             timezone={timezone}
+            updateThankYou={handleUpdateThankYou}
           />
         ) : tab === "levels" ? (
           <DonationLevelsTab
@@ -362,6 +446,15 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           />
         )}
       </div>
+      <ManualDonationModal
+        busy={busy}
+        onClose={() => {
+          if (!busy) setManualModalOpen(false);
+        }}
+        onSave={handleSaveManualDonation}
+        open={manualModalOpen}
+        suggestions={donorSuggestions}
+      />
       <DonationLevelDialog
         busy={busy}
         editingLevelId={editingLevelId}

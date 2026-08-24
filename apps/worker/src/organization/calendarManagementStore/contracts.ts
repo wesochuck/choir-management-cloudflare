@@ -9,7 +9,7 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 
-export const actorSchema = z.object({
+const actorSchema = z.object({
   actorUserId: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
   requestId: z.uuid(),

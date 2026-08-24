@@ -1,10 +1,15 @@
 export type DonationStatus = "expired" | "paid" | "pending" | "refunded";
+export type DonationPaymentMethod =
+  "stripe" | "check" | "cash" | "bank_transfer" | "card_offline" | "other";
 export type DonationTributeType = "honor" | "memory" | "anonymous" | "none";
 
 export interface DonationInput {
   readonly amountCents: number;
   readonly anonymous: boolean;
   readonly marketingConsent: boolean;
+  readonly paymentMethod?: DonationPaymentMethod;
+  readonly paymentReference?: string;
+  readonly thankYouSentAt?: string | null;
   readonly tributeName: string;
   readonly tributeNotifyEmail: string;
   readonly tributeType: DonationTributeType;
@@ -19,7 +24,10 @@ export interface DonationRecord {
   readonly id: string;
   readonly marketingConsent: boolean;
   readonly patronId: string | null;
+  readonly paymentMethod?: DonationPaymentMethod;
+  readonly paymentReference?: string;
   readonly status: DonationStatus;
+  readonly thankYouSentAt?: string | null;
   readonly tributeName: string;
   readonly tributeNotifyEmail: string;
   readonly tributeType: DonationTributeType;

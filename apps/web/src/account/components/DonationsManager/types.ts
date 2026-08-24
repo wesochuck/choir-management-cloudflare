@@ -5,6 +5,7 @@ import {
   type DonationSettings,
   type PatronRecord,
 } from "@choir/contracts";
+import { renderDonationCsv, type DonationExportRow } from "@choir/domain";
 
 export type DonationState =
   | { readonly status: "error" }
@@ -55,22 +56,20 @@ export function parsePatrons(body: unknown): readonly PatronRecord[] {
   return parsed.success ? parsed.data.patrons : [];
 }
 
-function csvCell(value: string | number): string {
-  return `"${String(value).replaceAll('"', '""')}"`;
-}
-
 export function donationsCsv(donations: readonly DonationRecord[]): string {
-  const rows = [
-    ["Donor", "Email", "Amount", "Processing fee", "Tribute", "Status", "Date"],
-    ...donations.map((donation) => [
-      donation.anonymous ? "Anonymous" : donation.buyerName,
-      donation.anonymous ? "" : donation.buyerEmail,
-      money(donation.amountCents),
-      money(donation.feeCents),
-      `${tributeLabel(donation.tributeType)}${donation.tributeName ? `: ${donation.tributeName}` : ""}`,
-      donation.status,
-      donation.createdAt,
-    ]),
-  ];
-  return rows.map((row) => row.map((value) => csvCell(value)).join(",")).join("\n");
+  const exportRows: DonationExportRow[] = donations.map((donation) => ({
+    amountPaidCents: donation.amountCents,
+    anonymous: donation.anonymous,
+    createdAt: donation.createdAt,
+    donorEmail: donation.anonymous ? "" : donation.buyerEmail,
+    donorName: donation.anonymous ? "Anonymous" : donation.buyerName,
+    id: donation.id,
+    paymentMethod: donation.paymentMethod,
+    paymentReference: donation.paymentReference,
+    status: donation.status,
+    thankYouSentAt: donation.thankYouSentAt,
+    tributeName: donation.tributeName,
+    tributeType: donation.tributeType,
+  }));
+  return renderDonationCsv(exportRows);
 }

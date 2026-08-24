@@ -6,7 +6,7 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 
-export const organizationContextSchema = z.object({
+const organizationContextSchema = z.object({
   organizationId: z.string().min(1).max(128),
 });
 
@@ -42,7 +42,7 @@ export const refundOperationSchema = organizationContextSchema.extend({
   requestId: z.uuid(),
 });
 
-export const stripeTicketOperationSchema = organizationContextSchema.extend({
+const stripeTicketOperationSchema = organizationContextSchema.extend({
   checkoutRequestId: z.uuid().optional(),
   providerPaymentId: z.string().trim().max(256),
   providerSessionId: z.string().trim().min(1).max(256),
@@ -64,7 +64,7 @@ export const issueScanCredentialOperationSchema = organizationContextSchema.exte
   requestId: z.uuid(),
 });
 
-export const bundleActorSchema = organizationContextSchema.extend({
+const bundleActorSchema = organizationContextSchema.extend({
   actorUserId: z.string().min(1).max(128),
   requestId: z.uuid(),
 });

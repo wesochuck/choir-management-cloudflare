@@ -8,7 +8,7 @@ import type {
 } from "./contracts";
 import { discountCodeResult, discountCodeRows } from "./readModel";
 
-export function discountCodeItemExists(
+function discountCodeItemExists(
   storage: DurableObjectStorage,
   code: z.infer<typeof discountCodeRequestSchema>,
 ): boolean {

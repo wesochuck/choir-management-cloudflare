@@ -14,6 +14,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "audit": "npm audit --audit-level=high",
     "bootstrap:staging-platform-admin": "node scripts/bootstrap-staging-platform-admin.mjs",
     "build": "npm run build --workspaces --if-present",
@@ -40,6 +41,8 @@
     "qualify:staging:clear-cache": "node scripts/staging-auth-helper.mjs --clear-cache",
     "qualify:staging:scheduler": "node scripts/qualify-staging-scheduler.mjs",
     "qualify:staging:ticket-reminder": "node scripts/qualify-staging-ticket-reminder.mjs",
+    "qualify:staging:stripe-commerce": "node scripts/qualify-staging-stripe-commerce.mjs",
+    "qualify:staging:setup-maintenance": "node scripts/qualify-staging-setup-maintenance.mjs",
     "setup:env": "node scripts/setup-developer-environment.mjs",
     "dev": "WRANGLER_LOG_PATH=.wrangler/logs wrangler dev --config apps/worker/wrangler.jsonc",
     "format": "prettier --write .",
@@ -56,7 +59,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.20.1",
-    "@cloudflare/workers-types": "5.20260801.1",
+    "@cloudflare/workers-types": "5.20260820.1",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.61.1",
     "@types/node": "26.1.1",
@@ -69,7 +72,7 @@
     "typescript": "6.0.2",
     "typescript-eslint": "8.65.0",
     "vitest": "4.1.10",
-    "wrangler": "4.118.0",
+    "wrangler": "4.125.0",
     "yaml": "2.9.0"
   },
   "overrides": {

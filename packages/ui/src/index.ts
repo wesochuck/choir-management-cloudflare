@@ -12,6 +12,7 @@ export {
 export { ConfirmDialog, type ConfirmationOptions } from "./ConfirmDialog";
 export { Dialog, DialogClose } from "./Dialog";
 export { DropdownMenu } from "./DropdownMenu";
+export { Autocomplete, type AutocompleteOption } from "./Autocomplete";
 export { Sheet } from "./Sheet";
 export { useConfirmation } from "./useConfirmation";
 

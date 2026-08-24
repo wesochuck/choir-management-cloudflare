@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  reportAggregateMatched,
   safeSchedulerQualificationSummary,
   schedulerBoundaryResponsesSafe,
   schedulerBoundaryStatusesRejected,
@@ -176,5 +177,38 @@ describe("staging scheduler qualification helpers", () => {
       rehearsalParent: { parentRosterApplied: true, replayStable: true },
       postEventReport: { aggregateMatched: true, replayStable: true },
     });
+  });
+
+  it("matches rendered attendance report aggregates from system templates and legacy formats", () => {
+    const renderedTemplateState = {
+      messages: [
+        {
+          contentMarkdown:
+            "## 100% attendance for QUAL-2026-08-20-12345678 post-event report\n\n- **Present:** 1 of 1\n- **Date and time:** August 20, 2026 at 7:00 PM\n- **Event type:** Performance\n\n### Rehearsal follow-up warnings\nNo profiles met the warning threshold.\n\n### Absences\n\n- None recorded\n\nThank you,\nChoir Management",
+          id: messageId,
+        },
+      ],
+    };
+    expect(reportAggregateMatched(renderedTemplateState)).toBe(true);
+
+    const legacyFormatState = {
+      messages: [
+        {
+          contentMarkdown: "Attendance rate: **100%**\nPresent: 1 / 1\nDate: August 20, 2026",
+          id: messageId,
+        },
+      ],
+    };
+    expect(reportAggregateMatched(legacyFormatState)).toBe(true);
+
+    const nonMatchingState = {
+      messages: [
+        {
+          contentMarkdown: "## 50% attendance for Concert\n\n- **Present:** 1 of 2\n",
+          id: messageId,
+        },
+      ],
+    };
+    expect(reportAggregateMatched(nonMatchingState)).toBe(false);
   });
 });

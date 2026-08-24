@@ -24,7 +24,6 @@ export {
   listTicketOrdersFromStore,
   readPublicDiscountAvailabilityFromStore,
   readTicketNotificationJobFromStore,
-  readTicketPurchaseByProviderSessionFromStore,
   readTicketPurchaseFromStore,
   readTicketWillCallFromStore,
 } from "./ticketingStore/queries";

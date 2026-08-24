@@ -4,6 +4,7 @@ import {
   type SetupProgressRequest,
   type SetupStatus,
 } from "@choir/contracts";
+import { MODULE_DEFINITIONS } from "@choir/domain";
 import { useEffect, useState } from "react";
 
 import { SetupDataImportStep } from "./SetupDataImportStep";
@@ -41,11 +42,9 @@ export function SetupView() {
   const [currentStep, setCurrentStep] = useState<Step>("organization_info");
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
-  const [modules, setModules] = useState<Record<string, boolean>>({
-    people: true,
-    events: true,
-    programs: true,
-  });
+  const [modules, setModules] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(MODULE_DEFINITIONS.map((def) => [def.id, def.defaultEnabled])),
+  );
   const [themePrimary, setThemePrimary] = useState("#1a1a2e");
   const [themeAccent, setThemeAccent] = useState("#e94560");
   const [busy, setBusy] = useState(false);
@@ -238,18 +237,23 @@ export function SetupView() {
         ) : currentStep === "modules" ? (
           <>
             <h2 id="setup-step-heading">Modules</h2>
-            <p>Enable the modules your Organization needs.</p>
-            <div className="form-stack">
-              {Object.entries(modules).map(([key, enabled]) => (
-                <label key={key} className="checkbox-label">
+            <p>Enable the feature modules your Organization needs.</p>
+            <div className="form-stack" style={{ gap: "0.75rem" }}>
+              {MODULE_DEFINITIONS.map((def) => (
+                <label key={def.id} className="checkbox-row">
                   <input
-                    checked={enabled}
+                    checked={modules[def.id] ?? def.defaultEnabled}
                     onChange={(e) => {
-                      setModules((prev) => ({ ...prev, [key]: e.target.checked }));
+                      setModules((prev) => ({ ...prev, [def.id]: e.target.checked }));
                     }}
                     type="checkbox"
                   />
-                  {key.charAt(0).toUpperCase() + key.slice(1)}
+                  <div>
+                    <strong>{def.label}</strong>
+                    <span className="field-help" style={{ display: "block" }}>
+                      {def.description}
+                    </span>
+                  </div>
                 </label>
               ))}
             </div>

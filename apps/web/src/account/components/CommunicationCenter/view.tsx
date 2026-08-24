@@ -27,6 +27,26 @@ function queuedReachMessage(total: number): string {
   return `${String(total)} ${total === 1 ? "recipient was" : "recipients were"} queued for delivery.`;
 }
 
+function deliveryModeLabel(environment: string, externalEffectsMode: string): string {
+  if (environment === "production") return "Live";
+  if (externalEffectsMode === "fake") return "Simulated";
+  if (externalEffectsMode === "disabled") return "Disabled";
+  return "Staging sandbox";
+}
+
+function deliveryModeDescription(environment: string, externalEffectsMode: string): string {
+  if (environment === "production") {
+    return "Messages are delivered live to recipients via Cloudflare Email Sending.";
+  }
+  if (externalEffectsMode === "fake") {
+    return "Messages are recorded as sent for testing, but no external provider request is made.";
+  }
+  if (externalEffectsMode === "disabled") {
+    return "Messages are recorded as suppressed and are not sent.";
+  }
+  return "Messages are delivered under staging sandbox restrictions (allowlisted QA recipients only).";
+}
+
 function DeliveryDetails({
   busy,
   message,
@@ -118,6 +138,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
     deleteDraft,
     draftMessages,
     editQueuedMessage,
+    emailSettings,
     enabled,
     error,
     events,
@@ -165,25 +186,20 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
   const brevoNeedsAttention = brevoStatus === "attention" || brevoStatus === "error";
   const brevoStatusMessage =
     brevoStatus === "error"
-      ? "Email delivery is not configured. Audition notices and other organization emails cannot be sent until Brevo is configured."
+      ? (providerStatus?.brevo.detail ?? "Email delivery is not configured.")
       : "Email delivery is not active in this environment. Messages will not reach recipients until delivery is enabled.";
   const selectedEvent = audience.eventId
     ? (events.find((event) => event.id === audience.eventId) ?? null)
     : null;
   return (
     <section className="panel communication-center" aria-label="Communication center">
-      <p className="section-description">
-        Build a message in three steps: choose the audience, write with Markdown and placeholders,
-        then review it before queueing delivery.
-      </p>
-      {providerStatus ? (
+      {providerStatus && providerStatus.environment !== "production" ? (
         <p className="notice notice--info" role="status">
-          <strong>Delivery mode: {providerStatus.externalEffectsMode}.</strong>{" "}
-          {providerStatus.externalEffectsMode === "fake"
-            ? "Messages are recorded as sent but no external provider request is made."
-            : providerStatus.externalEffectsMode === "disabled"
-              ? "Messages are recorded as suppressed and are not sent."
-              : "Provider requests are made under sandbox restrictions."}{" "}
+          <strong>
+            Delivery mode:{" "}
+            {deliveryModeLabel(providerStatus.environment, providerStatus.externalEffectsMode)}.
+          </strong>{" "}
+          {deliveryModeDescription(providerStatus.environment, providerStatus.externalEffectsMode)}{" "}
           <a href="/admin/settings/setup-checklist#provider-status-title">
             View provider status details.
           </a>
@@ -193,7 +209,7 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
         <p className="notice notice--error communication-center__provider-warning" role="alert">
           <strong>Email delivery needs setup.</strong> {brevoStatusMessage}{" "}
           <a href="/admin/settings/setup-checklist#provider-status-title">
-            Open Brevo setup status.
+            Open communications setup status.
           </a>
         </p>
       ) : null}
@@ -870,53 +886,62 @@ export function CommunicationCenterView({ model }: { readonly model: Communicati
               <div>
                 <dt>From name</dt>
                 <dd>
-                  {providerStatus
-                    ? (providerStatus.emailSender.fromName ?? "Not configured")
-                    : "Loading…"}
+                  {emailSettings?.fromName ??
+                    providerStatus?.emailSender.fromName ??
+                    "Choir Management"}
                 </dd>
               </div>
               <div>
                 <dt>From email</dt>
                 <dd>
-                  {providerStatus
-                    ? (providerStatus.emailSender.fromEmail ?? "Not configured")
-                    : "Loading…"}
+                  {emailSettings?.customDomainStatus === "active" && emailSettings.customDomain
+                    ? `announcements@${emailSettings.customDomain}`
+                    : (providerStatus?.emailSender.fromEmail ?? "Not configured")}
+                </dd>
+              </div>
+              <div>
+                <dt>Reply-to email</dt>
+                <dd>{emailSettings?.replyToEmail ?? "None (replies sent to sender address)"}</dd>
+              </div>
+              <div>
+                <dt>Sending domain</dt>
+                <dd>
+                  {emailSettings?.customDomain
+                    ? `${emailSettings.customDomain} (${emailSettings.customDomainStatus})`
+                    : "Platform default"}
                 </dd>
               </div>
             </dl>
             <p className="field-help">
-              These values are read-only here because they identify the verified sender used by the
-              delivery provider.
+              These values show how recipients see outbound emails sent from this organization.
             </p>
             <section
               aria-labelledby="communication-sender-setup-title"
               className="communication-sender-setup"
             >
-              <h3 id="communication-sender-setup-title">Where to configure the sender</h3>
+              <h3 id="communication-sender-setup-title">
+                Configuring sender &amp; reply-to details
+              </h3>
               <p>
-                A Platform Administrator sets these Worker environment values for the current
-                deployment. They are not entered in a message or Organization form.
+                Organization Administrators can customize the sender display name, reply-to address,
+                and custom sending domain in{" "}
+                <a href="/admin/settings/email-settings">Email &amp; Sender Settings</a>.
               </p>
-              <dl>
-                <div>
-                  <dt>From email</dt>
-                  <dd>
-                    <code>BREVO_EMAIL_FROM</code> — a sender address whose domain is verified in
-                    Brevo.
-                  </dd>
-                </div>
-                <div>
-                  <dt>From name</dt>
-                  <dd>
-                    <code>BREVO_EMAIL_FROM_NAME</code> — the name recipients see in their inbox.
-                  </dd>
-                </div>
-              </dl>
               <p className="field-help">
-                After changing either value, refresh the provider status and send a test email. A
-                sender marked “Not configured” must be corrected before live delivery can work.
+                If custom values are not configured, messages automatically use the verified
+                platform default sender.
               </p>
             </section>
+            {error ? (
+              <p className="notice notice--error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {success ? (
+              <p className="notice notice--success" role="status">
+                {success}
+              </p>
+            ) : null}
             <div className="form-actions form-actions--start">
               <div className="field communication-test-send__address">
                 <label htmlFor="communication-settings-test-email">Test recipient</label>

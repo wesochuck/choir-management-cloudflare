@@ -7,7 +7,5 @@ PLATFORM_EMAIL_MODE=capture
 EXTERNAL_EFFECTS_MODE=fake
 # Required only when EXTERNAL_EFFECTS_MODE=sandbox. Keep the API key out of source control.
 # BREVO_API_KEY=replace-with-staging-only-key
-# BREVO_EMAIL_FROM=communications@mail.staging.example.com
-# BREVO_EMAIL_FROM_NAME=MusicSite Organization
 # BREVO_SMS_SENDER=MusicSite
 # BREVO_SMS_ALLOWED_RECIPIENTS=+15551234567

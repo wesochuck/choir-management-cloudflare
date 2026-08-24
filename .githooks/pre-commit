@@ -1,20 +1,17 @@
 #!/bin/sh
-# Block commits that stage package manifests without a matching lockfile
-# update (CI's `npm ci` would fail the same way, but after a slow remote
-# cycle). Runs the staged-content check; the file-based `--staged` variant
-# never reads the working tree, only the index.
+# Pre-commit hook: Auto-formats staged files with Prettier and checks lockfile synchronization.
+
+# Exit immediately if a command fails
 set -e
 
-changed=$(git diff --cached --name-only || true)
-case "$changed" in
-  *package.json*)
-    if ! echo "$changed" | grep -q "package-lock.json"; then
-      echo "error: package.json changes are staged without package-lock.json." >&2
-      echo "Run \`npm install\` and stage package-lock.json with the manifest change," >&2
-      echo "or commit with --no-verify if the change is metadata-only." >&2
-      exit 1
-    fi
-    ;;
-esac
-
+# 1. Lockfile check
 node scripts/check-lockfile.mjs --staged
+
+# 2. Auto-format staged files with Prettier
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js|jsx|ts|tsx|mjs|json|jsonc|css|md|yaml|yml)$' || true)
+
+if [ -n "$STAGED_FILES" ]; then
+  echo "Auto-formatting staged files with Prettier..."
+  npx prettier --write $STAGED_FILES
+  git add $STAGED_FILES
+fi

@@ -59,9 +59,9 @@ export async function provisionOrganizationStore(
     storage.sql.exec(
       `INSERT INTO organization_metadata
         (organization_id, name, slug, lifecycle_state, created_at, updated_at)
-       VALUES (?, ?, ?, 'active', ?, ?)
+       VALUES (?, ?, ?, 'provisioning', ?, ?)
        ON CONFLICT(organization_id) DO UPDATE SET
-         lifecycle_state = 'active', updated_at = excluded.updated_at`,
+         name = excluded.name, slug = excluded.slug, updated_at = excluded.updated_at`,
       parsed.data.organizationId,
       parsed.data.name,
       parsed.data.slug,

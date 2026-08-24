@@ -86,11 +86,16 @@ async function readMemberDashboardCore(env: Env, organizationId: string, profile
     : [null, [] as const];
   return {
     calendarSettings,
+    communicationsEnabled: moduleEnabled("communications"),
+    duesEnabled: moduleEnabled("dues"),
     events,
+    eventsEnabled,
     modules,
+    peopleEnabled: moduleEnabled("people") || moduleEnabled("roster"),
+    pollsEnabled: moduleEnabled("polls"),
     profile,
     programsEnabled: moduleEnabled("programs"),
-    peopleEnabled: moduleEnabled("people"),
+    resourcesEnabled: moduleEnabled("resources"),
     rosterConfiguration,
     setup,
   };
@@ -100,22 +105,26 @@ async function readMemberDashboardOptionalWidgets(
   env: Env,
   organizationId: string,
   profileId: string | null,
-  programsEnabled: boolean,
-  peopleEnabled: boolean,
+  options: {
+    readonly communicationsEnabled: boolean;
+    readonly duesEnabled: boolean;
+    readonly pollsEnabled: boolean;
+    readonly resourcesEnabled: boolean;
+  },
 ) {
-  const resourcesPromise = programsEnabled
+  const resourcesPromise = options.resourcesEnabled
     ? readStore(env, organizationId, "/internal/resources").then((value) =>
         resourceResponseSchema.parse(value).resources.slice(0, 5),
       )
     : Promise.resolve([] as const);
   const bulletinsPromise =
-    programsEnabled && profileId
+    options.communicationsEnabled && profileId
       ? readStore(env, organizationId, "/internal/communications/member-bulletins", {
           profileId,
         }).then((value) => bulletinResponseSchema.parse(value).bulletins)
       : Promise.resolve([] as const);
   const pollsPromise =
-    programsEnabled && profileId
+    options.pollsEnabled && profileId
       ? readStore(env, organizationId, "/internal/polls").then((value) =>
           pollSummaryResponseSchema
             .parse(value)
@@ -136,7 +145,7 @@ async function readMemberDashboardOptionalWidgets(
         )
       : Promise.resolve([] as const);
   const activeSeasonPromise =
-    peopleEnabled && profileId
+    options.duesEnabled && profileId
       ? readStore(env, organizationId, "/internal/seasons/member-active", { profileId }).then(
           (value) => activeSeasonResponseSchema.parse(value).activeSeason,
         )
@@ -196,18 +205,17 @@ export async function readOrganizationMemberDashboard(
 ): Promise<Omit<MemberDashboardResponse, "requestId">> {
   const core = await readMemberDashboardCore(env, organizationId, profileId);
   const [resourcesResult, bulletinsResult, pollsResult, activeSeasonResult] =
-    await readMemberDashboardOptionalWidgets(
-      env,
-      organizationId,
-      profileId,
-      core.programsEnabled,
-      core.peopleEnabled,
-    );
+    await readMemberDashboardOptionalWidgets(env, organizationId, profileId, {
+      communicationsEnabled: core.communicationsEnabled,
+      duesEnabled: core.duesEnabled,
+      pollsEnabled: core.pollsEnabled,
+      resourcesEnabled: core.resourcesEnabled,
+    });
   const polls = await resolveMemberDashboardPolls(
     env,
     organizationId,
     profileId,
-    core.programsEnabled,
+    core.pollsEnabled,
     pollsResult,
   );
 
@@ -228,9 +236,9 @@ export async function readOrganizationMemberDashboard(
 
   return memberDashboardResponseSchema.omit({ requestId: true }).parse({
     activeSeason: activeSeasonResult.status === "fulfilled" ? activeSeasonResult.value : null,
-    activeSeasonState: widgetState(core.peopleEnabled, true, profileId, activeSeasonResult),
+    activeSeasonState: widgetState(core.duesEnabled, true, profileId, activeSeasonResult),
     bulletins,
-    bulletinsState: widgetState(core.programsEnabled, true, profileId, bulletinsResult),
+    bulletinsState: widgetState(core.communicationsEnabled, true, profileId, bulletinsResult),
     events: core.events.map((event) => singerEventSchema.parse(event)),
     modules: core.modules,
     organizationName: core.setup.organizationName,
@@ -240,7 +248,7 @@ export async function readOrganizationMemberDashboard(
     profile: core.profile,
     profileLinkRequired: profileId === null,
     resources: resourcesResult.status === "fulfilled" ? resourcesResult.value : [],
-    resourcesState: widgetState(core.programsEnabled, false, profileId, resourcesResult),
+    resourcesState: widgetState(core.resourcesEnabled, false, profileId, resourcesResult),
     timezone: organizationCalendarSettingsResponseSchema
       .omit({ requestId: true })
       .parse(core.calendarSettings).timezone,

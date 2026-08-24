@@ -247,7 +247,7 @@ async function deliverNotification(
   }
 }
 
-export async function deliverEmailChangeNotifications(
+async function deliverEmailChangeNotifications(
   env: EmailChangeEnvironment,
   requestId: string | null = null,
 ): Promise<void> {

@@ -4,12 +4,12 @@ import type {
   CommunicationTemplate,
 } from "@choir/contracts";
 
-export type CommunicationAudience = CommunicationAudienceRequest["targetAudiences"][number];
+type CommunicationAudience = CommunicationAudienceRequest["targetAudiences"][number];
 
 export type CommunicationPlaceholderContext =
   "standard" | "poll" | "ticket" | "bundle" | "attendance" | "audition";
 
-export type CommunicationPlaceholderCategory =
+type CommunicationPlaceholderCategory =
   | "Recipient"
   | "Event"
   | "Poll"
@@ -33,7 +33,7 @@ export interface CommunicationPlaceholder {
 
 const pollPlaceholderPattern = /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/i;
 
-export const communicationPlaceholders: readonly CommunicationPlaceholder[] = [
+const communicationPlaceholders: readonly CommunicationPlaceholder[] = [
   {
     category: "Recipient",
     contexts: ["standard", "poll", "ticket", "bundle", "attendance", "audition"],

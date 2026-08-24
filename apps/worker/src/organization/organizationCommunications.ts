@@ -2,7 +2,6 @@ import {
   communicationDeliverySummarySchema,
   communicationMessageSchema,
   communicationMessagesResponseSchema,
-  communicationReachSchema,
   communicationScheduledMessagesResponseSchema,
   communicationTemplateSchema,
   communicationTemplatesResponseSchema,
@@ -513,8 +512,4 @@ export async function recordCommunicationDeliveryResults(
     },
   );
   if (!response.ok) throw new Error("The Organization store rejected communication results.");
-}
-
-export function parseCommunicationReach(value: unknown): CommunicationReach {
-  return communicationReachSchema.parse(value);
 }

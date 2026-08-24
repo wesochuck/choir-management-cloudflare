@@ -426,9 +426,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
     <section className="account-section attendance-manager" aria-label="Attendance management">
       <div className="attendance-manager__intro">
         <div>
-          <p className="section-description">
-            Tap a name to cycle Pending, Present, and Absent. Changes save immediately.
-          </p>
           <p className="attendance-manager__sync" role="status">
             <span aria-hidden="true">●</span> Live updates every 30 seconds ·{" "}
             {formatSyncTime(lastUpdated)}

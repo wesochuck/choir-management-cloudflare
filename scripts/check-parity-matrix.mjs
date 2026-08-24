@@ -47,6 +47,8 @@ const expectedApiRoutes = [
   "POST /api/webhook/stripe",
   "POST /api/organization/tickets/:purchaseId/refund",
   "POST /api/organization/donations/:donationId/refund",
+  "POST /api/organization/donations/manual",
+  "POST /api/organization/donations/thank-you",
   "POST /api/organization/tickets/:purchaseId/confirmation",
   "POST /api/organization/tickets/scan",
   "GET /api/public/player/playlist",

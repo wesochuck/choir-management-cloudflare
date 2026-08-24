@@ -535,7 +535,7 @@ test.describe("admin ticket management", () => {
 
     await page.goto("/admin/tickets");
 
-    await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     const performanceSummary = page.getByRole("group", { name: "Performance summary" });
     await expect(performanceSummary).toBeVisible();
     await expect(performanceSummary.locator("legend")).toHaveText("Performance summary");
@@ -606,7 +606,7 @@ test.describe("admin ticket management", () => {
 
     await page.goto("/admin/tickets");
 
-    await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
     await visibleOrders.getByRole("button", { name: "Refund" }).click({ force: true });
     await expect(
@@ -668,7 +668,7 @@ test.describe("admin ticket management", () => {
 
     await page.goto("/admin/tickets");
 
-    await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     await page.getByRole("button", { name: "Resend" }).click({ force: true });
 
     await expect(page.getByText("Ticket confirmation queued.")).toBeVisible();
@@ -727,7 +727,7 @@ test.describe("admin ticket management", () => {
 
     await page.goto("/admin/tickets");
 
-    await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     await page.getByRole("tab", { name: "Season Bundles" }).click();
     await expect(page.getByText("New ticket bundle")).toBeVisible();
     await page.getByRole("button", { name: "New ticket bundle" }).click();
@@ -864,7 +864,7 @@ test.describe("admin ticket management", () => {
 
     await page.goto("/admin/tickets");
 
-    await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     await page.getByRole("tab", { name: "Season Bundles" }).click();
     await expect(page.getByText("Season Pass")).toBeVisible();
     await page.getByRole("button", { name: "Edit" }).click({ force: true });
@@ -923,7 +923,7 @@ test.describe("admin ticket management", () => {
 
     await page.goto("/admin/tickets");
 
-    await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     await page.getByRole("tab", { name: "Season Bundles" }).click();
     await expect(page.getByText("Season Pass")).toBeVisible();
     await page.getByRole("button", { name: "Delete" }).click({ force: true });
@@ -1029,7 +1029,7 @@ test.describe("admin ticket management", () => {
 
     await page.goto("/admin/tickets");
 
-    await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     await expect(page.getByText("No ticket orders yet.")).toBeVisible();
     await page.getByRole("tab", { name: "Season Bundles" }).click();
     await expect(page.getByText("No bundles yet.")).toBeVisible();

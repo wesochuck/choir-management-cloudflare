@@ -49,6 +49,7 @@
 @import "./components/signed-in-rsvp-dashboard.css";
 @import "./components/signed-in-public-tables.css";
 @import "./components/forms-layouts.css";
+@import "./components/autocomplete.css";
 @import "./components/overlays.css";
 @import "./components/shell-refinements.css";
 @import "./components/usability-themes.css";

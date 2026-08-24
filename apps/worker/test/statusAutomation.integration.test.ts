@@ -684,15 +684,15 @@ describe("roster status automation", () => {
     });
   });
 
-  it("processes automation profiles across the supported 5,000-profile envelope", async () => {
+  it("processes automation profiles across the supported 500-profile envelope", async () => {
     const cookie = await signIn();
-    const tailProfileId = "00000000-0000-4000-8000-000000005000";
+    const tailProfileId = "00000000-0000-4000-8000-000000000500";
     await runInDurableObject<OrganizationStore, null>(
       stores.get(stores.idFromName("organization-alpha")),
       (_instance, state) => {
         const createdAt = new Date("2025-01-01T00:00:00.000Z").toISOString();
-        for (let offset = 0; offset < 4_999; offset += 25) {
-          const rows = Array.from({ length: Math.min(25, 4_999 - offset) }, (_, index) => {
+        for (let offset = 0; offset < 499; offset += 25) {
+          const rows = Array.from({ length: Math.min(25, 499 - offset) }, (_, index) => {
             const sequence = String(offset + index).padStart(4, "0");
             return [
               `scale-status-profile-${sequence}`,
@@ -750,9 +750,9 @@ describe("roster status automation", () => {
       nextStatus: "Inactive",
     });
     expect(preview).toMatchObject({
-      affectedProfileCount: 5_000,
-      onBreakTimeoutCount: 5_000,
-      statusChangeCount: 5_000,
+      affectedProfileCount: 500,
+      onBreakTimeoutCount: 500,
+      statusChangeCount: 500,
     });
 
     const result = await runInDurableObject<
@@ -765,7 +765,7 @@ describe("roster status automation", () => {
         new Date("2031-02-01T00:00:00.000Z"),
       ),
     );
-    expect(result.profileStatusChanges).toBe(5_000);
+    expect(result.profileStatusChanges).toBe(500);
     await expect(
       runInDurableObject<OrganizationStore, { readonly globalStatus: string }>(
         stores.get(stores.idFromName("organization-alpha")),

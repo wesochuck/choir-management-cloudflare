@@ -7,6 +7,7 @@ import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
 import { MusicAudioTracks, MusicBulkEditDialog, MusicDeleteControls } from "./tracksAndBulkEdit";
 import { MusicCredits } from "./credits";
+import { AddToSetListDialog } from "./AddToSetListDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { AppLink } from "../AuthenticatedShell/navigation";
 import type { MusicCatalogModel } from "./hooks";
@@ -24,6 +25,7 @@ export function MusicCatalogView({
   readonly view?: "catalog" | "credits";
 }) {
   const {
+    addSelectedPiecesToSetList,
     applyBulkChanges,
     availableGenres,
     beginNew,
@@ -91,11 +93,15 @@ export function MusicCatalogView({
     setGenreFilterSearch,
     setGenresInput,
     setImportDialogOpen,
+    setListDialogOpen,
+    setListError,
     setMessage,
     setMusicImportConfirmed,
     setPiece,
     setPieces,
     setSearch,
+    setSetListDialogOpen,
+    setSetListError,
     setUnlinkChildren,
     timezone,
     toggleGenre,
@@ -110,12 +116,6 @@ export function MusicCatalogView({
         className="account-section music-catalog-section"
         aria-label="Composers and arrangers"
       >
-        <div className="section-heading section-heading--compact">
-          <p className="section-description">
-            Review exact catalog credits and correct a composer or arranger name everywhere it is
-            used.
-          </p>
-        </div>
         <nav className="music-library-tabs" aria-label="Music library sections">
           <AppLink href="/admin/library" onNavigate={navigate}>
             Music Catalog
@@ -154,12 +154,7 @@ export function MusicCatalogView({
           </AppLink>
         </div>
       ) : null}
-      <div className="section-heading section-heading--compact">
-        <p className="section-description">
-          Manage owned works and movements. Audio tracks are stored securely as Organization files
-          and will appear here when linked through the track workflow.
-        </p>
-      </div>
+
       <nav className="music-library-tabs" aria-label="Music library sections">
         <AppLink ariaCurrent="page" href="/admin/library" onNavigate={navigate}>
           Music Catalog <span className="sr-only">(current)</span>
@@ -217,6 +212,18 @@ export function MusicCatalogView({
                 }}
               >
                 Bulk edit{selectedPieces.length > 0 ? ` (${String(selectedPieces.length)})` : ""}
+              </button>
+              <button
+                className="button button--secondary"
+                disabled={selectedPieces.length === 0}
+                type="button"
+                onClick={() => {
+                  setSetListError(null);
+                  setSetListDialogOpen(true);
+                }}
+              >
+                Add to set list
+                {selectedPieces.length > 0 ? ` (${String(selectedPieces.length)})` : ""}
               </button>
               <button
                 className="button button--secondary"
@@ -601,6 +608,23 @@ export function MusicCatalogView({
             personNameOptions={personNameOptions}
             selectedCount={selectedPieces.length}
             key={bulkDialogOpen ? "open" : "closed"}
+          />
+          <AddToSetListDialog
+            busy={busy}
+            error={setListError}
+            events={events}
+            onApply={(payload) => {
+              void addSelectedPiecesToSetList(payload);
+            }}
+            onClose={() => {
+              setSetListDialogOpen(false);
+              setSetListError(null);
+            }}
+            open={setListDialogOpen}
+            selectedPieces={selectedPieces}
+            timezone={timezone}
+            venues={venues}
+            key={setListDialogOpen ? "open" : "closed"}
           />
           <CsvImportDialog
             busy={busy || musicImportInspecting}

@@ -359,14 +359,12 @@ export function App() {
           <span>Choir Management</span>
         </a>
         <div className="header-actions">
-          <span className={`service-status service-status--${serviceState}`} role="status">
-            <span aria-hidden="true" className="service-status__dot" />
-            {serviceState === "checking"
-              ? "Checking service"
-              : serviceState === "ready"
-                ? "Staging ready"
-                : "Service unavailable"}
-          </span>
+          {serviceState === "offline" ? (
+            <span className="service-status service-status--offline" role="status">
+              <span aria-hidden="true" className="service-status__dot" />
+              Service unavailable
+            </span>
+          ) : null}
           <nav aria-label="Account">
             <a href={sessionState.status === "authenticated" ? "/account" : "/login"}>
               {sessionState.status === "authenticated" ? "Account" : "Sign in"}
@@ -378,7 +376,7 @@ export function App() {
       {content}
 
       <footer>
-        <p>Permanent staging · no production launch</p>
+        <p>© {new Date().getFullYear()} Choir Management. All rights reserved.</p>
       </footer>
     </div>
   );

@@ -198,8 +198,6 @@
     .seasons-manager-controls {
       align-items: stretch;
       flex-direction: column;
-      margin-inline: -0.9rem;
-      padding-inline: 0.9rem;
     }
 
     .seasons-manager-tabs {

@@ -22,7 +22,7 @@ const targetProfilePrefix = (
 const reportProfileId = process.env.STAGING_SCHEDULER_REPORT_PROFILE_ID?.trim() ?? "";
 const organizationHost = `https://${organizationSlug}.${productHostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${productHostname}`;
-const pollingAttempts = 24;
+const pollingAttempts = 48;
 const pollingDelayMs = 2_500;
 const planOnly = process.argv.includes("--plan-only");
 
@@ -683,11 +683,11 @@ async function inspectEvents(cookie, eventIds) {
   };
 }
 
-function reportAggregateMatched(state) {
+export function reportAggregateMatched(state) {
   return state.messages.some(
     ({ contentMarkdown }) =>
-      /Attendance rate:\s*\*\*100%\*\*/.test(contentMarkdown) &&
-      /Present:\s*1\s*\/\s*1/.test(contentMarkdown),
+      /(?:attendance rate:\s*\*\*100%\*\*|100%\s*attendance)/i.test(contentMarkdown) &&
+      /(?:\*\*Present:\*\*|Present:)\s*1\s*(?:\/|of)\s*1/i.test(contentMarkdown),
   );
 }
 

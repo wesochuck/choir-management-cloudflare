@@ -361,20 +361,24 @@ function createPostEventReportJobs(
        FROM events
        WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
          AND starts_at < ?
-       ORDER BY eventStartsAt, eventId LIMIT 50`,
+       ORDER BY starts_at DESC, id LIMIT 50`,
       dueBefore,
     )
     .toArray();
   for (const candidate of candidates) {
     const idempotencyKey = `post-event-report:${organizationId}:${candidate.eventId}`;
-    const alreadyQueued = storage.sql
-      .exec<{ readonly [column: string]: SqlStorageValue; readonly jobId: string }>(
-        "SELECT job_id AS jobId FROM scheduled_job_outbox WHERE idempotency_key = ? LIMIT 1",
-        idempotencyKey,
-      )
-      .toArray()
-      .at(0);
-    if (alreadyQueued) continue;
+    const alreadyQueuedOrProcessed =
+      storage.sql
+        .exec<{ readonly count: number }>(
+          `SELECT COUNT(*) AS count FROM scheduled_job_outbox WHERE idempotency_key = ?
+           UNION ALL
+           SELECT COUNT(*) AS count FROM job_ledger WHERE idempotency_key = ? AND status != 'failed'`,
+          idempotencyKey,
+          idempotencyKey,
+        )
+        .toArray()
+        .reduce((sum, row) => sum + row.count, 0) > 0;
+    if (alreadyQueuedOrProcessed) continue;
     storage.sql.exec(
       `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
        VALUES (?, 'attendance_report', ?, ?, ?)`,

@@ -6,19 +6,9 @@
   /* === Reports === */
   .reports-view {
     display: grid;
-    gap: 2rem;
-    /* Keep the intro close to the shared page heading and use the recovered
-     * space between the description and report navigation. */
-    margin-top: -1rem;
+    gap: 1.25rem;
   }
 
-  .reports-intro {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .reports-intro p:last-child,
   .reports-toolbar p {
     margin: 0;
     color: var(--muted-foreground);

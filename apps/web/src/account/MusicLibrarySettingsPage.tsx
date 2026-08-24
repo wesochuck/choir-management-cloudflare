@@ -326,11 +326,6 @@ export function MusicLibrarySettingsPage({
       className="account-section music-library-settings-section"
       aria-label="Music library settings"
     >
-      <div className="section-heading section-heading--compact">
-        <p className="section-description">
-          Configure publisher catalog links and the expiry period for public practice-player links.
-        </p>
-      </div>
       <nav className="music-library-tabs" aria-label="Music library sections">
         <AppLink href="/admin/library" onNavigate={navigate}>
           Music Catalog

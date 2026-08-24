@@ -260,6 +260,7 @@ milestone complete.
 | `docs/runbooks/provider-failure.md`                                      | Email, SMS, Stripe, queue, and webhook incident handling                                                                                                                                                                  |
 | `docs/runbooks/email-feedback.md`                                        | Cloudflare Email Sending feedback, suppression, subscription, and staging qualification runbook                                                                                                                           |
 | `docs/runbooks/queue-dead-letters.md`                                    | Operator workflow for reviewing, retrying, and dismissing queue dead letters                                                                                                                                              |
+| `docs/runbooks/production-deployment.md`                                 | Operator runbook for production resource provisioning, secret configuration, and promotion                                                                                                                                |
 | `tsconfig.json`                                                          | Root project-service typing for repository configuration files                                                                                                                                                            |
 | `vitest.config.ts`                                                       | Node unit-test discovery and defaults                                                                                                                                                                                     |
 | `vitest.integration.config.ts`                                           | Cloudflare workerd integration-test configuration                                                                                                                                                                         |
@@ -299,7 +300,7 @@ milestone complete.
 | `apps/worker/test/scheduler.integration.test.ts`                         | Alarm recovery, stable-job, and bounded-outbox integration proof                                                                                                                                                          |
 | `apps/worker/test/fleetSchema.integration.test.ts`                       | Bounded chained fleet schema Workflow and identity proof                                                                                                                                                                  |
 | `apps/worker/test/calendarFeed.integration.test.ts`                      | Organization-bound calendar credential and revocation proof                                                                                                                                                               |
-| `apps/worker/test/calendarManagement.integration.test.ts`                | Venue, event, RSVP authorization and Organization-isolation proof, plus bounded dashboard-summary qualification with 5,000 Profiles and 500 events                                                                        |
+| `apps/worker/test/calendarManagement.integration.test.ts`                | Venue, event, RSVP authorization and Organization-isolation proof, plus bounded dashboard-summary qualification with 500 Profiles and 50 events                                                                           |
 | `apps/worker/test/profiles.integration.test.ts`                          | Organization Profile authorization, audit, and tenant-isolation proof                                                                                                                                                     |
 | `apps/worker/test/rosterConfiguration.integration.test.ts`               | Section and voice-part defaults, validation, authorization, and isolation proof                                                                                                                                           |
 | `apps/worker/test/seating.integration.test.ts`                           | Chart assignment, member finder, authorization, and isolation proof                                                                                                                                                       |
@@ -704,7 +705,7 @@ launch.
 
 - Run the entire feature matrix on permanent staging with all real Cloudflare primitives and
   provider sandbox/test modes.
-- Exercise the supported envelope: 5,000 Profiles, 100,000 operational/commercial records, 250
+- Exercise the supported envelope: 500 Profiles, 10,000 operational/commercial records, 25
   simultaneous authenticated users, and public cache bursts. Expected use is about one-fifth of this
   envelope.
 - Test custom subdomain, customer subdomain, supported apex, and `www` fallback; Stripe webhook

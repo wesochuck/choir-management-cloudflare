@@ -142,6 +142,10 @@
     margin-bottom: 1.25rem;
   }
 
+  .ticketing-page-header > :only-child {
+    margin-left: auto;
+  }
+
   .ticketing-page-header h2,
   .ticketing-page-header p {
     margin: 0;

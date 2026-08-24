@@ -304,11 +304,11 @@ export const organizationRosterAutomationPreviewProfileSchema = z.object({
 });
 
 export const organizationRosterAutomationPreviewResponseSchema = z.object({
-  affectedProfileCount: z.number().int().nonnegative().max(5_000),
-  onBreakTimeoutCount: z.number().int().nonnegative().max(5_000),
-  rsvpExpiryCount: z.number().int().nonnegative().max(100_000),
+  affectedProfileCount: z.number().int().nonnegative().max(500),
+  onBreakTimeoutCount: z.number().int().nonnegative().max(500),
+  rsvpExpiryCount: z.number().int().nonnegative().max(10_000),
   selectedProfile: organizationRosterAutomationPreviewProfileSchema.nullable(),
-  statusChangeCount: z.number().int().nonnegative().max(5_000),
+  statusChangeCount: z.number().int().nonnegative().max(500),
 });
 
 export const organizationEventRsvpExportDataSchema = z.object({

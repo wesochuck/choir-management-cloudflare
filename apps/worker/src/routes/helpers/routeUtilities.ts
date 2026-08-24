@@ -88,7 +88,7 @@ export function invitationDate(value: number | string): string {
   return new Date(value).toISOString();
 }
 
-export function decodePrivateFileName(value: string | undefined): string | null {
+function decodePrivateFileName(value: string | undefined): string | null {
   if (!value) {
     return null;
   }
@@ -274,7 +274,7 @@ export async function verifySecondFactor(
   }
 }
 
-export function publicAuditionInquiryProblem(
+function publicAuditionInquiryProblem(
   settings: z.infer<typeof organizationAuditionSettingsSchema>,
   requestedSlots: readonly string[],
   requestIdValue: string,
@@ -303,7 +303,7 @@ export function publicAuditionInquiryProblem(
   return null;
 }
 
-export function createdAuditionId(value: unknown): string {
+function createdAuditionId(value: unknown): string {
   if (typeof value === "object" && value !== null && "id" in value) return String(value.id);
   return "";
 }
@@ -451,7 +451,7 @@ export function privateFileDownloadResponse(file: PrivateFileReadResult): Respon
   return new Response(file.object.body, { headers, status: file.range ? 206 : 200 });
 }
 
-export async function profilePhotoTargetAllowed(
+async function profilePhotoTargetAllowed(
   context: Context<WorkerHonoEnvironment>,
   authorization: Extract<CalendarAuthorization, { readonly ok: true }>,
   profileId: string,

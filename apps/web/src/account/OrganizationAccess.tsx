@@ -571,10 +571,6 @@ export function OrganizationAccess({
       aria-label="Organization security"
       className="account-section account-section--organization-security"
     >
-      <p className="section-description">
-        This Organization was selected by the validated hostname. Its MFA assertion is bound to this
-        Organization, your identity, and this browser session.
-      </p>
       <OrganizationFeedback actionError={actionError} successMessage={successMessage} />
 
       <div className="organization-security-status">

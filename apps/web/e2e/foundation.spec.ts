@@ -27,5 +27,6 @@ test("renders the accessible foundation at desktop and mobile widths", async ({ 
   await expect(
     page.getByRole("heading", { name: "Built around each Organization." }),
   ).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("Staging ready");
+  await expect(page.getByLabel("Account").getByRole("link", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toContainText("Choir Management");
 });

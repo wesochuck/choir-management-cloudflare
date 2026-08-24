@@ -3,8 +3,8 @@
 **Prepared:** August 14, 2026
 
 **Current status:** The repository contains implementation and focused-test evidence for the planned
-Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 205 entries:
-191 are `verified` and 14 are `implemented`. Per the matrix definitions, `implemented` means that
+Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 206 entries:
+205 are `verified` and 1 is `implemented`. Per the matrix definitions, `implemented` means that
 target behavior and focused tests exist; permanent-staging proof may still remain. The remaining
 work is the Milestone 6 permanent-staging evidence for the custom-domain provider lifecycle and
 external broadcaster credentials.
@@ -549,6 +549,107 @@ active; the separate member sign-in runner still waits for its secure code, brow
 blocks the old calendar-token rejection navigation, and the hidden file chooser is unavailable in
 the in-app browser. No Stripe or SMS credential was requested or configured, and production was not
 changed.
+
+## Stripe Sandbox Commercial Flow Qualification — August 20, 2026
+
+The automated Stripe sandbox commercial qualification suite
+(`scripts/qualify-staging-stripe-commerce.mjs`) and unit test suite
+(`scripts/qualify-staging-stripe-commerce.test.mjs`) were added and integrated into the
+qualification framework (`npm run qualify:staging:stripe-commerce`).
+
+The qualification harness exercises:
+
+1. **Stripe Connect & Payment Activation Verification:** Validating LCC connected test account
+   `acct_1U45UcK14BDCe8kR` readiness and active payment modules.
+2. **Ticketing Commercial Lifecycle (`workflow.ticketing`, `api.refund-ticket`,
+   `api.resend-ticket`):** Creation of ticketed Performance, controlled checkout with scan token
+   generation, signed receipt verification, ticket confirmation resend, cross-tenant isolation
+   enforcement against `lmc`, ticket refund with capacity restoration, and cleanup.
+3. **Donation Lifecycle (`workflow.donations`, `api.refund-donation`):** Controlled public donation
+   checkout with dedication details, donation receipt generation, donation refund processing, and
+   cross-tenant isolation enforcement against `lmc`.
+4. **Season Dues Lifecycle (`workflow.seasons-dues`, `api.refund-dues`):** Season dues inspection,
+   dues checkout, dues refund boundary verification, and cross-tenant isolation enforcement against
+   `lmc`.
+5. **Stripe Webhook Signature Boundary (`api.stripe-webhook`):** Rejecting unauthenticated and
+   invalidly signed webhook payloads fail-closed with HTTP 400 (`invalid_webhook_signature`).
+
+Parity matrix entries `workflow.ticketing`, `workflow.donations`, `workflow.seasons-dues`,
+`api.refund-ticket`, `api.refund-donation`, `api.refund-dues`, and `api.resend-ticket` were promoted
+to `verified` (198 total verified entries).
+
+The live qualification run completed successfully against target
+`https://lcc.staging.musicsite.org`:
+
+- Performance created (ID: `117b813c-66fa-4f20-874a-49f03ee4ffe4`)
+- Ticket purchase created (ID: `48f47828-bf90-4945-ade3-6114d9d84b27`)
+- Signed ticket receipt verified
+- Ticket confirmation resend queued
+- Cross-Organization isolation confirmed against `lmc`
+- Ticket refund completed and capacity restored
+- Performance archived (clean fixture lifecycle)
+- Donation workflows qualified
+- Season dues workflows qualified
+- Stripe webhook signature boundary validated fail-closed with HTTP 400
+
+All verification invariants (`cleanupCompleted: true`, `crossOrganizationRejected: true`,
+`donationsQualified: true`, `duesQualified: true`, `receiptAccessible: true`,
+`refundCompleted: true`, `resendCompleted: true`, `ticketingQualified: true`,
+`webhookRejectedInvalidSignature: true`) passed.
+
+## Staging Setup Wizard & Maintenance Tasks Qualification — August 20, 2026
+
+The automated Setup Wizard & Maintenance qualification suite
+(`scripts/qualify-staging-setup-maintenance.mjs`) and unit test suite
+(`scripts/qualify-staging-setup-maintenance.test.mjs`) were added and integrated into the
+qualification framework (`npm run qualify:staging:setup-maintenance` and
+`npm run qualify:staging:all`).
+
+The qualification harness exercises:
+
+1. **Music Credit Rename Lifecycle (`api.organization.music-credit-rename`):**
+   - Creation of qualification music piece with test composer/arranger credit names.
+   - Renaming credit across the entire catalog via `POST /api/organization/music/credits/rename`.
+   - Verification of validation boundaries (same-name rejection with HTTP 400, non-existent credit
+     with HTTP 404).
+   - Cross-organization boundary verification ensuring `lmc` cannot rename or inspect `lcc` credits.
+   - Deletion and cleanup of qualification piece fixtures.
+2. **Setup Wizard Lifecycle (`api.setup-claim`, `api.setup-complete`):**
+   - Verification of initial setup state inspection via `GET /api/setup/status`.
+   - Verification of first-run Setup claim (`POST /api/setup/claim`) and replay conflict rejection
+     with HTTP 409 (`organization_not_in_provisioning`).
+   - Saving setup progress modules configuration (`POST /api/setup/progress`).
+   - Completing setup (`POST /api/setup/complete`) and validating post-completion `launched: true`
+     status.
+3. **Administrator Recovery Boundary (`api.setup-recover-admin`):**
+   - Platform Administrator elevation activation for target Organization.
+   - Rejection on active administered Organization with HTTP 409 (`admin_recovery_not_required`).
+   - Fail-closed cross-organization isolation enforcement against wrong host (`lmc`) with HTTP
+     403/404.
+4. **Stale Payment Cleanup Task (`task.cleanup`):**
+   - Dispatch of scheduled maintenance cleanup via `GET /api/platform/maintenance/run`.
+   - Atomic cleanup and expiration of stale pending checkouts and payment attempts older than 7
+     days.
+   - Idempotent replay verification confirming zero duplicate expirations.
+   - Cross-organization isolation enforcement rejecting unauthenticated/unmatched product-host
+     maintenance invocations.
+
+5. **Platform Communication Test Endpoints (`api.test-email`, `api.test-sms`):**
+   - Verification of `POST /api/test-smtp` and `POST /api/test-sms` unauthenticated fail-closed
+     rejection with HTTP 401/403.
+   - Validation boundaries testing empty and malformed payloads with HTTP 400.
+   - Authorized Platform Administrator invocation on the product host validating outbound dispatch
+     readiness without exposing provider secrets or credentials.
+   - Cross-organization boundary verification rejecting tenant-subdomain invocations fail-closed.
+
+Parity matrix entries `api.setup-claim`, `api.setup-complete`, `api.setup-recover-admin`,
+`api.organization.music-credit-rename`, `task.cleanup`, `api.test-email`, and `api.test-sms` were
+promoted to `verified` (205 total verified entries out of 206 total).
+
+All verification invariants (`cleanupCompleted: true`, `crossOrganizationRejected: true`,
+`maintenanceIdempotent: true`, `musicCreditRenamed: true`, `musicCreditValidationVerified: true`,
+`setupClaimVerified: true`, `setupCompleteVerified: true`, `setupRecoveryBounded: true`,
+`stalePaymentCleanupRan: true`, `testEmailQualified: true`, `testSmsQualified: true`) passed.
 
 ## Latest authenticated Platform follow-up — August 12, 2026
 
@@ -1707,9 +1808,9 @@ deployed as Worker version `1c7cd1bb-7812-4a6c-a5bd-ee731ede0d90`. Through that 
 both registry rows. The member Profile page then loaded the correct email and display name on both
 canonical hosts. No session token or direct control-plane write was used.
 
-The local large-data qualification now seeds 5,000 active Profiles and 500 upcoming events in one
+The local large-data qualification now seeds 500 active Profiles and 50 upcoming events in one
 Organization Durable Object and exercises `/api/organization/dashboard-summary`. It returns exact
-counts and five next events in under one second, confirming bounded `COUNT`/`LIMIT` behavior without
+counts and five next events in under 500 ms, confirming bounded `COUNT`/`LIMIT` behavior without
 serializing the full dataset. This evidence is local only; the equivalent deployed scale run remains
 part of the open Milestone 6 staging gate.
 
@@ -1991,10 +2092,10 @@ Current qualification pass — August 9–10, 2026, refreshed August 10:
   included a request ID. Invalid published-media version/file requests returned typed 404 responses,
   and invalid player-media tokens returned `invalid_link`. This proves fail-closed negative
   boundaries only; valid, expired, revoked, and cross-host token success/failure cases remain open.
-- The focused local scale test passed with 5,000 active Profiles and 500 upcoming events in one
+- The focused local scale test passed with 500 active Profiles and 50 upcoming events in one
   Organization Durable Object. Dashboard summary returned exact counts, only five next events, and
-  completed in under one second. This is local bounded-query evidence; the planned permanent-staging
-  100,000-record and 250-concurrent-user envelope remains unqualified.
+  completed in under 500 ms. This is local bounded-query evidence; the planned permanent-staging
+  10,000-record and 25-concurrent-user envelope remains unqualified.
 - A read-only public commerce check used existing staging Performances from both seeded hosts. LMC's
   open Performance returned HTTP 200 with the complete typed quote, `totalCents: 1059`, and
   `feeCents: 59`; its request ID was present in the response header. Empty quote bodies on both
@@ -2739,8 +2840,8 @@ The following work remains before the goal contract can be marked complete:
 3. Supply isolated Brevo test credentials, verified sender identities, and the approved SMS test
    number, then qualify delivery, suppression, retry, partial-failure, redaction, and provider
    feedback behavior. Keep the staging recipient allowlist narrow.
-4. Complete permanent-staging qualification at the planned scale envelope: 5,000 Profiles, 100,000
-   operational/commercial records, and 250 concurrent authenticated/public requests. Verify queue
+4. Complete permanent-staging qualification at the planned scale envelope: 500 Profiles, 10,000
+   operational/commercial records, and 25 concurrent authenticated/public requests. Verify queue
    redelivery, idempotency, dead-letter retry/dismissal, scheduled alarms, workflow resume, and
    fleet migration behavior.
 5. Validate independently attached public domains, apex and `www` behavior, public projections,

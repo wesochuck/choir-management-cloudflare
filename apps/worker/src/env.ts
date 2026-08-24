@@ -5,8 +5,7 @@ import type { CustomDomainParams } from "./workflows/CustomDomainWorkflow";
 import type { FleetSchemaParams } from "./workflows/FleetSchemaWorkflow";
 import type { ProvisioningParams } from "./workflows/ProvisioningWorkflow";
 
-export const appEnvironmentSchema = z.enum(["local", "staging", "production"]);
-export type AppEnvironment = z.infer<typeof appEnvironmentSchema>;
+const appEnvironmentSchema = z.enum(["local", "staging", "production"]);
 
 const startupConfigSchema = z.object({
   APP_ENV: appEnvironmentSchema,
@@ -29,8 +28,6 @@ export interface Env {
   readonly ASSETS: Fetcher;
   readonly BETTER_AUTH_SECRET: string;
   readonly BREVO_API_KEY?: string | undefined;
-  readonly BREVO_EMAIL_FROM?: string | undefined;
-  readonly BREVO_EMAIL_FROM_NAME?: string | undefined;
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string | undefined;
   readonly BREVO_SMS_SENDER?: string | undefined;
   readonly BUILD_VERSION: "staging" | "unreleased" | "development";

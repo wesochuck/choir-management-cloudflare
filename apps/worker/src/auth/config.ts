@@ -8,16 +8,7 @@ import {
   buildPasswordResetEmail,
 } from "./emailTemplates";
 import { sendPlatformEmail } from "./platformEmail";
-
-export const authenticationPolicy = {
-  allowPublicRegistration: false,
-  organizationMfaRequired: false,
-  platformAdministratorMfaRequired: true,
-  primarySignInMethod: "email-one-time-code",
-  userManagedPasswords: true,
-} as const;
-
-export type AuthenticationPolicy = typeof authenticationPolicy;
+import { readOrganizationEmailSenderConfig } from "../jobs/deliveries/shared";
 
 export interface AuthRequestContext {
   readonly env: Env;
@@ -51,6 +42,27 @@ export function isCanonicalAuthHost(hostname: string, productBaseDomain: string)
 
 export function isProductBaseHost(hostname: string, productBaseDomain: string): boolean {
   return normalizeHostname(hostname) === normalizeHostname(productBaseDomain);
+}
+
+export function trustedAuthOrigins(
+  appEnvironment: Env["APP_ENV"],
+  productBaseDomain: string,
+  currentOrigin: string,
+): string[] {
+  const baseDomain = normalizeHostname(productBaseDomain);
+  const protocol = appEnvironment === "local" ? "http" : "https";
+  const origins = new Set<string>([currentOrigin]);
+  if (baseDomain === "localhost") {
+    origins.add("http://localhost");
+    origins.add("http://localhost:5173");
+    origins.add("http://localhost:8787");
+    origins.add("http://*.localhost:5173");
+    origins.add("http://*.localhost:8787");
+  } else {
+    origins.add(`${protocol}://${baseDomain}`);
+    origins.add(`${protocol}://*.${baseDomain}`);
+  }
+  return Array.from(origins);
 }
 
 function canonicalOrganizationOrigin(env: Env, slug: string): string {
@@ -143,11 +155,15 @@ export function createAuth(context: AuthRequestContext) {
             invitationUrl.toString(),
             invitedOrganization.name,
           );
+          const senderConfig = await readOrganizationEmailSenderConfig(env, invitedOrganization.id);
           await sendPlatformEmail(env, {
-            kind: "organization-invitation",
+            fromName: senderConfig.fromName ?? invitedOrganization.name,
             html: content.html,
+            kind: "organization-invitation",
             organizationId: invitedOrganization.id,
             recipient: email,
+            ...(senderConfig.replyTo ? { replyTo: senderConfig.replyTo } : {}),
+            ...(senderConfig.sendingDomain ? { sendingDomain: senderConfig.sendingDomain } : {}),
             sourceId: id,
             subject: content.subject,
             text: content.text,
@@ -189,6 +205,6 @@ export function createAuth(context: AuthRequestContext) {
       updateAge: 24 * 60 * 60,
     },
     telemetry: { enabled: false },
-    trustedOrigins: [origin],
+    trustedOrigins: trustedAuthOrigins(env.APP_ENV, env.PRODUCT_BASE_DOMAIN, origin),
   });
 }

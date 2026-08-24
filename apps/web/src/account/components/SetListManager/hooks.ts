@@ -23,7 +23,13 @@ import {
 } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
-export function useSetListManagerController({ enabled }: { readonly enabled: boolean }) {
+export function useSetListManagerController({
+  enabled,
+  initialEventId = null,
+}: {
+  readonly enabled: boolean;
+  readonly initialEventId?: string | null | undefined;
+}) {
   const { performerLabelPlural } = useOrganizationTerminology();
   const [resources, setResources] = useState<Resources>(emptyResources);
   const [loaded, setLoaded] = useState(false);
@@ -61,10 +67,14 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     ])
       .then(([events, music, profiles]) => {
         setResources({ events, music, profiles });
-        const firstPerformance = events.find(({ type }) => type === "Performance");
-        setSelectedEventId(firstPerformance?.id ?? "");
-        setItems(normalizeItems(firstPerformance?.setList ?? []));
-        setApproved(firstPerformance?.setListApproved ?? false);
+        const requestedEventId =
+          initialEventId ?? new URLSearchParams(window.location.search).get("eventId");
+        const selectedPerformance =
+          events.find(({ id, type }) => type === "Performance" && id === requestedEventId) ??
+          events.find(({ type }) => type === "Performance");
+        setSelectedEventId(selectedPerformance?.id ?? "");
+        setItems(normalizeItems(selectedPerformance?.setList ?? []));
+        setApproved(selectedPerformance?.setListApproved ?? false);
         setDirty(false);
         setLoaded(true);
       })
@@ -77,7 +87,7 @@ export function useSetListManagerController({ enabled }: { readonly enabled: boo
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, initialEventId]);
 
   const performances = useMemo(
     () =>

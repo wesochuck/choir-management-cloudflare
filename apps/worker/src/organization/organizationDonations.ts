@@ -350,6 +350,62 @@ export async function readPublicDonationReceipt(
   });
 }
 
+export async function recordManualOrganizationDonation(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: ActorContext,
+  donation: unknown,
+): Promise<DonationRecord> {
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
+    "https://organization.internal/internal/donations/manage",
+    {
+      body: JSON.stringify({
+        action: "create_manual_donation",
+        ...actor,
+        donation,
+        donationId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    const code = await errorCode(response);
+    throw new DonationError(code, response.status, "The manual donation could not be recorded.");
+  }
+  return donationRecordSchema.parse(await response.json());
+}
+
+export async function updateOrganizationDonationThankYou(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: ActorContext,
+  payload: { readonly donationId: string; readonly thankYouSent: boolean },
+): Promise<DonationRecord> {
+  const response = await invokeOrganizationRpc(
+    stub(env, actor.organizationId),
+    "https://organization.internal/internal/donations/manage",
+    {
+      body: JSON.stringify({
+        action: "update_donation_thank_you",
+        ...actor,
+        donationId: payload.donationId,
+        thankYouSent: payload.thankYouSent,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    const code = await errorCode(response);
+    throw new DonationError(
+      code,
+      response.status,
+      "The thank-you letter status could not be updated.",
+    );
+  }
+  return donationRecordSchema.parse(await response.json());
+}
+
 export async function refundOrganizationDonation(
   env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE" | "STRIPE_SECRET_KEY">,
   actor: ActorContext,
@@ -359,22 +415,24 @@ export async function refundOrganizationDonation(
     ({ id }) => id === donationId,
   );
   if (!current) throw new DonationError("donation_not_found", 404, "Donation not found.");
-  let refundRequest: { readonly fake: boolean };
-  try {
-    refundRequest = await requestOrganizationProviderRefund(env, {
-      actorUserId: actor.actorUserId,
-      organizationId: actor.organizationId,
-      paymentType: "donation",
-      requestId: actor.requestId,
-      resourceId: z.uuid().parse(donationId),
-    });
-  } catch (error: unknown) {
-    if (error instanceof PaymentRefundError) {
-      throw new DonationError(error.code, error.status, error.message);
+  if (current.paymentMethod === "stripe") {
+    let refundRequest: { readonly fake: boolean };
+    try {
+      refundRequest = await requestOrganizationProviderRefund(env, {
+        actorUserId: actor.actorUserId,
+        organizationId: actor.organizationId,
+        paymentType: "donation",
+        requestId: actor.requestId,
+        resourceId: z.uuid().parse(donationId),
+      });
+    } catch (error: unknown) {
+      if (error instanceof PaymentRefundError) {
+        throw new DonationError(error.code, error.status, error.message);
+      }
+      throw error;
     }
-    throw error;
+    if (!refundRequest.fake) return { ...current, refundRequested: true };
   }
-  if (!refundRequest.fake) return { ...current, refundRequested: true };
   const response = await invokeOrganizationRpc(
     stub(env, actor.organizationId),
     "https://organization.internal/internal/donations/manage",

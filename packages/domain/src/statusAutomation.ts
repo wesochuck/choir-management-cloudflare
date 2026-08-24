@@ -42,8 +42,6 @@ export interface RsvpDeadline {
   readonly deadlineDate: string;
 }
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1_000;
-
 function calendarDateFromParts(year: number, month: number, day: number): string {
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
@@ -219,8 +217,4 @@ export function evaluateProfileStatus(input: {
     };
   }
   return none;
-}
-
-export function millisecondsPerCalendarDay(): number {
-  return MILLISECONDS_PER_DAY;
 }

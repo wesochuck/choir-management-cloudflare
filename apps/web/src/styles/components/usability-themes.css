@@ -233,9 +233,11 @@
   }
 
   .page-heading {
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    margin-bottom: 1.25rem;
   }
 
   .page-heading h1,
@@ -250,11 +252,12 @@
     font-size: var(--font-size-2xs);
   }
 
-  .page-heading__location {
-    max-width: 20rem;
+  .page-heading__description {
+    max-width: 48rem;
+    margin: 0.2rem 0 0;
     color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-regular);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
   }
 
   .workspace-hero {
@@ -335,8 +338,6 @@
   }
 
   .signed-in-main .surface-card,
-  .signed-in-main .account-section,
-  .signed-in-main .panel,
   .signed-in-main .compact-card {
     padding: 1.15rem;
     border-radius: var(--radius-lg);

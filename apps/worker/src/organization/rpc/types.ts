@@ -16,7 +16,7 @@ export type OrganizationRpcDomain =
   | "operations"
   | "profile";
 
-export type OrganizationRpcMethodName = "GET" | "POST";
+type OrganizationRpcMethodName = "GET" | "POST";
 
 interface OrganizationRpcCallForDomain<TDomain extends OrganizationRpcDomain> {
   readonly body?: OrganizationRpcValue;
@@ -30,16 +30,14 @@ interface OrganizationRpcCallForDomain<TDomain extends OrganizationRpcDomain> {
 export type OrganizationRpcCall<TDomain extends OrganizationRpcDomain = OrganizationRpcDomain> =
   TDomain extends OrganizationRpcDomain ? OrganizationRpcCallForDomain<TDomain> : never;
 
-export interface OrganizationRpcSuccess<
-  TValue extends OrganizationRpcValue = OrganizationRpcValue,
-> {
+interface OrganizationRpcSuccess<TValue extends OrganizationRpcValue = OrganizationRpcValue> {
   readonly headers: Readonly<Record<string, string>>;
   readonly ok: true;
   readonly status: number;
   readonly value: TValue;
 }
 
-export interface OrganizationRpcFailure {
+interface OrganizationRpcFailure {
   readonly error: {
     readonly body: OrganizationRpcValue;
     readonly code: string;
@@ -52,11 +50,7 @@ export interface OrganizationRpcFailure {
 export type OrganizationRpcResult<TValue extends OrganizationRpcValue = OrganizationRpcValue> =
   OrganizationRpcSuccess<TValue> | OrganizationRpcFailure;
 
-export type OrganizationRpcMethod<TDomain extends OrganizationRpcDomain> = (
-  call: OrganizationRpcCall<TDomain>,
-) => Promise<OrganizationRpcResult>;
-
-export interface OrganizationRpcOperationDefinition {
+interface OrganizationRpcOperationDefinition {
   readonly input: z.ZodType<OrganizationRpcValue>;
   readonly output: z.ZodType<OrganizationRpcValue>;
 }

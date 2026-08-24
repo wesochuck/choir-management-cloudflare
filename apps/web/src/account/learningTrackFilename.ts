@@ -1,9 +1,6 @@
 import type { OrganizationRosterConfiguration } from "@choir/contracts";
 
-export function trackDescription(
-  key: string,
-  configuration: OrganizationRosterConfiguration,
-): string {
+function trackDescription(key: string, configuration: OrganizationRosterConfiguration): string {
   if (key === "tutti") return "Full mix";
   return (
     configuration.sections.find(({ code }) => code === key)?.name ??

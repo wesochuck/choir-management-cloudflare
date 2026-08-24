@@ -10,7 +10,7 @@ const setListItemSchema = z.object({
   type: z.string().max(100).optional(),
 });
 
-export interface CalendarProjectionEvent {
+interface CalendarProjectionEvent {
   readonly callTime: string;
   readonly details: string;
   readonly durationMinutes: number | null;

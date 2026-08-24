@@ -95,13 +95,14 @@ describe("staging auth helper", () => {
     const testUrl = "https://staging.musicsite.org";
     const testEmail = "test-user@example.test";
     const testCookie = "choir-management.session_token=mock-token-for-test-lifecycle";
+    const testCacheFile = ".cache/test-staging-session.json";
 
-    saveCachedSession(testUrl, testEmail, testCookie);
-    const retrieved = readCachedSession(testUrl, testEmail);
+    saveCachedSession(testUrl, testEmail, testCookie, testCacheFile);
+    const retrieved = readCachedSession(testUrl, testEmail, testCacheFile);
     expect(retrieved).toBe(testCookie);
 
-    clearCachedSession();
-    const afterClear = readCachedSession(testUrl, testEmail);
+    clearCachedSession(testCacheFile);
+    const afterClear = readCachedSession(testUrl, testEmail, testCacheFile);
     expect(afterClear).toBeNull();
   });
 });

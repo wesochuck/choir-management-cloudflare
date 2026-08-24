@@ -35,9 +35,9 @@ export const claimResponseSchema = z.object({
 });
 export const completionResponseSchema = z.object({ completed: z.boolean() });
 export const deliveryAttemptSchema = z.number().int().min(1).max(10);
-export const failureResponseSchema = z.object({ failed: z.boolean() });
+const failureResponseSchema = z.object({ failed: z.boolean() });
 export const terminalResponseSchema = z.object({ terminal: z.boolean() });
-export const eventReminderResultResponseSchema = z.object({ recorded: z.boolean() });
+const eventReminderResultResponseSchema = z.object({ recorded: z.boolean() });
 const providerNotificationFields = {
   providerEventAt: z.string().max(100).nullable(),
   providerMessageId: z.string().max(512).nullable(),
@@ -343,7 +343,7 @@ export const scheduledReportMemberSchema = z.object({
   role: z.enum(["admin", "owner"]),
 });
 
-export async function deliveryOrigin(
+async function deliveryOrigin(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN"> & Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
   organizationId: string,
   delivery: { readonly unsubscribeUrl: string | null },

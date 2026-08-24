@@ -476,7 +476,6 @@ export function OrganizationInvitations({
       aria-labelledby="organization-invitations-title"
     >
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Organization Memberships</p>
         <h2 id="organization-invitations-title">Invite a member</h2>
       </div>
       <p className="section-description">

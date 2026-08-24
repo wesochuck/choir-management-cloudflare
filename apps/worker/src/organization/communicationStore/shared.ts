@@ -41,7 +41,7 @@ export function readMessage(storage: DurableObjectStorage, messageId: string) {
   return row ? parseMessage(row) : null;
 }
 
-export function setListTitles(value: string): string {
+function setListTitles(value: string): string {
   try {
     const parsed: unknown = JSON.parse(value);
     if (!Array.isArray(parsed)) return "";

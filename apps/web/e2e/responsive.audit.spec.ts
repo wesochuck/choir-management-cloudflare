@@ -577,7 +577,7 @@ async function assertBreakpointSpecificLayout(
     await assertSeasonsLayout(page, width);
   }
   if (path === "/admin/donations" && width <= 1024) {
-    await assertStackedFields(page, ".donation-dashboard__filters > .field", 4);
+    await assertStackedFields(page, ".donation-dashboard__filters > .field", 6);
   }
   if (path === "/admin/donations" && width === widths[0]) {
     const donationSummary = page.getByRole("group", { name: "Donation summary" });

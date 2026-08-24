@@ -153,6 +153,15 @@ export {
 } from "./attendanceReportCsv";
 export { donationExportFilename, renderDonationCsv, type DonationExportRow } from "./donationCsv";
 export {
+  buildDonorSuggestions,
+  filterDonorSuggestions,
+  type DonorSuggestion,
+  type DonorSuggestionMemberInput,
+  type DonorSuggestionPatronInput,
+  type DonorSuggestionSource,
+  type DonorSuggestionTicketBuyerInput,
+} from "./donorSuggestions";
+export {
   defaultPollExpirationAt,
   pollArchiveDueAt,
   POLL_ARCHIVE_DELAY_DAYS,
@@ -173,5 +182,11 @@ export {
   type RepertoireReportPiece,
 } from "./repertoireReportCsv";
 export { canTransitionDues, type DuesRecord, type DuesStatus, type SeasonInput } from "./seasons";
-export { nextSetupStep, isSetupComplete } from "./setup";
-export type { SetupStep, SetupProgress, OrganizationSetup } from "./setup";
+export { MODULE_DEFINITIONS, resolveModuleEnabled, nextSetupStep, isSetupComplete } from "./setup";
+export type {
+  ModuleCategory,
+  ModuleDefinition,
+  SetupStep,
+  SetupProgress,
+  OrganizationSetup,
+} from "./setup";

@@ -379,7 +379,6 @@ export function OrganizationResources({
 
   return (
     <section className="panel organization-resources" aria-label="Organization resources">
-      <p className="section-description">Shared files and trusted links for this Organization.</p>
       {error && !dialogOpen ? (
         <p className="notice notice--error" role="alert">
           {error}

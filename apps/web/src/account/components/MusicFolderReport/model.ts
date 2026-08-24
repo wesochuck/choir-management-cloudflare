@@ -44,7 +44,7 @@ export function musicFolderStatusClass(status: MusicFolderReportStatus): string 
   return `music-folder-report__status--${status.replaceAll("_", "-")}`;
 }
 
-export function summaryMatchesFilter(
+function summaryMatchesFilter(
   summary: MusicFolderReportSummary,
   filter: MusicFolderSummaryFilter,
 ): boolean {
@@ -74,7 +74,7 @@ export function filterMusicFolderSummaries(
   );
 }
 
-export function rowHasFolderDraft(
+function rowHasFolderDraft(
   row: MusicFolderReportDetailRow,
   drafts: Readonly<Record<string, string>>,
 ): boolean {

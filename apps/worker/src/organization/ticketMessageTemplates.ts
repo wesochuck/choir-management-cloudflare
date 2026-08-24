@@ -39,7 +39,7 @@ export const ticketMessageTemplates: readonly TicketMessageTemplate[] = [
   },
 ] as const;
 
-export function ticketMessageTemplateFor(kind: TicketMessageTemplateKind): TicketMessageTemplate {
+function ticketMessageTemplateFor(kind: TicketMessageTemplateKind): TicketMessageTemplate {
   const template = ticketMessageTemplates.find((candidate) => candidate.kind === kind);
   if (!template) throw new Error(`Unknown ticket message template: ${kind}`);
   return template;

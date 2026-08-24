@@ -17,7 +17,7 @@ import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { processDeliveryBatch } from "../src/jobs/consumer";
 import type { DeliveryJob } from "../src/jobs/contracts";
 
-export const USER_EMAIL = "tickets.manager@example.test";
+const USER_EMAIL = "tickets.manager@example.test";
 
 function binding<T>(value: T | undefined, name: string): T {
   if (value === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -26,7 +26,7 @@ function binding<T>(value: T | undefined, name: string): T {
 
 export const database = binding(env.CONTROL_DB, "CONTROL_DB");
 export const stores = binding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
-export const organizationFiles = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
+const organizationFiles = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 
 export function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
   const headers = new Headers(init?.headers);
@@ -51,7 +51,7 @@ export async function jsonWrite(
   );
 }
 
-export async function provision(id: string, slug: string, role: "admin" | "member"): Promise<void> {
+async function provision(id: string, slug: string, role: "admin" | "member"): Promise<void> {
   const now = new Date().toISOString();
   await database.batch([
     database

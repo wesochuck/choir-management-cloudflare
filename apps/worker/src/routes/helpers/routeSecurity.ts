@@ -185,23 +185,23 @@ export const platformMfaVerificationSchema = z.discriminatedUnion("method", [
   z.object({ code: z.string().min(8).max(128), method: z.literal("recovery_code") }),
 ]);
 
-export const administratorRecoveryRequestSchema = z.object({
+const administratorRecoveryRequestSchema = z.object({
   email: z.email(),
   name: z.string().trim().min(1).max(200).optional(),
   password: z.string().max(128).optional(),
   passwordConfirm: z.string().max(128).optional(),
 });
 
-export interface AdministratorRecoveryRequest {
+interface AdministratorRecoveryRequest {
   readonly email: string;
   readonly displayName: string;
 }
 
-export interface AdministratorRecoveryAuthorization {
+interface AdministratorRecoveryAuthorization {
   readonly userId: string;
 }
 
-export interface AdministratorRecoveryIdentity {
+interface AdministratorRecoveryIdentity {
   readonly createdMembership: boolean;
   readonly createdUser: boolean;
   readonly email: string;
@@ -210,7 +210,7 @@ export interface AdministratorRecoveryIdentity {
   readonly userId: string;
 }
 
-export async function readAdministratorRecoveryRequest(
+async function readAdministratorRecoveryRequest(
   context: Context<WorkerHonoEnvironment>,
 ): Promise<AdministratorRecoveryRequest | Response> {
   const body = await readJsonObject(context);
@@ -246,7 +246,7 @@ export async function readAdministratorRecoveryRequest(
   };
 }
 
-export async function authorizeAdministratorRecovery(
+async function authorizeAdministratorRecovery(
   context: Context<WorkerHonoEnvironment>,
   requestUrl: URL,
   organizationId: string,
@@ -293,7 +293,7 @@ export async function authorizeAdministratorRecovery(
       );
 }
 
-export async function ensureAdministratorRecoverySetup(
+async function ensureAdministratorRecoverySetup(
   context: Context<WorkerHonoEnvironment>,
   organizationId: string,
 ): Promise<Response | true> {
@@ -321,7 +321,7 @@ export async function ensureAdministratorRecoverySetup(
   }
 }
 
-export async function recoverAdministratorIdentity(
+async function recoverAdministratorIdentity(
   context: Context<WorkerHonoEnvironment>,
   organizationId: string,
   request: AdministratorRecoveryRequest,
@@ -389,7 +389,7 @@ export async function recoverAdministratorIdentity(
   };
 }
 
-export async function createAdministratorRecoveryProfile(
+async function createAdministratorRecoveryProfile(
   context: Context<WorkerHonoEnvironment>,
   organizationId: string,
   actorUserId: string,

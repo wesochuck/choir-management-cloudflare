@@ -11,6 +11,7 @@ import type { SetListManagerModel } from "./hooks";
 import { CustomItemDialog } from "./dialogs/CustomItemDialog";
 import { EditItemDialog } from "./dialogs/EditItemDialog";
 import { PrintPreviewDialog } from "./dialogs/PrintPreviewDialog";
+import { AppLink } from "../AuthenticatedShell/navigation";
 
 function dropBoundaryForEvent(event: DragEvent<HTMLElement>, itemIndex: number): number {
   const bounds = event.currentTarget.getBoundingClientRect();
@@ -50,7 +51,13 @@ function reorderHandleLabel(
 }
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
-export function SetListManagerView({ model }: { readonly model: SetListManagerModel }) {
+export function SetListManagerView({
+  model,
+  navigate,
+}: {
+  readonly model: SetListManagerModel;
+  readonly navigate?: ((href: string) => void) | undefined;
+}) {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [dragOverBoundary, setDragOverBoundary] = useState<number | null>(null);
   const [keyboardDragIndex, setKeyboardDragIndex] = useState<number | null>(null);
@@ -280,7 +287,24 @@ export function SetListManagerView({ model }: { readonly model: SetListManagerMo
       </div>
       {!loaded ? <p>Loading set lists…</p> : null}
       {loaded && performances.length === 0 ? (
-        <p className="empty-state">Create a Performance before building a set list.</p>
+        <div className="empty-state">
+          <h2>Create an event first</h2>
+          <p>Set lists belong to active Performance events.</p>
+          <div className="button-row" style={{ marginTop: "1rem" }}>
+            <AppLink
+              className="button button--primary"
+              href="/admin/events?action=create&type=Performance&returnTo=/admin/setlists"
+              onNavigate={
+                navigate ??
+                ((href) => {
+                  window.location.assign(href);
+                })
+              }
+            >
+              Create an event
+            </AppLink>
+          </div>
+        </div>
       ) : null}
       {selectedEvent ? (
         <div className="set-list-layout">

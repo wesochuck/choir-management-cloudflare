@@ -280,13 +280,13 @@ test.beforeEach(async ({ page }) => {
             publicDetails: "A Browser Concert for the choir.",
             publicGraphicFileId: null,
             publishOnWebsite: true,
-            rsvpDeadlineAt: "2026-08-13T23:59:59.000Z",
-            rsvpDeadlineDate: "2026-08-13",
+            rsvpDeadlineAt: "2027-08-13T23:59:59.000Z",
+            rsvpDeadlineDate: "2027-08-13",
             rsvpDeadlinePassed: true,
             rsvpSelfServiceOpen: false,
             setList: [{ title: "Finale" }],
             setListApproved: true,
-            startsAt: "2026-08-20T23:00:00.000Z",
+            startsAt: "2027-08-20T23:00:00.000Z",
             ticketCapacity: 100,
             title: "Browser Concert",
             type: "Performance",
@@ -485,7 +485,7 @@ test.beforeEach(async ({ page }) => {
             location: "Browser Hall",
             resolvedRsvp: "Yes",
             rsvpNote: "",
-            startsAt: "2026-08-20T23:00:00.000Z",
+            startsAt: "2027-08-20T23:00:00.000Z",
             title: "Browser Concert",
             type: "Performance",
             venueAddress: "100 Browser Way",
@@ -1259,7 +1259,7 @@ test("enrolls and verifies mandatory Platform Administrator MFA", async ({ page 
   await page.goto("/platform/dead-letters");
   const deadLettersSection = page.getByRole("region", { name: "Queue dead letters" });
   await expect(
-    deadLettersSection.getByRole("heading", { level: 2, name: "Queue dead letters" }),
+    deadLettersSection.getByRole("heading", { name: "Queue dead letters" }),
   ).toBeVisible();
   await expect(
     deadLettersSection.getByText("No jobs have reached the dead-letter queue."),
@@ -1407,7 +1407,7 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
 
   await page.goto("/platform/access");
   const platformSection = page.getByRole("region", { name: "Organization access" });
-  await expect(platformSection.locator("#platform-access-title")).toBeVisible();
+  await expect(platformSection.getByRole("heading", { name: "Organization access" })).toBeVisible();
   await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
   await platformSection
     .getByLabel("Reason for enabling edits")
@@ -2162,9 +2162,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     .getByLabel("Organization role")
     .selectOption({ label: "Organization Administrator" });
   await invitationSection.getByRole("button", { name: "Create invitation" }).click();
-  await expect(invitationSection.getByRole("status")).toContainText(
-    "Invitation created for future.member@example.test",
-  );
+  await expect(
+    invitationSection.getByRole("status").filter({ hasText: "Invitation created" }),
+  ).toContainText("Invitation created for future.member@example.test");
 
   await page.goto("/admin/settings/setup-checklist");
   const providerStatus = page.getByRole("region", { name: "Payments and email setup" });

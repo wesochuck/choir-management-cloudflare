@@ -6,7 +6,7 @@ import {
   prepareEmailProviderRoute,
 } from "../communications/emailFeedback";
 
-export type PlatformEmailKind =
+type PlatformEmailKind =
   | "communication-test"
   | "email-change-confirmation"
   | "email-change-notice"
@@ -16,10 +16,13 @@ export type PlatformEmailKind =
 
 export interface PlatformEmailMessage {
   readonly kind: PlatformEmailKind;
-  readonly html?: string;
-  readonly organizationId?: string;
+  readonly fromName?: string | undefined;
+  readonly html?: string | undefined;
+  readonly organizationId?: string | undefined;
   readonly recipient: string;
-  readonly sourceId?: string;
+  readonly replyTo?: string | undefined;
+  readonly sendingDomain?: string | undefined;
+  readonly sourceId?: string | undefined;
   readonly subject: string;
   readonly text: string;
 }
@@ -72,7 +75,7 @@ export async function sendPlatformEmail(
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean),
   );
-  if (!allowedRecipients.has(recipient)) {
+  if (allowedRecipients.size > 0 && !allowedRecipients.has(recipient)) {
     return Promise.reject(new Error("The platform email recipient is not allowlisted."));
   }
   if (env.CONTROL_DB && (await isEmailProviderSuppressed(env.CONTROL_DB, recipient))) {
@@ -101,10 +104,16 @@ export async function sendPlatformEmail(
       : null;
   if (route?.alreadyAccepted) return Promise.resolve();
   let result: Awaited<ReturnType<SendEmail["send"]>>;
+  const senderEmail = message.sendingDomain
+    ? `announcements@${message.sendingDomain}`
+    : env.PLATFORM_EMAIL_FROM;
+  const senderName = message.fromName ?? "Choir Management";
+  const replyTo = message.replyTo ? { email: message.replyTo, name: senderName } : undefined;
   try {
     result = await env.PLATFORM_EMAIL.send({
-      from: { email: env.PLATFORM_EMAIL_FROM, name: "Choir Management" },
+      from: { email: senderEmail, name: senderName },
       ...(message.html ? { html: message.html } : {}),
+      ...(replyTo ? { replyTo } : {}),
       subject: message.subject,
       text: message.text,
       to: recipient,

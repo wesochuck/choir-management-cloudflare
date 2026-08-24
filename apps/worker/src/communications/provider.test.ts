@@ -261,4 +261,30 @@ describe("Organization communication provider", () => {
     expect(sent?.html).toContain(`>${credential}</code>`);
     expect(sent?.html).not.toContain("<em>part</em>");
   });
+
+  it("applies custom fromName, replyTo, and custom sending domain when provided", async () => {
+    const email = platformEmailBinding();
+    await deliverOrganizationCommunication(
+      {
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_FROM: "communications@mail.staging.example.com",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      {
+        ...delivery,
+        fromName: "Seattle Men's Chorus",
+        replyTo: "director@seattlechorus.org",
+        sendingDomain: "mail.seattlechorus.org",
+      },
+    );
+
+    const sent = email.send.mock.calls[0]?.[0];
+    expect(sent).toMatchObject({
+      from: { email: "announcements@mail.seattlechorus.org", name: "Seattle Men's Chorus" },
+      replyTo: { email: "director@seattlechorus.org", name: "Seattle Men's Chorus" },
+      subject: "Rehearsal",
+      to: "singer@example.test",
+    });
+  });
 });
