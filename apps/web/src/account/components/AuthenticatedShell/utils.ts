@@ -49,16 +49,16 @@ export const memberGroups: readonly NavigationGroup[] = [
     items: [
       { href: "/dashboard", label: "Dashboard" },
       { href: "/schedule", label: "My schedule", module: "events" },
-      { href: "/profile", label: "My Profile", module: "people" },
-      { href: "/directory", label: "Directory", module: "people" },
-      { href: "/dues", label: "Season dues", module: "people" },
+      { href: "/profile", label: "My Profile", module: "roster" },
+      { href: "/directory", label: "Directory", module: "directory" },
+      { href: "/dues", label: "Season dues", module: "dues" },
     ],
   },
   {
     label: "Practice & resources",
     items: [
-      { href: "/practice", label: "Practice", module: "programs" },
-      { href: "/member/resources", label: "Resources", module: "programs" },
+      { href: "/practice", label: "Practice", module: "practice_player" },
+      { href: "/member/resources", label: "Resources", module: "resources" },
     ],
   },
 ];
@@ -71,45 +71,45 @@ export const organizationGroups: readonly NavigationGroup[] = [
   {
     label: "People",
     items: [
-      { href: "/admin/roster", label: "Roster", module: "people" },
-      { href: "/admin/settings/invitations", label: "Membership invitations", module: "people" },
-      { href: "/directory", label: "Directory", module: "people" },
-      { href: "/admin/auditions", label: "Auditions & Inquiries", module: "people" },
+      { href: "/admin/roster", label: "Roster", module: "roster" },
+      { href: "/admin/settings/invitations", label: "Membership invitations", module: "roster" },
+      { href: "/directory", label: "Directory", module: "directory" },
+      { href: "/admin/auditions", label: "Auditions & Inquiries", module: "auditions" },
     ],
   },
   {
     label: "Events",
     items: [
       { href: "/admin/events", label: "Events", module: "events" },
-      { href: "/admin/venues", label: "Venues", module: "events" },
-      { href: "/admin/rsvp", label: "RSVPs", module: "events" },
-      { href: "/admin/attendance", label: "Attendance", module: "events" },
-      { href: "/admin/seating", label: "Seating", module: "events" },
+      { href: "/admin/venues", label: "Venues", module: "venues" },
+      { href: "/admin/rsvp", label: "RSVPs", module: "rsvp" },
+      { href: "/admin/attendance", label: "Attendance", module: "attendance" },
+      { href: "/admin/seating", label: "Seating", module: "seating" },
     ],
   },
   {
     label: "Music & content",
     items: [
-      { href: "/admin/library", label: "Music library", module: "programs" },
-      { href: "/admin/setlists", label: "Set lists", module: "programs" },
-      { href: "/admin/resources", label: "Resources", module: "programs" },
-      { href: "/admin/website", label: "Public website", module: "programs" },
+      { href: "/admin/library", label: "Music library", module: "music_library" },
+      { href: "/admin/setlists", label: "Set lists", module: "setlists" },
+      { href: "/admin/resources", label: "Resources", module: "resources" },
+      { href: "/admin/website", label: "Public website", module: "public_website" },
     ],
   },
   {
     label: "Communications & finance",
     items: [
-      { href: "/admin/communications", label: "Communications", module: "programs" },
-      { href: "/admin/polls", label: "Polls", module: "programs" },
-      { href: "/admin/tickets", label: "Ticketing", module: "programs" },
-      { href: "/admin/donations", label: "Donations & giving", module: "programs" },
-      { href: "/admin/seasons", label: "Seasons & dues", module: "people" },
+      { href: "/admin/communications", label: "Communications", module: "communications" },
+      { href: "/admin/polls", label: "Polls", module: "polls" },
+      { href: "/admin/tickets", label: "Ticketing", module: "ticketing" },
+      { href: "/admin/donations", label: "Donations & giving", module: "donations" },
+      { href: "/admin/seasons", label: "Seasons & dues", module: "dues" },
     ],
   },
   {
     label: "Insights & settings",
     items: [
-      { href: "/admin/reports", label: "Reports", module: "events" },
+      { href: "/admin/reports", label: "Reports", module: "reports" },
       { href: "/admin/settings", label: "Organization settings" },
       { href: "/admin/settings/modules", label: "Modules" },
       { href: "/admin/settings/setup-checklist", label: "Setup checklist" },
@@ -316,53 +316,35 @@ export function routeHasModule(
   return modules.find((module) => module.id === item.module)?.enabled ?? true;
 }
 
-const moduleRoutePrefixes: Record<
+const moduleRoutePrefixes: readonly (readonly [
   Exclude<NavigationItem["module"], undefined>,
-  readonly string[]
-> = {
-  events: [
-    "/schedule",
-    "/calendar",
-    "/seating",
-    "/admin/events",
-    "/admin/venues",
-    "/admin/rsvp",
-    "/admin/attendance",
-    "/admin/seating",
-    "/admin/reports",
-  ],
-  people: [
-    "/profile",
-    "/directory",
-    "/dues",
-    "/admin/roster",
-    "/admin/settings/invitations",
-    "/admin/auditions",
-    "/admin/seasons",
-  ],
-  programs: [
-    "/practice",
-    "/member/resources",
-    "/admin/library",
-    "/admin/setlists",
-    "/admin/resources",
-    "/admin/website",
-    "/admin/communications",
-    "/admin/polls",
-    "/admin/tickets",
-    "/admin/donations",
-    "/admin/patrons",
-  ],
-};
+  readonly string[],
+])[] = [
+  ["attendance", ["/admin/attendance"]],
+  ["auditions", ["/admin/auditions"]],
+  ["communications", ["/admin/communications"]],
+  ["directory", ["/directory"]],
+  ["donations", ["/admin/donations", "/admin/patrons"]],
+  ["dues", ["/admin/seasons", "/dues"]],
+  ["events", ["/schedule", "/calendar", "/admin/events"]],
+  ["music_library", ["/admin/library"]],
+  ["polls", ["/admin/polls"]],
+  ["practice_player", ["/practice"]],
+  ["public_website", ["/admin/website"]],
+  ["reports", ["/admin/reports"]],
+  ["resources", ["/member/resources", "/admin/resources"]],
+  ["roster", ["/profile", "/admin/roster", "/admin/settings/invitations"]],
+  ["rsvp", ["/admin/rsvp"]],
+  ["seating", ["/seating", "/admin/seating"]],
+  ["setlists", ["/admin/setlists"]],
+  ["ticketing", ["/admin/tickets"]],
+  ["venues", ["/admin/venues"]],
+];
 
 export function routeModule(pathname: string): NavigationItem["module"] {
-  for (const module of ["people", "events", "programs"] as const) {
-    if (
-      moduleRoutePrefixes[module].some(
-        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-      )
-    ) {
-      return module;
+  for (const [moduleKey, prefixes] of moduleRoutePrefixes) {
+    if (prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+      return moduleKey;
     }
   }
   return undefined;

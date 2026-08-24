@@ -1,3 +1,4 @@
+import { MODULE_DEFINITIONS, resolveModuleEnabled } from "@choir/domain";
 import { z } from "zod";
 
 interface SetupStateRow {
@@ -382,10 +383,12 @@ export function getModuleStateFromStore(
     .toArray()
     .at(0);
   const config: Record<string, boolean> = row ? parseModuleConfig(row.moduleConfig) : {};
-  const defaultModules = ["people", "events", "programs"];
-  const modules = defaultModules.map((id) => ({
-    id,
-    enabled: config[id] ?? false,
+  const modules = MODULE_DEFINITIONS.map((def) => ({
+    category: def.category,
+    description: def.description,
+    enabled: resolveModuleEnabled(def.id, config),
+    id: def.id,
+    label: def.label,
   }));
   return Response.json({ modules });
 }

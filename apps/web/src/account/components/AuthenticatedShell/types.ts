@@ -1,4 +1,4 @@
-import type { ModuleState, OrganizationAuthStatusResponse } from "@choir/contracts";
+import type { ModuleId, ModuleState, OrganizationAuthStatusResponse } from "@choir/contracts";
 
 export type Workspace = "account" | "member" | "organization" | "platform";
 
@@ -25,7 +25,7 @@ export type AccessState =
 export interface NavigationItem {
   readonly href: string;
   readonly label: string;
-  readonly module?: "events" | "people" | "programs";
+  readonly module?: ModuleId;
 }
 
 export interface NavigationGroup {

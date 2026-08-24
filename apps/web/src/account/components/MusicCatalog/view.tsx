@@ -7,6 +7,7 @@ import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
 import { MusicAudioTracks, MusicBulkEditDialog, MusicDeleteControls } from "./tracksAndBulkEdit";
 import { MusicCredits } from "./credits";
+import { AddToSetListDialog } from "./AddToSetListDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { AppLink } from "../AuthenticatedShell/navigation";
 import type { MusicCatalogModel } from "./hooks";
@@ -24,6 +25,7 @@ export function MusicCatalogView({
   readonly view?: "catalog" | "credits";
 }) {
   const {
+    addSelectedPiecesToSetList,
     applyBulkChanges,
     availableGenres,
     beginNew,
@@ -91,11 +93,15 @@ export function MusicCatalogView({
     setGenreFilterSearch,
     setGenresInput,
     setImportDialogOpen,
+    setListDialogOpen,
+    setListError,
     setMessage,
     setMusicImportConfirmed,
     setPiece,
     setPieces,
     setSearch,
+    setSetListDialogOpen,
+    setSetListError,
     setUnlinkChildren,
     timezone,
     toggleGenre,
@@ -206,6 +212,18 @@ export function MusicCatalogView({
                 }}
               >
                 Bulk edit{selectedPieces.length > 0 ? ` (${String(selectedPieces.length)})` : ""}
+              </button>
+              <button
+                className="button button--secondary"
+                disabled={selectedPieces.length === 0}
+                type="button"
+                onClick={() => {
+                  setSetListError(null);
+                  setSetListDialogOpen(true);
+                }}
+              >
+                Add to set list
+                {selectedPieces.length > 0 ? ` (${String(selectedPieces.length)})` : ""}
               </button>
               <button
                 className="button button--secondary"
@@ -590,6 +608,23 @@ export function MusicCatalogView({
             personNameOptions={personNameOptions}
             selectedCount={selectedPieces.length}
             key={bulkDialogOpen ? "open" : "closed"}
+          />
+          <AddToSetListDialog
+            busy={busy}
+            error={setListError}
+            events={events}
+            onApply={(payload) => {
+              void addSelectedPiecesToSetList(payload);
+            }}
+            onClose={() => {
+              setSetListDialogOpen(false);
+              setSetListError(null);
+            }}
+            open={setListDialogOpen}
+            selectedPieces={selectedPieces}
+            timezone={timezone}
+            venues={venues}
+            key={setListDialogOpen ? "open" : "closed"}
           />
           <CsvImportDialog
             busy={busy || musicImportInspecting}

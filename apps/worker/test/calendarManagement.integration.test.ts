@@ -880,7 +880,7 @@ describe("Organization calendar management", () => {
     });
 
     const progress = await post("alpha.localhost", "/api/setup/progress", cookie, {
-      data: { events: true, people: true },
+      data: { events: true, music_library: true, setlists: false },
       step: "modules",
     });
     expect(progress.status).toBe(200);
@@ -891,11 +891,11 @@ describe("Organization calendar management", () => {
     );
     expect(modules.status).toBe(200);
     expect(await modules.json()).toMatchObject({
-      modules: [
-        { enabled: true, id: "people" },
-        { enabled: true, id: "events" },
-        { enabled: false, id: "programs" },
-      ],
+      modules: expect.arrayContaining([
+        expect.objectContaining({ enabled: true, id: "events" }),
+        expect.objectContaining({ enabled: true, id: "music_library" }),
+        expect.objectContaining({ enabled: false, id: "setlists" }),
+      ]),
     });
 
     const complete = await post("alpha.localhost", "/api/setup/complete", cookie, {});

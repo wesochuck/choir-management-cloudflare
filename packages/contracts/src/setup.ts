@@ -19,9 +19,36 @@ export const setupStatusSchema = z.object({
 
 export type SetupStatus = z.infer<typeof setupStatusSchema>;
 
+export const moduleIdSchema = z.enum([
+  "roster",
+  "directory",
+  "auditions",
+  "events",
+  "venues",
+  "rsvp",
+  "attendance",
+  "seating",
+  "music_library",
+  "setlists",
+  "resources",
+  "practice_player",
+  "public_website",
+  "communications",
+  "polls",
+  "ticketing",
+  "donations",
+  "dues",
+  "reports",
+]);
+
+export type ModuleId = z.infer<typeof moduleIdSchema>;
+
 export const moduleStateSchema = z.object({
   id: z.string().min(1),
   enabled: z.boolean(),
+  label: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
 });
 
 export const moduleStatesResponseSchema = z.object({

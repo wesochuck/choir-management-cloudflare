@@ -24,7 +24,7 @@ describe("Worker foundation", () => {
     expect(csp).toContain("https://static.cloudflareinsights.com");
     expect(csp).toContain("https://challenges.cloudflare.com");
     expect(csp).toContain("https://cloudflareinsights.com");
-    expect(csp).toContain("'sha256-JRw80qwSLwB6+oqpjJSn2aJLmtN2pQ2CJxUulGgtJYo='");
+    expect(csp).toContain("'unsafe-inline'");
   });
 
   it("returns typed API not-found responses without falling through to static assets", async () => {

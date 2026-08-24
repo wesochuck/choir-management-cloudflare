@@ -182,5 +182,11 @@ export {
   type RepertoireReportPiece,
 } from "./repertoireReportCsv";
 export { canTransitionDues, type DuesRecord, type DuesStatus, type SeasonInput } from "./seasons";
-export { nextSetupStep, isSetupComplete } from "./setup";
-export type { SetupStep, SetupProgress, OrganizationSetup } from "./setup";
+export { MODULE_DEFINITIONS, resolveModuleEnabled, nextSetupStep, isSetupComplete } from "./setup";
+export type {
+  ModuleCategory,
+  ModuleDefinition,
+  SetupStep,
+  SetupProgress,
+  OrganizationSetup,
+} from "./setup";

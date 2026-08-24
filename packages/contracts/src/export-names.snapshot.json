@@ -104,6 +104,8 @@
   "ProblemDetails",
   "setupStatusSchema",
   "SetupStatus",
+  "moduleIdSchema",
+  "ModuleId",
   "moduleStateSchema",
   "moduleStatesResponseSchema",
   "ModuleState",

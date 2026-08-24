@@ -28,6 +28,7 @@ import {
 import {
   AuthApiError,
   bulkUpdateOrganizationMusicPieces,
+  createOrganizationEvent,
   createOrganizationMusicPiece,
   deleteOrganizationMusicPiece,
   deletePrivateOrganizationFile,
@@ -40,8 +41,10 @@ import {
   listOrganizationVenues,
   renameOrganizationMusicCredit,
   uploadPrivateOrganizationFile,
+  updateOrganizationEvent,
   updateOrganizationMusicPiece,
 } from "../../../auth/api";
+import { eventRequestFrom, performanceSetListItem } from "./tableUtils";
 import { learningTrackFileName } from "../../learningTrackFilename";
 import { extractAudioDuration, extractAudioDurationFromUrl } from "../../audioDuration";
 import {
@@ -83,6 +86,8 @@ export function useMusicCatalogController({
   const [selectedPieceIds, setSelectedPieceIds] = useState<readonly string[]>([]);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [setListDialogOpen, setSetListDialogOpen] = useState(false);
+  const [setListError, setSetListError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [unlinkChildren, setUnlinkChildren] = useState(false);
@@ -622,7 +627,86 @@ export function useMusicCatalogController({
     }
   }
 
+  async function addSelectedPiecesToSetList(
+    payload:
+      | {
+          readonly mode: "existing";
+          readonly eventId: string;
+        }
+      | {
+          readonly mode: "new";
+          readonly startsAt: string;
+          readonly title: string;
+          readonly venueId?: string | null;
+        },
+  ): Promise<void> {
+    if (selectedPieces.length === 0) return;
+    setBusy(true);
+    setSetListError(null);
+    try {
+      const itemsToAdd = selectedPieces.map((p) => performanceSetListItem(p));
+      let targetEvent: OrganizationEvent;
+      let actionLabel = "";
+
+      if (payload.mode === "existing") {
+        const existingEvent = events.find((e) => e.id === payload.eventId);
+        if (!existingEvent) throw new Error("Selected concert event not found.");
+        const nextSetList = [...existingEvent.setList, ...itemsToAdd];
+        targetEvent = await updateOrganizationEvent(existingEvent.id, {
+          ...eventRequestFrom(existingEvent),
+          setList: nextSetList,
+        });
+        actionLabel = `Added ${String(itemsToAdd.length)} piece(s) to "${targetEvent.title}".`;
+      } else {
+        targetEvent = await createOrganizationEvent({
+          advancePriceCents: 0,
+          callTime: "",
+          dayOfPriceCents: 0,
+          details: "",
+          doorsOpenTime: "",
+          durationMinutes: null,
+          isTicketingEnabled: false,
+          location: "",
+          parentPerformanceId: null,
+          publicDetails: "",
+          publicGraphicFileId: null,
+          publishOnWebsite: false,
+          rsvpFollowUpLeadHours: null,
+          rsvpFollowUpMode: "inherit",
+          setList: itemsToAdd,
+          setListApproved: false,
+          startsAt: payload.startsAt,
+          ticketCapacity: null,
+          title: payload.title,
+          type: "Performance",
+          venueId: payload.venueId ?? null,
+        });
+        actionLabel = `Created "${targetEvent.title}" and added ${String(itemsToAdd.length)} piece(s) to its set list.`;
+      }
+
+      setEvents((current) => {
+        const exists = current.some((e) => e.id === targetEvent.id);
+        return exists
+          ? current.map((e) => (e.id === targetEvent.id ? targetEvent : e))
+          : [...current, targetEvent];
+      });
+
+      setSelectedPieceIds([]);
+      setSetListDialogOpen(false);
+      setMessage(actionLabel);
+    } catch (caught: unknown) {
+      setSetListError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "Pieces could not be added to the concert set list.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return {
+    addSelectedPiecesToSetList,
     applyBulkChanges,
     availableGenres,
     beginNew,
@@ -690,11 +774,15 @@ export function useMusicCatalogController({
     setGenreFilterSearch,
     setGenresInput,
     setImportDialogOpen,
+    setListDialogOpen,
+    setListError,
     setMessage,
     setMusicImportConfirmed,
     setPiece,
     setPieces,
     setSearch,
+    setSetListDialogOpen,
+    setSetListError,
     setUnlinkChildren,
     timezone,
     toggleGenre,

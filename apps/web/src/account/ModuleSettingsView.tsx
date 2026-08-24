@@ -1,15 +1,26 @@
 import { moduleStatesResponseSchema, type ModuleState } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type ModulesState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly modules: readonly ModuleState[]; readonly status: "ready" };
 
+const categoryLabels: Record<string, string> = {
+  people: "People",
+  events: "Events",
+  content: "Music & Content",
+  finance: "Communications & Finance",
+  insights: "Insights & Reports",
+};
+
+const categoryOrder = ["people", "events", "content", "finance", "insights"];
+
 export function ModuleSettingsView() {
   const [modulesState, setModulesState] = useState<ModulesState>({ status: "loading" });
-  const [busy, setBusy] = useState(false);
+  const [busyModuleId, setBusyModuleId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,8 +47,9 @@ export function ModuleSettingsView() {
   }, []);
 
   async function toggleModule(moduleId: string, enabled: boolean) {
-    setBusy(true);
+    setBusyModuleId(moduleId);
     setMessage(null);
+    setErrorMessage(null);
     try {
       const response = await fetch("/api/setup/progress", {
         body: JSON.stringify({ step: "modules", data: { [moduleId]: enabled } }),
@@ -54,13 +66,56 @@ export function ModuleSettingsView() {
             }
           : current,
       );
-      setMessage(`Module ${enabled ? "enabled" : "disabled"}.`);
+      const mod =
+        modulesState.status === "ready"
+          ? modulesState.modules.find((m) => m.id === moduleId)
+          : null;
+      const label = mod?.label ?? moduleId;
+      setMessage(`${label} ${enabled ? "enabled" : "disabled"}.`);
     } catch {
-      setMessage("Module could not be updated.");
+      setErrorMessage("Module could not be updated. Please try again.");
     } finally {
-      setBusy(false);
+      setBusyModuleId(null);
     }
   }
+
+  const groupedModules = useMemo(() => {
+    if (modulesState.status !== "ready") return [];
+    const groups: { category: string; label: string; modules: ModuleState[] }[] = [];
+    const categoryMap = new Map<string, ModuleState[]>();
+
+    for (const mod of modulesState.modules) {
+      const cat = mod.category ?? "other";
+      const existing = categoryMap.get(cat);
+      if (existing) {
+        existing.push(mod);
+      } else {
+        categoryMap.set(cat, [mod]);
+      }
+    }
+
+    for (const cat of categoryOrder) {
+      const items = categoryMap.get(cat);
+      if (items && items.length > 0) {
+        groups.push({
+          category: cat,
+          label: categoryLabels[cat] ?? cat,
+          modules: items,
+        });
+        categoryMap.delete(cat);
+      }
+    }
+
+    for (const [cat, items] of categoryMap) {
+      groups.push({
+        category: cat,
+        label: categoryLabels[cat] ?? cat,
+        modules: items,
+      });
+    }
+
+    return groups;
+  }, [modulesState]);
 
   if (modulesState.status === "loading")
     return (
@@ -77,27 +132,58 @@ export function ModuleSettingsView() {
 
   return (
     <section className="panel" aria-label="Module settings">
+      <div className="section-heading">
+        <div>
+          <h2>Organization Modules</h2>
+          <p className="section-description">
+            Customize which features and navigation sections are active for your organization.
+          </p>
+        </div>
+      </div>
+
       {message ? (
         <p className="notice notice--info" role="status">
           {message}
         </p>
       ) : null}
-      {modulesState.modules.length === 0 ? (
+      {errorMessage ? (
+        <p className="notice notice--error" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+
+      {groupedModules.length === 0 ? (
         <p>No modules configured.</p>
       ) : (
         <div className="form-stack">
-          {modulesState.modules.map((mod) => (
-            <label key={mod.id} className="checkbox-label">
-              <input
-                checked={mod.enabled}
-                disabled={busy}
-                onChange={(e) => {
-                  void toggleModule(mod.id, e.target.checked);
-                }}
-                type="checkbox"
-              />
-              {mod.id.charAt(0).toUpperCase() + mod.id.slice(1)}
-            </label>
+          {groupedModules.map((group) => (
+            <fieldset className="panel" key={group.category} style={{ margin: "1rem 0" }}>
+              <legend>
+                <strong>{group.label}</strong>
+              </legend>
+              <div className="form-stack" style={{ gap: "0.75rem", marginTop: "0.5rem" }}>
+                {group.modules.map((mod) => (
+                  <label className="checkbox-row" key={mod.id}>
+                    <input
+                      checked={mod.enabled}
+                      disabled={busyModuleId !== null}
+                      onChange={(e) => {
+                        void toggleModule(mod.id, e.target.checked);
+                      }}
+                      type="checkbox"
+                    />
+                    <div>
+                      <strong>{mod.label ?? mod.id}</strong>
+                      {mod.description ? (
+                        <span className="field-help" style={{ display: "block" }}>
+                          {mod.description}
+                        </span>
+                      ) : null}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           ))}
         </div>
       )}
