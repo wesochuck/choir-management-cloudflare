@@ -20,11 +20,11 @@ export function DonationLevelsTab({
     return <p className="notice notice--error">Donation settings could not be loaded.</p>;
   }
   return (
-    <section className="surface-card" aria-labelledby="donation-levels-heading">
+    <fieldset className="surface-card donation-levels-card">
+      <legend>Donor levels</legend>
       <div className="section-heading section-heading--compact donation-levels-heading">
         <div>
           <p className="eyebrow">Recognition tiers</p>
-          <h3 id="donation-levels-heading">Donor levels</h3>
         </div>
         <button className="button button--primary" onClick={newLevel} type="button">
           Add level
@@ -79,6 +79,6 @@ export function DonationLevelsTab({
           </table>
         </div>
       ) : null}
-    </section>
+    </fieldset>
   );
 }

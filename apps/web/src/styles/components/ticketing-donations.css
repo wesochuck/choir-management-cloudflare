@@ -263,7 +263,26 @@
     gap: 1rem;
   }
 
-  .donation-levels-heading h3,
+  .donation-levels-card {
+    min-width: 0;
+  }
+
+  .donation-levels-card legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .donation-page-settings {
+    min-width: 0;
+  }
+
+  .donation-page-settings legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
   .donation-levels-heading .eyebrow {
     margin: 0;
   }

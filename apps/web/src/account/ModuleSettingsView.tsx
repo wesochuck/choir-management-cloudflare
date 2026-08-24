@@ -6,6 +6,19 @@ type ModulesState =
   | { readonly status: "loading" }
   | { readonly modules: readonly ModuleState[]; readonly status: "ready" };
 
+const moduleLabels: Readonly<Record<string, string>> = {
+  events: "Events",
+  people: "People",
+  programs: "Programs",
+};
+
+function moduleLabel(moduleId: string): string {
+  return (
+    moduleLabels[moduleId] ??
+    moduleId.replace(/[-_]+/g, " ").replace(/\b\w/g, (character) => character.toUpperCase())
+  );
+}
+
 export function ModuleSettingsView() {
   const [modulesState, setModulesState] = useState<ModulesState>({ status: "loading" });
   const [busy, setBusy] = useState(false);
@@ -85,19 +98,22 @@ export function ModuleSettingsView() {
       {modulesState.modules.length === 0 ? (
         <p>No modules configured.</p>
       ) : (
-        <div className="form-stack">
+        <div className="form-stack module-settings-groups">
           {modulesState.modules.map((mod) => (
-            <label key={mod.id} className="checkbox-label">
-              <input
-                checked={mod.enabled}
-                disabled={busy}
-                onChange={(e) => {
-                  void toggleModule(mod.id, e.target.checked);
-                }}
-                type="checkbox"
-              />
-              {mod.id.charAt(0).toUpperCase() + mod.id.slice(1)}
-            </label>
+            <fieldset className="panel module-settings-group" key={mod.id}>
+              <legend>{moduleLabel(mod.id)}</legend>
+              <label className="checkbox-label">
+                <input
+                  checked={mod.enabled}
+                  disabled={busy}
+                  onChange={(e) => {
+                    void toggleModule(mod.id, e.target.checked);
+                  }}
+                  type="checkbox"
+                />
+                Enable {moduleLabel(mod.id)}
+              </label>
+            </fieldset>
           ))}
         </div>
       )}

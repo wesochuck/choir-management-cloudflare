@@ -12,6 +12,7 @@ export function DonationPortalTab({
   }
   return (
     <QRCodeShareCard
+      asFieldset
       description="Share this page with supporters so they can choose a donation level or enter a custom amount."
       path="/donate"
       title="Public donation page"

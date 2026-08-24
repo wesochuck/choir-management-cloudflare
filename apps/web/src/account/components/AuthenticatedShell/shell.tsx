@@ -375,6 +375,7 @@ export function AuthenticatedShell({
           className={[
             "signed-in-main",
             route.pathname === "/admin" ? "signed-in-main--admin-overview" : "",
+            route.pathname === "/admin/attendance" ? "signed-in-main--attendance" : "",
             workspace === "platform" ? "signed-in-main--platform" : "",
           ]
             .filter(Boolean)

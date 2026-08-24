@@ -276,11 +276,19 @@
     display: grid;
     gap: 1rem;
     margin-top: 1.25rem;
+    min-width: 0;
     padding: 1rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
     width: 100%;
+  }
+
+  .ticket-dashboard legend,
+  .ticket-dashboard__will-call legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
   }
 
   .ticket-dashboard__intro,
@@ -291,7 +299,6 @@
     gap: 1rem;
   }
 
-  .ticket-dashboard__intro h3,
   .ticket-dashboard__section-heading h3 {
     margin: 0;
   }

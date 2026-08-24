@@ -536,6 +536,14 @@ test.describe("admin ticket management", () => {
     await page.goto("/admin/tickets");
 
     await expect(page.getByRole("heading", { name: "Ticketing Dashboard" })).toBeVisible();
+    const performanceSummary = page.getByRole("group", { name: "Performance summary" });
+    await expect(performanceSummary).toBeVisible();
+    await expect(performanceSummary.locator("legend")).toHaveText("Performance summary");
+    await expect(performanceSummary.locator("h3")).toHaveCount(0);
+    const willCallChecklist = page.getByRole("group", { name: "Will call checklist" });
+    await expect(willCallChecklist).toBeVisible();
+    await expect(willCallChecklist.locator("legend")).toHaveText("Will call checklist");
+    await expect(willCallChecklist.locator("h3")).toHaveCount(0);
     const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
     await expect(visibleOrders.getByText("Jane Buyer", { exact: true })).toBeVisible();
     await expect(visibleOrders.getByText("jane@example.test", { exact: true })).toBeVisible();

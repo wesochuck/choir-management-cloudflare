@@ -130,15 +130,15 @@ function OrganizationPolicy(props: PolicyProps) {
     );
   }
   return (
-    <div className="organization-policy">
-      <h3>Organization MFA policy</h3>
+    <fieldset className="organization-policy">
+      <legend>Organization MFA policy</legend>
       {control}
       {props.context.mfaRequired && !props.context.mfaVerifiedUntil ? (
         <p className="section-description">
           Verify Organization MFA before changing an active policy.
         </p>
       ) : null}
-    </div>
+    </fieldset>
   );
 }
 

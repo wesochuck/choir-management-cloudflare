@@ -147,14 +147,9 @@ function OrganizationPaymentSettingsPanel() {
   }
 
   return (
-    <section
-      className="surface-card"
-      id="payments-settings"
-      aria-labelledby="payments-settings-title"
-    >
+    <fieldset className="surface-card organization-settings-panel" id="payments-settings">
+      <legend id="payments-settings-title">Online payment settings</legend>
       <div className="section-heading section-heading--compact organization-payment-settings__heading">
-        <p className="eyebrow">Payments</p>
-        <h2 id="payments-settings-title">Online payment settings</h2>
         <p className="section-description">
           Connect one Stripe account for this Organization, then turn on only the payment types you
           are ready to support. A payment is shown as processing until Stripe confirms it.
@@ -253,7 +248,7 @@ function OrganizationPaymentSettingsPanel() {
         </>
       ) : null}
       {confirmationDialog}
-    </section>
+    </fieldset>
   );
 }
 
@@ -322,10 +317,9 @@ function OrganizationExportPanel() {
   }
 
   return (
-    <section className="surface-card" aria-labelledby="organization-export-title">
+    <fieldset className="surface-card organization-settings-panel">
+      <legend id="organization-export-title">Export Organization data</legend>
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Data portability</p>
-        <h2 id="organization-export-title">Export Organization data</h2>
         <p className="section-description">
           Owners and elevated Platform Administrators can request a bounded JSON snapshot of
           Organization records, audit events, and private-file inventory for backup or migration.
@@ -362,7 +356,7 @@ function OrganizationExportPanel() {
           </a>
         ) : null}
       </div>
-    </section>
+    </fieldset>
   );
 }
 
@@ -501,10 +495,9 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   return (
     <div className="settings-stack">
       <OrganizationPaymentSettingsPanel />
-      <section className="surface-card" aria-labelledby="transaction-fee-settings-title">
+      <fieldset className="surface-card organization-settings-panel">
+        <legend id="transaction-fee-settings-title">Transaction processing fees</legend>
         <div className="section-heading section-heading--compact">
-          <p className="eyebrow">Payments</p>
-          <h2 id="transaction-fee-settings-title">Transaction processing fees</h2>
           <p className="section-description">
             Tickets, ticket bundles, and dues use this fee. You can optionally pass the same fee
             through to donation checkout.
@@ -580,12 +573,9 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
             </p>
           </div>
         ) : null}
-      </section>
-      <section className="surface-card" aria-labelledby="calendar-settings-title">
-        <div className="section-heading section-heading--compact">
-          <p className="eyebrow">Events</p>
-          <h2 id="calendar-settings-title">Calendar settings</h2>
-        </div>
+      </fieldset>
+      <fieldset className="surface-card organization-settings-panel">
+        <legend id="calendar-settings-title">Calendar settings</legend>
         {loading ? <p role="status">Loading calendar settings…</p> : null}
         {error ? (
           <div className="notice notice--error" role="alert">
@@ -635,7 +625,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
             </div>
           </div>
         ) : null}
-      </section>
+      </fieldset>
       <OrganizationEmailSettingsPanel />
       <OrganizationExportPanel />
     </div>

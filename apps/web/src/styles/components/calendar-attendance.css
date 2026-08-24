@@ -14,6 +14,11 @@
     --attendance-row-min-height: 4.25rem;
   }
 
+  .signed-in-main.signed-in-main--attendance > .page-heading {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
   .attendance-manager__intro,
   .attendance-manager__controls,
   .attendance-manager__toolbar,

@@ -283,11 +283,8 @@ export function OrganizationEmailSettingsPanel() {
   }
 
   return (
-    <section className="surface-card" aria-labelledby="email-settings-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Communications</p>
-        <h2 id="email-settings-title">Email & Sender Settings</h2>
-      </div>
+    <fieldset className="surface-card organization-settings-panel">
+      <legend id="email-settings-title">Email & Sender Settings</legend>
 
       {loading ? <p role="status">Loading email settings…</p> : null}
 
@@ -400,6 +397,6 @@ export function OrganizationEmailSettingsPanel() {
           ) : null}
         </form>
       ) : null}
-    </section>
+    </fieldset>
   );
 }

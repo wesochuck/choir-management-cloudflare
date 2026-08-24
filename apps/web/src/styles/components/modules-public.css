@@ -3,6 +3,26 @@
  * theme.css so the cascade is unchanged.
  */
 @layer components {
+  .signed-in-main .module-settings-groups {
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .signed-in-main .panel.module-settings-group {
+    min-width: 0;
+    margin: 0;
+    padding: 0.85rem 1rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-surface-raised) 45%, transparent);
+  }
+
+  .signed-in-main .module-settings-group legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
   .setup-checklist__item {
     align-items: flex-start;
   }
@@ -22,6 +42,10 @@
     min-height: 2.5rem;
     padding: 0.55rem 0.8rem;
     font-size: var(--font-size-md);
+  }
+
+  .setup-checklist__organization-payments {
+    margin-top: 1rem;
   }
 
   .status-pill {

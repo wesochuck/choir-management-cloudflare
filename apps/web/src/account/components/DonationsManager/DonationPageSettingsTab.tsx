@@ -24,40 +24,39 @@ export function DonationPageSettingsTab({
     return <p className="notice notice--error">Donation settings could not be loaded.</p>;
   }
   return (
-    <form
-      className="surface-card form-stack donation-page-settings"
-      onSubmit={(event) => void savePortalSettings(event)}
-    >
-      <div>
-        <p className="eyebrow">Public portal</p>
-        <h3>Donation page settings</h3>
-        <p>Customize the headline and explanation shown to donors before checkout.</p>
-      </div>
-      <label className="field">
-        Call-to-action heading
-        <input
-          required
-          maxLength={200}
-          value={portalButtonText}
-          onChange={(event) => {
-            setPortalButtonText(event.target.value);
-          }}
-        />
-      </label>
-      <label className="field">
-        Portal description
-        <textarea
-          maxLength={2000}
-          rows={5}
-          value={portalDescription}
-          onChange={(event) => {
-            setPortalDescription(event.target.value);
-          }}
-        />
-      </label>
-      <button className="button button--primary" disabled={busy} type="submit">
-        {busy ? "Saving…" : "Save page settings"}
-      </button>
+    <form onSubmit={(event) => void savePortalSettings(event)}>
+      <fieldset className="surface-card form-stack donation-page-settings">
+        <legend>Donation page settings</legend>
+        <div>
+          <p className="eyebrow">Public portal</p>
+          <p>Customize the headline and explanation shown to donors before checkout.</p>
+        </div>
+        <label className="field">
+          Call-to-action heading
+          <input
+            required
+            maxLength={200}
+            value={portalButtonText}
+            onChange={(event) => {
+              setPortalButtonText(event.target.value);
+            }}
+          />
+        </label>
+        <label className="field">
+          Portal description
+          <textarea
+            maxLength={2000}
+            rows={5}
+            value={portalDescription}
+            onChange={(event) => {
+              setPortalDescription(event.target.value);
+            }}
+          />
+        </label>
+        <button className="button button--primary" disabled={busy} type="submit">
+          {busy ? "Saving…" : "Save page settings"}
+        </button>
+      </fieldset>
     </form>
   );
 }

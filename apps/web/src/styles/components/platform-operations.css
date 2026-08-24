@@ -367,21 +367,25 @@
   }
 
   .organization-policy {
+    min-width: 0;
     margin-top: 1.5rem;
-    padding: 1.25rem;
+    padding: 0.85rem 1rem 1rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
-    background: var(--color-surface-raised);
+    background: color-mix(in srgb, var(--color-surface-raised) 45%, transparent);
   }
 
-  .organization-policy h3,
-.organization-policy .section-description,
+  .organization-policy legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
 
-/* Organization enrollment, security, and invitations */
-
-.organization-enrollment-start h3,
-.organization-enrollment-start p,
-.organization-verification h3 {
+  /* Organization enrollment, security, and invitations */
+  .organization-policy .section-description,
+  .organization-enrollment-start h3,
+  .organization-enrollment-start p,
+  .organization-verification h3 {
     margin-top: 0;
   }
 
@@ -469,18 +473,22 @@
     font-size: clamp(2rem, 4vw, 3rem);
   }
 
+  .organization-settings-panel {
+    min-width: 0;
+  }
+
+  .organization-settings-panel > legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
   .organization-payment-settings__heading {
     max-width: none;
   }
 
   .section-description {
     margin: 1rem 0 1.5rem;
-  }
-
-  @media (min-width: 64rem) {
-    .organization-payment-settings__heading .section-description {
-      white-space: nowrap;
-    }
   }
 
   .account-list {

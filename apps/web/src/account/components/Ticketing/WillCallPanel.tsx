@@ -48,59 +48,61 @@ export function WillCallPanel({
     <>
       <div
         aria-labelledby="ticketing-willcall-tab"
-        className="ticket-dashboard"
+        className="ticket-dashboard__tabpanel"
         id="ticketing-willcall-panel"
         role="tabpanel"
       >
-        <div className="ticket-dashboard__intro">
-          <div>
-            <h3>Performance summary</h3>
-            <p>Choose a performance to view ticket sales, revenue, and will-call activity.</p>
+        <fieldset className="ticket-dashboard">
+          <legend>Performance summary</legend>
+          <div className="ticket-dashboard__intro">
+            <div>
+              <p>Choose a performance to view ticket sales, revenue, and will-call activity.</p>
+            </div>
+            <label className="field">
+              Select performance
+              <select
+                onChange={(event) => {
+                  setSelectedPerformanceId(event.target.value);
+                }}
+                value={selectedPerformanceId}
+              >
+                <option value="all">All ticketed performances</option>
+                {ticketEvents.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <label className="field">
-            Select performance
-            <select
-              onChange={(event) => {
-                setSelectedPerformanceId(event.target.value);
-              }}
-              value={selectedPerformanceId}
-            >
-              <option value="all">All ticketed performances</option>
-              {ticketEvents.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="ticket-dashboard__metrics">
-          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sold">
-            <span className="summary-card__label">Tickets sold</span>
-            <strong>{ticketSoldLabel}</strong>
-            <small>{selectedPerformance ? selectedPerformance.title : "All performances"}</small>
-          </article>
-          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sales">
-            <span className="summary-card__label">Ticket sales</span>
-            <strong>{money(ticketSalesCents)}</strong>
-            <small>Before processing fees</small>
-          </article>
-          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--fees">
-            <span className="summary-card__label">Fees collected</span>
-            <strong>{money(feesCollectedCents)}</strong>
-            <small>Paid orders</small>
-          </article>
-          <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--revenue">
-            <span className="summary-card__label">Total revenue</span>
-            <strong>{money(totalRevenueCents)}</strong>
-            <small>Including processing fees</small>
-          </article>
-        </div>
+          <div className="ticket-dashboard__metrics">
+            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sold">
+              <span className="summary-card__label">Tickets sold</span>
+              <strong>{ticketSoldLabel}</strong>
+              <small>{selectedPerformance ? selectedPerformance.title : "All performances"}</small>
+            </article>
+            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sales">
+              <span className="summary-card__label">Ticket sales</span>
+              <strong>{money(ticketSalesCents)}</strong>
+              <small>Before processing fees</small>
+            </article>
+            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--fees">
+              <span className="summary-card__label">Fees collected</span>
+              <strong>{money(feesCollectedCents)}</strong>
+              <small>Paid orders</small>
+            </article>
+            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--revenue">
+              <span className="summary-card__label">Total revenue</span>
+              <strong>{money(totalRevenueCents)}</strong>
+              <small>Including processing fees</small>
+            </article>
+          </div>
+        </fieldset>
       </div>
-      <div className="ticket-dashboard__will-call">
+      <fieldset className="ticket-dashboard__will-call">
+        <legend>Will call checklist</legend>
         <div className="ticket-dashboard__section-heading">
           <div>
-            <h3>Will call checklist</h3>
             <p>Search ticket buyers, confirm payment status, and process refunds.</p>
           </div>
           <span className="field-help" role="status">
@@ -227,7 +229,7 @@ export function WillCallPanel({
             rows={visibleOrders}
           />
         ) : null}
-      </div>
+      </fieldset>
     </>
   );
 }

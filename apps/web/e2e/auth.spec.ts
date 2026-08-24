@@ -910,6 +910,18 @@ test("renders the focused seating canvas with structural controls", async ({ pag
   );
   const chartSelect = page.getByLabel("Select seating chart");
   await expect(chartSelect).toContainText("Full Canvas Chart");
+  if ((page.viewportSize()?.width ?? 0) > 700) {
+    await page.setViewportSize({ height: 871, width: 971 });
+    const toolbarOverflow = await page
+      .locator(".seating-toolbar--secondary")
+      .evaluate((toolbar) => {
+        const toolbarRight = toolbar.getBoundingClientRect().right;
+        return [...toolbar.querySelectorAll("*")]
+          .filter((element) => element.getBoundingClientRect().right > toolbarRight + 1)
+          .map((element) => element.className);
+      });
+    expect(toolbarOverflow).toEqual([]);
+  }
   const darkThemeButton = page.getByRole("button", { name: "Switch to dark theme" });
   if (await darkThemeButton.isVisible()) {
     await darkThemeButton.click();
@@ -1408,6 +1420,190 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
   await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
 });
 
+test("keeps the attendance heading close to its manager", async ({ page }) => {
+  await page.route("**/api/health", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        environment: "local",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ session: currentSession, user: currentUser }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/account/organizations", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        organizations: [
+          {
+            canonicalHostname: "alpha.example.test",
+            canonicalStatus: "active",
+            lifecycleState: "active",
+            name: "Organization Alpha",
+            organizationId: "organization-alpha",
+            profileId: null,
+            role: "administrator",
+            slug: "alpha",
+          },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        activePlatformAdministrator: false,
+        enrollmentComplete: false,
+        requestId: "22222222-2222-4222-8222-222222222222",
+        twoFactorEnabled: false,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/module-state", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        modules: [
+          { enabled: true, id: "events" },
+          { enabled: true, id: "people" },
+          { enabled: true, id: "programs" },
+        ],
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/setup/status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        allModulesConfigured: true,
+        completedSteps: [],
+        currentStep: null,
+        launched: true,
+        organizationId: "organization-alpha",
+        organizationName: "Organization Alpha",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        mfaRequired: false,
+        mfaVerifiedUntil: null,
+        organizationId: "organization-alpha",
+        requestId: "99999999-9999-4999-8999-999999999999",
+        role: "administrator",
+        twoFactorEnabled: false,
+        twoFactorVerified: false,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/admin/attendance");
+  const attendancePage = page.getByRole("main");
+  await expect(attendancePage.getByRole("heading", { name: "Attendance" })).toBeVisible();
+  const [headingBox, managerBox] = await Promise.all([
+    attendancePage.locator(".page-heading").boundingBox(),
+    attendancePage.locator(".attendance-manager").boundingBox(),
+  ]);
+  expect(headingBox).not.toBeNull();
+  expect(managerBox).not.toBeNull();
+  if (headingBox && managerBox) {
+    expect(managerBox.y - (headingBox.y + headingBox.height)).toBeLessThanOrEqual(16);
+  }
+});
+
+test("labels the Organization MFA policy fieldset with a legend", async ({ page }) => {
+  const requestId = "88888888-8888-4888-8888-888888888888";
+  const responses: Record<string, unknown> = {
+    "/api/account/organizations": {
+      organizations: [
+        {
+          canonicalHostname: "alpha.example.test",
+          canonicalStatus: "active",
+          lifecycleState: "active",
+          name: "Organization Alpha",
+          organizationId: "organization-alpha",
+          profileId: null,
+          role: "owner",
+          slug: "alpha",
+        },
+      ],
+    },
+    "/api/auth/get-session": { session: currentSession, user: currentUser },
+    "/api/health": {
+      environment: "local",
+      requestId,
+      service: "choir-management-cloudflare",
+      status: "ok",
+      version: "browser-test",
+    },
+    "/api/organization/auth-status": {
+      mfaRequired: false,
+      mfaVerifiedUntil: null,
+      organizationId: "organization-alpha",
+      requestId,
+      role: "owner",
+      twoFactorEnabled: false,
+      twoFactorVerified: false,
+    },
+    "/api/organization/module-state": {
+      modules: [
+        { enabled: true, id: "events" },
+        { enabled: true, id: "people" },
+        { enabled: true, id: "programs" },
+      ],
+    },
+    "/api/platform/mfa/status": {
+      activePlatformAdministrator: false,
+      enrollmentComplete: false,
+      requestId,
+      twoFactorEnabled: false,
+    },
+    "/api/setup/status": {
+      allModulesConfigured: true,
+      completedSteps: [],
+      currentStep: null,
+      launched: true,
+      organizationId: "organization-alpha",
+      organizationName: "Organization Alpha",
+    },
+  };
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    const body = responses[pathname];
+    await route.fulfill({
+      body: JSON.stringify(body ?? { requestId }),
+      contentType: "application/json",
+      status: body === undefined ? 404 : 200,
+    });
+  });
+
+  await page.goto("/admin/settings/security");
+  const organizationSection = page.getByRole("region", { name: "Organization security" });
+  const policy = organizationSection.getByRole("group", { name: "Organization MFA policy" });
+  await expect(policy).toBeVisible();
+  await expect(policy.locator("legend")).toHaveText("Organization MFA policy");
+  await expect(policy.locator("h3")).toHaveCount(0);
+});
+
 test("enrolls, verifies, and safely manages an Organization MFA policy", async ({ page }) => {
   let calendarVersion = 1;
   let mfaRequired = false;
@@ -1629,6 +1825,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await page.goto("/admin/settings/security");
   const organizationSection = page.getByRole("region", { name: "Organization security" });
   await expect(organizationSection.getByText("MFA not required")).toBeVisible();
+  const organizationPolicy = organizationSection.getByRole("group", {
+    name: "Organization MFA policy",
+  });
+  await expect(organizationPolicy).toBeVisible();
+  await expect(organizationPolicy.locator("legend")).toHaveText("Organization MFA policy");
 
   await page.goto("/admin/roster");
   const rosterPage = page.getByRole("main");
@@ -1655,7 +1856,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await page.goto("/admin/events");
   const eventsPage = page.getByRole("main");
   await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
-  await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
+  await eventsPage.getByRole("checkbox", { name: "Show past events", exact: true }).check();
   const eventRsvpLink = eventsPage.getByRole("link", { name: "RSVP", exact: true }).first();
   await expect(eventRsvpLink).toHaveAttribute(
     "href",
@@ -1706,6 +1907,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await page.goto("/admin/events");
   const eventsPageAfterRsvp = page.getByRole("main");
   await expect(eventsPageAfterRsvp.getByRole("heading", { name: "Events" })).toBeVisible();
+  await eventsPageAfterRsvp
+    .getByRole("checkbox", { name: "Show past events", exact: true })
+    .check();
   await eventsPage.getByRole("button", { name: "Bulk add rehearsals" }).click();
   const bulkRehearsalDialog = page.getByRole("dialog", { name: "Bulk add rehearsals" });
   await expect(bulkRehearsalDialog.getByRole("combobox", { name: "Day of week" })).toHaveValue("");
@@ -1833,6 +2037,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   ).toBeVisible();
   await page.goto("/admin/events");
   await expect(eventsPage.getByRole("heading", { name: "Events" })).toBeVisible();
+  await eventsPage.getByRole("checkbox", { name: "Show past events", exact: true }).check();
   await browserConcertEdit
     .getByRole("button", { name: "More actions for Browser Concert" })
     .click();

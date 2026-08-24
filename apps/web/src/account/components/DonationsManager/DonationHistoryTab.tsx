@@ -76,13 +76,10 @@ export function DonationHistoryTab({
 
   return (
     <div className="donation-history">
-      <section
-        className="ticket-dashboard donation-dashboard"
-        aria-labelledby="donation-summary-heading"
-      >
+      <fieldset className="ticket-dashboard donation-dashboard">
+        <legend>Donation summary</legend>
         <div className="ticket-dashboard__section-heading">
           <div>
-            <h3 id="donation-summary-heading">Donation summary</h3>
             <p>Review incoming gifts and donor activity.</p>
           </div>
         </div>
@@ -100,14 +97,11 @@ export function DonationHistoryTab({
             <strong>{money(averageGiftCents)}</strong>
           </article>
         </div>
-      </section>
-      <section
-        className="ticket-dashboard__will-call donation-register"
-        aria-labelledby="donation-register-heading"
-      >
+      </fieldset>
+      <fieldset className="ticket-dashboard__will-call donation-register">
+        <legend>Donations register</legend>
         <div className="ticket-dashboard__section-heading">
           <div>
-            <h3 id="donation-register-heading">Donations register</h3>
             <p>Search donation history, review payment status, and process refunds.</p>
           </div>
           <span className="field-help">{filteredDonations.length} shown</span>
@@ -239,7 +233,7 @@ export function DonationHistoryTab({
             </table>
           </div>
         ) : null}
-      </section>
+      </fieldset>
       <details className="donation-patrons">
         <summary>
           Patron summaries ({patronState.status === "ready" ? patronState.patrons.length : "…"})

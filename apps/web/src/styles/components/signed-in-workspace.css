@@ -857,6 +857,16 @@
     background: var(--color-surface-raised);
   }
 
+  .public-link-share--fieldset {
+    min-width: 0;
+  }
+
+  .public-link-share--fieldset legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
   .public-link-share__details {
     display: grid;
     min-width: 0;

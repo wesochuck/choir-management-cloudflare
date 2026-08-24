@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getOrganizationPublicWebsiteSettings } from "../auth/api";
 
 interface QRCodeShareCardProps {
+  readonly asFieldset?: boolean;
   readonly description: string;
   readonly path: string;
   readonly title: string;
@@ -85,7 +86,12 @@ async function overlayOrganizationLogo(qrDataUrl: string, logoUrl: string): Prom
   }
 }
 
-export function QRCodeShareCard({ description, path, title }: QRCodeShareCardProps) {
+export function QRCodeShareCard({
+  asFieldset = false,
+  description,
+  path,
+  title,
+}: QRCodeShareCardProps) {
   const [qrCode, setQrCode] = useState<
     | { readonly dataUrl: string; readonly path: string }
     | { readonly error: true; readonly path: string }
@@ -155,11 +161,11 @@ export function QRCodeShareCard({ description, path, title }: QRCodeShareCardPro
     link.remove();
   }
 
-  return (
-    <article className="public-link-share">
+  const cardContent = (
+    <>
       <div className="public-link-share__details">
         <p className="eyebrow">Public link</p>
-        <h3>{title}</h3>
+        {asFieldset ? null : <h3>{title}</h3>}
         <p>{description}</p>
         <div className="public-link-share__url-row">
           <a href={absoluteUrl} rel="noreferrer" target="_blank">
@@ -191,6 +197,15 @@ export function QRCodeShareCard({ description, path, title }: QRCodeShareCardPro
           <p className="field-help">Generating QR code…</p>
         )}
       </div>
-    </article>
+    </>
+  );
+
+  return asFieldset ? (
+    <fieldset className="public-link-share public-link-share--fieldset">
+      <legend>{title}</legend>
+      {cardContent}
+    </fieldset>
+  ) : (
+    <article className="public-link-share">{cardContent}</article>
   );
 }

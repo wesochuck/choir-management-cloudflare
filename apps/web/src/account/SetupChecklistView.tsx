@@ -1,7 +1,10 @@
 import { setupStatusSchema, type SetupStatus } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
-import { OrganizationProviderStatus } from "./OrganizationProviderStatus";
+import {
+  OrganizationProviderStatus,
+  OrganizationStripeConnectSetup,
+} from "./OrganizationProviderStatus";
 
 type CheckState =
   | { readonly status: "error" }
@@ -146,17 +149,17 @@ export function SetupChecklistView() {
             );
           })}
         </ul>
+        <OrganizationStripeConnectSetup />
       </section>
       {stripeResult === "return" ? (
         <p className="notice notice--success" role="status">
-          Stripe Connect returned from onboarding. The connected-account status below has been
-          refreshed.
+          Stripe Connect returned from onboarding. The connected-account status has been refreshed.
         </p>
       ) : null}
       {stripeResult === "refresh" ? (
         <p className="notice notice--warning" role="alert">
-          The Stripe onboarding link needs to be refreshed. Use the button below to reopen the
-          Organization&apos;s setup flow.
+          The Stripe onboarding link needs to be refreshed. Use the button in the Organization
+          payments card above to reopen the setup flow.
         </p>
       ) : null}
       <OrganizationProviderStatus />

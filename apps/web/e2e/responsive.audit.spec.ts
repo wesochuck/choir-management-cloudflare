@@ -247,8 +247,49 @@ const responsiveManagerResponses: Record<string, unknown> = {
     requestId,
   },
   "/api/organization/donations": { donations: [], requestId },
+  "/api/organization/email-settings": {
+    requestId,
+    settings: {
+      customDomain: null,
+      customDomainStatus: "none",
+      dnsRecords: [],
+      fromName: null,
+      lastCheckedAt: null,
+      replyToEmail: null,
+      verifiedAt: null,
+    },
+  },
   "/api/organization/patrons": { patrons: [], requestId },
   "/api/organization/polls": { polls: responsivePolls, requestId },
+  "/api/organization/payment-settings": {
+    activations: { donations: false, dues: false, tickets: false },
+    environment: "local",
+    externalEffectsMode: "fake",
+    globalPaymentsEnabled: true,
+    organizationName: "Responsive Choir",
+    readiness: {
+      brevoConfigured: true,
+      stripeAccountReady: false,
+      stripeConfigured: true,
+      webhookConfigured: true,
+    },
+    requestId,
+    stripe: {
+      accountId: null,
+      chargesEnabled: false,
+      detailsSubmitted: false,
+      payoutsEnabled: false,
+      requirementsDue: [],
+      status: "not_started",
+    },
+  },
+  "/api/organization/calendar-settings": { requestId, timezone: "America/New_York" },
+  "/api/organization/transaction-fee-settings": {
+    fixedCents: 30,
+    passFeeToDonor: false,
+    percentage: 2.9,
+    requestId,
+  },
   "/api/organization/website": {
     aboutUsText: "",
     bodyFont: "friendly-sans",
@@ -485,11 +526,44 @@ async function assertSeasonsLayout(page: Page, width: number): Promise<void> {
   await page.getByRole("tab", { name: "Dues records", exact: true }).click();
 }
 
+async function assertOrganizationSettingsLayout(
+  page: Page,
+  path: string,
+  width: number,
+): Promise<void> {
+  if (path !== "/admin/settings" || width !== widths[0]) return;
+  const organizationSettings = [
+    "Online payment settings",
+    "Transaction processing fees",
+    "Calendar settings",
+    "Email & Sender Settings",
+    "Export Organization data",
+  ];
+  for (const name of organizationSettings) {
+    const group = page.getByRole("group", { name });
+    await expect(group).toBeVisible();
+    await expect(group.locator("legend")).toHaveText(name);
+    await expect(group.locator("h2")).toHaveCount(0);
+  }
+  await expect(page.locator(".organization-settings-panel .eyebrow")).toHaveCount(0);
+}
+
+async function assertModuleSettingsLayout(page: Page, path: string, width: number): Promise<void> {
+  if (path !== "/admin/settings/modules" || width !== widths[0]) return;
+  for (const name of ["People", "Events", "Programs"]) {
+    const group = page.getByRole("group", { name });
+    await expect(group).toBeVisible();
+    await expect(group.locator("legend")).toHaveText(name);
+  }
+}
+
 async function assertBreakpointSpecificLayout(
   page: Page,
   path: string,
   width: number,
 ): Promise<void> {
+  await assertOrganizationSettingsLayout(page, path, width);
+  await assertModuleSettingsLayout(page, path, width);
   if (path === "/admin/events" && width <= 768) {
     const searchFieldSize = await page
       .locator(".event-manager-search .search-field")
@@ -504,6 +578,33 @@ async function assertBreakpointSpecificLayout(
   }
   if (path === "/admin/donations" && width <= 1024) {
     await assertStackedFields(page, ".donation-dashboard__filters > .field", 4);
+  }
+  if (path === "/admin/donations" && width === widths[0]) {
+    const donationSummary = page.getByRole("group", { name: "Donation summary" });
+    await expect(donationSummary).toBeVisible();
+    await expect(donationSummary.locator("legend")).toHaveText("Donation summary");
+    await expect(donationSummary.locator("h3")).toHaveCount(0);
+    const donationRegister = page.getByRole("group", { name: "Donations register" });
+    await expect(donationRegister).toBeVisible();
+    await expect(donationRegister.locator("legend")).toHaveText("Donations register");
+    await expect(donationRegister.locator("h3")).toHaveCount(0);
+    await page.getByRole("tab", { name: "Donor levels", exact: true }).click();
+    const donorLevels = page.getByRole("group", { name: "Donor levels" });
+    await expect(donorLevels).toBeVisible();
+    await expect(donorLevels.locator("legend")).toHaveText("Donor levels");
+    await expect(donorLevels.locator("h3")).toHaveCount(0);
+    await page.getByRole("tab", { name: "Donation History", exact: true }).click();
+    await page.getByRole("tab", { name: "Public portal", exact: true }).click();
+    const publicDonationPage = page.getByRole("group", { name: "Public donation page" });
+    await expect(publicDonationPage).toBeVisible();
+    await expect(publicDonationPage.locator("legend")).toHaveText("Public donation page");
+    await expect(publicDonationPage.locator("h3")).toHaveCount(0);
+    await page.getByRole("tab", { name: "Page settings", exact: true }).click();
+    const donationPageSettings = page.getByRole("group", { name: "Donation page settings" });
+    await expect(donationPageSettings).toBeVisible();
+    await expect(donationPageSettings.locator("legend")).toHaveText("Donation page settings");
+    await expect(donationPageSettings.locator("h3")).toHaveCount(0);
+    await page.getByRole("tab", { name: "Donation History", exact: true }).click();
   }
   if (path === "/admin/tickets" && width <= 1024) {
     const metricsLocator = page.locator(
@@ -547,6 +648,8 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
     { path: "/admin/tickets", label: "ticketing" },
     { path: "/admin/seasons", label: "seasons and dues" },
     { path: "/admin/setlists", label: "set lists" },
+    { path: "/admin/settings", label: "organization settings" },
+    { path: "/admin/settings/modules", label: "module settings" },
     { path: "/admin/website", label: "public website" },
   ];
 
