@@ -893,7 +893,7 @@ test("member RSVP actions show feedback and use a decline modal", async ({ page 
 
   await page.goto("/dashboard");
   const eventCard = page
-    .locator("article.member-dashboard__event-card")
+    .locator(".member-dashboard__event-card")
     .filter({ hasText: "Weekly Rehearsal" });
   await expect(eventCard).toBeVisible();
   await eventCard.getByRole("button", { name: "Attend", exact: true }).click();

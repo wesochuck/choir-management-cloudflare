@@ -28,17 +28,9 @@ function rsvpLabel(value: DashboardEvent["resolvedRsvp"]): string {
   return "Needs response";
 }
 
-function practiceLabel(event: DashboardEvent): string {
-  if (event.practice.status === "available") return "Practice";
-  if (event.practice.status === "not_available") return "Practice tracks not available yet";
-  return "Practice tracks not published yet";
-}
-
 function seatingLabel(event: DashboardEvent): string {
   if (event.seating.status === "available") return "Seating";
-  if (event.seating.status === "not_assigned") return "Seat not assigned yet";
-  if (event.seating.status === "declined") return "Seating unavailable after declining";
-  return "Seating not published yet";
+  return "Seat not assigned";
 }
 
 function bulletinDialogTitle(
@@ -141,27 +133,26 @@ function DashboardEventActions({
           {busy ? "Updating…" : "Decline"}
         </button>
       </div>
-      <div className="member-dashboard__secondary-actions">
-        <button
-          className="button button--secondary"
-          disabled={!practiceEnabled}
-          onClick={() => {
-            onOpenPractice(event);
-          }}
-          type="button"
-        >
-          {practiceLabel(event)}
-        </button>
-        {seatingEnabled ? (
-          <AppLink href={`/seating/${event.id}`} onNavigate={navigate}>
-            {seatingLabel(event)}
-          </AppLink>
-        ) : event.type === "Performance" ? (
-          <button className="button button--secondary" disabled type="button">
-            {seatingLabel(event)}
-          </button>
-        ) : null}
-      </div>
+      {practiceEnabled || seatingEnabled ? (
+        <div className="member-dashboard__secondary-actions">
+          {practiceEnabled ? (
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                onOpenPractice(event);
+              }}
+              type="button"
+            >
+              Practice
+            </button>
+          ) : null}
+          {seatingEnabled ? (
+            <AppLink href={`/seating/${event.id}`} onNavigate={navigate}>
+              {seatingLabel(event)}
+            </AppLink>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -183,14 +174,16 @@ function DashboardEventFooter({ event }: { readonly event: DashboardEvent }) {
 function DashboardEventCard({
   busyEventId,
   event,
+  isNextUp = false,
+  navigate,
   onDeclineRehearsal,
   onOpenPractice,
   onRsvp,
-  navigate,
   timezone,
 }: {
   readonly busyEventId: string | null;
   readonly event: DashboardEvent;
+  readonly isNextUp?: boolean;
   readonly navigate: (href: string) => void;
   readonly onDeclineRehearsal: (event: DashboardEvent) => void;
   readonly onOpenPractice: (event: DashboardEvent) => void;
@@ -198,16 +191,21 @@ function DashboardEventCard({
   readonly timezone: string;
 }) {
   return (
-    <article className="member-dashboard__event-card">
-      <div className="member-dashboard__event-heading">
-        <div>
-          <p className="eyebrow">{eventTypeLabel(event)}</p>
-          <h3>{event.title}</h3>
-          <p className="member-dashboard__event-date">{formatDate(event.startsAt, timezone)}</p>
-        </div>
+    <fieldset className="member-dashboard__event-card">
+      <legend className="member-dashboard__event-legend">
+        <span className="member-dashboard__event-legend-left">
+          <span className="member-dashboard__event-type">{eventTypeLabel(event)}</span>
+          {isNextUp ? <span className="member-dashboard__next-badge">Next up</span> : null}
+        </span>
         <span className={`rsvp-status-badge rsvp-status-badge--${event.resolvedRsvp}`}>
           {rsvpLabel(event.resolvedRsvp)}
         </span>
+      </legend>
+      <div className="member-dashboard__event-heading">
+        <div>
+          <h3>{event.title}</h3>
+          <p className="member-dashboard__event-date">{formatDate(event.startsAt, timezone)}</p>
+        </div>
       </div>
       <div className="member-dashboard__event-details">
         <span>{event.venueName || event.location || "Location to be announced"}</span>
@@ -227,7 +225,7 @@ function DashboardEventCard({
         onRsvp={onRsvp}
       />
       <DashboardEventFooter event={event} />
-    </article>
+    </fieldset>
   );
 }
 
@@ -249,51 +247,39 @@ function DashboardSchedule({
   const nextEvent = dashboard.events[0] ?? null;
   const remainingEvents = dashboard.events.slice(1);
   return (
-    <section className="member-dashboard__events" aria-labelledby="member-dashboard-events-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Your schedule</p>
-        <h2 id="member-dashboard-events-title">Upcoming events</h2>
-      </div>
+    <fieldset className="member-dashboard__events">
+      <legend className="member-dashboard__section-legend">Upcoming events</legend>
       {dashboard.events.length === 0 ? (
         <p className="empty-state">No upcoming events.</p>
       ) : (
         <div className="member-dashboard__event-list">
           {nextEvent ? (
-            <div className="member-dashboard__next-up">
-              <p className="eyebrow">Next up</p>
-              <DashboardEventCard
-                busyEventId={busyEventId}
-                event={nextEvent}
-                navigate={navigate}
-                onDeclineRehearsal={onDeclineRehearsal}
-                onOpenPractice={onOpenPractice}
-                onRsvp={onRsvp}
-                timezone={dashboard.timezone}
-              />
-            </div>
+            <DashboardEventCard
+              busyEventId={busyEventId}
+              event={nextEvent}
+              isNextUp
+              navigate={navigate}
+              onDeclineRehearsal={onDeclineRehearsal}
+              onOpenPractice={onOpenPractice}
+              onRsvp={onRsvp}
+              timezone={dashboard.timezone}
+            />
           ) : null}
-          {remainingEvents.length > 0 ? (
-            <div className="member-dashboard__more-events">
-              <div className="section-heading section-heading--compact">
-                <h3>More upcoming events</h3>
-              </div>
-              {remainingEvents.map((event) => (
-                <DashboardEventCard
-                  busyEventId={busyEventId}
-                  event={event}
-                  key={event.id}
-                  navigate={navigate}
-                  onDeclineRehearsal={onDeclineRehearsal}
-                  onOpenPractice={onOpenPractice}
-                  onRsvp={onRsvp}
-                  timezone={dashboard.timezone}
-                />
-              ))}
-            </div>
-          ) : null}
+          {remainingEvents.map((event) => (
+            <DashboardEventCard
+              busyEventId={busyEventId}
+              event={event}
+              key={event.id}
+              navigate={navigate}
+              onDeclineRehearsal={onDeclineRehearsal}
+              onOpenPractice={onOpenPractice}
+              onRsvp={onRsvp}
+              timezone={dashboard.timezone}
+            />
+          ))}
         </div>
       )}
-    </section>
+    </fieldset>
   );
 }
 
@@ -311,30 +297,32 @@ function DashboardWidgets({
   return (
     <aside className="member-dashboard__widgets" aria-label="Member updates">
       {dashboard.activeSeasonState === "unavailable" ? (
-        <section className="member-dashboard__widget">
-          <p className="eyebrow">Season dues</p>
-          <h2>Season dues</h2>
+        <fieldset className="member-dashboard__widget">
+          <legend className="member-dashboard__widget-legend">Season dues</legend>
           <p className="notice notice--warning">Season dues are temporarily unavailable.</p>
-        </section>
+        </fieldset>
       ) : dashboard.activeSeason ? (
-        <section className="member-dashboard__widget">
-          <p className="eyebrow">Season dues</p>
-          <h2>{dashboard.activeSeason.season.name}</h2>
-          <p className="member-dashboard__widget-status">{activeSeasonLabel}</p>
+        <fieldset className="member-dashboard__widget">
+          <legend className="member-dashboard__widget-legend">Season dues</legend>
+          <div className="member-dashboard__widget-dues">
+            <span className="member-dashboard__widget-dues-name">
+              {dashboard.activeSeason.season.name}
+            </span>
+            <span className="member-dashboard__widget-status">{activeSeasonLabel}</span>
+          </div>
           <AppLink href="/dues" onNavigate={navigate}>
             View dues details
           </AppLink>
-        </section>
+        </fieldset>
       ) : null}
       {dashboard.pollsState === "unavailable" ? (
-        <section className="member-dashboard__widget">
-          <h2>Polls</h2>
+        <fieldset className="member-dashboard__widget">
+          <legend className="member-dashboard__widget-legend">Polls</legend>
           <p className="notice notice--warning">Polls are temporarily unavailable.</p>
-        </section>
+        </fieldset>
       ) : dashboard.polls.length > 0 ? (
-        <section className="member-dashboard__widget">
-          <p className="eyebrow">Your input</p>
-          <h2>Active polls</h2>
+        <fieldset className="member-dashboard__widget">
+          <legend className="member-dashboard__widget-legend">Active polls</legend>
           <ul className="member-dashboard__link-list">
             {dashboard.polls.map((poll) => (
               <li key={poll.id}>
@@ -342,11 +330,10 @@ function DashboardWidgets({
               </li>
             ))}
           </ul>
-        </section>
+        </fieldset>
       ) : null}
-      <section className="member-dashboard__widget">
-        <p className="eyebrow">Updates</p>
-        <h2>Bulletins</h2>
+      <fieldset className="member-dashboard__widget">
+        <legend className="member-dashboard__widget-legend">Bulletins</legend>
         {dashboard.bulletinsState === "unavailable" ? (
           <p className="notice notice--warning">Updates are temporarily unavailable.</p>
         ) : dashboard.bulletins.length === 0 ? (
@@ -368,10 +355,9 @@ function DashboardWidgets({
             ))}
           </ul>
         )}
-      </section>
-      <section className="member-dashboard__widget">
-        <p className="eyebrow">Shared by your Organization</p>
-        <h2>Resources</h2>
+      </fieldset>
+      <fieldset className="member-dashboard__widget">
+        <legend className="member-dashboard__widget-legend">Resources</legend>
         {dashboard.resourcesState === "unavailable" ? (
           <p className="notice notice--warning">Resources are temporarily unavailable.</p>
         ) : dashboard.resources.length === 0 ? (
@@ -396,7 +382,7 @@ function DashboardWidgets({
         <AppLink href="/member/resources" onNavigate={navigate}>
           View all resources
         </AppLink>
-      </section>
+      </fieldset>
     </aside>
   );
 }
@@ -717,7 +703,6 @@ export function DashboardView({
     <main className="account-layout member-dashboard">
       <div className="member-dashboard__header">
         <div>
-          <p className="eyebrow">{dashboard.performerLabel} dashboard</p>
           <h1>Welcome back{dashboard.profile ? `, ${dashboard.profile.displayName}` : ""}</h1>
           <p>Here’s what’s coming up for {dashboard.organizationName}.</p>
         </div>

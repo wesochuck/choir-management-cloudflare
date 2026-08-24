@@ -50,29 +50,6 @@ function performerCredit(
   return `Featured: ${credits.join(", ")}`;
 }
 
-function ScheduleRsvpHeader({
-  resolvedRsvp,
-}: {
-  readonly resolvedRsvp: SingerEvent["resolvedRsvp"];
-}) {
-  return (
-    <div className="schedule-rsvp__header">
-      <span className="schedule-rsvp__title">Your RSVP</span>
-      {resolvedRsvp !== "Pending" ? (
-        <span
-          className={`schedule-card__badge ${
-            resolvedRsvp === "Yes"
-              ? "schedule-card__badge--performance"
-              : "schedule-card__badge--rehearsal"
-          }`}
-        >
-          {resolvedRsvp === "Yes" ? "Attending" : "Declined"}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
 function ScheduleRsvpButtons({
   busy,
   event,
@@ -151,8 +128,21 @@ function ScheduleRsvpField({
   readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
 }) {
   return (
-    <div className="schedule-rsvp">
-      <ScheduleRsvpHeader resolvedRsvp={event.resolvedRsvp} />
+    <fieldset className="schedule-rsvp">
+      <legend className="schedule-rsvp__legend">
+        <span>Your RSVP</span>
+        {event.resolvedRsvp !== "Pending" ? (
+          <span
+            className={`schedule-card__badge ${
+              event.resolvedRsvp === "Yes"
+                ? "schedule-card__badge--performance"
+                : "schedule-card__badge--rehearsal"
+            }`}
+          >
+            {event.resolvedRsvp === "Yes" ? "Attending" : "Declined"}
+          </span>
+        ) : null}
+      </legend>
       <ScheduleRsvpButtons
         busy={busy}
         event={event}
@@ -160,7 +150,7 @@ function ScheduleRsvpField({
         onRsvp={onRsvp}
       />
       <ScheduleRsvpFooter event={event} />
-    </div>
+    </fieldset>
   );
 }
 
