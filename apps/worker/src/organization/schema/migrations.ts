@@ -1224,6 +1224,9 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
   },
   {
     apply: (sql) => {
+      // The runner executes apply() before statements, so the new column must be
+      // added here before the backfill queries it.
+      sql.exec("ALTER TABLE events ADD COLUMN rsvp_deadline_date TEXT");
       const metadata = sql
         .exec<{
           readonly [column: string]: SqlStorageValue;
@@ -1273,7 +1276,7 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         );
       }
     },
-    statements: ["ALTER TABLE events ADD COLUMN rsvp_deadline_date TEXT"],
+    statements: [],
     version: 73,
   },
 ] as const;
