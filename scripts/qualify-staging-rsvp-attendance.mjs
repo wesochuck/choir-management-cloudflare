@@ -211,6 +211,7 @@ function eventRequest(title) {
     startsAt: new Date(Date.now() + 21 * 86_400_000).toISOString(),
     ticketCapacity: null,
     title,
+    rsvpDeadlineDate: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
     type: "Performance",
     venueId: null,
   };

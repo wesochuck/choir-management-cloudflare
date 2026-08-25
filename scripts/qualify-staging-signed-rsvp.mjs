@@ -171,6 +171,7 @@ async function createPerformance(cookie, title) {
       startsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
       ticketCapacity: null,
       title,
+      rsvpDeadlineDate: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
       type: "Performance",
       venueId: null,
     },

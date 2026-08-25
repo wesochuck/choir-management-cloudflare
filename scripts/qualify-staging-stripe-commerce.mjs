@@ -148,6 +148,7 @@ async function createTicketedPerformance(cookie) {
     startsAt,
     ticketCapacity: 10,
     title,
+    rsvpDeadlineDate: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
     type: "Performance",
     venueId: null,
   });
