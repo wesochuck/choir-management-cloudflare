@@ -26,65 +26,63 @@ export function ConfirmationPanel({
       }}
       role="tabpanel"
     >
-      <div>
-        <p className="eyebrow">Confirmation page</p>
-        <h3>Ticket sales wording</h3>
-        <p>Customize the messages shown to buyers after they purchase tickets.</p>
-      </div>
-      <div className="ticket-confirmation-settings__grid">
-        <label className="field">
-          Success Message
-          <textarea
-            onChange={(event) => {
-              setConfirmationDraft((current) => ({
-                ...current,
-                successMessage: event.target.value,
-              }));
-            }}
-            rows={3}
-            value={confirmationDraft.successMessage}
-          />
-        </label>
-        <label className="field">
-          Pending / Unverified Message
-          <textarea
-            onChange={(event) => {
-              setConfirmationDraft((current) => ({
-                ...current,
-                pendingMessage: event.target.value,
-              }));
-            }}
-            rows={3}
-            value={confirmationDraft.pendingMessage}
-          />
-        </label>
-        <label className="field">
-          Will Call Instructions
-          <textarea
-            onChange={(event) => {
-              setConfirmationDraft((current) => ({
-                ...current,
-                willCallInstructions: event.target.value,
-              }));
-            }}
-            rows={4}
-            value={confirmationDraft.willCallInstructions}
-          />
-        </label>
-        <label className="field">
-          QR Code Instructions
-          <textarea
-            onChange={(event) => {
-              setConfirmationDraft((current) => ({
-                ...current,
-                qrCodeInstructions: event.target.value,
-              }));
-            }}
-            rows={4}
-            value={confirmationDraft.qrCodeInstructions}
-          />
-        </label>
-      </div>
+      <fieldset className="ticket-confirmation-settings__fieldset">
+        <legend>Ticket sales wording</legend>
+        <div className="ticket-confirmation-settings__grid">
+          <label className="field">
+            Success Message
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  successMessage: event.target.value,
+                }));
+              }}
+              rows={3}
+              value={confirmationDraft.successMessage}
+            />
+          </label>
+          <label className="field">
+            Pending / Unverified Message
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  pendingMessage: event.target.value,
+                }));
+              }}
+              rows={3}
+              value={confirmationDraft.pendingMessage}
+            />
+          </label>
+          <label className="field">
+            Will Call Instructions
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  willCallInstructions: event.target.value,
+                }));
+              }}
+              rows={4}
+              value={confirmationDraft.willCallInstructions}
+            />
+          </label>
+          <label className="field">
+            QR Code Instructions
+            <textarea
+              onChange={(event) => {
+                setConfirmationDraft((current) => ({
+                  ...current,
+                  qrCodeInstructions: event.target.value,
+                }));
+              }}
+              rows={4}
+              value={confirmationDraft.qrCodeInstructions}
+            />
+          </label>
+        </div>
+      </fieldset>
       <div className="form-actions">
         <button className="button button--primary" disabled={confirmationSaving} type="submit">
           {confirmationSaving ? "Saving…" : "Save ticket wording"}

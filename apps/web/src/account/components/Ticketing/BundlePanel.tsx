@@ -61,7 +61,6 @@ export function BundlePanel({
     >
       <div>
         <h3>Ticket bundles</h3>
-        <p>Create a bundle, pass, or ticket tier for one or more performances.</p>
         <button className="button button--primary" onClick={openNewBundle} type="button">
           New ticket bundle
         </button>
@@ -78,7 +77,6 @@ export function BundlePanel({
           </p>
         ) : null}
         <form className="form-stack" onSubmit={(formEvent) => void saveBundle(formEvent)}>
-          <h3>{editingBundleId ? "Edit ticket bundle" : "New ticket bundle"}</h3>
           <label className="field">
             Bundle title
             <input
@@ -177,8 +175,8 @@ export function BundlePanel({
       <div>
         {bundles.length === 0 ? <p>No bundles yet.</p> : null}
         {bundles.map((bundle) => (
-          <article className="compact-card" key={bundle.id}>
-            <h4>{bundle.title}</h4>
+          <fieldset className="compact-card" key={bundle.id}>
+            <legend>{bundle.title}</legend>
             <p>
               {money(bundle.priceCents)} · {bundle.eventIds.length} performance
               {bundle.eventIds.length === 1 ? "" : "s"} · {bundle.isActive ? "active" : "inactive"}
@@ -203,7 +201,7 @@ export function BundlePanel({
                 Delete
               </button>
             </div>
-          </article>
+          </fieldset>
         ))}
       </div>
     </div>

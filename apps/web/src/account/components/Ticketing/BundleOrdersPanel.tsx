@@ -28,11 +28,6 @@ export function BundleOrdersPanel({
       id="ticketing-orders-panel"
       role="tabpanel"
     >
-      <div>
-        <p className="eyebrow">Bundle orders</p>
-        <h3>Season bundle orders</h3>
-        <p>Review bundle purchases, resend confirmations, or issue refunds.</p>
-      </div>
       {state.status === "loading" ? <p>Loading bundle orders…</p> : null}
       {state.status === "error" ? (
         <p className="notice notice--error">Bundle orders could not be loaded.</p>

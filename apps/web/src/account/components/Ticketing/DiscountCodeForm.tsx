@@ -98,46 +98,49 @@ export function DiscountCodeForm({
             </optgroup>
           </select>
         </label>
-        <div className="form-grid form-grid--two">
-          <label className="field">
-            Discount type
-            <select
-              value={discountDraft.discountType}
-              onChange={(event) => {
-                const type = event.target.value === "fixed" ? "fixed" : "percentage";
-                setDiscountDraft((current) => ({
-                  ...current,
-                  discountType: type,
-                }));
-              }}
-            >
-              <option value="percentage">Percentage</option>
-              <option value="fixed">Fixed amount per unit</option>
-            </select>
-          </label>
-          <label className="field">
-            {discountDraft.discountType === "percentage"
-              ? "Percentage (1–100)"
-              : "Amount per unit (USD)"}
-            <input
-              required
-              min={discountDraft.discountType === "percentage" ? 1 : 0}
-              max={discountDraft.discountType === "percentage" ? 100 : undefined}
-              step={discountDraft.discountType === "percentage" ? 1 : 0.01}
-              type="number"
-              value={fixedValue}
-              onChange={(event) => {
-                setDiscountDraft((current) => ({
-                  ...current,
-                  discountValue:
-                    current.discountType === "fixed"
-                      ? String(Math.round(Number(event.target.value) * 100))
-                      : event.target.value,
-                }));
-              }}
-            />
-          </label>
-        </div>
+        <fieldset className="field">
+          <legend>Discount amount</legend>
+          <div className="form-grid form-grid--two">
+            <label className="field">
+              Discount type
+              <select
+                value={discountDraft.discountType}
+                onChange={(event) => {
+                  const type = event.target.value === "fixed" ? "fixed" : "percentage";
+                  setDiscountDraft((current) => ({
+                    ...current,
+                    discountType: type,
+                  }));
+                }}
+              >
+                <option value="percentage">Percentage</option>
+                <option value="fixed">Fixed amount per unit</option>
+              </select>
+            </label>
+            <label className="field">
+              {discountDraft.discountType === "percentage"
+                ? "Percentage (1–100)"
+                : "Amount per unit (USD)"}
+              <input
+                required
+                min={discountDraft.discountType === "percentage" ? 1 : 0}
+                max={discountDraft.discountType === "percentage" ? 100 : undefined}
+                step={discountDraft.discountType === "percentage" ? 1 : 0.01}
+                type="number"
+                value={fixedValue}
+                onChange={(event) => {
+                  setDiscountDraft((current) => ({
+                    ...current,
+                    discountValue:
+                      current.discountType === "fixed"
+                        ? String(Math.round(Number(event.target.value) * 100))
+                        : event.target.value,
+                  }));
+                }}
+              />
+            </label>
+          </div>
+        </fieldset>
         <label className="field">
           Redemption limit (blank is unlimited)
           <input

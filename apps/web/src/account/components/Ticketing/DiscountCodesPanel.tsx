@@ -52,14 +52,7 @@ export function DiscountCodesPanel({
       role="tabpanel"
     >
       <div className="ticketing-page-header">
-        <div>
-          <p className="eyebrow">Discount codes</p>
-          <h3>Create and monitor ticket discounts</h3>
-          <p>
-            Codes apply to one performance or bundle. After the first confirmed redemption, their
-            terms can only be deactivated.
-          </p>
-        </div>
+        <h3>Discount codes</h3>
         <button className="button button--primary" onClick={openNewDiscountCode} type="button">
           New discount code
         </button>
