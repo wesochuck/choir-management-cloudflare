@@ -379,36 +379,39 @@ export function AuditionManager({ enabled }: Props) {
             path="/auditions"
             title="Public audition signup page"
           />
-          <div className="form-grid form-grid--compact">
-            <label className="field">
-              Search
-              <input
-                placeholder={`Name, email, ${partLabel.toLowerCase()}`}
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                }}
-              />
-            </label>
-            <label className="field">
-              Narrow results
-              <select
-                aria-label="Audition filter"
-                value={statusFilter}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setStatusFilter(value === "all" ? "all" : auditionStatusSchema.parse(value));
-                }}
-              >
-                <option value="all">All statuses</option>
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <fieldset className="audition-inquiries__filters">
+            <legend className="audition-inquiries__legend">Filter inquiries</legend>
+            <div className="form-grid form-grid--compact">
+              <label className="field">
+                Search
+                <input
+                  placeholder={`Name, email, ${partLabel.toLowerCase()}`}
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                  }}
+                />
+              </label>
+              <label className="field">
+                Narrow results
+                <select
+                  aria-label="Audition filter"
+                  value={statusFilter}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setStatusFilter(value === "all" ? "all" : auditionStatusSchema.parse(value));
+                  }}
+                >
+                  <option value="all">All statuses</option>
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </fieldset>
           {filteredAuditions.length === 0 ? (
             <div className="notice">
               {state.auditions.length === 0
