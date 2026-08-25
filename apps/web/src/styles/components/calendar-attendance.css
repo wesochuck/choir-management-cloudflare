@@ -21,8 +21,7 @@
 
   .attendance-manager__intro,
   .attendance-manager__controls,
-  .attendance-manager__toolbar,
-  .attendance-manager__event-summary {
+  .attendance-manager__toolbar {
     align-items: center;
     display: flex;
     gap: 1rem;
@@ -76,18 +75,6 @@
 
   .attendance-manager__search {
     flex-basis: 14rem;
-  }
-
-  .attendance-manager__event-summary {
-    justify-content: flex-start;
-    margin-top: 0.75rem;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-md);
-    flex-wrap: wrap;
-  }
-
-  .attendance-manager__event-summary strong {
-    color: var(--color-text);
   }
 
   .attendance-manager__toolbar {

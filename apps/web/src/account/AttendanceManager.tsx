@@ -2,6 +2,7 @@ import type {
   OrganizationAttendanceRow,
   OrganizationAttendanceStatus,
   OrganizationEvent,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   listOrganizationEventAttendance,
   listOrganizationEvents,
+  listOrganizationVenues,
   updateOrganizationEventAttendance,
 } from "../auth/api";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
@@ -181,6 +183,7 @@ function UnexpectedAttendanceDialog({
 export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const { partLabel, performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
+  const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
   const [eventId, setEventId] = useState("");
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
   const [filter, setFilter] = useState<AttendanceFilter>("Pending");
@@ -197,9 +200,13 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    listOrganizationEvents(controller.signal)
-      .then((loaded) => {
+    Promise.all([
+      listOrganizationEvents(controller.signal),
+      listOrganizationVenues(controller.signal),
+    ])
+      .then(([loaded, loadedVenues]) => {
         setEvents(loaded);
+        setVenues(loadedVenues);
         setEventId((current) => {
           if (current) return current;
           return closestFutureEvent(loaded)?.id ?? loaded[0]?.id ?? "";
@@ -386,8 +393,14 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
       setBulkBusy(false);
     }
   }
+  const venueNameById = useMemo(
+    () => new Map(venues.map((venue) => [venue.id, venue.name])),
+    [venues],
+  );
+  function eventLocationLabel(event: OrganizationEvent): string {
+    return venueNameById.get(event.venueId ?? "") ?? event.location.trim();
+  }
 
-  const selectedEvent = events.find((event) => event.id === eventId);
   const counts = useMemo(() => {
     const expected = rows.filter((row) => row.rsvp === "Yes");
     return {
@@ -451,6 +464,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             {events.map((event) => (
               <option key={event.id} value={event.id}>
                 {event.title} · {displayEventDate(event.startsAt)}
+                {eventLocationLabel(event) ? ` · ${eventLocationLabel(event)}` : ""}
               </option>
             ))}
           </select>
@@ -468,14 +482,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           />
         </label>
       </div>
-
-      {selectedEvent ? (
-        <div className="attendance-manager__event-summary">
-          <strong>{selectedEvent.title}</strong>
-          <span>{displayEventDate(selectedEvent.startsAt)}</span>
-          <span>{selectedEvent.location || "No location"}</span>
-        </div>
-      ) : null}
 
       <div className="attendance-manager__toolbar">
         <div className="attendance-filters" aria-label="Attendance filter" role="group">
