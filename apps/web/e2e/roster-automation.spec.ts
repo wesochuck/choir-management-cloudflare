@@ -191,7 +191,6 @@ test("explains roster automation, On Break timeout, and configurable RSVP expiry
   await page.getByRole("tab", { name: "Roster automation" }).click();
 
   const settings = page.getByRole("region", { name: "Roster status automation" });
-  await expect(settings.getByRole("heading", { name: "Roster status automation" })).toBeVisible();
   await expect(settings.getByLabel("Consecutive missed Performances")).toHaveValue("3");
   await expect(settings.getByLabel("Days on Break before Inactive")).toHaveValue("365");
   await expect(
