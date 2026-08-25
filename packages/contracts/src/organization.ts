@@ -27,7 +27,7 @@ export const organizationSetListItemSchema = z.object({
   type: z.enum(["intermission", "song"]).optional(),
 });
 
-const organizationEventFieldsSchema = z.object({
+export const organizationEventFieldsSchema = z.object({
   advancePriceCents: z.number().int().nonnegative().max(10_000_000).default(0),
   callTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
   dayOfPriceCents: z.number().int().nonnegative().max(10_000_000).default(0),
@@ -51,6 +51,7 @@ const organizationEventFieldsSchema = z.object({
   title: z.string().trim().min(1).max(500),
   type: z.enum(["Performance", "Rehearsal"]),
   venueId: z.uuid().nullable().default(null),
+  rsvpDeadlineDate: z.iso.date().nullable().default(null),
 });
 
 export const organizationEventRequestSchema = organizationEventFieldsSchema.superRefine(
@@ -81,6 +82,20 @@ export const organizationEventRequestSchema = organizationEventFieldsSchema.supe
         code: "custom",
         message: "A custom RSVP follow-up lead time requires an enabled event override.",
         path: ["rsvpFollowUpLeadHours"],
+      });
+    }
+    if (event.type === "Performance" && event.rsvpDeadlineDate === null) {
+      context.addIssue({
+        code: "custom",
+        message: "A member RSVP deadline is required for a Performance.",
+        path: ["rsvpDeadlineDate"],
+      });
+    }
+    if (event.type === "Rehearsal" && event.rsvpDeadlineDate !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Rehearsals do not use an RSVP deadline.",
+        path: ["rsvpDeadlineDate"],
       });
     }
   },

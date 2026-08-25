@@ -118,7 +118,6 @@ async function setupChecklistRoutes(
         performerLabel: "Performer",
         requestId,
         rsvpExpiryEnabled: true,
-        rsvpExpiryLeadDays: 3,
         rsvpFollowUpEnabled: false,
         rsvpFollowUpLeadHours: 48,
         sections: [],

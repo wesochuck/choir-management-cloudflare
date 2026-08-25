@@ -91,6 +91,7 @@ export function eventRequestFrom(event: OrganizationEvent): OrganizationEventReq
     publicDetails: event.publicDetails,
     publicGraphicFileId: event.publicGraphicFileId,
     publishOnWebsite: event.publishOnWebsite,
+    rsvpDeadlineDate: event.rsvpDeadlineDate,
     rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
     rsvpFollowUpMode: event.rsvpFollowUpMode,
     setList: event.setList,

@@ -98,7 +98,6 @@ export function EventsPage({
           rsvpFollowUpEnabled: rosterConfiguration.rsvpFollowUpEnabled,
           rsvpFollowUpLeadHours: rosterConfiguration.rsvpFollowUpLeadHours,
           rsvpExpiryEnabled: rosterConfiguration.rsvpExpiryEnabled,
-          rsvpExpiryLeadDays: rosterConfiguration.rsvpExpiryLeadDays,
           status: "ready",
           timezone: settings.timezone,
           venues,

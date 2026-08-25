@@ -9,7 +9,6 @@ export type EventsState =
       readonly rsvpFollowUpLeadHours: number;
       readonly status: "ready";
       readonly rsvpExpiryEnabled: boolean;
-      readonly rsvpExpiryLeadDays: number;
       readonly timezone: string;
       readonly venues: readonly OrganizationVenue[];
     };

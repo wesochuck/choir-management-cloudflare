@@ -47,6 +47,7 @@ export {
   evaluateProfileStatus,
   isMissedPerformance,
   isRsvpDeadlinePassed,
+  rsvpDeadlineFromDate,
   performanceHasEnded,
   type AttendanceStatus,
   type AutomatedProfileStatus,

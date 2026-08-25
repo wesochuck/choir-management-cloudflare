@@ -10,6 +10,7 @@ import {
   inspectMusicCsv,
   mapMusicCsvColumns,
   musicCsvColumnForHeader,
+  calculateRsvpDeadline,
   type CsvColumnMapping,
   type MusicCsvInspection,
 } from "@choir/domain";
@@ -671,6 +672,9 @@ export function useMusicCatalogController({
           publicDetails: "",
           publicGraphicFileId: null,
           publishOnWebsite: false,
+          rsvpDeadlineDate:
+            calculateRsvpDeadline({ startsAt: payload.startsAt, type: "Performance" }, 7, timezone)
+              ?.deadlineDate ?? null,
           rsvpFollowUpLeadHours: null,
           rsvpFollowUpMode: "inherit",
           setList: itemsToAdd,

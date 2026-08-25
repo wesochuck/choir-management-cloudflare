@@ -755,10 +755,11 @@ describe("Organization scheduler", () => {
     const eventId = "77777777-7777-4777-8777-777777777777";
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       state.storage.sql.exec(
-        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
-         VALUES (?, 'RSVP Follow-up Performance', 'Performance', ?, ?, ?)`,
+        `INSERT INTO events (id, title, type, starts_at, rsvp_deadline_date, created_at, updated_at)
+         VALUES (?, 'RSVP Follow-up Performance', 'Performance', ?, ?, ?, ?)`,
         eventId,
         new Date(now + 8 * 24 * 60 * 60 * 1_000).toISOString(),
+        new Date(now + 24 * 60 * 60 * 1_000).toISOString().slice(0, 10),
         overdueAt,
         overdueAt,
       );

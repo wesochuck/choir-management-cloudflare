@@ -3,37 +3,32 @@ import type {
   OrganizationEventRequest,
   OrganizationVenue,
 } from "@choir/contracts";
+import { isRsvpDeadlinePassed, rsvpDeadlineFromDate } from "@choir/domain";
 import { DataTable, DropdownMenu } from "@choir/ui";
-import {
-  calculateRsvpDeadline,
-  isRsvpDeadlinePassed,
-  zonedLocalDateTimeToUtc,
-} from "@choir/domain";
 import { displayEventDate, displayRsvpDeadline, displayRsvpDeadlineAt } from "./utils";
 import type { EventsState } from "./types";
 
 export function EventRsvpDeadlineNotice({
-  eventStart,
+  deadlineDate,
   eventType,
   state,
 }: {
-  readonly eventStart: string;
+  readonly deadlineDate: string | null;
   readonly eventType: OrganizationEventRequest["type"];
   readonly state: EventsState;
 }) {
   if (eventType !== "Performance" || state.status !== "ready") return null;
-  const draftStartsAt = zonedLocalDateTimeToUtc(eventStart, state.timezone);
-  const draftDeadline =
-    state.rsvpExpiryEnabled && draftStartsAt
-      ? calculateRsvpDeadline(
-          { startsAt: draftStartsAt, type: "Performance" },
-          state.rsvpExpiryLeadDays,
-          state.timezone,
-        )
-      : null;
-  const draftDeadlinePassed = draftDeadline
-    ? isRsvpDeadlinePassed(draftDeadline, new Date())
-    : false;
+  if (!deadlineDate) {
+    return (
+      <p className="notice notice--warning form-grid__wide">
+        Choose the member RSVP deadline. Responses stay open through 11:59 p.m. Organization time on
+        that date.
+      </p>
+    );
+  }
+  const draftDeadline = rsvpDeadlineFromDate(deadlineDate, state.timezone);
+  if (!draftDeadline) return null;
+  const draftDeadlinePassed = isRsvpDeadlinePassed(draftDeadline, new Date());
   return (
     <p
       className={
@@ -42,18 +37,10 @@ export function EventRsvpDeadlineNotice({
           : "notice notice--info form-grid__wide"
       }
     >
-      {state.rsvpExpiryEnabled
-        ? draftDeadline
-          ? draftDeadlinePassed
-            ? `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, true, state.timezone)}. Pending member RSVPs are closed. This date was calculated from the event start using the organization's RSVP expiry setting.`
-            : `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, false, state.timezone)} through 11:59 p.m. This date is calculated from the event start using the organization's RSVP expiry setting.`
-          : "Enter a valid start date to calculate the member RSVP deadline."
-        : "Automatic RSVP expiry is off, so pending member RSVPs do not close automatically."}{" "}
-      <a href="/admin/roster?section=settings">
-        {state.rsvpExpiryEnabled
-          ? "Change RSVP expiry in Roster Settings"
-          : "Configure RSVP expiry in Roster Settings"}
-      </a>
+      {draftDeadlinePassed
+        ? `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, true, state.timezone)}. Member self-service RSVP is closed from the start; administrators can still record responses.`
+        : `${displayRsvpDeadlineAt(draftDeadline.deadlineAt, false, state.timezone)} through 11:59 p.m.`}{" "}
+      Members can respond until this deadline.
     </p>
   );
 }

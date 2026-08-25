@@ -162,6 +162,7 @@ describe("Music Folder Report", () => {
           startsAt: "2026-01-10T19:00:00.000Z",
           title: "Winter Concert",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -171,6 +172,7 @@ describe("Music Folder Report", () => {
           startsAt: "2026-05-10T19:00:00.000Z",
           title: "Spring Concert",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -180,6 +182,7 @@ describe("Music Folder Report", () => {
           startsAt: "2026-08-10T19:00:00.000Z",
           title: "Canceled Concert",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );

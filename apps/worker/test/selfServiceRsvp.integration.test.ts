@@ -462,8 +462,9 @@ describe("linked-Profile self-service RSVP", () => {
       stores.get(stores.idFromName("organization-alpha")),
       (_instance, state) => {
         state.storage.sql.exec(
-          "UPDATE events SET starts_at = ? WHERE id = ?",
+          "UPDATE events SET starts_at = ?, rsvp_deadline_date = ? WHERE id = ?",
           new Date(Date.now() + 3 * 86_400_000).toISOString(),
+          new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
           PERFORMANCE_ID,
         );
         return null;

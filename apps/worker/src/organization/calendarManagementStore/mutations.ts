@@ -1,9 +1,6 @@
 import { isValidTimeZone } from "@choir/domain";
 
-import {
-  decorateEventWithRsvpDeadline,
-  readRosterAutomationConfiguration,
-} from "../statusAutomationStore";
+import { decorateEventWithRsvpDeadline } from "../statusAutomationStore";
 import { type EventOperation, type ManagementRequest, type VenueOperation } from "./contracts";
 import { existingRecordIds, insertAudit, recordExists } from "./shared";
 
@@ -131,10 +128,11 @@ export function writeEvent(
           (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
            parent_performance_id, details, public_details, public_graphic_file_id,
            publish_on_website, rsvp_follow_up_lead_hours, rsvp_follow_up_mode,
+           rsvp_deadline_date,
            advance_price_cents, day_of_price_cents, doors_open_time,
            is_ticketing_enabled, ticket_capacity, set_list_json, set_list_approved,
            is_archived, is_canceled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
         event.id,
         event.title,
         event.type,
@@ -150,6 +148,7 @@ export function writeEvent(
         event.publishOnWebsite ? 1 : 0,
         event.rsvpFollowUpLeadHours,
         event.rsvpFollowUpMode,
+        event.rsvpDeadlineDate,
         event.advancePriceCents,
         event.dayOfPriceCents,
         event.doorsOpenTime,
@@ -166,6 +165,7 @@ export function writeEvent(
            call_time = ?, location = ?, venue_id = ?, parent_performance_id = ?, details = ?,
            public_details = ?, public_graphic_file_id = ?, publish_on_website = ?,
            rsvp_follow_up_lead_hours = ?, rsvp_follow_up_mode = ?,
+           rsvp_deadline_date = ?,
            advance_price_cents = ?, day_of_price_cents = ?, doors_open_time = ?,
            is_ticketing_enabled = ?, ticket_capacity = ?, set_list_json = ?,
            set_list_approved = ?, updated_at = ?
@@ -184,6 +184,7 @@ export function writeEvent(
         event.publishOnWebsite ? 1 : 0,
         event.rsvpFollowUpLeadHours,
         event.rsvpFollowUpMode,
+        event.rsvpDeadlineDate,
         event.advancePriceCents,
         event.dayOfPriceCents,
         event.doorsOpenTime,
@@ -204,6 +205,7 @@ export function writeEvent(
       {
         isTicketingEnabled: event.isTicketingEnabled,
         publishOnWebsite: event.publishOnWebsite,
+        rsvpDeadlineDate: event.rsvpDeadlineDate,
         rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
         rsvpFollowUpMode: event.rsvpFollowUpMode,
         startsAt: event.startsAt,
@@ -231,7 +233,6 @@ export function writeEvent(
             event.id,
           )
           .one().isCanceled;
-  const configuration = readRosterAutomationConfiguration(storage);
   const timezone = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
       "SELECT timezone FROM organization_metadata LIMIT 1",
@@ -242,7 +243,6 @@ export function writeEvent(
     isCanceled: isCanceled === 1,
     ...decorateEventWithRsvpDeadline(
       { ...event, isCanceled: isCanceled === 1 },
-      configuration,
       timezone,
       new Date(occurredAt),
     ),

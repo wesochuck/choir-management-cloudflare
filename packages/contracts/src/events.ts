@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requestIdSchema } from "./primitives";
-import { organizationSetListItemSchema, organizationEventRequestSchema } from "./organization";
-export const organizationEventSchema = organizationEventRequestSchema.and(
+import { organizationEventFieldsSchema, organizationSetListItemSchema } from "./organization";
+export const organizationEventSchema = organizationEventFieldsSchema.and(
   z.object({
     createdAt: z.iso.datetime(),
     id: z.uuid(),
@@ -258,7 +258,6 @@ export const organizationRosterConfigurationRequestSchema = z
     rsvpFollowUpEnabled: z.boolean().default(true),
     rsvpFollowUpLeadHours: z.number().int().min(1).max(720).default(48),
     rsvpExpiryEnabled: z.boolean().default(true),
-    rsvpExpiryLeadDays: z.number().int().min(1).max(365).default(7),
     sections: z.array(organizationSectionSchema).min(1).max(50),
     statusAutomationEnabled: z.boolean().default(true),
     statusAutomationMissThreshold: z.number().int().min(1).max(10).default(3),

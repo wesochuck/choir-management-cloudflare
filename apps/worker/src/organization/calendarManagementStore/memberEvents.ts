@@ -83,7 +83,7 @@ function mapMemberEvent(
       : event.setListJson;
   const resolvedRsvp = inherits ? event.parentRsvp : directRsvp;
   return {
-    ...decorateEventWithRsvpDeadline(event, configuration, timezone, now),
+    ...decorateEventWithRsvpDeadline(event, timezone, now),
     attendanceWarning: attendanceWarningForMemberEvent(event, inherits, directRsvp, configuration),
     callTime: event.callTime,
     details: event.details,
@@ -149,7 +149,7 @@ export function listMemberEventsFromStore(
          e.duration_minutes AS durationMinutes, e.call_time AS callTime,
          e.location, e.details, e.set_list_json AS setListJson,
          e.set_list_approved AS setListApproved,
-         e.is_canceled AS isCanceled,
+         e.is_canceled AS isCanceled, e.rsvp_deadline_date AS rsvpDeadlineDate,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
          direct.rsvp AS directRsvp, COALESCE(direct.rsvp_note, '') AS rsvpNote,
          parent.rsvp AS parentRsvp,

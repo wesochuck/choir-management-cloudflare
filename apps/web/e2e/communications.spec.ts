@@ -235,7 +235,6 @@ async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void
       performerLabel: "Performer",
       requestId,
       rsvpExpiryEnabled: true,
-      rsvpExpiryLeadDays: 3,
       rsvpFollowUpEnabled: false,
       rsvpFollowUpLeadHours: 48,
       sections: [{ code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false }],

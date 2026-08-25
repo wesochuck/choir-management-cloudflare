@@ -478,24 +478,29 @@ The attendance response provided by or assigned to a singer for a specific event
 - **No (Declined)**: Singer is unavailable.
 - **Pending (No Response)**: The default status indicating no selection has been made yet.
 
+## RSVP Deadline
+
+The explicit close date an administrator sets on each Performance; every Performance has one and no
+date is ever calculated. Responses remain open through the end of that displayed date, 11:59 p.m. in
+the Organization's timezone. Afterward member self-service is closed for that Performance while
+administrators may still override responses with audited changes. A deadline may be set in the past,
+which closes self-service from the start; the event form warns the administrator and creates no
+hidden grace period. Editing a deadline takes effect immediately: extending a passed deadline
+reopens member self-service, though responses already converted stay recorded in Event RSVP History.
+Rehearsals have no RSVP Deadline. _Avoid_: "RSVP date", "calculated deadline".
+
 ## RSVP Expiry
 
-The Organization rule that converts a Pending RSVP for a Performance to No at a configurable number
-of calendar days before the Performance starts, defaulting to seven days. The calculated deadline is
-shown on the event, and remains open through the end of that displayed date in the Organization's
-timezone. Rehearsal RSVPs do not use RSVP Expiry. The lead time is an Organization-wide Roster
-Setting, and the event links back to that setting. _Avoid_: RSVP automation when the deadline rule
-is meant. If a Performance is created inside the lead-time window, its deadline is already passed;
-the event-creation flow warns the administrator and does not create a hidden grace period. When RSVP
-Expiry produces No, that result counts as a missed Performance for Profile Status Automation and is
-identified as automatic in Event RSVP History. RSVP Expiry has its own enable/disable control; when
-disabled, Pending RSVPs remain Pending. Changing the lead time immediately recalculates deadlines
-and previews any Pending RSVPs that would become overdue before saving. Expiry does not send a new
-notification when it converts a response; existing RSVP reminders include the calculated deadline,
-and the automatic conversion is retained in Event RSVP History. Archived or canceled Performances
-are excluded from RSVP Expiry. After the deadline, member RSVP self-service is closed;
-administrators may override the response with an audited change, and later Present attendance may
-still reconcile the RSVP to Yes.
+The Organization switch that automatically converts a Performance's Pending RSVPs to No after that
+Performance's RSVP Deadline passes. When disabled, deadlines still close member self-service but no
+response is ever converted automatically. When Expiry produces No, that result counts as a missed
+Performance for Profile Status Automation and is identified as automatic in Event RSVP History.
+Expiry does not send a new notification when it converts a response; the automatic conversion is
+retained in Event RSVP History. Archived or canceled Performances are excluded from RSVP Expiry.
+Rehearsal RSVPs never use RSVP Expiry or an RSVP Deadline. Administrators may still override any
+response after the deadline, and later Present attendance may still reconcile the RSVP to Yes.
+_Avoid_: treating Expiry as the deadline itself; the deadline lives on the event, Expiry is the
+Organization-wide conversion behavior.
 
 ## Event RSVP History
 
@@ -660,7 +665,7 @@ ignored, and reminders are instead sent to the "Yes (Attending)" roster of the p
 ## Pending RSVP Follow-up
 
 A one-time, email-only message sent to active Profiles whose Performance RSVP Status remains
-"Pending (No Response)" 48 hours before the Organization's RSVP deadline by default. It is distinct
+"Pending (No Response)" 48 hours before the Performance's RSVP Deadline by default. It is distinct
 from an Automated Reminder, which is sent to confirmed attendees, and linked Rehearsals inherit the
 parent Performance's follow-up rather than generating a duplicate.
 

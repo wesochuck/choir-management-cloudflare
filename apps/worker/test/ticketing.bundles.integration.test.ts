@@ -39,6 +39,7 @@ describe("Organization ticket bundles", () => {
       setList: [],
       setListApproved: false,
       ticketCapacity: 2,
+      rsvpDeadlineDate: "2027-09-24",
       type: "Performance" as const,
       venueId: null,
     };

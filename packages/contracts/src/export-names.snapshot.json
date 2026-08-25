@@ -166,6 +166,7 @@
   "OrganizationMembershipsResponse",
   "organizationSetListItemSchema",
   "organizationEventRequestSchema",
+  "organizationEventFieldsSchema",
   "publicWebsiteFontSchema",
   "publicWebsiteSettingsRequestSchema",
   "publicWebsiteSettingsSchema",

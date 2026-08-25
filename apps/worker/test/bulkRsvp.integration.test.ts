@@ -148,6 +148,7 @@ async function createPerformance(cookie: string): Promise<string> {
     ticketCapacity: null,
     title: PERFORMANCE_TITLE,
     type: "Performance",
+    rsvpDeadlineDate: "2030-01-01",
     venueId: null,
   });
   expect(response.status).toBe(201);

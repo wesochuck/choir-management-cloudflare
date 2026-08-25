@@ -38,6 +38,7 @@ export function eventRequestFrom(
     publishOnWebsite: event.publishOnWebsite,
     rsvpFollowUpLeadHours: event.rsvpFollowUpLeadHours,
     rsvpFollowUpMode: event.rsvpFollowUpMode,
+    rsvpDeadlineDate: event.rsvpDeadlineDate,
     setList,
     setListApproved: approved,
     startsAt: event.startsAt,

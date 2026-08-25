@@ -1,8 +1,12 @@
 import {
+  calculateRsvpDeadline,
+  datePartInTimeZone,
   defaultPollExpirationAt,
   defaultRosterConfiguration,
   defaultSeatingConfiguration,
+  rsvpDeadlineFromDate,
 } from "@choir/domain";
+import { z } from "zod";
 
 import {
   refreshUnmodifiedPaymentMessageTemplates,
@@ -1217,6 +1221,60 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE donations ADD COLUMN payment_reference TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE donations ADD COLUMN thank_you_sent_at TEXT",
     ],
+  },
+  {
+    apply: (sql) => {
+      const metadata = sql
+        .exec<{
+          readonly [column: string]: SqlStorageValue;
+          readonly configuration: string;
+          readonly timezone: string;
+        }>(
+          "SELECT roster_configuration_json AS configuration, timezone FROM organization_metadata LIMIT 1",
+        )
+        .toArray()
+        .at(0);
+      if (!metadata) return;
+      // Legacy configurations still carry the removed RSVP Expiry lead-time rule; read it
+      // directly so each Organization keeps the deadlines its members already saw.
+      const legacyConfigurationSchema = z
+        .object({
+          rsvpExpiryEnabled: z.boolean(),
+          rsvpExpiryLeadDays: z.number().int().min(1),
+        })
+        .partial()
+        .catch({});
+      const legacy = legacyConfigurationSchema.parse(JSON.parse(metadata.configuration));
+      const expiryEnabled = legacy.rsvpExpiryEnabled ?? true;
+      const leadDays = legacy.rsvpExpiryLeadDays ?? 7;
+      const performances = sql
+        .exec<{ readonly id: string; readonly startsAt: string }>(
+          `SELECT id, starts_at AS startsAt FROM events
+           WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+             AND rsvp_deadline_date IS NULL`,
+        )
+        .toArray();
+      for (const performance of performances) {
+        const deadline = expiryEnabled
+          ? calculateRsvpDeadline(
+              { startsAt: performance.startsAt, type: "Performance" },
+              leadDays,
+              metadata.timezone,
+            )
+          : rsvpDeadlineFromDate(
+              datePartInTimeZone(new Date(performance.startsAt), metadata.timezone),
+              metadata.timezone,
+            );
+        if (!deadline) continue;
+        sql.exec(
+          "UPDATE events SET rsvp_deadline_date = ? WHERE id = ? AND rsvp_deadline_date IS NULL",
+          deadline.deadlineDate,
+          performance.id,
+        );
+      }
+    },
+    statements: ["ALTER TABLE events ADD COLUMN rsvp_deadline_date TEXT"],
+    version: 73,
   },
 ] as const;
 

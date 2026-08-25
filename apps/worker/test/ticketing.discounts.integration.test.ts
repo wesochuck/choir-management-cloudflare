@@ -61,6 +61,7 @@ describe("Organization ticket discounts", () => {
             ticketCapacity: 10,
             title: "Discounted Winter Tickets",
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
             venueId: venue.id,
           },
           cookie,

@@ -270,6 +270,7 @@ describe("Organization attendance", () => {
           startsAt: new Date(Date.now() + 172_800_000).toISOString(),
           title: "Folder Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -427,6 +428,7 @@ describe("Organization attendance", () => {
           startsAt: new Date(Date.now() + 86_400_000).toISOString(),
           title: "Linked Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );

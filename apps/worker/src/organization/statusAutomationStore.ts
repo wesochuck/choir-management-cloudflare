@@ -7,11 +7,11 @@ import {
 } from "@choir/contracts";
 import {
   calculateOnBreakInactiveAt,
-  calculateRsvpDeadline,
   defaultRosterConfiguration,
   evaluateProfileStatus,
   isRsvpDeadlinePassed,
   isPerformer,
+  rsvpDeadlineFromDate,
   type PerformanceAutomationRecord,
 } from "@choir/domain";
 
@@ -54,6 +54,7 @@ interface StoredPendingRsvpRow {
   readonly profileId: string;
   readonly startsAt: string;
   readonly type: "Performance" | "Rehearsal";
+  readonly rsvpDeadlineDate: string | null;
 }
 
 interface StoredEventRow {
@@ -61,6 +62,7 @@ interface StoredEventRow {
   readonly isCanceled?: boolean | number;
   readonly startsAt: string;
   readonly type: "Performance" | "Rehearsal";
+  readonly rsvpDeadlineDate: string | null;
 }
 
 type RawEventRow = StoredEventRow & Record<string, SqlStorageValue>;
@@ -274,7 +276,8 @@ function countRsvpExpirations(
   if (!configuration.rsvpExpiryEnabled) return { count: 0, profileIds: new Set() };
   const pending = storage.sql
     .exec<StoredPendingRsvpRow>(
-      `SELECT e.id AS eventId, p.id AS profileId, e.starts_at AS startsAt, e.type
+      `SELECT e.id AS eventId, p.id AS profileId, e.starts_at AS startsAt, e.type,
+         e.rsvp_deadline_date AS rsvpDeadlineDate
        FROM events e
        CROSS JOIN profiles p
        LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
@@ -286,7 +289,7 @@ function countRsvpExpirations(
   const profileIds = new Set<string>();
   let count = 0;
   for (const row of pending) {
-    const deadline = calculateRsvpDeadline(row, configuration.rsvpExpiryLeadDays, timezone);
+    const deadline = rsvpDeadlineFromDate(row.rsvpDeadlineDate ?? "", timezone);
     const startsAt = new Date(row.startsAt);
     if (
       Number.isFinite(startsAt.getTime()) &&
@@ -751,7 +754,7 @@ export function runRosterAutomations(
       const pending = storage.sql
         .exec<StoredPendingRsvpRow>(
           `SELECT e.id AS eventId, p.id AS profileId,
-             e.starts_at AS startsAt, e.type
+             e.starts_at AS startsAt, e.type, e.rsvp_deadline_date AS rsvpDeadlineDate
            FROM events e
            CROSS JOIN profiles p
            LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
@@ -761,7 +764,7 @@ export function runRosterAutomations(
         )
         .toArray();
       for (const row of pending) {
-        const deadline = calculateRsvpDeadline(row, configuration.rsvpExpiryLeadDays, timezone);
+        const deadline = rsvpDeadlineFromDate(row.rsvpDeadlineDate ?? "", timezone);
         const startsAt = new Date(row.startsAt);
         if (
           Number.isFinite(startsAt.getTime()) &&
@@ -841,7 +844,6 @@ export function reconcilePresentAttendance(
 
 export function decorateEventWithRsvpDeadline(
   event: StoredEventRow,
-  configuration: OrganizationRosterConfiguration,
   timezone: string,
   now = new Date(),
 ): {
@@ -850,11 +852,10 @@ export function decorateEventWithRsvpDeadline(
   readonly rsvpDeadlinePassed: boolean;
   readonly rsvpSelfServiceOpen: boolean;
 } {
-  const deadline = configuration.rsvpExpiryEnabled
-    ? event.isCanceled === true || event.isCanceled === 1
-      ? null
-      : calculateRsvpDeadline(event, configuration.rsvpExpiryLeadDays, timezone)
-    : null;
+  const deadline =
+    event.type === "Performance" && event.isCanceled !== true && event.isCanceled !== 1
+      ? rsvpDeadlineFromDate(event.rsvpDeadlineDate ?? "", timezone)
+      : null;
   const startsAt = new Date(event.startsAt);
   const beforeStart = Number.isFinite(startsAt.getTime()) && startsAt.getTime() > now.getTime();
   return {

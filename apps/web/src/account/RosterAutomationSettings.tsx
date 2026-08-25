@@ -116,7 +116,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
         onBreakTimeoutDays: configuration.onBreakTimeoutDays,
         onBreakTimeoutEnabled: configuration.onBreakTimeoutEnabled,
         rsvpExpiryEnabled: configuration.rsvpExpiryEnabled,
-        rsvpExpiryLeadDays: configuration.rsvpExpiryLeadDays,
         rsvpFollowUpEnabled: configuration.rsvpFollowUpEnabled,
         rsvpFollowUpLeadHours: configuration.rsvpFollowUpLeadHours,
         statusAutomationEnabled: configuration.statusAutomationEnabled,
@@ -167,7 +166,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
       ) : null}
       {saved ? (
         <p className="notice notice--success" role="status">
-          Roster automation settings saved and existing records recalculated.
+          Roster automation settings saved.
         </p>
       ) : null}
       {configuration ? (
@@ -283,8 +282,9 @@ export function RosterAutomationSettings({ enabled }: Props) {
               <legend className="sr-only">RSVP Expiry</legend>
               <h3>RSVP Expiry</h3>
               <p className="section-description">
-                Pending Performance RSVPs become No after the displayed local deadline. The deadline
-                stays open through 11:59 p.m. on that date.
+                After a Performance's RSVP deadline passes, convert remaining Pending responses to
+                No. Deadlines are set on each Performance and always close member self-service; with
+                this off, no response is ever converted automatically.
               </p>
               <label className="checkbox-row">
                 <input
@@ -294,28 +294,8 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   }}
                   type="checkbox"
                 />
-                Close Pending Performance RSVPs automatically
+                Convert Pending responses to No at the deadline
               </label>
-              <label className="field" htmlFor="rsvp-expiry-lead-days">
-                Days before the Performance date
-                <input
-                  id="rsvp-expiry-lead-days"
-                  min="1"
-                  max="365"
-                  onChange={(event) => {
-                    setConfiguration({
-                      ...configuration,
-                      rsvpExpiryLeadDays: Math.max(
-                        1,
-                        Math.min(365, Number(event.target.value) || 1),
-                      ),
-                    });
-                  }}
-                  type="number"
-                  value={configuration.rsvpExpiryLeadDays}
-                />
-              </label>
-              <p className="field-help">Current default: 7 days before the Performance date.</p>
             </fieldset>
 
             <fieldset className="roster-automation__card">

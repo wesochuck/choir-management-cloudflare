@@ -32,7 +32,6 @@ const configuration = {
   onBreakTimeoutEnabled: true,
   performerLabel: "Performer",
   rsvpExpiryEnabled: true,
-  rsvpExpiryLeadDays: 7,
   sections: [{ code: "SATB", color: "#336699", name: "SATB", trackOnly: false }],
   statusAutomationEnabled: true,
   statusAutomationMissThreshold: 3,
@@ -142,7 +141,7 @@ async function routeRosterSettings(page: Page): Promise<void> {
   await page.route("**/api/organization/roster-configuration", async (route) => {
     if (route.request().method() === "PUT") {
       await route.fulfill({
-        body: JSON.stringify({ ...configuration, rsvpExpiryLeadDays: 10, requestId }),
+        body: JSON.stringify({ ...configuration, requestId }),
         contentType: "application/json",
         status: 200,
       });
@@ -196,19 +195,20 @@ test("explains roster automation, On Break timeout, and configurable RSVP expiry
   await expect(settings.getByText("Performance ends")).toBeVisible();
   await expect(settings.getByLabel("Consecutive missed Performances")).toHaveValue("3");
   await expect(settings.getByLabel("Days on Break before Inactive")).toHaveValue("365");
-  await expect(settings.getByLabel("Days before the Performance date")).toHaveValue("7");
   await expect(
-    settings.getByText("Current default: 7 days before the Performance date."),
-  ).toBeVisible();
+    settings.getByRole("checkbox", {
+      name: "Convert Pending responses to No at the deadline",
+    }),
+  ).toBeChecked();
   await expect(settings.getByText(/On Break → Inactive · On Break timeout is due\./)).toBeVisible();
   await expect(settings.getByText("On Break transition: Jul 31, 2027")).toBeVisible();
 
-  await settings.getByLabel("Days before the Performance date").fill("10");
+  await settings
+    .getByRole("checkbox", { name: "Convert Pending responses to No at the deadline" })
+    .uncheck();
   await page
     .locator(".floating-save-bar")
     .getByRole("button", { name: "Save changes" })
     .click({ force: true });
-  await expect(
-    page.getByText("Roster automation settings saved and existing records recalculated."),
-  ).toBeVisible();
+  await expect(page.getByText("Roster automation settings saved.")).toBeVisible();
 });

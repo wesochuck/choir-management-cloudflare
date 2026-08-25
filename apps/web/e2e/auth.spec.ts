@@ -1931,12 +1931,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   );
   await browserConcertEdit.getByRole("button", { name: "Edit", exact: true }).click();
   const eventEditor = page.getByRole("dialog", { name: "Edit event" });
-  await expect(
-    eventEditor.getByRole("link", { name: "Change RSVP expiry in Roster Settings" }),
-  ).toHaveAttribute("href", "/admin/roster?section=settings");
-  await expect(eventEditor).toContainText(
-    /This date (?:is|was) calculated from the event start using the organization's RSVP expiry setting\./,
-  );
+  await expect(eventEditor.getByLabel("Member RSVP deadline")).toHaveValue("2027-08-13");
   await expect(eventEditor.getByText("Ticket page and QR code")).toBeVisible();
   const ticketPageLink = eventEditor.locator(
     'a[href$="/tickets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]',

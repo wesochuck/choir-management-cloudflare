@@ -498,6 +498,7 @@ describe("Organization calendar management", () => {
           startsAt: "2026-09-30T17:00:00.000Z",
           title: "Audition Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -1442,6 +1443,7 @@ describe("Organization calendar management", () => {
           startsAt,
           title: "API Concert",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
           venueId: venue.id,
         })
       ).json(),
@@ -1455,6 +1457,7 @@ describe("Organization calendar management", () => {
         startsAt: new Date(new Date(startsAt).getTime() + 12 * 60 * 60 * 1_000).toISOString(),
         title: "Invalid Performance Parent",
         type: "Performance",
+        rsvpDeadlineDate: "2030-01-01",
       },
     );
     expect(invalidPerformanceParent.status).toBe(400);
@@ -1486,6 +1489,7 @@ describe("Organization calendar management", () => {
           setList: performance.setList,
           setListApproved: performance.setListApproved,
           startsAt: performance.startsAt,
+          rsvpDeadlineDate: performance.rsvpDeadlineDate,
           title: "API Concert Updated",
           type: performance.type,
           venueId: performance.venueId,
@@ -1503,6 +1507,7 @@ describe("Organization calendar management", () => {
           startsAt: new Date(new Date(startsAt).getTime() + 48 * 60 * 60 * 1_000).toISOString(),
           title: "Archive Me",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -1628,6 +1633,62 @@ describe("Organization calendar management", () => {
           )
           .one().changeSummary,
     );
+
     expect(archiveSummary).toBe('{"archived":true,"childEventsArchived":1}');
+  });
+
+  it("requires an explicit Performance RSVP deadline and honors past and edited dates", async () => {
+    const cookie = await signIn();
+    const startsAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    const missingDeadline = await post("alpha.localhost", "/api/organization/events", cookie, {
+      startsAt,
+      title: "No Deadline Performance",
+      type: "Performance",
+    });
+    expect(missingDeadline.status).toBe(400);
+
+    const pastDate = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const created = organizationEventSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/events", cookie, {
+          rsvpDeadlineDate: pastDate,
+          startsAt,
+          title: "Past Deadline Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    expect(created.rsvpDeadlineDate).toBe(pastDate);
+    expect(created.rsvpDeadlinePassed).toBe(true);
+    expect(created.rsvpSelfServiceOpen).toBe(false);
+
+    const futureDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const updated = organizationEventSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${created.id}`, cookie, {
+            body: JSON.stringify({
+              rsvpDeadlineDate: futureDate,
+              startsAt: created.startsAt,
+              title: created.title,
+              type: created.type,
+            }),
+            headers: { "content-type": "application/json" },
+            method: "PUT",
+          }),
+        )
+      ).json(),
+    );
+    expect(updated.rsvpDeadlineDate).toBe(futureDate);
+    expect(updated.rsvpSelfServiceOpen).toBe(true);
+
+    const rehearsal = await post("alpha.localhost", "/api/organization/events", cookie, {
+      parentPerformanceId: created.id,
+      rsvpDeadlineDate: futureDate,
+      startsAt: created.startsAt,
+      title: "Rehearsal With Deadline",
+      type: "Rehearsal",
+    });
+    expect(rehearsal.status).toBe(400);
   });
 });

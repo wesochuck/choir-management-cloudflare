@@ -207,6 +207,7 @@ describe("Organization public website", () => {
             startsAt: "2026-12-20T00:00:00.000Z",
             title: "Winter Concert",
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
             venueId: venue.id,
           },
           cookie,

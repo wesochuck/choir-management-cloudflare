@@ -3,7 +3,6 @@ import {
   profileHasVoicePart,
   recalculateProfileStatuses,
   recordEventRsvpChange,
-  readRosterAutomationConfiguration,
 } from "../statusAutomationStore";
 import type { ManagementRequest } from "./contracts";
 import { insertAudit, recordExists } from "./shared";
@@ -33,8 +32,9 @@ export function updateEventRsvp(
       readonly isCanceled: number;
       readonly startsAt: string;
       readonly type: "Performance" | "Rehearsal";
+      readonly rsvpDeadlineDate: string | null;
     }>(
-      "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
+      "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled, rsvp_deadline_date AS rsvpDeadlineDate FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
       rsvpOperation.eventId,
     )
     .toArray()
@@ -52,18 +52,12 @@ export function updateEventRsvp(
     return Response.json({ code: "rsvp_decline_note_required" }, { status: 400 });
   }
   if (rsvpOperation.selfService) {
-    const configuration = readRosterAutomationConfiguration(storage);
     const timezone = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
         "SELECT timezone FROM organization_metadata LIMIT 1",
       )
       .one().timezone;
-    const deadlineFields = decorateEventWithRsvpDeadline(
-      event,
-      configuration,
-      timezone,
-      new Date(occurredAt),
-    );
+    const deadlineFields = decorateEventWithRsvpDeadline(event, timezone, new Date(occurredAt));
     if (!deadlineFields.rsvpSelfServiceOpen) {
       return Response.json({ code: "rsvp_closed" }, { status: 409 });
     }

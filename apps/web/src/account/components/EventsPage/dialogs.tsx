@@ -144,6 +144,7 @@ export function EventEditorDialog({
                 setEvent((current) => ({
                   ...current,
                   parentPerformanceId: type === "Rehearsal" ? current.parentPerformanceId : null,
+                  rsvpDeadlineDate: type === "Rehearsal" ? null : current.rsvpDeadlineDate,
                   type,
                 }));
               }}
@@ -165,7 +166,28 @@ export function EventEditorDialog({
               value={eventStart}
             />
           </div>
-          <EventRsvpDeadlineNotice eventStart={eventStart} eventType={event.type} state={state} />
+          {event.type === "Performance" ? (
+            <div className="field">
+              <label htmlFor="events-page-rsvp-deadline">Member RSVP deadline</label>
+              <input
+                id="events-page-rsvp-deadline"
+                onChange={(change) => {
+                  setEvent((current) => ({
+                    ...current,
+                    rsvpDeadlineDate: change.target.value || null,
+                  }));
+                }}
+                required
+                type="date"
+                value={event.rsvpDeadlineDate ?? ""}
+              />
+            </div>
+          ) : null}
+          <EventRsvpDeadlineNotice
+            deadlineDate={event.type === "Performance" ? event.rsvpDeadlineDate : null}
+            eventType={event.type}
+            state={state}
+          />
           {event.type === "Performance" ? (
             <fieldset className="form-grid__wide">
               <legend>Automated pending RSVP email</legend>

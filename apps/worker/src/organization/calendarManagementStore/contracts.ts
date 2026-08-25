@@ -115,6 +115,7 @@ export interface EventRow {
   readonly publicGraphicFileId: string | null;
   readonly publishOnWebsite: number;
   readonly rsvpFollowUpLeadHours: number | null;
+  readonly rsvpDeadlineDate: string | null;
   readonly rsvpFollowUpMode: "disabled" | "enabled" | "inherit";
   readonly setListApproved: number;
   readonly setListJson: string;
@@ -149,6 +150,7 @@ export interface MemberEventRow {
   readonly parentSetListJson: string | null;
   readonly practiceEventId: string | null;
   readonly practiceTrackCount: number;
+  readonly rsvpDeadlineDate: string | null;
   readonly rsvpNote: string;
   readonly seatingChartExists: number;
   readonly seatingAssigned: number;

@@ -699,6 +699,7 @@ describe("Organization music catalog", () => {
         startsAt: new Date(Date.now() + 86_400_000).toISOString(),
         title: "Invalid Cross-Organization Set List",
         type: "Performance",
+        rsvpDeadlineDate: "2030-01-01",
       },
     );
     expect(crossOrganizationReference.status).toBe(409);
@@ -726,6 +727,7 @@ describe("Organization music catalog", () => {
         startsAt: new Date(Date.now() + 86_400_000).toISOString(),
         title: "Invalid Profile Credit",
         type: "Performance",
+        rsvpDeadlineDate: "2030-01-01",
       },
     );
     expect(missingProfileReference.status).toBe(409);
@@ -739,6 +741,7 @@ describe("Organization music catalog", () => {
           startsAt: new Date(Date.now() + 86_400_000).toISOString(),
           title: "Music Concert",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );

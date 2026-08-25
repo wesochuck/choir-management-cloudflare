@@ -59,6 +59,7 @@ describe("Organization ticket refunds", () => {
             ticketCapacity: 10,
             title: "Free Winter Tickets",
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
             venueId: venue.id,
           },
           cookie,

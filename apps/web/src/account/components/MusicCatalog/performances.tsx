@@ -3,7 +3,7 @@ import type {
   OrganizationMusicPiece,
   OrganizationVenue,
 } from "@choir/contracts";
-import { zonedLocalDateTimeToUtc } from "@choir/domain";
+import { calculateRsvpDeadline, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AuthApiError, createOrganizationEvent, updateOrganizationEvent } from "../../../auth/api";
 
@@ -95,6 +95,9 @@ export function MusicPiecePerformances({
         doorsOpenTime: "",
         durationMinutes: null,
         isTicketingEnabled: false,
+        rsvpDeadlineDate:
+          calculateRsvpDeadline({ startsAt, type: "Performance" }, 7, timezone)?.deadlineDate ??
+          null,
         location: "",
         parentPerformanceId: null,
         publicDetails: "",

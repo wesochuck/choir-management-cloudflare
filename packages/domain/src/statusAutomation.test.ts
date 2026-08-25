@@ -12,7 +12,6 @@ const configuration = {
   onBreakTimeoutDays: 365,
   onBreakTimeoutEnabled: true,
   rsvpExpiryEnabled: true,
-  rsvpExpiryLeadDays: 7,
   statusAutomationEnabled: true,
   statusAutomationMissThreshold: 3,
   statusAutomationRecoveryEnabled: true,

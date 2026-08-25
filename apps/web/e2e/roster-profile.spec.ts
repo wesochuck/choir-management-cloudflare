@@ -177,7 +177,6 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
         performerLabel: "Performer",
         requestId,
         rsvpExpiryEnabled: true,
-        rsvpExpiryLeadDays: 3,
         rsvpFollowUpEnabled: false,
         rsvpFollowUpLeadHours: 24,
         sections: [{ code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false }],

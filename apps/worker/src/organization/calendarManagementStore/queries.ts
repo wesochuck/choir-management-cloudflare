@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  decorateEventWithRsvpDeadline,
-  readRosterAutomationConfiguration,
-} from "../statusAutomationStore";
+import { decorateEventWithRsvpDeadline } from "../statusAutomationStore";
 import { type DashboardEventRow, type EventRow, type VenueRow } from "./contracts";
 import { identityMatches, parseSetList, rosterConfigurationFromStore } from "./shared";
 
@@ -30,13 +27,12 @@ export function listOrganizationEventsFromStore(
   if (!identityMatches(storage, organizationId)) {
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
-  const configuration = readRosterAutomationConfiguration(storage);
+  const now = new Date();
   const timezone = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
       "SELECT timezone FROM organization_metadata LIMIT 1",
     )
     .one().timezone;
-  const now = new Date();
   const events = storage.sql
     .exec<EventRow>(
       `SELECT id, title, type, starts_at AS startsAt, duration_minutes AS durationMinutes,
@@ -48,7 +44,7 @@ export function listOrganizationEventsFromStore(
          public_details AS publicDetails, public_graphic_file_id AS publicGraphicFileId,
          publish_on_website AS publishOnWebsite,
          rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours,
-         rsvp_follow_up_mode AS rsvpFollowUpMode,
+         rsvp_follow_up_mode AS rsvpFollowUpMode, rsvp_deadline_date AS rsvpDeadlineDate,
          set_list_json AS setListJson, set_list_approved AS setListApproved,
          created_at AS createdAt, updated_at AS updatedAt,
          is_canceled AS isCanceled
@@ -56,7 +52,7 @@ export function listOrganizationEventsFromStore(
     )
     .toArray()
     .map((event) => ({
-      ...decorateEventWithRsvpDeadline(event, configuration, timezone, now),
+      ...decorateEventWithRsvpDeadline(event, timezone, now),
       advancePriceCents: event.advancePriceCents,
       callTime: event.callTime,
       createdAt: event.createdAt,
@@ -175,6 +171,7 @@ interface EventProfileRsvpRow {
   readonly id: string;
   readonly isCanceled: number;
   readonly location: string;
+  readonly rsvpDeadlineDate: string;
   readonly rsvp: string;
   readonly rsvpNote: string;
   readonly startsAt: string;
@@ -202,6 +199,7 @@ export function readProfileEventRsvpFromStore(
       `SELECT e.id, e.title, e.type, e.starts_at AS startsAt,
          e.duration_minutes AS durationMinutes, e.call_time AS callTime,
          e.is_canceled AS isCanceled, e.location, e.details,
+         COALESCE(e.rsvp_deadline_date, '') AS rsvpDeadlineDate,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
          COALESCE(r.rsvp, 'Pending') AS rsvp,
          COALESCE(r.rsvp_note, '') AS rsvpNote,
@@ -220,7 +218,6 @@ export function readProfileEventRsvpFromStore(
   if (!row) {
     return Response.json({ code: "profile_event_rsvp_not_found" }, { status: 404 });
   }
-  const configuration = readRosterAutomationConfiguration(storage);
   const timezone = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly timezone: string }>(
       "SELECT timezone FROM organization_metadata LIMIT 1",
@@ -230,10 +227,10 @@ export function readProfileEventRsvpFromStore(
     {
       durationMinutes: row.durationMinutes,
       isCanceled: row.isCanceled,
+      rsvpDeadlineDate: row.rsvpDeadlineDate === "" ? null : row.rsvpDeadlineDate,
       startsAt: row.startsAt,
       type: row.type,
     },
-    configuration,
     timezone,
   );
   return Response.json({

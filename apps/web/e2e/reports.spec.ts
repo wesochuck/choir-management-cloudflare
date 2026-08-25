@@ -174,7 +174,6 @@ test.beforeEach(async ({ page }) => {
         performerLabel: "Performer",
         requestId,
         rsvpExpiryEnabled: false,
-        rsvpExpiryLeadDays: 3,
         rsvpFollowUpEnabled: false,
         rsvpFollowUpLeadHours: 48,
         sections: [{ code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false }],

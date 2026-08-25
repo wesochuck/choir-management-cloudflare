@@ -10,7 +10,6 @@ const configuration = organizationRosterConfigurationRequestSchema.parse({
   rsvpFollowUpEnabled: true,
   rsvpFollowUpLeadHours: 48,
   rsvpExpiryEnabled: true,
-  rsvpExpiryLeadDays: 7,
   sections: [{ code: "S", color: "#1b4d3e", name: "Sopranos", trackOnly: false }],
   statusAutomationEnabled: true,
   statusAutomationMissThreshold: 3,

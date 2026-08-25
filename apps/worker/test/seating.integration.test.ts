@@ -178,6 +178,7 @@ describe("Organization seating", () => {
           startsAt: new Date(Date.now() + 86_400_000).toISOString(),
           title: "Seating Concert",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );

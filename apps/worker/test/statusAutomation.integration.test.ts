@@ -169,6 +169,7 @@ describe("roster status automation", () => {
             startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
             title: `Missed Performance ${String(index)}`,
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
           })
         ).json(),
       );
@@ -235,6 +236,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
           title: "Recovery Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -283,6 +285,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
           title: "Expiry Performance",
           type: "Performance",
+          rsvpDeadlineDate: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
         })
       ).json(),
     );
@@ -328,6 +331,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
           title: "Past Pending Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -359,6 +363,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() + 40 * 86_400_000).toISOString(),
           title: "Linked Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -415,6 +420,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
           title: "Canceled Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -804,6 +810,7 @@ describe("roster status automation", () => {
             startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
             title: `Staff Missed Performance ${String(index)}`,
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
           })
         ).json(),
       );
@@ -871,6 +878,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
           title: "Expiry Disabled Performance",
           type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
         })
       ).json(),
     );
@@ -923,6 +931,7 @@ describe("roster status automation", () => {
             startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
             title: `Disabled Missed Performance ${String(index)}`,
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
           })
         ).json(),
       );
@@ -966,6 +975,7 @@ describe("roster status automation", () => {
             startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
             title: `Absent Performance ${String(index)}`,
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
           })
         ).json(),
       );
@@ -1023,6 +1033,7 @@ describe("roster status automation", () => {
             startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
             title: `Preview Missed Performance ${String(index)}`,
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
           })
         ).json(),
       );
@@ -1056,6 +1067,7 @@ describe("roster status automation", () => {
       startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
       title: "Preview Expiry Performance",
       type: "Performance",
+      rsvpDeadlineDate: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
     });
     const roster = organizationRosterConfigurationResponseSchema.parse(
       await (
@@ -1144,6 +1156,7 @@ describe("roster status automation", () => {
             startsAt: new Date(Date.now() - index * 3 * 86_400_000).toISOString(),
             title: `Audit Missed Performance ${String(index)}`,
             type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
           })
         ).json(),
       );
@@ -1159,6 +1172,7 @@ describe("roster status automation", () => {
       startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
       title: "Audit Expiry Performance",
       type: "Performance",
+      rsvpDeadlineDate: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
     });
     await runInDurableObject<OrganizationStore, null>(
       stores.get(stores.idFromName("organization-alpha")),

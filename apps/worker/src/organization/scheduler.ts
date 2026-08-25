@@ -1,7 +1,7 @@
 import type { DeliveryJob } from "../jobs/contracts";
 import {
   areAuditionDatesPassed,
-  calculateRsvpDeadline,
+  rsvpDeadlineFromDate,
   POLL_ARCHIVE_DELAY_DAYS,
 } from "@choir/domain";
 import {
@@ -201,6 +201,7 @@ interface RsvpFollowUpCandidateRow {
   readonly [column: string]: SqlStorageValue;
   readonly eventId: string;
   readonly eventStartsAt: string;
+  readonly rsvpDeadlineDate: string | null;
   readonly rsvpFollowUpLeadHours: number | null;
   readonly rsvpFollowUpMode: "disabled" | "enabled" | "inherit";
 }
@@ -225,7 +226,8 @@ function createRsvpFollowUpJobs(
     .exec<RsvpFollowUpCandidateRow>(
       `SELECT id AS eventId, starts_at AS eventStartsAt,
          rsvp_follow_up_mode AS rsvpFollowUpMode,
-         rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours
+         rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours,
+         rsvp_deadline_date AS rsvpDeadlineDate
        FROM events
        WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
          AND starts_at > ?
@@ -245,11 +247,7 @@ function createRsvpFollowUpJobs(
         ? candidate.rsvpFollowUpLeadHours
         : configuration.rsvpFollowUpLeadHours;
     if (leadHours === null) continue;
-    const deadline = calculateRsvpDeadline(
-      { startsAt: candidate.eventStartsAt, type: "Performance" },
-      configuration.rsvpExpiryLeadDays,
-      timezone,
-    );
+    const deadline = rsvpDeadlineFromDate(candidate.rsvpDeadlineDate ?? "", timezone);
     if (!deadline) continue;
     const deadlineAt = new Date(deadline.deadlineAt).getTime();
     const dueAt = deadlineAt - leadHours * 60 * 60 * 1_000;

@@ -8,7 +8,6 @@ export interface StatusAutomationConfiguration {
   readonly onBreakTimeoutDays: number;
   readonly onBreakTimeoutEnabled: boolean;
   readonly rsvpExpiryEnabled: boolean;
-  readonly rsvpExpiryLeadDays: number;
   readonly statusAutomationEnabled: boolean;
   readonly statusAutomationMissThreshold: number;
   readonly statusAutomationRecoveryEnabled: boolean;
@@ -115,6 +114,12 @@ export function calculateRsvpDeadline(
 
 export function isRsvpDeadlinePassed(deadline: RsvpDeadline | null, now: Date): boolean {
   return deadline !== null && now.getTime() > new Date(deadline.deadlineAt).getTime();
+}
+
+export function rsvpDeadlineFromDate(deadlineDate: string, timezone: string): RsvpDeadline | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(deadlineDate)) return null;
+  const deadlineAt = endOfLocalDate(deadlineDate, timezone);
+  return deadlineAt ? { deadlineAt: deadlineAt.toISOString(), deadlineDate } : null;
 }
 
 export function calculateOnBreakInactiveAt(input: {
