@@ -1,10 +1,12 @@
 import {
   organizationEventRequestSchema,
+  organizationEventRsvpBulkRequestSchema,
   organizationRsvpRequestSchema,
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
 import {
+  bulkSetOrganizationEventRsvp,
   CalendarMutationError,
   cancelOrganizationEvent,
   createOrganizationEvent,
@@ -293,6 +295,62 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: "service_unavailable",
           message: "The Organization RSVP could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+  });
+
+  router.put("/api/organization/events/:eventId/rsvp/bulk", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const eventId = z.uuid().safeParse(context.req.param("eventId"));
+    const body = organizationEventRsvpBulkRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!eventId.success || !body.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid event and at least one RSVP update are required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const rows = await bulkSetOrganizationEventRsvp(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        eventId.data,
+        body.data.updates,
+      );
+      return context.json({ eventId: eventId.data, requestId: context.get("requestId"), rows });
+    } catch (error: unknown) {
+      if (error instanceof CalendarMutationError) {
+        return context.json(
+          {
+            code: error.code,
+            message: calendarMutationMessage(error.code),
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          setupFailureStatus(error.status),
+        );
+      }
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "The bulk RSVP change could not be applied.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,

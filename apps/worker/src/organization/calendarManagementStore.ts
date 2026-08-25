@@ -8,7 +8,7 @@ import {
   managementRequestSchema,
   type ManagementRequest,
 } from "./calendarManagementStore/contracts";
-import { updateEventRsvp } from "./calendarManagementStore/rsvp";
+import { updateEventRsvp, bulkUpdateEventRsvp } from "./calendarManagementStore/rsvp";
 
 export {
   readOrganizationCalendarSettingsFromStore,
@@ -57,6 +57,8 @@ function dispatchCalendarMutation(
       return cancelEvent(storage, operation, occurredAt);
     case "set_rsvp":
       return updateEventRsvp(storage, operation, occurredAt);
+    case "bulk_set_rsvp":
+      return bulkUpdateEventRsvp(storage, operation, occurredAt);
   }
 }
 

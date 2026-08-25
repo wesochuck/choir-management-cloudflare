@@ -287,6 +287,12 @@ export function calendarMutationMessage(code: string): string {
   }
   if (code === "event_not_found") return "The event was not found in this Organization.";
   if (code === "event_canceled") return "Canceled events cannot accept RSVP changes.";
+  if (code === "profile_not_found") {
+    return "The selected Profile was not found in this Organization.";
+  }
+  if (code === "duplicate_profile") {
+    return "Each selected Profile can only appear once in a bulk change.";
+  }
   if (code === "rsvp_voice_part_required") {
     return "Assign a voice part to the Profile before recording an RSVP.";
   }

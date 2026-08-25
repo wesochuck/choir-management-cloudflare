@@ -86,6 +86,14 @@ export const organizationAttendanceBulkRequestSchema = z.object({
   updates: z.array(organizationAttendanceUpdateSchema).min(1).max(500),
 });
 
+export const organizationEventRsvpBulkRequestSchema = z.object({
+  updates: z.array(organizationRsvpRequestSchema).min(1).max(500),
+});
+
+export type OrganizationEventRsvpBulkRequest = z.infer<
+  typeof organizationEventRsvpBulkRequestSchema
+>;
+
 export const organizationAttendanceRowSchema = z.object({
   attendance: organizationAttendanceStatusSchema,
   displayName: z.string().min(1).max(200),

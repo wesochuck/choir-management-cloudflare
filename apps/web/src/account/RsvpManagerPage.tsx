@@ -5,11 +5,12 @@ import type {
   OrganizationProfile,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { DataTable, type DataTableColumn } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { DataTable, useConfirmation, type DataTableColumn } from "@choir/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
+  bulkUpdateOrganizationEventRsvp,
   getOrganizationEventRsvpHistory,
   getOrganizationRosterConfiguration,
   listOrganizationEventAttendance,
@@ -150,6 +151,7 @@ function RsvpDeadlineNotice({ event }: { readonly event: OrganizationEvent | nul
   );
 }
 
+// eslint-disable-next-line complexity -- the RSVP manager coordinates filters, per-row updates, and bulk selection in one screen state.
 export function RsvpManagerPage({
   enabled,
   eventId: initialEventId = null,
@@ -172,6 +174,9 @@ export function RsvpManagerPage({
   const [historyQuery, setHistoryQuery] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<readonly string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const { confirm, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -328,6 +333,95 @@ export function RsvpManagerPage({
     });
   }, [history, historyFilter, historyQuery]);
 
+  const selectableRows = useMemo(
+    () => visibleRows.filter((row) => row.voicePart.trim() !== ""),
+    [visibleRows],
+  );
+  const selectedVisibleCount = useMemo(
+    () => selectableRows.filter((row) => selectedProfileIds.includes(row.profileId)).length,
+    [selectableRows, selectedProfileIds],
+  );
+  const selectedTargetCount = useMemo(
+    () =>
+      activeRows.filter(
+        (row) => row.voicePart.trim() !== "" && selectedProfileIds.includes(row.profileId),
+      ).length,
+    [activeRows, selectedProfileIds],
+  );
+  const allVisibleSelected =
+    selectableRows.length > 0 && selectedVisibleCount === selectableRows.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  const selectAllVisibleRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (selectAllVisibleRef.current)
+      selectAllVisibleRef.current.indeterminate = someVisibleSelected;
+  }, [someVisibleSelected]);
+
+  function toggleProfileSelection(profileId: string, checked: boolean) {
+    setSelectedProfileIds((current) =>
+      checked ? [...current, profileId] : current.filter((id) => id !== profileId),
+    );
+  }
+
+  function toggleVisibleProfileSelection(profileIds: readonly string[], checked: boolean) {
+    setSelectedProfileIds((current) => {
+      const next = new Set(current);
+      for (const profileId of profileIds) {
+        if (checked) next.add(profileId);
+        else next.delete(profileId);
+      }
+      return [...next];
+    });
+  }
+
+  async function applyBulkRsvp(next: "Yes" | "No" | "Pending") {
+    const targets = activeRows.filter(
+      (row) => row.voicePart.trim() !== "" && selectedProfileIds.includes(row.profileId),
+    );
+    if (!eventId || targets.length === 0 || bulkBusy || savingId) return;
+    const confirmed = await confirm({
+      confirmLabel: `Mark ${statusText(next).toLowerCase()}`,
+      description: `${String(targets.length)} Profile${targets.length === 1 ? "" : "s"} will be marked ${statusText(next)}. This overwrites their current responses, records one history entry per changed RSVP, and cannot be undone.`,
+      title: "Apply bulk RSVP change?",
+    });
+    if (!confirmed) return;
+    setBulkBusy(true);
+    setFeedback(null);
+    setRowsError(null);
+    try {
+      const updatedRows = await bulkUpdateOrganizationEventRsvp(
+        eventId,
+        targets.map(({ profileId }) => ({ profileId, rsvp: next, rsvpNote: "" })),
+      );
+      const previousRsvpByProfile: Readonly<Record<string, "No" | "Pending" | "Yes">> =
+        Object.fromEntries(targets.map(({ profileId, rsvp }) => [profileId, rsvp]));
+      const changedCount = updatedRows.filter((row) => {
+        const previous = previousRsvpByProfile[row.profileId];
+        return previous !== undefined && previous !== row.rsvp;
+      }).length;
+      setRows(updatedRows);
+      setSelectedProfileIds([]);
+      setFeedback(
+        changedCount === 0
+          ? "The selected RSVP responses were already up to date."
+          : `RSVP updated for ${String(changedCount)} Profile${changedCount === 1 ? "" : "s"}.`,
+      );
+      try {
+        setHistory((await getOrganizationEventRsvpHistory(eventId)).entries);
+      } catch {
+        setRowsError("RSVP updated, but the event history could not be refreshed.");
+      }
+    } catch (bulkError: unknown) {
+      setRowsError(
+        bulkError instanceof AuthApiError
+          ? bulkError.message
+          : "The bulk RSVP change could not be applied.",
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   async function updateRsvp(profileId: string, next: "Yes" | "No" | "Pending") {
     const current = rows.find((row) => row.profileId === profileId);
     if (!current?.voicePart.trim() || savingId) return;
@@ -362,6 +456,37 @@ export function RsvpManagerPage({
   }
 
   const rsvpRosterColumns: readonly DataTableColumn<OrganizationAttendanceRow>[] = [
+    {
+      header: "Select",
+      headerContent: (
+        <input
+          aria-label="Select all visible Profiles"
+          checked={allVisibleSelected}
+          disabled={selectableRows.length === 0 || bulkBusy || savingId !== null}
+          onChange={(event) => {
+            toggleVisibleProfileSelection(
+              selectableRows.map(({ profileId }) => profileId),
+              event.target.checked,
+            );
+          }}
+          ref={selectAllVisibleRef}
+          type="checkbox"
+        />
+      ),
+      id: "selection",
+      mobileLabel: "Select",
+      render: (row) => (
+        <input
+          aria-label={`Select ${row.displayName}`}
+          checked={selectedProfileIds.includes(row.profileId)}
+          disabled={bulkBusy || savingId !== null || row.voicePart.trim() === ""}
+          onChange={(event) => {
+            toggleProfileSelection(row.profileId, event.target.checked);
+          }}
+          type="checkbox"
+        />
+      ),
+    },
     {
       header: "Name",
       id: "name",
@@ -480,6 +605,7 @@ export function RsvpManagerPage({
                     setView("roster");
                     setHistoryFilter("All");
                     setHistoryQuery("");
+                    setSelectedProfileIds([]);
                   }}
                   value={eventId}
                 >
@@ -608,6 +734,56 @@ export function RsvpManagerPage({
             <h2 id="rsvp-roster-title">RSVP roster</h2>
             <span>{rowsLoading ? "Loading…" : `${String(visibleRows.length)} shown`}</span>
           </div>
+          {selectedTargetCount > 0 ? (
+            <div className="roster-bulk-actions" aria-label="Bulk RSVP actions" role="region">
+              <div>
+                <strong>{selectedTargetCount} selected</strong>
+                <p>Bulk changes are applied after you confirm the action.</p>
+              </div>
+              <div className="roster-bulk-actions__buttons">
+                <button
+                  className="button button--secondary"
+                  disabled={bulkBusy || savingId !== null}
+                  onClick={() => {
+                    void applyBulkRsvp("Yes");
+                  }}
+                  type="button"
+                >
+                  {bulkBusy ? "Updating…" : "Mark attending"}
+                </button>
+                <button
+                  className="button button--secondary"
+                  disabled={bulkBusy || savingId !== null}
+                  onClick={() => {
+                    void applyBulkRsvp("No");
+                  }}
+                  type="button"
+                >
+                  Mark declined
+                </button>
+                <button
+                  className="button button--secondary"
+                  disabled={bulkBusy || savingId !== null}
+                  onClick={() => {
+                    void applyBulkRsvp("Pending");
+                  }}
+                  type="button"
+                >
+                  Reset to no response
+                </button>
+                <button
+                  className="text-button"
+                  disabled={bulkBusy}
+                  onClick={() => {
+                    setSelectedProfileIds([]);
+                  }}
+                  type="button"
+                >
+                  Clear selection
+                </button>
+              </div>
+            </div>
+          ) : null}
           {visibleRows.length === 0 ? (
             <p className="empty-state">No active profiles match this RSVP filter.</p>
           ) : (
@@ -676,6 +852,7 @@ export function RsvpManagerPage({
           />
         </section>
       </>
+      {confirmationDialog}
     </div>
   );
 }

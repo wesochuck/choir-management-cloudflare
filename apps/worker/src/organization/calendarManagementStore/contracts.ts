@@ -62,6 +62,11 @@ export const managementRequestSchema = z.discriminatedUnion("action", [
     selfService: z.boolean().default(false),
   }),
   actorSchema.extend({
+    action: z.literal("bulk_set_rsvp"),
+    eventId: z.uuid(),
+    updates: z.array(organizationRsvpRequestSchema).min(1).max(500),
+  }),
+  actorSchema.extend({
     action: z.literal("update_timezone"),
     settings: organizationCalendarSettingsRequestSchema,
   }),

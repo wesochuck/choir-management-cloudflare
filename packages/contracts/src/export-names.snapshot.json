@@ -204,6 +204,8 @@
   "organizationAttendanceStatusSchema",
   "organizationAttendanceUpdateSchema",
   "organizationAttendanceBulkRequestSchema",
+  "organizationEventRsvpBulkRequestSchema",
+  "OrganizationEventRsvpBulkRequest",
   "organizationAttendanceRowSchema",
   "organizationAttendanceResponseSchema",
   "organizationProfileFolderNumberSchema",

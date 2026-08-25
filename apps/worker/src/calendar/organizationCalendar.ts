@@ -371,6 +371,22 @@ export async function setOrganizationEventRsvp(
   );
 }
 
+export async function bulkSetOrganizationEventRsvp(
+  env: Env,
+  actor: ActorContext,
+  eventId: string,
+  updates: readonly OrganizationRsvpRequest[],
+): Promise<readonly OrganizationAttendanceRow[]> {
+  return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(
+    await mutate(env, {
+      action: "bulk_set_rsvp",
+      ...actor,
+      eventId,
+      updates: [...updates],
+    }),
+  ).rows;
+}
+
 export async function readOrganizationCalendarSettings(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,

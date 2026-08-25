@@ -13,12 +13,13 @@ import {
   organizationVenuesResponseSchema,
   type OrganizationAttendanceRow,
   type OrganizationAttendanceUpdate,
-  type OrganizationEvent,
-  type OrganizationEventRsvpHistoryResponse,
-  type OrganizationDashboardSummaryResponse,
-  type OrganizationEventRequest,
   type OrganizationCalendarSettings,
+  type OrganizationDashboardSummaryResponse,
+  type OrganizationEvent,
+  type OrganizationEventRequest,
+  type OrganizationEventRsvpHistoryResponse,
   type OrganizationRsvp,
+  type OrganizationRsvpRequest,
   type OrganizationVenue,
 } from "@choir/contracts";
 
@@ -123,6 +124,20 @@ export async function setOrganizationEventRsvp(
     method: "PUT",
   });
   return organizationRsvpSchema.parse(await response.json());
+}
+
+export async function bulkUpdateOrganizationEventRsvp(
+  eventId: string,
+  updates: readonly OrganizationRsvpRequest[],
+): Promise<readonly OrganizationAttendanceRow[]> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/rsvp/bulk`,
+    {
+      body: JSON.stringify({ updates }),
+      method: "PUT",
+    },
+  );
+  return organizationAttendanceResponseSchema.parse(await response.json()).rows;
 }
 
 export async function listOrganizationEventAttendance(
