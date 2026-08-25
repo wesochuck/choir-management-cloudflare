@@ -29,15 +29,8 @@ function MusicPublisherSettingsSection({
   template,
 }: MusicPublisherSettingsProps) {
   return (
-    <section className="music-publisher-settings" aria-labelledby="music-library-settings-title">
-      <div>
-        <p className="eyebrow">Music library setting</p>
-        <h2 id="music-library-settings-title">Catalog lookup link</h2>
-        <p>
-          Configure the publisher’s HTTPS search URL once here. Use <code>{"{catalogId}"}</code>{" "}
-          where the catalog number belongs; matching catalog rows will include a direct search link.
-        </p>
-      </div>
+    <fieldset className="music-publisher-settings">
+      <legend>Catalog lookup link</legend>
       <form
         className="music-publisher-settings__form"
         onSubmit={(event) => {
@@ -57,8 +50,7 @@ function MusicPublisherSettingsSection({
             }}
           />
           <small className="field-help" id="music-publisher-settings-help">
-            Leave blank to hide publisher links. HTTPS and the exact <code>{"{catalogId}"}</code>{" "}
-            placeholder are required.
+            Leave blank to hide. Use <code>{"{catalogId}"}</code> where the catalog number belongs.
           </small>
         </label>
         <button
@@ -69,7 +61,7 @@ function MusicPublisherSettingsSection({
           {busy ? "Saving…" : "Save catalog link"}
         </button>
       </form>
-    </section>
+    </fieldset>
   );
 }
 
@@ -89,15 +81,8 @@ function MusicPracticeSettingsSection({
   savedLifetimeDays,
 }: MusicPracticeSettingsProps) {
   return (
-    <section className="music-practice-settings" aria-labelledby="music-practice-settings-title">
-      <div>
-        <p className="eyebrow">Practice player</p>
-        <h2 id="music-practice-settings-title">Public practice-link settings</h2>
-        <p>
-          Set how long newly created public practice-player links remain valid. This does not change
-          existing links; administrators can rotate them when needed.
-        </p>
-      </div>
+    <fieldset className="music-practice-settings">
+      <legend>Public practice-player links</legend>
       <form
         className="music-practice-settings__form"
         onSubmit={(event) => {
@@ -116,9 +101,6 @@ function MusicPracticeSettingsSection({
               onLifetimeChange(Number(event.target.value));
             }}
           />
-          <small className="field-help">
-            New links default to 180 days and can be rotated by an administrator.
-          </small>
         </label>
         <button
           className="button button--secondary"
@@ -128,7 +110,7 @@ function MusicPracticeSettingsSection({
           {busy ? "Saving…" : "Save practice settings"}
         </button>
       </form>
-    </section>
+    </fieldset>
   );
 }
 
@@ -140,15 +122,8 @@ function MusicGenreSettingsSection({
   readonly genres: readonly string[];
 }) {
   return (
-    <section className="music-library-genre-settings" aria-labelledby="music-library-genres-title">
-      <div>
-        <p className="eyebrow">Catalog tags</p>
-        <h2 id="music-library-genres-title">Genres in your catalog</h2>
-        <p>
-          These tags are collected from catalog pieces. Counts include each catalog item once per
-          genre, and the same colors are used by the catalog filter.
-        </p>
-      </div>
+    <fieldset className="music-library-genre-settings">
+      <legend>Genres in your catalog</legend>
       {genres.length > 0 ? (
         <div className="music-library-genre-settings__list" aria-label="Catalog genres">
           {genres.map((genre) => (
@@ -164,7 +139,7 @@ function MusicGenreSettingsSection({
           No genres have been added to catalog pieces yet.
         </p>
       )}
-    </section>
+    </fieldset>
   );
 }
 

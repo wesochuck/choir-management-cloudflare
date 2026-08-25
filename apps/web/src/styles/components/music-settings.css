@@ -1,29 +1,26 @@
 /* Music publisher and practice settings. */
 @layer components {
   /* Music publisher and practice settings */
-
   .music-publisher-settings,
-  .music-practice-settings {
+  .music-practice-settings,
+  .music-library-genre-settings {
     display: grid;
     gap: 1rem;
+    min-width: 0;
     margin-top: 1.25rem;
-    padding: 1rem;
+    padding: clamp(0.95rem, 2vw, 1.25rem);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-card);
     background: var(--color-surface-raised);
   }
 
-  .music-publisher-settings h2,
-  .music-publisher-settings p,
-  .music-practice-settings h2,
-  .music-practice-settings p {
-    margin: 0;
-  }
-
-  .music-publisher-settings h2,
-  .music-practice-settings h2 {
-    margin-top: 0.25rem;
-    font-size: var(--font-size-body);
+  .music-publisher-settings legend,
+  .music-practice-settings legend,
+  .music-library-genre-settings legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
   }
 
   .music-publisher-settings__form {
@@ -56,24 +53,6 @@
     white-space: nowrap;
   }
 
-  .music-library-genre-settings {
-    display: grid;
-    gap: 0.75rem;
-    margin-top: 1.25rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--color-border);
-  }
-
-  .music-library-genre-settings h2,
-  .music-library-genre-settings p {
-    margin: 0;
-  }
-
-  .music-library-genre-settings h2 {
-    margin-top: 0.25rem;
-    font-size: var(--font-size-body);
-  }
-
   .music-library-genre-settings__list {
     display: flex;
     flex-wrap: wrap;
@@ -81,9 +60,9 @@
   }
 
   .music-library-genre-settings__empty {
+    margin: 0;
     color: var(--color-text-muted);
   }
-
   .music-publisher-search-link {
     white-space: nowrap;
     font-weight: var(--font-weight-bold);
