@@ -153,10 +153,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
       <div className="section-heading section-heading--compact">
         <p className="eyebrow">Roster settings</p>
         <h2 id="roster-automation-title">Roster status automation</h2>
-        <p className="section-description">
-          These rules keep Profile Status and event RSVPs current. They run automatically in the
-          Organization timezone, and every actual change is recorded in history.
-        </p>
       </div>
       {loading ? <p role="status">Loading roster automation settings…</p> : null}
       {error ? (
@@ -171,23 +167,9 @@ export function RosterAutomationSettings({ enabled }: Props) {
       ) : null}
       {configuration ? (
         <>
-          <div className="roster-automation__flow" aria-label="Roster automation flow">
-            <span>Performance ends</span>
-            <span aria-hidden="true">→</span>
-            <span>RSVP deadline closes</span>
-            <span aria-hidden="true">→</span>
-            <span>Status history updates</span>
-            <span aria-hidden="true">→</span>
-            <span>Roster stays understandable</span>
-          </div>
           <div className="roster-automation__cards">
             <fieldset className="roster-automation__card">
-              <legend className="sr-only">Profile Status Automation</legend>
-              <h3>Profile Status Automation</h3>
-              <p className="section-description">
-                A Performer becomes Inactive after consecutive missed, ended Performances. A future
-                Performance RSVP of Yes restores an automatically managed Profile to Active.
-              </p>
+              <legend className="roster-automation__legend">Profile Status Automation</legend>
               <label className="checkbox-row">
                 <input
                   checked={configuration.statusAutomationEnabled}
@@ -238,12 +220,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
             </fieldset>
 
             <fieldset className="roster-automation__card">
-              <legend className="sr-only">On Break Timeout</legend>
-              <h3>On Break Timeout</h3>
-              <p className="section-description">
-                On Break is a visible Profile Status. This independent timer eventually moves an
-                automatically managed Performer to Inactive.
-              </p>
+              <legend className="roster-automation__legend">On Break Timeout</legend>
               <label className="checkbox-row">
                 <input
                   checked={configuration.onBreakTimeoutEnabled}
@@ -279,13 +256,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
             </fieldset>
 
             <fieldset className="roster-automation__card">
-              <legend className="sr-only">RSVP Expiry</legend>
-              <h3>RSVP Expiry</h3>
-              <p className="section-description">
-                After a Performance's RSVP deadline passes, convert remaining Pending responses to
-                No. Deadlines are set on each Performance and always close member self-service; with
-                this off, no response is ever converted automatically.
-              </p>
+              <legend className="roster-automation__legend">RSVP Expiry</legend>
               <label className="checkbox-row">
                 <input
                   checked={configuration.rsvpExpiryEnabled}
@@ -299,12 +270,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
             </fieldset>
 
             <fieldset className="roster-automation__card">
-              <legend className="sr-only">Pending RSVP follow-up</legend>
-              <h3>Pending RSVP follow-up</h3>
-              <p className="section-description">
-                Send one email to active Performers who have not responded before the RSVP deadline.
-                Linked Rehearsals use their parent Performance.
-              </p>
+              <legend className="roster-automation__legend">Pending RSVP follow-up</legend>
               <label className="checkbox-row">
                 <input
                   checked={configuration.rsvpFollowUpEnabled}
@@ -356,16 +322,10 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   value={configuration.attendanceReportWarningThreshold}
                 />
               </label>
-              <p className="field-help">
-                Attendance reports are sent 12 hours after Performances and Rehearsals. The default
-                warning threshold is one missed linked Rehearsal.
-              </p>
             </fieldset>
           </div>
-
           <fieldset className="roster-automation__preview">
-            <legend className="sr-only">See what the rules mean for a real Profile</legend>
-            <h3>See what the rules mean for a real Profile</h3>
+            <legend className="roster-automation__legend">Live preview</legend>
             <p className="section-description">{previewSummary(preview)}</p>
             <label className="field" htmlFor="roster-automation-profile">
               Preview Profile
@@ -415,11 +375,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
               </div>
             ) : null}
           </fieldset>
-          <p className="notice notice--info">
-            Administrators can opt an individual Profile out with{" "}
-            <strong>Manage status manually</strong> on the Profile. Selecting a status by itself
-            does not turn automation off.
-          </p>
         </>
       ) : null}
     </section>

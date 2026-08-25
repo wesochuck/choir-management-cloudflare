@@ -129,33 +129,9 @@
     margin-top: 1rem;
   }
 
-  .roster-automation__flow {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.55rem;
-    margin: 1rem 0;
-    padding: 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    background: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
-    color: var(--color-text-muted);
-    font-size: var(--font-size-md);
-  }
-
-  .roster-automation__flow span:nth-child(odd) {
-    color: var(--color-text);
-    font-weight: var(--font-weight-semibold);
-  }
-
-  .roster-automation__cards {
-    display: grid;
-    gap: 1rem;
-  }
-
-  /* The cards and preview are fieldsets; a screen-reader-only legend names each
-   * group while its visible h3 provides the heading. Reset the browser's
-   * fieldset geometry before applying card styling. */
+  /* Cards and preview are fieldsets; the visible legend names each group on
+   * the border. Reset the browser's fieldset geometry before applying card
+   * styling. */
   .roster-automation__card,
   .roster-automation__preview {
     min-width: 0;
@@ -166,21 +142,24 @@
     background: var(--color-surface-raised);
   }
 
+  .roster-automation__legend {
+    max-width: 100%;
+    padding: 0 0.4rem;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .roster-automation__cards {
+    display: grid;
+    gap: 1rem;
+  }
+
   .roster-automation__profile-preview {
     padding: clamp(1.15rem, 2vw, 1.5rem);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
-  }
-
-  .roster-automation__card h3,
-  .roster-automation__preview h3 {
-    margin: 0;
-  }
-
-  .roster-automation__card .section-description {
-    max-width: none;
-    text-wrap: pretty;
   }
 
   .signed-in-main .roster-automation__card label.checkbox-row {
@@ -212,23 +191,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
-  }
-
-  @media (max-width: 64rem) {
-    .roster-automation__card .section-description {
-      max-width: none;
-    }
-  }
-
-  @media (max-width: 40rem) {
-    .roster-automation__flow {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-
-    .roster-automation__flow span[aria-hidden="true"] {
-      display: none;
-    }
   }
 
   .roster-balance {
