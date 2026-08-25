@@ -44,9 +44,29 @@ export function CommerceReport({
   return (
     <>
       <div className="reports-toolbar">
-        <div>
-          <h2>Donations &amp; Ticket Sales report</h2>
-          <p>Review donations, ticket sales, processing fees, and related details.</p>
+        <div aria-label="Commerce report source" className="reports-source-filter" role="group">
+          <span className="field-label">Show</span>
+          <div className="reports-source-filter__buttons">
+            {(
+              [
+                ["all", "Both"],
+                ["donations", "Donations"],
+                ["tickets", "Ticket sales"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                aria-pressed={filter === value}
+                className={filter === value ? "is-active" : undefined}
+                key={value}
+                onClick={() => {
+                  setFilter(value);
+                }}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <button
           className="button button--secondary"
@@ -82,62 +102,41 @@ export function CommerceReport({
           Export CSV
         </button>
       </div>
-      <div aria-label="Commerce report source" className="reports-source-filter" role="group">
-        <span className="field-label">Show</span>
-        <div className="reports-source-filter__buttons">
-          {(
-            [
-              ["all", "Both"],
-              ["donations", "Donations"],
-              ["tickets", "Ticket sales"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              aria-pressed={filter === value}
-              className={filter === value ? "is-active" : undefined}
-              key={value}
-              onClick={() => {
-                setFilter(value);
-              }}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
       {state !== "ready" ? (
         <Status state={state} />
       ) : rows.length === 0 ? (
         <Status state="ready" empty={emptyMessage} />
       ) : (
         <>
-          <div className="reports-kpi-grid reports-kpi-grid--commerce">
-            <div className="reports-kpi">
-              <strong>{rows.length}</strong>
-              <span>Transactions</span>
+          <fieldset className="reports-summary-fieldset">
+            <legend>Transaction summary</legend>
+            <div className="reports-kpi-grid reports-kpi-grid--commerce">
+              <div className="reports-kpi">
+                <strong>{rows.length}</strong>
+                <span>Transactions</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{visibleDonations.length}</strong>
+                <span>Donations</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{visibleTicketOrders.length}</strong>
+                <span>Ticket orders</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{ticketsSold}</strong>
+                <span>Tickets sold</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{money(total)}</strong>
+                <span>Total received</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{money(fees)}</strong>
+                <span>Processing fees</span>
+              </div>
             </div>
-            <div className="reports-kpi">
-              <strong>{visibleDonations.length}</strong>
-              <span>Donations</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{visibleTicketOrders.length}</strong>
-              <span>Ticket orders</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{ticketsSold}</strong>
-              <span>Tickets sold</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{money(total)}</strong>
-              <span>Total received</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{money(fees)}</strong>
-              <span>Processing fees</span>
-            </div>
-          </div>
+          </fieldset>
           <DataTable
             columns={[
               {

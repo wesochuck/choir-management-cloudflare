@@ -445,9 +445,6 @@ test("combines donations and ticket sales and filters each source", async ({ pag
   await expect(commerceTab).toHaveAttribute("aria-controls", "report-donations-tickets-panel");
   await commerceTab.click();
 
-  await expect(
-    page.getByRole("heading", { name: "Donations & Ticket Sales report" }),
-  ).toBeVisible();
   const filterGroup = page.getByRole("group", { name: "Commerce report source" });
   await expect(filterGroup.getByRole("button", { name: "Both", exact: true })).toHaveAttribute(
     "aria-pressed",
@@ -487,7 +484,6 @@ test("supports multi-Performance history, staged edits, and immediate return upd
     "aria-labelledby",
     "report-music-folders-tab",
   );
-  await expect(page.getByRole("heading", { name: "Music Folder Report" })).toBeVisible();
   await expect(
     page.getByText("Choose one or more Performances to see who has returned"),
   ).toBeVisible();

@@ -53,10 +53,7 @@ export function RsvpReport({
   return (
     <>
       <div className="reports-toolbar">
-        <div>
-          <h2>RSVP report</h2>
-          <p>See responses and attendance status for a performance.</p>
-        </div>
+        <EventPicker events={performances} onChange={onChange} selectedId={selectedId} />
         <button
           className="button button--secondary"
           disabled={!selected || rows.length === 0}
@@ -71,31 +68,33 @@ export function RsvpReport({
           Export CSV
         </button>
       </div>
-      <EventPicker events={performances} onChange={onChange} selectedId={selectedId} />
       {!selected ? (
         <Status state="ready" empty="Choose a performance to view RSVP responses." />
       ) : null}
       {selected && state !== "ready" ? <Status state={state} /> : null}
       {selected && state === "ready" ? (
         <>
-          <div className="reports-kpi-grid reports-kpi-grid--compact">
-            <div className="reports-kpi">
-              <strong>{rows.length}</strong>
-              <span>Total responses</span>
+          <fieldset className="reports-summary-fieldset">
+            <legend>RSVP summary</legend>
+            <div className="reports-kpi-grid reports-kpi-grid--compact">
+              <div className="reports-kpi">
+                <strong>{rows.length}</strong>
+                <span>Total responses</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{counts.Yes}</strong>
+                <span>Yes</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{counts.No}</strong>
+                <span>No</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{counts.Pending}</strong>
+                <span>Pending</span>
+              </div>
             </div>
-            <div className="reports-kpi">
-              <strong>{counts.Yes}</strong>
-              <span>Yes</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{counts.No}</strong>
-              <span>No</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{counts.Pending}</strong>
-              <span>Pending</span>
-            </div>
-          </div>
+          </fieldset>
           {rows.length === 0 ? (
             <Status state="ready" empty="No roster profiles are available for this event." />
           ) : (

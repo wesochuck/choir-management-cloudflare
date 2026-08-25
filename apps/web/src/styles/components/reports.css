@@ -29,14 +29,33 @@
 
   .reports-toolbar {
     display: flex;
-    align-items: flex-start;
+    align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
+    flex-wrap: wrap;
   }
 
   .reports-toolbar h2 {
     margin: 0 0 0.3rem;
     font-size: var(--font-size-xl);
+  }
+
+  .reports-summary-fieldset {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+    margin: 0;
+    padding: clamp(0.85rem, 2vw, 1.15rem);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .reports-summary-fieldset legend {
+    padding-inline: 0.35rem;
+    color: var(--color-text);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
   }
 
   .reports-source-filter {

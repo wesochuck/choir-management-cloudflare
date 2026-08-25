@@ -21,10 +21,16 @@ export function RosterReport({
   return (
     <>
       <div className="reports-toolbar">
-        <div>
-          <h2>Roster export</h2>
-          <p>Review the current roster and profile status.</p>
-        </div>
+        <label className="field reports-search">
+          <span>Search roster</span>
+          <input
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            placeholder="Name, part, or status"
+            value={query}
+          />
+        </label>
         <button
           className="button button--secondary"
           disabled={!filtered.length}
@@ -45,16 +51,6 @@ export function RosterReport({
           Export CSV
         </button>
       </div>
-      <label className="field reports-search">
-        <span>Search roster</span>
-        <input
-          onChange={(event) => {
-            setQuery(event.target.value);
-          }}
-          placeholder="Name, part, or status"
-          value={query}
-        />
-      </label>
       {filtered.length === 0 ? (
         <Status
           state="ready"

@@ -17,10 +17,16 @@ export function RepertoireReport({
   return (
     <>
       <div className="reports-toolbar">
-        <div>
-          <h2>Repertoire history</h2>
-          <p>See how often each library piece has been performed.</p>
-        </div>
+        <label className="field reports-search">
+          <span>Search repertoire</span>
+          <input
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            placeholder="Title, composer, or arranger"
+            value={query}
+          />
+        </label>
         <button
           className="button button--secondary"
           disabled={!filtered.length}
@@ -41,16 +47,6 @@ export function RepertoireReport({
           Export CSV
         </button>
       </div>
-      <label className="field reports-search">
-        <span>Search repertoire</span>
-        <input
-          onChange={(event) => {
-            setQuery(event.target.value);
-          }}
-          placeholder="Title, composer, or arranger"
-          value={query}
-        />
-      </label>
       {filtered.length === 0 ? (
         <Status
           state="ready"

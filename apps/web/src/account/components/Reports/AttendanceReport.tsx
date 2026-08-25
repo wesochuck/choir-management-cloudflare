@@ -68,10 +68,7 @@ export function AttendanceReport({
   return (
     <>
       <div className="reports-toolbar">
-        <div>
-          <h2>Attendance report</h2>
-          <p>Review rehearsal attendance leading up to a performance.</p>
-        </div>
+        <EventPicker events={performances} onChange={onChange} selectedId={selectedId} />
         <button
           className="button button--secondary"
           disabled={!selected || rows.length === 0}
@@ -100,28 +97,30 @@ export function AttendanceReport({
           Export CSV
         </button>
       </div>
-      <EventPicker events={performances} onChange={onChange} selectedId={selectedId} />
       {!selected ? <Status state="ready" empty="Choose a performance to view attendance." /> : null}
       {selected ? (
         <>
-          <div className="reports-kpi-grid" aria-label="Attendance summary">
-            <div className="reports-kpi">
-              <strong>{rehearsals.length}</strong>
-              <span>Rehearsals</span>
+          <fieldset className="reports-summary-fieldset">
+            <legend>Attendance summary</legend>
+            <div className="reports-kpi-grid" aria-label="Attendance summary">
+              <div className="reports-kpi">
+                <strong>{rehearsals.length}</strong>
+                <span>Rehearsals</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{average.toFixed(1)}%</strong>
+                <span>Average attendance</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{rows.length}</strong>
+                <span>Profiles tracked</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{rows.filter((row) => row.absences >= 2).length}</strong>
+                <span>2+ absences</span>
+              </div>
             </div>
-            <div className="reports-kpi">
-              <strong>{average.toFixed(1)}%</strong>
-              <span>Average attendance</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{rows.length}</strong>
-              <span>Profiles tracked</span>
-            </div>
-            <div className="reports-kpi">
-              <strong>{rows.filter((row) => row.absences >= 2).length}</strong>
-              <span>2+ absences</span>
-            </div>
-          </div>
+          </fieldset>
           {rehearsals.length === 0 ? (
             <Status state="ready" empty="No rehearsals are linked to this performance." />
           ) : state !== "ready" ? (

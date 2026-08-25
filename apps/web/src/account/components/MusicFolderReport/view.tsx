@@ -441,10 +441,13 @@ export function MusicFolderReport({
   return (
     <div className="music-folder-report">
       <div className="reports-toolbar music-folder-report__toolbar">
-        <div>
-          <h2>Music Folder Report</h2>
-          <p>Select one or more Performances to review Folder Number history and returns.</p>
-        </div>
+        <PerformancePicker
+          onClear={controller.clearSelection}
+          onSelectAll={controller.selectAll}
+          onToggle={controller.togglePerformance}
+          options={report.performanceOptions}
+          selectedEventIds={controller.selectedEventIds}
+        />
         <button
           className="button button--secondary"
           disabled={controller.selectedEventIds.length === 0}
@@ -456,13 +459,6 @@ export function MusicFolderReport({
           Export CSV
         </button>
       </div>
-      <PerformancePicker
-        onClear={controller.clearSelection}
-        onSelectAll={controller.selectAll}
-        onToggle={controller.togglePerformance}
-        options={report.performanceOptions}
-        selectedEventIds={controller.selectedEventIds}
-      />
       {controller.queryState === "loading" ? (
         <p className="empty-state" role="status">
           Updating the selected Performances…
