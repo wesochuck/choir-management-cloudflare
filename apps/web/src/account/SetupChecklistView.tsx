@@ -128,16 +128,20 @@ export function SetupChecklistView() {
               : "Setup is not yet complete. Use the action beside each incomplete step to finish it."}
           </p>
         )}
-        <ul className="account-list">
+        <div className="account-list setup-checklist">
           {allSteps.map((step) => {
             const done = setup.completedSteps.includes(step);
             const guidance = stepGuidance[step];
             return (
-              <li className="setup-checklist__item" key={step}>
+              <fieldset className="setup-checklist__item" key={step}>
+                <legend className="setup-checklist__legend">{stepLabel(step)}</legend>
                 <div className="setup-checklist__details">
-                  <strong className={done ? "status-done" : "status-pending"}>
-                    {done ? "✓" : "○"} {stepLabel(step)}
-                  </strong>
+                  <span
+                    className={`setup-checklist__marker ${done ? "status-done" : "status-pending"}`}
+                  >
+                    <span className="sr-only">{done ? "Completed." : "Not completed."}</span>
+                    <span aria-hidden="true">{done ? "✓" : "○"}</span>
+                  </span>
                   <p>{done ? "This step is complete." : guidance.description}</p>
                 </div>
                 {!done ? (
@@ -145,10 +149,10 @@ export function SetupChecklistView() {
                     {guidance.action}
                   </a>
                 ) : null}
-              </li>
+              </fieldset>
             );
           })}
-        </ul>
+        </div>
         <OrganizationStripeConnectSetup />
       </section>
       {stripeResult === "return" ? (
