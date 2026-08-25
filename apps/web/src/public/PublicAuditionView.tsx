@@ -789,32 +789,27 @@ export function PublicAuditionView() {
   }
 
   const isOpenInquiry = formSettings.mode === "open_inquiry";
-  const pageTitle = isOpenInquiry ? "Join Inquiry" : "Audition Inquiry";
-  const eyebrowText = isOpenInquiry ? "Join Us" : "Audition";
-  const introText = isOpenInquiry
-    ? "Interested in singing with us? Fill out the form below and we will be in touch with rehearsal details."
-    : "Interested in joining? Fill out the form below and select your preferred audition times.";
 
   return (
     <main className="auth-layout">
       <section className="auth-card public-audition-card" aria-labelledby="audition-title">
-        <p className="eyebrow">{eyebrowText}</p>
-        <fieldset className="public-audition-fieldset">
-          <legend className="public-audition-fieldset__legend" id="audition-title">
-            {pageTitle}
-          </legend>
-          <p className="auth-card__intro">{introText}</p>
-          {isOpenInquiry ? (
-            <RehearsalScheduleCard settings={formSettings} />
-          ) : (
-            <AuditionEventDetails settings={formSettings} />
-          )}
-          <AuditionForm
-            busy={pageStatus.type === "submitting_inquiry"}
-            onSubmit={handleInquirySubmit}
-            settings={formSettings}
-          />
-        </fieldset>
+        <p className="eyebrow">{isOpenInquiry ? "Join Us" : "Audition"}</p>
+        <h1 id="audition-title">{isOpenInquiry ? "Join Inquiry" : "Audition Inquiry"}</h1>
+        <p className="auth-card__intro">
+          {isOpenInquiry
+            ? "Interested in singing with us? Fill out the form below and we will be in touch with rehearsal details."
+            : "Interested in joining? Fill out the form below and select your preferred audition times."}
+        </p>
+        {isOpenInquiry ? (
+          <RehearsalScheduleCard settings={formSettings} />
+        ) : (
+          <AuditionEventDetails settings={formSettings} />
+        )}
+        <AuditionForm
+          busy={pageStatus.type === "submitting_inquiry"}
+          onSubmit={handleInquirySubmit}
+          settings={formSettings}
+        />
       </section>
     </main>
   );

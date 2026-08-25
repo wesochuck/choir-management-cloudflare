@@ -167,7 +167,7 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
 
   await page.goto("/auditions");
 
-  await expect(page.locator(".public-audition-fieldset__legend")).toHaveText("Audition Inquiry");
+  await expect(page.getByRole("heading", { name: "Audition Inquiry" })).toBeVisible();
   await expect(page.getByText("Interested in joining?")).toBeVisible();
   await expect(page.getByText("Your custom confirmation message.", { exact: true })).toHaveCount(0);
 
@@ -230,7 +230,7 @@ test("shows configured public audition availability and scheduled details", asyn
     });
   });
   await page.goto("/auditions");
-  await expect(page.locator(".public-audition-fieldset__legend")).toHaveText("Audition Inquiry");
+  await expect(page.getByRole("heading", { name: "Audition Inquiry" })).toBeVisible();
   await expect(page.getByText("Choose a time", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("checkbox")).toHaveCount(1);
 
@@ -311,7 +311,7 @@ test("shows the first rehearsal date and official venue for an open inquiry", as
 
   await page.goto("/auditions");
 
-  await expect(page.locator(".public-audition-fieldset__legend")).toHaveText("Join Inquiry");
+  await expect(page.getByRole("heading", { name: "Join Inquiry" })).toBeVisible();
   await expect(page.getByText(/September 8, 2026/)).toBeVisible();
   await expect(
     page.getByText(/Every Tuesday from 7:00 PM to 9:30 PM at Rehearsal Hall, 123 Rehearsal Lane/),

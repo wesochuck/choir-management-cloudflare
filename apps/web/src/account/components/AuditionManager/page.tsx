@@ -371,6 +371,7 @@ export function AuditionManager({ enabled }: Props) {
       ) : (
         <div aria-labelledby="audition-inquiries-tab" id="audition-inquiries-panel" role="tabpanel">
           <QRCodeShareCard
+            asFieldset
             description={
               settings.enabled && settings.defaultPerformanceId && settings.slots.length > 0
                 ? `Share this link or download the QR code so prospective ${performerLabelPlural.toLowerCase()} can submit an audition request.`
