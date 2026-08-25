@@ -393,14 +393,12 @@ export function RosterConfiguration({ enabled }: Props) {
                 const assignedProfiles = assignedProfilesByLabel.get(voicePart.label) ?? [];
                 const assigned = assignedProfiles.length > 0;
                 return (
-                  <div className="roster-performer-card" key={`voice-part-row-${String(index)}`}>
-                    <div className="roster-performer-card__heading">
-                      <div>
-                        <span>
-                          {partLabel} {String(index + 1)}
-                        </span>
-                        <strong>{voicePart.fullName || voicePart.label}</strong>
-                      </div>
+                  <fieldset
+                    className="roster-performer-card"
+                    key={`voice-part-row-${String(index)}`}
+                  >
+                    <legend className="roster-performer-card__legend">
+                      <strong>{voicePart.fullName || voicePart.label}</strong>
                       <span
                         className={`roster-performer-card__status${assigned ? " roster-performer-card__status--assigned" : ""}`}
                       >
@@ -408,7 +406,7 @@ export function RosterConfiguration({ enabled }: Props) {
                           ? `${String(assignedProfiles.length)} Profile${assignedProfiles.length === 1 ? "" : "s"} assigned`
                           : "No Profiles assigned"}
                       </span>
-                    </div>
+                    </legend>
                     <div className="roster-performer-card__fields">
                       <label>
                         Label
@@ -508,7 +506,7 @@ export function RosterConfiguration({ enabled }: Props) {
                         {assigned ? "Manage assignments" : `Remove ${partTerm}`}
                       </button>
                     </div>
-                  </div>
+                  </fieldset>
                 );
               })}
             </div>

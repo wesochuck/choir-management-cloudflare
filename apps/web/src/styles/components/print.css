@@ -136,6 +136,9 @@
   }
 
   .roster-performer-card {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
     overflow: hidden;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
@@ -143,37 +146,28 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .roster-performer-card__heading,
+  .roster-performer-card__legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: calc(100% - 1rem);
+    padding: 0.45rem 0.5rem;
+  }
+
+  .roster-performer-card__legend strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .roster-performer-card__footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
     padding: 0.75rem 1rem;
-  }
-
-  .roster-performer-card__heading {
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .roster-performer-card__heading > div {
-    display: grid;
-    min-width: 0;
-    gap: 0.15rem;
-  }
-
-  .roster-performer-card__heading > div > span {
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .roster-performer-card__heading strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .roster-performer-card__status {
@@ -253,10 +247,10 @@
   }
 
   @media (max-width: 30rem) {
-    .roster-performer-card__heading {
+    .roster-performer-card__legend {
       align-items: flex-start;
       flex-direction: column;
-      gap: 0.6rem;
+      gap: 0.35rem;
     }
   }
 

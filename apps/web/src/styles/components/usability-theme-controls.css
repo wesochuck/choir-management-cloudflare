@@ -20,14 +20,21 @@
     padding: 0.25rem 0.35rem;
   }
 
-  .signed-in-shell[data-theme="light"] .account-section--roster-configuration fieldset {
+  .signed-in-shell[data-theme="light"]
+    .account-section--roster-configuration
+    .form-stack
+    > fieldset {
     min-width: 0;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     padding: 0.85rem;
   }
 
-  .signed-in-shell[data-theme="light"] .account-section--roster-configuration fieldset legend {
+  .signed-in-shell[data-theme="light"]
+    .account-section--roster-configuration
+    .form-stack
+    > fieldset
+    > legend {
     padding-inline: 0.35rem;
     color: var(--color-text-muted);
   }
