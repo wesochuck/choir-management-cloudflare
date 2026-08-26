@@ -310,12 +310,14 @@ function AuditionSlotsSection({
           {slotError}
         </p>
       ) : null}
-      <button className="button button--secondary" onClick={generateSlots} type="button">
-        Generate slots
-      </button>
-      <button className="button button--secondary" onClick={addSlot} type="button">
-        Add time slot
-      </button>
+      <div className="form-actions">
+        <button className="button button--secondary" onClick={generateSlots} type="button">
+          Generate slots
+        </button>
+        <button className="button button--secondary" onClick={addSlot} type="button">
+          Add time slot
+        </button>
+      </div>
       {draft.slots.length > 0 ? (
         <ul className="account-list">
           {draft.slots.map((slot) => (
@@ -416,40 +418,46 @@ function AdminNotificationsSection({
               </p>
             )}
           </fieldset>
-          <div className="form-actions">
-            <input
-              aria-label="Administrator notification email"
-              onChange={(event) => {
-                setRecipientEmail(event.target.value);
-              }}
-              placeholder="Additional email address (optional)"
-              type="email"
-              value={recipientEmail}
-            />
-            <button className="button button--secondary" onClick={onAddRecipient} type="button">
-              Add additional recipient
-            </button>
-          </div>
-          {draft.adminNotifyUsers.length > 0 ? (
-            <ul className="account-list">
-              {draft.adminNotifyUsers.map((email) => (
-                <li className="flex items-center justify-between gap-2" key={email}>
-                  <span>{email}</span>
-                  <button
-                    className="text-button text-button--danger"
-                    onClick={() => {
-                      onRemoveRecipient(email);
-                    }}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="notice">Select at least one administrator or add an email address.</p>
-          )}
+          <fieldset className="form-stack">
+            <legend>Additional recipients</legend>
+            <p className="field-help">
+              Add any additional email addresses that should receive inquiry notifications.
+            </p>
+            <div className="form-actions">
+              <input
+                aria-label="Administrator notification email"
+                onChange={(event) => {
+                  setRecipientEmail(event.target.value);
+                }}
+                placeholder="Additional email address (optional)"
+                type="email"
+                value={recipientEmail}
+              />
+              <button className="button button--secondary" onClick={onAddRecipient} type="button">
+                Add additional recipient
+              </button>
+            </div>
+            {draft.adminNotifyUsers.length > 0 ? (
+              <ul className="account-list">
+                {draft.adminNotifyUsers.map((email) => (
+                  <li className="flex items-center justify-between gap-2" key={email}>
+                    <span>{email}</span>
+                    <button
+                      className="text-button text-button--danger"
+                      onClick={() => {
+                        onRemoveRecipient(email);
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="notice">No additional recipients added.</p>
+            )}
+          </fieldset>
         </>
       ) : null}
     </fieldset>
@@ -707,7 +715,7 @@ export function SettingsForm({
       ) : null}
 
       <fieldset className="form-stack">
-        <legend>Intake Mode</legend>
+        <legend>Public intake & form</legend>
         <div className="space-y-3">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -745,119 +753,94 @@ export function SettingsForm({
             </div>
           </label>
         </div>
-      </fieldset>
 
-      <label className="checkbox-field">
-        <input
-          checked={draft.enabled}
-          onChange={(event) => {
-            setDraft((current) => ({ ...current, enabled: event.target.checked }));
-          }}
-          type="checkbox"
-        />{" "}
-        Accept public inquiries / requests
-      </label>
+        <label className="checkbox-field">
+          <input
+            checked={draft.enabled}
+            onChange={(event) => {
+              setDraft((current) => ({ ...current, enabled: event.target.checked }));
+            }}
+            type="checkbox"
+          />{" "}
+          Accept public inquiries / requests
+        </label>
 
-      {isAuditionMode ? (
-        <>
-          <label className="field">
-            Target Performance
-            <select
-              onChange={(event) => {
-                setDraft((current) => ({
-                  ...current,
-                  defaultPerformanceId: event.target.value || null,
-                }));
-              }}
-              value={draft.defaultPerformanceId ?? ""}
-            >
-              <option value="">No performance assigned</option>
-              {performances
-                .filter((event) => event.type === "Performance")
-                .map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title} — {formatDate(event.startsAt)}
+        {isAuditionMode ? (
+          <>
+            <label className="field">
+              Target Performance
+              <select
+                onChange={(event) => {
+                  setDraft((current) => ({
+                    ...current,
+                    defaultPerformanceId: event.target.value || null,
+                  }));
+                }}
+                value={draft.defaultPerformanceId ?? ""}
+              >
+                <option value="">No performance assigned</option>
+                {performances
+                  .filter((event) => event.type === "Performance")
+                  .map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title} — {formatDate(event.startsAt)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="field">
+              Audition venue
+              <select
+                aria-required="true"
+                onChange={(event) => {
+                  setError(null);
+                  setDraft((current) => ({
+                    ...current,
+                    venueId: event.target.value || null,
+                  }));
+                }}
+                value={draft.venueId ?? ""}
+              >
+                <option value="">Choose a venue</option>
+                {venues.map((venue) => (
+                  <option key={venue.id} value={venue.id}>
+                    {venue.name}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label className="field">
-            Audition venue
-            <select
-              aria-required="true"
-              onChange={(event) => {
-                setError(null);
-                setDraft((current) => ({
-                  ...current,
-                  venueId: event.target.value || null,
-                }));
-              }}
-              value={draft.venueId ?? ""}
-            >
-              <option value="">Choose a venue</option>
-              {venues.map((venue) => (
-                <option key={venue.id} value={venue.id}>
-                  {venue.name}
-                </option>
-              ))}
-            </select>
-            <span className="field-help">
-              Choose where these audition time slots will take place.
-            </span>
-          </label>
-        </>
-      ) : (
-        <RegularRehearsalScheduleSection
-          draft={draft}
-          onAddSession={addRehearsalSession}
-          onAddVenue={openNewVenueDialog}
-          onRemoveSession={(index) => {
-            setDraft((current) => ({
-              ...current,
-              rehearsalSchedule: current.rehearsalSchedule.filter((_, i) => i !== index),
-            }));
-          }}
-          onUpdateNotes={(notes) => {
-            setDraft((current) => ({ ...current, rehearsalNotes: notes }));
-          }}
-          onUpdateStartDate={(date) => {
-            setDraft((current) => ({ ...current, startDate: date }));
-          }}
-          rehearsalDay={rehearsalDay}
-          rehearsalEnd={rehearsalEnd}
-          rehearsalError={rehearsalError}
-          rehearsalStart={rehearsalStart}
-          rehearsalVenueId={rehearsalVenueId}
-          setRehearsalDay={setRehearsalDay}
-          setRehearsalEnd={setRehearsalEnd}
-          setRehearsalStart={setRehearsalStart}
-          setRehearsalVenueId={setRehearsalVenueId}
-          venues={venues}
-        />
-      )}
+              </select>
+              <span className="field-help">
+                Choose where these audition time slots will take place.{" "}
+                <button className="text-button" onClick={openNewVenueDialog} type="button">
+                  Add a new venue
+                </button>
+              </span>
+            </label>
+          </>
+        ) : null}
 
-      <div className="field">
-        <label htmlFor="audition-public-confirmation-message">
-          Public form confirmation message
-        </label>
-        <textarea
-          id="audition-public-confirmation-message"
-          onChange={(event) => {
-            setDraft((current) => ({ ...current, confirmationMessage: event.target.value }));
-          }}
-          rows={3}
-          value={draft.confirmationMessage}
-        />
-        <span className="field-help">
-          This is the message shown on the public form after someone submits. Automated emails are
-          managed as system templates in Communications.
-        </span>
-        <a className="text-button" href="/admin/communications?tab=templates">
-          Edit notification email templates
-        </a>
-      </div>
+        <div className="field">
+          <label htmlFor="audition-public-confirmation-message">
+            Public form confirmation message
+          </label>
+          <textarea
+            id="audition-public-confirmation-message"
+            onChange={(event) => {
+              setDraft((current) => ({ ...current, confirmationMessage: event.target.value }));
+            }}
+            rows={3}
+            value={draft.confirmationMessage}
+          />
+          <span className="field-help">
+            This is the message shown on the public form after someone submits. Automated emails are
+            managed as system templates in Communications.
+          </span>
+          <a className="text-button" href="/admin/communications?tab=templates">
+            Edit notification email templates
+          </a>
+        </div>
+      </fieldset>
 
-      {isAuditionMode && (
+      {isAuditionMode ? (
         <AuditionSlotsSection
           addSlot={addSlot}
           draft={draft}
@@ -890,6 +873,34 @@ export function SettingsForm({
           slotInterval={slotInterval}
           slotStart={slotStart}
           timezone={timezone}
+        />
+      ) : (
+        <RegularRehearsalScheduleSection
+          draft={draft}
+          onAddSession={addRehearsalSession}
+          onAddVenue={openNewVenueDialog}
+          onRemoveSession={(index) => {
+            setDraft((current) => ({
+              ...current,
+              rehearsalSchedule: current.rehearsalSchedule.filter((_, i) => i !== index),
+            }));
+          }}
+          onUpdateNotes={(notes) => {
+            setDraft((current) => ({ ...current, rehearsalNotes: notes }));
+          }}
+          onUpdateStartDate={(date) => {
+            setDraft((current) => ({ ...current, startDate: date }));
+          }}
+          rehearsalDay={rehearsalDay}
+          rehearsalEnd={rehearsalEnd}
+          rehearsalError={rehearsalError}
+          rehearsalStart={rehearsalStart}
+          rehearsalVenueId={rehearsalVenueId}
+          setRehearsalDay={setRehearsalDay}
+          setRehearsalEnd={setRehearsalEnd}
+          setRehearsalStart={setRehearsalStart}
+          setRehearsalVenueId={setRehearsalVenueId}
+          venues={venues}
         />
       )}
 

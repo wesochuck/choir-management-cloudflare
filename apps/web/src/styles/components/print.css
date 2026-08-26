@@ -172,9 +172,10 @@
 
   .roster-performer-card__status {
     flex: 0 0 auto;
-    padding: 0.35rem 0.55rem;
+    padding: 0.35rem 0.65rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--color-text-muted) 16%, var(--color-surface));
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-bold);
@@ -182,8 +183,8 @@
 
   .roster-performer-card__status--assigned {
     border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-    color: var(--color-text);
-    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
   }
 
   .roster-performer-card__fields {

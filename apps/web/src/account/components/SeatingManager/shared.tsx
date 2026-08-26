@@ -221,61 +221,74 @@ export function FormationEditor({
       aria-labelledby="formation-title"
     >
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Seating</p>
         <h2 id="formation-title">Reusable formations</h2>
         <p>Choose the section order and placement strategy used by new charts.</p>
       </div>
       <div className="form-stack">
-        <label className="field">
-          Default formation
-          <select
-            value={configuration.defaultFormationId}
-            onChange={(event) => {
-              setConfiguration((current) => ({
-                ...current,
-                defaultFormationId: event.target.value,
-              }));
-            }}
-          >
-            {configuration.formations.map(({ id, name }) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="seating-default-formation" disabled={busy}>
+          <legend>Default formation</legend>
+          <p className="field-help">
+            Applied when a new chart is created without choosing a formation.
+          </p>
+          <label className="field">
+            Formation
+            <select
+              value={configuration.defaultFormationId}
+              onChange={(event) => {
+                setConfiguration((current) => ({
+                  ...current,
+                  defaultFormationId: event.target.value,
+                }));
+              }}
+            >
+              {configuration.formations.map(({ id, name }) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </fieldset>
         {configuration.formations.map((formation, index) => (
           <fieldset className="seating-formation" disabled={busy} key={formation.id}>
-            <legend>{formation.name}</legend>
-            <label className="field">
-              Name
-              <input
-                maxLength={200}
-                required
-                value={formation.name}
-                onChange={(event) => {
-                  updateFormation(index, { ...formation, name: event.target.value });
-                }}
-              />
-            </label>
-            <label className="field">
-              Strategy
-              <select
-                value={formation.strategy}
-                onChange={(event) => {
-                  updateFormation(index, {
-                    ...formation,
-                    strategy:
-                      event.target.value === "horizontal_row"
-                        ? "horizontal_row"
-                        : "vertical_column",
-                  });
-                }}
-              >
-                <option value="vertical_column">Vertical columns</option>
-                <option value="horizontal_row">Horizontal rows</option>
-              </select>
-            </label>
+            <legend>{`Formation ${String(index + 1)}`}</legend>
+            <div className="form-grid form-grid--compact">
+              <label className="field">
+                Name
+                <input
+                  maxLength={200}
+                  required
+                  value={formation.name}
+                  onChange={(event) => {
+                    updateFormation(index, { ...formation, name: event.target.value });
+                  }}
+                />
+                <span className="field-help">
+                  Shown in the chart toolbar and Default formation list.
+                </span>
+              </label>
+              <label className="field">
+                Strategy
+                <select
+                  value={formation.strategy}
+                  onChange={(event) => {
+                    updateFormation(index, {
+                      ...formation,
+                      strategy:
+                        event.target.value === "horizontal_row"
+                          ? "horizontal_row"
+                          : "vertical_column",
+                    });
+                  }}
+                >
+                  <option value="vertical_column">Vertical columns</option>
+                  <option value="horizontal_row">Horizontal rows</option>
+                </select>
+                <span className="field-help">
+                  Columns read left to right; rows read front to back.
+                </span>
+              </label>
+            </div>
             <label className="checkbox-row">
               <input
                 checked={formation.isVoicePartLayout}

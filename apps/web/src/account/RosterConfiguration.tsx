@@ -400,7 +400,7 @@ export function RosterConfiguration({ enabled }: Props) {
                     <legend className="roster-performer-card__legend">
                       <strong>{voicePart.fullName || voicePart.label}</strong>
                       <span
-                        className={`roster-performer-card__status${assigned ? " roster-performer-card__status--assigned" : ""}`}
+                        className={`status-pill roster-performer-card__status${assigned ? " roster-performer-card__status--assigned" : ""}`}
                       >
                         {assigned
                           ? `${String(assignedProfiles.length)} Profile${assignedProfiles.length === 1 ? "" : "s"} assigned`

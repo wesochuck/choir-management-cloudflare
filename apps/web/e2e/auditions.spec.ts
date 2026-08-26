@@ -541,6 +541,13 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await expect(page.getByText("Soprano")).toBeVisible();
 
   const firstAuditionRow = page.locator(".audition-table__row").first();
+  const secondAuditionRow = page.locator(".audition-table__row").nth(1);
+
+  await expect(firstAuditionRow.getByRole("button", { name: "Schedule" })).toBeVisible();
+  await expect(firstAuditionRow.getByRole("button", { name: "Convert to Profile" })).toHaveCount(0);
+  await expect(secondAuditionRow.getByRole("button", { name: "Convert to Profile" })).toBeVisible();
+  await expect(secondAuditionRow.getByRole("button", { name: "Schedule" })).toHaveCount(0);
+
   await firstAuditionRow.getByRole("cell").first().click();
   const scheduleDialog = page.getByRole("dialog", { name: "Schedule audition" });
   await expect(scheduleDialog).toBeVisible();
@@ -551,11 +558,25 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await scheduleDialog.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByRole("button", { name: "More actions for Singer One" }).click();
-  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("menuitem", { exact: true, name: "Edit" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { exact: true, name: "Schedule" })).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { exact: true, name: "Convert to Profile" }),
+  ).toBeVisible();
+  await expect(page.getByRole("menuitem", { exact: true, name: "Delete" })).toBeVisible();
+  await page.getByRole("menuitem", { exact: true, name: "Delete" }).click();
   const deleteDialog = page.getByRole("dialog", { name: "Delete audition?" });
   await expect(deleteDialog).toBeVisible();
   await deleteDialog.getByRole("button", { name: "Cancel" }).click();
 
+  await page.getByRole("button", { name: "More actions for Singer Two" }).click();
+  await expect(page.getByRole("menuitem", { exact: true, name: "Edit" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { exact: true, name: "Reschedule" })).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { exact: true, name: "Convert to Profile" }),
+  ).toBeVisible();
+  await expect(page.getByRole("menuitem", { exact: true, name: "Delete" })).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Edit" }).first().click({ force: true });
   await expect(page.getByText("Edit Audition")).toBeVisible();
   await page.getByLabel("Status").selectOption("scheduled");

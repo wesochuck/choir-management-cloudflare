@@ -149,7 +149,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
   if (!enabled) return null;
 
   return (
-    <section className="surface-card roster-automation" aria-label="Roster status automation">
+    <section className="roster-automation" aria-label="Roster status automation">
       {loading ? <p role="status">Loading roster automation settings…</p> : null}
       {error ? (
         <p className="notice notice--error" role="alert">

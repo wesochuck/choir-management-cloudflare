@@ -120,9 +120,7 @@ export function AuditionTable({
               >
                 Edit
               </button>
-              {audition.status === "pending" ||
-              audition.status === "scheduled" ||
-              audition.status === "completed" ? (
+              {audition.status === "scheduled" || audition.status === "completed" ? (
                 <button
                   className="button button--secondary button--small"
                   onClick={() => {
@@ -147,6 +145,27 @@ export function AuditionTable({
               <DropdownMenu
                 accessibleLabel={`More actions for ${audition.name}`}
                 items={[
+                  {
+                    label: "Edit",
+                    onSelect: () => {
+                      onEdit(audition);
+                    },
+                  },
+                  {
+                    label:
+                      audition.status === "scheduled" || Boolean(audition.scheduledTimeSlot)
+                        ? "Reschedule"
+                        : "Schedule",
+                    onSelect: () => {
+                      onSchedule(audition);
+                    },
+                  },
+                  {
+                    label: "Convert to Profile",
+                    onSelect: () => {
+                      onConvert(audition);
+                    },
+                  },
                   {
                     label: "Delete",
                     onSelect: () => {
