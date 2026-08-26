@@ -1017,17 +1017,82 @@
 
   .audition-table {
     width: 100%;
+    max-width: 100%;
     overflow-x: auto;
+    scrollbar-gutter: stable;
   }
 
   .audition-table__header,
   .audition-table__row {
     display: grid;
     grid-template-columns:
-      minmax(13rem, 1.5fr) minmax(9rem, 1fr) minmax(7rem, 0.7fr) minmax(9rem, 0.9fr)
-      minmax(13rem, 1.4fr);
+      minmax(12rem, 1.45fr) minmax(8rem, 0.95fr) minmax(6rem, 0.65fr) minmax(8rem, 0.85fr)
+      minmax(10rem, 1.2fr);
     align-items: center;
-    min-width: 56rem;
+    min-width: 48rem;
+  }
+
+  @media (max-width: 64rem) {
+    .audition-table__header,
+    .audition-table__row {
+      grid-template-columns:
+        minmax(10rem, 1.35fr) minmax(7.5rem, 0.9fr) minmax(5.5rem, 0.6fr) minmax(7.5rem, 0.8fr)
+        minmax(9rem, 1.1fr);
+      min-width: 44rem;
+    }
+  }
+  .audition-tab-panel,
+  .audition-tab-panel fieldset,
+  .audition-tab-panel form,
+  .audition-inquiries__filters {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .audition-tab-panel fieldset,
+  .audition-tab-panel form,
+  .audition-tab-panel .space-y-3 {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .audition-inquiries__filters .form-grid {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .audition-tab-panel label.flex {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .audition-tab-panel label.flex > div {
+    min-width: 0;
+    flex: 1 1 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .audition-tab-panel label.flex > div > span {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  .audition-tab-panel fieldset.form-stack {
+    padding: 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+  }
+
+  .audition-tab-panel fieldset.form-stack > legend {
+    padding-inline: 0.35rem;
+    margin-left: -0.35rem;
   }
 
   .audition-table__header {
