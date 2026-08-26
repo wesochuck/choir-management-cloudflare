@@ -15,7 +15,17 @@ import type {
   singerSeatingProfileSchema,
   singerSeatingResponseSchema,
 } from "./seating";
+const uniqueMusicLabelsSchema = z
+  .array(z.string().trim().min(1).max(100))
+  .max(100)
+  .superRefine((labels, context) => {
+    if (new Set(labels).size !== labels.length) {
+      context.addIssue({ code: "custom", message: "Music labels must be unique." });
+    }
+  });
+
 const organizationMusicLibrarySettingsFieldsSchema = z.object({
+  genres: uniqueMusicLabelsSchema.default([]),
   practicePlayerLinkLifetimeDays: z.number().int().min(1).max(3_650).default(180),
   publisherSearchTemplate: z.string().trim().max(2_000).default(""),
 });
@@ -78,15 +88,6 @@ export type OrganizationSeatingChartOrderRequest = z.infer<
 export type SingerSeatingProfile = z.infer<typeof singerSeatingProfileSchema>;
 export type SingerSeatingResponse = z.infer<typeof singerSeatingResponseSchema>;
 
-const uniqueMusicLabelsSchema = z
-  .array(z.string().trim().min(1).max(100))
-  .max(100)
-  .superRefine((labels, context) => {
-    if (new Set(labels).size !== labels.length) {
-      context.addIssue({ code: "custom", message: "Music labels must be unique." });
-    }
-  });
-
 export const musicTrackFileIdsSchema = z
   .record(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/), z.uuid())
   .refine((mapping) => new Set(Object.values(mapping)).size === Object.keys(mapping).length, {
@@ -143,6 +144,23 @@ export const organizationMusicCreditRenameRequestSchema = z
     path: ["newName"],
   });
 
+export const organizationMusicGenreRenameRequestSchema = z
+  .object({
+    currentLabel: z.string().trim().min(1).max(100),
+    newLabel: z.string().trim().min(1).max(100),
+  })
+  .strict()
+  .refine(({ currentLabel, newLabel }) => currentLabel !== newLabel, {
+    message: "The new genre label must differ from the current label.",
+    path: ["newLabel"],
+  });
+
+export const organizationMusicGenreDeleteRequestSchema = z
+  .object({
+    label: z.string().trim().min(1).max(100),
+  })
+  .strict();
+
 export const organizationMusicPieceSchema = organizationMusicPieceRequestSchema.extend({
   createdAt: z.iso.datetime(),
   id: z.uuid(),
@@ -158,6 +176,12 @@ export const organizationMusicPieceResponseSchema = organizationMusicPieceSchema
 export const organizationMusicPiecesResponseSchema = z.object({
   pieces: z.array(organizationMusicPieceSchema).max(2_000),
   requestId: requestIdSchema,
+});
+
+export const organizationMusicGenreMutationResponseSchema = z.object({
+  pieces: z.array(organizationMusicPieceSchema).max(2_000),
+  requestId: requestIdSchema,
+  settings: organizationMusicLibrarySettingsFieldsSchema,
 });
 
 export const singerLearningTrackPieceSchema = organizationMusicPieceSchema.pick({
@@ -192,6 +216,12 @@ export type OrganizationMusicBulkUpdateRequest = z.infer<
 >;
 export type OrganizationMusicCreditRenameRequest = z.infer<
   typeof organizationMusicCreditRenameRequestSchema
+>;
+export type OrganizationMusicGenreRenameRequest = z.infer<
+  typeof organizationMusicGenreRenameRequestSchema
+>;
+export type OrganizationMusicGenreDeleteRequest = z.infer<
+  typeof organizationMusicGenreDeleteRequestSchema
 >;
 export type OrganizationMusicPiece = z.infer<typeof organizationMusicPieceSchema>;
 export type OrganizationMusicImportResponse = z.infer<typeof organizationMusicImportResponseSchema>;

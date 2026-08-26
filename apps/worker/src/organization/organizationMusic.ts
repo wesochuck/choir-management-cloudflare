@@ -1,11 +1,14 @@
 import {
+  organizationMusicGenreMutationResponseSchema,
   organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceSchema,
   organizationMusicPiecesResponseSchema,
-  type OrganizationMusicLibrarySettings,
-  type OrganizationMusicPiece,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicCreditRenameRequest,
+  type OrganizationMusicGenreDeleteRequest,
+  type OrganizationMusicGenreRenameRequest,
+  type OrganizationMusicLibrarySettings,
+  type OrganizationMusicPiece,
   type OrganizationMusicPieceRequest,
 } from "@choir/contracts";
 
@@ -190,6 +193,59 @@ export async function renameOrganizationMusicCredit(
   return organizationMusicPiecesResponseSchema
     .omit({ requestId: true })
     .parse(await response.json()).pieces;
+}
+
+export async function renameOrganizationMusicGenre(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  genre: OrganizationMusicGenreRenameRequest,
+): Promise<{
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+}> {
+  const response = await mutate(env, context.organizationId, {
+    action: "rename_genre",
+    ...context,
+    genre,
+  });
+  return parseGenreMutationResponse(response);
+}
+
+export async function deleteOrganizationMusicGenre(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  genre: OrganizationMusicGenreDeleteRequest,
+): Promise<{
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+}> {
+  const response = await mutate(env, context.organizationId, {
+    action: "delete_genre",
+    ...context,
+    genre,
+  });
+  return parseGenreMutationResponse(response);
+}
+
+async function parseGenreMutationResponse(response: Response): Promise<{
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+}> {
+  const parsed = organizationMusicGenreMutationResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
+  return {
+    pieces: parsed.pieces,
+    settings: organizationMusicLibrarySettingsRequestSchema.parse(parsed.settings),
+  };
 }
 
 export async function deleteOrganizationMusicPiece(

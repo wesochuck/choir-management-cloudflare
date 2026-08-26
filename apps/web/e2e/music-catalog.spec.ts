@@ -1,5 +1,10 @@
 import type { OrganizationEvent } from "@choir/contracts";
-import { organizationEventRequestSchema } from "@choir/contracts";
+import {
+  organizationEventRequestSchema,
+  organizationMusicGenreDeleteRequestSchema,
+  organizationMusicGenreRenameRequestSchema,
+  organizationMusicLibrarySettingsRequestSchema,
+} from "@choir/contracts";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const requestId = "90909090-9090-4090-8090-909090909090";
@@ -337,4 +342,214 @@ test("multi-selects pieces in music catalog and adds them to existing and new co
   await expect(
     page.getByText('Created "Winter Concert 2026" and added 2 piece(s) to its set list.'),
   ).toBeVisible();
+});
+
+test("manages genre labels from library settings and aligns the practice save control", async ({
+  page,
+}) => {
+  let genres = ["Christmas"];
+  let pieces = [
+    {
+      ...piece("11111111-1111-4111-8111-111111111111", "First Work", "Jane Doe", "J. Smith"),
+      genres: ["Christmas"],
+    },
+  ];
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (
+      url.pathname === "/api/organization/music-library-settings" &&
+      route.request().method() === "PUT"
+    ) {
+      const parsed = organizationMusicLibrarySettingsRequestSchema.safeParse(
+        route.request().postDataJSON(),
+      );
+      if (parsed.success) {
+        genres = parsed.data.genres;
+        await fulfill(route, { ...parsed.data, requestId });
+        return;
+      }
+      await fulfill(route, { code: "validation_failed", requestId }, 400);
+      return;
+    }
+    if (url.pathname === "/api/organization/music/genres/rename") {
+      const parsed = organizationMusicGenreRenameRequestSchema.safeParse(
+        route.request().postDataJSON(),
+      );
+      if (!parsed.success) {
+        await fulfill(route, { code: "validation_failed", requestId }, 400);
+        return;
+      }
+      genres = genres.map((label) =>
+        label === parsed.data.currentLabel ? parsed.data.newLabel : label,
+      );
+      pieces = pieces.map((item) => ({
+        ...item,
+        genres: item.genres.map((label) =>
+          label === parsed.data.currentLabel ? parsed.data.newLabel : label,
+        ),
+      }));
+      await fulfill(route, {
+        pieces,
+        requestId,
+        settings: { genres, practicePlayerLinkLifetimeDays: 180, publisherSearchTemplate: "" },
+      });
+      return;
+    }
+    if (url.pathname === "/api/organization/music/genres/delete") {
+      const parsedDelete = organizationMusicGenreDeleteRequestSchema.safeParse(
+        route.request().postDataJSON(),
+      );
+      if (!parsedDelete.success) {
+        await fulfill(route, { code: "validation_failed", requestId }, 400);
+        return;
+      }
+      genres = genres.filter((label) => label !== parsedDelete.data.label);
+      pieces = pieces.map((item) => ({
+        ...item,
+        genres: item.genres.filter((label) => label !== parsedDelete.data.label),
+      }));
+      await fulfill(route, {
+        pieces,
+        requestId,
+        settings: { genres, practicePlayerLinkLifetimeDays: 180, publisherSearchTemplate: "" },
+      });
+      return;
+    }
+    if (url.pathname === "/api/organization/music") {
+      await fulfill(route, { pieces, requestId });
+      return;
+    }
+    if (url.pathname === "/api/organization/music-library-settings") {
+      await fulfill(route, {
+        genres,
+        practicePlayerLinkLifetimeDays: 180,
+        publisherSearchTemplate: "",
+        requestId,
+      });
+      return;
+    }
+    await fulfill(route, { code: "not_found", message: "Not found", requestId }, 404);
+  });
+  await page.route("**/api/account/organizations", async (route) => {
+    await fulfill(route, {
+      organizations: [
+        {
+          canonicalHostname: "music.example.test",
+          canonicalStatus: "active",
+          lifecycleState: "active",
+          name: "Music Test Choir",
+          organizationId: "music-test-organization",
+          profileId: null,
+          role: "administrator",
+          slug: "music-test",
+        },
+      ],
+    });
+  });
+  await page.route("**/api/auth/get-session", async (route) => {
+    await fulfill(route, {
+      session: {
+        activeOrganizationId: "music-test-organization",
+        createdAt: "2026-08-17T00:00:00.000Z",
+        expiresAt: "2027-08-17T00:00:00.000Z",
+        id: "music-test-session",
+        ipAddress: "192.0.2.1",
+        token: "browser-test-token",
+        updatedAt: "2026-08-17T00:00:00.000Z",
+        userAgent: "Playwright",
+        userId: "music-test-user",
+      },
+      user: {
+        createdAt: "2026-08-17T00:00:00.000Z",
+        email: "music.test@example.test",
+        emailVerified: true,
+        id: "music-test-user",
+        image: null,
+        name: "Music Test Administrator",
+        twoFactorEnabled: false,
+        updatedAt: "2026-08-17T00:00:00.000Z",
+      },
+    });
+  });
+  await page.route("**/api/health", async (route) => {
+    await fulfill(route, {
+      baseHostname: "127.0.0.1",
+      environment: "local",
+      requestId,
+      service: "choir-management-cloudflare",
+      status: "ok",
+      version: "browser-test",
+    });
+  });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await fulfill(route, {
+      mfaRequired: false,
+      mfaVerifiedUntil: null,
+      organizationId: "music-test-organization",
+      requestId,
+      role: "administrator",
+      twoFactorEnabled: false,
+      twoFactorVerified: false,
+    });
+  });
+  await page.route("**/api/organization/module-state", async (route) => {
+    await fulfill(route, {
+      modules: [
+        { enabled: true, id: "events" },
+        { enabled: true, id: "music_library" },
+        { enabled: true, id: "roster" },
+        { enabled: true, id: "setlists" },
+      ],
+    });
+  });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await fulfill(route, {
+      activePlatformAdministrator: false,
+      enrollmentComplete: false,
+      requestId,
+      twoFactorEnabled: false,
+    });
+  });
+  await page.route("**/api/public/projection", async (route) => {
+    await fulfill(route, { code: "not_found", requestId }, 404);
+  });
+
+  await page.goto("/admin/library/settings");
+
+  const lifetimeInput = page.getByLabel("Link lifetime (days)");
+  const practiceSave = page.getByRole("button", { name: "Save practice settings" });
+  const inputBox = await lifetimeInput.boundingBox();
+  const buttonBox = await practiceSave.boundingBox();
+  expect(inputBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  if (!inputBox || !buttonBox) {
+    throw new Error("Practice controls should have visible geometry");
+  }
+  // Below 40rem the form stacks, so bottom-edge alignment is a desktop assertion.
+  if ((page.viewportSize()?.width ?? 0) > 640) {
+    expect(
+      Math.abs(inputBox.y + inputBox.height - (buttonBox.y + buttonBox.height)),
+    ).toBeLessThanOrEqual(1);
+  }
+
+  await expect(page.locator(".music-genre-chip").filter({ hasText: "Christmas" })).toBeVisible();
+
+  await page.getByLabel("Add a genre label").fill("Folk");
+  await page.getByRole("button", { name: "Add genre" }).click();
+  await expect(page.getByText("Genre added.")).toBeVisible();
+  await expect(page.locator(".music-genre-chip").filter({ hasText: "Folk" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Rename Christmas genre" }).click();
+  await page.getByLabel("Rename Christmas genre").fill("Holiday");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Genre renamed.")).toBeVisible();
+  await expect(page.locator(".music-genre-chip").filter({ hasText: "Holiday" })).toBeVisible();
+  await expect(page.locator(".music-genre-chip").filter({ hasText: "Christmas" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Delete Holiday genre" }).click();
+  const removeDialog = page.getByRole("dialog", { name: "Remove Holiday?" });
+  await expect(removeDialog).toBeVisible();
+  await removeDialog.getByRole("button", { name: "Remove genre" }).click();
+  await expect(page.getByText("Genre removed.")).toBeVisible();
+  await expect(page.locator(".music-genre-chip").filter({ hasText: "Holiday" })).toHaveCount(0);
 });

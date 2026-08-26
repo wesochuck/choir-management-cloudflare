@@ -1279,6 +1279,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [],
     version: 73,
   },
+  {
+    version: 74,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN music_genres_json TEXT NOT NULL DEFAULT '[]'",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

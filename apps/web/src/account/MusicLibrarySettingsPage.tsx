@@ -1,16 +1,18 @@
-import type { OrganizationMusicLibrarySettings, OrganizationMusicPiece } from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
-
+import type { OrganizationMusicLibrarySettings, OrganizationMusicPiece } from "@choir/contracts";
+import { useConfirmation } from "@choir/ui";
 import {
   AuthApiError,
+  deleteOrganizationMusicGenre,
   getOrganizationMusicLibrarySettings,
   listOrganizationMusic,
+  renameOrganizationMusicGenre,
   updateOrganizationMusicLibrarySettings,
 } from "../auth/api";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { GenreChip } from "./components/MusicCatalog/shared";
-import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { genreKey, uniqueGenreLabels } from "./components/MusicCatalog/utils";
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
 
 interface MusicPublisherSettingsProps {
@@ -114,25 +116,146 @@ function MusicPracticeSettingsSection({
   );
 }
 
-function MusicGenreSettingsSection({
-  genreCounts,
-  genres,
-}: {
+interface MusicGenreSettingsProps {
+  readonly busyLabel: string | null;
   readonly genreCounts: ReadonlyMap<string, number>;
   readonly genres: readonly string[];
-}) {
+  readonly onAdd: (label: string) => void;
+  readonly onDelete: (label: string) => void;
+  readonly onRename: (currentLabel: string, newLabel: string) => void;
+}
+
+function MusicGenreSettingsSection({
+  busyLabel,
+  genreCounts,
+  genres,
+  onAdd,
+  onDelete,
+  onRename,
+}: MusicGenreSettingsProps) {
+  const [newLabel, setNewLabel] = useState("");
+  const [renamingLabel, setRenamingLabel] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  function submitAdd(): void {
+    const trimmed = newLabel.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+    setNewLabel("");
+  }
+
+  function submitRename(): void {
+    if (!renamingLabel) return;
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === renamingLabel) {
+      setRenamingLabel(null);
+      return;
+    }
+    onRename(renamingLabel, trimmed);
+    setRenamingLabel(null);
+  }
+
   return (
     <fieldset className="music-library-genre-settings">
       <legend>Genres in your catalog</legend>
+      <form
+        className="music-library-genre-settings__add"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submitAdd();
+        }}
+      >
+        <label className="field">
+          Add a genre label
+          <input
+            maxLength={100}
+            placeholder="e.g. Folk, Gospel, Pop"
+            type="text"
+            value={newLabel}
+            onChange={(event) => {
+              setNewLabel(event.target.value);
+            }}
+          />
+          <small className="field-help">
+            Added labels appear as choices when editing catalog pieces.
+          </small>
+        </label>
+        <button
+          className="button button--secondary"
+          disabled={busyLabel !== null || newLabel.trim() === ""}
+          type="submit"
+        >
+          {busyLabel === "add" ? "Adding…" : "Add genre"}
+        </button>
+      </form>
       {genres.length > 0 ? (
         <div className="music-library-genre-settings__list" aria-label="Catalog genres">
-          {genres.map((genre) => (
-            <GenreChip
-              count={genreCounts.get(genreKey(genre)) ?? 0}
-              genre={genre}
-              key={genreKey(genre)}
-            />
-          ))}
+          {genres.map((genre) =>
+            renamingLabel === genre ? (
+              <form
+                className="music-library-genre-settings__rename"
+                key={genreKey(genre)}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitRename();
+                }}
+              >
+                <input
+                  aria-label={`Rename ${genre} genre`}
+                  autoFocus
+                  maxLength={100}
+                  type="text"
+                  value={renameValue}
+                  onChange={(event) => {
+                    setRenameValue(event.target.value);
+                  }}
+                />
+                <button
+                  className="button button--secondary button--small"
+                  disabled={busyLabel !== null || renameValue.trim() === ""}
+                  type="submit"
+                >
+                  Save
+                </button>
+                <button
+                  className="button button--secondary button--small"
+                  onClick={() => {
+                    setRenamingLabel(null);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <span className="music-library-genre-settings__row" key={genreKey(genre)}>
+                <GenreChip count={genreCounts.get(genreKey(genre)) ?? 0} genre={genre} />
+                <button
+                  aria-label={`Rename ${genre} genre`}
+                  className="text-button"
+                  disabled={busyLabel !== null}
+                  onClick={() => {
+                    setRenamingLabel(genre);
+                    setRenameValue(genre);
+                  }}
+                  type="button"
+                >
+                  Rename
+                </button>
+                <button
+                  aria-label={`Delete ${genre} genre`}
+                  className="text-button text-button--danger"
+                  disabled={busyLabel !== null}
+                  onClick={() => {
+                    onDelete(genre);
+                  }}
+                  type="button"
+                >
+                  Delete
+                </button>
+              </span>
+            ),
+          )}
         </div>
       ) : (
         <p className="music-library-genre-settings__empty">
@@ -155,8 +278,10 @@ export function MusicLibrarySettingsPage({
   const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [genreBusy, setGenreBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { confirm: requestConfirmation, confirmationDialog } = useConfirmation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -195,13 +320,17 @@ export function MusicLibrarySettingsPage({
     }
     return counts;
   }, [pieces]);
-  const genres = useMemo(
-    () =>
-      uniqueGenreLabels(pieces.flatMap((piece) => piece.genres)).sort((left, right) =>
-        left.localeCompare(right),
-      ),
-    [pieces],
-  );
+  const genres = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const label of [
+      ...(settings?.genres ?? []),
+      ...uniqueGenreLabels(pieces.flatMap((piece) => piece.genres)),
+    ]) {
+      const key = genreKey(label);
+      if (!labels.has(key)) labels.set(key, label);
+    }
+    return [...labels.values()].sort((left, right) => left.localeCompare(right));
+  }, [pieces, settings]);
 
   async function save(section: "catalog" | "practice"): Promise<void> {
     if (!settings || !savedSettings) return;
@@ -240,6 +369,83 @@ export function MusicLibrarySettingsPage({
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function addGenre(label: string): Promise<void> {
+    if (!settings || !savedSettings) return;
+    if (genres.some((candidate) => genreKey(candidate) === genreKey(label))) {
+      setError("That genre label already exists.");
+      return;
+    }
+    setGenreBusy("add");
+    setError(null);
+    setSuccess(null);
+    try {
+      const saved = await updateOrganizationMusicLibrarySettings({
+        ...savedSettings,
+        genres: [...savedSettings.genres, label].sort((left, right) => left.localeCompare(right)),
+      });
+      setSettings(saved);
+      setSavedSettings(saved);
+      setSuccess("Genre added.");
+    } catch (caught: unknown) {
+      setError(caught instanceof AuthApiError ? caught.message : "The genre could not be added.");
+    } finally {
+      setGenreBusy(null);
+    }
+  }
+
+  async function renameGenre(currentLabel: string, newLabel: string): Promise<void> {
+    if (
+      genres.some(
+        (candidate) => candidate !== currentLabel && genreKey(candidate) === genreKey(newLabel),
+      )
+    ) {
+      setError("That genre label already exists.");
+      return;
+    }
+    setGenreBusy(currentLabel);
+    setError(null);
+    setSuccess(null);
+    try {
+      const saved = await renameOrganizationMusicGenre({ currentLabel, newLabel });
+      setPieces(saved.pieces);
+      setSettings(saved.settings);
+      setSavedSettings(saved.settings);
+      setSuccess("Genre renamed.");
+    } catch (caught: unknown) {
+      setError(caught instanceof AuthApiError ? caught.message : "The genre could not be renamed.");
+    } finally {
+      setGenreBusy(null);
+    }
+  }
+
+  async function removeGenre(label: string): Promise<void> {
+    const count = genreCounts.get(genreKey(label)) ?? 0;
+    const confirmed = await requestConfirmation({
+      confirmLabel: "Remove genre",
+      destructive: true,
+      description:
+        count > 0
+          ? `This removes ${label} from ${String(count)} catalog piece${count === 1 ? "" : "s"}.`
+          : `This removes the ${label} genre label from your catalog.`,
+      title: `Remove ${label}?`,
+    });
+    if (!confirmed) return;
+    setGenreBusy(label);
+    setError(null);
+    setSuccess(null);
+    try {
+      const saved = await deleteOrganizationMusicGenre({ label });
+      setPieces(saved.pieces);
+      setSettings(saved.settings);
+      setSavedSettings(saved.settings);
+      setSuccess("Genre removed.");
+    } catch (caught: unknown) {
+      setError(caught instanceof AuthApiError ? caught.message : "The genre could not be removed.");
+    } finally {
+      setGenreBusy(null);
     }
   }
 
@@ -312,6 +518,7 @@ export function MusicLibrarySettingsPage({
           Library Settings <span className="sr-only">(current)</span>
         </AppLink>
       </nav>
+      {confirmationDialog}
       {loading ? <p role="status">Loading music library settings…</p> : null}
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -351,7 +558,20 @@ export function MusicLibrarySettingsPage({
             onSave={() => void save("practice")}
             savedLifetimeDays={savedSettings.practicePlayerLinkLifetimeDays}
           />
-          <MusicGenreSettingsSection genreCounts={genreCounts} genres={genres} />
+          <MusicGenreSettingsSection
+            busyLabel={genreBusy}
+            genreCounts={genreCounts}
+            genres={genres}
+            onAdd={(label) => {
+              void addGenre(label);
+            }}
+            onDelete={(label) => {
+              void removeGenre(label);
+            }}
+            onRename={(currentLabel, newLabel) => {
+              void renameGenre(currentLabel, newLabel);
+            }}
+          />
         </>
       ) : null}
     </section>

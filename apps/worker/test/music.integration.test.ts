@@ -1,5 +1,6 @@
 import {
   organizationEventSchema,
+  organizationMusicGenreMutationResponseSchema,
   organizationMusicImportResponseSchema,
   organizationMusicLibrarySettingsResponseSchema,
   organizationMusicPieceResponseSchema,
@@ -349,6 +350,106 @@ describe("Organization music catalog", () => {
     expect(auditActions).toEqual(["music.library_settings_updated"]);
   });
 
+  it("adds genres through settings and cascades renames and deletes across catalog pieces", async () => {
+    const cookie = await signIn();
+    const first = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          arranger: "",
+          composer: "Jane Doe",
+          genres: ["Sacred", "Contemporary"],
+          title: "First Work",
+        })
+      ).json(),
+    );
+    const second = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          arranger: "",
+          composer: "Jane Doe",
+          genres: ["Sacred"],
+          title: "Second Work",
+        })
+      ).json(),
+    );
+    const withRegistry = organizationMusicLibrarySettingsResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          "/api/organization/music-library-settings",
+          cookie,
+          { genres: ["Sacred", "Contemporary", "Folk"] },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(withRegistry.genres).toEqual(["Sacred", "Contemporary", "Folk"]);
+
+    const renameRaw = await write(
+      "alpha.localhost",
+      "/api/organization/music/genres/rename",
+      cookie,
+      {
+        currentLabel: "Contemporary",
+        newLabel: "Modern",
+      },
+    );
+    expect(renameRaw.status).toBe(200);
+    const renamed = organizationMusicGenreMutationResponseSchema.parse(await renameRaw.json());
+    expect(renamed.settings.genres).toEqual(["Sacred", "Modern", "Folk"]);
+    expect(renamed.pieces.map(({ id, genres }) => ({ genres, id }))).toEqual([
+      { genres: ["Sacred", "Modern"], id: first.id },
+    ]);
+    const afterRename = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(afterRename.pieces.find(({ id }) => id === second.id)?.genres).toEqual(["Sacred"]);
+
+    expect(
+      await write("alpha.localhost", "/api/organization/music/genres/rename", cookie, {
+        currentLabel: "Sacred",
+        newLabel: "Sacred",
+      }),
+    ).toMatchObject({ status: 400 });
+    expect(
+      await write("alpha.localhost", "/api/organization/music/genres/rename", cookie, {
+        currentLabel: "Missing Genre",
+        newLabel: "Anything",
+      }),
+    ).toMatchObject({ status: 404 });
+
+    const deleted = organizationMusicGenreMutationResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music/genres/delete", cookie, {
+          label: "Sacred",
+        })
+      ).json(),
+    );
+    expect(deleted.settings.genres).toEqual(["Modern", "Folk"]);
+    expect(deleted.pieces.map(({ genres }) => genres)).toEqual([["Modern"], []]);
+    expect(
+      await write("alpha.localhost", "/api/organization/music/genres/delete", cookie, {
+        label: "Missing Genre",
+      }),
+    ).toMatchObject({ status: 404 });
+
+    const bravoPieces = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("bravo.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(bravoPieces.pieces).toEqual([]);
+    const bravoSettings = organizationMusicLibrarySettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("bravo.localhost", "/api/organization/music-library-settings", cookie),
+        )
+      ).json(),
+    );
+    expect(bravoSettings.genres).toEqual([]);
+  });
   it("uploads, attaches, plays, downloads, and removes a private learning track", async () => {
     const cookie = await signIn();
     const piece = organizationMusicPieceResponseSchema.parse(

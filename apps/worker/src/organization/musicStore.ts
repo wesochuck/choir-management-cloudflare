@@ -1,6 +1,8 @@
 import {
   organizationMusicBulkUpdateRequestSchema,
   organizationMusicCreditRenameRequestSchema,
+  organizationMusicGenreDeleteRequestSchema,
+  organizationMusicGenreRenameRequestSchema,
   organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceRequestSchema,
   organizationMusicPieceSchema,
@@ -40,6 +42,14 @@ const musicOperationSchema = z.discriminatedUnion("action", [
   operationContextSchema.extend({
     action: z.literal("rename_credit"),
     credit: organizationMusicCreditRenameRequestSchema,
+  }),
+  operationContextSchema.extend({
+    action: z.literal("rename_genre"),
+    genre: organizationMusicGenreRenameRequestSchema,
+  }),
+  operationContextSchema.extend({
+    action: z.literal("delete_genre"),
+    genre: organizationMusicGenreDeleteRequestSchema,
   }),
   operationContextSchema.extend({
     action: z.literal("delete"),
@@ -116,6 +126,7 @@ function identityMatches(storage: DurableObjectStorage, organizationId: string):
 }
 
 const defaultMusicLibrarySettings: OrganizationMusicLibrarySettings = {
+  genres: [],
   practicePlayerLinkLifetimeDays: 180,
   publisherSearchTemplate: "",
 };
@@ -126,16 +137,19 @@ function storedMusicLibrarySettings(
   try {
     const raw = storage.sql
       .exec<{
+        readonly genresJson: string;
         readonly lifetimeDays: number;
         readonly template: string;
       }>(
-        `SELECT music_publisher_search_template AS template,
+        `SELECT music_genres_json AS genresJson,
+           music_publisher_search_template AS template,
            practice_player_link_lifetime_days AS lifetimeDays
          FROM organization_metadata LIMIT 1`,
       )
       .toArray()
       .at(0);
     return organizationMusicLibrarySettingsRequestSchema.parse({
+      genres: raw === undefined ? [] : (JSON.parse(raw.genresJson) as unknown),
       practicePlayerLinkLifetimeDays: raw?.lifetimeDays ?? 180,
       publisherSearchTemplate: raw?.template ?? "",
     });
@@ -521,6 +535,79 @@ function renameMusicCredit(
   return Response.json({ pieces: addPerformanceHistory(storage, updated) });
 }
 
+function rewriteGenreLabels(
+  storage: DurableObjectStorage,
+  operation:
+    | Extract<z.infer<typeof musicOperationSchema>, { readonly action: "rename_genre" }>
+    | Extract<z.infer<typeof musicOperationSchema>, { readonly action: "delete_genre" }>,
+): Response {
+  const currentLabel =
+    operation.action === "rename_genre" ? operation.genre.currentLabel : operation.genre.label;
+  const settings = storedMusicLibrarySettings(storage);
+  const inRegistry = settings.genres.includes(currentLabel);
+  const affected = storage.sql
+    .exec<MusicPieceRow>(`SELECT ${musicColumns} FROM music_pieces ORDER BY created_at ASC, id ASC`)
+    .toArray()
+    .map(parseStoredPiece)
+    .filter((piece) => piece.genres.includes(currentLabel));
+  if (!inRegistry && affected.length === 0) {
+    return Response.json({ code: "music_genre_not_found" }, { status: 404 });
+  }
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    const nextGenres =
+      operation.action === "rename_genre"
+        ? [
+            ...new Set(
+              settings.genres.map((label) =>
+                label === currentLabel ? operation.genre.newLabel : label,
+              ),
+            ),
+          ]
+        : settings.genres.filter((label) => label !== currentLabel);
+    storage.sql.exec(
+      "UPDATE organization_metadata SET music_genres_json = ?, updated_at = ?",
+      JSON.stringify(nextGenres),
+      occurredAt,
+    );
+    for (const piece of affected) {
+      const pieceGenres =
+        operation.action === "rename_genre"
+          ? [
+              ...new Set(
+                piece.genres.map((label) =>
+                  label === currentLabel ? operation.genre.newLabel : label,
+                ),
+              ),
+            ]
+          : piece.genres.filter((label) => label !== currentLabel);
+      storage.sql.exec(
+        "UPDATE music_pieces SET genres_json = ?, updated_at = ? WHERE id = ?",
+        JSON.stringify(pieceGenres),
+        occurredAt,
+        piece.id,
+      );
+      insertAudit(
+        storage,
+        { actorUserId: operation.actorUserId, pieceId: piece.id, requestId: operation.requestId },
+        operation.action === "rename_genre" ? "music.genre.renamed" : "music.genre.deleted",
+        operation.action === "rename_genre"
+          ? { currentLabel, newLabel: operation.genre.newLabel }
+          : { currentLabel },
+        occurredAt,
+        `${operation.requestId}:${piece.id}`,
+      );
+    }
+  });
+  const updated = affected
+    .map(({ id }) => readPiece(storage, id))
+    .filter((piece): piece is OrganizationMusicPiece => piece !== null);
+  return Response.json({
+    pieces: addPerformanceHistory(storage, updated),
+    settings: storedMusicLibrarySettings(storage),
+  });
+}
+
 function importPieces(
   storage: DurableObjectStorage,
   operation: Extract<z.infer<typeof musicOperationSchema>, { readonly action: "import" }>,
@@ -646,8 +733,10 @@ function updateMusicLibrarySettings(
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
     storage.sql.exec(
-      `UPDATE organization_metadata SET music_publisher_search_template = ?,
+      `UPDATE organization_metadata SET music_genres_json = ?,
+         music_publisher_search_template = ?,
          practice_player_link_lifetime_days = ?, updated_at = ?`,
+      JSON.stringify(operation.settings.genres),
       operation.settings.publisherSearchTemplate,
       operation.settings.practicePlayerLinkLifetimeDays,
       occurredAt,
@@ -663,6 +752,7 @@ function updateMusicLibrarySettings(
       operation.organizationId,
       operation.requestId,
       JSON.stringify({
+        genres: operation.settings.genres,
         practicePlayerLinkLifetimeDays: operation.settings.practicePlayerLinkLifetimeDays,
         publisherSearchTemplate: operation.settings.publisherSearchTemplate,
       }),
@@ -718,6 +808,9 @@ export async function manageMusicInStore(
   if (operation.data.action === "import") return importPieces(storage, operation.data);
   if (operation.data.action === "bulk_update") return bulkUpdatePieces(storage, operation.data);
   if (operation.data.action === "rename_credit") return renameMusicCredit(storage, operation.data);
+  if (operation.data.action === "rename_genre" || operation.data.action === "delete_genre") {
+    return rewriteGenreLabels(storage, operation.data);
+  }
   if (operation.data.action === "update_settings") {
     return updateMusicLibrarySettings(storage, operation.data);
   }

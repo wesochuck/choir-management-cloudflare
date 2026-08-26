@@ -41,8 +41,10 @@
   .music-practice-settings__form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.75rem;
+    /* The practice field has no help text below the input, so center
+     * alignment floats the button above the control row. Bottom-align
+     * the button with the input instead. */
+    align-items: end;
   }
 
   .music-practice-settings__form .field {
@@ -62,6 +64,39 @@
   .music-library-genre-settings__empty {
     margin: 0;
     color: var(--color-text-muted);
+  }
+
+  .music-library-genre-settings__add {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.9rem;
+  }
+
+  .music-library-genre-settings__add .field {
+    min-width: 0;
+  }
+
+  .music-library-genre-settings__add .button {
+    white-space: nowrap;
+  }
+
+  .music-library-genre-settings__row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .music-library-genre-settings__rename {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .music-library-genre-settings__rename input {
+    width: 12rem;
+    min-height: 2.2rem;
+    padding: 0.3rem 0.6rem;
   }
   .music-publisher-search-link {
     white-space: nowrap;

@@ -1,6 +1,8 @@
 import {
   organizationMusicBulkUpdateRequestSchema,
   organizationMusicCreditRenameRequestSchema,
+  organizationMusicGenreDeleteRequestSchema,
+  organizationMusicGenreRenameRequestSchema,
   organizationMusicPieceRequestSchema,
   type ProblemDetails,
 } from "@choir/contracts";
@@ -9,10 +11,12 @@ import { MusicCsvError, parseMusicCsv } from "@choir/domain";
 import {
   createOrganizationMusicPiece,
   bulkUpdateOrganizationMusicPieces,
+  deleteOrganizationMusicGenre,
   deleteOrganizationMusicPiece,
   importOrganizationMusicPieces,
   MusicRepositoryError,
   renameOrganizationMusicCredit,
+  renameOrganizationMusicGenre,
   updateOrganizationMusicPiece,
 } from "../organization/organizationMusic";
 
@@ -206,6 +210,96 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
           message: "The music credit could not be renamed.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+  });
+
+  router.post("/api/organization/music/genres/rename", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const body = organizationMusicGenreRenameRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!body.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Provide different current and new genre labels.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const result = await renameOrganizationMusicGenre(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        body.data,
+      );
+      return context.json({ ...result, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      const status = error instanceof MusicRepositoryError ? error.status : 503;
+      return context.json(
+        {
+          code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+          message: "The music genre could not be renamed.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+  });
+
+  router.post("/api/organization/music/genres/delete", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const body = organizationMusicGenreDeleteRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!body.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Provide the genre label to remove.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const result = await deleteOrganizationMusicGenre(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        body.data,
+      );
+      return context.json({ ...result, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      const status = error instanceof MusicRepositoryError ? error.status : 503;
+      return context.json(
+        {
+          code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+          message: "The music genre could not be removed.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         status,

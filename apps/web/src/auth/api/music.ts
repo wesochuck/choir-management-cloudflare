@@ -1,4 +1,5 @@
 import {
+  organizationMusicGenreMutationResponseSchema,
   organizationMusicPiecesResponseSchema,
   organizationMusicLibrarySettingsResponseSchema,
   organizationMusicPieceDeleteResponseSchema,
@@ -9,6 +10,8 @@ import {
   type OrganizationMusicLibrarySettings,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicCreditRenameRequest,
+  type OrganizationMusicGenreDeleteRequest,
+  type OrganizationMusicGenreRenameRequest,
   type OrganizationMusicPieceRequest,
   type SingerLearningTrackPiece,
 } from "@choir/contracts";
@@ -87,6 +90,40 @@ export async function renameOrganizationMusicCredit(
     method: "POST",
   });
   return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;
+}
+
+export async function renameOrganizationMusicGenre(
+  renameRequest: OrganizationMusicGenreRenameRequest,
+): Promise<{
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+}> {
+  const response = await request("/api/organization/music/genres/rename", {
+    body: JSON.stringify(renameRequest),
+    method: "POST",
+  });
+  return parseGenreMutationResponse(await response.json());
+}
+
+export async function deleteOrganizationMusicGenre(
+  deleteRequest: OrganizationMusicGenreDeleteRequest,
+): Promise<{
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+}> {
+  const response = await request("/api/organization/music/genres/delete", {
+    body: JSON.stringify(deleteRequest),
+    method: "POST",
+  });
+  return parseGenreMutationResponse(await response.json());
+}
+
+function parseGenreMutationResponse(body: unknown): {
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+} {
+  const parsed = organizationMusicGenreMutationResponseSchema.parse(body);
+  return { pieces: parsed.pieces, settings: parsed.settings };
 }
 
 export async function deleteOrganizationMusicPiece(
