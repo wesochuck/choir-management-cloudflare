@@ -1,3 +1,7 @@
+/* Known benign log noise: miniflare's per-file isolated-storage teardown can emit one
+ * "Application called deleteAllDurableObjects()" uncaught-exception line when a Durable
+ * Object from the previous file still has in-flight work. It does not affect results;
+ * pool-workers 0.22.0 was evaluated and made the noise worse, so stay on 0.20.1. */
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
