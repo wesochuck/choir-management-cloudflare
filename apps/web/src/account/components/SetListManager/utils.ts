@@ -97,6 +97,20 @@ export function setListItemForEdit(
   };
 }
 
+/** Notes announced for an item: the item's own notes win, otherwise fall back
+ * to the notes on the linked music library piece so catalog notes reach the
+ * set list without being copied into it. */
+export function effectiveSetListItemNotes(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): string {
+  return (
+    trimmedOrUndefined(item.notes) ??
+    trimmedOrUndefined(musicPieceForSetListItem(item, music)?.notes) ??
+    ""
+  );
+}
+
 export function durationFromSeconds(seconds: number | null): string | undefined {
   return seconds && seconds > 0 ? formatSetListDuration(seconds) : undefined;
 }
@@ -164,6 +178,7 @@ function printRowsFor(
     return {
       arranger: piece?.arranger ?? "",
       composer: item.composer?.trim() ? item.composer : (piece?.composer ?? ""),
+      notes: effectiveSetListItemNotes(item, music),
       performers: isFeaturedNumber
         ? (item.performerCredits ?? []).map(({ displayName }) => displayName).join(", ")
         : "",
@@ -179,7 +194,13 @@ export function setListPreviewRows(
   const rows = printRowsFor(items, music);
   let songNumber = 0;
   return items.map((item, index) => {
-    const row = rows[index] ?? { arranger: "", composer: "", performers: "", title: item.title };
+    const row = rows[index] ?? {
+      arranger: "",
+      composer: "",
+      notes: effectiveSetListItemNotes(item, music),
+      performers: "",
+      title: item.title,
+    };
     const kind = itemType(item);
     return {
       ...row,
@@ -188,11 +209,11 @@ export function setListPreviewRows(
     };
   });
 }
-
 export function setListDocumentText(
   event: OrganizationEvent,
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
+  showNotes = false,
 ): string {
   const rows = setListPreviewRows(items, music);
   return [
@@ -201,13 +222,21 @@ export function setListDocumentText(
     `Time: ${printTimeOnly(event.startsAt)}`,
     `Venue: ${event.location || "—"}`,
     "",
-    ...rows.flatMap(({ arranger, composer, kind, number, performers, title }) => {
-      if (kind === "intermission") return [title];
+    ...rows.flatMap(({ arranger, composer, kind, notes, number, performers, title }) => {
+      if (kind === "intermission") {
+        return [title, ...(showNotes && notes ? indentedNoteLines(notes) : [])];
+      }
       const credit = composer || arranger;
       return [
         `${String(number)}. ${title}${credit ? ` ~ ${credit}` : ""}`,
         ...(performers ? [`   Group — ${performers}`] : []),
+        ...(showNotes && notes ? indentedNoteLines(notes) : []),
       ];
     }),
   ].join("\n");
+}
+
+function indentedNoteLines(notes: string): string[] {
+  const [firstLine, ...restLines] = notes.split("\n");
+  return [`   Notes: ${firstLine ?? ""}`, ...restLines.map((line) => `   ${line}`)];
 }

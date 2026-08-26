@@ -12,6 +12,7 @@ export function PrintPreviewDialog({
   music,
   onClose,
   open,
+  showNotes = false,
 }: {
   readonly copyListText: () => Promise<void>;
   readonly event: OrganizationEvent | null;
@@ -19,12 +20,13 @@ export function PrintPreviewDialog({
   readonly music: SetListManagerModel["resources"]["music"];
   readonly onClose: () => void;
   readonly open: boolean;
+  readonly showNotes?: boolean;
 }) {
   if (!event) return null;
   return (
     <Dialog onClose={onClose} open={open} title="Printable Set List">
       <div className="set-list-preview-dialog">
-        <SetListPreview event={event} items={items} music={music} />
+        <SetListPreview event={event} items={items} music={music} showNotes={showNotes} />
         <div className="dialog__actions">
           <button className="button button--secondary" onClick={onClose} type="button">
             Close

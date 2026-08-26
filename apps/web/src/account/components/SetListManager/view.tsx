@@ -5,7 +5,12 @@ import {
   normalizeSetListDuration,
 } from "@choir/domain";
 import { Fragment, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { displayEvent, normalizeItems, setListHasLearningTrack } from "./utils";
+import {
+  displayEvent,
+  effectiveSetListItemNotes,
+  normalizeItems,
+  setListHasLearningTrack,
+} from "./utils";
 import { SetListPrintView } from "./shared";
 import type { SetListManagerModel } from "./hooks";
 import { CustomItemDialog } from "./dialogs/CustomItemDialog";
@@ -39,6 +44,17 @@ function setListItemIsDragging(
   keyboardDragIndex: number | null,
 ): boolean {
   return dragIndex === index || keyboardDragIndex === index;
+}
+
+function SetListItemNotes({
+  notes,
+  showNotes,
+}: {
+  readonly notes: string;
+  readonly showNotes: boolean;
+}) {
+  if (!showNotes || !notes) return null;
+  return <p className="set-list-item-notes">{notes}</p>;
 }
 
 function reorderHandleLabel(
@@ -129,6 +145,8 @@ export function SetListManagerView({
     setItems,
     setMessage,
     setMusicQuery,
+    setShowNotes,
+    showNotes,
     setSelectedEventId,
     songsDuration,
     updateDraftItems,
@@ -375,6 +393,19 @@ export function SetListManagerView({
                 <small>Members can see this set list.</small>
               </span>
             </label>
+            <label className="set-list-visibility checkbox-field">
+              <input
+                checked={showNotes}
+                type="checkbox"
+                onChange={(event) => {
+                  setShowNotes(event.target.checked);
+                }}
+              />
+              <span>
+                <strong>Show announcer notes</strong>
+                <small>Display piece notes for the emcee.</small>
+              </span>
+            </label>
           </div>
 
           <div className="set-list-add-panel">
@@ -500,6 +531,7 @@ export function SetListManagerView({
                 id="set-list-items"
               >
                 {items.map((item, index) => {
+                  const itemNotes = effectiveSetListItemNotes(item, resources.music);
                   const dropState = dropStateForItem(index, dragIndex, dragOverBoundary);
                   const keyboardDragging = keyboardDragIndex === index;
                   const itemDragging = setListItemIsDragging(index, dragIndex, keyboardDragIndex);
@@ -631,13 +663,13 @@ export function SetListManagerView({
                           <span>
                             {[item.composer, normalizeSetListDuration(item.duration)]
                               .filter(Boolean)
-                              .join(" · ") ||
-                              (item.notes ? "Notes added" : "No additional details")}
+                              .join(" · ") || (itemNotes ? "Notes added" : "No additional details")}
                           </span>
                           {item.isFeaturedNumber ? (
                             <span className="status-pill">Featured</span>
                           ) : null}
                         </div>
+                        <SetListItemNotes notes={itemNotes} showNotes={showNotes} />
                       </li>
                       {index < items.length - 1 ? (
                         <li
@@ -699,16 +731,6 @@ export function SetListManagerView({
             setCustomType={setCustomType}
           />
 
-          <EditItemDialog
-            closeItemEditor={closeItemEditor}
-            editingItem={editingItem}
-            error={error}
-            performerLabelPlural={performerLabelPlural}
-            resources={resources}
-            saveItemEdit={saveItemEdit}
-            setEditingItem={setEditingItem}
-          />
-
           <PrintPreviewDialog
             copyListText={copyListText}
             event={selectedEvent}
@@ -718,6 +740,17 @@ export function SetListManagerView({
               setPrintDialogOpen(false);
             }}
             open={printDialogOpen}
+            showNotes={showNotes}
+          />
+
+          <EditItemDialog
+            closeItemEditor={closeItemEditor}
+            editingItem={editingItem}
+            error={error}
+            performerLabelPlural={performerLabelPlural}
+            resources={resources}
+            saveItemEdit={saveItemEdit}
+            setEditingItem={setEditingItem}
           />
 
           <div className="set-list-save-row">
@@ -751,7 +784,12 @@ export function SetListManagerView({
         </div>
       ) : null}
       {selectedEvent ? (
-        <SetListPrintView event={selectedEvent} items={items} music={resources.music} />
+        <SetListPrintView
+          event={selectedEvent}
+          items={items}
+          music={resources.music}
+          showNotes={showNotes}
+        />
       ) : null}
     </section>
   );

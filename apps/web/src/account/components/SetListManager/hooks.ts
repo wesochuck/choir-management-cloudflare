@@ -51,6 +51,7 @@ export function useSetListManagerController({
   const [message, setMessage] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [musicQuery, setMusicQuery] = useState("");
+  const [showNotes, setShowNotes] = useState(false);
   const [dirty, setDirty] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
   const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -315,7 +316,7 @@ export function useSetListManagerController({
 
   async function copyListText(): Promise<void> {
     if (!selectedEvent) return;
-    const text = setListDocumentText(selectedEvent, items, resources.music);
+    const text = setListDocumentText(selectedEvent, items, resources.music, showNotes);
     try {
       await navigator.clipboard.writeText(text);
       setMessage("Set list copied as text.");
@@ -425,6 +426,8 @@ export function useSetListManagerController({
     setMessage,
     setMusicQuery,
     setSelectedEventId,
+    setShowNotes,
+    showNotes,
     songsDuration,
     updateDraftItems,
   };

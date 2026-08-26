@@ -13,10 +13,12 @@ export function SetListPreview({
   event,
   items,
   music,
+  showNotes = false,
 }: {
   readonly event: OrganizationEvent;
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
+  readonly showNotes?: boolean;
 }) {
   const rows = setListPreviewRows(items, music);
   return (
@@ -29,11 +31,12 @@ export function SetListPreview({
         </p>
       </header>
       <ol className="set-list-preview__items">
-        {rows.map(({ arranger, composer, kind, number, performers, title }, index) => {
+        {rows.map(({ arranger, composer, kind, notes, number, performers, title }, index) => {
           if (kind === "intermission") {
             return (
               <li className="set-list-preview__intermission" key={`${title}-${String(index)}`}>
                 {title}
+                {showNotes && notes ? <div className="set-list-preview__note">{notes}</div> : null}
               </li>
             );
           }
@@ -49,6 +52,7 @@ export function SetListPreview({
               {performers ? (
                 <div className="set-list-preview__group">Group — {performers}</div>
               ) : null}
+              {showNotes && notes ? <div className="set-list-preview__note">{notes}</div> : null}
             </li>
           );
         })}
@@ -61,14 +65,16 @@ export function SetListPrintView({
   event,
   items,
   music,
+  showNotes = false,
 }: {
   readonly event: OrganizationEvent;
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
+  readonly showNotes?: boolean;
 }) {
   return (
     <div aria-hidden="true" className="set-list-print-view">
-      <SetListPreview event={event} items={items} music={music} />
+      <SetListPreview event={event} items={items} music={music} showNotes={showNotes} />
     </div>
   );
 }

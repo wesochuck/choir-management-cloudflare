@@ -132,12 +132,22 @@ export function EditItemDialog({
           Notes
           <textarea
             maxLength={10_000}
+            placeholder={
+              linkedMusicPiece?.notes.trim()
+                ? linkedMusicPiece.notes.replace(/\s+/g, " ").slice(0, 160)
+                : undefined
+            }
             rows={3}
             value={editingItem.notes ?? ""}
             onChange={(event) => {
               setEditingItem({ ...editingItem, notes: event.target.value });
             }}
           />
+          {editingItemIsLinked && linkedMusicPiece?.notes.trim() ? (
+            <p className="field-help">
+              Left blank, the music library notes are shown for this item on the set list.
+            </p>
+          ) : null}
         </label>
         {itemType(editingItem) === "song" ? (
           <label className="checkbox-field">

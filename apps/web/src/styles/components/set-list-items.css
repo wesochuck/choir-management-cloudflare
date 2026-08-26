@@ -249,6 +249,14 @@
     overflow-wrap: anywhere;
   }
 
+  .set-list-item-notes {
+    margin: 0.35rem 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
+
   .set-list-item > .button-row {
     justify-content: flex-end;
     margin-top: 0.35rem;

@@ -401,7 +401,8 @@
     .set-list-print-view .set-list-preview__header p,
     .set-list-print-view .set-list-preview__song-line,
     .set-list-print-view .set-list-preview__intermission,
-    .set-list-print-view .set-list-preview__group {
+    .set-list-print-view .set-list-preview__group,
+    .set-list-print-view .set-list-preview__note {
       color: #111 !important;
     }
 

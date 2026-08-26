@@ -134,7 +134,7 @@ async function handleDataRoute(
           genres: [],
           id: musicId,
           lastPerformedAt: null,
-          notes: "",
+          notes: "Announce the arranger before this piece.",
           parentId: null,
           performanceCount: 1,
           purchaseDate: null,
@@ -277,4 +277,70 @@ test("orders, copies, prints, and saves a set list on desktop and mobile", async
   await expect(
     page.getByRole("button", { name: /Move (Opening Song|Finale) (up|down)/ }),
   ).toHaveCount(0);
+});
+
+test("shows music library notes on the set list only when the announcer toggle is on", async ({
+  page,
+}) => {
+  const eventRef: { value: Record<string, unknown> } = {
+    value: {
+      advancePriceCents: 0,
+      callTime: "",
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: null,
+      id: eventId,
+      isTicketingEnabled: false,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      setList: [
+        {
+          composer: "Composer A",
+          id: "item-a",
+          pieceId: musicId,
+          title: "Opening Song",
+          type: "song",
+        },
+      ],
+      setListApproved: false,
+      startsAt: "2026-08-20T23:00:00.000Z",
+      ticketCapacity: null,
+      title: "Browser Performance",
+      type: "Performance",
+      venueId: null,
+      createdAt: "2026-07-20T20:00:00.000Z",
+      updatedAt: "2026-07-20T20:00:00.000Z",
+    },
+  };
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route, eventRef)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/admin/setlists");
+  await expect(page.locator(".set-list-item").first()).toContainText("Opening Song");
+
+  // Notes stay hidden until the announcer toggle is enabled.
+  await expect(page.locator(".set-list-item-notes")).toHaveCount(0);
+  await page.getByRole("checkbox", { name: /Show announcer notes/i }).check();
+  await expect(page.locator(".set-list-item-notes")).toHaveText(
+    "Announce the arranger before this piece.",
+  );
+
+  // The printable preview carries the same notes (the hidden print sheet is
+  // also mounted, so scope to the dialog).
+  await page.getByRole("button", { name: "Print & Copy" }).click();
+  const printDialog = page.getByRole("dialog", { name: "Printable Set List" });
+  await expect(printDialog.locator(".set-list-preview__note")).toContainText(
+    "Announce the arranger before this piece.",
+  );
+  await printDialog.locator(".dialog__actions").getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("checkbox", { name: /Show announcer notes/i }).uncheck();
+  await expect(page.locator(".set-list-item-notes")).toHaveCount(0);
 });

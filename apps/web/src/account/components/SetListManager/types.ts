@@ -17,6 +17,7 @@ export interface Resources {
 export interface SetListPrintRow {
   readonly arranger: string;
   readonly composer: string;
+  readonly notes: string;
   readonly performers: string;
   readonly title: string;
 }
