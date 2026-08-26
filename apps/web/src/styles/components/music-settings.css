@@ -69,7 +69,10 @@
   .music-library-genre-settings__add {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
+    /* The label stacks help text under the input, so end-alignment drops the
+     * button below the control row. Center against the field like the
+     * publisher form does. */
+    align-items: center;
     gap: 0.9rem;
   }
 

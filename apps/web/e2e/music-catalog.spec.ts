@@ -532,6 +532,22 @@ test("manages genre labels from library settings and aligns the practice save co
     ).toBeLessThanOrEqual(1);
   }
 
+  const genreInput = page.getByLabel("Add a genre label");
+  const genreButton = page.getByRole("button", { name: "Add genre" });
+  await expect(genreInput).toBeVisible();
+  await expect(genreButton).toBeVisible();
+  // Below 40rem the help text can wrap, so center alignment is a desktop
+  // assertion; the button must share the input's vertical midline.
+  if ((page.viewportSize()?.width ?? 0) > 640) {
+    const genreInputBox = await genreInput.boundingBox();
+    const genreButtonBox = await genreButton.boundingBox();
+    if (!genreInputBox || !genreButtonBox) {
+      throw new Error("Genre controls should have visible geometry");
+    }
+    const inputCenter = genreInputBox.y + genreInputBox.height / 2;
+    const buttonCenter = genreButtonBox.y + genreButtonBox.height / 2;
+    expect(Math.abs(inputCenter - buttonCenter)).toBeLessThanOrEqual(3);
+  }
   await expect(page.locator(".music-genre-chip").filter({ hasText: "Christmas" })).toBeVisible();
 
   await page.getByLabel("Add a genre label").fill("Folk");
@@ -552,4 +568,23 @@ test("manages genre labels from library settings and aligns the practice save co
   await removeDialog.getByRole("button", { name: "Remove genre" }).click();
   await expect(page.getByText("Genre removed.")).toBeVisible();
   await expect(page.locator(".music-genre-chip").filter({ hasText: "Holiday" })).toHaveCount(0);
+});
+
+test("keeps the piece editor action buttons on a single row", async ({ page }) => {
+  await installRoutes(page);
+  await page.goto("/admin/library");
+
+  await page.getByRole("button", { name: "Edit music piece: First Work" }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit music piece" });
+  await expect(dialog).toBeVisible();
+  const actionButtons = dialog.locator(".music-piece-form__actions > .button");
+  await expect(actionButtons).toHaveCount(4);
+  // Below 40rem the action row wraps, which is the intended narrow-screen
+  // behavior; a single shared baseline is a desktop assertion.
+  if ((page.viewportSize()?.width ?? 0) > 640) {
+    const tops = await actionButtons.evaluateAll((buttons) => [
+      ...new Set(buttons.map((button) => Math.round(button.getBoundingClientRect().top))),
+    ]);
+    expect(tops).toHaveLength(1);
+  }
 });
