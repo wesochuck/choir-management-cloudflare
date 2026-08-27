@@ -289,15 +289,6 @@
     margin-top: var(--spacing-xl);
   }
 
-  .overview-section--quiet {
-    padding: var(--spacing-lg) var(--spacing-lg);
-    border-radius: var(--radius-lg);
-  }
-
-  .overview-section--quiet h2 {
-    font-size: var(--font-size-xl);
-  }
-
   .signed-in-main .section-heading h2,
   .table-heading h2,
   .signed-in-main .section-heading > p:last-child {
@@ -420,8 +411,7 @@
     gap: var(--spacing-sm);
   }
 
-  .signed-in-main .form-grid,
-  .signed-in-main .split-layout {
+  .signed-in-main .form-grid {
     gap: var(--spacing-sm);
   }
 

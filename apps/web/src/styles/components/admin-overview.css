@@ -450,13 +450,6 @@
       font-size: var(--font-size-xs);
     }
 
-    .admin-overview__banner-actions a {
-      min-height: 1.45rem;
-      gap: var(--spacing-3xs);
-      padding: var(--spacing-3xs) var(--spacing-xs);
-      font-size: var(--font-size-3xs);
-    }
-
     .admin-overview__getting-started {
       padding: var(--spacing-sm);
     }

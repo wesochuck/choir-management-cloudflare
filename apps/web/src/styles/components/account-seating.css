@@ -36,10 +36,6 @@
     grid-column: 1 / -1;
   }
 
-  .account-section--organization-calendar {
-    grid-column: 1 / -1;
-  }
-
   .account-section--roster-configuration {
     grid-column: 1 / -1;
   }

@@ -45,7 +45,6 @@
   @media (max-width: 40rem) {
     .signed-in-main .public-website-settings label:has(> input[type="checkbox"]) {
       align-items: flex-start;
-      white-space: normal;
     }
 
     .signed-in-main .public-website-settings label:has(> input[type="checkbox"]) > input {
@@ -183,10 +182,6 @@
 
   .ticketing-tabs.seasons-manager-tabs {
     border-bottom: 0;
-  }
-
-  .event-manager-description {
-    margin: 0 0 var(--spacing-sm);
   }
 
   .event-manager-tabs {

@@ -68,11 +68,6 @@
     background: var(--color-text-muted);
   }
 
-  .service-status--ready .service-status__dot {
-    background: var(--color-success);
-    box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--color-success) 18%, transparent);
-  }
-
   .hero {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);

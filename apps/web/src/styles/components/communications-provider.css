@@ -139,7 +139,6 @@
     line-height: var(--line-height-normal);
   }
 
-  .provider-status-card__guide,
   .platform-setup-guide {
     padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
@@ -147,14 +146,12 @@
     background: var(--color-surface-raised);
   }
 
-  .provider-status-card__guide summary,
   .platform-setup-guide summary {
     cursor: pointer;
     color: var(--color-primary);
     font-weight: var(--font-weight-bold);
   }
 
-  .provider-status-card__guide > div,
   .platform-setup-guide > div {
     max-width: 68rem;
     margin-top: var(--spacing-sm);
@@ -162,20 +159,17 @@
     line-height: var(--line-height-relaxed);
   }
 
-  .provider-status-card__guide h3,
   .platform-setup-guide h3 {
     margin: var(--spacing-md) 0 var(--spacing-2xs);
     color: var(--color-text);
     font-size: var(--font-size-body);
   }
 
-  .provider-status-card__guide ol,
   .platform-setup-guide ol {
     margin: 0;
     padding-left: var(--spacing-lg);
   }
 
-  .provider-status-card__guide code,
   .platform-setup-guide code {
     padding: var(--spacing-3xs) var(--spacing-3xs);
     border-radius: var(--radius-sm);

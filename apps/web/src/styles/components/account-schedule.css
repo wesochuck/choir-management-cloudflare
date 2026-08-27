@@ -61,18 +61,6 @@
     text-transform: uppercase;
   }
 
-  .schedule-card__badge--performance {
-    background: color-mix(in srgb, var(--color-accent) 24%, var(--color-surface));
-    color: var(--color-accent);
-    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-  }
-
-  .schedule-card__badge--rehearsal {
-    background: color-mix(in srgb, var(--color-primary) 24%, var(--color-surface));
-    color: var(--color-primary-strong, var(--color-primary));
-    border: 1px solid color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
-  }
-
   .schedule-card__badge--inherited {
     background: color-mix(in srgb, var(--color-text-muted) 20%, var(--color-surface));
     color: var(--color-text-muted);

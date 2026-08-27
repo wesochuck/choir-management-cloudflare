@@ -740,11 +740,4 @@
     overflow-wrap: anywhere;
     font-weight: var(--font-weight-bold);
   }
-
-  /* Catalog list view */
-
-  .music-catalog-list li.is-selected {
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 18%, transparent);
-  }
 }
