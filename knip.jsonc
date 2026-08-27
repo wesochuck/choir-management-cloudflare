@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "entry": [
+    "playwright.config.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts",
+    "apps/web/vite.config.ts",
+    "scripts/check-lockfile.mjs",
+    "scripts/check-durable-object-boundaries.mjs",
+    "scripts/run-e2e-servers.mjs",
+    "scripts/capture-baseline-screenshots.mjs",
+  ],
+  "ignoreDependencies": ["cloudflare", "opencode-goal-plugin"],
+}
