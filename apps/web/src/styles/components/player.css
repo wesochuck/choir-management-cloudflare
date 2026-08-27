@@ -7,18 +7,18 @@
     display: grid;
     min-height: calc(100vh - 10rem);
     place-items: start center;
-    padding: 1.5rem 1rem 3rem;
+    padding: var(--spacing-xl) var(--spacing-md) 3rem;
     background: color-mix(in srgb, var(--color-surface) 72%, var(--color-background));
   }
 
   .public-player {
     display: grid;
     width: min(100%, 32rem);
-    gap: 0.9rem;
+    gap: var(--spacing-sm);
   }
 
   .public-player__header {
-    padding-inline: 0.1rem;
+    padding-inline: var(--spacing-3xs);
   }
 
   .public-player__header h1,
@@ -32,7 +32,7 @@
   }
 
   .public-player__header p:not(.eyebrow) {
-    margin-top: 0.25rem;
+    margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
@@ -42,12 +42,12 @@
   .public-player__track-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
   }
 
   .public-player__track-pills button {
     min-height: 1.9rem;
-    padding: 0.35rem 0.75rem;
+    padding: var(--spacing-2xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: 999px;
     background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
@@ -72,7 +72,7 @@
 
   .public-player__voice-part-select select {
     min-height: 1.9rem;
-    padding: 0.35rem 1.9rem 0.35rem 0.75rem;
+    padding: var(--spacing-2xs) 1.9rem var(--spacing-2xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: 999px;
     background: var(--color-surface-raised);
@@ -87,8 +87,8 @@
   .public-player__now-playing,
   .public-player__set-list {
     display: grid;
-    gap: 0.85rem;
-    padding: 1rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
@@ -101,7 +101,7 @@
     display: flex;
     align-items: start;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .public-player__track-heading h2,
@@ -119,7 +119,7 @@
   .public-player__track-heading p:not(.eyebrow),
   .public-player__set-list-heading p,
   .public-player__set-list-help {
-    margin-top: 0.25rem;
+    margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
@@ -127,7 +127,7 @@
   .public-player__track-badge,
   .public-player__item-track {
     flex: 0 0 auto;
-    padding: 0.2rem 0.45rem;
+    padding: var(--spacing-3xs) var(--spacing-xs);
     border: 1px solid var(--color-accent);
     border-radius: 999px;
     color: var(--color-accent);
@@ -148,7 +148,7 @@
 
   .public-player__progress {
     display: grid;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .public-player__progress input,
@@ -169,7 +169,7 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
   }
 
   .public-player__play {
@@ -189,20 +189,20 @@
   }
 
   .public-player__repeat {
-    padding: 0.35rem 0.55rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
   }
 
   .public-player__options {
     display: grid;
-    gap: 0.65rem;
-    padding-top: 0.85rem;
+    gap: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
     border-top: 1px solid var(--color-border);
   }
 
   .public-player__option {
     display: grid;
-    gap: 0.35rem;
-    padding: 0.7rem;
+    gap: var(--spacing-2xs);
+    padding: var(--spacing-sm);
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--color-surface) 82%, var(--color-accent));
     color: var(--color-text-muted);
@@ -216,7 +216,7 @@
   .public-player__option select {
     max-width: 100%;
     min-height: 2rem;
-    padding: 0.35rem 0.5rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
     border: 1px solid var(--color-border);
     background: var(--color-surface-raised);
     color: var(--color-text);
@@ -237,7 +237,7 @@
   .public-player__inline-input {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
   }
 
   .public-player__inline-input input {
@@ -246,14 +246,14 @@
 
   .public-player__guide-toggle {
     min-height: 2rem;
-    padding: 0.35rem 0.65rem;
+    padding: var(--spacing-2xs) var(--spacing-sm);
   }
 
   .public-player__guide {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.65rem;
-    padding: 0.75rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
   }
@@ -261,7 +261,7 @@
   .public-player__guide div {
     display: grid;
     align-content: start;
-    gap: 0.25rem;
+    gap: var(--spacing-3xs);
   }
 
   .public-player__guide strong {
@@ -282,7 +282,7 @@
   }
 
   .public-player__set-list {
-    gap: 0.65rem;
+    gap: var(--spacing-sm);
   }
 
   .public-player__set-list-heading {
@@ -295,7 +295,7 @@
 
   .public-player__set-list ol {
     display: grid;
-    gap: 0.4rem;
+    gap: var(--spacing-xs);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -306,8 +306,8 @@
     min-width: 0;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.6rem;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs);
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
   }
@@ -320,7 +320,7 @@
     display: grid;
     min-width: 0;
     flex: 1;
-    gap: 0.15rem;
+    gap: var(--spacing-3xs);
     padding: 0;
     border: 0;
     background: transparent;
@@ -340,13 +340,13 @@
   }
 
   .public-player__item-track {
-    padding: 0.18rem 0.35rem;
+    padding: var(--spacing-3xs) var(--spacing-2xs);
     font-size: var(--font-size-3xs);
   }
 
   .public-player__empty {
     margin: 0;
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
@@ -359,7 +359,7 @@
   .practice-player__options,
   .practice-player__track-heading {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .practice-player__filters,
@@ -370,13 +370,13 @@
   .practice-player__voice-filter {
     display: grid;
     align-content: end;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .practice-player__now-playing {
     display: grid;
-    gap: 0.9rem;
-    padding: 1rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -393,7 +393,7 @@
   }
 
   .practice-player__track-heading p:last-child {
-    margin-top: 0.3rem;
+    margin-top: var(--spacing-2xs);
     color: var(--color-text-muted);
   }
 
@@ -405,12 +405,12 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .practice-player__playlist {
     display: grid;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -420,8 +420,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.65rem 0.75rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -436,7 +436,7 @@
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: 0.65rem;
+    gap: var(--spacing-sm);
     border: 0;
     padding: 0;
     background: transparent;
@@ -448,7 +448,7 @@
   .practice-player__playlist-select > span:last-child {
     display: grid;
     min-width: 0;
-    gap: 0.15rem;
+    gap: var(--spacing-3xs);
   }
 
   .practice-player__playlist-select small {

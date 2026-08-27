@@ -3,13 +3,13 @@
   /* Platform operations and setup monitor */
 
   .platform-operations {
-    margin-top: 1.5rem;
+    margin-top: var(--spacing-xl);
   }
 
   .platform-setup-monitor {
     display: grid;
-    gap: 1rem;
-    padding: 1rem;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -19,7 +19,7 @@
     display: flex;
     align-items: end;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .platform-setup-monitor__heading h2,
@@ -29,21 +29,21 @@
 
   .platform-setup-monitor__heading p:not(.eyebrow) {
     max-width: 56rem;
-    margin-top: 0.35rem;
+    margin-top: var(--spacing-2xs);
     color: var(--color-text-muted);
   }
 
   .platform-setup-monitor__meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem 1rem;
+    gap: var(--spacing-xs) var(--spacing-md);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
 
   .platform-setup-monitor__error {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .platform-setup-monitor__error .notice {
@@ -56,15 +56,15 @@
 
   .platform-setup-checks {
     display: grid;
-    gap: 0.55rem;
+    gap: var(--spacing-xs);
   }
 
   .platform-setup-check {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.8rem 0.9rem;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -81,7 +81,7 @@
   .platform-setup-check__copy {
     display: grid;
     min-width: 0;
-    gap: 0.15rem;
+    gap: var(--spacing-3xs);
   }
 
   .platform-setup-check__copy span {
@@ -93,7 +93,7 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 0.7rem;
+    gap: var(--spacing-sm);
     text-align: right;
   }
 
@@ -104,11 +104,11 @@
   }
 
   .platform-setup-check__guide {
-    margin-top: 0.75rem;
+    margin-top: var(--spacing-sm);
   }
 
   .platform-setup-check__guide > div {
-    margin-top: 0.75rem;
+    margin-top: var(--spacing-sm);
   }
 
   .platform-setup-check__guide code {
@@ -119,7 +119,7 @@
     display: inline-flex;
     min-width: 6.5rem;
     justify-content: center;
-    padding: 0.25rem 0.55rem;
+    padding: var(--spacing-3xs) var(--spacing-xs);
     border-radius: 999px;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
@@ -157,9 +157,9 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: end;
-    gap: 1rem;
+    gap: var(--spacing-md);
     max-width: 48rem;
-    margin-top: 1.5rem;
+    margin-top: var(--spacing-xl);
   }
 
   .platform-provisioning-form .button {
@@ -167,7 +167,7 @@
   }
 
   .platform-directory {
-    margin-top: 2rem;
+    margin-top: var(--spacing-2xl);
   }
 
   .platform-schema-status {
@@ -187,21 +187,21 @@
 
   .platform-organization-list .status-pill {
     display: inline-block;
-    margin-top: 0.65rem;
+    margin-top: var(--spacing-sm);
   }
 
   .platform-organization-actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .platform-organization-domains {
     flex: 1 1 100%;
-    margin-top: 0.9rem;
+    margin-top: var(--spacing-sm);
     border-top: 1px solid var(--color-border);
-    padding-top: 0.75rem;
+    padding-top: var(--spacing-sm);
   }
 
   .platform-organization-domains summary {
@@ -213,13 +213,13 @@
 
   .platform-organization-domains__content {
     max-width: 52rem;
-    margin-top: 0.8rem;
+    margin-top: var(--spacing-sm);
   }
 
   .platform-domain-list {
     display: grid;
-    gap: 0.45rem;
-    margin: 0.8rem 0 1rem;
+    gap: var(--spacing-xs);
+    margin: var(--spacing-sm) 0 var(--spacing-md);
     padding: 0;
     list-style: none;
   }
@@ -228,8 +228,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.8rem;
-    padding: 0.55rem 0.7rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
   }
@@ -238,20 +238,20 @@
     display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0.55rem;
+    gap: var(--spacing-xs);
   }
 
   .platform-domain-list__details {
     display: grid;
     min-width: 0;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .platform-domain-list__statuses {
     display: inline-flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0.55rem;
+    gap: var(--spacing-xs);
   }
 
   .platform-domain-list__error {
@@ -260,12 +260,12 @@
 
   .platform-domain-list__validation {
     display: grid;
-    gap: 0.25rem;
+    gap: var(--spacing-3xs);
   }
 
   .platform-domain-list__validation ul {
     margin: 0;
-    padding-left: 1.2rem;
+    padding-left: var(--spacing-md);
   }
 
   .platform-domain-list .status-pill {
@@ -274,13 +274,13 @@
 
   .platform-domain-form {
     display: grid;
-    gap: 0.4rem;
+    gap: var(--spacing-xs);
   }
 
   .platform-domain-form > div {
     display: flex;
     align-items: stretch;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .platform-domain-form input {
@@ -295,11 +295,11 @@
   }
 
   .platform-load-more {
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   .platform-email-suppressions__intro {
-    margin: 0 0 1.25rem;
+    margin: 0 0 var(--spacing-lg);
     color: var(--color-text-muted);
   }
 
@@ -307,18 +307,18 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.45fr) auto;
     align-items: end;
-    gap: 0.8rem;
-    margin-bottom: 1.25rem;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
   }
 
   .platform-email-suppressions__filter-actions {
     display: flex;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .platform-email-suppressions__detail {
     display: grid;
-    gap: 0.2rem;
+    gap: var(--spacing-3xs);
     min-width: 14rem;
   }
 
@@ -339,7 +339,7 @@
 
   .platform-elevation-form {
     max-width: 40rem;
-    margin-top: 1.5rem;
+    margin-top: var(--spacing-xl);
   }
 
   .platform-elevation-form .status-pill {
@@ -359,7 +359,7 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .organization-security-status .notice {
@@ -368,15 +368,15 @@
 
   .organization-policy {
     min-width: 0;
-    margin-top: 1.5rem;
-    padding: 0.85rem 1rem 1rem;
+    margin-top: var(--spacing-xl);
+    padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--color-surface-raised) 45%, transparent);
   }
 
   .organization-policy legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     color: var(--color-text);
     font-weight: var(--font-weight-semibold);
   }
@@ -391,7 +391,7 @@
 
   .danger-confirmation {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .danger-confirmation p {
@@ -402,12 +402,12 @@
   .organization-mfa-enrollment,
   .organization-verification,
   .organization-enrollment-start {
-    margin-top: 1.5rem;
+    margin-top: var(--spacing-xl);
   }
 
   .organization-verification {
     max-width: 40rem;
-    margin-top: 1.5rem;
+    margin-top: var(--spacing-xl);
   }
 
   .organization-invitation-form {
@@ -415,8 +415,8 @@
   }
 
   .organization-pending-invitations {
-    margin-top: 2rem;
-    padding-top: 1.5rem;
+    margin-top: var(--spacing-2xl);
+    padding-top: var(--spacing-xl);
     border-top: 1px solid var(--color-border);
   }
 
@@ -427,7 +427,7 @@
   }
 
   .organization-invitation-list h4 {
-    margin-bottom: 0.25rem;
+    margin-bottom: var(--spacing-3xs);
     overflow-wrap: anywhere;
   }
 
@@ -441,20 +441,20 @@
 
   .auth-card > .danger-confirmation,
   .auth-card > .button + .button {
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   .invitation-details {
     display: grid;
-    gap: 0.75rem;
-    margin: 1.5rem 0;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-xl) 0;
   }
 
   .invitation-details div {
     display: grid;
     grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
-    gap: 1rem;
-    padding-bottom: 0.75rem;
+    gap: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--color-border);
   }
 
@@ -475,11 +475,11 @@
 
   .organization-settings-panel {
     min-width: 0;
-    padding: clamp(0.85rem, 2vw, 1.25rem);
+    padding: clamp(var(--spacing-sm), 2vw, var(--spacing-lg));
   }
 
   .organization-settings-panel > legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     color: var(--color-text);
     font-weight: var(--font-weight-semibold);
   }
@@ -489,11 +489,11 @@
   }
 
   .organization-settings-panel .section-description {
-    margin: 0.25rem 0 0.75rem;
+    margin: var(--spacing-3xs) 0 var(--spacing-sm);
   }
 
   .organization-settings-panel .settings-grid {
-    gap: 0.65rem 0.75rem;
+    gap: var(--spacing-sm) var(--spacing-sm);
   }
 
   .organization-settings-panel .settings-grid > .notice,
@@ -502,20 +502,20 @@
   }
 
   .organization-settings-panel .field-help {
-    margin-top: 0.5rem;
-    margin-bottom: 0.25rem;
+    margin-top: var(--spacing-xs);
+    margin-bottom: var(--spacing-3xs);
   }
 
   .organization-settings-panel .form-stack {
-    gap: 0.65rem;
+    gap: var(--spacing-sm);
   }
 
   .organization-settings-panel details {
-    margin-top: 0.75rem;
+    margin-top: var(--spacing-sm);
   }
 
   .organization-settings-panel .notice:not(.settings-grid *) {
-    margin: 0.65rem 0;
+    margin: var(--spacing-sm) 0;
   }
 
   .organization-payment-settings__heading {
@@ -523,13 +523,13 @@
   }
 
   .section-description {
-    margin: 1rem 0 1.5rem;
+    margin: var(--spacing-md) 0 var(--spacing-xl);
   }
 
   .account-list {
     display: grid;
-    gap: 0.75rem;
-    margin: 1.5rem 0 0;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-xl) 0 0;
     padding: 0;
     list-style: none;
   }
@@ -538,8 +538,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -555,7 +555,7 @@
   }
 
   .account-list p {
-    margin-top: 0.25rem;
+    margin-top: var(--spacing-3xs);
     font-size: var(--font-size-md);
   }
 
@@ -563,12 +563,12 @@
 
   .signed-in-main.signed-in-main--platform {
     width: min(100%, 92rem);
-    padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2.5rem) 4rem;
+    padding: clamp(var(--spacing-lg), 3vw, 2.5rem) clamp(var(--spacing-md), 3vw, 2.5rem) 4rem;
   }
 
   .signed-in-main.signed-in-main--platform .page-heading {
-    margin-bottom: 1.25rem;
-    padding-bottom: 0.9rem;
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-sm);
   }
 
   .signed-in-main.signed-in-main--platform .page-heading h1 {
@@ -577,7 +577,7 @@
 
   .signed-in-main.signed-in-main--platform .account-section.account-section--platform {
     display: grid;
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
     max-width: none;
     margin: 0;
   }
@@ -588,13 +588,13 @@
 
   .signed-in-main.signed-in-main--platform .platform-operations {
     display: grid;
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
     margin: 0;
   }
 
   .signed-in-main.signed-in-main--platform .platform-operation__heading {
     display: grid;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
     margin: 0;
   }
 
@@ -620,7 +620,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: 60rem;
     margin: 0;
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
@@ -633,9 +633,9 @@
 
   .signed-in-main.signed-in-main--platform .platform-directory {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     margin: 0;
-    padding-top: 1.25rem;
+    padding-top: var(--spacing-lg);
     border-top: 1px solid var(--color-border);
   }
 
@@ -657,7 +657,7 @@
   .signed-in-main.signed-in-main--platform .platform-organization-list--directory {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -667,9 +667,9 @@
     display: grid;
     grid-template-columns: minmax(12rem, 0.85fr) minmax(0, 1.5fr) minmax(10rem, 0.75fr);
     align-items: start;
-    gap: 1rem;
+    gap: var(--spacing-md);
     min-width: 0;
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
@@ -679,7 +679,7 @@
     display: grid;
     align-content: start;
     min-width: 0;
-    gap: 0.3rem;
+    gap: var(--spacing-2xs);
   }
 
   .signed-in-main.signed-in-main--platform .platform-organization-card__identity h5,
@@ -699,7 +699,7 @@
 
   .signed-in-main.signed-in-main--platform .platform-organization-card__identity .status-pill {
     justify-self: start;
-    margin: 0.3rem 0 0;
+    margin: var(--spacing-2xs) 0 0;
   }
 
   .signed-in-main.signed-in-main--platform .platform-organization-domains {
@@ -714,16 +714,16 @@
     display: flex;
     align-items: center;
     min-height: 2.35rem;
-    padding: 0.45rem 0;
+    padding: var(--spacing-xs) 0;
     color: var(--color-primary);
   }
 
   .signed-in-main.signed-in-main--platform .platform-organization-domains__content {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     max-width: none;
-    margin: 0.35rem 0 0;
-    padding-top: 0.75rem;
+    margin: var(--spacing-2xs) 0 0;
+    padding-top: var(--spacing-sm);
     border-top: 1px solid var(--color-border);
   }
 
@@ -744,8 +744,8 @@
   }
 
   .signed-in-main.signed-in-main--platform .platform-domain-form {
-    gap: 0.45rem;
-    margin-top: 0.1rem;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-3xs);
   }
 
   .signed-in-main.signed-in-main--platform .platform-domain-form > label {
@@ -756,7 +756,7 @@
   .signed-in-main.signed-in-main--platform .platform-domain-form__controls {
     display: flex;
     align-items: stretch;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .signed-in-main.signed-in-main--platform .platform-domain-form__controls input {
@@ -770,7 +770,7 @@
     align-items: stretch;
     justify-content: start;
     grid-column: 3;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
     min-width: 0;
   }
 
@@ -787,7 +787,7 @@
 
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list {
     display: grid;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -797,8 +797,8 @@
     display: flex;
     align-items: end;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    margin: 1rem 0;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-md) 0;
   }
 
   .signed-in-main.signed-in-main--platform .platform-dead-letter-toolbar .field {
@@ -810,9 +810,9 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
-    gap: 1rem;
+    gap: var(--spacing-md);
     min-width: 0;
-    padding: 0.85rem 1rem;
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -835,7 +835,7 @@
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list__copy {
     display: grid;
     min-width: 0;
-    gap: 0.3rem;
+    gap: var(--spacing-2xs);
   }
 
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list__meta,
@@ -850,7 +850,7 @@
 
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list .status-pill {
     justify-self: start;
-    margin: 0.25rem 0 0;
+    margin: var(--spacing-3xs) 0 0;
   }
 
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions {
@@ -858,7 +858,7 @@
     flex-wrap: wrap;
     align-items: start;
     justify-content: end;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list__actions .button {
@@ -873,7 +873,7 @@
 
   .signed-in-main.signed-in-main--platform .platform-verification,
   .signed-in-main.signed-in-main--platform .mfa-start-form {
-    padding: 1.25rem;
+    padding: var(--spacing-lg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
@@ -882,7 +882,7 @@
   .signed-in-main.signed-in-main--platform .mfa-start-form {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
     max-width: 60rem;
   }
 
@@ -903,7 +903,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1rem;
+    gap: var(--spacing-md);
     margin: 0;
   }
 
@@ -912,8 +912,8 @@
   }
 
   .signed-in-main.signed-in-main--platform .platform-setup-monitor {
-    margin-top: 1.25rem;
-    padding: 1.25rem;
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-lg);
     border-radius: var(--radius-lg);
     background: var(--color-surface);
     box-shadow: var(--shadow-sm);

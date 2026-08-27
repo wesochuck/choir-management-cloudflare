@@ -4,45 +4,45 @@
  */
 @layer components {
   .signed-in-main .module-settings-groups {
-    gap: 1rem;
-    margin-top: 1rem;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
   }
 
   .signed-in-main .panel.module-settings-group {
     min-width: 0;
     margin: 0;
-    padding: 0.85rem 1rem 1rem;
+    padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--color-surface-raised) 45%, transparent);
   }
 
   .signed-in-main .module-settings-group legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     color: var(--color-text);
     font-weight: var(--font-weight-semibold);
   }
 
   .signed-in-main .module-settings-group__modules {
-    gap: 0.75rem;
-    margin-top: 0.5rem;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
   }
 
   .setup-checklist__item {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
     min-width: 0;
     margin: 0;
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
   }
 
   .setup-checklist__legend {
-    padding: 0 0.4rem;
+    padding: 0 var(--spacing-xs);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
     color: var(--color-text);
@@ -51,7 +51,7 @@
   .setup-checklist__details {
     display: flex;
     align-items: baseline;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
     min-width: 0;
     flex: 1;
   }
@@ -70,17 +70,17 @@
   .setup-checklist__item .button {
     flex: 0 0 auto;
     min-height: 2.5rem;
-    padding: 0.55rem 0.8rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-md);
   }
 
   .setup-checklist__organization-payments {
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   .status-pill {
     flex: 0 0 auto;
-    padding: 0.4rem 0.65rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: 999px;
     background: color-mix(in srgb, var(--color-text-muted) 16%, var(--color-surface));
@@ -90,8 +90,8 @@
   }
 
   .empty-state {
-    margin-top: 1.5rem;
-    padding: 1.25rem;
+    margin-top: var(--spacing-xl);
+    padding: var(--spacing-lg);
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
@@ -105,13 +105,13 @@
   .module-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
+    gap: var(--spacing-md);
     margin-top: 3rem;
   }
 
   .module-card {
     min-height: 16rem;
-    padding: 1.5rem;
+    padding: var(--spacing-xl);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -125,7 +125,7 @@
   }
 
   .module-card h3 {
-    margin: 3rem 0 0.5rem;
+    margin: 3rem 0 var(--spacing-xs);
     font-family: Georgia, "Times New Roman", serif;
     font-size: var(--font-size-3xl);
   }
@@ -136,7 +136,7 @@
   }
 
   footer {
-    padding-block: 2rem;
+    padding-block: var(--spacing-2xl);
     border-top: 1px solid var(--color-border);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
@@ -178,11 +178,11 @@
   .public-site-header {
     min-height: 5rem;
     justify-content: space-between;
-    gap: 1.5rem;
+    gap: var(--spacing-xl);
   }
 
   .public-site-brand {
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     font-family: var(--public-heading-font, system-ui, sans-serif);
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-black);
@@ -198,7 +198,7 @@
   .public-site-header nav {
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .public-site-header nav a,
@@ -232,7 +232,7 @@
   }
 
   .public-hero h1 {
-    margin: 0.5rem 0 1rem;
+    margin: var(--spacing-xs) 0 var(--spacing-md);
     font-size: clamp(2.8rem, 8vw, 6rem);
     line-height: var(--line-height-none);
   }
@@ -258,13 +258,13 @@
 
   .public-section-heading {
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .public-performance-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1.5rem;
+    gap: var(--spacing-xl);
   }
 
   .public-performance-card {
@@ -282,11 +282,11 @@
   }
 
   .public-performance-card > div {
-    padding: 1.5rem;
+    padding: var(--spacing-xl);
   }
 
   .public-performance-card h3 {
-    margin: 0.35rem 0 0.75rem;
+    margin: var(--spacing-2xs) 0 var(--spacing-sm);
   }
 
   .public-performance-location {
@@ -303,8 +303,8 @@
 
   .public-site-footer {
     justify-content: space-between;
-    gap: 1rem;
-    padding-block: 2rem;
+    gap: var(--spacing-md);
+    padding-block: var(--spacing-2xl);
     border-top: 1px solid var(--color-border);
     color: var(--color-text-muted);
   }
@@ -318,7 +318,7 @@
     .public-site-footer {
       align-items: flex-start;
       flex-direction: column;
-      padding-block: 1rem;
+      padding-block: var(--spacing-md);
     }
 
     .public-site-header nav {
@@ -449,7 +449,7 @@
       align-items: flex-start;
       flex-direction: column;
       justify-content: center;
-      padding-block: 1rem;
+      padding-block: var(--spacing-md);
     }
 
     .header-actions {

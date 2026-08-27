@@ -7,8 +7,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.25rem;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
     border-bottom: 1px solid var(--color-border);
   }
 
@@ -16,7 +16,7 @@
     flex: 1 1 auto;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     margin-bottom: 0;
     border-bottom: 0;
   }
@@ -27,11 +27,11 @@
   }
 
   .seasons-manager-description--settings {
-    margin-bottom: 1rem;
+    margin-bottom: var(--spacing-md);
   }
 
   .roster-page-tabs {
-    margin-bottom: 1.25rem;
+    margin-bottom: var(--spacing-lg);
   }
 
   .dues-records-header {
@@ -39,14 +39,14 @@
     grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 1fr);
     grid-template-areas: "toolbar description";
     align-items: end;
-    gap: 1rem;
-    margin: 0 0 1rem;
+    gap: var(--spacing-md);
+    margin: 0 0 var(--spacing-md);
   }
 
   .dues-records-header > .seasons-manager-description {
     align-self: end;
     grid-area: description;
-    margin-bottom: 0.6rem;
+    margin-bottom: var(--spacing-xs);
   }
 
   .dues-records-toolbar {
@@ -54,7 +54,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(12rem, 20rem);
     grid-area: toolbar;
     align-items: end;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     margin: 0;
   }
 
@@ -72,7 +72,7 @@
         "toolbar"
         "description";
       align-items: stretch;
-      gap: 0.65rem;
+      gap: var(--spacing-sm);
     }
 
     .dues-records-toolbar {
@@ -85,7 +85,7 @@
   }
 
   .audition-schedule-form {
-    gap: 0.9rem;
+    gap: var(--spacing-sm);
   }
 
   .audition-rehearsal-grid {
@@ -94,16 +94,16 @@
 
   .schedule-time-section {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     margin: 0;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
   }
 
   .schedule-time-section legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     font-weight: var(--font-weight-extrabold);
   }
 
@@ -117,14 +117,14 @@
   .audition-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.15rem 0.35rem;
-    margin: 0 0 1.25rem;
+    gap: var(--spacing-3xs) var(--spacing-2xs);
+    margin: 0 0 var(--spacing-lg);
     border-bottom: 1px solid var(--color-border);
   }
 
   .audition-tabs button {
     min-height: 2.7rem;
-    padding: 0.65rem 0.75rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 0;
     border-bottom: 2px solid transparent;
     border-radius: 0;
@@ -144,7 +144,7 @@
 
   .audition-tab-panel {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .audition-tab-panel h2,
@@ -156,16 +156,16 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   /* Auth methods, text buttons, and notices */
 
   .auth-methods {
     display: flex;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.75rem;
+    gap: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl);
+    padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--color-border);
   }
 
@@ -179,7 +179,7 @@
   /* Ghost button: transparent with a subtle hover fill — used for row and
    * inline actions where a filled button would be too heavy. */
   .text-button {
-    padding: 0.35rem 0.6rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -211,8 +211,8 @@
   }
 
   .notice {
-    margin: 1rem 0;
-    padding: 0.9rem 1rem;
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     line-height: var(--line-height-normal);
@@ -248,13 +248,13 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .organization-mfa-prompt__form {
     max-width: 40rem;
-    margin: 0.75rem 0 1rem;
-    padding: 1rem;
+    margin: var(--spacing-sm) 0 var(--spacing-md);
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -268,8 +268,8 @@
     display: flex;
     align-items: end;
     justify-content: space-between;
-    gap: 2rem;
-    padding-bottom: 2rem;
+    gap: var(--spacing-2xl);
+    padding-bottom: var(--spacing-2xl);
     border-bottom: 1px solid var(--color-border);
   }
 
@@ -281,21 +281,21 @@
   .poll-table-responses {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--spacing-3xs);
   }
 
   .poll-table-tallies {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
     font-size: 0.75rem;
   }
 
   .poll-table-tally-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.1rem 0.4rem;
+    gap: var(--spacing-3xs);
+    padding: var(--spacing-3xs) var(--spacing-xs);
     background: var(--color-surface-raised);
     border: 1px solid var(--color-border);
     border-radius: 9999px;
@@ -307,16 +307,16 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
-    padding-bottom: 0.75rem;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--color-border);
   }
 
   .poll-results-meta {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
     font-size: 0.875rem;
     color: var(--color-text-muted);
   }
@@ -324,18 +324,18 @@
   .poll-results-actions {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .poll-options-results-list {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    margin-bottom: 1.5rem;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
   }
 
   .poll-option-result-card {
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -345,8 +345,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 0.5rem;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xs);
   }
 
   .poll-option-result-title {
@@ -368,7 +368,7 @@
     border: 1px solid var(--color-border);
     border-radius: 9999px;
     overflow: hidden;
-    margin-bottom: 0.75rem;
+    margin-bottom: var(--spacing-sm);
   }
 
   .poll-progress-fill {
@@ -379,8 +379,8 @@
   }
 
   .poll-respondents-section {
-    margin-top: 0.75rem;
-    padding-top: 0.5rem;
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-xs);
     border-top: 1px dashed var(--color-border);
   }
 
@@ -389,13 +389,13 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--color-text-muted);
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--spacing-xs);
   }
 
   .poll-respondents-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
     list-style: none;
     padding: 0;
     margin: 0;
@@ -405,8 +405,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.35rem 0.5rem;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-2xs) var(--spacing-xs);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 4px;
@@ -416,7 +416,7 @@
   .poll-respondent-identity {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: var(--spacing-xs);
     min-width: 0;
   }
 
@@ -429,7 +429,7 @@
 
   .poll-respondent-voice-part {
     font-size: 0.75rem;
-    padding: 0.1rem 0.35rem;
+    padding: var(--spacing-3xs) var(--spacing-2xs);
     background: var(--color-surface-raised);
     border: 1px solid var(--color-border);
     border-radius: 4px;

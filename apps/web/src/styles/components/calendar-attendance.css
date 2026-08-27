@@ -15,8 +15,8 @@
   }
 
   .signed-in-main.signed-in-main--attendance > .page-heading {
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.5rem;
+    margin-bottom: var(--spacing-xs);
+    padding-bottom: var(--spacing-xs);
   }
 
   .attendance-manager__intro,
@@ -24,12 +24,12 @@
   .attendance-manager__toolbar {
     align-items: center;
     display: flex;
-    gap: 1rem;
+    gap: var(--spacing-md);
     justify-content: space-between;
   }
 
   .attendance-manager__intro {
-    gap: 1.5rem;
+    gap: var(--spacing-xl);
   }
 
   .attendance-manager__intro .section-description {
@@ -45,7 +45,7 @@
   .attendance-manager__sync span {
     color: var(--color-success);
     font-size: var(--font-size-2xs);
-    margin-right: 0.25rem;
+    margin-right: var(--spacing-3xs);
   }
 
   .attendance-manager__count {
@@ -66,7 +66,7 @@
 
   .attendance-manager__controls {
     align-items: end;
-    margin-top: 1.25rem;
+    margin-top: var(--spacing-lg);
   }
 
   .attendance-manager__controls .field {
@@ -79,18 +79,18 @@
 
   .attendance-manager__toolbar {
     align-items: center;
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   .attendance-filters {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
   }
 
   .attendance-filter {
     min-height: 2.5rem;
-    padding: 0.5rem 0.8rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: 999px;
     background: transparent;
@@ -109,13 +109,13 @@
   .attendance-manager__bulk {
     flex: 0 0 auto;
     min-height: 2.5rem;
-    padding: 0.55rem 0.8rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-md);
   }
 
   .attendance-progress {
     height: 0.45rem;
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
     overflow: hidden;
     border-radius: 999px;
     background: color-mix(in srgb, var(--color-border) 70%, transparent);
@@ -130,8 +130,8 @@
   }
 
   .attendance-manager__message {
-    margin: 0.75rem 0 0;
-    padding: 0.7rem 0.8rem;
+    margin: var(--spacing-sm) 0 0;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-danger);
     border-radius: var(--radius-control);
     background: var(--color-danger-surface);
@@ -140,21 +140,21 @@
   }
 
   .attendance-manager__empty {
-    margin: 1.25rem 0 0;
+    margin: var(--spacing-lg) 0 0;
     color: var(--color-text-muted);
   }
 
   .attendance-list {
     display: grid;
-    gap: 1rem;
-    margin-top: 1.25rem;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
   }
 
   .attendance-list__divider {
     align-items: center;
     color: var(--color-text-muted);
     display: flex;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
     letter-spacing: 0.06em;
@@ -178,7 +178,7 @@
 
   .attendance-group h3 {
     margin: 0;
-    padding: 0.65rem 0.9rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border-bottom: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-surface) 70%, var(--color-background));
     color: var(--color-text-muted);
@@ -203,8 +203,8 @@
     min-width: 0;
     min-height: var(--attendance-row-min-height);
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.7rem 0.9rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 0;
     background: transparent;
     color: var(--color-text);
@@ -248,7 +248,7 @@
   .attendance-row__identity {
     display: grid;
     min-width: 0;
-    gap: 0.15rem;
+    gap: var(--spacing-3xs);
   }
 
   .attendance-row__identity strong {

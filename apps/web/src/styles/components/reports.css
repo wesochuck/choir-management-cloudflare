@@ -6,7 +6,7 @@
   /* === Reports === */
   .reports-view {
     display: grid;
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
   }
 
   .reports-toolbar p {
@@ -20,7 +20,7 @@
 
   .reports-panel {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .reports-controls__event {
@@ -31,28 +31,28 @@
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
     flex-wrap: wrap;
   }
 
   .reports-toolbar h2 {
-    margin: 0 0 0.3rem;
+    margin: 0 0 var(--spacing-2xs);
     font-size: var(--font-size-xl);
   }
 
   .reports-summary-fieldset {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     min-width: 0;
     margin: 0;
-    padding: clamp(0.85rem, 2vw, 1.15rem);
+    padding: clamp(var(--spacing-sm), 2vw, var(--spacing-md));
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
   }
 
   .reports-summary-fieldset legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     color: var(--color-text);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
@@ -62,20 +62,20 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.6rem;
-    padding-bottom: 0.75rem;
+    gap: var(--spacing-xs);
+    padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--color-border);
   }
 
   .reports-source-filter__buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .reports-source-filter__buttons button {
     min-height: var(--control-height);
-    padding: 0.45rem 0.75rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid transparent;
     border-radius: var(--radius-control);
     background: transparent;
@@ -100,13 +100,13 @@
   .reports-kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .reports-kpi {
     display: grid;
-    gap: 0.15rem;
-    padding: 0.9rem 1rem;
+    gap: var(--spacing-3xs);
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: color-mix(in srgb, var(--surface-muted) 65%, transparent);
@@ -143,7 +143,7 @@
   }
 
   .music-folder-report .data-table__expanded-row > td {
-    padding: 0 0.75rem;
+    padding: 0 var(--spacing-sm);
     background: color-mix(in srgb, var(--color-surface) 72%, var(--color-primary));
   }
 
@@ -157,7 +157,7 @@
     min-height: 2.3rem;
     align-items: center;
     justify-content: center;
-    padding: 0.45rem;
+    padding: var(--spacing-xs);
     border: 1px solid var(--color-primary);
     border-radius: var(--radius-full);
     background: transparent;
@@ -181,7 +181,7 @@
   }
 
   .music-folder-report .data-table-card__expanded {
-    padding: 0.75rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-top: 0;
     border-radius: 0 0 var(--radius-control) var(--radius-control);
@@ -190,7 +190,7 @@
 
   .music-folder-report {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .music-folder-report__toolbar {
@@ -207,7 +207,7 @@
     align-items: center;
     justify-content: space-between;
     min-height: var(--control-height);
-    padding: 0.55rem 0.75rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -233,9 +233,9 @@
 
   .music-folder-report__picker-panel {
     display: grid;
-    gap: 0.75rem;
-    margin-top: 0.5rem;
-    padding: 0.9rem;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -246,13 +246,13 @@
   .music-folder-report__edit-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .music-folder-report__performance-list {
     display: grid;
     max-height: 22rem;
-    gap: 0.25rem;
+    gap: var(--spacing-3xs);
     overflow-y: auto;
   }
 
@@ -260,8 +260,8 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: start;
-    gap: 0.65rem;
-    padding: 0.6rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs);
     border-radius: var(--radius-sm);
     cursor: pointer;
   }
@@ -273,7 +273,7 @@
   .music-folder-report__performance-meta,
   .music-folder-report__secondary-line {
     display: block;
-    margin-top: 0.15rem;
+    margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
@@ -285,20 +285,20 @@
   .music-folder-report__filters {
     display: grid;
     grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 16rem);
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .music-folder-report__detail {
     display: grid;
-    gap: 0.9rem;
-    margin-top: 0.5rem;
-    padding-top: 1rem;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+    padding-top: var(--spacing-md);
     border-top: 1px solid var(--color-border);
   }
 
   .music-folder-report__detail--expanded {
     margin-top: 0;
-    padding-block: 1rem;
+    padding-block: var(--spacing-md);
     border-top: 0;
   }
 
@@ -313,7 +313,7 @@
 
   .music-folder-report__number-field {
     display: grid;
-    gap: 0.25rem;
+    gap: var(--spacing-3xs);
     min-width: 7rem;
   }
 
@@ -331,7 +331,7 @@
     display: inline-flex;
     align-items: center;
     min-height: 1.7rem;
-    padding: 0.2rem 0.5rem;
+    padding: var(--spacing-3xs) var(--spacing-xs);
     border-radius: var(--radius-full);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);

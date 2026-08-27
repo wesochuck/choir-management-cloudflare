@@ -6,8 +6,8 @@
   .account-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.5rem;
-    margin-top: 2rem;
+    gap: var(--spacing-xl);
+    margin-top: var(--spacing-2xl);
   }
 
   /* Detail views contain one full-width panel; keep the two-column grid for the

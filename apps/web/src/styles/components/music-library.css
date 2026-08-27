@@ -5,7 +5,7 @@
 @layer components {
   .music-catalog-layout {
     display: block;
-    margin-top: 1.5rem;
+    margin-top: var(--spacing-xl);
   }
 
   .account-section.music-catalog-section {
@@ -13,7 +13,7 @@
   }
 
   .music-library-return {
-    margin-bottom: 1rem;
+    margin-bottom: var(--spacing-md);
   }
 
   .music-catalog-section > .section-heading,

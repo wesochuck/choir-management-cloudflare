@@ -20,14 +20,14 @@
 
   .admin-overview__banner {
     margin-inline: calc(-1 * var(--admin-overview-gutter));
-    padding: 1.2rem var(--admin-overview-gutter) 1rem;
+    padding: var(--spacing-md) var(--admin-overview-gutter) var(--spacing-md);
     color: #fff;
     background: var(--admin-overview-banner);
   }
 
   .admin-overview__banner-inner {
     display: grid;
-    gap: 0.55rem;
+    gap: var(--spacing-xs);
     max-width: 84rem;
     margin-inline: auto;
   }
@@ -52,15 +52,15 @@
   .admin-overview__stats {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: var(--spacing-xs);
   }
 
   .admin-overview__stats a {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: var(--spacing-xs);
     min-height: 1.8rem;
-    padding: 0.3rem 0.65rem;
+    padding: var(--spacing-2xs) var(--spacing-sm);
     border: 1px solid rgb(255 255 255 / 24%);
     border-radius: 999px;
     color: inherit;
@@ -97,8 +97,8 @@
   }
 
   .admin-overview__error {
-    margin: 0.75rem 0 0;
-    padding: 0.65rem 0.8rem;
+    margin: var(--spacing-sm) 0 0;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-accent);
     border-radius: var(--radius-control);
     color: var(--color-text);
@@ -108,8 +108,8 @@
 
   .admin-overview__quick-actions {
     display: grid;
-    gap: 0.35rem;
-    margin-top: 1rem;
+    gap: var(--spacing-2xs);
+    margin-top: var(--spacing-md);
   }
 
   .admin-overview__quick-actions > p,
@@ -129,8 +129,8 @@
   .admin-overview__quick-actions > div {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    padding: 0.45rem;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -141,8 +141,8 @@
     display: inline-flex;
     min-height: 2rem;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.3rem 0.7rem;
+    gap: var(--spacing-2xs);
+    padding: var(--spacing-2xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: 999px;
     color: var(--color-text);
@@ -163,8 +163,8 @@
   }
 
   .admin-overview__getting-started {
-    margin-top: 1rem;
-    padding: 1.25rem;
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-lg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface));
@@ -175,8 +175,8 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
   }
 
   .admin-overview__getting-started-header h2 {
@@ -188,7 +188,7 @@
   }
 
   .admin-overview__getting-started-header p {
-    margin: 0.3rem 0 0;
+    margin: var(--spacing-2xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
     line-height: var(--line-height-normal);
@@ -211,13 +211,13 @@
   .admin-overview__guide-steps {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .admin-overview__guide-step {
     display: flex;
-    gap: 0.75rem;
-    padding: 0.9rem 1rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-surface);
@@ -250,7 +250,7 @@
     min-width: 0;
     flex: 1;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .admin-overview__guide-step-content strong {
@@ -269,7 +269,7 @@
 
   .admin-overview__guide-step-content a {
     margin-top: auto;
-    padding-top: 0.35rem;
+    padding-top: var(--spacing-2xs);
     color: var(--color-primary);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-bold);
@@ -289,18 +289,18 @@
 
   .admin-overview__sections {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .admin-overview__section {
-    margin-top: 0.35rem;
+    margin-top: var(--spacing-2xs);
   }
 
   .admin-overview__section-heading {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    margin: 0 0 0.45rem;
+    gap: var(--spacing-2xs);
+    margin: 0 0 var(--spacing-xs);
   }
 
   .admin-overview__section-heading > span {
@@ -330,7 +330,7 @@
   .admin-overview__cards {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
   }
 
   .admin-overview__cards > a {
@@ -339,7 +339,7 @@
     min-height: 7.2rem;
     flex-direction: column;
     align-items: flex-start;
-    padding: 0.65rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     color: var(--color-text);
@@ -401,7 +401,7 @@
   .admin-overview__cards strong {
     display: block;
     max-width: 100%;
-    margin-top: 0.45rem;
+    margin-top: var(--spacing-xs);
     overflow-wrap: anywhere;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
@@ -411,7 +411,7 @@
   .admin-overview__cards small {
     display: block;
     max-width: 100%;
-    margin-top: 0.22rem;
+    margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
     line-height: var(--line-height-snug);
@@ -434,12 +434,12 @@
   }
 
   .admin-overview .notice {
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   @media (max-width: 40rem) {
     .admin-overview__banner {
-      padding-block: 0.72rem 0.65rem;
+      padding-block: var(--spacing-sm) var(--spacing-sm);
     }
 
     .admin-overview__banner h1 {
@@ -452,37 +452,37 @@
 
     .admin-overview__banner-actions a {
       min-height: 1.45rem;
-      gap: 0.25rem;
-      padding: 0.2rem 0.45rem;
+      gap: var(--spacing-3xs);
+      padding: var(--spacing-3xs) var(--spacing-xs);
       font-size: var(--font-size-3xs);
     }
 
     .admin-overview__getting-started {
-      padding: 0.8rem;
+      padding: var(--spacing-sm);
     }
 
     .admin-overview__getting-started-header {
       flex-direction: column;
-      gap: 0.35rem;
+      gap: var(--spacing-2xs);
     }
 
     .admin-overview__guide-steps {
       grid-template-columns: 1fr;
-      gap: 0.45rem;
+      gap: var(--spacing-xs);
     }
 
     .admin-overview__guide-step {
-      padding: 0.6rem;
+      padding: var(--spacing-xs);
     }
 
     .admin-overview__stats {
-      gap: 0.3rem;
+      gap: var(--spacing-2xs);
     }
 
     .admin-overview__stats a {
       min-height: 1.45rem;
-      gap: 0.25rem;
-      padding: 0.2rem 0.45rem;
+      gap: var(--spacing-3xs);
+      padding: var(--spacing-3xs) var(--spacing-xs);
       font-size: var(--font-size-3xs);
     }
 
@@ -491,8 +491,8 @@
     }
 
     .admin-overview__quick-actions {
-      gap: 0.25rem;
-      margin-top: 0.75rem;
+      gap: var(--spacing-3xs);
+      margin-top: var(--spacing-sm);
     }
 
     .admin-overview__quick-actions > p,
@@ -501,32 +501,32 @@
     }
 
     .admin-overview__quick-actions > div {
-      gap: 0.25rem;
-      padding: 0.3rem;
+      gap: var(--spacing-3xs);
+      padding: var(--spacing-2xs);
     }
 
     .admin-overview__quick-actions a {
       min-height: 1.5rem;
-      gap: 0.2rem;
-      padding: 0.2rem 0.45rem;
+      gap: var(--spacing-3xs);
+      padding: var(--spacing-3xs) var(--spacing-xs);
       font-size: var(--font-size-3xs);
     }
 
     .admin-overview__sections {
-      gap: 0.75rem;
+      gap: var(--spacing-sm);
     }
 
     .admin-overview__cards {
       grid-template-columns: 1fr;
-      gap: 0.35rem;
+      gap: var(--spacing-2xs);
     }
 
     .admin-overview__cards > a {
       min-height: 3.6rem;
       flex-direction: row;
       align-items: center;
-      gap: 0.6rem;
-      padding: 0.55rem 0.65rem;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-xs) var(--spacing-sm);
     }
 
     .admin-overview__card-icon {
@@ -542,7 +542,7 @@
     }
 
     .admin-overview__cards small {
-      margin-top: 0.18rem;
+      margin-top: var(--spacing-3xs);
       overflow: hidden;
       font-size: var(--font-size-3xs);
       text-overflow: ellipsis;
@@ -553,14 +553,14 @@
       flex: 0 0 auto;
       margin-top: 0;
       margin-left: auto;
-      padding-inline: 0.1rem;
+      padding-inline: var(--spacing-3xs);
       font-size: var(--font-size-2xs);
     }
   }
 
   @media (max-width: 390px) {
     .admin-overview__cards {
-      gap: 0.3rem;
+      gap: var(--spacing-2xs);
     }
   }
 }

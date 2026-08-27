@@ -4,7 +4,7 @@
  */
 @layer components {
   .directory-grid p {
-    margin-top: 0.5rem;
+    margin-top: var(--spacing-xs);
     overflow-wrap: anywhere;
     color: var(--color-text-muted);
   }
@@ -15,14 +15,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
     min-height: 5rem;
   }
 
   .header-actions {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
   }
 
   .header-actions nav a {
@@ -35,7 +35,7 @@
   .brand {
     display: inline-flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: var(--spacing-sm);
     font-weight: var(--font-weight-extrabold);
     text-decoration: none;
   }
@@ -55,7 +55,7 @@
   .service-status {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
@@ -77,13 +77,13 @@
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
     align-items: center;
-    gap: clamp(2rem, 7vw, 6rem);
+    gap: clamp(var(--spacing-2xl), 7vw, 6rem);
     min-height: calc(100vh - 8rem);
     padding-block: 4rem 7rem;
   }
 
   .eyebrow {
-    margin: 0 0 0.8rem;
+    margin: 0 0 var(--spacing-sm);
     color: var(--color-accent);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-black);
@@ -127,8 +127,8 @@
   .hero__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-top: 2rem;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-2xl);
   }
 
   /* Buttons — conventional filled variants: primary solid, secondary
@@ -140,7 +140,7 @@
     align-items: center;
     justify-content: center;
     min-height: 3rem;
-    padding: 0.75rem 1.1rem;
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid transparent;
     border-radius: var(--radius-control);
     cursor: pointer;

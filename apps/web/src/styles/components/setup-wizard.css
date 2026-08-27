@@ -11,17 +11,17 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     align-content: start;
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
     min-height: calc(100vh - 2rem);
-    padding-block: clamp(1.5rem, 4vw, 3.5rem);
+    padding-block: clamp(var(--spacing-xl), 4vw, 3.5rem);
   }
 
   .setup-wizard .account-heading {
     display: grid;
     align-items: start;
     justify-items: start;
-    gap: 0.35rem;
-    padding-bottom: 1.25rem;
+    gap: var(--spacing-2xs);
+    padding-bottom: var(--spacing-lg);
   }
 
   .setup-wizard .account-heading .eyebrow {
@@ -40,9 +40,9 @@
 
   .setup-wizard > .panel {
     display: grid;
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
     margin: 0;
-    padding: clamp(1.25rem, 3vw, 2rem);
+    padding: clamp(var(--spacing-lg), 3vw, var(--spacing-2xl));
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -55,14 +55,14 @@
   }
 
   .setup-wizard > .panel > p {
-    margin: -0.5rem 0 0;
+    margin: -var(--spacing-xs) 0 0;
     color: var(--color-text-muted);
   }
 
   .setup-wizard > .panel .form-actions {
     justify-content: flex-start;
     align-items: center;
-    margin-top: 0.25rem;
+    margin-top: var(--spacing-3xs);
   }
 
   .setup-wizard > .panel .form-actions .button {
@@ -73,7 +73,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .setup-data-import__heading h2,
@@ -82,7 +82,7 @@
   }
 
   .setup-data-import__heading h2 {
-    margin-top: 0.25rem;
+    margin-top: var(--spacing-3xs);
     font-size: var(--font-size-section);
     line-height: var(--line-height-tight);
   }
@@ -90,15 +90,15 @@
   .setup-data-import__options {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.85rem;
+    gap: var(--spacing-sm);
   }
 
   .setup-data-import__option {
     display: grid;
     align-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
     min-width: 0;
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -114,12 +114,12 @@
   }
 
   .setup-data-import__option p:not(.notice) {
-    margin-top: 0.35rem;
+    margin-top: var(--spacing-2xs);
     color: var(--color-text-muted);
     line-height: var(--line-height-normal);
   }
 
   .setup-data-import__option .notice {
-    margin-top: 0.75rem;
+    margin-top: var(--spacing-sm);
   }
 }

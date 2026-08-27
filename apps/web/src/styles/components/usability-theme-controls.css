@@ -17,7 +17,7 @@
   }
 
   .signed-in-shell[data-theme="light"] .signed-in-main input[type="color"] {
-    padding: 0.25rem 0.35rem;
+    padding: var(--spacing-3xs) var(--spacing-2xs);
   }
 
   .signed-in-shell[data-theme="light"]
@@ -27,7 +27,7 @@
     min-width: 0;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
-    padding: 0.85rem;
+    padding: var(--spacing-sm);
   }
 
   .signed-in-shell[data-theme="light"]
@@ -35,7 +35,7 @@
     .form-stack
     > fieldset
     > legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     color: var(--color-text-muted);
   }
 
@@ -51,7 +51,7 @@
   }
 
   .dialog__header {
-    margin-bottom: 0.85rem;
+    margin-bottom: var(--spacing-sm);
   }
 
   .dialog__title {
@@ -75,14 +75,14 @@
 
   @media (max-width: 48rem) {
     .signed-in-main {
-      padding: 1.25rem 1rem 3rem;
+      padding: var(--spacing-lg) var(--spacing-md) 3rem;
     }
   }
 
   @media (max-width: 40rem) {
     .signed-in-header {
       min-height: auto;
-      padding: 0.7rem 0.85rem;
+      padding: var(--spacing-sm) var(--spacing-sm);
     }
 
     .signed-in-header__brand > a {
@@ -90,7 +90,7 @@
     }
 
     .signed-in-main .page-heading {
-      margin-bottom: 1rem;
+      margin-bottom: var(--spacing-md);
     }
 
     .page-heading h1,
@@ -100,7 +100,7 @@
     }
 
     .workspace-hero {
-      padding: 1.1rem;
+      padding: var(--spacing-md);
     }
 
     .workspace-hero h1 {
@@ -133,14 +133,14 @@
 
     .signed-in-main .surface-card,
     .signed-in-main .compact-card {
-      padding: 0.9rem;
+      padding: var(--spacing-sm);
     }
 
     .dialog--responsive {
       width: 100%;
       max-height: 92vh;
       border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      padding: 1rem;
+      padding: var(--spacing-md);
     }
 
     .public-link-share {
@@ -175,7 +175,7 @@
 
     .communication-tabs button {
       justify-content: center;
-      padding-inline: 0.4rem;
+      padding-inline: var(--spacing-xs);
     }
 
     .communication-tab-panel__heading {
@@ -189,7 +189,7 @@
 
     .attendance-manager {
       --attendance-row-min-height: 4.75rem;
-      padding: 0.85rem;
+      padding: var(--spacing-sm);
     }
 
     .attendance-manager__intro {
@@ -211,7 +211,7 @@
     }
 
     .attendance-manager__controls {
-      gap: 0.7rem;
+      gap: var(--spacing-sm);
     }
 
     .attendance-manager__controls .field,
@@ -220,7 +220,7 @@
     }
 
     .attendance-manager__toolbar {
-      gap: 0.7rem;
+      gap: var(--spacing-sm);
     }
 
     .attendance-filters {
@@ -238,8 +238,8 @@
     }
 
     .attendance-row__toggle {
-      gap: 0.6rem;
-      padding: 0.65rem 0.7rem;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-sm) var(--spacing-sm);
     }
   }
 
@@ -286,12 +286,12 @@
 
     .seating-editor-canvas {
       display: flex !important;
-      gap: 0.35rem !important;
+      gap: var(--spacing-2xs) !important;
     }
 
     .seating-grid--canvas {
       display: flex !important;
-      gap: 0.3rem !important;
+      gap: var(--spacing-2xs) !important;
     }
 
     .seating-row--canvas {
@@ -299,13 +299,13 @@
       width: 100% !important;
       min-width: 0 !important;
       grid-template-columns: 5rem repeat(var(--seating-seat-count), minmax(0, 1fr)) !important;
-      gap: 0.2rem !important;
+      gap: var(--spacing-3xs) !important;
       break-inside: avoid;
     }
 
     .seating-row-label--canvas {
       min-width: 0 !important;
-      padding-right: 0.3rem !important;
+      padding-right: var(--spacing-2xs) !important;
       color: #111 !important;
       font-size: var(--font-size-xs) !important;
     }
@@ -318,7 +318,7 @@
     .seating-seat--canvas {
       min-width: 0 !important;
       min-height: 3.25rem !important;
-      padding: 0.2rem !important;
+      padding: var(--spacing-3xs) !important;
       border-color: #777 !important;
       border-radius: var(--radius-sm) !important;
       color: #111 !important;
@@ -393,7 +393,7 @@
     }
 
     .set-list-print-view .set-list-preview__header {
-      padding-bottom: 1rem;
+      padding-bottom: var(--spacing-md);
       border-color: #bbb;
     }
 
@@ -438,7 +438,7 @@
     min-width: 9rem;
     height: 2.35rem;
     min-height: 2.35rem;
-    padding: 0.45rem 2.25rem 0.45rem 0.75rem;
+    padding: var(--spacing-xs) 2.25rem var(--spacing-xs) var(--spacing-sm);
     line-height: var(--line-height-tight);
   }
 }

@@ -92,7 +92,7 @@
   .empty-page {
     display: grid;
     justify-items: start;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .empty-page h1 {
@@ -120,7 +120,7 @@
   }
 
   .dialog__description {
-    margin-top: 0.35rem;
+    margin-top: var(--spacing-2xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
     line-height: var(--line-height-normal);
@@ -128,7 +128,7 @@
 
   .dialog__actions {
     justify-content: flex-end;
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   .dialog__body a,
@@ -157,7 +157,7 @@
     bottom: 0;
     left: 0;
     width: min(22rem, calc(100% - 2rem));
-    padding: 1.5rem 1rem;
+    padding: var(--spacing-xl) var(--spacing-md);
     overflow-y: auto;
     border-right: 1px solid var(--color-border);
     background: var(--color-surface);
@@ -179,9 +179,9 @@
 
   .sheet__header {
     display: grid;
-    gap: 0.3rem;
-    margin: 0 2.75rem 1.5rem 0.75rem;
-    padding-bottom: 1rem;
+    gap: var(--spacing-2xs);
+    margin: 0 2.75rem var(--spacing-xl) var(--spacing-sm);
+    padding-bottom: var(--spacing-md);
     border-bottom: 1px solid var(--color-border);
   }
 
@@ -190,7 +190,7 @@
     width: 100%;
     align-items: center;
     justify-content: space-between;
-    padding: 0.65rem 0;
+    padding: var(--spacing-sm) 0;
     border: 0;
     background: transparent;
     color: var(--color-text);
@@ -201,7 +201,7 @@
   .dropdown-menu {
     z-index: 60;
     min-width: 12rem;
-    padding: 0.35rem;
+    padding: var(--spacing-2xs);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -211,7 +211,7 @@
   .dropdown-menu__item {
     display: block;
     width: 100%;
-    padding: 0.55rem 0.7rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 0;
     border-radius: var(--radius-control);
     background: transparent;
@@ -240,8 +240,8 @@
     width: min(46rem, calc(100% - 2rem));
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
     transform: translateX(-50%);
     border: 1px solid var(--color-accent);
     border-radius: var(--radius-card);
@@ -259,7 +259,7 @@
   .floating-save-bar__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
     justify-content: flex-end;
   }
 
@@ -270,9 +270,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin-top: 1.25rem;
-    padding: 0.75rem;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-accent);
     border-radius: var(--radius-card);
     background: color-mix(in srgb, var(--color-surface-raised) 96%, transparent);
@@ -310,7 +310,7 @@
     }
 
     .signed-in-main {
-      padding: 1.25rem 1rem 3rem;
+      padding: var(--spacing-lg) var(--spacing-md) 3rem;
     }
 
     .floating-save-bar {
@@ -355,7 +355,7 @@
     .page-heading {
       align-items: start;
       flex-direction: column;
-      margin-bottom: 1.25rem;
+      margin-bottom: var(--spacing-lg);
     }
 
     .workspace-card-grid,
@@ -400,7 +400,7 @@
     .signed-in-header {
       align-items: stretch;
       flex-direction: column;
-      gap: 0.65rem;
+      gap: var(--spacing-sm);
     }
 
     .signed-in-header__actions {

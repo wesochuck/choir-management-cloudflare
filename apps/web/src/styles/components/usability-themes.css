@@ -62,7 +62,7 @@
   }
 
   .signed-in-header {
-    padding: 0.55rem clamp(1rem, 3vw, 2.25rem);
+    padding: var(--spacing-xs) clamp(var(--spacing-md), 3vw, 2.25rem);
     background: color-mix(in srgb, var(--color-background) 94%, transparent);
   }
 
@@ -81,12 +81,12 @@
   }
 
   .signed-in-header__actions {
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .workspace-switcher select {
     min-height: 2.3rem;
-    padding: 0.45rem 1.8rem 0.45rem 0.7rem;
+    padding: var(--spacing-xs) 1.8rem var(--spacing-xs) var(--spacing-sm);
     border-radius: var(--radius-control);
     background: var(--color-surface);
     color: var(--color-text);
@@ -96,7 +96,7 @@
 
   .signed-in-shell .button {
     min-height: 2.35rem;
-    padding: 0.5rem 0.85rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: var(--radius-control);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
@@ -105,7 +105,7 @@
 
   .signed-in-shell .button--small {
     min-height: 2.3rem;
-    padding-block: 0.45rem;
+    padding-block: var(--spacing-xs);
   }
 
   .theme-switcher {
@@ -114,7 +114,7 @@
     min-width: 2.3rem;
     min-height: 2.3rem;
     place-items: center;
-    padding: 0.45rem;
+    padding: var(--spacing-xs);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -147,14 +147,14 @@
   }
 
   .signed-in-sidebar {
-    padding: 1.25rem 0.7rem;
+    padding: var(--spacing-lg) var(--spacing-sm);
     background: color-mix(in srgb, var(--color-surface) 78%, var(--color-background));
   }
 
   .sidebar-context {
-    gap: 0.2rem;
-    margin-bottom: 1.15rem;
-    padding: 0.7rem 0.65rem 0.9rem;
+    gap: var(--spacing-3xs);
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-sm);
   }
 
   .sidebar-context .eyebrow {
@@ -169,15 +169,15 @@
   }
 
   .workspace-nav {
-    gap: 1.05rem;
+    gap: var(--spacing-md);
   }
 
   .workspace-nav__group {
-    gap: 0.25rem;
+    gap: var(--spacing-3xs);
   }
 
   .workspace-nav__label {
-    margin: 0 0 0.25rem 0.6rem;
+    margin: 0 0 var(--spacing-3xs) var(--spacing-xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-2xs);
     font-weight: var(--font-weight-bold);
@@ -185,13 +185,13 @@
   }
 
   .workspace-nav__items {
-    gap: 0.12rem;
+    gap: var(--spacing-3xs);
   }
 
   .workspace-nav__items a {
     min-height: 2.25rem;
-    gap: 0.55rem;
-    padding: 0.45rem 0.6rem;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-xs);
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
@@ -229,15 +229,15 @@
 
   .signed-in-main {
     width: min(100%, 84rem);
-    padding: clamp(1.25rem, 3vw, 2.4rem) clamp(1rem, 3.5vw, 3rem) 4rem;
+    padding: clamp(var(--spacing-lg), 3vw, 2.4rem) clamp(var(--spacing-md), 3.5vw, 3rem) 4rem;
   }
 
   .page-heading {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.35rem;
-    margin-bottom: 1.25rem;
+    gap: var(--spacing-2xs);
+    margin-bottom: var(--spacing-lg);
   }
 
   .page-heading h1,
@@ -248,28 +248,28 @@
   }
 
   .page-heading .eyebrow {
-    margin-bottom: 0.25rem;
+    margin-bottom: var(--spacing-3xs);
     font-size: var(--font-size-2xs);
   }
 
   .page-heading__description {
     max-width: 48rem;
-    margin: 0.2rem 0 0;
+    margin: var(--spacing-3xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-base);
     line-height: var(--line-height-normal);
   }
 
   .workspace-hero {
-    gap: 0.55rem;
-    margin-bottom: 1.5rem;
-    padding: 1.35rem 1.5rem;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-lg) var(--spacing-xl);
     border-radius: var(--radius-lg);
     background: var(--color-surface);
   }
 
   .workspace-hero .eyebrow {
-    margin-bottom: 0.1rem;
+    margin-bottom: var(--spacing-3xs);
     font-size: var(--font-size-2xs);
   }
 
@@ -280,17 +280,17 @@
 
   .workspace-hero p:last-child {
     max-width: 48rem;
-    margin-top: 0.15rem;
+    margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-base);
   }
 
   .overview-section {
-    margin-top: 1.5rem;
+    margin-top: var(--spacing-xl);
   }
 
   .overview-section--quiet {
-    padding: 1.25rem 1.35rem;
+    padding: var(--spacing-lg) var(--spacing-lg);
     border-radius: var(--radius-lg);
   }
 
@@ -306,21 +306,21 @@
   }
 
   .workspace-card-grid {
-    gap: 0.75rem;
-    margin-top: 1rem;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
   }
 
   .workspace-card-grid > a,
   .workspace-card {
     min-height: 6.75rem;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
     border-radius: var(--radius-lg);
   }
 
   .workspace-card-grid strong,
   .workspace-card strong {
-    margin-bottom: 0.2rem;
+    margin-bottom: var(--spacing-3xs);
     font-size: var(--font-size-base);
   }
 
@@ -339,7 +339,7 @@
 
   .signed-in-main .surface-card,
   .signed-in-main .compact-card {
-    padding: 1.15rem;
+    padding: var(--spacing-md);
     border-radius: var(--radius-lg);
     background: var(--color-surface);
   }
@@ -353,26 +353,26 @@
 
   .signed-in-main .account-heading {
     align-items: center;
-    gap: 1rem;
-    padding-bottom: 1rem;
+    gap: var(--spacing-md);
+    padding-bottom: var(--spacing-md);
   }
 
   .signed-in-main .account-grid {
-    gap: 0.75rem;
-    margin-top: 1.25rem;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
   }
 
   .signed-in-main .module-grid {
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   .signed-in-main .account-list {
-    gap: 0.5rem;
-    margin-top: 1rem;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-md);
   }
 
   .signed-in-main .account-list li {
-    padding: 0.8rem 0.9rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border-radius: var(--radius-control);
   }
 
@@ -387,11 +387,11 @@
   }
 
   .signed-in-main .page-toolbar {
-    margin-bottom: 1rem;
+    margin-bottom: var(--spacing-md);
   }
 
   .signed-in-main .field {
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .signed-in-main .field label,
@@ -406,7 +406,7 @@
   .signed-in-main .search-field input,
   .signed-in-main .recovery-codes {
     min-height: 2.45rem;
-    padding: 0.55rem 0.7rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
     font-size: var(--font-size-md);
@@ -417,17 +417,17 @@
   }
 
   .signed-in-main .form-stack {
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .signed-in-main .form-grid,
   .signed-in-main .split-layout {
-    gap: 0.9rem;
+    gap: var(--spacing-sm);
   }
 
   .signed-in-main .notice {
-    margin: 0.75rem 0;
-    padding: 0.7rem 0.8rem;
+    margin: var(--spacing-sm) 0;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border-radius: var(--radius-control);
     font-size: var(--font-size-md);
   }
@@ -438,7 +438,7 @@
 
   .signed-in-main table th,
   .signed-in-main table td {
-    padding: 0.7rem 0.65rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
   }
 
   .signed-in-main .status-pill,
@@ -450,7 +450,7 @@
     width: min(40rem, calc(100% - 2rem));
     max-height: min(88vh, 48rem);
     border-radius: var(--radius-lg);
-    padding: 1.15rem;
+    padding: var(--spacing-md);
     background: var(--color-surface);
   }
 }

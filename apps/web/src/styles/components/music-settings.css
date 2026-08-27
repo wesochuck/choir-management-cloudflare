@@ -5,10 +5,10 @@
   .music-practice-settings,
   .music-library-genre-settings {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
     min-width: 0;
-    margin-top: 1.25rem;
-    padding: clamp(0.95rem, 2vw, 1.25rem);
+    margin-top: var(--spacing-lg);
+    padding: clamp(var(--spacing-md), 2vw, var(--spacing-lg));
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
@@ -17,7 +17,7 @@
   .music-publisher-settings legend,
   .music-practice-settings legend,
   .music-library-genre-settings legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     color: var(--color-text);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
@@ -27,7 +27,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .music-publisher-settings__form .field {
@@ -58,7 +58,7 @@
   .music-library-genre-settings__list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .music-library-genre-settings__empty {
@@ -73,7 +73,7 @@
      * button below the control row. Center against the field like the
      * publisher form does. */
     align-items: center;
-    gap: 0.9rem;
+    gap: var(--spacing-sm);
   }
 
   .music-library-genre-settings__add .field {
@@ -87,19 +87,19 @@
   .music-library-genre-settings__row {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .music-library-genre-settings__rename {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .music-library-genre-settings__rename input {
     width: 12rem;
     min-height: 2.2rem;
-    padding: 0.3rem 0.6rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
   }
   .music-publisher-search-link {
     white-space: nowrap;
@@ -109,14 +109,14 @@
   .music-library-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.15rem 0.35rem;
-    margin-bottom: 1.25rem;
+    gap: var(--spacing-3xs) var(--spacing-2xs);
+    margin-bottom: var(--spacing-lg);
     border-bottom: 1px solid var(--color-border);
   }
 
   .music-library-tabs a {
     min-height: 2.7rem;
-    padding: 0.65rem 0.75rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border-bottom: 2px solid transparent;
     color: var(--color-text-muted);
     font-weight: var(--font-weight-bold);
@@ -134,13 +134,13 @@
     display: flex;
     flex-wrap: wrap;
     align-items: end;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .music-credits__toolbar {
     display: flex;
     align-items: end;
-    margin-bottom: 1rem;
+    margin-bottom: var(--spacing-md);
   }
 
   .music-credits__toolbar .field {
@@ -169,8 +169,8 @@
     min-height: 2.45rem;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.55rem 0.7rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -212,9 +212,9 @@
     display: grid;
     width: min(24rem, calc(100vw - 2rem));
     max-height: min(32rem, calc(100dvh - 1.5rem));
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     overflow-y: auto;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -226,7 +226,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .music-genre-filter__header strong {
@@ -241,7 +241,7 @@
   }
 
   .music-genre-filter__mode button {
-    padding: 0.3rem 0.55rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
     border: 0;
     background: transparent;
     color: var(--color-text-muted);
@@ -261,7 +261,7 @@
 
   .music-genre-filter__panel > input {
     min-height: 2.65rem;
-    padding: 0.55rem 0.7rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -273,8 +273,8 @@
     min-height: 0;
     flex-wrap: wrap;
     align-content: flex-start;
-    gap: 0.45rem;
-    padding: 0.15rem 0;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-3xs) 0;
   }
 
   .music-genre-filter__empty,
@@ -285,7 +285,7 @@
 
   .music-genre-filter__footer .button {
     min-height: 2.25rem;
-    padding: 0.4rem 0.7rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-sm);
   }
 
@@ -299,8 +299,8 @@
     min-height: var(--control-height, 2.5rem);
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.3rem 0.65rem;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-2xs) var(--spacing-sm);
     border: 1px solid var(--color-success);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -319,7 +319,7 @@
     flex: 1;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.25rem;
+    gap: var(--spacing-3xs);
   }
 
   .music-genre-picker__placeholder {
@@ -345,9 +345,9 @@
     left: 0;
     display: grid;
     width: min(24rem, calc(100vw - 2rem));
-    gap: 0.65rem;
+    gap: var(--spacing-sm);
     overflow: hidden;
-    padding: 0.65rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -360,7 +360,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .music-genre-picker__header {
@@ -380,7 +380,7 @@
   .music-genre-picker__add input {
     width: 100%;
     min-height: 2.35rem;
-    padding: 0.5rem 0.65rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
@@ -399,8 +399,8 @@
     min-height: 2rem;
     flex-wrap: wrap;
     align-content: flex-start;
-    gap: 0.4rem;
-    padding-block: 0.1rem;
+    gap: var(--spacing-xs);
+    padding-block: var(--spacing-3xs);
   }
 
   .music-genre-picker__empty {
@@ -409,21 +409,21 @@
   }
 
   .music-genre-picker__add {
-    padding-top: 0.55rem;
+    padding-top: var(--spacing-xs);
     border-top: 1px solid var(--color-border);
   }
 
   .music-genre-picker__add .button,
   .music-genre-picker__footer .button {
     min-height: 2.25rem;
-    padding: 0.4rem 0.75rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-sm);
     white-space: nowrap;
   }
 
   .music-genre-picker__footer {
     justify-content: flex-end;
-    padding-top: 0.55rem;
+    padding-top: var(--spacing-xs);
     border-top: 1px solid var(--color-border);
   }
 
@@ -432,14 +432,14 @@
   .music-genre-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .music-genre-chip {
     display: inline-flex;
     align-items: center;
     min-height: 1.6rem;
-    padding: 0.2rem 0.55rem;
+    padding: var(--spacing-3xs) var(--spacing-xs);
     border: 1px solid color-mix(in srgb, var(--genre-chip-color) 45%, var(--color-border));
     border-radius: 999px;
     background: color-mix(in srgb, var(--genre-chip-color) 14%, var(--color-surface));
@@ -454,7 +454,7 @@
     display: inline-grid;
     width: 1rem;
     height: 1rem;
-    margin: -0.05rem -0.25rem -0.05rem 0.15rem;
+    margin: -var(--spacing-3xs) -var(--spacing-3xs) -var(--spacing-3xs) var(--spacing-3xs);
     place-items: center;
     padding: 0;
     border: 0;
@@ -468,8 +468,8 @@
 
   .music-genre-chip__count {
     min-width: 1.15rem;
-    margin-left: 0.35rem;
-    padding: 0.08rem 0.3rem;
+    margin-left: var(--spacing-2xs);
+    padding: var(--spacing-3xs) var(--spacing-2xs);
     border-radius: 999px;
     background: color-mix(in srgb, currentColor 16%, transparent);
     text-align: center;
@@ -595,7 +595,7 @@
   /* Catalog table and bulk edit */
 
   .music-catalog-table {
-    margin-top: 1rem;
+    margin-top: var(--spacing-md);
   }
 
   .music-catalog-table .data-table th:first-child,
@@ -615,15 +615,15 @@
 
   .music-bulk-edit-fields {
     display: grid;
-    gap: 0.85rem;
+    gap: var(--spacing-sm);
     margin: 0;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
   }
 
   .music-bulk-edit-fields legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     font-weight: var(--font-weight-extrabold);
   }
 
@@ -631,13 +631,13 @@
     display: grid;
     grid-template-columns: minmax(10rem, 0.45fr) minmax(0, 1fr);
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .music-bulk-edit-section-options {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem 0.75rem;
+    gap: var(--spacing-xs) var(--spacing-sm);
   }
 
   .music-catalog-table .data-table {
@@ -647,7 +647,7 @@
   .music-table-title {
     display: grid;
     min-width: 12rem;
-    gap: 0.2rem;
+    gap: var(--spacing-3xs);
   }
 
   .music-table-title small {
@@ -659,7 +659,7 @@
     grid-template-columns: minmax(12rem, 1fr) auto;
     min-width: 16rem;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .music-table-track-player .music-audio-track__player {
@@ -668,7 +668,7 @@
 
   .music-table-track-player > .text-button {
     min-width: 1.75rem;
-    padding: 0.2rem 0.35rem;
+    padding: var(--spacing-3xs) var(--spacing-2xs);
     font-size: var(--font-size-lg);
   }
 
@@ -684,39 +684,39 @@
   }
 
   .csv-import-warnings p {
-    margin-bottom: 0.65rem;
+    margin-bottom: var(--spacing-sm);
   }
 
   .csv-import-warnings ul {
     display: grid;
-    gap: 0.45rem;
-    margin: 0 0 0.8rem;
+    gap: var(--spacing-xs);
+    margin: 0 0 var(--spacing-sm);
     padding: 0;
     list-style: none;
   }
 
   .csv-import-warnings .checkbox-row {
     align-items: flex-start;
-    gap: 0.55rem;
+    gap: var(--spacing-xs);
     font-size: var(--font-size-md);
   }
 
   .csv-import-warnings small {
     display: block;
-    margin-top: 0.55rem;
+    margin-top: var(--spacing-xs);
   }
 
   .csv-import-mappings {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     margin: 0;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
   }
 
   .csv-import-mappings legend {
-    padding-inline: 0.35rem;
+    padding-inline: var(--spacing-2xs);
     font-weight: var(--font-weight-bold);
   }
 
@@ -726,14 +726,14 @@
 
   .csv-import-mappings__list {
     display: grid;
-    gap: 0.55rem;
+    gap: var(--spacing-xs);
   }
 
   .csv-import-mapping {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(12rem, 1fr);
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .csv-import-mapping > span {

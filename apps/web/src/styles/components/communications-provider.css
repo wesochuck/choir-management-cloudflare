@@ -5,13 +5,13 @@
   .communication-sender-details {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-    margin: 1.25rem 0;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-lg) 0;
   }
 
   .communication-sender-details > div {
     min-width: 0;
-    padding: 0.8rem 0.9rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-muted);
@@ -26,15 +26,15 @@
   }
 
   .communication-sender-details dd {
-    margin: 0.35rem 0 0;
+    margin: var(--spacing-2xs) 0 0;
     overflow-wrap: anywhere;
   }
 
   .communication-sender-setup {
     display: grid;
-    gap: 0.65rem;
-    margin: 1rem 0;
-    padding: 0.9rem;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-muted);
@@ -51,14 +51,14 @@
 
   .communication-sender-setup dl {
     display: grid;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
     margin: 0;
   }
 
   .communication-sender-setup dl > div {
     display: grid;
     grid-template-columns: minmax(6rem, 0.35fr) minmax(0, 1fr);
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     align-items: baseline;
   }
 
@@ -76,7 +76,7 @@
 
   .provider-status-card {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .provider-status-card .section-heading,
@@ -87,22 +87,22 @@
   .provider-status-card__meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem 1rem;
+    gap: var(--spacing-xs) var(--spacing-md);
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
 
   .provider-status-card__rows {
     display: grid;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .provider-status-card__row {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.8rem 0.9rem;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -114,34 +114,34 @@
 
   .provider-status-card__row p {
     max-width: 58rem;
-    margin: 0.2rem 0 0;
+    margin: var(--spacing-3xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
     line-height: var(--line-height-normal);
   }
 
   .provider-status-card__connect {
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
   }
 
   .provider-status-card__connect h3 {
-    margin: 0.15rem 0 0.35rem;
+    margin: var(--spacing-3xs) 0 var(--spacing-2xs);
     font-size: var(--font-size-body);
   }
 
   .provider-status-card__connect p:not(.eyebrow):not(.field-help):not(.notice) {
     max-width: 68rem;
-    margin: 0 0 0.65rem;
+    margin: 0 0 var(--spacing-sm);
     color: var(--color-text-muted);
     line-height: var(--line-height-normal);
   }
 
   .provider-status-card__guide,
   .platform-setup-guide {
-    padding: 0.85rem 0.95rem;
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -157,14 +157,14 @@
   .provider-status-card__guide > div,
   .platform-setup-guide > div {
     max-width: 68rem;
-    margin-top: 0.85rem;
+    margin-top: var(--spacing-sm);
     color: var(--color-text-muted);
     line-height: var(--line-height-relaxed);
   }
 
   .provider-status-card__guide h3,
   .platform-setup-guide h3 {
-    margin: 1rem 0 0.3rem;
+    margin: var(--spacing-md) 0 var(--spacing-2xs);
     color: var(--color-text);
     font-size: var(--font-size-body);
   }
@@ -172,12 +172,12 @@
   .provider-status-card__guide ol,
   .platform-setup-guide ol {
     margin: 0;
-    padding-left: 1.25rem;
+    padding-left: var(--spacing-lg);
   }
 
   .provider-status-card__guide code,
   .platform-setup-guide code {
-    padding: 0.08rem 0.25rem;
+    padding: var(--spacing-3xs) var(--spacing-3xs);
     border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--color-primary) 12%, transparent);
     color: var(--color-text);
@@ -188,13 +188,13 @@
 
   .communication-preview dl {
     display: grid;
-    gap: 0.6rem;
-    margin: 0 0 1rem;
+    gap: var(--spacing-xs);
+    margin: 0 0 var(--spacing-md);
   }
 
   .communication-preview dl > div {
     display: grid;
-    gap: 0.2rem;
+    gap: var(--spacing-3xs);
   }
 
   .communication-preview dt {
@@ -211,7 +211,7 @@
   .communication-preview__message {
     max-height: 18rem;
     overflow: auto;
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -221,8 +221,8 @@
   .communication-stepper {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6rem;
-    margin: 0 0 1.25rem;
+    gap: var(--spacing-xs);
+    margin: 0 0 var(--spacing-lg);
     padding: 0;
     list-style: none;
     color: var(--color-text-muted);
@@ -231,8 +231,8 @@
   .communication-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.2rem;
-    margin: 1rem 0 1.35rem;
+    gap: var(--spacing-3xs);
+    margin: var(--spacing-md) 0 var(--spacing-lg);
     border-bottom: 1px solid var(--color-border);
   }
 
@@ -240,8 +240,8 @@
     display: inline-flex;
     min-height: 2.7rem;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.55rem 0.8rem;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 0;
     border-bottom: 2px solid transparent;
     background: transparent;
@@ -263,7 +263,7 @@
     min-width: 1.25rem;
     min-height: 1.25rem;
     place-items: center;
-    padding-inline: 0.25rem;
+    padding-inline: var(--spacing-3xs);
     border-radius: 999px;
     background: var(--color-info-surface);
     color: var(--color-text);
@@ -288,17 +288,17 @@
   }
 
   .communication-center__provider-warning {
-    margin-top: -0.35rem;
+    margin-top: -var(--spacing-2xs);
   }
 
   .communication-tab-panel {
     display: grid;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .communication-template-help {
     max-width: 52rem;
-    margin: -0.35rem 0 0;
+    margin: -var(--spacing-2xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-base);
     line-height: var(--line-height-relaxed);
@@ -310,7 +310,7 @@
 
   .communication-template-editor__intro {
     max-width: 52rem;
-    margin: -0.25rem 0 0;
+    margin: -var(--spacing-3xs) 0 0;
   }
 
   .communication-template-editor-save-bar {
@@ -320,9 +320,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin-top: 1.25rem;
-    padding: 0.75rem;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-accent);
     border-radius: var(--radius-card);
     background: color-mix(in srgb, var(--color-surface-raised) 96%, transparent);
@@ -343,8 +343,8 @@
   .communication-template-filters {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-    gap: 0.75rem;
-    padding: 0.9rem;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-muted);
@@ -359,7 +359,7 @@
     flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 0.65rem;
+    gap: var(--spacing-sm);
   }
 
   .communication-template-filter-summary {
@@ -370,7 +370,7 @@
 
   .communication-history-group {
     display: grid;
-    gap: 0.5rem;
+    gap: var(--spacing-xs);
   }
 
   .communication-history-group h3 {
@@ -379,21 +379,21 @@
   }
 
   .communication-history-group .account-list {
-    margin-top: 0.25rem;
+    margin-top: var(--spacing-3xs);
   }
 
   .communication-history-entry {
     display: grid;
     width: 100%;
     min-width: 0;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .communication-history-entry__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
     min-width: 0;
   }
 
@@ -412,9 +412,9 @@
 
   .communication-delivery-recipients {
     display: grid;
-    gap: 0.65rem;
-    margin-top: 0.85rem;
-    padding-top: 0.75rem;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
     border-top: 1px solid var(--color-border);
   }
 
@@ -425,7 +425,7 @@
 
   .communication-delivery-recipients__list {
     display: grid;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
     max-height: 18rem;
     margin: 0;
     padding: 0;
@@ -437,8 +437,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.65rem 0.75rem;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -449,7 +449,7 @@
   }
 
   .communication-delivery-recipients__item p {
-    margin: 0.15rem 0 0;
+    margin: var(--spacing-3xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
@@ -470,7 +470,7 @@
     display: flex;
     align-items: start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .communication-tab-panel__heading h2 {
@@ -479,7 +479,7 @@
   }
 
   .communication-tab-panel__heading p {
-    margin: 0.35rem 0 0;
+    margin: var(--spacing-2xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
@@ -487,9 +487,9 @@
   .communication-queued-result {
     display: grid;
     max-width: 42rem;
-    gap: 1.25rem;
-    margin: 1.5rem auto 0;
-    padding: 1.5rem;
+    gap: var(--spacing-lg);
+    margin: var(--spacing-xl) auto 0;
+    padding: var(--spacing-xl);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -497,7 +497,7 @@
 
   .communication-queued-result__heading {
     display: grid;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .communication-queued-result__heading h2,
@@ -515,14 +515,14 @@
 
   .communication-queued-result__details {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     margin: 0;
   }
 
   .communication-queued-result__details > div {
     display: grid;
     grid-template-columns: minmax(7rem, 0.35fr) minmax(0, 1fr);
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     align-items: baseline;
   }
 
@@ -541,13 +541,13 @@
   .communication-stepper li {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-bold);
   }
 
   .communication-stepper li + li::before {
-    margin-right: 0.1rem;
+    margin-right: var(--spacing-3xs);
     color: var(--color-text-muted);
     content: "→";
   }
@@ -581,7 +581,7 @@
   .communication-composer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .communication-composer__tabs {
@@ -593,7 +593,7 @@
 
   .communication-composer__tabs button {
     min-height: 2.5rem;
-    padding: 0.55rem 0.9rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 0;
     border-bottom: 2px solid transparent;
     border-radius: 0;
@@ -622,7 +622,7 @@
 
   .communication-composer__toolbar button {
     min-height: 2.25rem;
-    padding: 0.4rem 0.7rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid transparent;
     border-radius: var(--radius-control);
     background: transparent;
@@ -639,7 +639,7 @@
     display: flex;
     flex-wrap: wrap;
     grid-column: 1;
-    gap: 0.35rem;
+    gap: var(--spacing-2xs);
   }
 
   .communication-composer__textarea,
@@ -647,7 +647,7 @@
     grid-column: 1;
     min-height: 20rem;
     width: 100%;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -670,7 +670,7 @@
   }
 
   .communication-composer__preview code {
-    padding: 0.1rem 0.25rem;
+    padding: var(--spacing-3xs) var(--spacing-3xs);
     border-radius: var(--radius-sm);
     background: var(--color-background);
   }
@@ -686,7 +686,7 @@
     grid-column: 2;
     grid-row: 2 / span 3;
     align-self: start;
-    padding: 0.85rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-background);
@@ -694,17 +694,17 @@
 
   .communication-placeholders__list {
     display: grid;
-    gap: 0.45rem;
-    margin-top: 0.75rem;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
   }
 
   .communication-placeholders__group {
     display: grid;
-    gap: 0.4rem;
+    gap: var(--spacing-xs);
   }
 
   .communication-placeholders__group + .communication-placeholders__group {
-    margin-top: 0.35rem;
+    margin-top: var(--spacing-2xs);
   }
 
   .communication-placeholders__group h4 {
@@ -717,14 +717,14 @@
 
   .communication-placeholders__group-list {
     display: grid;
-    gap: 0.45rem;
+    gap: var(--spacing-xs);
   }
 
   .communication-placeholder {
     display: grid;
-    gap: 0.15rem;
+    gap: var(--spacing-3xs);
     width: 100%;
-    padding: 0.5rem;
+    padding: var(--spacing-xs);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);
@@ -748,7 +748,7 @@
   }
 
   .communication-placeholders__event-help {
-    margin-top: 0.75rem;
+    margin-top: var(--spacing-sm);
   }
 
   .communication-placeholders__event-help .field-help {
@@ -757,7 +757,7 @@
 
   .communication-placeholders__event-help .text-button {
     display: block;
-    margin-top: 0.35rem;
+    margin-top: var(--spacing-2xs);
     padding-left: 0;
     text-align: left;
   }

@@ -55,12 +55,12 @@ export function useMusicCatalogController({
     setPieces: data.setPieces,
   });
   const openedInitialPieceIdRef = useRef<string | null>(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- editor.set* stable, editor object unstable
   const selectPiece = useCallback(
     (selected: OrganizationMusicPiece): void => {
       editor.setEditorPiece(selected);
       editor.setDialogOpen(true);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- editor.set* stable, editor object unstable
     [editor.setDialogOpen, editor.setEditorPiece],
   );
   useEffect(() => {

@@ -10,7 +10,7 @@
   .profile-facts {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
   }
 
   .profile-photo {
@@ -42,17 +42,17 @@
 
   .profile-photo-controls {
     border-bottom: 1px solid var(--color-border);
-    padding-block: 1rem;
+    padding-block: var(--spacing-md);
   }
 
   .profile-photo-controls__heading {
     display: flex;
     align-items: center;
-    gap: 0.9rem;
+    gap: var(--spacing-sm);
   }
 
   .profile-photo-controls__heading .field-help {
-    margin: 0.25rem 0 0;
+    margin: var(--spacing-3xs) 0 0;
   }
 
   .profile-photo-camera {
@@ -61,7 +61,7 @@
     inset: 0;
     display: grid;
     place-items: center;
-    padding: 1rem;
+    padding: var(--spacing-md);
     background: rgb(0 0 0 / 68%);
   }
 
@@ -69,9 +69,9 @@
     display: grid;
     width: min(32rem, 100%);
     max-height: calc(100dvh - 2rem);
-    gap: 1rem;
+    gap: var(--spacing-md);
     overflow-y: auto;
-    padding: clamp(1rem, 4vw, 1.5rem);
+    padding: clamp(var(--spacing-md), 4vw, var(--spacing-xl));
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -82,11 +82,11 @@
     display: flex;
     align-items: start;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .profile-photo-camera__header h2 {
-    margin: 0.2rem 0 0;
+    margin: var(--spacing-3xs) 0 0;
   }
 
   .profile-photo-camera__preview {
@@ -101,7 +101,7 @@
 
   .profile-facts p {
     margin: 0;
-    padding: 0.75rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -109,14 +109,14 @@
 
   .roster-profile-tabs {
     display: flex;
-    gap: 0.25rem;
-    margin-bottom: 1rem;
+    gap: var(--spacing-3xs);
+    margin-bottom: var(--spacing-md);
     border-bottom: 1px solid var(--color-border);
   }
 
   .roster-profile-tabs button {
     min-height: 2.5rem;
-    padding: 0.55rem 0.8rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 0;
     border-bottom: 2px solid transparent;
     background: transparent;
@@ -140,11 +140,11 @@
 
   .profile-performance-history {
     display: grid;
-    gap: 1.25rem;
+    gap: var(--spacing-lg);
   }
 
   .profile-performance-history__heading {
-    margin-bottom: 0.55rem;
+    margin-bottom: var(--spacing-xs);
   }
 
   .profile-performance-history__heading h3 {
@@ -157,12 +157,12 @@
 
   .profile-performance-history__list {
     display: grid;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .profile-performance-history__empty {
     margin: 0;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
@@ -173,9 +173,9 @@
     grid-template-columns:
       minmax(5.5rem, 0.75fr) minmax(10rem, 1.45fr) minmax(6.5rem, 0.75fr)
       minmax(7rem, 0.9fr);
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     align-items: center;
-    padding: 0.8rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -185,7 +185,7 @@
   .profile-performance-card__event,
   .profile-performance-card__status {
     display: grid;
-    gap: 0.2rem;
+    gap: var(--spacing-3xs);
     min-width: 0;
   }
 
@@ -226,14 +226,14 @@
 
   .profile-dues-history {
     display: grid;
-    gap: 0.9rem;
+    gap: var(--spacing-sm);
   }
 
   .profile-dues-history__heading {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .profile-dues-history__heading h3 {
@@ -242,12 +242,12 @@
   }
 
   .profile-dues-history__heading .eyebrow {
-    margin-bottom: 0.25rem;
+    margin-bottom: var(--spacing-3xs);
   }
 
   .profile-dues-history__empty {
     margin: 0;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
@@ -255,7 +255,7 @@
 
   .profile-dues-history__list {
     display: grid;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .profile-dues-row {
@@ -263,10 +263,10 @@
     grid-template-columns:
       minmax(9rem, 1.5fr) minmax(4.5rem, 0.75fr) minmax(6rem, 0.9fr) minmax(5.5rem, 0.9fr)
       minmax(0, auto);
-    column-gap: 1rem;
-    row-gap: 0.4rem;
+    column-gap: var(--spacing-md);
+    row-gap: var(--spacing-xs);
     align-items: center;
-    padding: 0.8rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -277,7 +277,7 @@
   .profile-dues-row__status,
   .profile-dues-row__paid {
     display: grid;
-    gap: 0.2rem;
+    gap: var(--spacing-3xs);
     min-width: 0;
   }
 
@@ -304,14 +304,14 @@
 
   .profile-folder-numbers {
     display: grid;
-    gap: 0.9rem;
+    gap: var(--spacing-sm);
   }
 
   .profile-folder-numbers__heading {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--spacing-md);
   }
 
   .profile-folder-numbers__heading h3 {
@@ -320,12 +320,12 @@
   }
 
   .profile-folder-numbers__heading .eyebrow {
-    margin-bottom: 0.25rem;
+    margin-bottom: var(--spacing-3xs);
   }
 
   .profile-folder-numbers__empty {
     margin: 0;
-    padding: 0.9rem;
+    padding: var(--spacing-sm);
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
@@ -333,7 +333,7 @@
 
   .profile-folder-numbers__list {
     display: grid;
-    gap: 0.6rem;
+    gap: var(--spacing-xs);
   }
 
   .profile-folder-row {
@@ -342,9 +342,9 @@
         4.5rem,
         0.45fr
       );
-    gap: 0.75rem;
+    gap: var(--spacing-sm);
     align-items: center;
-    padding: 0.8rem;
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -354,7 +354,7 @@
   .profile-folder-row__number {
     display: grid;
     min-width: 0;
-    gap: 0.2rem;
+    gap: var(--spacing-3xs);
   }
 
   .profile-folder-row__event strong {
@@ -397,22 +397,22 @@
   .directory-filters {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
-    gap: 1rem;
-    margin-top: 1rem;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
   }
 
   .directory-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
-    margin: 1.25rem 0 0;
+    gap: var(--spacing-md);
+    margin: var(--spacing-lg) 0 0;
     padding: 0;
     list-style: none;
   }
 
   .directory-grid li {
     min-width: 0;
-    padding: 1rem;
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
@@ -423,7 +423,7 @@
   }
 
   .directory-grid h3 {
-    margin: 0.65rem 0 0;
+    margin: var(--spacing-sm) 0 0;
   }
 }
 
@@ -461,13 +461,13 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--spacing-sm);
 }
 
 .profile-delivery-row__meta {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: var(--spacing-3xs);
   min-width: 0;
 }
 
