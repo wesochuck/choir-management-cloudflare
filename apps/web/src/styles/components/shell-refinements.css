@@ -171,7 +171,7 @@
     min-height: 1.75rem;
     align-items: center;
     gap: var(--spacing-xs);
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .signed-in-main label:has(> input[type="checkbox"]) > input,
@@ -182,6 +182,12 @@
     min-height: 1rem;
     flex: 0 0 1rem;
     margin: 0;
+  }
+  .signed-in-main label.flex:has(> input[type="radio"]) {
+    align-items: flex-start;
+  }
+  .signed-in-main label:has(> input[type="radio"]) > div {
+    min-width: 0;
   }
 
   /* Keep the set-list visibility checkbox aligned with its heading, not centered
