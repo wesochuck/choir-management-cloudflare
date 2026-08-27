@@ -173,12 +173,17 @@ function musicHeaderIndexes(headers: readonly string[]): MusicHeaderIndexes {
 }
 
 export function musicCsvColumnForHeader(header: string): string | null {
-  const normalized = header.trim().toLowerCase();
+  const normalized = header.trim().toLowerCase().replace(/\s+/g, " ");
   if (["title"].includes(normalized)) return "Title";
-  if (["composer"].includes(normalized)) return "Composer";
+  if (["composer", "composer / arranger", "composer/arranger"].includes(normalized)) {
+    return "Composer";
+  }
   if (["arranger"].includes(normalized)) return "Arranger";
-  if (["copies", "copy count"].includes(normalized)) return "Copies";
-  if (["catalog id", "catalog", "id"].includes(normalized)) return "Catalog ID";
+  if (["copies", "copy count", "approx copies", "approx. copies"].includes(normalized)) {
+    return "Copies";
+  }
+  if (["catalog id", "catalog", "id", "catalog number", "catalog no"].includes(normalized))
+    return "Catalog ID";
   if (["duration", "length", "time"].includes(normalized)) return "Duration";
   if (["voicing"].includes(normalized)) return "Voicing";
   if (["applies to", "sections"].includes(normalized)) return "Applies To";

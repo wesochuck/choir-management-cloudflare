@@ -4,6 +4,7 @@ import {
   inspectMusicCsv,
   mapMusicCsvColumns,
   MusicCsvError,
+  musicCsvColumnForHeader,
   musicCsvHeader,
   parseMusicCsv,
   renderMusicCsv,
@@ -70,6 +71,37 @@ describe("music CSV", () => {
         title: "All Choir",
       },
     ]);
+  });
+
+  it("maps the legacy Christmas catalog headers", () => {
+    const csv = [
+      "Title,Composer / Arranger,Publisher,Catalog Number,Approx Copies,Last Performed,Sorting Title",
+      '"Candle, Shine Your Light",Crane,Shawnee Press,01134816,40,2023,"candle, shine your light"',
+    ].join("\n");
+    const inspection = inspectMusicCsv(csv);
+    const mappings = inspection.headers.map((header, sourceIndex) => ({
+      sourceIndex,
+      targetHeader: musicCsvColumnForHeader(header),
+    }));
+
+    expect(mappings.map(({ targetHeader }) => targetHeader)).toEqual([
+      "Title",
+      "Composer",
+      null,
+      "Catalog ID",
+      "Copies",
+      null,
+      null,
+    ]);
+    expect(parseMusicCsv(mapMusicCsvColumns(csv, mappings))).toEqual([
+      expect.objectContaining({
+        catalogId: "01134816",
+        composer: "Crane",
+        copies: 40,
+        title: "Candle, Shine Your Light",
+      }),
+    ]);
+    expect(musicCsvColumnForHeader("Catalog No")).toBe("Catalog ID");
   });
 
   it("rejects the whole file on invalid bounded values", () => {
