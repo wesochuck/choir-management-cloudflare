@@ -4,7 +4,7 @@ import type {
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
-import { useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
   AuthApiError,
   deletePrivateOrganizationFile,
@@ -264,6 +264,14 @@ export function MusicDeleteControls({
   readonly onUnlinkChildren: (enabled: boolean) => void;
   readonly unlinkChildren: boolean;
 }) {
+  const confirmRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (deleteConfirm) {
+      confirmRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [deleteConfirm]);
+
   return (
     <>
       <div className="form-actions music-piece-form__actions">
@@ -289,7 +297,13 @@ export function MusicDeleteControls({
         ) : null}
       </div>
       {deleteConfirm ? (
-        <div className="danger-confirmation" role="group" aria-label="Confirm music deletion">
+        <div
+          ref={confirmRef}
+          tabIndex={-1}
+          className="danger-confirmation"
+          role="group"
+          aria-label="Confirm music deletion"
+        >
           <p>This cannot be undone. Referenced set-list pieces cannot be deleted.</p>
           {childCount > 0 ? (
             <label className="checkbox-row">

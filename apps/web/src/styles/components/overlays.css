@@ -453,4 +453,9 @@
       transform: none;
     }
   }
+  body:has([role="dialog"]) .floating-save-bar,
+  body:has(dialog[open]) .floating-save-bar,
+  html:has([role="dialog"]) .floating-save-bar {
+    display: none;
+  }
 }
