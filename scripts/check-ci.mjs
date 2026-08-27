@@ -27,6 +27,7 @@ const steps = [
   },
   { job: "static", label: "Check formatting", command: "npm", args: ["run", "format:check"] },
   { job: "static", label: "Lint", command: "npm", args: ["run", "lint"] },
+  { job: "static", label: "Check spacing tokens", command: "npm", args: ["run", "check:spacing"] },
   { job: "contracts", label: "Typecheck", command: "npm", args: ["run", "typecheck"] },
   {
     job: "contracts",
