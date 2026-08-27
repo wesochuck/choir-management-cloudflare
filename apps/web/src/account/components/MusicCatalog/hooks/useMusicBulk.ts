@@ -7,6 +7,7 @@ import type {
 import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   AuthApiError,
+  bulkDeleteOrganizationMusicPieces,
   bulkUpdateOrganizationMusicPieces,
   createOrganizationEvent,
   listOrganizationMusic,
@@ -76,6 +77,42 @@ export function useMusicBulk({
       setBulkError(
         caught instanceof AuthApiError ? caught.message : "The music pieces could not be updated.",
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function applyBulkDelete(unlinkChildren: boolean): Promise<void> {
+    if (selectedPieces.length === 0) return;
+    setBusy(true);
+    setBulkError(null);
+    setError(null);
+    setMessage(null);
+    try {
+      const deletedIds = await bulkDeleteOrganizationMusicPieces({
+        pieceIds: selectedPieces.map(({ id }) => id),
+        unlinkChildren,
+      });
+      const deletedSet = new Set(deletedIds);
+      setPieces((current) => current.filter((candidate) => !deletedSet.has(candidate.id)));
+      setSelectedPieceIds([]);
+      setBulkDialogOpen(false);
+      setMessage(`${String(deletedIds.length)} music piece(s) deleted.`);
+    } catch (caught: unknown) {
+      if (caught instanceof AuthApiError) {
+        if (caught.code === "music_piece_in_set_list") {
+          setBulkError(
+            "One or more selected pieces is referenced by a concert set list and cannot be deleted.",
+          );
+        } else if (caught.code === "music_piece_has_movements") {
+          setBulkError(
+            "One or more selected pieces has movements. Enable “Keep movements as top-level works” to delete.",
+          );
+        } else {
+          setBulkError(caught.message);
+        }
+      } else {
+        setBulkError("The music pieces could not be deleted.");
+      }
     } finally {
       setBusy(false);
     }
@@ -190,6 +227,7 @@ export function useMusicBulk({
   return {
     addSelectedPiecesToSetList,
     applyBulkChanges,
+    applyBulkDelete,
     bulkDialogOpen,
     bulkError,
     closeBulkDialog,

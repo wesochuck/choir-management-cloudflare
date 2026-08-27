@@ -1,11 +1,13 @@
 import { problemDetailsSchema } from "@choir/contracts";
 
 export class AuthApiError extends Error {
+  readonly code: string;
   readonly status: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code: string) {
     super(message);
     this.name = "AuthApiError";
+    this.code = code;
     this.status = status;
   }
 }
@@ -16,6 +18,7 @@ export async function responseError(response: Response): Promise<AuthApiError> {
   return new AuthApiError(
     problem.success ? problem.data.message : "The account service could not complete the request.",
     response.status,
+    problem.success ? problem.data.code : "unknown",
   );
 }
 

@@ -133,6 +133,21 @@ export const organizationMusicBulkUpdateRequestSchema = z
   })
   .strict();
 
+export const organizationMusicBulkDeleteRequestSchema = z
+  .object({
+    pieceIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(500)
+      .superRefine((ids, context) => {
+        if (new Set(ids).size !== ids.length) {
+          context.addIssue({ code: "custom", message: "Music piece IDs must be unique." });
+        }
+      }),
+    unlinkChildren: z.boolean().optional().default(false),
+  })
+  .strict();
+
 export const organizationMusicCreditRenameRequestSchema = z
   .object({
     currentName: z.string().trim().min(1).max(300),
@@ -205,6 +220,11 @@ export const organizationMusicPieceDeleteResponseSchema = z.object({
   status: z.literal("deleted"),
 });
 
+export const organizationMusicBulkDeleteResponseSchema = z.object({
+  deletedIds: z.array(z.uuid()).max(500),
+  requestId: requestIdSchema,
+});
+
 export const organizationMusicImportResponseSchema = z.object({
   imported: z.number().int().min(0).max(500),
   requestId: requestIdSchema,
@@ -213,6 +233,9 @@ export const organizationMusicImportResponseSchema = z.object({
 export type OrganizationMusicPieceRequest = z.infer<typeof organizationMusicPieceRequestSchema>;
 export type OrganizationMusicBulkUpdateRequest = z.infer<
   typeof organizationMusicBulkUpdateRequestSchema
+>;
+export type OrganizationMusicBulkDeleteRequest = z.infer<
+  typeof organizationMusicBulkDeleteRequestSchema
 >;
 export type OrganizationMusicCreditRenameRequest = z.infer<
   typeof organizationMusicCreditRenameRequestSchema
@@ -224,4 +247,7 @@ export type OrganizationMusicGenreDeleteRequest = z.infer<
   typeof organizationMusicGenreDeleteRequestSchema
 >;
 export type OrganizationMusicPiece = z.infer<typeof organizationMusicPieceSchema>;
+export type OrganizationMusicBulkDeleteResponse = z.infer<
+  typeof organizationMusicBulkDeleteResponseSchema
+>;
 export type OrganizationMusicImportResponse = z.infer<typeof organizationMusicImportResponseSchema>;

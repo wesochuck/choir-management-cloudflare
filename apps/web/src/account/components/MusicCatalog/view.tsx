@@ -27,6 +27,7 @@ export function MusicCatalogView({
   const {
     addSelectedPiecesToSetList,
     applyBulkChanges,
+    applyBulkDelete,
     availableGenres,
     beginNew,
     bulkDialogOpen,
@@ -603,10 +604,15 @@ export function MusicCatalogView({
             onApply={(changes) => {
               void applyBulkChanges(changes);
             }}
+            onBulkDelete={(unlink) => {
+              void applyBulkDelete(unlink);
+            }}
             onClose={closeBulkDialog}
             open={bulkDialogOpen}
             personNameOptions={personNameOptions}
+            pieces={pieces}
             selectedCount={selectedPieces.length}
+            selectedPieceIds={selectedPieceIds}
             key={bulkDialogOpen ? "open" : "closed"}
           />
           <AddToSetListDialog

@@ -1,5 +1,6 @@
 import {
   organizationEventSchema,
+  organizationMusicBulkDeleteResponseSchema,
   organizationMusicGenreMutationResponseSchema,
   organizationMusicImportResponseSchema,
   organizationMusicLibrarySettingsResponseSchema,
@@ -934,5 +935,262 @@ describe("Organization music catalog", () => {
       "music.piece.created",
       "music.piece.updated",
     ]);
+  });
+  it("bulk deletes music pieces atomically with movement and set-list guards and audit", async () => {
+    const cookie = await signIn();
+
+    // Setup: parent with movement, two standalones, one referenced, one bravo-isolated
+    const parent = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Bulk Parent",
+        })
+      ).json(),
+    );
+    const movement = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          parentId: parent.id,
+          title: "Bulk Movement",
+        })
+      ).json(),
+    );
+    const standaloneA = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Bulk Standalone A",
+        })
+      ).json(),
+    );
+    const standaloneB = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Bulk Standalone B",
+        })
+      ).json(),
+    );
+    const referenced = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Bulk Referenced",
+        })
+      ).json(),
+    );
+    const bravoPiece = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("bravo.localhost", "/api/organization/music", cookie, {
+          title: "Bravo Isolated",
+        })
+      ).json(),
+    );
+    const event = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          setList: [{ id: "set-item-bulk", pieceId: referenced.id, title: referenced.title }],
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          title: "Bulk Concert",
+          type: "Performance",
+          rsvpDeadlineDate: "2030-01-01",
+        })
+      ).json(),
+    );
+    expect(event.setList[0]?.pieceId).toBe(referenced.id);
+
+    const countPieces = async (): Promise<number> =>
+      organizationMusicPiecesResponseSchema.parse(
+        await (
+          await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+        ).json(),
+      ).pieces.length;
+
+    // 400: validation - empty, duplicate, missing
+    expect(
+      await write("alpha.localhost", "/api/organization/music/bulk-delete", cookie, {
+        pieceIds: [],
+      }),
+    ).toMatchObject({ status: 400 });
+    expect(
+      await write("alpha.localhost", "/api/organization/music/bulk-delete", cookie, {
+        pieceIds: [standaloneA.id, standaloneA.id],
+      }),
+    ).toMatchObject({ status: 400 });
+    expect(
+      await write("alpha.localhost", "/api/organization/music/bulk-delete", cookie, {}),
+    ).toMatchObject({ status: 400 });
+
+    // 404: one id not found - atomic, none deleted
+    const missingId = crypto.randomUUID();
+    const notFound = await write("alpha.localhost", "/api/organization/music/bulk-delete", cookie, {
+      pieceIds: [standaloneA.id, missingId],
+    });
+    expect(notFound).toMatchObject({ status: 404 });
+    await expect(notFound.json()).resolves.toMatchObject({ code: "music_piece_not_found" });
+    expect(await countPieces()).toBe(5);
+
+    // 404: cross-tenant - bravo piece not found from alpha store
+    const crossTenant = await write(
+      "alpha.localhost",
+      "/api/organization/music/bulk-delete",
+      cookie,
+      {
+        pieceIds: [bravoPiece.id],
+      },
+    );
+    expect(crossTenant).toMatchObject({ status: 404 });
+    await expect(crossTenant.json()).resolves.toMatchObject({ code: "music_piece_not_found" });
+
+    // 409: set-list guard - any piece referenced blocks whole batch
+    const setListBlocked = await write(
+      "alpha.localhost",
+      "/api/organization/music/bulk-delete",
+      cookie,
+      { pieceIds: [standaloneA.id, referenced.id] },
+    );
+    expect(setListBlocked).toMatchObject({ status: 409 });
+    await expect(setListBlocked.json()).resolves.toMatchObject({ code: "music_piece_in_set_list" });
+    expect(await countPieces()).toBe(5);
+
+    // 409: movements without unlinkChildren
+    const movementBlocked = await write(
+      "alpha.localhost",
+      "/api/organization/music/bulk-delete",
+      cookie,
+      { pieceIds: [parent.id] },
+    );
+    expect(movementBlocked).toMatchObject({ status: 409 });
+    await expect(movementBlocked.json()).resolves.toMatchObject({
+      code: "music_piece_has_movements",
+    });
+    // Bulk with parent + unrelated standalone also blocked when parent has external child
+    const bulkMovementBlocked = await write(
+      "alpha.localhost",
+      "/api/organization/music/bulk-delete",
+      cookie,
+      { pieceIds: [parent.id, standaloneA.id] },
+    );
+    expect(bulkMovementBlocked).toMatchObject({ status: 409 });
+    await expect(bulkMovementBlocked.json()).resolves.toMatchObject({
+      code: "music_piece_has_movements",
+    });
+    expect(await countPieces()).toBe(5);
+
+    // Success: partial-batch - parent and its movement together without unlink (remainingChildren 0)
+    const coDelete = await write("alpha.localhost", "/api/organization/music/bulk-delete", cookie, {
+      pieceIds: [parent.id, movement.id],
+    });
+    expect(coDelete).toMatchObject({ status: 200 });
+    const coDeleted = organizationMusicBulkDeleteResponseSchema.parse(await coDelete.json());
+    expect(coDeleted.deletedIds.toSorted()).toEqual([parent.id, movement.id].toSorted());
+    expect(coDeleted.requestId).toBeDefined();
+    const afterCoDelete = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(afterCoDelete.pieces.map(({ id }) => id)).not.toEqual(
+      expect.arrayContaining([parent.id, movement.id]),
+    );
+    expect(afterCoDelete.pieces.map(({ id }) => id).toSorted()).toEqual(
+      [standaloneA.id, standaloneB.id, referenced.id].toSorted(),
+    );
+
+    // Recreate parent+movement for unlink test
+    const parent2 = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Bulk Parent 2",
+        })
+      ).json(),
+    );
+    const movement2 = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          parentId: parent2.id,
+          title: "Bulk Movement 2",
+        })
+      ).json(),
+    );
+
+    // Success: unlinkChildren true orphans movement
+    const unlink = await write("alpha.localhost", "/api/organization/music/bulk-delete", cookie, {
+      pieceIds: [parent2.id],
+      unlinkChildren: true,
+    });
+    expect(unlink).toMatchObject({ status: 200 });
+    const unlinkBody = organizationMusicBulkDeleteResponseSchema.parse(await unlink.json());
+    expect(unlinkBody.deletedIds).toEqual([parent2.id]);
+    const afterUnlink = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(afterUnlink.pieces.find(({ id }) => id === movement2.id)).toMatchObject({
+      parentId: null,
+    });
+
+    // Success: bulk delete multiple standalones
+    const bulkStandalone = await write(
+      "alpha.localhost",
+      "/api/organization/music/bulk-delete",
+      cookie,
+      { pieceIds: [standaloneA.id, standaloneB.id] },
+    );
+    expect(bulkStandalone).toMatchObject({ status: 200 });
+    const bulkStandaloneBody = organizationMusicBulkDeleteResponseSchema.parse(
+      await bulkStandalone.json(),
+    );
+    expect(bulkStandaloneBody.deletedIds.toSorted()).toEqual(
+      [standaloneA.id, standaloneB.id].toSorted(),
+    );
+    const afterBulk = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(afterBulk.pieces.map(({ id }) => id).toSorted()).toEqual(
+      [referenced.id, movement2.id].toSorted(),
+    );
+
+    // Audit: each deleted piece has music.piece.deleted with bulk summary
+    const deletedAudits = await runInDurableObject<
+      OrganizationStore,
+      readonly { action: string; changeSummary: string; targetId: string }[]
+    >(stores.get(stores.idFromName("organization-alpha")), (_instance, state) =>
+      state.storage.sql
+        .exec<{
+          readonly action: string;
+          readonly changeSummary: string;
+          readonly targetId: string;
+        }>(
+          "SELECT action, change_summary AS changeSummary, target_id AS targetId FROM audit_events WHERE action = 'music.piece.deleted' ORDER BY target_id",
+        )
+        .toArray(),
+    );
+    const bulkDeletedIds = new Set([
+      parent.id,
+      movement.id,
+      parent2.id,
+      standaloneA.id,
+      standaloneB.id,
+    ]);
+    for (const { targetId, changeSummary } of deletedAudits.filter(({ targetId }) =>
+      bulkDeletedIds.has(targetId),
+    )) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- audit summary JSON shape is narrow and validated by expectations below
+      const summary = JSON.parse(changeSummary) as { bulk?: boolean; title?: string };
+      expect(summary.bulk).toBe(true);
+      expect(typeof summary.title).toBe("string");
+      expect(targetId).toBeDefined();
+    }
+    expect(deletedAudits.filter(({ targetId }) => bulkDeletedIds.has(targetId))).toHaveLength(5);
+
+    // Tenant isolation: bravo piece still exists and alpha's referenced/movement2 remain
+    const bravoAfter = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("bravo.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(bravoAfter.pieces.map(({ id }) => id)).toEqual([bravoPiece.id]);
+    expect(afterBulk.pieces.find(({ id }) => id === referenced.id)).toBeDefined();
   });
 });

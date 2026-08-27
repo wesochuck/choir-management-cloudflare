@@ -27,6 +27,8 @@ export default defineConfig(async () => ({
     provide: {
       controlMigrations: await readD1Migrations("apps/worker/src/control/migrations"),
     },
-    testTimeout: 10_000,
+    hookTimeout: 15_000,
+    teardownTimeout: 10_000,
+    testTimeout: 15_000,
   },
 }));

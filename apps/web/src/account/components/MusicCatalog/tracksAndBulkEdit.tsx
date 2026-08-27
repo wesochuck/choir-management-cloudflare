@@ -346,19 +346,25 @@ export function MusicBulkEditDialog({
   configuration,
   error,
   onApply,
+  onBulkDelete,
   onClose,
   open,
   personNameOptions,
+  pieces,
   selectedCount,
+  selectedPieceIds,
 }: {
   readonly busy: boolean;
   readonly configuration: OrganizationRosterConfiguration;
   readonly error: string | null;
   readonly onApply: (changes: OrganizationMusicBulkUpdateRequest["changes"]) => void;
+  readonly onBulkDelete?: (unlinkChildren: boolean) => void;
   readonly onClose: () => void;
   readonly open: boolean;
   readonly personNameOptions: readonly string[];
+  readonly pieces?: readonly OrganizationMusicPiece[];
   readonly selectedCount: number;
+  readonly selectedPieceIds?: readonly string[];
 }) {
   const [changeComposer, setChangeComposer] = useState(false);
   const [changeArranger, setChangeArranger] = useState(false);
@@ -369,7 +375,27 @@ export function MusicBulkEditDialog({
   const [genres, setGenres] = useState("");
   const [sections, setSections] = useState<readonly string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [unlinkChildren, setUnlinkChildren] = useState(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
   const availableSections = configuration.sections.filter(({ trackOnly }) => !trackOnly);
+
+  const selectedSet = new Set(selectedPieceIds ?? []);
+  const externalChildCount =
+    pieces && selectedPieceIds
+      ? pieces.filter(
+          (piece) =>
+            piece.parentId !== null &&
+            selectedSet.has(piece.parentId) &&
+            !selectedSet.has(piece.id),
+        ).length
+      : 0;
+
+  useEffect(() => {
+    if (deleteConfirm) {
+      confirmRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [deleteConfirm]);
 
   function submit(): void {
     const changes: OrganizationMusicBulkUpdateRequest["changes"] = {};
@@ -384,6 +410,8 @@ export function MusicBulkEditDialog({
     setFormError(null);
     onApply(changes);
   }
+
+  const canBulkDelete = typeof onBulkDelete === "function" && selectedCount > 0;
 
   return (
     <Dialog
@@ -522,6 +550,71 @@ export function MusicBulkEditDialog({
           </button>
         </div>
       </form>
+      {canBulkDelete ? (
+        <>
+          {!deleteConfirm ? (
+            <div className="form-actions" style={{ marginTop: "1rem" }}>
+              <button
+                className="button button--danger"
+                disabled={busy}
+                type="button"
+                onClick={() => {
+                  setDeleteConfirm(true);
+                }}
+              >
+                Delete {String(selectedCount)} pieces
+              </button>
+            </div>
+          ) : (
+            <div
+              ref={confirmRef}
+              tabIndex={-1}
+              className="danger-confirmation"
+              role="group"
+              aria-label="Confirm bulk music deletion"
+            >
+              <p>
+                This cannot be undone. Delete {String(selectedCount)} selected piece(s)? Referenced
+                set-list pieces cannot be deleted.
+              </p>
+              {externalChildCount > 0 ? (
+                <label className="checkbox-row">
+                  <input
+                    checked={unlinkChildren}
+                    type="checkbox"
+                    onChange={(event) => {
+                      setUnlinkChildren(event.target.checked);
+                    }}
+                  />
+                  Keep {String(externalChildCount)} movement(s) as top-level works
+                </label>
+              ) : null}
+              <div className="form-actions">
+                <button
+                  className="button button--danger"
+                  disabled={busy || (externalChildCount > 0 && !unlinkChildren)}
+                  type="button"
+                  onClick={() => {
+                    onBulkDelete(unlinkChildren);
+                  }}
+                >
+                  Confirm delete {String(selectedCount)} pieces
+                </button>
+                <button
+                  className="button button--secondary"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => {
+                    setDeleteConfirm(false);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
     </Dialog>
   );
 }

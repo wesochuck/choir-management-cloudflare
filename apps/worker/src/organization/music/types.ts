@@ -1,4 +1,5 @@
 import {
+  organizationMusicBulkDeleteRequestSchema,
   organizationMusicBulkUpdateRequestSchema,
   organizationMusicCreditRenameRequestSchema,
   organizationMusicGenreDeleteRequestSchema,
@@ -36,6 +37,11 @@ export const musicOperationSchema = z.discriminatedUnion("action", [
     action: z.literal("bulk_update"),
     changes: organizationMusicBulkUpdateRequestSchema.shape.changes,
     pieceIds: organizationMusicBulkUpdateRequestSchema.shape.pieceIds,
+  }),
+  operationContextSchema.extend({
+    action: z.literal("bulk_delete"),
+    pieceIds: organizationMusicBulkDeleteRequestSchema.shape.pieceIds,
+    unlinkChildren: organizationMusicBulkDeleteRequestSchema.shape.unlinkChildren,
   }),
   operationContextSchema.extend({
     action: z.literal("rename_credit"),

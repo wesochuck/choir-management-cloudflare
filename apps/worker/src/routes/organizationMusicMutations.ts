@@ -1,4 +1,5 @@
 import {
+  organizationMusicBulkDeleteRequestSchema,
   organizationMusicBulkUpdateRequestSchema,
   organizationMusicCreditRenameRequestSchema,
   organizationMusicGenreDeleteRequestSchema,
@@ -9,6 +10,7 @@ import {
 import { z } from "zod";
 import { MusicCsvError, parseMusicCsv } from "@choir/domain";
 import {
+  bulkDeleteOrganizationMusicPieces,
   createOrganizationMusicPiece,
   bulkUpdateOrganizationMusicPieces,
   deleteOrganizationMusicGenre,
@@ -165,6 +167,51 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
           message: "The music pieces could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+  });
+
+  router.post("/api/organization/music/bulk-delete", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const body = organizationMusicBulkDeleteRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!body.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Select one or more music pieces to delete.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const deletedIds = await bulkDeleteOrganizationMusicPieces(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        body.data,
+      );
+      return context.json({ deletedIds, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      const status = error instanceof MusicRepositoryError ? error.status : 503;
+      return context.json(
+        {
+          code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+          message: "The music pieces could not be deleted.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         status,

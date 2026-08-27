@@ -78,6 +78,7 @@ export function useMusicCatalogController({
   return {
     addSelectedPiecesToSetList: bulk.addSelectedPiecesToSetList,
     applyBulkChanges: bulk.applyBulkChanges,
+    applyBulkDelete: bulk.applyBulkDelete,
     availableGenres: derived.availableGenres,
     beginNew: editor.beginNew,
     bulkDialogOpen: bulk.bulkDialogOpen,

@@ -1,8 +1,10 @@
 import {
+  organizationMusicBulkDeleteResponseSchema,
   organizationMusicGenreMutationResponseSchema,
   organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceSchema,
   organizationMusicPiecesResponseSchema,
+  type OrganizationMusicBulkDeleteRequest,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicCreditRenameRequest,
   type OrganizationMusicGenreDeleteRequest,
@@ -174,6 +176,26 @@ export async function bulkUpdateOrganizationMusicPieces(
   return organizationMusicPiecesResponseSchema
     .omit({ requestId: true })
     .parse(await response.json()).pieces;
+}
+
+export async function bulkDeleteOrganizationMusicPieces(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  request: OrganizationMusicBulkDeleteRequest,
+): Promise<readonly string[]> {
+  const response = await mutate(env, context.organizationId, {
+    action: "bulk_delete",
+    ...context,
+    pieceIds: request.pieceIds,
+    unlinkChildren: request.unlinkChildren,
+  });
+  return organizationMusicBulkDeleteResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json()).deletedIds;
 }
 
 export async function renameOrganizationMusicCredit(

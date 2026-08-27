@@ -1,4 +1,5 @@
 import {
+  organizationMusicBulkDeleteResponseSchema,
   organizationMusicGenreMutationResponseSchema,
   organizationMusicPiecesResponseSchema,
   organizationMusicLibrarySettingsResponseSchema,
@@ -8,6 +9,7 @@ import {
   singerLearningTrackPiecesResponseSchema,
   type OrganizationMusicPiece,
   type OrganizationMusicLibrarySettings,
+  type OrganizationMusicBulkDeleteRequest,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicCreditRenameRequest,
   type OrganizationMusicGenreDeleteRequest,
@@ -80,6 +82,16 @@ export async function bulkUpdateOrganizationMusicPieces(
     method: "POST",
   });
   return organizationMusicPiecesResponseSchema.parse(await response.json()).pieces;
+}
+
+export async function bulkDeleteOrganizationMusicPieces(
+  deleteRequest: OrganizationMusicBulkDeleteRequest,
+): Promise<readonly string[]> {
+  const response = await request("/api/organization/music/bulk-delete", {
+    body: JSON.stringify(deleteRequest),
+    method: "POST",
+  });
+  return organizationMusicBulkDeleteResponseSchema.parse(await response.json()).deletedIds;
 }
 
 export async function renameOrganizationMusicCredit(

@@ -6,7 +6,7 @@ import {
 } from "./types.js";
 import { musicOperationSchema } from "./types.js";
 import { parseStoredPiece } from "./crud.js";
-import { bulkUpdatePieces } from "./bulk.js";
+import { bulkDeletePieces, bulkUpdatePieces } from "./bulk.js";
 import { renameMusicCredit } from "./credits.js";
 import { rewriteGenreLabels } from "./genres.js";
 import { importPieces } from "./import.js";
@@ -34,7 +34,7 @@ export {
   readPiece,
   writePiece,
 } from "./crud.js";
-export { bulkUpdatePieces } from "./bulk.js";
+export { bulkDeletePieces, bulkUpdatePieces } from "./bulk.js";
 export { renameMusicCredit } from "./credits.js";
 export { rewriteGenreLabels } from "./genres.js";
 export { importPieces } from "./import.js";
@@ -77,6 +77,7 @@ export async function manageMusicInStore(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   if (operation.data.action === "delete") return deletePiece(storage, operation.data);
+  if (operation.data.action === "bulk_delete") return bulkDeletePieces(storage, operation.data);
   if (operation.data.action === "import") return importPieces(storage, operation.data);
   if (operation.data.action === "bulk_update") return bulkUpdatePieces(storage, operation.data);
   if (operation.data.action === "rename_credit") return renameMusicCredit(storage, operation.data);
