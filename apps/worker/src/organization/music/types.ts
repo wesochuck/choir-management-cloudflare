@@ -18,9 +18,9 @@ export const operationContextSchema = z.object({
   requestId: z.uuid(),
 });
 
-// Keep each statement below SQLite's bound-parameter limit while still reducing
-// a large import to a small number of writes.
-export const MUSIC_IMPORT_BATCH_SIZE = 50;
+// Durable Object SQLite limits each statement to 100 bound parameters; each piece uses 15.
+// Keep each statement below that limit while still reducing a large import to a small number of writes.
+export const MUSIC_IMPORT_BATCH_SIZE = 6;
 
 export const musicOperationSchema = z.discriminatedUnion("action", [
   operationContextSchema.extend({

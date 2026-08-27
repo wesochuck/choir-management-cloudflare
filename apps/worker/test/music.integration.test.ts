@@ -572,12 +572,13 @@ describe("Organization music catalog", () => {
     expect(reclamationAudit).toBe(1);
   });
 
-  it("imports a bounded CSV atomically and exports the baseline-compatible contract", async () => {
+  it("imports a bounded CSV across Durable Object SQL parameter batches", async () => {
     const cookie = await signIn();
     const csv = [
       "Title,Composer,Arranger,Copies,Catalog ID,Duration,Voicing,Applies To,Genres,Purchase Date,Notes",
       '"=Safe title","Handel","Doe, Jane","24","CAT-1","4:05","SATB","S;A","Classical;Sacred","2026-05-01","Owned ""copies"""',
       '"Second work","","","","","","","All","","",""',
+      ...Array.from({ length: 5 }, (_, index) => `"Batch work ${String(index + 1)}"`),
     ].join("\n");
     const importedResponse = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/music/import", cookie, {
@@ -589,7 +590,7 @@ describe("Organization music catalog", () => {
     expect(importedResponse.status).toBe(201);
     expect(
       organizationMusicImportResponseSchema.parse(await importedResponse.json()).imported,
-    ).toBe(2);
+    ).toBe(7);
 
     const exportResponse = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/music/export", cookie),
@@ -616,7 +617,15 @@ describe("Organization music catalog", () => {
         await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
       ).json(),
     ).pieces;
-    expect(pieces.map(({ title }) => title)).toEqual(["=Safe title", "Second work"]);
+    expect(pieces.map(({ title }) => title)).toEqual([
+      "=Safe title",
+      "Batch work 1",
+      "Batch work 2",
+      "Batch work 3",
+      "Batch work 4",
+      "Batch work 5",
+      "Second work",
+    ]);
 
     await database
       .prepare(
