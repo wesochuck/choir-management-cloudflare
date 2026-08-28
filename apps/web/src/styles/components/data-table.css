@@ -310,7 +310,7 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--spacing-sm);
-    padding: var(--spacing-sm) 0;
+    padding: var(--spacing-md) 0 0;
     border-top: 1px solid var(--border);
     margin-top: var(--spacing-sm);
   }

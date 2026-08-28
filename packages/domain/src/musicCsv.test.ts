@@ -134,11 +134,13 @@ describe("music CSV", () => {
       {
         header: "Legacy Notes",
         message: "This column is not part of the preferred music format and will be ignored.",
+        sourceIndex: 2,
       },
       {
         header: "Duration",
         message: "Duration minutes and seconds must be below 60.",
         rows: [3],
+        sourceIndex: 1,
       },
     ]);
   });

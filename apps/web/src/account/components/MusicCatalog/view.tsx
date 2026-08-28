@@ -39,6 +39,7 @@ export function MusicCatalogView({
     closeImportDialog,
     copiesInput,
     deleteConfirm,
+    deselectManyPieces,
     dialogOpen,
     durationAutoFillLabel,
     durationDetectionNotice,
@@ -286,6 +287,7 @@ export function MusicCatalogView({
               genreFilterMode={genreFilterMode}
               showUncategorized={showUncategorized}
               onEdit={selectPiece}
+              onDeselectMany={deselectManyPieces}
               onSelectMany={selectManyPieces}
               onToggleSelection={togglePieceSelection}
               pieces={pieces}

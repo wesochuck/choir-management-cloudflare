@@ -186,6 +186,7 @@ export function parseRosterCsv(
 export interface RosterCsvColumnWarning {
   readonly header: string;
   readonly message: string;
+  readonly sourceIndex: number;
 }
 
 export interface RosterCsvInspection {
@@ -209,14 +210,15 @@ export function inspectRosterCsv(csv: string, performerLabel = "Performer"): Ros
     );
     const profileRows =
       sectionLeaderMarker < 0 ? remaining : remaining.slice(0, sectionLeaderMarker);
-    const warnings: RosterCsvColumnWarning[] = headers.flatMap((header) =>
+    const warnings: RosterCsvColumnWarning[] = headers.flatMap((header, sourceIndex) =>
       rosterCsvColumnForHeader(header, performerLabel)
         ? []
         : [
             {
-              header: header || `Column ${String(headers.indexOf(header) + 1)}`,
+              header: header || `Column ${String(sourceIndex + 1)}`,
               message:
                 "This column is not part of the preferred roster format and will be ignored.",
+              sourceIndex,
             },
           ],
     );

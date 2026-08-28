@@ -1,5 +1,5 @@
 import { rosterCsvColumnOptions } from "@choir/domain";
-import { DataTable, Dialog, DialogClose, paginateRows } from "@choir/ui";
+import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { PerformanceHistory, VoicePartBalance } from "./shared";
 import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "./profileDetails";
@@ -97,15 +97,12 @@ export function RosterPageView({
     setRosterPage(1);
   }, [filteredProfiles.length, query, selectedVoiceFilters, statusFilter]);
 
-  const rosterPageIds = paginateRows(filteredProfiles, rosterPage, rosterPageSize).rows.map(
-    (candidate) => candidate.id,
-  );
   const visibleProfileIds = filteredProfiles.map((candidate) => candidate.id);
-  const selectedVisibleCount = rosterPageIds.filter((profileId) =>
+  const selectedVisibleCount = visibleProfileIds.filter((profileId) =>
     selectedProfileIds.includes(profileId),
   ).length;
   const allVisibleSelected =
-    rosterPageIds.length > 0 && selectedVisibleCount === rosterPageIds.length;
+    visibleProfileIds.length > 0 && selectedVisibleCount === visibleProfileIds.length;
   const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
   // The linked Membership email is the read-only source for the field; the
   // draft value must not gate editability or the input locks after one key.
@@ -347,11 +344,11 @@ export function RosterPageView({
                   header: "Select",
                   headerContent: (
                     <input
-                      aria-label="Select all visible Profiles"
+                      aria-label="Select all matching profiles"
                       checked={allVisibleSelected}
                       disabled={visibleProfileIds.length === 0 || bulkBusy}
                       onChange={(event) => {
-                        toggleVisibleProfileSelection(rosterPageIds, event.target.checked);
+                        toggleVisibleProfileSelection(visibleProfileIds, event.target.checked);
                       }}
                       ref={selectAllVisibleRef}
                       type="checkbox"
@@ -451,7 +448,7 @@ export function RosterPageView({
                   ),
                 },
               ]}
-              emptyMessage={query ? "No Profiles match your search." : "No Profiles yet."}
+              emptyMessage={query ? "No profiles match your search" : "No profiles yet"}
               initialSort={{ columnId: "name", direction: "asc" }}
               keySelector={(candidate) => candidate.id}
               onRowClick={openEdit}

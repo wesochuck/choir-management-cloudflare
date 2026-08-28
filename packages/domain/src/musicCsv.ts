@@ -147,6 +147,7 @@ export interface MusicCsvColumnWarning {
   readonly header: string;
   readonly message: string;
   readonly rows?: readonly number[];
+  readonly sourceIndex: number;
 }
 
 export interface MusicCsvInspection {
@@ -365,6 +366,7 @@ export function inspectMusicCsv(csv: string): MusicCsvInspection {
             {
               header: header || `Column ${String(index + 1)}`,
               message: "This column is not part of the preferred music format and will be ignored.",
+              sourceIndex: index,
             },
           ],
     );
@@ -400,6 +402,7 @@ export function inspectMusicCsv(csv: string): MusicCsvInspection {
           header: headers[columnIndex] ?? fallbackHeader,
           message,
           rows: invalidRows,
+          sourceIndex: columnIndex,
         });
       }
     });

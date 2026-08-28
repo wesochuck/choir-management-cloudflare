@@ -15,7 +15,8 @@ export function GenreChip({
   readonly onRemove?: () => void;
   readonly selected?: boolean;
 }) {
-  const className = `music-genre-chip music-genre-chip--${genreChipColor(genre)}${selected ? " is-selected" : ""}`;
+  const chipColor = genre === "No genre" ? "muted" : genreChipColor(genre);
+  const className = `music-genre-chip music-genre-chip--${chipColor}${selected ? " is-selected" : ""}`;
   if (!onClick) {
     return (
       <span className={className}>
@@ -243,8 +244,10 @@ export function MusicGenreFilter({
   readonly uncategorizedCount?: number;
 }) {
   const filterRef = useRef<HTMLDetailsElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
   const visibleGenres = genres.filter((genre) => genreKey(genre).includes(genreKey(search)));
 
+  const [isOpen, setIsOpen] = useState(false);
   useEffect(() => {
     function closeWhenClickedAway(event: PointerEvent): void {
       const filter = filterRef.current;
@@ -252,17 +255,33 @@ export function MusicGenreFilter({
         return;
       }
       filter.open = false;
+      setIsOpen(false);
     }
 
+    function closeOnEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape" && filterRef.current?.open) {
+        filterRef.current.open = false;
+        setIsOpen(false);
+        summaryRef.current?.focus();
+      }
+    }
     document.addEventListener("pointerdown", closeWhenClickedAway);
+    document.addEventListener("keydown", closeOnEscape);
     return () => {
       document.removeEventListener("pointerdown", closeWhenClickedAway);
+      document.removeEventListener("keydown", closeOnEscape);
     };
   }, []);
 
   return (
-    <details className="music-genre-filter" ref={filterRef}>
-      <summary>
+    <details
+      className="music-genre-filter"
+      ref={filterRef}
+      onToggle={(event) => {
+        setIsOpen(event.currentTarget.open);
+      }}
+    >
+      <summary ref={summaryRef} aria-expanded={isOpen}>
         Genres
         <span className="music-genre-filter__summary-count">
           {showUncategorized

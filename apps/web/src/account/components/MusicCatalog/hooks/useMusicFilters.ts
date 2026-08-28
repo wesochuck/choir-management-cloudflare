@@ -40,10 +40,16 @@ export function useMusicFilters() {
     setSelectedPieceIds((current) => [...new Set([...current, ...pieceIds])]);
   }
 
+  function deselectManyPieces(pieceIds: readonly string[]): void {
+    const ids = new Set(pieceIds);
+    setSelectedPieceIds((current) => current.filter((id) => !ids.has(id)));
+  }
+
   return {
     genreFilterMode,
     genreFilterSearch,
     search,
+    deselectManyPieces,
     selectManyPieces,
     selectedGenres,
     selectedPieceIds,

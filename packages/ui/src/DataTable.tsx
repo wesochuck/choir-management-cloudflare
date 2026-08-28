@@ -147,7 +147,7 @@ function compareValues(
 
 export function DataTable<T>({
   columns,
-  emptyMessage = "No results.",
+  emptyMessage = "No results",
   expandedRowId = null,
   getRowProps,
   initialSort,

@@ -1,5 +1,5 @@
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
-import { DataTable, paginateRows } from "@choir/ui";
+import { DataTable } from "@choir/ui";
 import { useEffect, useRef, useState } from "react";
 import { buildMusicPublisherSearchUrl } from "../../musicPublisherSearch";
 
@@ -11,6 +11,7 @@ import { MusicTableTuttiPlayer } from "./performances";
 export function MusicCatalogTable({
   genreFilterMode,
   showUncategorized,
+  onDeselectMany,
   onEdit,
   onSelectMany,
   onToggleSelection,
@@ -22,6 +23,7 @@ export function MusicCatalogTable({
 }: {
   readonly genreFilterMode: "and" | "or";
   readonly showUncategorized: boolean;
+  readonly onDeselectMany: (pieceIds: readonly string[]) => void;
   readonly onEdit: (piece: OrganizationMusicPiece) => void;
   readonly onSelectMany: (pieceIds: readonly string[]) => void;
   readonly onToggleSelection: (pieceId: string) => void;
@@ -87,18 +89,18 @@ export function MusicCatalogTable({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page on filter change
     setPage(1);
-  }, [genreFilterMode, search, selectedGenres]);
+  }, [genreFilterMode, search, selectedGenres, showUncategorized]);
 
   const sortParent = (piece: OrganizationMusicPiece): OrganizationMusicPiece =>
     piece.parentId ? (parents.get(piece.parentId) ?? piece) : piece;
-  const pagePieces = paginateRows(visiblePieces, page, pageSize).rows;
   const selectedIdSet = new Set(selectedIds);
-  const selectedVisibleCount = pagePieces.reduce(
+  const selectedVisibleCount = visiblePieces.reduce(
     (count, piece) => count + (selectedIdSet.has(piece.id) ? 1 : 0),
     0,
   );
-  const allVisibleSelected = pagePieces.length > 0 && selectedVisibleCount === pagePieces.length;
-  const someVisibleSelected = pagePieces.length > 0 && selectedVisibleCount > 0;
+  const allVisibleSelected =
+    visiblePieces.length > 0 && selectedVisibleCount === visiblePieces.length;
+  const someVisibleSelected = selectedVisibleCount > 0;
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -116,14 +118,16 @@ export function MusicCatalogTable({
             headerContent: (
               <input
                 ref={selectAllRef}
-                aria-label="Select all on current page"
+                aria-label="Select all matching music pieces"
                 aria-checked={allVisibleSelected ? "true" : someVisibleSelected ? "mixed" : "false"}
                 checked={allVisibleSelected}
                 className="music-catalog-select-checkbox"
                 disabled={visiblePieces.length === 0}
                 type="checkbox"
                 onChange={(event) => {
-                  onSelectMany(event.target.checked ? pagePieces.map(({ id }) => id) : []);
+                  const ids = visiblePieces.map(({ id }) => id);
+                  if (event.target.checked) onSelectMany(ids);
+                  else onDeselectMany(ids);
                 }}
               />
             ),

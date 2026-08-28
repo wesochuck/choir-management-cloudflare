@@ -12,6 +12,20 @@ import {
   listOrganizationMusic,
 } from "../../../../auth/api";
 import type { OrganizationMusicPiece } from "@choir/contracts";
+
+function remapInspectionWarnings(
+  inspection: MusicCsvInspection,
+  mappings: readonly CsvColumnMapping[],
+): MusicCsvInspection {
+  const kept = mappings.filter(({ targetHeader }) => targetHeader !== null);
+  return {
+    ...inspection,
+    warnings: inspection.warnings.map((warning) => ({
+      ...warning,
+      sourceIndex: kept[warning.sourceIndex]?.sourceIndex ?? warning.sourceIndex,
+    })),
+  };
+}
 export function useMusicImport({
   busy,
   setBusy,
@@ -71,7 +85,10 @@ export function useMusicImport({
         setMusicImportCsv(csv);
         setMusicImportHeaders(initialInspection.headers);
         setMusicImportMappings(mappings);
-        const inspection = inspectMusicCsv(mapMusicCsvColumns(csv, mappings));
+        const inspection = remapInspectionWarnings(
+          inspectMusicCsv(mapMusicCsvColumns(csv, mappings)),
+          mappings,
+        );
         setMusicImportInspection(inspection);
         if (inspection.fatalError) setError(inspection.fatalError);
       })
@@ -88,7 +105,12 @@ export function useMusicImport({
     );
     setMusicImportMappings(nextMappings);
     setMusicImportConfirmed(false);
-    setMusicImportInspection(inspectMusicCsv(mapMusicCsvColumns(musicImportCsv, nextMappings)));
+    setMusicImportInspection(
+      remapInspectionWarnings(
+        inspectMusicCsv(mapMusicCsvColumns(musicImportCsv, nextMappings)),
+        nextMappings,
+      ),
+    );
   }
   async function importCsv(): Promise<void> {
     if (!importFile) return;

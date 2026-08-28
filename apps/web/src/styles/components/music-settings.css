@@ -526,6 +526,10 @@
     --genre-chip-color: #a16207;
   }
 
+  .music-genre-chip--muted {
+    --genre-chip-color: var(--muted-foreground);
+  }
+
   :root[data-theme="dark"] .music-genre-chip--teal {
     --genre-chip-color: #5eead4;
   }
@@ -556,6 +560,10 @@
 
   :root[data-theme="dark"] .music-genre-chip--gold {
     --genre-chip-color: #fde68a;
+  }
+
+  :root[data-theme="dark"] .music-genre-chip--muted {
+    --genre-chip-color: var(--muted-foreground);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -589,6 +597,10 @@
 
     :root:not([data-theme]) .music-genre-chip--gold {
       --genre-chip-color: #fde68a;
+    }
+
+    :root:not([data-theme]) .music-genre-chip--muted {
+      --genre-chip-color: var(--muted-foreground);
     }
   }
 

@@ -27,6 +27,7 @@ interface CsvImportColumnWarning {
   readonly header: string;
   readonly message: string;
   readonly rows?: readonly number[];
+  readonly sourceIndex?: number;
 }
 
 export interface CsvImportColumnMapping {
@@ -108,35 +109,45 @@ export function CsvImportDialog({
               do not want to import.
             </p>
             <div className="csv-import-mappings__list">
-              {columnMappings.map((mapping) => (
-                <label className="csv-import-mapping" key={mapping.sourceIndex}>
-                  <span>{mapping.header || `Column ${String(mapping.sourceIndex + 1)}`}</span>
-                  <select
-                    aria-label={`Map ${mapping.header || `column ${String(mapping.sourceIndex + 1)}`}`}
-                    disabled={busy}
-                    value={mapping.targetHeader ?? ""}
-                    onChange={(event) => {
-                      onMapColumn?.(mapping.sourceIndex, event.target.value || null);
-                    }}
-                  >
-                    <option value="">Ignore</option>
-                    {mappingOptions.map((option) => (
-                      <option
-                        disabled={columnMappings.some(
-                          (candidate) =>
-                            candidate.sourceIndex !== mapping.sourceIndex &&
-                            candidate.targetHeader === option.value,
-                        )}
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                        {option.required ? " (required)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
+              {columnMappings.map((mapping) => {
+                const warning =
+                  columnWarnings.find(
+                    (candidate) => candidate.sourceIndex === mapping.sourceIndex,
+                  ) ?? columnWarnings.find((candidate) => candidate.header === mapping.header);
+                const warningIndex = warning ? columnWarnings.indexOf(warning) : -1;
+                const warningId =
+                  warningIndex >= 0 ? `csv-warning-${String(warningIndex)}` : undefined;
+                return (
+                  <label className="csv-import-mapping" key={mapping.sourceIndex}>
+                    <span>{mapping.header || `Column ${String(mapping.sourceIndex + 1)}`}</span>
+                    <select
+                      aria-describedby={warningId}
+                      aria-label={`Map ${mapping.header || `column ${String(mapping.sourceIndex + 1)}`}`}
+                      disabled={busy}
+                      value={mapping.targetHeader ?? ""}
+                      onChange={(event) => {
+                        onMapColumn?.(mapping.sourceIndex, event.target.value || null);
+                      }}
+                    >
+                      <option value="">Ignore</option>
+                      {mappingOptions.map((option) => (
+                        <option
+                          disabled={columnMappings.some(
+                            (candidate) =>
+                              candidate.sourceIndex !== mapping.sourceIndex &&
+                              candidate.targetHeader === option.value,
+                          )}
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                          {option.required ? " (required)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
             </div>
           </fieldset>
         ) : null}
@@ -149,13 +160,16 @@ export function CsvImportDialog({
             </p>
             {columnWarnings.length > 0 ? (
               <ul>
-                {columnWarnings.map((warning) => {
+                {columnWarnings.map((warning, warningIndex) => {
                   const excluded = excludedColumns.includes(warning.header);
                   const rows = warning.rows?.length
                     ? ` (row${warning.rows.length === 1 ? "" : "s"} ${warning.rows.join(", ")})`
                     : "";
                   return (
-                    <li key={`${warning.header}-${warning.message}`}>
+                    <li
+                      id={`csv-warning-${String(warningIndex)}`}
+                      key={`${warning.header}-${warning.message}`}
+                    >
                       {onToggleColumn ? (
                         <label className="checkbox-row">
                           <input
