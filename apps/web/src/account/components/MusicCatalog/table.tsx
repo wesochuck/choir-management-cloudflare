@@ -1,10 +1,10 @@
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
 import { DataTable, paginateRows } from "@choir/ui";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { buildMusicPublisherSearchUrl } from "../../musicPublisherSearch";
 
 import { GenreChips } from "./shared";
-import { composerText, durationText, genreKey, trackCount } from "./utils";
+import { composerText, durationText, genreKey } from "./utils";
 
 import { MusicTableTuttiPlayer } from "./performances";
 
@@ -32,10 +32,6 @@ export function MusicCatalogTable({
   readonly selectedGenres: readonly string[];
 }) {
   const parents = new Map(pieces.map((piece) => [piece.id, piece]));
-  const trackCounts = useMemo(
-    () => new Map(pieces.map((piece) => [piece.id, trackCount(piece, pieces)])),
-    [pieces],
-  );
   const needle = search.trim().toLocaleLowerCase();
   const selected = selectedGenres.map(genreKey);
   const matchesPiece = (piece: OrganizationMusicPiece): boolean => {
@@ -217,13 +213,10 @@ export function MusicCatalogTable({
             render: (piece) => <MusicTableTuttiPlayer piece={piece} />,
           },
           {
-            header: "Tracks",
-            id: "tracks",
-            render: (piece) => {
-              const count = trackCounts.get(piece.id) ?? 0;
-              return count > 0 ? `${String(count)} attached` : "—";
-            },
-            sortValue: (piece) => trackCounts.get(sortParent(piece).id) ?? 0,
+            header: "Copies",
+            id: "copies",
+            render: (piece) => (piece.copies === null ? "—" : String(piece.copies)),
+            sortValue: (piece) => sortParent(piece).copies ?? -1,
           },
           {
             header: "Actions",
