@@ -341,6 +341,7 @@ export function MusicDeleteControls({
   );
 }
 
+// eslint-disable-next-line complexity -- bulk edit layout with delete/cancel/update and confirm states
 export function MusicBulkEditDialog({
   busy,
   configuration,
@@ -539,81 +540,81 @@ export function MusicBulkEditDialog({
             </div>
           </div>
         </fieldset>
-        <div className="dialog__actions">
-          <DialogClose asChild>
-            <button className="button button--secondary" disabled={busy} type="button">
-              Cancel
+        <div
+          className="dialog__actions"
+          style={{ justifyContent: canBulkDelete && !deleteConfirm ? "space-between" : "flex-end" }}
+        >
+          {canBulkDelete && !deleteConfirm ? (
+            <button
+              className="button button--danger"
+              disabled={busy}
+              type="button"
+              onClick={() => {
+                setDeleteConfirm(true);
+              }}
+            >
+              Delete {String(selectedCount)} pieces
             </button>
-          </DialogClose>
-          <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Updating…" : `Update ${String(selectedCount)} pieces`}
-          </button>
+          ) : null}
+          <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+            <DialogClose asChild>
+              <button className="button button--secondary" disabled={busy} type="button">
+                Cancel
+              </button>
+            </DialogClose>
+            <button className="button button--primary" disabled={busy} type="submit">
+              {busy ? "Updating…" : `Update ${String(selectedCount)} pieces`}
+            </button>
+          </div>
         </div>
       </form>
-      {canBulkDelete ? (
-        <>
-          {!deleteConfirm ? (
-            <div className="form-actions" style={{ marginTop: "1rem" }}>
-              <button
-                className="button button--danger"
-                disabled={busy}
-                type="button"
-                onClick={() => {
-                  setDeleteConfirm(true);
+      {canBulkDelete && deleteConfirm ? (
+        <div
+          ref={confirmRef}
+          tabIndex={-1}
+          className="danger-confirmation"
+          role="group"
+          aria-label="Confirm bulk music deletion"
+        >
+          <p>
+            This cannot be undone. Delete {String(selectedCount)} selected piece(s)? Referenced
+            set-list pieces cannot be deleted.
+          </p>
+          {externalChildCount > 0 ? (
+            <label className="checkbox-row">
+              <input
+                checked={unlinkChildren}
+                type="checkbox"
+                onChange={(event) => {
+                  setUnlinkChildren(event.target.checked);
                 }}
-              >
-                Delete {String(selectedCount)} pieces
-              </button>
-            </div>
-          ) : (
-            <div
-              ref={confirmRef}
-              tabIndex={-1}
-              className="danger-confirmation"
-              role="group"
-              aria-label="Confirm bulk music deletion"
+              />
+              Keep {String(externalChildCount)} movement(s) as top-level works
+            </label>
+          ) : null}
+          <div className="form-actions">
+            <button
+              className="button button--danger"
+              disabled={busy || (externalChildCount > 0 && !unlinkChildren)}
+              type="button"
+              onClick={() => {
+                onBulkDelete(unlinkChildren);
+              }}
             >
-              <p>
-                This cannot be undone. Delete {String(selectedCount)} selected piece(s)? Referenced
-                set-list pieces cannot be deleted.
-              </p>
-              {externalChildCount > 0 ? (
-                <label className="checkbox-row">
-                  <input
-                    checked={unlinkChildren}
-                    type="checkbox"
-                    onChange={(event) => {
-                      setUnlinkChildren(event.target.checked);
-                    }}
-                  />
-                  Keep {String(externalChildCount)} movement(s) as top-level works
-                </label>
-              ) : null}
-              <div className="form-actions">
-                <button
-                  className="button button--danger"
-                  disabled={busy || (externalChildCount > 0 && !unlinkChildren)}
-                  type="button"
-                  onClick={() => {
-                    onBulkDelete(unlinkChildren);
-                  }}
-                >
-                  Confirm delete {String(selectedCount)} pieces
-                </button>
-                <button
-                  className="button button--secondary"
-                  disabled={busy}
-                  type="button"
-                  onClick={() => {
-                    setDeleteConfirm(false);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+              Confirm delete {String(selectedCount)} pieces
+            </button>
+            <button
+              className="button button--secondary"
+              disabled={busy}
+              type="button"
+              onClick={() => {
+                setDeleteConfirm(false);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       ) : null}
     </Dialog>
   );
