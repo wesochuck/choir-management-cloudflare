@@ -77,8 +77,8 @@ describe("custom-domain provider adapter", () => {
                     status: "PENDING",
                     validation_records: [
                       {
-                        txt_name: "_cf-custom-hostname.tickets.example.test",
-                        txt_value: "validation-token",
+                        http_body: "validation-token",
+                        http_url: "http://tickets.example.test/.well-known/pki-validation/token",
                       },
                     ],
                   },
@@ -107,8 +107,8 @@ describe("custom-domain provider adapter", () => {
       providerStatus: "pending",
       validationRecords: [
         {
-          name: "_cf-custom-hostname.tickets.example.test",
-          type: "txt",
+          name: "http://tickets.example.test/.well-known/pki-validation/token",
+          type: "http",
           value: "validation-token",
         },
       ],
@@ -122,6 +122,13 @@ describe("custom-domain provider adapter", () => {
     );
     expect(requests[1]?.init?.method).toBe("POST");
     expect(new Headers(requests[1]?.init?.headers).get("authorization")).toBe("Bearer test-token");
+    const createdBody: unknown = requests[1]?.init?.body;
+    expect(createdBody).toBeTypeOf("string");
+    if (typeof createdBody !== "string") throw new Error("The create body must be a string.");
+    expect(JSON.parse(createdBody)).toEqual({
+      hostname: "tickets.example.test",
+      ssl: { method: "http", type: "dv" },
+    });
   });
 
   it("treats an already-removed Cloudflare hostname as successfully deleted", async () => {

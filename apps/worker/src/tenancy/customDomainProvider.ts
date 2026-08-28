@@ -198,7 +198,9 @@ export async function ensureCustomHostname(
       (await cloudflareRequest(env, "/custom_hostnames", {
         body: JSON.stringify({
           hostname: input.hostname,
-          ssl: { method: "txt", type: "dv" },
+          // HTTP DCV completes automatically once the customer's CNAME resolves,
+          // so customers never need to add TXT validation records by hand.
+          ssl: { method: "http", type: "dv" },
         }),
         method: "POST",
       }));
