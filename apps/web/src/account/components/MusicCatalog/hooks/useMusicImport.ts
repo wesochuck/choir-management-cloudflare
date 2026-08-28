@@ -27,6 +27,9 @@ export function useMusicImport({
 }) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [lastImportErrors, setLastImportErrors] = useState<
+    readonly { readonly reason: string; readonly row: number }[]
+  >([]);
   const [musicImportCsv, setMusicImportCsv] = useState("");
   const [musicImportHeaders, setMusicImportHeaders] = useState<readonly string[]>([]);
   const [musicImportMappings, setMusicImportMappings] = useState<readonly CsvColumnMapping[]>([]);
@@ -39,6 +42,7 @@ export function useMusicImport({
     if (busy) return;
     setImportDialogOpen(false);
     setImportFile(null);
+    setLastImportErrors([]);
     setMusicImportCsv("");
     setMusicImportHeaders([]);
     setMusicImportMappings([]);
@@ -93,9 +97,7 @@ export function useMusicImport({
     setMessage(null);
     try {
       const csv = await importFile.text();
-      const imported = await importOrganizationMusicCsv(
-        mapMusicCsvColumns(csv, musicImportMappings),
-      );
+      const result = await importOrganizationMusicCsv(mapMusicCsvColumns(csv, musicImportMappings));
       setPieces(await listOrganizationMusic());
       setImportFile(null);
       setImportDialogOpen(false);
@@ -105,7 +107,15 @@ export function useMusicImport({
       setMusicImportInspection(null);
       setMusicImportConfirmed(false);
       setMusicImportInspecting(false);
-      setMessage(`${String(imported)} music piece(s) imported.`);
+      if (result.skipped > 0) {
+        setMessage(
+          `${String(result.imported)} music piece(s) imported, ${String(result.skipped)} row(s) skipped.`,
+        );
+        setLastImportErrors(result.errors);
+      } else {
+        setMessage(`${String(result.imported)} music piece(s) imported.`);
+        setLastImportErrors([]);
+      }
     } catch (caught: unknown) {
       setError(
         caught instanceof AuthApiError ? caught.message : "The music CSV could not be imported.",
@@ -114,13 +124,30 @@ export function useMusicImport({
       setBusy(false);
     }
   }
+  function downloadImportErrors(): void {
+    if (lastImportErrors.length === 0) return;
+    const header = "Row,Reason";
+    const rows = lastImportErrors.map(
+      ({ reason, row }) => `${String(row)},"${reason.replaceAll('"', '""')}"`,
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "music_import_errors.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
   return {
     closeImportDialog,
+    downloadImportErrors,
     handleMusicColumnMap,
     handleMusicImportFile,
     importCsv,
     importDialogOpen,
     importFile,
+    lastImportErrors,
     musicImportConfirmed,
     musicImportHeaders,
     musicImportInspecting,

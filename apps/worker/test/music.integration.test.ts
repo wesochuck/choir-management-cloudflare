@@ -536,7 +536,11 @@ describe("Organization music catalog", () => {
         method: "POST",
       }),
     );
-    expect(invalid.status).toBe(400);
+    expect(invalid.status).toBe(201);
+    const invalidResult = organizationMusicImportResponseSchema.parse(await invalid.json());
+    expect(invalidResult.imported).toBe(1);
+    expect(invalidResult.skipped).toBe(1);
+    expect(invalidResult.errors).toEqual([{ reason: expect.stringContaining("invalid"), row: 3 }]);
     const pieces = organizationMusicPiecesResponseSchema.parse(
       await (
         await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
@@ -550,6 +554,7 @@ describe("Organization music catalog", () => {
       "Batch work 4",
       "Batch work 5",
       "Second work",
+      "Valid",
     ]);
 
     await database

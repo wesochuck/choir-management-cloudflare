@@ -8,7 +8,7 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
-import { MusicCsvError, parseMusicCsv } from "@choir/domain";
+import { MusicCsvError, parseMusicCsvWithRows } from "@choir/domain";
 import {
   bulkDeleteOrganizationMusicPieces,
   createOrganizationMusicPiece,
@@ -60,24 +60,62 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const parsed = parseMusicCsv(csv).map((piece) =>
-        organizationMusicPieceRequestSchema.parse({
-          ...piece,
-          parentId: null,
-          trackFileIds: {},
-        }),
-      );
-      if (parsed.length === 0) throw new MusicCsvError("The CSV contains no music pieces.");
-      const imported = await importOrganizationMusicPieces(
+      const { errors: parseErrors, pieces: csvPieces } = parseMusicCsvWithRows(csv);
+      const zodErrors: { readonly reason: string; readonly row: number }[] = [];
+      const goodForImport: {
+        readonly piece: z.infer<typeof organizationMusicPieceRequestSchema>;
+        readonly row: number;
+      }[] = [];
+      for (const { piece, row } of csvPieces) {
+        try {
+          const parsed = organizationMusicPieceRequestSchema.parse({
+            ...piece,
+            parentId: null,
+            trackFileIds: {},
+          });
+          goodForImport.push({ piece: parsed, row });
+        } catch (error: unknown) {
+          const reason =
+            error instanceof z.ZodError
+              ? (error.issues[0]?.message ?? "The music CSV contains invalid values.")
+              : "The music CSV contains invalid values.";
+          zodErrors.push({ reason, row });
+        }
+      }
+      const allParseErrors = [...parseErrors, ...zodErrors];
+      if (goodForImport.length === 0) {
+        if (allParseErrors.length === 0) {
+          throw new MusicCsvError("The CSV contains no music pieces.");
+        }
+        return context.json(
+          {
+            errors: [...allParseErrors].sort((a, b) => a.row - b.row),
+            imported: 0,
+            requestId: context.get("requestId"),
+            skipped: allParseErrors.length,
+          },
+          201,
+        );
+      }
+      const result = await importOrganizationMusicPieces(
         context.env,
         {
           actorUserId: authorization.userId,
           organizationId: authorization.organizationId,
           requestId: context.get("requestId"),
         },
-        parsed,
+        goodForImport,
       );
-      return context.json({ imported, requestId: context.get("requestId") }, 201);
+      const combinedErrors = [...allParseErrors, ...result.errors].sort((a, b) => a.row - b.row);
+      return context.json(
+        {
+          errors: combinedErrors,
+          imported: result.imported,
+          requestId: context.get("requestId"),
+          skipped: combinedErrors.length,
+        },
+        201,
+      );
     } catch (error: unknown) {
       const failure = musicImportProblem(error, context.get("requestId"));
       return context.json(failure.problem, failure.status);

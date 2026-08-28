@@ -149,11 +149,16 @@ export async function deleteOrganizationMusicPiece(
   organizationMusicPieceDeleteResponseSchema.parse(await response.json());
 }
 
-export async function importOrganizationMusicCsv(csv: string): Promise<number> {
+export async function importOrganizationMusicCsv(csv: string): Promise<{
+  readonly errors: readonly { readonly reason: string; readonly row: number }[];
+  readonly imported: number;
+  readonly skipped: number;
+}> {
   const response = await request("/api/organization/music/import", {
     body: csv,
     headers: { "content-type": "text/csv; charset=utf-8" },
     method: "POST",
   });
-  return organizationMusicImportResponseSchema.parse(await response.json()).imported;
+  const parsed = organizationMusicImportResponseSchema.parse(await response.json());
+  return { errors: parsed.errors, imported: parsed.imported, skipped: parsed.skipped };
 }

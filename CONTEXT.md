@@ -754,10 +754,12 @@ A search control in the music catalog that filters pieces based on how recently 
 The individual(s) who wrote the original musical work. Stored in the `composer` field of a music
 library piece.
 
-## Arranger
+## Music Genre
 
-The individual(s) who adapted or arranged the original musical work for a specific vocal setting or
-instrumentation. Stored in the new `arranger` field of a music library piece.
+A label in the Organization's Music Catalog taxonomy that classifies a Music Piece. The canonical
+set lives in Music Catalog Settings and a piece's `genres` only contains labels from that registry
+after a successful import, normalized by trim and case-insensitive dedup preserving the registry's
+canonical casing. _Avoid_: free-text tag
 
 ## Calendar Subscription Feed
 

@@ -224,8 +224,11 @@ export function MusicGenreFilter({
   onModeChange,
   onSearchChange,
   onToggle,
+  onToggleUncategorized,
   search,
   selected,
+  showUncategorized,
+  uncategorizedCount,
 }: {
   readonly counts?: ReadonlyMap<string, number>;
   readonly genres: readonly string[];
@@ -233,8 +236,11 @@ export function MusicGenreFilter({
   readonly onModeChange: (mode: "and" | "or") => void;
   readonly onSearchChange: (value: string) => void;
   readonly onToggle: (genre: string) => void;
+  readonly onToggleUncategorized?: () => void;
   readonly search: string;
   readonly selected: readonly string[];
+  readonly showUncategorized?: boolean;
+  readonly uncategorizedCount?: number;
 }) {
   const filterRef = useRef<HTMLDetailsElement>(null);
   const visibleGenres = genres.filter((genre) => genreKey(genre).includes(genreKey(search)));
@@ -259,7 +265,11 @@ export function MusicGenreFilter({
       <summary>
         Genres
         <span className="music-genre-filter__summary-count">
-          {selected.length > 0 ? `${String(selected.length)} selected` : "All genres"}
+          {showUncategorized
+            ? "Uncategorized"
+            : selected.length > 0
+              ? `${String(selected.length)} selected`
+              : "All genres"}
         </span>
       </summary>
       <div
@@ -270,7 +280,11 @@ export function MusicGenreFilter({
       >
         <div className="music-genre-filter__header">
           <strong>
-            {selected.length === 0 ? "All genres" : `${String(selected.length)} selected`}
+            {showUncategorized
+              ? "Uncategorized"
+              : selected.length === 0
+                ? "All genres"
+                : `${String(selected.length)} selected`}
           </strong>
           <div aria-label="Genre match mode" className="music-genre-filter__mode" role="group">
             <button
@@ -305,6 +319,14 @@ export function MusicGenreFilter({
           }}
         />
         <div className="music-genre-filter__options">
+          <GenreChip
+            count={uncategorizedCount ?? 0}
+            genre="No genre"
+            selected={Boolean(showUncategorized)}
+            onClick={() => {
+              onToggleUncategorized?.();
+            }}
+          />
           {visibleGenres.length > 0 ? (
             visibleGenres.map((genre) => (
               <GenreChip
@@ -323,13 +345,16 @@ export function MusicGenreFilter({
         </div>
         <div className="music-genre-filter__footer">
           <span>
-            {selected.length > 0 ? "Select one or more genres" : "Choose genres to filter"}
+            {showUncategorized || selected.length > 0
+              ? "Select one or more genres"
+              : "Choose genres to filter"}
           </span>
           <button
             className="button button--secondary"
-            disabled={selected.length === 0}
+            disabled={selected.length === 0 && !showUncategorized}
             type="button"
             onClick={() => {
+              if (showUncategorized) onToggleUncategorized?.();
               selected.forEach((genre) => {
                 onToggle(genre);
               });

@@ -266,8 +266,8 @@ export function SetupDataImportStep() {
           invitationCandidates: result.invitationCandidates,
         }));
       } else {
-        const imported = await importOrganizationMusicCsv(csv);
-        updateState(kind, () => ({ ...emptyImportState, imported }));
+        const result = await importOrganizationMusicCsv(csv);
+        updateState(kind, () => ({ ...emptyImportState, imported: result.imported }));
       }
       setActiveImport(null);
     } catch (error: unknown) {

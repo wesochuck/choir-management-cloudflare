@@ -1,4 +1,4 @@
-import { musicCsvColumnOptions } from "@choir/domain";
+import { type CsvColumnMapping, musicCsvColumnOptions } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 import { MusicGenreFilter, MusicGenrePicker } from "./shared";
 import { normalizeDurationInput, uniqueLabels } from "./utils";
@@ -50,16 +50,21 @@ export function MusicCatalogView({
     events,
     genreCounts,
     genreFilterMode,
+    uncategorizedCount,
     genreFilterSearch,
     genresInput,
+    showUncategorized,
+    toggleUncategorized,
     handleMusicColumnMap,
     handleMusicImportFile,
     handlePendingTuttiFileChange,
     handlePerformanceChanged,
     handleTrackDurationDetected,
+    downloadImportErrors,
     importCsv,
     importDialogOpen,
     importFile,
+    lastImportErrors,
     message,
     musicImportConfirmed,
     musicImportHeaders,
@@ -177,6 +182,26 @@ export function MusicCatalogView({
           {message}
         </p>
       ) : null}
+      {lastImportErrors.length > 0 && !dialogOpen && !importDialogOpen && !bulkDialogOpen ? (
+        <div className="notice notice--warning" role="status">
+          <p>
+            {String(lastImportErrors.length)} row(s) were skipped.{" "}
+            <button className="text-button" onClick={downloadImportErrors} type="button">
+              Download error CSV
+            </button>
+          </p>
+          <ul>
+            {lastImportErrors.slice(0, 5).map(({ reason, row }) => (
+              <li key={row}>
+                Row {String(row)}: {reason}
+              </li>
+            ))}
+            {lastImportErrors.length > 5 ? (
+              <li>...and {String(lastImportErrors.length - 5)} more</li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
       {!roster ? (
         <p>Loading music catalog…</p>
       ) : (
@@ -199,9 +224,12 @@ export function MusicCatalogView({
                 mode={genreFilterMode}
                 search={genreFilterSearch}
                 selected={selectedGenres}
+                showUncategorized={showUncategorized}
+                uncategorizedCount={uncategorizedCount}
                 onModeChange={setGenreFilterMode}
                 onSearchChange={setGenreFilterSearch}
                 onToggle={toggleGenre}
+                onToggleUncategorized={toggleUncategorized}
               />
               <button
                 className="button button--secondary"
@@ -256,6 +284,7 @@ export function MusicCatalogView({
             </div>
             <MusicCatalogTable
               genreFilterMode={genreFilterMode}
+              showUncategorized={showUncategorized}
               onEdit={selectPiece}
               onSelectMany={selectManyPieces}
               onToggleSelection={togglePieceSelection}
@@ -634,8 +663,7 @@ export function MusicCatalogView({
           />
           <CsvImportDialog
             busy={busy || musicImportInspecting}
-            columnWarnings={musicImportInspection?.warnings ?? []}
-            columnMappings={musicImportMappings.map((mapping) => ({
+            columnMappings={musicImportMappings.map((mapping: CsvColumnMapping) => ({
               ...mapping,
               header: musicImportHeaders[mapping.sourceIndex] ?? "",
             }))}

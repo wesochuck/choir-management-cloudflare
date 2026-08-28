@@ -1,6 +1,7 @@
 import {
   organizationMusicBulkDeleteResponseSchema,
   organizationMusicGenreMutationResponseSchema,
+  organizationMusicImportResponseSchema,
   organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceSchema,
   organizationMusicPiecesResponseSchema,
@@ -274,21 +275,18 @@ export async function importOrganizationMusicPieces(
     readonly organizationId: string;
     readonly requestId: string;
   },
-  pieces: readonly OrganizationMusicPieceRequest[],
-): Promise<number> {
+  pieces: readonly { readonly piece: OrganizationMusicPieceRequest; readonly row: number }[],
+): Promise<{
+  readonly errors: readonly { readonly reason: string; readonly row: number }[];
+  readonly imported: number;
+  readonly skipped: number;
+}> {
   const response = await mutate(env, context.organizationId, {
     action: "import",
     ...context,
-    pieces: pieces.map((piece) => ({ piece, pieceId: crypto.randomUUID() })),
+    pieces: pieces.map(({ piece, row }) => ({ piece, pieceId: crypto.randomUUID(), row })),
   });
-  const body: unknown = await response.json();
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("imported" in body) ||
-    typeof body.imported !== "number"
-  ) {
-    throw new Error("The Organization store returned an invalid import result.");
-  }
-  return body.imported;
+  return organizationMusicImportResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
 }

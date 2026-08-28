@@ -7,13 +7,23 @@ export function useMusicFilters() {
   const [genreFilterMode, setGenreFilterMode] = useState<"and" | "or">("or");
   const [selectedGenres, setSelectedGenres] = useState<readonly string[]>([]);
   const [selectedPieceIds, setSelectedPieceIds] = useState<readonly string[]>([]);
+  const [showUncategorized, setShowUncategorized] = useState(false);
 
   function toggleGenre(genre: string): void {
+    setShowUncategorized(false);
     setSelectedGenres((current) =>
       current.some((item) => genreKey(item) === genreKey(genre))
         ? current.filter((item) => genreKey(item) !== genreKey(genre))
         : [...current, genre],
     );
+  }
+
+  function toggleUncategorized(): void {
+    setShowUncategorized((current) => {
+      const next = !current;
+      if (next) setSelectedGenres([]);
+      return next;
+    });
   }
 
   function togglePieceSelection(pieceId: string): void {
@@ -40,9 +50,15 @@ export function useMusicFilters() {
     setGenreFilterMode,
     setGenreFilterSearch,
     setSearch,
-    setSelectedGenres,
+    setSelectedGenres: (genres: readonly string[]) => {
+      setSelectedGenres(genres);
+      if (genres.length > 0) setShowUncategorized(false);
+    },
     setSelectedPieceIds,
+    setShowUncategorized,
+    showUncategorized,
     toggleGenre,
     togglePieceSelection,
+    toggleUncategorized,
   };
 }

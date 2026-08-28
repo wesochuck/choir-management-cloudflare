@@ -42,6 +42,11 @@ export function useMusicDerived({
     return counts;
   }, [pieces]);
 
+  const uncategorizedCount = useMemo(
+    () => pieces.filter(({ genres }) => genres.length === 0).length,
+    [pieces],
+  );
+
   const personNameOptions = useMemo(
     () =>
       [
@@ -69,5 +74,6 @@ export function useMusicDerived({
     selectedPiece,
     selectedPieces,
     topLevelPieces,
+    uncategorizedCount,
   };
 }

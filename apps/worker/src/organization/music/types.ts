@@ -67,6 +67,7 @@ export const musicOperationSchema = z.discriminatedUnion("action", [
         z.object({
           piece: organizationMusicPieceRequestSchema,
           pieceId: z.uuid(),
+          row: z.number().int().min(2),
         }),
       )
       .min(1)

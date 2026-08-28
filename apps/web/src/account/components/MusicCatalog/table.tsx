@@ -10,6 +10,7 @@ import { MusicTableTuttiPlayer } from "./performances";
 
 export function MusicCatalogTable({
   genreFilterMode,
+  showUncategorized,
   onEdit,
   onSelectMany,
   onToggleSelection,
@@ -20,6 +21,7 @@ export function MusicCatalogTable({
   selectedGenres,
 }: {
   readonly genreFilterMode: "and" | "or";
+  readonly showUncategorized: boolean;
   readonly onEdit: (piece: OrganizationMusicPiece) => void;
   readonly onSelectMany: (pieceIds: readonly string[]) => void;
   readonly onToggleSelection: (pieceId: string) => void;
@@ -48,11 +50,12 @@ export function MusicCatalogTable({
       .toLocaleLowerCase()
       .includes(needle);
     const pieceGenres = piece.genres.map(genreKey);
-    const matchesGenres =
-      selected.length === 0 ||
-      (genreFilterMode === "and"
-        ? selected.every((genre) => pieceGenres.includes(genre))
-        : selected.some((genre) => pieceGenres.includes(genre)));
+    const matchesGenres = showUncategorized
+      ? pieceGenres.length === 0
+      : selected.length === 0 ||
+        (genreFilterMode === "and"
+          ? selected.every((genre) => pieceGenres.includes(genre))
+          : selected.some((genre) => pieceGenres.includes(genre)));
     return matchesSearch && matchesGenres;
   };
   const matchingIds = new Set(pieces.filter(matchesPiece).map((piece) => piece.id));

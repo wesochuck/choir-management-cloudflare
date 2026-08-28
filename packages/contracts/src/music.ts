@@ -226,8 +226,12 @@ export const organizationMusicBulkDeleteResponseSchema = z.object({
 });
 
 export const organizationMusicImportResponseSchema = z.object({
+  errors: z
+    .array(z.object({ reason: z.string().min(1).max(500), row: z.number().int().min(2) }))
+    .max(500),
   imported: z.number().int().min(0).max(500),
   requestId: requestIdSchema,
+  skipped: z.number().int().min(0).max(500),
 });
 
 export type OrganizationMusicPieceRequest = z.infer<typeof organizationMusicPieceRequestSchema>;

@@ -290,6 +290,45 @@ export function parseMusicCsv(csv: string, maximumRows = 500): MusicCsvPiece[] {
   return imported;
 }
 
+export interface MusicCsvParseResult {
+  readonly errors: readonly { readonly reason: string; readonly row: number }[];
+  readonly pieces: readonly { readonly piece: MusicCsvPiece; readonly row: number }[];
+}
+
+export function parseMusicCsvWithRows(csv: string, maximumRows = 500): MusicCsvParseResult {
+  const rows = parseRows(csv.replace(/^\uFEFF/, ""));
+  const [headerRow, ...dataRows] = rows;
+  if (!headerRow) throw new MusicCsvError("The CSV is empty.");
+  const headers = headerRow.map((header) => header.trim().toLowerCase());
+  const indexes = musicHeaderIndexes(headers);
+  if (indexes.title < 0) throw new MusicCsvError('CSV must contain a "Title" column.');
+  const pieces: { readonly piece: MusicCsvPiece; readonly row: number }[] = [];
+  const errors: { readonly reason: string; readonly row: number }[] = [];
+  for (const [index, cells] of dataRows.entries()) {
+    const rowNumber = index + 2;
+    // Skip entirely empty rows (no title and no other data) without error, matching parseMusicCsv's `if (row.some(Boolean))` filtering
+    if (cells.every((cell) => !cell.trim())) continue;
+    try {
+      const piece = parsePiece(cells, indexes, rowNumber);
+      if (!piece) {
+        errors.push({ reason: "Title is required.", row: rowNumber });
+        continue;
+      }
+      if (pieces.length >= maximumRows) {
+        throw new MusicCsvError(`The CSV may contain at most ${String(maximumRows)} music pieces.`);
+      }
+      pieces.push({ piece, row: rowNumber });
+    } catch (error: unknown) {
+      if (error instanceof MusicCsvError) {
+        errors.push({ reason: error.message, row: error.row ?? rowNumber });
+        continue;
+      }
+      throw error;
+    }
+  }
+  return { errors, pieces };
+}
+
 function warningMessage(error: unknown): string {
   return error instanceof MusicCsvError
     ? error.message
