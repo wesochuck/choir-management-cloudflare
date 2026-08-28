@@ -37,13 +37,23 @@ export function organizationStoreUrl(
   return url;
 }
 
+export function organizationStoreUrlForOrganization(
+  organizationId: string,
+  path: string,
+  parameters: Readonly<Record<string, string>> = {},
+): URL {
+  // The trusted Organization identity must always win: caller-supplied
+  // parameters can never override it (tenant-isolation invariant).
+  return organizationStoreUrl(path, { ...parameters, organizationId });
+}
+
 export async function readOrganizationStore(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
   path: string,
   parameters: Readonly<Record<string, string>> = {},
 ): Promise<Response> {
-  const url = organizationStoreUrl(path, { organizationId, ...parameters });
+  const url = organizationStoreUrlForOrganization(organizationId, path, parameters);
   return invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
 }
 
