@@ -24,6 +24,7 @@ import { ticketCheckoutMode } from "../payments/ticketCheckout";
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -73,26 +74,17 @@ async function expirePendingDuesCheckout(
   }
 }
 
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return organizationStoreStub(env, organizationId);
-}
-
 async function mutateSeason(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/seasons/manage",
-    {
-      body: JSON.stringify({ ...body, organizationId }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
+  const response = await mutateOrganizationStore(env, organizationId, "/internal/seasons/manage", {
+    ...body,
+    organizationId,
+  });
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "season_error");
     const status =
       response.status === 400 || response.status === 404 || response.status === 409
         ? response.status
@@ -100,16 +92,6 @@ async function mutateSeason(
     throw new SeasonError(code, status, "The season could not be updated.");
   }
   return response;
-}
-
-async function errorCode(response: Response): Promise<string> {
-  const value: unknown = await response.json().catch(() => null);
-  return typeof value === "object" &&
-    value !== null &&
-    "code" in value &&
-    typeof value.code === "string"
-    ? value.code
-    : "season_error";
 }
 
 // eslint-disable-next-line complexity -- this coordinates fake and Stripe Connect checkout paths.
@@ -130,7 +112,7 @@ export async function createDuesCheckoutSession(
 ) {
   const validated = duesCheckoutRequestSchema.parse(checkout);
   const requestId = crypto.randomUUID();
-  const organizationStore = stub(env, organizationId);
+  const organizationStore = organizationStoreStub(env, organizationId);
   let checkoutMode: "fake" | "stripe";
   try {
     checkoutMode = ticketCheckoutMode(env);
@@ -155,7 +137,7 @@ export async function createDuesCheckoutSession(
       },
     );
     if (!response.ok) {
-      const code = await errorCode(response);
+      const code = await storeErrorCode(response, "season_error");
       throw new SeasonError(code, response.status, "The dues checkout could not be created.");
     }
     return duesCheckoutResponseSchema.parse(await response.json());
@@ -243,7 +225,7 @@ export async function createDuesCheckoutSession(
   );
   if (!pendingResponse.ok) {
     throw new SeasonError(
-      await errorCode(pendingResponse),
+      await storeErrorCode(pendingResponse, "season_error"),
       pendingResponse.status,
       "The dues checkout could not be reserved.",
     );
@@ -303,7 +285,7 @@ export async function createDuesCheckoutSession(
   );
   if (!response.ok) {
     await expirePendingDuesCheckout(organizationStore, organizationId, requestId, pendingSessionId);
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "season_error");
     throw new SeasonError(code, response.status, "The dues checkout could not be created.");
   }
   return duesCheckoutResponseSchema.parse({
@@ -317,9 +299,7 @@ export async function listSeasons(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly Season[]> {
-  const url = new URL("https://organization.internal/internal/seasons/list");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/seasons/list");
   if (!response.ok) throw new SeasonError("seasons_unavailable", 503, "Seasons unavailable.");
   return seasonsResponseSchema.omit({ requestId: true }).parse(await response.json()).seasons;
 }
@@ -328,9 +308,7 @@ export async function listDues(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly DuesRecord[]> {
-  const url = new URL("https://organization.internal/internal/seasons/dues");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/seasons/dues");
   if (!response.ok) throw new SeasonError("dues_unavailable", 503, "Dues unavailable.");
   return duesRecordsResponseSchema.omit({ requestId: true }).parse(await response.json()).dues;
 }
@@ -416,21 +394,18 @@ export async function refundDues(
     throw error;
   }
   if (!refundRequest.fake) return { ...current, refundRequested: true };
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/seasons/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/seasons/manage",
     {
-      body: JSON.stringify({
-        action: "refund_dues",
-        ...actor,
-        duesId: z.uuid().parse(duesId),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "refund_dues",
+      ...actor,
+      duesId: z.uuid().parse(duesId),
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "season_error");
     throw new SeasonError(code, response.status, "The dues could not be refunded.");
   }
   return duesRecordSchema.parse(await response.json());
@@ -441,21 +416,18 @@ export async function markOrganizationDuesPaidInCash(
   actor: ActorContext,
   cashPayment: { readonly profileId: string; readonly seasonId: string },
 ): Promise<DuesRecord> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/seasons/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/seasons/manage",
     {
-      body: JSON.stringify({
-        action: "mark_dues_cash_paid",
-        ...actor,
-        cashPayment: duesCashPaymentRequestSchema.parse(cashPayment),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "mark_dues_cash_paid",
+      ...actor,
+      cashPayment: duesCashPaymentRequestSchema.parse(cashPayment),
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "season_error");
     throw new SeasonError(code, response.status, "The cash dues payment could not be recorded.");
   }
   return duesRecordSchema.parse(await response.json());

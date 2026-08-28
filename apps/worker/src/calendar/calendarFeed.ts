@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
-import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { renderCalendarIcs } from "./calendarIcs";
+import { mutateOrganizationStore } from "../organization/rpc/repository";
 
 const CALENDAR_FEED_LIFETIME_SECONDS = 10 * 365 * 24 * 60 * 60;
 
@@ -78,20 +78,17 @@ export async function createCalendarFeedUrls(
   if (!profileId) {
     return null;
   }
-  const response = await invokeOrganizationRpc(
-    organizationStoreStub(env, input.organizationId),
-    "https://organization.internal/internal/calendar/credential",
+  const response = await mutateOrganizationStore(
+    env,
+    input.organizationId,
+    "/internal/calendar/credential",
     {
-      body: JSON.stringify({
-        action: input.action,
-        ...(input.action === "reset"
-          ? { actorUserId: input.actorUserId, requestId: input.requestId }
-          : {}),
-        organizationId: input.organizationId,
-        profileId,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: input.action,
+      ...(input.action === "reset"
+        ? { actorUserId: input.actorUserId, requestId: input.requestId }
+        : {}),
+      organizationId: input.organizationId,
+      profileId,
     },
   );
   const credential = calendarCredentialResponseSchema.safeParse(await response.json());
@@ -140,20 +137,12 @@ export async function readCalendarFeed(
     return null;
   }
 
-  const response = await invokeOrganizationRpc(
-    organizationStoreStub(env, organizationId),
-    "https://organization.internal/internal/calendar/feed",
-    {
-      body: JSON.stringify({
-        organizationId,
-        profileId: profileId.data,
-        readAt: now.toISOString(),
-        revocationVersion: revocationVersion.data,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
+  const response = await mutateOrganizationStore(env, organizationId, "/internal/calendar/feed", {
+    organizationId,
+    profileId: profileId.data,
+    readAt: now.toISOString(),
+    revocationVersion: revocationVersion.data,
+  });
   const feed = calendarFeedResponseSchema.safeParse(await response.json());
   if (response.status === 404) {
     return null;

@@ -2,9 +2,7 @@ import { z } from "zod";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
-
-const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
-  organizationStoreStub(env, organizationId);
+import { mutateOrganizationStore, readOrganizationStore } from "./rpc/repository";
 
 function readJsonSafe(response: Response): Promise<unknown> {
   return response.json();
@@ -33,11 +31,15 @@ async function readProfilePoll(
   pollId: string,
   profileId: string,
 ): Promise<PollDetailsResponse | null> {
-  const url = new URL("https://organization.internal/internal/polls/profile-poll");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("pollId", pollId);
-  url.searchParams.set("profileId", profileId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/polls/profile-poll",
+    {
+      pollId,
+      profileId,
+    },
+  );
   if (!response.ok) return null;
   return response.json();
 }
@@ -108,7 +110,7 @@ export async function submitPollResponse(
     return { code: "invalid_link", status: 404 };
   }
   const profileRow = await invokeOrganizationRpc(
-    stub(env, organizationId),
+    organizationStoreStub(env, organizationId),
     `https://organization.internal/internal/profiles/member?profileId=${encodeURIComponent(envelope.subjectId)}`,
   );
   const raw: unknown = profileRow.ok ? await readJsonSafe(profileRow) : null;
@@ -117,27 +119,18 @@ export async function submitPollResponse(
       ? (z.object({ displayName: z.string().optional() }).safeParse(raw).data ?? null)
       : null;
 
-  const objectStub = stub(env, organizationId);
-  const response = await invokeOrganizationRpc(
-    objectStub,
-    "https://organization.internal/internal/polls/manage",
-    {
-      body: JSON.stringify({
-        action: "submit_poll_response",
-        actorUserId: `public:${envelope.subjectId}`,
-        organizationId,
-        pollId: envelope.resourceId,
-        requestId: crypto.randomUUID(),
-        response: {
-          optionIds,
-          profileId: envelope.subjectId,
-          profileName: profile?.displayName ?? "",
-        },
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+  const response = await mutateOrganizationStore(env, organizationId, "/internal/polls/manage", {
+    action: "submit_poll_response",
+    actorUserId: `public:${envelope.subjectId}`,
+    organizationId,
+    pollId: envelope.resourceId,
+    requestId: crypto.randomUUID(),
+    response: {
+      optionIds,
+      profileId: envelope.subjectId,
+      profileName: profile?.displayName ?? "",
     },
-  );
+  });
   if (!response.ok) {
     const body = z
       .object({ code: z.string().min(1).max(100) })

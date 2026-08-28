@@ -6,7 +6,7 @@ import {
 import { z } from "zod";
 
 import type { Env } from "../env";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -25,20 +25,6 @@ export class PaymentSettingsError extends Error {
   }
 }
 
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return organizationStoreStub(env, organizationId);
-}
-
-async function errorCode(response: Response): Promise<string> {
-  const value: unknown = await response.json().catch(() => null);
-  return typeof value === "object" &&
-    value !== null &&
-    "code" in value &&
-    typeof value.code === "string"
-    ? value.code
-    : "payment_settings_error";
-}
-
 export async function readOrganizationPaymentActivations(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
@@ -46,12 +32,10 @@ export async function readOrganizationPaymentActivations(
   readonly activations: z.infer<typeof paymentActivationSettingsSchema>;
   readonly organizationName: string;
 }> {
-  const url = new URL("https://organization.internal/internal/payment-settings");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/payment-settings");
   if (!response.ok) {
     throw new PaymentSettingsError(
-      await errorCode(response),
+      await storeErrorCode(response, "payment_settings_error"),
       response.status,
       "Organization payment settings are unavailable.",
     );
@@ -80,26 +64,23 @@ export async function updateOrganizationPaymentActivation(
   enabled: boolean,
 ): Promise<z.infer<typeof paymentActivationSettingsSchema>> {
   const validatedModuleId = paymentModuleIdSchema.parse(moduleId);
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/payment-settings",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/payment-settings",
     {
-      body: JSON.stringify({
-        action: "update_payment_activation",
-        actorUserId: actor.actorUserId,
-        confirm: true,
-        enabled,
-        moduleId: validatedModuleId,
-        organizationId: actor.organizationId,
-        requestId: actor.requestId,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "update_payment_activation",
+      actorUserId: actor.actorUserId,
+      confirm: true,
+      enabled,
+      moduleId: validatedModuleId,
+      organizationId: actor.organizationId,
+      requestId: actor.requestId,
     },
   );
   if (!response.ok) {
     throw new PaymentSettingsError(
-      await errorCode(response),
+      await storeErrorCode(response, "payment_settings_error"),
       response.status,
       "The payment activation setting could not be updated.",
     );

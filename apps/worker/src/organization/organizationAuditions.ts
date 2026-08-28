@@ -1,10 +1,8 @@
 import { verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import { readOrganizationStore } from "./rpc/repository";
 import { publicAuditionDetailsResponseSchema } from "@choir/contracts";
-
-const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
-  organizationStoreStub(env, organizationId);
 
 type AuditionDetailResponse = Record<string, unknown>;
 
@@ -20,10 +18,9 @@ export async function resolveAuditionDetails(
   if (!envelope?.resourceId || !envelope.subjectId) {
     return { code: "invalid_link", status: 404 };
   }
-  const url = new URL("https://organization.internal/internal/audition/details");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("auditionId", envelope.resourceId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/audition/details", {
+    auditionId: envelope.resourceId,
+  });
   if (!response.ok) {
     return { code: "audition_details_failed", status: response.status };
   }
@@ -56,7 +53,9 @@ export async function submitAuditionUpdate(
   if (voicePart !== undefined) {
     url.searchParams.set("voicePart", voicePart);
   }
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url, { method: "POST" });
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url, {
+    method: "POST",
+  });
   if (!response.ok) {
     return { code: "audition_update_failed", status: response.status };
   }

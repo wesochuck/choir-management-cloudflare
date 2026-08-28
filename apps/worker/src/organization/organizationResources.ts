@@ -7,7 +7,12 @@ import {
 import { z } from "zod";
 
 import type { Env } from "../env";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import {
+  mutateOrganizationStore,
+  readOrganizationStore,
+  storeErrorCode,
+  storeErrorStatus,
+} from "./rpc/repository";
 
 export class ResourceRepositoryError extends Error {
   constructor(
@@ -19,25 +24,11 @@ export class ResourceRepositoryError extends Error {
   }
 }
 
-function stub(env: Env, organizationId: string): ReturnType<typeof organizationStoreStub> {
-  return organizationStoreStub(env, organizationId);
-}
-
 async function failure(response: Response): Promise<ResourceRepositoryError> {
-  const body: unknown = await response
-    .clone()
-    .json()
-    .catch(() => null);
-  const code =
-    typeof body === "object" && body !== null && "code" in body && typeof body.code === "string"
-      ? body.code
-      : "resource_repository_error";
-  let status: ResourceRepositoryError["status"] = 503;
-  if (response.status === 400) status = 400;
-  else if (response.status === 404) status = 404;
-  else if (response.status === 409) status = 409;
-  else if (response.status === 500) status = 500;
-  return new ResourceRepositoryError(code, status);
+  return new ResourceRepositoryError(
+    await storeErrorCode(response, "resource_repository_error"),
+    storeErrorStatus(response),
+  );
 }
 
 async function mutate(
@@ -45,14 +36,11 @@ async function mutate(
   organizationId: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/resources/manage",
-    {
-      body: JSON.stringify(body),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/resources/manage",
+    body,
   );
   if (!response.ok) throw await failure(response);
   return response;
@@ -62,9 +50,7 @@ export async function listOrganizationResources(
   env: Env,
   organizationId: string,
 ): Promise<readonly OrganizationResource[]> {
-  const url = new URL("https://organization.internal/internal/resources");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/resources");
   if (!response.ok) throw await failure(response);
   return organizationResourcesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .resources;

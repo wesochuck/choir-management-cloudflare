@@ -9,7 +9,7 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -28,29 +28,13 @@ export class SetupError extends Error {
   }
 }
 
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return organizationStoreStub(env, organizationId);
-}
-
-async function errorCode(response: Response): Promise<string> {
-  const value: unknown = await response.json().catch(() => null);
-  return typeof value === "object" &&
-    value !== null &&
-    "code" in value &&
-    typeof value.code === "string"
-    ? value.code
-    : "setup_error";
-}
-
 export async function getSetupStatus(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<SetupStatus> {
-  const url = new URL("https://organization.internal/internal/setup/state");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/setup/state");
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "setup_error");
     throw new SetupError(code, response.status, "Setup status unavailable.");
   }
   return setupStatusSchema.parse(await response.json());
@@ -60,20 +44,17 @@ export async function claimSetup(
   env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,
 ): Promise<{ readonly claimed: boolean; readonly organizationId: string }> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/setup/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/setup/manage",
     {
-      body: JSON.stringify({
-        action: "claim_setup",
-        ...actor,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "claim_setup",
+      ...actor,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "setup_error");
     throw new SetupError(code, response.status, "Setup could not be claimed.");
   }
   return setupClaimResponseSchema.parse(await response.json());
@@ -85,22 +66,19 @@ export async function saveSetupProgress(
   progress: SetupProgressRequest,
 ): Promise<{ readonly saved: boolean }> {
   const validatedProgress = setupProgressRequestSchema.parse(progress);
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/setup/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/setup/manage",
     {
-      body: JSON.stringify({
-        action: "save_progress",
-        ...actor,
-        step: validatedProgress.step,
-        data: validatedProgress.data,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "save_progress",
+      ...actor,
+      step: validatedProgress.step,
+      data: validatedProgress.data,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "setup_error");
     throw new SetupError(code, response.status, "Setup progress could not be saved.");
   }
   return { saved: true };
@@ -110,20 +88,17 @@ export async function completeSetup(
   env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,
 ): Promise<{ readonly completed: boolean }> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/setup/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/setup/manage",
     {
-      body: JSON.stringify({
-        action: "complete_setup",
-        ...actor,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "complete_setup",
+      ...actor,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "setup_error");
     throw new SetupError(code, response.status, "Setup could not be completed.");
   }
   return { completed: true };
@@ -133,9 +108,7 @@ export async function getModuleState(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly ModuleState[]> {
-  const url = new URL("https://organization.internal/internal/setup/modules");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/setup/modules");
   if (!response.ok) throw new SetupError("modules_unavailable", 503, "Module state unavailable.");
   return moduleStatesResponseSchema.parse(await response.json()).modules;
 }

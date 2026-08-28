@@ -2,8 +2,8 @@ import { z } from "zod";
 import type { Env } from "../../env";
 import { issuePlayerToken } from "../../organization/organizationPlayerLinks";
 import { issueRsvpToken } from "../../organization/organizationRsvpLinks";
-import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import { issueSignedLink } from "../../security/signedLinks";
+import { mutateOrganizationStore, readOrganizationStore } from "../../organization/rpc/repository";
 import type { DeliveryJob } from "../contracts";
 export type JobConsumerEnv = Pick<
   Env,
@@ -147,18 +147,15 @@ export function retryDelaySeconds(attempt: number): number {
 
 export async function recordJobFailure(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   try {
-    const failureResponse = await invokeOrganizationRpc(
-      organizationStoreStub(env, job.organizationId),
-      "https://organization.internal/internal/jobs/fail",
+    const failureResponse = await mutateOrganizationStore(
+      env,
+      job.organizationId,
+      "/internal/jobs/fail",
       {
-        body: JSON.stringify({
-          attempt: job.attempt,
-          failedAt: new Date().toISOString(),
-          idempotencyKey: job.idempotencyKey,
-          jobId: job.jobId,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+        attempt: job.attempt,
+        failedAt: new Date().toISOString(),
+        idempotencyKey: job.idempotencyKey,
+        jobId: job.jobId,
       },
     );
     const failure = failureResponseSchema.safeParse(await failureResponse.json());
@@ -204,19 +201,16 @@ export async function recordEventReminderResult(
   job: DeliveryJob,
   status: "failed" | "sent" | "terminal",
 ): Promise<void> {
-  const response = await invokeOrganizationRpc(
-    organizationStoreStub(env, job.organizationId),
-    "https://organization.internal/internal/scheduling/event-reminder-result",
+  const response = await mutateOrganizationStore(
+    env,
+    job.organizationId,
+    "/internal/scheduling/event-reminder-result",
     {
-      body: JSON.stringify({
-        attempt: job.attempt,
-        idempotencyKey: job.idempotencyKey,
-        jobId: job.jobId,
-        organizationId: job.organizationId,
-        status,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      attempt: job.attempt,
+      idempotencyKey: job.idempotencyKey,
+      jobId: job.jobId,
+      organizationId: job.organizationId,
+      status,
     },
   );
   const result = eventReminderResultResponseSchema.safeParse(await response.json());
@@ -494,10 +488,7 @@ export async function readOrganizationEmailSenderConfig(
   readonly sendingDomain: string | null;
 }> {
   try {
-    const stub = organizationStoreStub(env, organizationId);
-    const url = new URL("https://organization.internal/internal/email-settings");
-    url.searchParams.set("organizationId", organizationId);
-    const response = await invokeOrganizationRpc(stub, url);
+    const response = await readOrganizationStore(env, organizationId, "/internal/email-settings");
     if (!response.ok) return { fromName: null, replyTo: null, sendingDomain: null };
     const raw: unknown = await response.json();
     const parsed = z

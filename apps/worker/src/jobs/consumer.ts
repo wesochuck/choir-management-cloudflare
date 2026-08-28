@@ -22,6 +22,7 @@ import { deliverPaymentNotificationJob } from "./deliveries/payments";
 import { deliverOrganizationExportJob } from "./deliveries/export";
 import { cleanupStaleCheckout } from "./deliveries/cleanup";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
+import { mutateOrganizationStore } from "../organization/rpc/repository";
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   if (job.kind === "communication_delivery") {
     await deliverCommunicationJob(env, job);
@@ -226,20 +227,17 @@ async function recordTerminalJob(
 ): Promise<void> {
   if (!job || !env.ORGANIZATION_STORE) return;
   try {
-    const response = await invokeOrganizationRpc(
-      organizationStoreStub(env, job.organizationId),
-      "https://organization.internal/internal/jobs/terminal",
+    const response = await mutateOrganizationStore(
+      { ORGANIZATION_STORE: env.ORGANIZATION_STORE },
+      job.organizationId,
+      "/internal/jobs/terminal",
       {
-        body: JSON.stringify({
-          attempt: job.attempt,
-          errorCode: "queue_dead_lettered",
-          failedAt: new Date().toISOString(),
-          idempotencyKey: job.idempotencyKey,
-          jobId: job.jobId,
-          terminalAt: new Date().toISOString(),
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+        attempt: job.attempt,
+        errorCode: "queue_dead_lettered",
+        failedAt: new Date().toISOString(),
+        idempotencyKey: job.idempotencyKey,
+        jobId: job.jobId,
+        terminalAt: new Date().toISOString(),
       },
     );
     const result = terminalResponseSchema.safeParse(await response.json());

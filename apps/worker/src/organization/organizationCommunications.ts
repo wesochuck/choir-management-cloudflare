@@ -21,7 +21,12 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { issueSignedLink } from "../security/signedLinks";
 import { listOrganizationProfileEmails } from "./profiles";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import {
+  mutateOrganizationStore,
+  readOrganizationStore,
+  storeErrorCode,
+  storeErrorStatus,
+} from "./rpc/repository";
 
 const candidateResponseSchema = z.object({
   recipients: z.array(
@@ -78,27 +83,11 @@ export class CommunicationRepositoryError extends Error {
   }
 }
 
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return organizationStoreStub(env, organizationId);
-}
-
 async function failure(response: Response): Promise<CommunicationRepositoryError> {
-  const body: unknown = await response
-    .clone()
-    .json()
-    .catch(() => null);
-  const code =
-    typeof body === "object" && body !== null && "code" in body && typeof body.code === "string"
-      ? body.code
-      : "communication_repository_error";
-  const status =
-    response.status === 400 ||
-    response.status === 404 ||
-    response.status === 409 ||
-    response.status === 500
-      ? response.status
-      : 503;
-  return new CommunicationRepositoryError(code, status);
+  return new CommunicationRepositoryError(
+    await storeErrorCode(response, "communication_repository_error"),
+    storeErrorStatus(response),
+  );
 }
 
 async function post(
@@ -107,15 +96,7 @@ async function post(
   path: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    `https://organization.internal${path}`,
-    {
-      body: JSON.stringify(body),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
+  const response = await mutateOrganizationStore(env, organizationId, path, body);
   if (!response.ok) throw await failure(response);
   return response;
 }
@@ -278,10 +259,14 @@ export async function readOrganizationCommunicationTemplate(
   organizationId: string,
   templateId: string,
 ): Promise<CommunicationTemplate> {
-  const url = new URL("https://organization.internal/internal/communications/template");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("templateId", templateId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/template",
+    {
+      templateId,
+    },
+  );
   if (!response.ok) throw await failure(response);
   return communicationTemplateSchema.parse(await response.json());
 }
@@ -350,9 +335,7 @@ export async function listOrganizationCommunications(
   env: Env,
   organizationId: string,
 ): Promise<readonly CommunicationMessage[]> {
-  const url = new URL("https://organization.internal/internal/communications");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/communications");
   if (!response.ok) throw await failure(response);
   return communicationMessagesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .messages;
@@ -362,9 +345,11 @@ export async function listOrganizationScheduledMessages(
   env: Env,
   organizationId: string,
 ): Promise<readonly CommunicationScheduledMessage[]> {
-  const url = new URL("https://organization.internal/internal/communications/scheduled");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/scheduled",
+  );
   if (!response.ok) throw await failure(response);
   return communicationScheduledMessagesResponseSchema
     .omit({ requestId: true })
@@ -376,10 +361,14 @@ export async function readCommunicationDeliverySummary(
   organizationId: string,
   messageId: string,
 ): Promise<CommunicationDeliverySummary> {
-  const url = new URL("https://organization.internal/internal/communications/summary");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("messageId", messageId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/summary",
+    {
+      messageId,
+    },
+  );
   if (!response.ok) throw await failure(response);
   return communicationDeliverySummarySchema.parse(await response.json());
 }
@@ -414,9 +403,11 @@ export async function listCommunicationTemplates(
   env: Env,
   organizationId: string,
 ): Promise<readonly CommunicationTemplate[]> {
-  const url = new URL("https://organization.internal/internal/communications/templates");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/templates",
+  );
   if (!response.ok) throw await failure(response);
   return communicationTemplatesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .templates;
@@ -481,10 +472,14 @@ export async function readCommunicationDeliveryJob(
   organizationId: string,
   jobId: string,
 ) {
-  const url = new URL("https://organization.internal/internal/communications/job");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("jobId", jobId);
-  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/job",
+    {
+      jobId,
+    },
+  );
   if (!response.ok) throw new Error("The Organization store rejected the communication job.");
   return deliveryJobResponseSchema.parse(await response.json());
 }
@@ -502,14 +497,11 @@ export async function recordCommunicationDeliveryResults(
     }[];
   },
 ): Promise<void> {
-  const response = await invokeOrganizationRpc(
-    organizationStoreStub(env, input.organizationId),
-    "https://organization.internal/internal/communications/manage",
-    {
-      body: JSON.stringify({ action: "delivery-result", ...input }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    input.organizationId,
+    "/internal/communications/manage",
+    { action: "delivery-result", ...input },
   );
   if (!response.ok) throw new Error("The Organization store rejected communication results.");
 }

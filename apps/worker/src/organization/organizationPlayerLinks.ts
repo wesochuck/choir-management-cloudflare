@@ -3,9 +3,7 @@ import { z } from "zod";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
-
-const stub = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
-  organizationStoreStub(env, organizationId);
+import { mutateOrganizationStore, readOrganizationStore } from "./rpc/repository";
 
 const playerLinkRowSchema = z.object({
   eventId: z.uuid(),
@@ -75,30 +73,29 @@ export async function generatePublicPlayerToken(
   eventId: string,
   rotate = false,
 ): Promise<{ token: string }> {
-  const settingsUrl = new URL("https://organization.internal/internal/music/settings");
-  settingsUrl.searchParams.set("organizationId", organizationId);
-  const settingsResponse = await invokeOrganizationRpc(stub(env, organizationId), settingsUrl);
+  const settingsResponse = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/music/settings",
+  );
   if (!settingsResponse.ok) throw new Error("Practice player settings are unavailable.");
   const settings = organizationMusicLibrarySettingsRequestSchema.parse(
     await settingsResponse.json(),
   );
   const issuedAt = Math.floor(Date.now() / 1000);
-  const linkResponse = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/player/public-link",
+  const linkResponse = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/player/public-link",
     {
-      body: JSON.stringify({
-        action: "ensure",
-        eventId,
-        expiresAt: issuedAt + settings.practicePlayerLinkLifetimeDays * 24 * 60 * 60,
-        issuedAt,
-        nonce: crypto.randomUUID(),
-        organizationId,
-        requestId: crypto.randomUUID(),
-        rotate,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "ensure",
+      eventId,
+      expiresAt: issuedAt + settings.practicePlayerLinkLifetimeDays * 24 * 60 * 60,
+      issuedAt,
+      nonce: crypto.randomUUID(),
+      organizationId,
+      requestId: crypto.randomUUID(),
+      rotate,
     },
   );
   if (!linkResponse.ok) {
@@ -143,11 +140,10 @@ export async function resolvePlayerDetails(
   if (!envelope?.resourceId || !envelope.subjectId) {
     return { code: "invalid_link", status: 404 };
   }
-  const url = new URL("https://organization.internal/internal/player/details");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("eventId", envelope.resourceId);
-  url.searchParams.set("profileId", envelope.subjectId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/player/details", {
+    eventId: envelope.resourceId,
+    profileId: envelope.subjectId,
+  });
   if (!response.ok) {
     return { code: "player_details_failed", status: response.status };
   }
@@ -168,7 +164,10 @@ export async function resolvePublicPlayerPlaylist(
   linkUrl.searchParams.set("eventId", envelope.resourceId);
   linkUrl.searchParams.set("nonce", envelope.nonce ?? "");
   linkUrl.searchParams.set("organizationId", organizationId);
-  const linkResponse = await invokeOrganizationRpc(stub(env, organizationId), linkUrl);
+  const linkResponse = await invokeOrganizationRpc(
+    organizationStoreStub(env, organizationId),
+    linkUrl,
+  );
   if (!linkResponse.ok) {
     const linkBody: unknown = await linkResponse.json().catch(() => null);
     if (
@@ -184,7 +183,7 @@ export async function resolvePublicPlayerPlaylist(
   const url = new URL("https://organization.internal/internal/player/playlist");
   url.searchParams.set("eventId", envelope.resourceId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (!response.ok) return { code: "player_playlist_failed", status: response.status };
   return await response.json();
 }

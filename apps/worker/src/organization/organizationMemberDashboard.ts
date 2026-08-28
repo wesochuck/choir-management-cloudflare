@@ -20,10 +20,7 @@ import {
 } from "../calendar/organizationCalendar";
 import { getModuleState, getSetupStatus } from "./organizationSetup";
 import { generatePollTokens } from "./organizationPollLinks";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
-
-const store = (env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) =>
-  organizationStoreStub(env, organizationId);
+import { readOrganizationStore } from "./rpc/repository";
 
 async function readStore(
   env: Pick<Env, "ORGANIZATION_STORE">,
@@ -31,10 +28,7 @@ async function readStore(
   path: string,
   parameters: Readonly<Record<string, string>> = {},
 ): Promise<unknown> {
-  const url = new URL(`https://organization.internal${path}`);
-  url.searchParams.set("organizationId", organizationId);
-  for (const [key, value] of Object.entries(parameters)) url.searchParams.set(key, value);
-  const response = await invokeOrganizationRpc(store(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, path, parameters);
   if (!response.ok) throw new Error(`Organization dashboard read failed: ${path}`);
   return response.json();
 }

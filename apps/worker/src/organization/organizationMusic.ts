@@ -15,7 +15,12 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import {
+  mutateOrganizationStore,
+  readOrganizationStore,
+  storeErrorCode,
+  storeErrorStatus,
+} from "./rpc/repository";
 
 export class MusicRepositoryError extends Error {
   readonly code: string;
@@ -29,30 +34,11 @@ export class MusicRepositoryError extends Error {
   }
 }
 
-function organizationStub(
-  env: Env,
-  organizationId: string,
-): ReturnType<typeof organizationStoreStub> {
-  return organizationStoreStub(env, organizationId);
-}
-
 async function repositoryError(response: Response): Promise<MusicRepositoryError> {
-  const body: unknown = await response
-    .clone()
-    .json()
-    .catch(() => null);
-  const code =
-    typeof body === "object" && body !== null && "code" in body && typeof body.code === "string"
-      ? body.code
-      : "music_repository_error";
-  const status =
-    response.status === 400 ||
-    response.status === 404 ||
-    response.status === 409 ||
-    response.status === 500
-      ? response.status
-      : 503;
-  return new MusicRepositoryError(code, status);
+  return new MusicRepositoryError(
+    await storeErrorCode(response, "music_repository_error"),
+    storeErrorStatus(response),
+  );
 }
 
 async function mutate(
@@ -60,14 +46,11 @@ async function mutate(
   organizationId: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  const response = await invokeOrganizationRpc(
-    organizationStub(env, organizationId),
-    "https://organization.internal/internal/music/manage",
-    {
-      body: JSON.stringify(body),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/music/manage",
+    body,
   );
   if (!response.ok) throw await repositoryError(response);
   return response;
@@ -77,9 +60,7 @@ export async function listOrganizationMusicPieces(
   env: Env,
   organizationId: string,
 ): Promise<readonly OrganizationMusicPiece[]> {
-  const url = new URL("https://organization.internal/internal/music/pieces");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(organizationStub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/music/pieces");
   if (!response.ok) throw await repositoryError(response);
   return organizationMusicPiecesResponseSchema
     .omit({ requestId: true })
@@ -90,9 +71,7 @@ export async function readOrganizationMusicLibrarySettings(
   env: Env,
   organizationId: string,
 ): Promise<OrganizationMusicLibrarySettings> {
-  const url = new URL("https://organization.internal/internal/music/settings");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(organizationStub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/music/settings");
   if (!response.ok) throw await repositoryError(response);
   return organizationMusicLibrarySettingsRequestSchema.parse(await response.json());
 }

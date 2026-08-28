@@ -32,6 +32,7 @@ import { readOrganizationPaymentActivations } from "./organizationPaymentSetting
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -60,10 +61,6 @@ export class TicketingError extends Error {
   }
 }
 
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return organizationStoreStub(env, organizationId);
-}
-
 const scanCredentialResponseSchema = z.object({
   expiresAt: z.number().int().positive(),
   issuedAt: z.number().int().positive(),
@@ -75,38 +72,25 @@ export async function issueOrganizationTicketScanCredential(
   organizationId: string,
   purchaseId: string,
 ) {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "issue_ticket_scan_credential",
-        organizationId,
-        purchaseId,
-        requestId: crypto.randomUUID(),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "issue_ticket_scan_credential",
+      organizationId,
+      purchaseId,
+      requestId: crypto.randomUUID(),
     },
   );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       response.status,
       "The ticket credential could not be issued.",
     );
   }
   return scanCredentialResponseSchema.parse(await response.json());
-}
-
-async function errorCode(response: Response): Promise<string> {
-  const value: unknown = await response.json().catch(() => null);
-  return typeof value === "object" &&
-    value !== null &&
-    "code" in value &&
-    typeof value.code === "string"
-    ? value.code
-    : "ticketing_error";
 }
 
 function ticketCheckoutFailureMessage(code: string, fallback: string): string {
@@ -120,20 +104,17 @@ async function expirePendingTicketCheckout(
   checkoutRequestId: string,
   providerSessionId: string,
 ): Promise<void> {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "stripe_ticket_expired",
-        checkoutRequestId,
-        organizationId,
-        providerPaymentId: "",
-        providerSessionId,
-        stripeEventId: `checkout-failed:${purchaseId}`,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "stripe_ticket_expired",
+      checkoutRequestId,
+      organizationId,
+      providerPaymentId: "",
+      providerSessionId,
+      stripeEventId: `checkout-failed:${purchaseId}`,
     },
   );
   if (!response.ok)
@@ -164,23 +145,20 @@ export async function createPublicTicketCheckout(
   const purchaseId = crypto.randomUUID();
   if (checkoutMode === "stripe") {
     const pendingSessionId = `pending_${purchaseId}`;
-    const pendingResponse = await invokeOrganizationRpc(
-      stub(env, organizationId),
-      "https://organization.internal/internal/ticketing/manage",
+    const pendingResponse = await mutateOrganizationStore(
+      env,
+      organizationId,
+      "/internal/ticketing/manage",
       {
-        body: JSON.stringify({
-          action: "create_stripe_pending",
-          checkout: validated,
-          organizationId,
-          providerSessionId: pendingSessionId,
-          purchaseId,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+        action: "create_stripe_pending",
+        checkout: validated,
+        organizationId,
+        providerSessionId: pendingSessionId,
+        purchaseId,
       },
     );
     if (!pendingResponse.ok) {
-      const code = await errorCode(pendingResponse);
+      const code = await storeErrorCode(pendingResponse, "ticketing_error");
       throw new TicketingError(
         code,
         pendingResponse.status,
@@ -226,7 +204,7 @@ export async function createPublicTicketCheckout(
       );
     }
     const stripeStatusResponse = await invokeOrganizationRpc(
-      stub(env, organizationId),
+      organizationStoreStub(env, organizationId),
       `https://organization.internal/internal/stripe-connect?organizationId=${encodeURIComponent(organizationId)}`,
     );
     const stripeStatus = z
@@ -307,18 +285,15 @@ export async function createPublicTicketCheckout(
       }
       throw error;
     }
-    const attachedResponse = await invokeOrganizationRpc(
-      stub(env, organizationId),
-      "https://organization.internal/internal/ticketing/manage",
+    const attachedResponse = await mutateOrganizationStore(
+      env,
+      organizationId,
+      "/internal/ticketing/manage",
       {
-        body: JSON.stringify({
-          action: "attach_stripe_session",
-          organizationId,
-          providerSessionId: stripeSession.id,
-          purchaseId,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+        action: "attach_stripe_session",
+        organizationId,
+        providerSessionId: stripeSession.id,
+        purchaseId,
       },
     );
     if (!attachedResponse.ok) {
@@ -344,23 +319,20 @@ export async function createPublicTicketCheckout(
     };
   }
   const providerSessionId = `fake_session_${crypto.randomUUID()}`;
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "create_fake_checkout",
-        checkout: validated,
-        organizationId,
-        providerSessionId,
-        purchaseId,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "create_fake_checkout",
+      checkout: validated,
+      organizationId,
+      providerSessionId,
+      purchaseId,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "ticketing_error");
     throw new TicketingError(
       code,
       response.status,
@@ -395,10 +367,14 @@ export async function readPublicTicketPurchase(
   organizationId: string,
   purchaseId: string,
 ) {
-  const url = new URL("https://organization.internal/internal/ticketing/purchase");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("purchaseId", purchaseId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/purchase",
+    {
+      purchaseId,
+    },
+  );
   if (!response.ok)
     throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
   const purchase = publicTicketPurchaseSchema.parse(await response.json());
@@ -420,9 +396,7 @@ export async function listOrganizationTicketOrders(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly OrganizationTicketOrder[]> {
-  const url = new URL("https://organization.internal/internal/ticketing/orders");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/ticketing/orders");
   if (!response.ok)
     throw new TicketingError("ticket_orders_unavailable", 503, "Ticket orders unavailable.");
   return organizationTicketOrdersResponseSchema
@@ -439,14 +413,18 @@ export async function readPublicTicketDiscountAvailability(
     bundleId: target.bundleId ?? null,
     eventId: target.eventId ?? null,
   });
-  const url = new URL("https://organization.internal/internal/ticketing/discount-availability");
-  url.searchParams.set("organizationId", organizationId);
-  if (parsedTarget.eventId) url.searchParams.set("eventId", parsedTarget.eventId);
-  if (parsedTarget.bundleId) url.searchParams.set("bundleId", parsedTarget.bundleId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/discount-availability",
+    {
+      ...(parsedTarget.eventId ? { eventId: parsedTarget.eventId } : {}),
+      ...(parsedTarget.bundleId ? { bundleId: parsedTarget.bundleId } : {}),
+    },
+  );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       response.status,
       "Discount availability is temporarily unavailable.",
     );
@@ -460,21 +438,18 @@ export async function quotePublicTicketCheckout(
   organizationId: string,
   quote: z.input<typeof ticketCheckoutQuoteRequestSchema>,
 ) {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "quote_ticket_checkout",
-        checkout: ticketCheckoutQuoteRequestSchema.parse(quote),
-        organizationId,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "quote_ticket_checkout",
+      checkout: ticketCheckoutQuoteRequestSchema.parse(quote),
+      organizationId,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "ticketing_error");
     throw new TicketingError(
       code,
       response.status,
@@ -488,12 +463,14 @@ export async function listOrganizationDiscountCodes(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly DiscountCode[]> {
-  const url = new URL("https://organization.internal/internal/ticketing/discount-codes");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/discount-codes",
+  );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       503,
       "Discount codes are temporarily unavailable.",
     );
@@ -509,24 +486,21 @@ export async function saveOrganizationDiscountCode(
   code: DiscountCodeRequest,
   allowCreate: boolean,
 ): Promise<DiscountCode> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "upsert_discount_code",
-        allowCreate,
-        code: discountCodeRequestSchema.parse(code),
-        codeId: z.uuid().parse(codeId),
-        ...actor,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "upsert_discount_code",
+      allowCreate,
+      code: discountCodeRequestSchema.parse(code),
+      codeId: z.uuid().parse(codeId),
+      ...actor,
     },
   );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       response.status,
       "The discount code could not be saved.",
     );
@@ -539,22 +513,19 @@ export async function deactivateOrganizationDiscountCode(
   actor: ActorContext,
   codeId: string,
 ): Promise<DiscountCode> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "deactivate_discount_code",
-        codeId: z.uuid().parse(codeId),
-        ...actor,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "deactivate_discount_code",
+      codeId: z.uuid().parse(codeId),
+      ...actor,
     },
   );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       response.status,
       "The discount code could not be deactivated.",
     );
@@ -567,21 +538,18 @@ async function refundFakeTicketPurchaseInStore(
   actor: ActorContext,
   purchaseId: string,
 ): Promise<OrganizationTicketOrder> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "refund_fake_purchase",
-        ...actor,
-        purchaseId,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "refund_fake_purchase",
+      ...actor,
+      purchaseId,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "ticketing_error");
     throw new TicketingError(code, response.status, "The ticket order could not be refunded.");
   }
   return organizationTicketOrderSchema.parse(await response.json());
@@ -632,19 +600,16 @@ export async function validateOrganizationTicketScan(
   if (!envelope?.resourceId || !z.uuid().safeParse(envelope.resourceId).success) {
     throw new TicketingError("ticket_scan_invalid", 404, "Ticket credential not found.");
   }
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "validate_ticket_scan",
-        ...actor,
-        eventId,
-        purchaseId: envelope.resourceId,
-        scanNonce: envelope.nonce,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "validate_ticket_scan",
+      ...actor,
+      eventId,
+      purchaseId: envelope.resourceId,
+      scanNonce: envelope.nonce,
     },
   );
   if (!response.ok) {
@@ -663,10 +628,14 @@ export async function readOrganizationTicketWillCallCsv(
   organizationId: string,
   eventId: string,
 ): Promise<{ readonly content: string; readonly filename: string }> {
-  const url = new URL("https://organization.internal/internal/ticketing/will-call");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("eventId", eventId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/ticketing/will-call",
+    {
+      eventId,
+    },
+  );
   if (!response.ok) {
     throw new TicketingError("ticket_event_not_found", 404, "Ticketed event not found.");
   }
@@ -681,9 +650,7 @@ export async function listOrganizationTicketBundles(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly TicketBundle[]> {
-  const url = new URL("https://organization.internal/internal/ticketing/bundles");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/ticketing/bundles");
   if (!response.ok)
     throw new TicketingError("ticket_bundles_unavailable", 503, "Ticket bundles unavailable.");
   return ticketBundlesResponseSchema.omit({ requestId: true }).parse(await response.json()).bundles;
@@ -695,23 +662,20 @@ export async function saveOrganizationTicketBundle(
   bundleId: string,
   bundle: TicketBundleRequest,
 ): Promise<TicketBundle> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "upsert_ticket_bundle",
-        ...actor,
-        bundle: ticketBundleRequestSchema.parse(bundle),
-        bundleId: z.uuid().parse(bundleId),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "upsert_ticket_bundle",
+      ...actor,
+      bundle: ticketBundleRequestSchema.parse(bundle),
+      bundleId: z.uuid().parse(bundleId),
     },
   );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       response.status,
       "The ticket bundle could not be saved.",
     );
@@ -724,18 +688,15 @@ export async function deleteOrganizationTicketBundle(
   actor: ActorContext,
   bundleId: string,
 ): Promise<void> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/ticketing/manage",
-    {
-      body: JSON.stringify({ action: "delete_ticket_bundle", ...actor, bundleId }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
+    { action: "delete_ticket_bundle", ...actor, bundleId },
   );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       response.status,
       "The ticket bundle could not be deleted.",
     );
@@ -748,23 +709,20 @@ export async function resendOrganizationTicketConfirmation(
   purchaseId: string,
   recipientEmail?: string,
 ): Promise<void> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/ticketing/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
     {
-      body: JSON.stringify({
-        action: "resend_ticket_confirmation",
-        ...actor,
-        purchaseId,
-        ...(recipientEmail ? { recipientEmail } : {}),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "resend_ticket_confirmation",
+      ...actor,
+      purchaseId,
+      ...(recipientEmail ? { recipientEmail } : {}),
     },
   );
   if (!response.ok) {
     throw new TicketingError(
-      await errorCode(response),
+      await storeErrorCode(response, "ticketing_error"),
       response.status,
       "The ticket confirmation could not be queued.",
     );

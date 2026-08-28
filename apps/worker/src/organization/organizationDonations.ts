@@ -17,6 +17,7 @@ import { TicketCheckoutUnavailableError, ticketCheckoutMode } from "../payments/
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -35,20 +36,6 @@ export class DonationError extends Error {
   }
 }
 
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return organizationStoreStub(env, organizationId);
-}
-
-async function errorCode(response: Response): Promise<string> {
-  const value: unknown = await response.json().catch(() => null);
-  return typeof value === "object" &&
-    value !== null &&
-    "code" in value &&
-    typeof value.code === "string"
-    ? value.code
-    : "donation_error";
-}
-
 async function expirePendingDonationCheckout(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
@@ -56,20 +43,17 @@ async function expirePendingDonationCheckout(
   checkoutRequestId: string,
   providerSessionId: string,
 ): Promise<void> {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/donations/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/donations/manage",
     {
-      body: JSON.stringify({
-        action: "stripe_donation_expired",
-        checkoutRequestId,
-        organizationId,
-        providerPaymentId: "",
-        providerSessionId,
-        stripeEventId: `checkout-failed:${donationId}`,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "stripe_donation_expired",
+      checkoutRequestId,
+      organizationId,
+      providerPaymentId: "",
+      providerSessionId,
+      stripeEventId: `checkout-failed:${donationId}`,
     },
   );
   if (!response.ok)
@@ -124,7 +108,7 @@ export async function createDonationCheckoutSession(
       );
     }
     const stripeStatusResponse = await invokeOrganizationRpc(
-      stub(env, organizationId),
+      organizationStoreStub(env, organizationId),
       `https://organization.internal/internal/stripe-connect?organizationId=${encodeURIComponent(organizationId)}`,
     );
     const stripeStatus = z
@@ -148,24 +132,21 @@ export async function createDonationCheckoutSession(
       throw new DonationError("stripe_not_configured", 503, "Online donations are not configured.");
     }
     const pendingSessionId = `pending_${donationId}`;
-    const pendingResponse = await invokeOrganizationRpc(
-      stub(env, organizationId),
-      "https://organization.internal/internal/donations/manage",
+    const pendingResponse = await mutateOrganizationStore(
+      env,
+      organizationId,
+      "/internal/donations/manage",
       {
-        body: JSON.stringify({
-          action: "create_stripe_pending_donation",
-          checkout: validated,
-          donationId,
-          organizationId,
-          providerSessionId: pendingSessionId,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+        action: "create_stripe_pending_donation",
+        checkout: validated,
+        donationId,
+        organizationId,
+        providerSessionId: pendingSessionId,
       },
     );
     if (!pendingResponse.ok) {
       throw new DonationError(
-        await errorCode(pendingResponse),
+        await storeErrorCode(pendingResponse, "donation_error"),
         pendingResponse.status,
         "The donation could not be reserved.",
       );
@@ -226,18 +207,15 @@ export async function createDonationCheckoutSession(
       }
       throw error;
     }
-    const attachedResponse = await invokeOrganizationRpc(
-      stub(env, organizationId),
-      "https://organization.internal/internal/donations/manage",
+    const attachedResponse = await mutateOrganizationStore(
+      env,
+      organizationId,
+      "/internal/donations/manage",
       {
-        body: JSON.stringify({
-          action: "attach_stripe_donation_session",
-          donationId,
-          organizationId,
-          providerSessionId: stripeSession.id,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+        action: "attach_stripe_donation_session",
+        donationId,
+        organizationId,
+        providerSessionId: stripeSession.id,
       },
     );
     if (!attachedResponse.ok) {
@@ -262,23 +240,20 @@ export async function createDonationCheckoutSession(
     };
   }
   const providerSessionId = `fake_session_${crypto.randomUUID()}`;
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/donations/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/donations/manage",
     {
-      body: JSON.stringify({
-        action: "create_donation_checkout",
-        checkout: validated,
-        donationId,
-        organizationId,
-        providerSessionId,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "create_donation_checkout",
+      checkout: validated,
+      donationId,
+      organizationId,
+      providerSessionId,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "donation_error");
     throw new DonationError(code, response.status, "The donation could not be completed.");
   }
   const donation = donationRecordSchema.parse(await response.json());
@@ -307,9 +282,7 @@ export async function listOrganizationDonations(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly DonationRecord[]> {
-  const url = new URL("https://organization.internal/internal/donations/list");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/donations/list");
   if (!response.ok) throw new DonationError("donations_unavailable", 503, "Donations unavailable.");
   return donationRecordsResponseSchema.omit({ requestId: true }).parse(await response.json())
     .donations;
@@ -319,9 +292,7 @@ export async function listOrganizationPatrons(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<readonly PatronRecord[]> {
-  const url = new URL("https://organization.internal/internal/donations/patrons");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/donations/patrons");
   if (!response.ok) throw new DonationError("patrons_unavailable", 503, "Patrons unavailable.");
   return patronRecordsResponseSchema.omit({ requestId: true }).parse(await response.json()).patrons;
 }
@@ -341,7 +312,7 @@ export async function readPublicDonationReceipt(
   const url = new URL("https://organization.internal/internal/donations/donation");
   url.searchParams.set("donationId", envelope.resourceId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (!response.ok) throw new DonationError("donation_not_found", 404, "Donation not found.");
   const donation = donationRecordSchema.parse(await response.json());
   return publicDonationReceiptResponseSchema.parse({
@@ -355,22 +326,19 @@ export async function recordManualOrganizationDonation(
   actor: ActorContext,
   donation: unknown,
 ): Promise<DonationRecord> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/donations/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/donations/manage",
     {
-      body: JSON.stringify({
-        action: "create_manual_donation",
-        ...actor,
-        donation,
-        donationId: crypto.randomUUID(),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "create_manual_donation",
+      ...actor,
+      donation,
+      donationId: crypto.randomUUID(),
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "donation_error");
     throw new DonationError(code, response.status, "The manual donation could not be recorded.");
   }
   return donationRecordSchema.parse(await response.json());
@@ -381,22 +349,19 @@ export async function updateOrganizationDonationThankYou(
   actor: ActorContext,
   payload: { readonly donationId: string; readonly thankYouSent: boolean },
 ): Promise<DonationRecord> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/donations/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/donations/manage",
     {
-      body: JSON.stringify({
-        action: "update_donation_thank_you",
-        ...actor,
-        donationId: payload.donationId,
-        thankYouSent: payload.thankYouSent,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "update_donation_thank_you",
+      ...actor,
+      donationId: payload.donationId,
+      thankYouSent: payload.thankYouSent,
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "donation_error");
     throw new DonationError(
       code,
       response.status,
@@ -433,21 +398,18 @@ export async function refundOrganizationDonation(
     }
     if (!refundRequest.fake) return { ...current, refundRequested: true };
   }
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/donations/manage",
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/donations/manage",
     {
-      body: JSON.stringify({
-        action: "refund_donation",
-        ...actor,
-        donationId: z.uuid().parse(donationId),
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+      action: "refund_donation",
+      ...actor,
+      donationId: z.uuid().parse(donationId),
     },
   );
   if (!response.ok) {
-    const code = await errorCode(response);
+    const code = await storeErrorCode(response, "donation_error");
     throw new DonationError(code, response.status, "The donation could not be refunded.");
   }
   return donationRecordSchema.parse(await response.json());
