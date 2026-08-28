@@ -70,6 +70,7 @@ function mapMemberEvent(
   configuration: MemberEventConfiguration,
   timezone: string,
   now: Date,
+  includePublishedSetList: boolean,
 ) {
   const directRsvp = event.directRsvp ?? "Pending";
   const inherits =
@@ -99,8 +100,8 @@ function mapMemberEvent(
     rsvpNote: event.rsvpNote,
     seating: seatingStateForMemberEvent(event, inherits, directRsvp),
     setList:
-      event.practiceEventId !== null && resolvedRsvp === "Yes"
-        ? parseSetList(event.setListJson)
+      event.practiceEventId !== null && (includePublishedSetList || resolvedRsvp === "Yes")
+        ? parseSetList(includePublishedSetList ? sourceSetListJson : event.setListJson)
         : [],
     startsAt: event.startsAt,
     title: event.title,
@@ -114,6 +115,7 @@ export function listMemberEventsFromStore(
   storage: DurableObjectStorage,
   input: {
     readonly includePast?: boolean;
+    readonly includePublishedSetList?: boolean;
     readonly organizationId: string | null;
     readonly profileId: string | null;
     readonly readAt: string | null;
@@ -220,7 +222,16 @@ export function listMemberEventsFromStore(
       latest,
     )
     .toArray()
-    .map((event) => mapMemberEvent(event, profileId.data, configuration, timezone, now));
+    .map((event) =>
+      mapMemberEvent(
+        event,
+        profileId.data,
+        configuration,
+        timezone,
+        now,
+        input.includePublishedSetList === true,
+      ),
+    );
   return Response.json({ events });
 }
 

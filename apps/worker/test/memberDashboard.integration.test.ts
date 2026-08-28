@@ -1,5 +1,12 @@
 import { memberDashboardResponseSchema, singerEventsResponseSchema } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
+import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+} from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
@@ -66,94 +73,33 @@ function readPublicEventId(body: unknown): string {
 const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 
-function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${host}`);
-  if (cookie) headers.set("cookie", cookie);
-  return new Request(`http://${host}${path}`, { ...init, headers });
-}
+const api = organizationRequest;
 
-async function provision(
-  id: string,
-  name: string,
-  slug: string,
-  profileId: string | null,
-): Promise<void> {
-  const now = new Date().toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 14, ?, ?, ?)`,
-      )
-      .bind(id, name, slug, id, now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
-    database
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt, profileId)
-         VALUES (?, ?, 'member-dashboard-user', 'member', ?, ?)`,
-      )
-      .bind(`member-${slug}`, id, Date.now(), profileId),
-  ]);
-  const response = await stores
-    .get(stores.idFromName(id))
-    .fetch("https://organization.internal/internal/provision", {
-      body: JSON.stringify({
-        actorUserId: "bootstrap",
-        canonicalHostname: `${slug}.localhost`,
-        canonicalStatus: "active",
-        name,
-        organizationId: id,
-        requestId: crypto.randomUUID(),
-        slug,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-  expect(response.status).toBe(200);
-}
+const provision = async (id: string, name: string, slug: string, profileId: string | null) => {
+  await provisionOrganization(database, stores, {
+    id,
+    slug,
+    userId: "member-dashboard-user",
+    name,
+    role: "member",
+  });
+  if (profileId !== null) {
+    await database
+      .prepare("UPDATE member SET profileId = ? WHERE organizationId = ? AND userId = ?")
+      .bind(profileId, id, "member-dashboard-user")
+      .run();
+  }
+};
 
-async function signIn(): Promise<string> {
-  await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, type: "sign-in" }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", USER_EMAIL, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  const otp = readCapturedPlatformEmailsForTest()
-    .find((message) => message.kind === "email-one-time-code" && message.recipient === USER_EMAIL)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  const response = await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, otp }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
-  return response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
-}
 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
-  const now = Date.now();
-  await database
-    .prepare(
-      `INSERT INTO user
-        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-       VALUES ('member-dashboard-user', 'Dashboard Member', ?, 0, ?, ?, 0)`,
-    )
-    .bind(USER_EMAIL, now, now)
-    .run();
+  await seedAuthUser(database, "member-dashboard-user", USER_EMAIL, "Dashboard Member");
   await provision("organization-alpha", "Organization Alpha", "alpha", PROFILE_ID);
   await provision("organization-bravo", "Organization Bravo", "bravo", null);
   await runInDurableObject<OrganizationStore, null>(
@@ -321,6 +267,37 @@ describe("member dashboard", () => {
       { pieceId: PIECE_ID, title: "Opening Song" },
     ]);
     expect(rehearsal?.practice.sourceEventId).toBe(PERFORMANCE_ID);
+  });
+
+  it("offers published set lists and practice before a member responds", async () => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE event_rosters SET rsvp = 'Pending' WHERE event_id = ? AND profile_id = ?",
+          PERFORMANCE_ID,
+          PROFILE_ID,
+        );
+        return null;
+      },
+    );
+    const cookie = await signIn();
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/dashboard", cookie),
+    );
+    expect(response.status).toBe(200);
+    const dashboard = memberDashboardResponseSchema.parse(await response.json());
+    const performance = dashboard.events.find((event) => event.id === PERFORMANCE_ID);
+    const rehearsal = dashboard.events.find((event) => event.id === REHEARSAL_ID);
+    expect(performance).toMatchObject({
+      practice: { sourceEventId: PERFORMANCE_ID, status: "available" },
+      resolvedRsvp: "Pending",
+      setList: [{ pieceId: PIECE_ID, title: "Opening Song" }],
+    });
+    expect(rehearsal).toMatchObject({
+      practice: { sourceEventId: PERFORMANCE_ID, status: "available" },
+      setList: [{ pieceId: PIECE_ID, title: "Opening Song" }],
+    });
   });
 
   it("keeps today's events available through the Organization-local calendar day", async () => {

@@ -471,12 +471,14 @@ export async function listMemberSchedule(
   profileId: string,
   now = new Date(),
   includePast = false,
+  includePublishedSetList = false,
 ): Promise<readonly SingerEvent[]> {
   const url = new URL("https://organization.internal/internal/calendar/member-events");
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("profileId", profileId);
   url.searchParams.set("readAt", now.toISOString());
   if (includePast) url.searchParams.set("includePast", "true");
+  if (includePublishedSetList) url.searchParams.set("includePublishedSetList", "true");
   const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) throw new Error("The Organization store rejected the member schedule request.");
   return singerEventsResponseSchema.pick({ events: true }).parse(await response.json()).events;

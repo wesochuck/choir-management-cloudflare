@@ -450,6 +450,7 @@ function dispatchCalendarGetRequest(
     case "/internal/calendar/member-events":
       return listMemberEventsFromStore(storage, {
         includePast: url.searchParams.get("includePast") === "true",
+        includePublishedSetList: url.searchParams.get("includePublishedSetList") === "true",
         organizationId,
         profileId: url.searchParams.get("profileId"),
         readAt: url.searchParams.get("readAt"),

@@ -102,3 +102,114 @@ test("explains how to start when no Organization is active", async ({ page }) =>
     page.getByText(/You do not have an active Organization Membership yet/),
   ).toBeVisible();
 });
+
+test("offers published practice and set-list actions before RSVP", async ({ page }) => {
+  const eventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const requestId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const dashboard = {
+    activeSeason: null,
+    activeSeasonState: "disabled",
+    bulletins: [],
+    bulletinsState: "ready",
+    events: [
+      {
+        attendanceWarning: null,
+        callTime: "18:00",
+        details: "",
+        directRsvp: "Pending",
+        durationMinutes: 120,
+        featuredAssignments: [],
+        id: eventId,
+        inheritedFromParent: false,
+        location: "Main Hall",
+        practice: { sourceEventId: eventId, status: "available", trackCount: 1 },
+        resolvedRsvp: "Pending",
+        rsvpDeadlineAt: null,
+        rsvpDeadlineDate: null,
+        rsvpDeadlinePassed: false,
+        rsvpNote: "",
+        rsvpSelfServiceOpen: true,
+        seating: { status: "not_published" },
+        setList: [
+          { pieceId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", title: "Opening Song", type: "song" },
+        ],
+        startsAt: "2026-09-01T23:00:00.000Z",
+        title: "Published Performance",
+        type: "Performance",
+        venueAddress: "",
+        venueName: "Main Hall",
+      },
+    ],
+    modules: [],
+    organizationName: "Lancaster Men's Chorus",
+    performerLabel: "Singer",
+    polls: [],
+    pollsState: "disabled",
+    profile: {
+      displayName: "Wes Osborn",
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      voicePart: "S",
+    },
+    profileLinkRequired: false,
+    requestId,
+    resources: [],
+    resourcesState: "disabled",
+    timezone: "UTC",
+  };
+
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/auth/get-session") {
+      await fulfillJson(route, session);
+      return;
+    }
+    if (pathname === "/api/health") {
+      await fulfillJson(route, {
+        baseHostname: "127.0.0.1",
+        requestId,
+        service: "choir-management-cloudflare",
+        status: "ok",
+        version: "browser-test",
+      });
+      return;
+    }
+    if (pathname === "/api/organization/auth-status") {
+      await fulfillJson(route, {
+        mfaRequired: false,
+        mfaVerifiedUntil: null,
+        organizationId: "organization-alpha",
+        requestId,
+        role: "member",
+        twoFactorEnabled: false,
+        twoFactorVerified: false,
+      });
+      return;
+    }
+    if (pathname === "/api/organization/module-state") {
+      await fulfillJson(route, { modules: [] });
+      return;
+    }
+    if (pathname === "/api/setup/status") {
+      await fulfillJson(route, {
+        allModulesConfigured: true,
+        completedSteps: [],
+        currentStep: null,
+        launched: true,
+        organizationId: "organization-alpha",
+        organizationName: "Lancaster Men's Chorus",
+      });
+      return;
+    }
+    if (pathname === "/api/singer/dashboard") {
+      await fulfillJson(route, dashboard);
+      return;
+    }
+    await fulfillJson(route, { requestId }, 404);
+  });
+
+  await page.goto("/dashboard");
+
+  await expect(page.getByRole("heading", { name: "Welcome back, Wes Osborn" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Practice" })).toBeVisible();
+  await expect(page.getByText("View set list (1 items)")).toBeVisible();
+});

@@ -81,7 +81,9 @@ async function readMemberDashboardCore(env: Env, organizationId: string, profile
   const [profile, events] = profileId
     ? await Promise.all([
         readProfile(env, organizationId, profileId),
-        eventsEnabled ? listMemberSchedule(env, organizationId, profileId) : Promise.resolve([]),
+        eventsEnabled
+          ? listMemberSchedule(env, organizationId, profileId, new Date(), false, true)
+          : Promise.resolve([]),
       ])
     : [null, [] as const];
   return {
