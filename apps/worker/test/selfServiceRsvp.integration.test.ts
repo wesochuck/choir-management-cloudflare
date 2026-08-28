@@ -1,4 +1,11 @@
 import { organizationRsvpSchema, singerEventsResponseSchema } from "@choir/contracts";
+import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+} from "@choir/testkit";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -32,53 +39,22 @@ const notificationEnv = {
   SIGNED_LINK_SECRET: signedLinkSecret,
 };
 
-function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${host}`);
-  if (cookie) headers.set("cookie", cookie);
-  return new Request(`http://${host}${path}`, { ...init, headers });
-}
+const api = (host: string, path: string, cookie?: string, init?: RequestInit) =>
+  organizationRequest(host, path, cookie, init);
 
-async function provision(id: string, name: string, slug: string, profileId: string): Promise<void> {
-  const now = new Date().toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 14, ?, ?, ?)`,
-      )
-      .bind(id, name, slug, id, now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
-    database
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt, profileId)
-         VALUES (?, ?, 'self-rsvp-user', 'member', ?, ?)`,
-      )
-      .bind(`member-${slug}`, id, Date.now(), profileId),
-  ]);
-  const stub = stores.get(stores.idFromName(id));
-  const response = await stub.fetch("https://organization.internal/internal/provision", {
-    body: JSON.stringify({
-      actorUserId: "bootstrap",
-      canonicalHostname: `${slug}.localhost`,
-      canonicalStatus: "active",
-      name,
-      organizationId: id,
-      requestId: crypto.randomUUID(),
-      slug,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
+const provision = async (id: string, name: string, slug: string, profileId: string) => {
+  await provisionOrganization(database, stores, {
+    id,
+    name,
+    role: "member",
+    slug,
+    userId: "self-rsvp-user",
   });
-  expect(response.status).toBe(200);
+  await database
+    .prepare("UPDATE member SET profileId = ? WHERE id = ?")
+    .bind(profileId, `member-${slug}`)
+    .run();
+  const stub = stores.get(stores.idFromName(id));
   await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
     const createdAt = new Date().toISOString();
     const startsAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1_000).toISOString();
@@ -131,7 +107,7 @@ async function provision(id: string, name: string, slug: string, profileId: stri
     }
     return null;
   });
-}
+};
 
 async function provisionRsvpAdministrator(): Promise<void> {
   const now = Date.now();
@@ -159,47 +135,16 @@ async function provisionRsvpAdministrator(): Promise<void> {
   );
 }
 
-async function signIn(): Promise<string> {
-  await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, type: "sign-in" }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", USER_EMAIL, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  const otp = readCapturedPlatformEmailsForTest()
-    .find((message) => message.kind === "email-one-time-code" && message.recipient === USER_EMAIL)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  const response = await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, otp }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
-  return response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
-}
 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
-  const now = Date.now();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO user
-          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-         VALUES ('self-rsvp-user', 'Self RSVP', ?, 0, ?, ?, 0)`,
-      )
-      .bind(USER_EMAIL, now, now),
-    database
-      .prepare(
-        `INSERT INTO user
-          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-         VALUES ('rsvp-admin-user', 'RSVP Administrator', ?, 1, ?, ?, 0)`,
-      )
-      .bind(ADMIN_EMAIL, now, now),
-  ]);
+  await seedAuthUser(database, "self-rsvp-user", USER_EMAIL, "Self RSVP");
+  await seedAuthUser(database, "rsvp-admin-user", ADMIN_EMAIL, "RSVP Administrator");
   await provision("organization-alpha", "Organization Alpha", "alpha", ALPHA_PROFILE);
   await provision("organization-bravo", "Organization Bravo", "bravo", BRAVO_PROFILE);
   await provisionRsvpAdministrator();

@@ -1,5 +1,6 @@
 import { env, exports } from "cloudflare:workers";
 import { publicAuditionInquiryResponseSchema } from "@choir/contracts";
+import { organizationRequest, provisionOrganization, seedAuthUser } from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 import { z } from "zod";
@@ -21,47 +22,16 @@ const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 const signedLinkSecret = requireBinding(env.SIGNED_LINK_SECRET, "SIGNED_LINK_SECRET");
 
-function api(host: string, path: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${host}`);
-  return new Request(`http://${host}${path}`, { ...init, headers });
-}
+const api = (host: string, path: string, init?: RequestInit) =>
+  organizationRequest(host, path, undefined, init);
 
-async function provision(id: string, slug: string): Promise<void> {
-  const now = new Date().toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 26, ?, ?, ?)`,
-      )
-      .bind(id, `Organization ${slug}`, slug, id, now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
-  ]);
-  const stub = stores.get(stores.idFromName(id));
-  const response = await stub.fetch("https://organization.internal/internal/provision", {
-    body: JSON.stringify({
-      actorUserId: "bootstrap",
-      canonicalHostname: `${slug}.localhost`,
-      canonicalStatus: "active",
-      name: `Organization ${slug}`,
-      organizationId: id,
-      requestId: crypto.randomUUID(),
-      slug,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
+const provision = (id: string, slug: string) =>
+  provisionOrganization(database, stores, {
+    id,
+    name: `Organization ${slug}`,
+    slug,
+    userId: "public-audition",
   });
-  expect(response.status).toBe(200);
-}
 
 async function createAuditionInOrg(id: string, name: string, email: string): Promise<string> {
   return runInDurableObject<OrganizationStore, string>(
@@ -99,6 +69,12 @@ async function issueAuditionToken(organizationId: string, auditionId: string): P
 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
+  await seedAuthUser(
+    database,
+    "public-audition",
+    "public.audition@example.test",
+    "Public Audition",
+  );
   await provision(ALPHA_ORG, "alpha");
   await provision(BRAVO_ORG, "bravo");
 });

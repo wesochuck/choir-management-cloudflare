@@ -2,6 +2,13 @@ import {
   organizationProfileResponseSchema,
   organizationRosterConfigurationResponseSchema,
 } from "@choir/contracts";
+import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+} from "@choir/testkit";
 import { defaultRosterConfiguration } from "@choir/domain";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
@@ -23,96 +30,27 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 const controlDatabase = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const organizationStore = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 
-function apiRequest(hostname: string, path: string, cookie?: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${hostname}`);
-  if (cookie) headers.set("cookie", cookie);
-  return new Request(`http://${hostname}${path}`, { ...init, headers });
-}
+const apiRequest = (hostname: string, path: string, cookie?: string, init?: RequestInit) =>
+  organizationRequest(hostname, path, cookie, init);
 
-async function provision(
-  organizationId: string,
-  name: string,
-  slug: string,
-  role: "admin" | "member",
-): Promise<void> {
-  const now = new Date().toISOString();
-  await controlDatabase.batch([
-    controlDatabase
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 14, ?, ?, ?)`,
-      )
-      .bind(organizationId, name, slug, organizationId, now, now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, organizationId, `${slug}.localhost`, now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt)
-         VALUES (?, ?, 'roster-manager', ?, ?)`,
-      )
-      .bind(`member-${slug}`, organizationId, role, Date.now()),
-  ]);
-  const response = await organizationStore
-    .get(organizationStore.idFromName(organizationId))
-    .fetch("https://organization.internal/internal/provision", {
-      body: JSON.stringify({
-        actorUserId: "bootstrap",
-        canonicalHostname: `${slug}.localhost`,
-        canonicalStatus: "active",
-        name,
-        organizationId,
-        requestId: crypto.randomUUID(),
-        slug,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-  expect(response.status).toBe(200);
-}
+const provision = (organizationId: string, name: string, slug: string, role: "admin" | "member") =>
+  provisionOrganization(controlDatabase, organizationStore, {
+    id: organizationId,
+    name,
+    role,
+    slug,
+    userId: "roster-manager",
+  });
 
-async function signIn(): Promise<string> {
-  await exports.default.fetch(
-    apiRequest("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, type: "sign-in" }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", USER_EMAIL, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  const code = readCapturedPlatformEmailsForTest()
-    .find((message) => message.kind === "email-one-time-code" && message.recipient === USER_EMAIL)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  const response = await exports.default.fetch(
-    apiRequest("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, otp: code }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
-  const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
-  expect(cookie).toContain("choir-management.session_token=");
-  return cookie ?? "";
-}
 
 beforeEach(async () => {
   await applyD1Migrations(controlDatabase, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
-  const now = Date.now();
-  await controlDatabase
-    .prepare(
-      `INSERT INTO user
-        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-       VALUES ('roster-manager', 'Roster Manager', ?, 0, ?, ?, 0)`,
-    )
-    .bind(USER_EMAIL, now, now)
-    .run();
+  await seedAuthUser(controlDatabase, "roster-manager", USER_EMAIL, "Roster Manager");
   await provision("organization-alpha", "Organization Alpha", "alpha", "admin");
   await provision("organization-bravo", "Organization Bravo", "bravo", "member");
 });

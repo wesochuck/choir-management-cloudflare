@@ -12,6 +12,13 @@ import {
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+} from "@choir/testkit";
+import {
   applyD1Migrations,
   createExecutionContext,
   createMessageBatch,
@@ -41,20 +48,15 @@ const stores = binding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 const organizationFiles = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 const managerEmail = "communications.manager@example.test";
 
-function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${host}`);
-  if (cookie) headers.set("cookie", cookie);
-  return new Request(`http://${host}${path}`, { ...init, headers });
-}
+const api = organizationRequest;
 
-async function write(
+const write = async (
   host: string,
   path: string,
   cookie: string,
   body: unknown,
   requestHeaders: HeadersInit = {},
-) {
+): Promise<Response> => {
   const headers = new Headers(requestHeaders);
   headers.set("content-type", "application/json");
   return exports.default.fetch(
@@ -64,71 +66,15 @@ async function write(
       method: "POST",
     }),
   );
-}
+};
 
-async function provision(id: string, slug: string, role: "admin" | "member") {
-  const now = new Date().toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 18, ?, ?, ?)`,
-      )
-      .bind(id, `Organization ${slug}`, slug, id, now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
-    database
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt)
-         VALUES (?, ?, 'communications-manager', ?, ?)`,
-      )
-      .bind(`member-${slug}`, id, role, Date.now()),
-  ]);
-  const response = await stores
-    .get(stores.idFromName(id))
-    .fetch("https://organization.internal/internal/provision", {
-      body: JSON.stringify({
-        actorUserId: "bootstrap",
-        canonicalHostname: `${slug}.localhost`,
-        canonicalStatus: "active",
-        name: `Organization ${slug}`,
-        organizationId: id,
-        requestId: crypto.randomUUID(),
-        slug,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-  expect(response.status).toBe(200);
-}
+const provision = (id: string, slug: string, role: "admin" | "member") =>
+  provisionOrganization(database, stores, { id, slug, userId: "communications-manager", role });
 
-async function signIn() {
-  await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
-      body: JSON.stringify({ email: managerEmail, type: "sign-in" }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", managerEmail, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  const otp = readCapturedPlatformEmailsForTest()
-    .find(({ recipient }) => recipient === managerEmail)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  const response = await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
-      body: JSON.stringify({ email: managerEmail, otp }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
-  return response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
-}
 
 async function createProfile(cookie: string, body: Record<string, unknown>) {
   const response = await write("alpha.localhost", "/api/organization/profiles", cookie, body);
@@ -139,15 +85,7 @@ async function createProfile(cookie: string, body: Record<string, unknown>) {
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
-  const now = Date.now();
-  await database
-    .prepare(
-      `INSERT INTO user
-        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-       VALUES ('communications-manager', 'Communications Manager', ?, 0, ?, ?, 0)`,
-    )
-    .bind(managerEmail, now, now)
-    .run();
+  await seedAuthUser(database, "communications-manager", managerEmail, "Communications Manager");
   await provision("organization-alpha", "alpha", "admin");
   await provision("organization-bravo", "bravo", "member");
 });

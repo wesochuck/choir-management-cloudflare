@@ -1,5 +1,12 @@
 import { privateFileResponseSchema } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
+import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+} from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
@@ -30,126 +37,41 @@ interface FileAuditRow {
   readonly targetId: string;
 }
 
-function apiRequest(hostname: string, path: string, cookie?: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${hostname}`);
-  if (cookie) {
-    headers.set("cookie", cookie);
-  }
-  return new Request(`http://${hostname}${path}`, { ...init, headers });
-}
+const apiRequest = organizationRequest;
 
 async function seedIdentityAndOrganizations(): Promise<void> {
   const nowMs = Date.now();
+  await seedAuthUser(controlDatabase, "user-file-member", USER_EMAIL, "File Member");
+  await provisionOrganization(controlDatabase, organizationStore, {
+    id: "organization-alpha",
+    slug: "alpha",
+    userId: "user-file-member",
+    name: "Organization Alpha",
+    role: "member",
+  });
+  await provisionOrganization(controlDatabase, organizationStore, {
+    id: "organization-bravo",
+    slug: "bravo",
+    userId: "user-file-member",
+    name: "Organization Bravo",
+    role: "member",
+  });
   const now = new Date(nowMs).toISOString();
-  await controlDatabase.batch([
-    controlDatabase
-      .prepare(
-        `INSERT INTO user
-          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-         VALUES (?, ?, ?, 0, ?, ?, 0)`,
-      )
-      .bind("user-file-member", "File Member", USER_EMAIL, nowMs, nowMs),
-    controlDatabase
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at)
-         VALUES (?, ?, ?, 'active', ?, 4, ?, ?)`,
-      )
-      .bind("organization-alpha", "Organization Alpha", "alpha", "organization-alpha", now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at)
-         VALUES (?, ?, ?, 'active', ?, 4, ?, ?)`,
-      )
-      .bind("organization-bravo", "Organization Bravo", "bravo", "organization-bravo", now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind("domain-alpha", "organization-alpha", "alpha.localhost", now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind("domain-bravo", "organization-bravo", "bravo.localhost", now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'custom_public', 'active', 1, ?, ?)`,
-      )
-      .bind("domain-alpha-public", "organization-alpha", "files.example.test", now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt)
-         VALUES (?, ?, ?, 'member', ?)`,
-      )
-      .bind("member-alpha", "organization-alpha", "user-file-member", nowMs),
-    controlDatabase
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt)
-         VALUES (?, ?, ?, 'member', ?)`,
-      )
-      .bind("member-bravo", "organization-bravo", "user-file-member", nowMs),
-  ]);
-
-  for (const organization of [
-    { id: "organization-alpha", name: "Organization Alpha", slug: "alpha" },
-    { id: "organization-bravo", name: "Organization Bravo", slug: "bravo" },
-  ]) {
-    const objectId = organizationStore.idFromName(organization.id);
-    const response = await organizationStore
-      .get(objectId)
-      .fetch("https://organization.internal/internal/provision", {
-        body: JSON.stringify({
-          actorUserId: "bootstrap",
-          canonicalHostname: `${organization.slug}.localhost`,
-          canonicalStatus: "active",
-          name: organization.name,
-          organizationId: organization.id,
-          requestId: crypto.randomUUID(),
-          slug: organization.slug,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
-    expect(response.status).toBe(200);
-  }
+  await controlDatabase
+    .prepare(
+      `INSERT INTO organization_domains
+        (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
+       VALUES ('domain-alpha-public', 'organization-alpha', 'files.example.test',
+         'custom_public', 'active', 1, ?, ?)`,
+    )
+    .bind(now, now)
+    .run();
 }
 
-async function signIn(): Promise<string> {
-  const sendResponse = await exports.default.fetch(
-    apiRequest("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, type: "sign-in" }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", USER_EMAIL, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  expect(sendResponse.status).toBe(200);
-  const code = readCapturedPlatformEmailsForTest()
-    .find((message) => message.kind === "email-one-time-code" && message.recipient === USER_EMAIL)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  expect(code).toMatch(/^\d{6}$/);
-  const response = await exports.default.fetch(
-    apiRequest("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
-      body: JSON.stringify({ email: USER_EMAIL, otp: code }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
-  expect(response.status).toBe(200);
-  const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
-  expect(cookie).toContain("choir-management.session_token=");
-  return cookie ?? "";
-}
 
 async function uploadFile(
   hostname: string,

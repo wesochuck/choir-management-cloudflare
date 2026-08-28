@@ -2,6 +2,14 @@ import {
   organizationResourceResponseSchema,
   organizationResourcesResponseSchema,
 } from "@choir/contracts";
+import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+  writeJson,
+} from "@choir/testkit";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -22,91 +30,30 @@ const stores = binding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 const files = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 const email = "resource.manager@example.test";
 
-function api(host: string, path: string, cookie?: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${host}`);
-  if (cookie) headers.set("cookie", cookie);
-  return new Request(`http://${host}${path}`, { ...init, headers });
-}
+const api = (host: string, path: string, cookie?: string, init?: RequestInit) =>
+  organizationRequest(host, path, cookie, init);
 
-async function json(host: string, path: string, cookie: string, body: unknown, method = "POST") {
-  return exports.default.fetch(
-    api(host, path, cookie, {
-      body: JSON.stringify(body),
-      headers: { "content-type": "application/json" },
-      method,
-    }),
-  );
-}
+const json = (host: string, path: string, cookie: string, body: unknown, method = "POST") =>
+  writeJson(exports.default, host, path, cookie, body, method);
 
-async function provision(id: string, slug: string, role: "admin" | "member") {
-  const now = new Date().toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO organizations (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version, created_at, updated_at, provisioned_at) VALUES (?, ?, ?, 'active', ?, 15, ?, ?, ?)`,
-      )
-      .bind(id, `Organization ${slug}`, slug, id, now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at) VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
-    database
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt) VALUES (?, ?, 'resource-user', ?, ?)`,
-      )
-      .bind(`member-${slug}`, id, role, Date.now()),
-  ]);
-  const response = await stores
-    .get(stores.idFromName(id))
-    .fetch("https://organization.internal/internal/provision", {
-      body: JSON.stringify({
-        actorUserId: "bootstrap",
-        canonicalHostname: `${slug}.localhost`,
-        canonicalStatus: "active",
-        name: `Organization ${slug}`,
-        organizationId: id,
-        requestId: crypto.randomUUID(),
-        slug,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-  expect(response.status).toBe(200);
-}
+const provision = (id: string, slug: string, role: "admin" | "member") =>
+  provisionOrganization(database, stores, {
+    id,
+    name: `Organization ${slug}`,
+    role,
+    slug,
+    userId: "resource-user",
+  });
 
-async function signIn() {
-  await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/email-otp/send-verification-otp", undefined, {
-      body: JSON.stringify({ email, type: "sign-in" }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", email, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  const otp = readCapturedPlatformEmailsForTest()
-    .find((item) => item.recipient === email)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  const response = await exports.default.fetch(
-    api("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
-      body: JSON.stringify({ email, otp }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
-  return response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
-}
 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
-  const now = Date.now();
-  await database
-    .prepare(
-      `INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled) VALUES ('resource-user', 'Resource User', ?, 0, ?, ?, 0)`,
-    )
-    .bind(email, now, now)
-    .run();
+  await seedAuthUser(database, "resource-user", email, "Resource User");
   await provision("organization-alpha", "alpha", "admin");
   await provision("organization-bravo", "bravo", "member");
 });

@@ -1,4 +1,5 @@
 import { env, exports } from "cloudflare:workers";
+import { organizationRequest, provisionOrganization, seedAuthUser } from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
@@ -25,13 +26,10 @@ const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 const organizationFiles = requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 const signedLinkSecret = requireBinding(env.SIGNED_LINK_SECRET, "SIGNED_LINK_SECRET");
 
-function api(host: string, path: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${host}`);
-  return new Request(`http://${host}${path}`, { ...init, headers });
-}
+const api = (host: string, path: string, init?: RequestInit) =>
+  organizationRequest(host, path, undefined, init);
 
-async function provision(
+const provision = async (
   id: string,
   slug: string,
   profileId: string,
@@ -39,40 +37,15 @@ async function provision(
   pieceId: string,
   fileId: string,
   profileSuffix: string,
-): Promise<void> {
-  const now = new Date().toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO organizations
-           (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-            created_at, updated_at, provisioned_at)
-          VALUES (?, ?, ?, 'active', ?, 25, ?, ?, ?)`,
-      )
-      .bind(id, `Organization ${slug}`, slug, id, now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains
-           (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-          VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
-  ]);
-  const stub = stores.get(stores.idFromName(id));
-  const response = await stub.fetch("https://organization.internal/internal/provision", {
-    body: JSON.stringify({
-      actorUserId: "bootstrap",
-      canonicalHostname: `${slug}.localhost`,
-      canonicalStatus: "active",
-      name: `Organization ${slug}`,
-      organizationId: id,
-      requestId: crypto.randomUUID(),
-      slug,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
+) => {
+  await provisionOrganization(database, stores, {
+    id,
+    name: `Organization ${slug}`,
+    slug,
+    userId: "public-player",
   });
-  expect(response.status).toBe(200);
+  const stub = stores.get(stores.idFromName(id));
+  const now = new Date().toISOString();
   await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
     state.storage.sql.exec(
       `INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
@@ -119,7 +92,7 @@ async function provision(
     );
     return null;
   });
-}
+};
 
 async function issuePlayerToken(
   organizationId: string,
@@ -154,6 +127,7 @@ async function issuePublicPlayerToken(organizationId: string, eventId: string): 
 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
+  await seedAuthUser(database, "public-player", "public.player@example.test", "Public Player");
   await provision(
     "organization-alpha",
     "alpha",

@@ -1,4 +1,11 @@
 import { organizationDirectoryResponseSchema } from "@choir/contracts";
+import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+} from "@choir/testkit";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
@@ -21,12 +28,8 @@ const email = "photo.member@example.test";
 const ownProfileId = "11111111-1111-4111-8111-111111111111";
 const otherProfileId = "22222222-2222-4222-8222-222222222222";
 
-function api(path: string, cookie?: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", "http://alpha.localhost");
-  if (cookie) headers.set("cookie", cookie);
-  return new Request(`http://alpha.localhost${path}`, { ...init, headers });
-}
+const api = (path: string, cookie?: string, init?: RequestInit) =>
+  organizationRequest("alpha.localhost", path, cookie, init);
 
 async function createProfile(profileId: string, displayName: string): Promise<void> {
   const response = await stores
@@ -45,26 +48,10 @@ async function createProfile(profileId: string, displayName: string): Promise<vo
   expect(response.status).toBe(200);
 }
 
-async function signIn(): Promise<string> {
-  await exports.default.fetch(
-    api("/api/auth/email-otp/send-verification-otp", undefined, {
-      body: JSON.stringify({ email, type: "sign-in" }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", email, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  const otp = readCapturedPlatformEmailsForTest()
-    .find((item) => item.recipient === email)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  const response = await exports.default.fetch(
-    api("/api/auth/sign-in/email-otp", undefined, {
-      body: JSON.stringify({ email, otp }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    }),
-  );
-  return response.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
-}
 
 async function upload(cookie: string, fileId: string, body: string, contentType = "image/jpeg") {
   const bytes = new TextEncoder().encode(body);
@@ -84,46 +71,18 @@ async function upload(cookie: string, fileId: string, body: string, contentType 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
-  const nowMs = Date.now();
-  const now = new Date(nowMs).toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled) VALUES ('photo-user', 'Photo User', ?, 0, ?, ?, 0)`,
-      )
-      .bind(email, nowMs, nowMs),
-    database
-      .prepare(
-        `INSERT INTO organizations (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version, created_at, updated_at, provisioned_at) VALUES ('organization-alpha', 'Organization Alpha', 'alpha', 'active', 'organization-alpha', 16, ?, ?, ?)`,
-      )
-      .bind(now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at) VALUES ('domain-alpha', 'organization-alpha', 'alpha.localhost', 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(now, now),
-    database
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, profileId, createdAt) VALUES ('member-alpha', 'organization-alpha', 'photo-user', 'member', ?, ?)`,
-      )
-      .bind(ownProfileId, nowMs),
-  ]);
-  const provisioned = await stores
-    .get(stores.idFromName("organization-alpha"))
-    .fetch("https://organization.internal/internal/provision", {
-      body: JSON.stringify({
-        actorUserId: "bootstrap",
-        canonicalHostname: "alpha.localhost",
-        canonicalStatus: "active",
-        name: "Organization Alpha",
-        organizationId: "organization-alpha",
-        requestId: crypto.randomUUID(),
-        slug: "alpha",
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-  expect(provisioned.status).toBe(200);
+  await seedAuthUser(database, "photo-user", email, "Photo User");
+  await provisionOrganization(database, stores, {
+    id: "organization-alpha",
+    name: "Organization Alpha",
+    role: "member",
+    slug: "alpha",
+    userId: "photo-user",
+  });
+  await database
+    .prepare("UPDATE member SET profileId = ? WHERE id = 'member-alpha'")
+    .bind(ownProfileId)
+    .run();
   await createProfile(ownProfileId, "Own Profile");
   await createProfile(otherProfileId, "Other Profile");
 });

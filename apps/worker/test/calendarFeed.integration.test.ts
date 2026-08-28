@@ -1,5 +1,12 @@
 import { calendarFeedUrlsResponseSchema } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
+import {
+  organizationRequest,
+  provisionOrganization,
+  readEmailOneTimeCode,
+  seedAuthUser,
+  signInWithOtp,
+} from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
@@ -23,13 +30,8 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 const controlDatabase = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const organizationStore = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 
-function apiRequest(hostname: string, path: string, cookie?: string, method = "GET"): Request {
-  const headers = new Headers({ origin: `http://${hostname}` });
-  if (cookie) {
-    headers.set("cookie", cookie);
-  }
-  return new Request(`http://${hostname}${path}`, { headers, method });
-}
+const apiRequest = (hostname: string, path: string, cookie?: string, method = "GET") =>
+  organizationRequest(hostname, path, cookie, { method });
 
 async function seedOrganization(
   organizationId: string,
@@ -37,45 +39,18 @@ async function seedOrganization(
   slug: string,
   profileId: string,
 ): Promise<void> {
-  const now = new Date().toISOString();
-  await controlDatabase.batch([
-    controlDatabase
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key,
-           operational_schema_version, created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 14, ?, ?, ?)`,
-      )
-      .bind(organizationId, name, slug, organizationId, now, now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, organizationId, `${slug}.localhost`, now, now),
-    controlDatabase
-      .prepare(
-        `INSERT INTO member (id, organizationId, userId, role, createdAt, profileId)
-         VALUES (?, ?, 'calendar-user', 'member', ?, ?)`,
-      )
-      .bind(`member-${slug}`, organizationId, Date.now(), profileId),
-  ]);
-  const stub = organizationStore.get(organizationStore.idFromName(organizationId));
-  const provisioned = await stub.fetch("https://organization.internal/internal/provision", {
-    body: JSON.stringify({
-      actorUserId: "bootstrap",
-      canonicalHostname: `${slug}.localhost`,
-      canonicalStatus: "active",
-      name,
-      organizationId,
-      requestId: crypto.randomUUID(),
-      slug,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
+  await provisionOrganization(controlDatabase, organizationStore, {
+    id: organizationId,
+    slug,
+    userId: "calendar-user",
+    name,
+    role: "member",
   });
-  expect(provisioned.status).toBe(200);
+  await controlDatabase
+    .prepare("UPDATE member SET profileId = ? WHERE organizationId = ? AND userId = ?")
+    .bind(profileId, organizationId, "calendar-user")
+    .run();
+  const stub = organizationStore.get(organizationStore.idFromName(organizationId));
   await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
     const timestamp = new Date().toISOString();
     state.storage.sql.exec(
@@ -90,42 +65,15 @@ async function seedOrganization(
   });
 }
 
-async function signIn(): Promise<string> {
-  const send = await exports.default.fetch(
-    new Request("http://alpha.localhost/api/auth/email-otp/send-verification-otp", {
-      body: JSON.stringify({ email: USER_EMAIL, type: "sign-in" }),
-      headers: { "content-type": "application/json", origin: "http://alpha.localhost" },
-      method: "POST",
-    }),
+const signIn = () =>
+  signInWithOtp(exports.default, "alpha.localhost", USER_EMAIL, (email) =>
+    readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
   );
-  expect(send.status).toBe(200);
-  const code = readCapturedPlatformEmailsForTest()
-    .find((message) => message.kind === "email-one-time-code" && message.recipient === USER_EMAIL)
-    ?.text.match(/Use (\d{6}) to sign in/)?.[1];
-  const response = await exports.default.fetch(
-    new Request("http://alpha.localhost/api/auth/sign-in/email-otp", {
-      body: JSON.stringify({ email: USER_EMAIL, otp: code }),
-      headers: { "content-type": "application/json", origin: "http://alpha.localhost" },
-      method: "POST",
-    }),
-  );
-  const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
-  expect(cookie).toContain("choir-management.session_token=");
-  return cookie ?? "";
-}
 
 beforeEach(async () => {
   await applyD1Migrations(controlDatabase, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
-  const nowMs = Date.now();
-  await controlDatabase
-    .prepare(
-      `INSERT INTO user
-        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-       VALUES ('calendar-user', 'Calendar Member', ?, 0, ?, ?, 0)`,
-    )
-    .bind(USER_EMAIL, nowMs, nowMs)
-    .run();
+  await seedAuthUser(controlDatabase, "calendar-user", USER_EMAIL, "Calendar Member");
   await seedOrganization("organization-alpha", "Organization Alpha", "alpha", ALPHA_PROFILE_ID);
   await seedOrganization("organization-bravo", "Organization Bravo", "bravo", BRAVO_PROFILE_ID);
   const now = new Date().toISOString();

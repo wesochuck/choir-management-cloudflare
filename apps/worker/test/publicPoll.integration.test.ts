@@ -1,4 +1,5 @@
 import { env, exports } from "cloudflare:workers";
+import { organizationRequest, provisionOrganization, seedAuthUser } from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
@@ -28,51 +29,18 @@ const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 const signedLinkSecret = requireBinding(env.SIGNED_LINK_SECRET, "SIGNED_LINK_SECRET");
 
-function api(host: string, path: string, init?: RequestInit): Request {
-  const headers = new Headers(init?.headers);
-  headers.set("origin", `http://${host}`);
-  return new Request(`http://${host}${path}`, { ...init, headers });
-}
+const api = (host: string, path: string, init?: RequestInit) =>
+  organizationRequest(host, path, undefined, init);
 
-async function provision(
-  id: string,
-  slug: string,
-  profileId: string,
-  pollId: string,
-): Promise<void> {
-  const now = new Date().toISOString();
-  await database.batch([
-    database
-      .prepare(
-        `INSERT INTO organizations
-          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
-           created_at, updated_at, provisioned_at)
-         VALUES (?, ?, ?, 'active', ?, 25, ?, ?, ?)`,
-      )
-      .bind(id, `Organization ${slug}`, slug, id, now, now, now),
-    database
-      .prepare(
-        `INSERT INTO organization_domains
-          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
-         VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
-      )
-      .bind(`domain-${slug}`, id, `${slug}.localhost`, now, now),
-  ]);
-  const stub = stores.get(stores.idFromName(id));
-  const response = await stub.fetch("https://organization.internal/internal/provision", {
-    body: JSON.stringify({
-      actorUserId: "bootstrap",
-      canonicalHostname: `${slug}.localhost`,
-      canonicalStatus: "active",
-      name: `Organization ${slug}`,
-      organizationId: id,
-      requestId: crypto.randomUUID(),
-      slug,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
+const provision = async (id: string, slug: string, profileId: string, pollId: string) => {
+  await provisionOrganization(database, stores, {
+    id,
+    name: `Organization ${slug}`,
+    slug,
+    userId: "public-poll",
   });
-  expect(response.status).toBe(200);
+  const stub = stores.get(stores.idFromName(id));
+  const now = new Date().toISOString();
   await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
     state.storage.sql.exec(
       `INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
@@ -111,7 +79,7 @@ async function provision(
     }
     return null;
   });
-}
+};
 
 async function issuePollToken(
   organizationId: string,
@@ -133,6 +101,7 @@ async function issuePollToken(
 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
+  await seedAuthUser(database, "public-poll", "public.poll@example.test", "Public Poll");
   await provision("organization-alpha", "alpha", ALPHA_PROFILE, ALPHA_POLL);
   await provision("organization-bravo", "bravo", BRAVO_PROFILE, BRAVO_POLL);
 });
