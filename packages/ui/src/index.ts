@@ -2,6 +2,7 @@ export { Collapsible } from "./Collapsible";
 export {
   DataTable,
   type DataTableColumn,
+  type DataTablePagination,
   type DataTablePresentation,
   type DataTableRenderContext,
   type DataTableRowContext,
@@ -9,6 +10,7 @@ export {
   type DataTableSort,
   type DataTableSortDirection,
 } from "./DataTable";
+export { clampPage, pageCountFor, pageStartIndex, paginateRows } from "./pagination";
 export { ConfirmDialog, type ConfirmationOptions } from "./ConfirmDialog";
 export { Dialog, DialogClose } from "./Dialog";
 export { DropdownMenu } from "./DropdownMenu";

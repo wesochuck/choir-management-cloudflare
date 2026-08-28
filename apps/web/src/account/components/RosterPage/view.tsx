@@ -1,5 +1,5 @@
 import { rosterCsvColumnOptions } from "@choir/domain";
-import { DataTable, Dialog, DialogClose } from "@choir/ui";
+import { DataTable, Dialog, DialogClose, paginateRows } from "@choir/ui";
 import { PerformanceHistory, VoicePartBalance } from "./shared";
 import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "./profileDetails";
@@ -89,12 +89,23 @@ export function RosterPageView({
     toggleVoiceFilter,
   } = model;
   const selectAllVisibleRef = useRef<HTMLInputElement>(null);
+  const [rosterPage, setRosterPage] = useState(1);
+  const [rosterPageSize, setRosterPageSize] = useState(50);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page on filter change
+    setRosterPage(1);
+  }, [filteredProfiles.length, query, selectedVoiceFilters, statusFilter]);
+
+  const rosterPageIds = paginateRows(filteredProfiles, rosterPage, rosterPageSize).rows.map(
+    (candidate) => candidate.id,
+  );
   const visibleProfileIds = filteredProfiles.map((candidate) => candidate.id);
-  const selectedVisibleCount = visibleProfileIds.filter((profileId) =>
+  const selectedVisibleCount = rosterPageIds.filter((profileId) =>
     selectedProfileIds.includes(profileId),
   ).length;
   const allVisibleSelected =
-    visibleProfileIds.length > 0 && selectedVisibleCount === visibleProfileIds.length;
+    rosterPageIds.length > 0 && selectedVisibleCount === rosterPageIds.length;
   const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
   // The linked Membership email is the read-only source for the field; the
   // draft value must not gate editability or the input locks after one key.
@@ -340,7 +351,7 @@ export function RosterPageView({
                       checked={allVisibleSelected}
                       disabled={visibleProfileIds.length === 0 || bulkBusy}
                       onChange={(event) => {
-                        toggleVisibleProfileSelection(visibleProfileIds, event.target.checked);
+                        toggleVisibleProfileSelection(rosterPageIds, event.target.checked);
                       }}
                       ref={selectAllVisibleRef}
                       type="checkbox"
@@ -444,6 +455,16 @@ export function RosterPageView({
               initialSort={{ columnId: "name", direction: "asc" }}
               keySelector={(candidate) => candidate.id}
               onRowClick={openEdit}
+              pagination={{
+                onPageChange: setRosterPage,
+                onPageSizeChange: (nextSize) => {
+                  setRosterPageSize(nextSize);
+                  setRosterPage(1);
+                },
+                page: rosterPage,
+                pageSize: rosterPageSize,
+                pageSizeOptions: [25, 50, 100],
+              }}
               rowLabel={(candidate) => `Edit profile ${candidate.displayName}`}
               rows={filteredProfiles}
             />

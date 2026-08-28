@@ -1,11 +1,14 @@
 import {
   Fragment,
+  useEffect,
   useMemo,
   useState,
   type DragEvent,
   type PointerEvent,
   type ReactNode,
 } from "react";
+
+import { paginateRows } from "./pagination";
 
 export type DataTableSortDirection = "asc" | "desc";
 
@@ -19,6 +22,14 @@ export interface DataTableRowContext<T> {
   readonly index: number;
   readonly presentation: DataTablePresentation;
   readonly rows: readonly T[];
+}
+
+export interface DataTablePagination {
+  readonly page: number;
+  readonly pageSize: number;
+  readonly onPageChange: (page: number) => void;
+  readonly onPageSizeChange?: (pageSize: number) => void;
+  readonly pageSizeOptions?: readonly number[];
 }
 
 export interface DataTableRowProps {
@@ -97,6 +108,7 @@ interface DataTableProps<T> {
   readonly initialSort?: DataTableSort;
   readonly keySelector: (row: T) => string;
   readonly onRowClick?: (row: T) => void;
+  readonly pagination?: DataTablePagination;
   readonly renderExpandedRow?: (row: T, presentation: DataTablePresentation) => ReactNode;
   readonly rowLabel?: (row: T) => string;
   readonly rows: readonly T[];
@@ -141,6 +153,7 @@ export function DataTable<T>({
   initialSort,
   keySelector,
   onRowClick,
+  pagination,
   renderExpandedRow,
   rowLabel,
   rows,
@@ -161,8 +174,44 @@ export function DataTable<T>({
     });
   }, [columns, rows, sort]);
 
+  const paginated = useMemo(() => {
+    if (!pagination) return { page: 1, pageCount: 1, rows: sortedRows };
+    return paginateRows(sortedRows, pagination.page, pagination.pageSize);
+  }, [pagination, sortedRows]);
+
+  const visibleRows = paginated.rows;
+  const pageCount = paginated.pageCount;
+  const currentPage = pagination ? paginated.page : 1;
+  const pageSize = pagination?.pageSize ?? sortedRows.length;
+  const startIndex = pagination ? (currentPage - 1) * pageSize : 0;
+
+  const [pageDraft, setPageDraft] = useState(String(currentPage));
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- controlled input draft sync
+    setPageDraft(String(currentPage));
+  }, [currentPage]);
+
+  function commitPageDraft(): void {
+    if (!pagination) return;
+    const parsed = Number.parseInt(pageDraft, 10);
+    if (!Number.isFinite(parsed)) {
+      setPageDraft(String(currentPage));
+      return;
+    }
+    const clamped = Math.min(Math.max(Math.trunc(parsed), 1), Math.max(pageCount, 1));
+    if (clamped !== currentPage) {
+      pagination.onPageChange(clamped);
+    } else {
+      setPageDraft(String(clamped));
+    }
+  }
+
   function toggleSort(column: DataTableColumn<T>): void {
     if (!column.sortValue) return;
+    if (pagination) {
+      pagination.onPageChange(1);
+    }
     setSort((current) => {
       if (current?.columnId !== column.id) {
         return { columnId: column.id, direction: "asc" };
@@ -177,6 +226,8 @@ export function DataTable<T>({
   if (rows.length === 0) {
     return <p className="empty-state">{emptyMessage}</p>;
   }
+
+  const showPagination = pagination !== undefined && pageCount > 1;
 
   return (
     <div className="table-scroll">
@@ -217,7 +268,8 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row, index) => {
+          {visibleRows.map((row, localIndex) => {
+            const index = startIndex + localIndex;
             const rowId = keySelector(row);
             const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
             const customRowProps = getRowProps?.(row, {
@@ -274,7 +326,8 @@ export function DataTable<T>({
         </tbody>
       </table>
       <div className="data-table-cards">
-        {sortedRows.map((row, index) => {
+        {visibleRows.map((row, localIndex) => {
+          const index = startIndex + localIndex;
           const rowId = keySelector(row);
           const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
           const customRowProps = getRowProps?.(row, {
@@ -334,6 +387,101 @@ export function DataTable<T>({
           );
         })}
       </div>
+      {showPagination ? (
+        <nav aria-label="Pagination" className="data-table-pagination">
+          <div className="data-table-pagination__controls">
+            <button
+              aria-label="First page"
+              className="data-table-pagination__button"
+              disabled={currentPage === 1}
+              onClick={() => {
+                pagination.onPageChange(1);
+              }}
+              type="button"
+            >
+              «
+            </button>
+            <button
+              aria-label="Previous page"
+              className="data-table-pagination__button"
+              disabled={currentPage === 1}
+              onClick={() => {
+                pagination.onPageChange(currentPage - 1);
+              }}
+              type="button"
+            >
+              ‹
+            </button>
+            <span className="data-table-pagination__page">
+              Page
+              <input
+                aria-label="Page number"
+                className="data-table-pagination__input"
+                max={pageCount}
+                min={1}
+                onBlur={() => {
+                  commitPageDraft();
+                }}
+                onChange={(event) => {
+                  setPageDraft(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitPageDraft();
+                    const target = event.currentTarget;
+                    target.blur();
+                  }
+                }}
+                type="number"
+                value={pageDraft}
+              />
+              of {pageCount}
+            </span>
+            <button
+              aria-label="Next page"
+              className="data-table-pagination__button"
+              disabled={currentPage === pageCount}
+              onClick={() => {
+                pagination.onPageChange(currentPage + 1);
+              }}
+              type="button"
+            >
+              ›
+            </button>
+            <button
+              aria-label="Last page"
+              className="data-table-pagination__button"
+              disabled={currentPage === pageCount}
+              onClick={() => {
+                pagination.onPageChange(pageCount);
+              }}
+              type="button"
+            >
+              »
+            </button>
+          </div>
+          {pagination.onPageSizeChange ? (
+            <label className="data-table-pagination__size">
+              Rows per page
+              <select
+                aria-label="Rows per page"
+                onChange={(event) => {
+                  const nextSize = Number(event.target.value);
+                  pagination.onPageSizeChange?.(nextSize);
+                }}
+                value={String(pageSize)}
+              >
+                {(pagination.pageSizeOptions ?? [25, 50, 100]).map((option) => (
+                  <option key={option} value={String(option)}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </nav>
+      ) : null}
     </div>
   );
 }

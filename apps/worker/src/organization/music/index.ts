@@ -55,7 +55,7 @@ export function listMusicPiecesFromStore(
     const pieces = storage.sql
       .exec<MusicPieceRow>(
         `SELECT ${musicColumns} FROM music_pieces
-         ORDER BY title COLLATE NOCASE ASC, created_at ASC, id ASC LIMIT 2000`,
+                  ORDER BY title COLLATE NOCASE ASC, created_at ASC, id ASC LIMIT 5000`,
       )
       .toArray()
       .map(parseStoredPiece);

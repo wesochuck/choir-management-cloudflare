@@ -189,12 +189,12 @@ export const organizationMusicPieceResponseSchema = organizationMusicPieceSchema
 });
 
 export const organizationMusicPiecesResponseSchema = z.object({
-  pieces: z.array(organizationMusicPieceSchema).max(2_000),
+  pieces: z.array(organizationMusicPieceSchema).max(5_000),
   requestId: requestIdSchema,
 });
 
 export const organizationMusicGenreMutationResponseSchema = z.object({
-  pieces: z.array(organizationMusicPieceSchema).max(2_000),
+  pieces: z.array(organizationMusicPieceSchema).max(5_000),
   requestId: requestIdSchema,
   settings: organizationMusicLibrarySettingsFieldsSchema,
 });
