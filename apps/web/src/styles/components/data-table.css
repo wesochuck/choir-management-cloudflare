@@ -7,6 +7,13 @@
   .table-scroll {
     width: 100%;
     overflow-x: auto;
+    /* Allow focus outlines on pagination controls to remain visible at the container edge */
+    padding: 2px;
+    margin: -2px;
+  }
+
+  .table-scroll:has(.data-table-pagination) .data-table tr:last-child td {
+    border-bottom: none;
   }
 
   .data-table {
