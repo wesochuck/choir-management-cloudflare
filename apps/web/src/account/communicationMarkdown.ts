@@ -19,6 +19,14 @@ function isSafeHttpUrl(value: string): boolean {
   }
 }
 
+function sanitizeUrlAttribute(url: string): string {
+  return url
+    .replace(/&quot;|"/g, "%22")
+    .replace(/&#39;|'/g, "%27")
+    .replace(/&lt;|</g, "%3C")
+    .replace(/&gt;|>/g, "%3E");
+}
+
 function renderInline(value: string): string {
   const links: string[] = [];
   const escaped = escapeHtml(value);
@@ -26,14 +34,16 @@ function renderInline(value: string): string {
     /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/gi,
     '<span class="communication-poll-link-placeholder">Respond Here (No login required)</span>',
   );
+  const token = `LINKTOKEN${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
   const withLinks = withPolls.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     (match, label: string, url: string) => {
       if (!isSafeHttpUrl(url)) return match;
       const index = links.length;
+      const safeUrl = sanitizeUrlAttribute(url);
       const target = url.startsWith("/") ? "" : ' target="_blank" rel="noopener noreferrer"';
-      links.push(`<a href="${url}"${target}>${label}</a>`);
-      return `@@LINK_${String(index)}@@`;
+      links.push(`<a href="${safeUrl}"${target}>${label}</a>`);
+      return `${token}X${String(index)}X`;
     },
   );
 
@@ -44,7 +54,8 @@ function renderInline(value: string): string {
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/_([^_]+)_/g, "<em>$1</em>");
 
-  return formatted.replace(/@@LINK_(\d+)@@/g, (_, index: string) => links[Number(index)] ?? "");
+  const linkRegex = new RegExp(`${token}X(\\d+)X`, "g");
+  return formatted.replace(linkRegex, (_, index: string) => links[Number(index)] ?? "");
 }
 
 function formatPreviewDate(value: string): string {

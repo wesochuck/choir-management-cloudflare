@@ -11,10 +11,36 @@ describe("renderCommunicationMarkdownPreview", () => {
     );
 
     expect(rendered).toContain(
-      '<a href="https://example.test/?q=&quot; onmouseover=&quot;alert(1" target="_blank" rel="noopener noreferrer">safe</a>',
+      '<a href="https://example.test/?q=%22 onmouseover=%22alert(1" target="_blank" rel="noopener noreferrer">safe</a>',
     );
     expect(rendered).toContain("&lt;img src=x&gt;");
     expect(rendered).not.toContain('onmouseover="alert(1)"');
+  });
+
+  it("prevents attribute breakout XSS in markdown link URLs", () => {
+    const rendered = renderCommunicationMarkdownPreview(
+      "[click](https://example.com/test?a=\"onload=\"alert_1&b='onfocus='alert_2)",
+    );
+
+    expect(rendered).not.toContain('onload="alert');
+    expect(rendered).not.toContain("onfocus='alert");
+    expect(rendered).toContain(
+      'href="https://example.com/test?a=%22onload=%22alert_1&amp;b=%27onfocus=%27alert_2"',
+    );
+  });
+
+  it("prevents sentinel token injection from user input", () => {
+    const rendered = renderCommunicationMarkdownPreview(
+      "@@LINK_0@@ [link](https://example.com) @@LINK_1@@",
+    );
+
+    expect(rendered).toContain("@@LINK");
+    expect(rendered).toContain(
+      '<a href="https://example.com" target="_blank" rel="noopener noreferrer">link</a>',
+    );
+    expect(rendered).not.toContain(
+      'href="https://example.com" target="_blank" rel="noopener noreferrer">0',
+    );
   });
 
   it("does not turn non-HTTP links into anchors", () => {
