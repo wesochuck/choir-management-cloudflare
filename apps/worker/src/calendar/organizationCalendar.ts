@@ -43,6 +43,11 @@ import {
 import type { Env } from "../env";
 import { z } from "zod";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
+import {
+  mutateOrganizationStore,
+  readOrganizationStore,
+  storeErrorCode,
+} from "../organization/rpc/repository";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -80,23 +85,16 @@ export class CalendarMutationError extends Error {
   }
 }
 
-function errorCode(value: unknown): string {
-  if (typeof value !== "object" || value === null || !("code" in value)) return "unknown";
-  return typeof value.code === "string" ? value.code : "unknown";
-}
-
-function stub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: string) {
-  return organizationStoreStub(env, organizationId);
-}
-
 async function listResource(
   env: Env,
   organizationId: string,
   resource: "events" | "venues",
 ): Promise<unknown> {
-  const url = new URL(`https://organization.internal/internal/calendar/${resource}`);
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    `/internal/calendar/${resource}`,
+  );
   if (!response.ok) throw new Error(`The Organization store rejected the ${resource} request.`);
   return response.json();
 }
@@ -109,7 +107,7 @@ export async function listOrganizationEventAttendance(
   const url = new URL("https://organization.internal/internal/calendar/attendance");
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("The Organization store rejected the attendance request.");
   return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(await response.json())
@@ -124,7 +122,7 @@ export async function listOrganizationEventRsvpHistory(
   const url = new URL("https://organization.internal/internal/calendar/event-rsvp-history");
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("The Organization store rejected the RSVP history request.");
   return organizationEventRsvpHistoryResponseSchema.parse(await response.json());
@@ -140,7 +138,7 @@ export async function readOrganizationProfileEventRsvp(
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
   url.searchParams.set("profileId", profileId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("The Organization store rejected the RSVP details request.");
   return organizationProfileEventRsvpSchema.parse(await response.json());
@@ -151,10 +149,12 @@ export async function listOrganizationProfileFolderNumbers(
   organizationId: string,
   profileId: string,
 ): Promise<readonly OrganizationProfileFolderNumber[]> {
-  const url = new URL("https://organization.internal/internal/calendar/profile-folder-numbers");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("profileId", profileId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/calendar/profile-folder-numbers",
+    { profileId },
+  );
   if (!response.ok) {
     throw new Error("The Organization store rejected the Profile folder numbers request.");
   }
@@ -171,7 +171,7 @@ export async function readOrganizationEventRsvpExport(
   const url = new URL("https://organization.internal/internal/calendar/event-rsvp-export");
   url.searchParams.set("eventId", eventId);
   url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("The Organization store rejected the event RSVP export.");
   return organizationEventRsvpExportDataSchema.parse(await response.json());
@@ -215,18 +215,14 @@ async function mutate(
   env: Env,
   input: ActorContext & Readonly<Record<string, unknown>>,
 ): Promise<unknown> {
-  const response = await invokeOrganizationRpc(
-    stub(env, input.organizationId),
-    "https://organization.internal/internal/calendar/manage",
-    {
-      body: JSON.stringify(input),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    input.organizationId,
+    "/internal/calendar/manage",
+    input,
   );
   if (!response.ok) {
-    const body: unknown = await response.json().catch(() => null);
-    throw new CalendarMutationError(errorCode(body), response.status);
+    throw new CalendarMutationError(await storeErrorCode(response, "unknown"), response.status);
   }
   return response.json();
 }
@@ -273,14 +269,11 @@ export async function deleteOrganizationVenue(
   actor: ActorContext,
   venueId: string,
 ): Promise<"deleted" | "in_use" | "not_found"> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/calendar/manage",
-    {
-      body: JSON.stringify({ action: "delete_venue", ...actor, venueId }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/calendar/manage",
+    { action: "delete_venue", ...actor, venueId },
   );
   if (response.status === 409) return "in_use";
   if (response.status === 404) return "not_found";
@@ -303,9 +296,11 @@ export async function readOrganizationDashboardSummary(
   env: Env,
   organizationId: string,
 ): Promise<Omit<OrganizationDashboardSummaryResponse, "requestId">> {
-  const url = new URL("https://organization.internal/internal/calendar/dashboard-summary");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/calendar/dashboard-summary",
+  );
   if (!response.ok) {
     throw new Error("The Organization store rejected the dashboard summary request.");
   }
@@ -391,9 +386,7 @@ export async function readOrganizationCalendarSettings(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ): Promise<OrganizationCalendarSettings> {
-  const url = new URL("https://organization.internal/internal/calendar/settings");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(env, organizationId, "/internal/calendar/settings");
   if (!response.ok)
     throw new Error("The Organization store rejected the calendar settings request.");
   return organizationCalendarSettingsResponseSchema
@@ -415,9 +408,11 @@ export async function readOrganizationRosterConfiguration(
   env: Env,
   organizationId: string,
 ): Promise<OrganizationRosterConfiguration> {
-  const url = new URL("https://organization.internal/internal/roster/configuration");
-  url.searchParams.set("organizationId", organizationId);
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/roster/configuration",
+  );
   if (!response.ok) {
     throw new Error("The Organization store rejected the roster configuration request.");
   }
@@ -429,14 +424,11 @@ export async function updateOrganizationRosterConfiguration(
   actor: ActorContext,
   configuration: OrganizationRosterConfiguration,
 ): Promise<OrganizationRosterConfiguration | "voice_part_in_use"> {
-  const response = await invokeOrganizationRpc(
-    stub(env, actor.organizationId),
-    "https://organization.internal/internal/calendar/manage",
-    {
-      body: JSON.stringify({ action: "update_roster_configuration", ...actor, configuration }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/calendar/manage",
+    { action: "update_roster_configuration", ...actor, configuration },
   );
   if (response.status === 409) return "voice_part_in_use";
   if (!response.ok) {
@@ -451,14 +443,11 @@ export async function previewOrganizationRosterAutomation(
   configuration: OrganizationRosterConfiguration,
   profileId: string | null,
 ): Promise<OrganizationRosterAutomationPreviewResponse> {
-  const response = await invokeOrganizationRpc(
-    stub(env, organizationId),
-    "https://organization.internal/internal/roster/automation-preview",
-    {
-      body: JSON.stringify({ configuration, organizationId, profileId }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
+  const response = await mutateOrganizationStore(
+    env,
+    organizationId,
+    "/internal/roster/automation-preview",
+    { configuration, organizationId, profileId },
   );
   if (!response.ok)
     throw new Error("The Organization store rejected the roster automation preview.");
@@ -473,13 +462,17 @@ export async function listMemberSchedule(
   includePast = false,
   includePublishedSetList = false,
 ): Promise<readonly SingerEvent[]> {
-  const url = new URL("https://organization.internal/internal/calendar/member-events");
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("profileId", profileId);
-  url.searchParams.set("readAt", now.toISOString());
-  if (includePast) url.searchParams.set("includePast", "true");
-  if (includePublishedSetList) url.searchParams.set("includePublishedSetList", "true");
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/calendar/member-events",
+    {
+      profileId,
+      readAt: now.toISOString(),
+      ...(includePast ? { includePast: "true" } : {}),
+      ...(includePublishedSetList ? { includePublishedSetList: "true" } : {}),
+    },
+  );
   if (!response.ok) throw new Error("The Organization store rejected the member schedule request.");
   return singerEventsResponseSchema.pick({ events: true }).parse(await response.json()).events;
 }
@@ -490,13 +483,12 @@ export async function listOrganizationProfilePerformanceHistory(
   profileId: string,
   now = new Date(),
 ): Promise<Omit<OrganizationProfilePerformanceHistoryResponse, "requestId">> {
-  const url = new URL(
-    "https://organization.internal/internal/calendar/profile-performance-history",
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/calendar/profile-performance-history",
+    { profileId, readAt: now.toISOString() },
   );
-  url.searchParams.set("organizationId", organizationId);
-  url.searchParams.set("profileId", profileId);
-  url.searchParams.set("readAt", now.toISOString());
-  const response = await invokeOrganizationRpc(stub(env, organizationId), url);
   if (!response.ok) {
     throw new Error("The Organization store rejected the Profile performance history request.");
   }
