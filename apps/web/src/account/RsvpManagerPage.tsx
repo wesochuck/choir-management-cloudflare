@@ -337,16 +337,17 @@ export function RsvpManagerPage({
     () => visibleRows.filter((row) => row.voicePart.trim() !== ""),
     [visibleRows],
   );
+  const selectedProfileIdsSet = useMemo(() => new Set(selectedProfileIds), [selectedProfileIds]);
   const selectedVisibleCount = useMemo(
-    () => selectableRows.filter((row) => selectedProfileIds.includes(row.profileId)).length,
-    [selectableRows, selectedProfileIds],
+    () => selectableRows.filter((row) => selectedProfileIdsSet.has(row.profileId)).length,
+    [selectableRows, selectedProfileIdsSet],
   );
   const selectedTargetCount = useMemo(
     () =>
       activeRows.filter(
-        (row) => row.voicePart.trim() !== "" && selectedProfileIds.includes(row.profileId),
+        (row) => row.voicePart.trim() !== "" && selectedProfileIdsSet.has(row.profileId),
       ).length,
-    [activeRows, selectedProfileIds],
+    [activeRows, selectedProfileIdsSet],
   );
   const allVisibleSelected =
     selectableRows.length > 0 && selectedVisibleCount === selectableRows.length;
@@ -376,7 +377,7 @@ export function RsvpManagerPage({
 
   async function applyBulkRsvp(next: "Yes" | "No" | "Pending") {
     const targets = activeRows.filter(
-      (row) => row.voicePart.trim() !== "" && selectedProfileIds.includes(row.profileId),
+      (row) => row.voicePart.trim() !== "" && selectedProfileIdsSet.has(row.profileId),
     );
     if (!eventId || targets.length === 0 || bulkBusy || savingId) return;
     const confirmed = await confirm({
@@ -478,7 +479,7 @@ export function RsvpManagerPage({
       render: (row) => (
         <input
           aria-label={`Select ${row.displayName}`}
-          checked={selectedProfileIds.includes(row.profileId)}
+          checked={selectedProfileIdsSet.has(row.profileId)}
           disabled={bulkBusy || savingId !== null || row.voicePart.trim() === ""}
           onChange={(event) => {
             toggleProfileSelection(row.profileId, event.target.checked);
