@@ -1,12 +1,16 @@
 import {
   setupProgressRequestSchema,
-  setupStatusSchema,
   type SetupProgressRequest,
   type SetupStatus,
 } from "@choir/contracts";
 import { MODULE_DEFINITIONS } from "@choir/domain";
 import { useEffect, useRef, useState } from "react";
-import { uploadPrivateOrganizationFile } from "../auth/api";
+import {
+  completeSetup,
+  getSetupStatus,
+  saveSetupProgress,
+  uploadPrivateOrganizationFile,
+} from "../api";
 
 import { SetupDataImportStep } from "./SetupDataImportStep";
 
@@ -58,24 +62,20 @@ export function SetupView() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/setup/status", { credentials: "same-origin", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Failed to load");
-        const body: unknown = await response.json();
-        const parsed = setupStatusSchema.safeParse(body);
-        if (!parsed.success) throw new Error("Invalid response");
-        setSetupState({ setup: parsed.data, status: "ready" });
-        if (parsed.data.currentStep && isStep(parsed.data.currentStep)) {
-          setCurrentStep(parsed.data.currentStep);
-        } else if (parsed.data.completedSteps.length > 0) {
-          const next = nextUncompleted(parsed.data.completedSteps);
+    getSetupStatus(controller.signal)
+      .then((setup) => {
+        setSetupState({ setup, status: "ready" });
+        if (setup.currentStep && isStep(setup.currentStep)) {
+          setCurrentStep(setup.currentStep);
+        } else if (setup.completedSteps.length > 0) {
+          const next = nextUncompleted(setup.completedSteps);
           if (next) setCurrentStep(next);
         }
-        setOrgName(parsed.data.organizationName);
-        if (parsed.data.logoFileId) {
-          setLogoFileId(parsed.data.logoFileId);
+        setOrgName(setup.organizationName);
+        if (setup.logoFileId) {
+          setLogoFileId(setup.logoFileId);
         }
-        if (parsed.data.launched) {
+        if (setup.launched) {
           setCompleted(true);
         }
       })
@@ -94,13 +94,7 @@ export function SetupView() {
     try {
       const body: SetupProgressRequest = { step, data };
       const validated = setupProgressRequestSchema.parse(body);
-      const response = await fetch("/api/setup/progress", {
-        body: JSON.stringify(validated),
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
-      if (!response.ok) throw new Error("Failed to save");
+      await saveSetupProgress(validated);
     } catch {
       setMessage("Progress could not be saved.");
     }
@@ -138,12 +132,7 @@ export function SetupView() {
     setMessage(null);
     try {
       await saveProgress("launch");
-      const response = await fetch("/api/setup/complete", {
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
-      if (!response.ok) throw new Error("Failed to complete");
+      await completeSetup();
       setCompleted(true);
     } catch {
       setMessage("Setup could not be completed.");

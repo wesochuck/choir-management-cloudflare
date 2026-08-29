@@ -1,5 +1,7 @@
-import { publicPollDetailsResponseSchema, type PublicPollDetailsResponse } from "@choir/contracts";
+import type { PublicPollDetailsResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
+
+import { getPublicPollDetails, submitPublicPollVote } from "../api";
 
 type PollDetails = PublicPollDetailsResponse;
 
@@ -12,29 +14,20 @@ type PageStatus =
   | { type: "submit_error"; details: PollDetails }
   | { type: "submitted"; details: PollDetails };
 
-function fetchPollDetails(token: string): Promise<PollDetails> {
-  return fetch("/api/public/poll-details", {
-    body: JSON.stringify({ token }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("not_found");
-    return response.json().then((data: unknown) => {
-      const parsed = publicPollDetailsResponseSchema.safeParse(data);
-      if (parsed.success) return parsed.data;
-      throw new Error("invalid_response");
-    });
-  });
+async function fetchPollDetails(token: string): Promise<PollDetails> {
+  try {
+    return await getPublicPollDetails(token);
+  } catch {
+    throw new Error("not_found");
+  }
 }
 
-function submitPollVote(token: string, optionIds: string[]): Promise<void> {
-  return fetch("/api/public/poll-vote", {
-    body: JSON.stringify({ token, optionIds }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("submit_failed");
-  });
+async function submitPollVote(token: string, optionIds: string[]): Promise<void> {
+  try {
+    await submitPublicPollVote(token, optionIds);
+  } catch {
+    throw new Error("submit_failed");
+  }
 }
 
 function formatExpiry(iso: string): string {

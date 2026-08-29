@@ -1,34 +1,15 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { getPlatformAdminSession } from "./staging-auth-helper.mjs";
+import { loadStagingEnv } from "./qualification-harness.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const localStagingEnv = join(repositoryRoot, ".env.staging.local");
 
 // Load local staging env if present
-if (existsSync(localStagingEnv)) {
-  try {
-    const lines = readFileSync(localStagingEnv, "utf-8").split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const match = trimmed.match(/^([A-Z0-9_]+)=(?:"([^"]*)"|'([^']*)'|(.*))$/u);
-      if (match) {
-        const key = match[1];
-        const value = match[2] ?? match[3] ?? match[4] ?? "";
-        if (key && !process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-  } catch {
-    // Ignore read errors
-  }
-}
+loadStagingEnv();
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/u,

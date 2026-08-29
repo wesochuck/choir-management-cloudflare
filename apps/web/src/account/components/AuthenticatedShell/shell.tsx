@@ -1,20 +1,17 @@
-import {
-  healthResponseSchema,
-  moduleStatesResponseSchema,
-  setupStatusSchema,
-  type CurrentAuthSession,
-  type ModuleState,
-} from "@choir/contracts";
+import type { CurrentAuthSession, ModuleState } from "@choir/contracts";
 import { Sheet } from "@choir/ui";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthApiError,
+  getHealth,
   getOrganizationAuthStatus,
   getOrganizationBranding,
+  getOrganizationModuleState,
   getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
-  signOut,
-} from "../../../auth/api";
+  getSetupStatus,
+} from "../../../api";
+import { signOut } from "../../../auth/api";
 import { FloatingSaveBarProvider } from "../../FloatingSaveBar";
 import { OrganizationTerminologyProvider } from "../../organizationTerminology";
 
@@ -121,34 +118,15 @@ export function AuthenticatedShell({
           return null;
         throw error;
       }),
-      fetch("/api/organization/module-state", {
-        credentials: "same-origin",
-        signal: controller.signal,
-      }).then(async (response) => {
-        if (!response.ok) return [] as readonly ModuleState[];
-        const body: unknown = await response.json();
-        return moduleStatesResponseSchema.safeParse(body).success
-          ? moduleStatesResponseSchema.parse(body).modules
-          : [];
-      }),
-      fetch("/api/setup/status", { credentials: "same-origin", signal: controller.signal }).then(
-        async (response) => {
-          if (!response.ok) return null;
-          const body: unknown = await response.json();
-          const parsed = setupStatusSchema.safeParse(body);
-          return parsed.success ? parsed.data.organizationName : null;
-        },
-      ),
+      getOrganizationModuleState(controller.signal).catch(() => [] as readonly ModuleState[]),
+      getSetupStatus(controller.signal)
+        .then((setup) => setup.organizationName)
+        .catch(() => null),
       getPlatformMfaStatus(controller.signal)
         .then((status) => status.activePlatformAdministrator)
         .catch(() => false),
-      fetch("/api/health", { credentials: "same-origin", signal: controller.signal })
-        .then(async (response) => {
-          if (!response.ok) return null;
-          const body: unknown = await response.json();
-          const parsed = healthResponseSchema.safeParse(body);
-          return parsed.success ? (parsed.data.baseHostname ?? null) : null;
-        })
+      getHealth(controller.signal)
+        .then((health) => health.baseHostname ?? null)
         .catch(() => null),
     ])
       .then(([context, modules, organizationName, hasPlatformAccess, baseHostname]) => {

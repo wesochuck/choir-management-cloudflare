@@ -1,19 +1,48 @@
 import {
   organizationPollRequestSchema,
-  organizationPollResultsResponseSchema,
-  organizationPollSchema,
-  organizationPollSummariesResponseSchema,
-  type OrganizationPoll,
   type OrganizationPollResultsResponse,
   type OrganizationPollSummary,
 } from "@choir/contracts";
 import { defaultPollExpirationAt } from "@choir/domain";
 import { DataTable, Dialog } from "@choir/ui";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type SyntheticEvent } from "react";
 
-import { saveOrganizationCommunicationDraft } from "../auth/api";
+import {
+  createOrganizationPoll,
+  getOrganizationPoll,
+  getOrganizationPollResults,
+  listOrganizationPolls,
+  queryKeys,
+  saveOrganizationCommunicationDraft,
+  updateOrganizationPoll,
+} from "../api";
 
 type Poll = OrganizationPollSummary;
+
+interface PollFormData {
+  readonly archivedAt: string;
+  readonly description: string;
+  readonly editingPollHasResponses: boolean;
+  readonly editingPollId: string | null;
+  readonly expiresAt: string;
+  readonly multipleChoice: boolean;
+  readonly optionIds: readonly string[];
+  readonly options: readonly string[];
+  readonly title: string;
+}
+
+const defaultInitialPollFormData: PollFormData = {
+  archivedAt: "",
+  description: "",
+  editingPollHasResponses: false,
+  editingPollId: null,
+  expiresAt: "",
+  multipleChoice: false,
+  optionIds: [],
+  options: ["Yes", "No"],
+  title: "",
+};
 type PollState =
   | { readonly status: "loading" }
   | { readonly status: "error" }
@@ -388,23 +417,32 @@ function PollEditDialog({
 }
 
 export function PollsPage({ enabled }: { readonly enabled: boolean }) {
-  const [state, setState] = useState<PollState>({ status: "loading" });
+  const queryClient = useQueryClient();
+  const [showArchived, setShowArchived] = useState(false);
+
+  const {
+    data: polls = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    enabled,
+    queryFn: ({ signal }) => listOrganizationPolls(showArchived, signal),
+    queryKey: queryKeys.organization.polls(showArchived),
+  });
+
+  const state: PollState = isError
+    ? { status: "error" }
+    : isLoading
+      ? { status: "loading" }
+      : { polls, status: "ready" };
+
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingPollId, setEditingPollId] = useState<string | null>(null);
-  const [editingPollHasResponses, setEditingPollHasResponses] = useState(false);
+  const [formData, setFormData] = useState<PollFormData>(defaultInitialPollFormData);
   const [loadingPollId, setLoadingPollId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [archivedAt, setArchivedAt] = useState("");
-  const [multipleChoice, setMultipleChoice] = useState(false);
-  const [options, setOptions] = useState(["Yes", "No"]);
-  const [optionIds, setOptionIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [sharingPollId, setSharingPollId] = useState<string | null>(null);
   const [communicationsDraftId, setCommunicationsDraftId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
 
   // Results state
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
@@ -413,40 +451,18 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    const endpoint = showArchived
-      ? "/api/organization/polls?archived=true"
-      : "/api/organization/polls";
-    fetch(endpoint, {
-      credentials: "same-origin",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Polls unavailable");
-        const parsed = organizationPollSummariesResponseSchema.safeParse(await response.json());
-        if (!parsed.success) throw new Error("Poll response invalid");
-        setState({ polls: parsed.data.polls, status: "ready" });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setState({ status: "error" });
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled, showArchived]);
-
   function openCreateDialog(): void {
-    setEditingPollId(null);
-    setEditingPollHasResponses(false);
-    setTitle("");
-    setDescription("");
-    setExpiresAt(defaultExpirationDateTimeLocal());
-    setArchivedAt("");
-    setMultipleChoice(false);
-    setOptions(["Yes", "No"]);
-    setOptionIds([crypto.randomUUID(), crypto.randomUUID()]);
+    setFormData({
+      archivedAt: "",
+      description: "",
+      editingPollHasResponses: false,
+      editingPollId: null,
+      expiresAt: defaultExpirationDateTimeLocal(),
+      multipleChoice: false,
+      optionIds: [crypto.randomUUID(), crypto.randomUUID()],
+      options: ["Yes", "No"],
+      title: "",
+    });
     setMessage(null);
     setDialogOpen(true);
   }
@@ -455,25 +471,21 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     setLoadingPollId(poll.id);
     setMessage(null);
     try {
-      const response = await fetch(`/api/organization/polls/${encodeURIComponent(poll.id)}`, {
-        credentials: "same-origin",
-      });
-      if (!response.ok) throw new Error("Poll details unavailable");
-      const details: OrganizationPoll = organizationPollSchema.parse(await response.json());
-      setEditingPollId(details.id);
-      setEditingPollHasResponses(poll.responseCount > 0);
-      setTitle(details.title);
-      setDescription(details.description);
-      setExpiresAt(toDateTimeLocal(details.expiresAt));
-      setArchivedAt(details.archivedAt);
-      setMultipleChoice(details.multipleChoice);
-      setOptionIds(details.options.map(({ id }) => id));
-      setOptions(
-        details.options
+      const details = await getOrganizationPoll(poll.id);
+      setFormData({
+        archivedAt: details.archivedAt,
+        description: details.description,
+        editingPollHasResponses: poll.responseCount > 0,
+        editingPollId: details.id,
+        expiresAt: toDateTimeLocal(details.expiresAt),
+        multipleChoice: details.multipleChoice,
+        optionIds: details.options.map(({ id }) => id),
+        options: details.options
           .slice()
           .sort((a, b) => a.sortOrder - b.sortOrder)
           .map(({ label }) => label),
-      );
+        title: details.title,
+      });
       setDialogOpen(true);
     } catch {
       setMessage("The poll could not be loaded for editing. Try again.");
@@ -489,14 +501,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     setResultsData(null);
     setCopyFeedback(null);
     try {
-      const response = await fetch(
-        `/api/organization/polls/${encodeURIComponent(poll.id)}/results`,
-        {
-          credentials: "same-origin",
-        },
-      );
-      if (!response.ok) throw new Error("Poll results unavailable");
-      const data = organizationPollResultsResponseSchema.parse(await response.json());
+      const data = await getOrganizationPollResults(poll.id);
       setResultsData(data);
     } catch {
       setResultsError("The poll results could not be loaded. Try again.");
@@ -510,18 +515,18 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     setSaving(true);
     setMessage(null);
     const request = organizationPollRequestSchema.safeParse({
-      archivedAt,
-      description,
-      expiresAt: toIsoDateTime(expiresAt),
-      multipleChoice,
-      options: options
+      archivedAt: formData.archivedAt || undefined,
+      description: formData.description,
+      expiresAt: toIsoDateTime(formData.expiresAt),
+      multipleChoice: formData.multipleChoice,
+      options: formData.options
         .map((label, index) => ({
-          id: optionIds[index] ?? crypto.randomUUID(),
+          id: formData.optionIds[index] ?? crypto.randomUUID(),
           label: label.trim(),
           sortOrder: index,
         }))
         .filter((option) => option.label),
-      title,
+      title: formData.title,
     });
     if (!request.success) {
       setSaving(false);
@@ -529,72 +534,19 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       return;
     }
     try {
-      const editing = editingPollId !== null;
-      const response = await fetch(
-        editing
-          ? `/api/organization/polls/${encodeURIComponent(editingPollId)}`
-          : "/api/organization/polls",
-        {
-          body: JSON.stringify(
-            editing ? request.data : { ...request.data, id: crypto.randomUUID() },
-          ),
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          method: editing ? "PUT" : "POST",
-        },
-      );
-      if (!response.ok)
-        throw new Error(editing ? "Poll could not be updated" : "Poll could not be created");
-      const saved = organizationPollSchema.parse(await response.json());
-      setState((current) =>
-        current.status === "ready"
-          ? {
-              polls: editing
-                ? current.polls.map((poll) =>
-                    poll.id === saved.id
-                      ? {
-                          ...poll,
-                          archivedAt: saved.archivedAt,
-                          expiresAt: saved.expiresAt,
-                          title: saved.title,
-                        }
-                      : poll,
-                  )
-                : showArchived
-                  ? current.polls
-                  : [
-                      {
-                        archivedAt: saved.archivedAt,
-                        createdAt: saved.createdAt,
-                        expiresAt: saved.expiresAt,
-                        id: saved.id,
-                        optionTallies: saved.options.map((opt) => ({
-                          count: 0,
-                          id: opt.id,
-                          label: opt.label,
-                        })),
-                        responseCount: 0,
-                        title: saved.title,
-                      },
-                      ...current.polls,
-                    ],
-              status: "ready",
-            }
-          : current,
-      );
-      setTitle("");
-      setDescription("");
-      setExpiresAt("");
-      setArchivedAt("");
-      setMultipleChoice(false);
-      setOptions(["Yes", "No"]);
-      setOptionIds([]);
+      const editing = formData.editingPollId !== null;
+      if (editing) {
+        await updateOrganizationPoll(formData.editingPollId, request.data);
+      } else {
+        await createOrganizationPoll({ ...request.data, id: crypto.randomUUID() });
+      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.organization.polls(showArchived) });
+      setFormData(defaultInitialPollFormData);
       setDialogOpen(false);
-      setMessage(editingPollId ? "Poll updated." : "Poll created.");
-      setEditingPollId(null);
+      setMessage(editing ? "Poll updated." : "Poll created.");
     } catch {
       setMessage(
-        editingPollId
+        formData.editingPollId
           ? "The poll could not be updated. Try again."
           : "The poll could not be created. Try again.",
       );
@@ -655,7 +607,6 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             checked={showArchived}
             id="polls-show-archived"
             onChange={(event) => {
-              setState({ status: "loading" });
               setShowArchived(event.target.checked);
             }}
             type="checkbox"
@@ -781,24 +732,32 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       />
 
       <PollEditDialog
-        description={description}
-        editingPollHasResponses={editingPollHasResponses}
-        editingPollId={editingPollId}
-        expiresAt={expiresAt}
+        description={formData.description}
+        editingPollHasResponses={formData.editingPollHasResponses}
+        editingPollId={formData.editingPollId}
+        expiresAt={formData.expiresAt}
         onClose={() => {
           setDialogOpen(false);
         }}
-        onDescriptionChange={setDescription}
-        onExpiresAtChange={setExpiresAt}
-        onOptionsChange={setOptions}
+        onDescriptionChange={(description) => {
+          setFormData((prev) => ({ ...prev, description }));
+        }}
+        onExpiresAtChange={(expiresAt) => {
+          setFormData((prev) => ({ ...prev, expiresAt }));
+        }}
+        onOptionsChange={(options) => {
+          setFormData((prev) => ({ ...prev, options }));
+        }}
         onSave={(event) => {
           void savePoll(event);
         }}
-        onTitleChange={setTitle}
+        onTitleChange={(title) => {
+          setFormData((prev) => ({ ...prev, title }));
+        }}
         open={dialogOpen}
-        options={options}
+        options={[...formData.options]}
         saving={saving}
-        title={title}
+        title={formData.title}
       />
     </section>
   );

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AuthApiError,
+  deletePrivateOrganizationFile,
   requestMemberEmailChange,
   deleteOrganizationProfilePhoto,
   getMemberProfile,
@@ -11,7 +12,7 @@ import {
   updateMemberProfile,
   setOrganizationProfilePhoto,
   uploadPrivateOrganizationFile,
-} from "../auth/api";
+} from "../api";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 type ProfilePhotoTarget = Pick<MemberProfile, "displayName" | "id" | "photoFileId">;
@@ -206,9 +207,7 @@ export function ProfilePhotoEditor({
       onChanged(uploadedFileId);
     } catch (error: unknown) {
       if (uploadedFileId) {
-        await fetch(`/api/organization/files/${encodeURIComponent(uploadedFileId)}`, {
-          method: "DELETE",
-        }).catch(() => undefined);
+        await deletePrivateOrganizationFile(uploadedFileId).catch(() => undefined);
       }
       setMessage(
         error instanceof AuthApiError ? error.message : "The Profile photo could not be updated.",

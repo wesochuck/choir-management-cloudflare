@@ -1,22 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { mockAnonymousSession, mockHealth } from "./support/testWorld";
 
 test("renders the accessible foundation at desktop and mobile widths", async ({ page }) => {
-  await page.route("**/api/health", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({
-        environment: "local",
-        requestId: "11111111-1111-4111-8111-111111111111",
-        service: "choir-management-cloudflare",
-        status: "ok",
-        version: "browser-test",
-      }),
-      contentType: "application/json",
-      status: 200,
-    });
-  });
-  await page.route("**/api/auth/get-session", async (route) => {
-    await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
-  });
+  await mockHealth(page);
+  await mockAnonymousSession(page);
   await page.route("**/api/public/projection", async (route) => {
     await route.fulfill({ status: 404 });
   });

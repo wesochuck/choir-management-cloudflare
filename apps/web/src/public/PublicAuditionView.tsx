@@ -1,44 +1,18 @@
 import { useEffect, useState } from "react";
 
-import { publicAuditionSettingsSchema, type DayOfWeek } from "@choir/contracts";
 import { areAuditionDatesPassed } from "@choir/domain";
-import { responseError } from "../auth/api/client";
+import {
+  getPublicAuditionDetails,
+  getPublicAuditionSettings,
+  submitPublicAuditionInquiry,
+  submitPublicAuditionUpdate,
+  type NormalizedPublicAuditionSettings,
+} from "../api";
 
 interface AuditionSlot {
   readonly id: string;
   readonly startsAt: string;
   readonly endsAt: string;
-}
-
-interface PublicAuditionPerformance {
-  readonly id: string;
-  readonly startsAt: string;
-  readonly title: string;
-}
-
-interface PublicAuditionVenue {
-  readonly address: string;
-  readonly name: string;
-}
-
-interface PublicAuditionSection {
-  readonly code: string;
-  readonly name: string;
-}
-
-interface PublicAuditionVoicePart {
-  readonly fullName: string;
-  readonly label: string;
-  readonly sectionCode: string;
-}
-
-interface RehearsalSession {
-  readonly dayOfWeek: DayOfWeek;
-  readonly endTime: string;
-  readonly locationName: string;
-  readonly startTime: string;
-  readonly venueId: string | null;
-  readonly venue: PublicAuditionVenue | null;
 }
 
 interface AuditionDetails {
@@ -54,22 +28,7 @@ interface AuditionDetails {
   readonly slots: AuditionSlot[];
 }
 
-interface PublicAuditionSettings {
-  readonly confirmationMessage: string;
-  readonly defaultPerformanceId: string | null;
-  readonly enabled: boolean;
-  readonly mode: "audition" | "open_inquiry";
-  readonly performerLabel: string;
-  readonly performance: PublicAuditionPerformance | null;
-  readonly rehearsalNotes: string;
-  readonly rehearsalSchedule: readonly RehearsalSession[];
-  readonly sections: readonly PublicAuditionSection[];
-  readonly slots: readonly AuditionSlot[];
-  readonly startDate: string | null;
-  readonly timezone: string;
-  readonly venue: PublicAuditionVenue | null;
-  readonly voiceParts: readonly PublicAuditionVoicePart[];
-}
+type PublicAuditionSettings = NormalizedPublicAuditionSettings;
 
 const fallbackPublicAuditionSettings: PublicAuditionSettings = {
   confirmationMessage: "Thank you for your interest. We will be in touch soon.",
@@ -156,36 +115,23 @@ function capitalizeDay(day: string): string {
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
 
-function fetchAuditionDetails(token: string): Promise<AuditionDetails> {
-  return fetch("/api/public/audition-details", {
-    body: JSON.stringify({ token }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("not_found");
-    return response.json().then((data: unknown) => {
-      if (isAuditionDetails(data)) return data;
-      throw new Error("invalid_response");
-    });
-  });
+async function fetchAuditionDetails(token: string): Promise<AuditionDetails> {
+  try {
+    const data = await getPublicAuditionDetails(token);
+    if (isAuditionDetails(data)) return data;
+    throw new Error("invalid_response");
+  } catch (error) {
+    if (error instanceof Error && error.message === "invalid_response") throw error;
+    throw new Error("not_found", { cause: error });
+  }
 }
 
-function fetchAuditionSettings(): Promise<PublicAuditionSettings> {
-  return fetch("/api/public/audition-settings").then((response) => {
-    if (!response.ok) throw new Error("settings_failed");
-    return response.json().then((data: unknown) => {
-      const parsed = publicAuditionSettingsSchema.safeParse(data);
-      if (!parsed.success) throw new Error("invalid_settings");
-      const normalizedSlots = parsed.data.slots.map((slot) => ({
-        ...slot,
-        id: slot.id ?? slot.startsAt,
-      }));
-      return {
-        ...parsed.data,
-        slots: normalizedSlots,
-      };
-    });
-  });
+async function fetchAuditionSettings(): Promise<PublicAuditionSettings> {
+  try {
+    return await getPublicAuditionSettings();
+  } catch {
+    throw new Error("settings_failed");
+  }
 }
 
 function formatStartDate(dateStr: string): string {
@@ -282,42 +228,27 @@ function submitInquiry(
   availabilityNotes: string,
   requestedSlots: readonly string[],
 ): Promise<string> {
-  return fetch("/api/public/audition-inquiry", {
-    body: JSON.stringify({
-      availabilityNotes,
-      email,
-      experience,
-      name,
-      phone,
-      requestedSlots,
-      voicePart,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  }).then(async (response) => {
-    if (!response.ok) throw await responseError(response);
-    return response.json().then((data: unknown) => {
-      if (typeof data !== "object" || data === null) throw new Error("invalid_response");
-      if (!("id" in data)) throw new Error("invalid_response");
-      const id = data.id;
-      if (typeof id === "string") return id;
-      throw new Error("invalid_response");
-    });
+  return submitPublicAuditionInquiry({
+    availabilityNotes,
+    email,
+    experience,
+    name,
+    phone,
+    requestedSlots,
+    voicePart,
   });
 }
 
-function submitAuditionUpdate(
+async function submitAuditionUpdate(
   token: string,
   voicePart: string,
   availabilityNotes: string,
 ): Promise<void> {
-  return fetch("/api/public/audition-submit", {
-    body: JSON.stringify({ availabilityNotes, token, voicePart }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("update_failed");
-  });
+  try {
+    await submitPublicAuditionUpdate(token, voicePart, availabilityNotes);
+  } catch {
+    throw new Error("update_failed");
+  }
 }
 
 function AuditionForm({

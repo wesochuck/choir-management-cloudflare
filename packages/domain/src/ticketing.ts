@@ -189,3 +189,36 @@ export function ticketWillCallFilename(eventTitle: string, eventId: string): str
     .slice(0, 80);
   return `will-call-${safeTitle || eventId}.csv`;
 }
+
+export interface TicketCheckoutLineItemsInput {
+  readonly discountedSubtotalCents: number;
+  readonly feeCents: number;
+  readonly productName: string;
+}
+
+export function ticketCheckoutLineItems({
+  discountedSubtotalCents,
+  feeCents,
+  productName,
+}: TicketCheckoutLineItemsInput): readonly {
+  readonly productName: string;
+  readonly quantity: number;
+  readonly unitAmountCents: number;
+}[] {
+  const lineItems = [];
+  if (discountedSubtotalCents > 0) {
+    lineItems.push({
+      productName,
+      quantity: 1,
+      unitAmountCents: discountedSubtotalCents,
+    });
+  }
+  if (feeCents > 0) {
+    lineItems.push({
+      productName: "Processing fee",
+      quantity: 1,
+      unitAmountCents: feeCents,
+    });
+  }
+  return lineItems;
+}

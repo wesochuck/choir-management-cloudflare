@@ -1,5 +1,7 @@
-import { setupStatusSchema, type SetupStatus } from "@choir/contracts";
+import type { SetupStatus } from "@choir/contracts";
 import { useEffect, useState } from "react";
+
+import { getSetupStatus } from "../api/setup";
 
 import {
   OrganizationProviderStatus,
@@ -71,14 +73,9 @@ export function SetupChecklistView() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/setup/status", { credentials: "same-origin", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Failed to load");
-        const body: unknown = await response.json();
-        const parsed = setupStatusSchema.safeParse(body);
-        setCheckState(
-          parsed.success ? { setup: parsed.data, status: "ready" } : { status: "error" },
-        );
+    getSetupStatus(controller.signal)
+      .then((setup) => {
+        setCheckState({ setup, status: "ready" });
       })
       .catch(() => {
         if (!controller.signal.aborted) {

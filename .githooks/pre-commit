@@ -12,6 +12,9 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js
 
 if [ -n "$STAGED_FILES" ]; then
   echo "Auto-formatting staged files with Prettier..."
-  npx prettier --write $STAGED_FILES
-  git add $STAGED_FILES
+  printf '%s\n' "$STAGED_FILES" | while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    npx prettier --write "$file"
+    git add "$file"
+  done
 fi

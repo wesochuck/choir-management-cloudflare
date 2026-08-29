@@ -1,5 +1,7 @@
-import { moduleStatesResponseSchema, type ModuleState } from "@choir/contracts";
+import type { ModuleState } from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
+
+import { getOrganizationModuleState, saveSetupProgress } from "../api";
 
 type ModulesState =
   | { readonly status: "error" }
@@ -24,17 +26,9 @@ export function ModuleSettingsView() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/organization/module-state", {
-      credentials: "same-origin",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Failed to load");
-        const body: unknown = await response.json();
-        const parsed = moduleStatesResponseSchema.safeParse(body);
-        setModulesState(
-          parsed.success ? { modules: parsed.data.modules, status: "ready" } : { status: "error" },
-        );
+    getOrganizationModuleState(controller.signal)
+      .then((modules) => {
+        setModulesState({ modules, status: "ready" });
       })
       .catch(() => {
         if (!controller.signal.aborted) {
@@ -51,13 +45,7 @@ export function ModuleSettingsView() {
     setMessage(null);
     setErrorMessage(null);
     try {
-      const response = await fetch("/api/setup/progress", {
-        body: JSON.stringify({ step: "modules", data: { [moduleId]: enabled } }),
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      });
-      if (!response.ok) throw new Error("Failed to update");
+      await saveSetupProgress({ step: "modules", data: { [moduleId]: enabled } });
       setModulesState((current) =>
         current.status === "ready"
           ? {

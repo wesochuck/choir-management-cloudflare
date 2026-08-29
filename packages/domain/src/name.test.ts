@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  getFirstName,
+  getInitials,
+  getLastName,
+  getUniqueDisplayNames,
+  lastNameSortKey,
+} from "./name";
+
+describe("name domain logic", () => {
+  it("computes surname sort keys correctly", () => {
+    expect(lastNameSortKey("")).toBe("");
+    expect(lastNameSortKey("Alice Smith")).toBe("smith");
+    expect(lastNameSortKey("Martin Luther King Jr.")).toBe("king jr.");
+    expect(lastNameSortKey("Ludwig van Beethoven")).toBe("van beethoven");
+  });
+
+  it("keeps compound surnames and suffixes together", () => {
+    expect(getLastName("  Ron   Van Dyke ")).toBe("Van Dyke");
+    expect(getFirstName("Ron Van Dyke")).toBe("Ron");
+    expect(getLastName("Martin Luther King Jr.")).toBe("Luther King Jr.");
+    expect(getLastName("")).toBe("");
+    expect(getFirstName("")).toBe("");
+  });
+
+  it("renders compact initials for narrow seating tiles", () => {
+    expect(getInitials(" Aden  Van Horn ")).toBe("AVH");
+    expect(getInitials("Sue Smith")).toBe("SS");
+    expect(getInitials(" ")).toBe("");
+  });
+
+  it("uses only a surname when it is unique", () => {
+    const names = getUniqueDisplayNames([{ id: "one", displayName: "Ron Van Dyke" }]);
+    expect(names.get("one")).toBe("Van Dyke");
+  });
+
+  it("expands first-name prefixes until duplicate surnames are unique", () => {
+    const names = getUniqueDisplayNames([
+      { id: "ron", displayName: "Ron Van Dyke" },
+      { id: "rob", displayName: "Rob Van Dyke" },
+      { id: "sue", displayName: "Sue Smith" },
+    ]);
+    expect(names.get("ron")).toBe("Van Dyke, Ron");
+    expect(names.get("rob")).toBe("Van Dyke, Rob");
+    expect(names.get("sue")).toBe("Smith");
+
+    const initials = getUniqueDisplayNames([
+      { id: "ron", displayName: "Ron Van Dyke" },
+      { id: "sue", displayName: "Sue Van Dyke" },
+    ]);
+    expect(initials.get("ron")).toBe("Van Dyke, R");
+    expect(initials.get("sue")).toBe("Van Dyke, S");
+  });
+});

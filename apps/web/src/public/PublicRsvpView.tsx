@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getPublicRsvpDetails, submitPublicQuickRsvp } from "../api";
 
 interface EventDetails {
   readonly callTime: string;
@@ -47,43 +48,24 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 }
 
-function isRsvpDetails(value: unknown): value is RsvpDetails {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "canSubmit" in value &&
-    "event" in value &&
-    "profileId" in value &&
-    "profileName" in value
-  );
+async function fetchRsvpDetails(token: string): Promise<RsvpDetails> {
+  try {
+    return await getPublicRsvpDetails(token);
+  } catch {
+    throw new Error("not_found");
+  }
 }
 
-function fetchRsvpDetails(token: string): Promise<RsvpDetails> {
-  return fetch("/api/public/rsvp-details", {
-    body: JSON.stringify({ token }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("not_found");
-    return response.json().then((data: unknown) => {
-      if (isRsvpDetails(data)) return data;
-      throw new Error("invalid_response");
-    });
-  });
-}
-
-function submitRsvp(
+async function submitRsvp(
   token: string,
   rsvpValue: "Yes" | "No" | "Pending",
   note: string,
 ): Promise<void> {
-  return fetch("/api/public/quick-rsvp", {
-    body: JSON.stringify({ rsvp: rsvpValue, rsvpNote: note, token }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  }).then((response) => {
-    if (!response.ok) throw new Error("submit_failed");
-  });
+  try {
+    await submitPublicQuickRsvp(token, rsvpValue, note);
+  } catch {
+    throw new Error("submit_failed");
+  }
 }
 
 function RsvpClosedNotice({ details }: { readonly details: RsvpDetails }) {

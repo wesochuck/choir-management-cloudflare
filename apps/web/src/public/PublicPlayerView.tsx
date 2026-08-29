@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getPublicPlayerDetails, getPublicPlayerPlaylist } from "../api";
 
 interface PlayerPlaylistItem {
   readonly arranger?: string;
@@ -69,42 +70,40 @@ function isPlayerDetails(value: unknown): value is PlayerDetails {
 }
 
 async function fetchPlayerDetails(token: string): Promise<PlayerDetails> {
-  const response = await fetch("/api/public/player-details", {
-    body: JSON.stringify({ token }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) throw new Error("not_found");
-  const data: unknown = await response.json();
-  if (!isPlayerDetails(data)) throw new Error("invalid_response");
-  return data;
+  try {
+    const data = await getPublicPlayerDetails(token);
+    if (!isPlayerDetails(data)) throw new Error("invalid_response");
+    return data;
+  } catch {
+    throw new Error("not_found");
+  }
 }
 
 async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> {
-  const response = await fetch(`/api/public/player/playlist?token=${encodeURIComponent(token)}`, {
-    headers: { accept: "application/json" },
-  });
-  if (!response.ok) throw new Error("not_found");
-  const data: unknown = await response.json();
-  if (!isRecord(data) || !isRecord(data.event) || !Array.isArray(data.pieces)) {
-    throw new Error("invalid_response");
+  try {
+    const data = await getPublicPlayerPlaylist(token);
+    if (!isRecord(data) || !isRecord(data.event) || !Array.isArray(data.pieces)) {
+      throw new Error("invalid_response");
+    }
+    const { event } = data;
+    if (
+      typeof event.id !== "string" ||
+      typeof event.title !== "string" ||
+      typeof event.date !== "string" ||
+      !data.pieces.every(isPlayerPlaylistItem)
+    ) {
+      throw new Error("invalid_response");
+    }
+    return {
+      eventId: event.id,
+      eventTitle: event.title,
+      eventStartsAt: event.date,
+      items: data.pieces,
+      performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
+    };
+  } catch {
+    throw new Error("not_found");
   }
-  const { event } = data;
-  if (
-    typeof event.id !== "string" ||
-    typeof event.title !== "string" ||
-    typeof event.date !== "string" ||
-    !data.pieces.every(isPlayerPlaylistItem)
-  ) {
-    throw new Error("invalid_response");
-  }
-  return {
-    eventId: event.id,
-    eventTitle: event.title,
-    eventStartsAt: event.date,
-    items: data.pieces,
-    performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
-  };
 }
 
 function formatDate(iso: string): string {

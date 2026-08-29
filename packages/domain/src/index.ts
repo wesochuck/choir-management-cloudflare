@@ -60,7 +60,22 @@ export {
 } from "./statusAutomation";
 export { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
 export type { EventRsvpExportSort, EventRsvpStatus } from "./eventRsvpCsv";
-export { lastNameSortKey } from "./name";
+export {
+  getFirstName,
+  getInitials,
+  getLastName,
+  getUniqueDisplayNames,
+  lastNameSortKey,
+  type DisplayNamed,
+} from "./name";
+export {
+  computeDurationAutoFillDecision,
+  computeExpectedTrackDuration,
+  formatDetectedDuration,
+  initialDurationAutoFillState,
+  type DurationAutoFillDecision,
+  type DurationAutoFillState,
+} from "./durationAutoFill";
 export {
   calculateMusicFolderCounts,
   deriveMusicFolderStatus,
@@ -162,6 +177,8 @@ export {
   defaultTransactionFeeSettings,
   transactionProcessingFeeCents,
   ticketWillCallFilename,
+  ticketCheckoutLineItems,
+  type TicketCheckoutLineItemsInput,
   type TicketPriceInput,
   type TicketDiscountInput,
   type TicketDiscountType,

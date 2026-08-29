@@ -2,7 +2,11 @@ import type { DonationSettings, TransactionFeeSettings } from "@choir/contracts"
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
-import { getPublicDonationSettings, getPublicTransactionFeeSettings } from "../auth/api";
+import {
+  checkoutPublicDonation,
+  getPublicDonationSettings,
+  getPublicTransactionFeeSettings,
+} from "../api";
 
 const DEFAULT_SETTINGS: DonationSettings = {
   buttonText: "Support our Music",
@@ -115,38 +119,18 @@ export function PublicDonationView() {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/public/donations/checkout", {
-        body: JSON.stringify({
-          amountCents,
-          anonymous,
-          buyerEmail: buyerEmail.trim(),
-          buyerName: buyerName.trim(),
-          checkoutRequestId,
-          marketingConsent,
-          tributeName,
-          tributeNotifyEmail,
-          tributeType,
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+      const result = await checkoutPublicDonation({
+        amountCents,
+        anonymous,
+        buyerEmail: buyerEmail.trim(),
+        buyerName: buyerName.trim(),
+        checkoutRequestId,
+        marketingConsent,
+        tributeName,
+        tributeNotifyEmail,
+        tributeType,
       });
-      if (!response.ok) {
-        const body: unknown = await response.json();
-        const message =
-          typeof body === "object" &&
-          body !== null &&
-          "message" in body &&
-          typeof body.message === "string"
-            ? body.message
-            : "The donation could not be completed.";
-        throw new Error(message);
-      }
-      const body: unknown = await response.json();
-      const url =
-        typeof body === "object" && body !== null && "url" in body && typeof body.url === "string"
-          ? body.url
-          : "/donate/success";
-      window.location.assign(url);
+      window.location.assign(result.url || "/donate/success");
     } catch (failure: unknown) {
       setError(failure instanceof Error ? failure.message : "The donation could not be completed.");
       setBusy(false);

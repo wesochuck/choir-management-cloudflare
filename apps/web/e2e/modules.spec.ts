@@ -1,36 +1,17 @@
 import { setupProgressRequestSchema } from "@choir/contracts";
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import {
+  createMockSession,
+  defaultMockOrganizationId as organizationId,
+  defaultMockRequestId as requestId,
+  fulfillJson,
+} from "./support/testWorld";
 
-const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const organizationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-
-const session = {
-  session: {
-    activeOrganizationId: organizationId,
-    createdAt: "2026-07-20T20:00:00.000Z",
-    expiresAt: "2026-07-27T20:00:00.000Z",
-    id: "session-modules-admin",
-    ipAddress: "192.0.2.40",
-    token: "modules-token-not-displayed",
-    updatedAt: "2026-07-20T20:00:00.000Z",
-    userAgent: "Chromium browser",
-    userId: "user-modules-admin",
-  },
-  user: {
-    createdAt: "2026-07-20T19:00:00.000Z",
-    email: "modules.admin@example.test",
-    emailVerified: true,
-    id: "user-modules-admin",
-    image: null,
-    name: "Modules Administrator",
-    twoFactorEnabled: false,
-    updatedAt: "2026-07-20T19:00:00.000Z",
-  },
-};
-
-async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
-  await route.fulfill({ body: JSON.stringify(body), contentType: "application/json", status });
-}
+const session = createMockSession({
+  email: "modules.admin@example.test",
+  name: "Modules Administrator",
+  userId: "user-modules-admin",
+});
 
 test("renders categorized granular modules and allows toggling individual features", async ({
   page,

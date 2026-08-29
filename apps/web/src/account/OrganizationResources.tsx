@@ -13,11 +13,12 @@ import {
   AuthApiError,
   createOrganizationResource,
   deleteOrganizationResource,
+  deletePrivateOrganizationFile,
   listOrganizationResources,
   reorderOrganizationResources,
   updateOrganizationResource,
   uploadPrivateOrganizationFile,
-} from "../auth/api";
+} from "../api";
 
 function message(error: unknown): string {
   return error instanceof AuthApiError
@@ -197,9 +198,7 @@ export function OrganizationResources({
     } catch (failure: unknown) {
       setError(message(failure));
       if (uploadedFileId)
-        await fetch(`/api/organization/files/${encodeURIComponent(uploadedFileId)}`, {
-          method: "DELETE",
-        }).catch(() => undefined);
+        await deletePrivateOrganizationFile(uploadedFileId).catch(() => undefined);
     } finally {
       setBusy(false);
     }

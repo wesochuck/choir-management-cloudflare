@@ -1,6 +1,17 @@
-import { healthResponseSchema, type CurrentAuthSession } from "@choir/contracts";
+import type { CurrentAuthSession } from "@choir/contracts";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { getHealth } from "./api";
+
+const appQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
 import { AuthenticatedShell } from "./account/components/AuthenticatedShell/shell";
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
@@ -276,14 +287,8 @@ export function App() {
 
     async function checkService() {
       try {
-        const response = await fetch("/api/health", {
-          headers: { accept: "application/json" },
-          signal: abortController.signal,
-        });
-        const body: unknown = await response.json();
-        setServiceState(
-          response.ok && healthResponseSchema.safeParse(body).success ? "ready" : "offline",
-        );
+        await getHealth(abortController.signal);
+        setServiceState("ready");
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
@@ -338,10 +343,6 @@ export function App() {
     finishInvitationSignIn,
   );
 
-  if (isAuthenticatedRoute(pathname) && sessionState.status === "authenticated") {
-    return content;
-  }
-
   const productShell = (
     <div className="app-shell">
       <header className="site-header">
@@ -373,9 +374,11 @@ export function App() {
       </footer>
     </div>
   );
-  return renderPublicOrProductRoute(
-    pathname,
-    productShell,
-    sessionState.status === "authenticated",
-  );
+
+  const rendered =
+    isAuthenticatedRoute(pathname) && sessionState.status === "authenticated"
+      ? content
+      : renderPublicOrProductRoute(pathname, productShell, sessionState.status === "authenticated");
+
+  return <QueryClientProvider client={appQueryClient}>{rendered}</QueryClientProvider>;
 }
