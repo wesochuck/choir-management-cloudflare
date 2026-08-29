@@ -224,7 +224,7 @@
   .public-site-header nav a.is-active {
     color: var(--color-accent);
     border-bottom: 2px solid var(--color-accent);
-    padding-bottom: 0.15rem;
+    padding-bottom: var(--spacing-3xs);
   }
 
   .public-site-header .back-to-workspace {
