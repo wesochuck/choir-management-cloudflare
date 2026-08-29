@@ -414,13 +414,6 @@
     max-width: 40rem;
   }
 
-  .organization-pending-invitations {
-    margin-top: var(--spacing-2xl);
-    padding-top: var(--spacing-xl);
-    border-top: 1px solid var(--color-border);
-  }
-
-  .organization-pending-invitations > h3,
   .organization-invitation-list h4,
   .organization-invitation-list p {
     margin-top: 0;

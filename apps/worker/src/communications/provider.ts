@@ -18,6 +18,8 @@ const deliverySchema = z.object({
   fromName: z.string().max(100).optional(),
   messageId: z.uuid(),
   organizationId: z.string().min(1).max(128).optional(),
+  organizationLogoUrl: z.string().max(4_096).nullable().optional(),
+  organizationName: z.string().max(120).optional(),
   recipientName: z.string().min(1).max(200),
   replyTo: z.email().max(320).optional(),
   sendingDomain: z.string().min(1).max(253).optional(),
@@ -196,21 +198,33 @@ function stripMarkdownEmphasis(value: string): string {
     .replace(/_([^_]+)_/g, "$1");
 }
 
-function emailContents(subject: string, contentMarkdown: string, unsubscribeUrl: string | null) {
+function emailContents(
+  subject: string,
+  contentMarkdown: string,
+  unsubscribeUrl: string | null,
+  branding?: {
+    readonly organizationLogoUrl?: string | null | undefined;
+    readonly organizationName?: string | null | undefined;
+  },
+) {
   const unsubscribeText = unsubscribeUrl
     ? `\n\nUnsubscribe from Organization email: ${unsubscribeUrl}`
     : "";
   const renderedBody = renderCommunicationMarkdown(contentMarkdown);
   const plainBody = renderCommunicationText(contentMarkdown);
   const preheader = plainBody.split("\n").find((line) => line.trim()) ?? subject;
+  const trimmedOrgName = branding?.organizationName?.trim();
+  const orgName = trimmedOrgName && trimmedOrgName.length > 0 ? trimmedOrgName : "Choir Management";
   const unsubscribeHtml = unsubscribeUrl
     ? `<p style="margin:0 0 8px;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;"><a href="${escapeEmailHtml(unsubscribeUrl)}" style="color:#4d5962;text-decoration:underline;">Unsubscribe from Organization email</a></p>`
     : "";
   return {
     htmlContent: renderEmailDocument({
       bodyHtml: renderedBody,
-      footerHtml: `${unsubscribeHtml}<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">Sent using Choir Management.</p>`,
+      footerHtml: `${unsubscribeHtml}<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">Sent using ${escapeEmailHtml(orgName)}.</p>`,
       heading: subject,
+      organizationLogoUrl: branding?.organizationLogoUrl,
+      organizationName: branding?.organizationName,
       preheader,
     }),
     textContent: `${plainBody}${unsubscribeText}`,
@@ -316,6 +330,10 @@ async function deliverOrganizationEmail(
     delivery.subject,
     delivery.contentMarkdown,
     delivery.unsubscribeUrl,
+    {
+      organizationLogoUrl: delivery.organizationLogoUrl,
+      organizationName: delivery.organizationName,
+    },
   );
   let result: Awaited<ReturnType<SendEmail["send"]>>;
   try {

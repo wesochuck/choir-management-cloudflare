@@ -198,12 +198,12 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
   if (context.role === "member") return null;
   if (mfaBlocked) {
     return (
-      <div className="organization-pending-invitations">
-        <h3>Membership Profile links</h3>
+      <fieldset className="surface-card organization-settings-panel organization-pending-invitations">
+        <legend>Membership Profile links</legend>
         <p className="notice notice--info">
           Profile links will be available after Organization MFA is verified.
         </p>
-      </div>
+      </fieldset>
     );
   }
 
@@ -237,12 +237,14 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
   }
 
   return (
-    <div className="organization-pending-invitations">
-      <h3>Membership Profile links</h3>
-      <p>
-        Link each sign-in Membership to one Profile in this Organization. Profiles already linked to
-        another Membership cannot be selected.
-      </p>
+    <fieldset className="surface-card organization-settings-panel organization-pending-invitations">
+      <legend>Membership Profile links</legend>
+      <div className="section-heading section-heading--compact">
+        <p className="section-description">
+          Link each sign-in Membership to one Profile in this Organization. Profiles already linked
+          to another Membership cannot be selected.
+        </p>
+      </div>
       {state.status === "loading" ? <p role="status">Loading Memberships and Profiles…</p> : null}
       {state.status === "error" ? (
         <p className="notice notice--error" role="alert">
@@ -263,14 +265,14 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
           state={state}
         />
       ) : null}
-    </div>
+    </fieldset>
   );
 }
 
 function PendingInvitationList(props: PendingInvitationListProps) {
   return (
-    <div className="organization-pending-invitations">
-      <h3>Pending invitations</h3>
+    <fieldset className="surface-card organization-settings-panel organization-pending-invitations">
+      <legend>Pending invitations</legend>
       {props.listLoading && !props.mfaBlocked ? (
         <p className="notice notice--info" role="status">
           Loading pending invitations…
@@ -358,7 +360,7 @@ function PendingInvitationList(props: PendingInvitationListProps) {
           list.
         </p>
       ) : null}
-    </div>
+    </fieldset>
   );
 }
 
@@ -471,77 +473,79 @@ export function OrganizationInvitations({
   }
 
   return (
-    <section
-      className="account-section account-section--organization-invitations"
-      aria-labelledby="organization-invitations-title"
-    >
-      <div className="section-heading section-heading--compact">
-        <h2 id="organization-invitations-title">Invite a member</h2>
-      </div>
-      <p className="section-description">
-        Invitations expire after 8 days. The recipient must sign in with the invited email before
-        accepting.
-      </p>
-      {mfaBlocked ? (
-        <OrganizationMfaPrompt message="Verify Organization MFA before creating an invitation." />
-      ) : null}
-      {errorMessage ? (
-        <p className="notice notice--error" role="alert">
-          {errorMessage}
-        </p>
-      ) : null}
-      {successMessage ? (
-        <p className="notice notice--success" role="status">
-          {successMessage}
-        </p>
-      ) : null}
-      <form
-        className="form-stack organization-invitation-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void createInvitation();
-        }}
+    <div className="settings-stack">
+      <fieldset
+        className="surface-card organization-settings-panel account-section account-section--organization-invitations"
+        aria-labelledby="organization-invitations-title"
       >
-        <div className="field">
-          <label htmlFor="organization-invitation-email">Email address</label>
-          <input
-            autoComplete="email"
-            id="organization-invitation-email"
-            maxLength={320}
-            onChange={(event) => {
-              setEmail(event.target.value);
-            }}
-            required
-            type="email"
-            value={email}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="organization-invitation-role">Organization role</label>
-          <select
-            aria-describedby="organization-invitation-role-help"
-            id="organization-invitation-role"
-            onChange={(event) => {
-              setRole(parseInvitationRole(event.target.value));
-            }}
-            value={role}
-          >
-            <option value="member">Organization Member</option>
-            <option value="administrator">Organization Administrator</option>
-            {context.role === "owner" ? <option value="owner">Organization Owner</option> : null}
-          </select>
-          <p className="field-help" id="organization-invitation-role-help">
-            These are Organization Membership roles, not Profile roles. Members can use
-            member-facing features. Administrators can manage the Organization&apos;s operational
-            data, Profiles, Memberships, and invitations. Owners have Administrator access plus
-            owner-only controls such as Organization MFA, Public Website domains, and Owner
-            invitations.
+        <legend id="organization-invitations-title">Invite a member</legend>
+        <div className="section-heading section-heading--compact">
+          <p className="section-description">
+            Invitations expire after 8 days. The recipient must sign in with the invited email
+            before accepting.
           </p>
         </div>
-        <button className="button button--primary" disabled={busy || mfaBlocked} type="submit">
-          {busy ? "Creating invitation…" : "Create invitation"}
-        </button>
-      </form>
+        {mfaBlocked ? (
+          <OrganizationMfaPrompt message="Verify Organization MFA before creating an invitation." />
+        ) : null}
+        {errorMessage ? (
+          <p className="notice notice--error" role="alert">
+            {errorMessage}
+          </p>
+        ) : null}
+        {successMessage ? (
+          <p className="notice notice--success" role="status">
+            {successMessage}
+          </p>
+        ) : null}
+        <form
+          className="form-stack organization-invitation-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void createInvitation();
+          }}
+        >
+          <div className="field">
+            <label htmlFor="organization-invitation-email">Email address</label>
+            <input
+              autoComplete="email"
+              id="organization-invitation-email"
+              maxLength={320}
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
+              required
+              type="email"
+              value={email}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="organization-invitation-role">Organization role</label>
+            <select
+              aria-describedby="organization-invitation-role-help"
+              id="organization-invitation-role"
+              onChange={(event) => {
+                setRole(parseInvitationRole(event.target.value));
+              }}
+              value={role}
+            >
+              <option value="member">Organization Member</option>
+              <option value="administrator">Organization Administrator</option>
+              {context.role === "owner" ? <option value="owner">Organization Owner</option> : null}
+            </select>
+            <p className="field-help" id="organization-invitation-role-help">
+              These are Organization Membership roles, not Profile roles. Members can use
+              member-facing features. Administrators can manage the Organization&apos;s operational
+              data, Profiles, Memberships, and invitations. Owners have Administrator access plus
+              owner-only controls such as Organization MFA, Public Website domains, and Owner
+              invitations.
+            </p>
+          </div>
+          <button className="button button--primary" disabled={busy || mfaBlocked} type="submit">
+            {busy ? "Creating invitation…" : "Create invitation"}
+          </button>
+        </form>
+      </fieldset>
 
       <PendingInvitationList
         busyInvitationId={busyInvitationId}
@@ -558,6 +562,6 @@ export function OrganizationInvitations({
         truncated={truncated}
       />
       <MembershipProfileLinks context={context} />
-    </section>
+    </div>
   );
 }

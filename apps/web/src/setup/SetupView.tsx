@@ -5,7 +5,8 @@ import {
   type SetupStatus,
 } from "@choir/contracts";
 import { MODULE_DEFINITIONS } from "@choir/domain";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { uploadPrivateOrganizationFile } from "../auth/api";
 
 import { SetupDataImportStep } from "./SetupDataImportStep";
 
@@ -37,11 +38,15 @@ function nextUncompleted(completedSteps: readonly string[]): Step | null {
   return null;
 }
 
+// eslint-disable-next-line complexity -- SetupView coordinates multi-step setup wizard state and renderers.
 export function SetupView() {
   const [setupState, setSetupState] = useState<SetupState>({ status: "loading" });
   const [currentStep, setCurrentStep] = useState<Step>("organization_info");
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
+  const [logoFileId, setLogoFileId] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [modules, setModules] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(MODULE_DEFINITIONS.map((def) => [def.id, def.defaultEnabled])),
   );
@@ -67,6 +72,9 @@ export function SetupView() {
           if (next) setCurrentStep(next);
         }
         setOrgName(parsed.data.organizationName);
+        if (parsed.data.logoFileId) {
+          setLogoFileId(parsed.data.logoFileId);
+        }
         if (parsed.data.launched) {
           setCompleted(true);
         }
@@ -106,6 +114,7 @@ export function SetupView() {
       if (currentStep === "organization_info") {
         stepData.name = orgName;
         stepData.slug = orgSlug;
+        stepData.logoFileId = logoFileId;
       } else if (currentStep === "modules") {
         Object.assign(stepData, modules);
       } else if (currentStep === "theme") {
@@ -231,6 +240,120 @@ export function SetupView() {
                   }}
                   value={orgSlug}
                 />
+              </div>
+              <div className="field">
+                <label>Organization logo (optional)</label>
+                <div
+                  style={{
+                    alignItems: "center",
+                    display: "flex",
+                    gap: "1rem",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      alignItems: "center",
+                      backgroundColor: "var(--color-surface-elevated, #f9f9fb)",
+                      border: "1px solid var(--color-border, #dedde5)",
+                      borderRadius: "6px",
+                      display: "flex",
+                      height: "64px",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      padding: "4px",
+                      width: "64px",
+                    }}
+                  >
+                    {logoFileId ? (
+                      <img
+                        alt="Logo preview"
+                        src={`/api/organization/files/${encodeURIComponent(logoFileId)}`}
+                        style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          alignItems: "center",
+                          backgroundColor: "var(--color-accent, #1b4d3e)",
+                          borderRadius: "4px",
+                          color: "#ffffff",
+                          display: "flex",
+                          fontSize: "1rem",
+                          fontWeight: 700,
+                          height: "36px",
+                          justifyContent: "center",
+                          width: "36px",
+                        }}
+                      >
+                        {orgName
+                          ? orgName
+                              .split(/\s+/)
+                              .map((p) => p[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()
+                          : "CM"}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <input
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      disabled={uploadingLogo || busy}
+                      id="setup-org-logo-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) {
+                          setMessage("Logo file size must not exceed 5MB.");
+                          if (logoInputRef.current) logoInputRef.current.value = "";
+                          return;
+                        }
+                        setUploadingLogo(true);
+                        setMessage(null);
+                        void uploadPrivateOrganizationFile(file, file.name)
+                          .then((res) => {
+                            setLogoFileId(res.id);
+                          })
+                          .catch(() => {
+                            setMessage("Logo could not be uploaded.");
+                          })
+                          .finally(() => {
+                            setUploadingLogo(false);
+                            if (logoInputRef.current) logoInputRef.current.value = "";
+                          });
+                      }}
+                      ref={logoInputRef}
+                      style={{ display: "none" }}
+                      type="file"
+                    />
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        className="button button--secondary button--sm"
+                        disabled={uploadingLogo || busy}
+                        onClick={() => {
+                          logoInputRef.current?.click();
+                        }}
+                        type="button"
+                      >
+                        {uploadingLogo ? "Uploading…" : logoFileId ? "Change logo" : "Upload logo"}
+                      </button>
+                      {logoFileId ? (
+                        <button
+                          className="button button--secondary button--sm"
+                          disabled={uploadingLogo || busy}
+                          onClick={() => {
+                            setLogoFileId(null);
+                          }}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </>

@@ -80,6 +80,14 @@
     font-size: var(--font-size-xs);
   }
 
+  .signed-in-header .brand-logo {
+    max-height: 2rem;
+    max-width: 6rem;
+    object-fit: contain;
+    display: inline-block;
+    border-radius: var(--radius-sm);
+  }
+
   .signed-in-header__actions {
     gap: var(--spacing-xs);
   }

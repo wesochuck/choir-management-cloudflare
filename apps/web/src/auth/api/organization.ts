@@ -12,9 +12,12 @@ import {
   seatingConfigurationResponseSchema,
   organizationMfaPolicyResponseSchema,
   organizationMfaVerificationResponseSchema,
+  organizationBrandingSchema,
   transactionFeeSettingsResponseSchema,
   organizationExportStartResponseSchema,
   organizationExportStatusResponseSchema,
+  type OrganizationBranding,
+  type OrganizationBrandingRequest,
   type TransactionFeeSettings,
   type OrganizationAuthStatusResponse,
   type OrganizationInvitationDetails,
@@ -290,4 +293,21 @@ export async function getOrganizationExportStatus(
     signal: signal ?? null,
   });
   return organizationExportStatusResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationBranding(signal?: AbortSignal): Promise<OrganizationBranding> {
+  const response = await request("/api/organization/branding", {
+    signal: signal ?? null,
+  });
+  return organizationBrandingSchema.parse(await response.json());
+}
+
+export async function updateOrganizationBranding(
+  branding: OrganizationBrandingRequest,
+): Promise<OrganizationBranding> {
+  const response = await request("/api/organization/branding", {
+    body: JSON.stringify(branding),
+    method: "PUT",
+  });
+  return organizationBrandingSchema.parse(await response.json());
 }

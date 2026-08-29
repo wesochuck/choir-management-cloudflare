@@ -76,6 +76,7 @@ import {
   readDonationFromStore,
 } from "../donationStore";
 import { readDonationSettingsFromStore } from "../donationSettingsStore";
+import { readBrandingFromStore } from "../brandingStore";
 import { readTransactionFeeSettingsFromStore } from "../transactionFeeSettingsStore";
 import { readTicketConfirmationSettingsFromStore } from "../ticketConfirmationSettingsStore";
 import { getSetupStateFromStore, getModuleStateFromStore } from "../setupStore";
@@ -292,6 +293,8 @@ const contentGetHandlers: Record<
       organizationId,
       profileId: url.searchParams.get("profileId"),
     }),
+  "/internal/branding": (storage, _url, organizationId) =>
+    readBrandingFromStore(storage, organizationId),
 };
 
 function dispatchContentGetRequest(

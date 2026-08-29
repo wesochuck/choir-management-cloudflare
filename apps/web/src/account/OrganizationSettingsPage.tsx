@@ -12,6 +12,7 @@ import {
   updateOrganizationTransactionFeeSettings,
 } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
+import { OrganizationBrandingPanel } from "./OrganizationBrandingPanel";
 import { OrganizationEmailSettingsPanel } from "./OrganizationEmailSettingsPanel";
 import type {
   OrganizationExportStatusResponse,
@@ -494,6 +495,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
 
   return (
     <div className="settings-stack">
+      <OrganizationBrandingPanel />
       <OrganizationPaymentSettingsPanel />
       <fieldset className="surface-card organization-settings-panel">
         <legend id="transaction-fee-settings-title">Transaction processing fees</legend>

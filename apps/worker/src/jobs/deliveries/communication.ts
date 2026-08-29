@@ -1,4 +1,4 @@
-import { renderCommunicationTemplate } from "@choir/domain";
+import { renderCommunicationTemplate, renderOrganizationLogoPlaceholder } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import {
   readCommunicationDeliveryJob,
@@ -7,6 +7,8 @@ import {
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import {
+  deliveryOrigin,
+  readOrganizationBrandingConfig,
   readOrganizationEmailSenderConfig,
   renderPlayerLinks,
   renderPollLinks,
@@ -19,11 +21,27 @@ export async function deliverCommunicationJob(
 ): Promise<void> {
   const deliveryJob = await readCommunicationDeliveryJob(env, job.organizationId, job.jobId);
   const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
+  const branding = await readOrganizationBrandingConfig(env, job.organizationId);
+  const trimmedOrgName = branding.organizationName.trim();
+  const orgName =
+    trimmedOrgName.length > 0 ? trimmedOrgName : (senderConfig.fromName ?? "Choir Management");
+  const origin = await deliveryOrigin(env, job.organizationId, { unsubscribeUrl: null });
+  const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
+
   for (const delivery of deliveryJob.deliveries) {
+    const logoPlaceholder = renderOrganizationLogoPlaceholder({
+      channel: delivery.channel,
+      logoUrl,
+      organizationName: orgName,
+    });
     const templatedContent = renderCommunicationTemplate(
       deliveryJob.contentMarkdown,
       delivery.recipientName,
-      deliveryJob.context ?? undefined,
+      {
+        organizationLogo: logoPlaceholder,
+        organizationName: orgName,
+        ...(deliveryJob.context ?? {}),
+      },
     );
     const contentWithRsvpLinks = await renderRsvpLinks(
       env,
@@ -53,16 +71,17 @@ export async function deliverCommunicationJob(
       fromName: senderConfig.fromName ?? undefined,
       messageId: deliveryJob.messageId,
       organizationId: job.organizationId,
+      organizationLogoUrl: logoUrl,
+      organizationName: orgName,
       recipientName: delivery.recipientName,
       replyTo: senderConfig.replyTo ?? undefined,
       sendingDomain: senderConfig.sendingDomain ?? undefined,
       sourceId: delivery.id,
       sourceKind: delivery.channel === "email" ? "communication_delivery" : undefined,
-      subject: renderCommunicationTemplate(
-        deliveryJob.subject,
-        delivery.recipientName,
-        deliveryJob.context ?? undefined,
-      ),
+      subject: renderCommunicationTemplate(deliveryJob.subject, delivery.recipientName, {
+        organizationName: orgName,
+        ...(deliveryJob.context ?? {}),
+      }),
       unsubscribeUrl: delivery.unsubscribeUrl,
     });
     // Persist each result before moving on so a worker crash cannot cause all

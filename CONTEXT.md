@@ -339,6 +339,14 @@ performances, tickets, donations, and auditions. It is driven by Organization co
 records rather than arbitrary pages, posts, or a drag-and-drop page builder. _Avoid_:
 General-purpose CMS, blog platform, custom page builder
 
+## Organization Logo
+
+The primary graphic brand asset uploaded by an Organization Owner or Organization Administrator
+representing the Organization across authenticated member and administrative surfaces, outbound
+communications, and platform touchpoints. When configured, it appears in the navigation shell and
+can be interpolated into emails; the Structured Public Website inherits this asset if a distinct
+public logo is not set. _Avoid_: App icon, platform mark, singer avatar
+
 ## Organization Export
 
 A portable ZIP archive of one Organization's settings, operational records, audit history, and

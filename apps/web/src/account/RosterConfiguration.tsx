@@ -220,8 +220,8 @@ export function RosterConfiguration({ enabled }: Props) {
       {!configuration ? (
         <p role="status">Loading roster configuration…</p>
       ) : (
-        <div className="form-stack">
-          <fieldset disabled={busy}>
+        <div className="settings-stack">
+          <fieldset className="surface-card organization-settings-panel" disabled={busy}>
             <legend>{performerLabel} terminology</legend>
             <div className="field">
               <label htmlFor="roster-performer-label">{performerLabel} label</label>
@@ -243,7 +243,7 @@ export function RosterConfiguration({ enabled }: Props) {
               </span>
             </div>
           </fieldset>
-          <fieldset disabled={busy}>
+          <fieldset className="surface-card organization-settings-panel" disabled={busy}>
             <legend>Sections</legend>
             <div className="roster-configuration-list">
               {configuration.sections.map((section, index) => {
@@ -386,7 +386,7 @@ export function RosterConfiguration({ enabled }: Props) {
             </button>
           </fieldset>
 
-          <fieldset disabled={busy}>
+          <fieldset className="surface-card organization-settings-panel" disabled={busy}>
             <legend>{partLabelPlural}</legend>
             <div className="roster-performer-list">
               {configuration.voiceParts.map((voicePart, index) => {

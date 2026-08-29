@@ -149,3 +149,15 @@ export const publicPerformanceSchema = z.object({
   title: z.string().min(1).max(500),
   venueName: z.string().max(500),
 });
+
+export const organizationBrandingRequestSchema = z.object({
+  logoFileId: z.uuid().nullable().default(null),
+});
+
+export const organizationBrandingSchema = organizationBrandingRequestSchema.extend({
+  organizationId: z.string().min(1).max(128),
+  organizationName: z.string().min(1).max(120),
+});
+
+export type OrganizationBrandingRequest = z.infer<typeof organizationBrandingRequestSchema>;
+export type OrganizationBranding = z.infer<typeof organizationBrandingSchema>;

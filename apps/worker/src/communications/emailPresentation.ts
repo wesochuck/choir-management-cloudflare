@@ -1,7 +1,10 @@
 export interface EmailDocumentOptions {
   readonly bodyHtml: string;
-  readonly footerHtml?: string;
+  readonly footerHtml?: string | undefined;
   readonly heading: string;
+  readonly organizationInitials?: string | null | undefined;
+  readonly organizationLogoUrl?: string | null | undefined;
+  readonly organizationName?: string | null | undefined;
   readonly preheader: string;
 }
 
@@ -49,13 +52,32 @@ export function renderEmailDocument({
   bodyHtml,
   footerHtml,
   heading,
+  organizationInitials,
+  organizationLogoUrl,
+  organizationName,
   preheader,
 }: EmailDocumentOptions): string {
   const safeHeading = escapeEmailHtml(heading);
   const safePreheader = escapeEmailHtml(preheader);
+  const trimmedName = organizationName?.trim();
+  const orgName = trimmedName && trimmedName.length > 0 ? trimmedName : "Choir Management";
+  const trimmedInitials = organizationInitials?.trim();
+  const computedInitials = orgName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
+  const orgInitials =
+    trimmedInitials && trimmedInitials.length > 0
+      ? trimmedInitials
+      : computedInitials.length > 0
+        ? computedInitials
+        : "CM";
+  const safeLogoUrl = organizationLogoUrl ? safeEmailUrl(organizationLogoUrl) : null;
   const renderedFooter =
     footerHtml ??
-    '<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">This automated message was sent by Choir Management.</p>';
+    `<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">This automated message was sent by ${escapeEmailHtml(orgName)}.</p>`;
   return `<!doctype html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
   <head>
@@ -86,8 +108,12 @@ export function renderEmailDocument({
               <td class="email-pad" style="border-bottom:1px solid #e8e7ed;padding:24px 40px;">
                 <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
                   <tr>
-                    <td bgcolor="#1b4d3e" style="background-color:#1b4d3e;border-radius:6px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;line-height:32px;text-align:center;width:32px;">CM</td>
-                    <td style="color:#1b4d3e;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:22px;padding-left:12px;">Choir Management</td>
+                    ${
+                      safeLogoUrl
+                        ? `<td style="vertical-align:middle;"><img src="${safeLogoUrl}" alt="${escapeEmailHtml(orgName)}" height="32" style="border:0;display:block;max-height:32px;max-width:120px;width:auto;" /></td>`
+                        : `<td bgcolor="#1b4d3e" style="background-color:#1b4d3e;border-radius:6px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;line-height:32px;text-align:center;width:32px;">${escapeEmailHtml(orgInitials)}</td>`
+                    }
+                    <td style="color:#1b4d3e;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:22px;padding-left:12px;">${escapeEmailHtml(orgName)}</td>
                   </tr>
                 </table>
               </td>

@@ -151,13 +151,9 @@ export function OrganizationProviderStatus() {
   }, []);
 
   return (
-    <section
-      className="surface-card provider-status-card"
-      aria-labelledby="platform-provider-status-title"
-    >
+    <fieldset className="surface-card organization-settings-panel provider-status-card">
+      <legend id="platform-provider-status-title">Payments and email setup</legend>
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Platform-managed services</p>
-        <h2 id="platform-provider-status-title">Payments and email setup</h2>
         <p className="section-description">
           Provider credentials are configured once by a Platform Administrator for each environment;
           Organization admins do not enter or store provider secrets here.
@@ -192,7 +188,7 @@ export function OrganizationProviderStatus() {
         Administrator. Organization-specific Stripe Connect onboarding is handled in the setup
         checklist above.
       </p>
-    </section>
+    </fieldset>
   );
 }
 
@@ -245,22 +241,16 @@ export function OrganizationStripeConnectSetup() {
   }
 
   return (
-    <section
-      className="provider-status-card__connect setup-checklist__organization-payments"
-      aria-labelledby="provider-status-title"
-    >
-      <div>
-        <p className="eyebrow">Organization payments</p>
-        <h3 id="provider-status-title">Stripe Connect account</h3>
-        <StripeConnectAccountDetails
-          beginConnectOnboarding={() => {
-            void beginConnectOnboarding();
-          }}
-          connectBusy={connectBusy}
-          connectError={connectError}
-          connectState={connectState}
-        />
-      </div>
-    </section>
+    <fieldset className="surface-card organization-settings-panel provider-status-card__connect setup-checklist__organization-payments">
+      <legend id="provider-status-title">Stripe Connect account</legend>
+      <StripeConnectAccountDetails
+        beginConnectOnboarding={() => {
+          void beginConnectOnboarding();
+        }}
+        connectBusy={connectBusy}
+        connectError={connectError}
+        connectState={connectState}
+      />
+    </fieldset>
   );
 }

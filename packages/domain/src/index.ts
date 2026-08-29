@@ -121,6 +121,7 @@ export {
   communicationReach,
   maskCommunicationDestination,
   renderCommunicationTemplate,
+  renderOrganizationLogoPlaceholder,
   summarizeCommunicationDeliveries,
   type CommunicationFailureCategory,
   type DeliveryChannel,

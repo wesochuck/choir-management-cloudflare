@@ -264,7 +264,7 @@ export function SettingsForm({
         </p>
       ) : null}
 
-      <fieldset className="form-stack">
+      <fieldset className="surface-card organization-settings-panel form-stack">
         <legend>Public intake & form</legend>
         <div className="space-y-3">
           <label className="flex items-start gap-3 cursor-pointer">

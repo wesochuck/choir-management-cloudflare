@@ -199,9 +199,11 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/music/pieces",
       "/internal/music/settings",
       "/internal/reports/music-folders/*",
+      "/internal/branding",
     ),
     ...postOperations(
       "/internal/website/manage",
+      "/internal/branding/manage",
       "/internal/player/public-link",
       "/internal/music/manage",
       "/internal/resources/manage",
@@ -361,6 +363,7 @@ const organizationRpcDomainRules: readonly {
       "/internal/website",
       "/internal/player",
       "/internal/reports/music-folders",
+      "/internal/branding",
     ],
   },
   {

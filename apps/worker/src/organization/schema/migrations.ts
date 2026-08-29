@@ -1285,6 +1285,10 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE organization_metadata ADD COLUMN music_genres_json TEXT NOT NULL DEFAULT '[]'",
     ],
   },
+  {
+    version: 75,
+    statements: ["ALTER TABLE organization_metadata ADD COLUMN logo_file_id TEXT"],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -14,9 +14,10 @@ interface SetupStateRow {
 
 interface IdentityRow {
   readonly [column: string]: SqlStorageValue;
+  readonly lifecycleState: string;
+  readonly logoFileId: string | null;
   readonly organizationId: string;
   readonly organizationName: string;
-  readonly lifecycleState: string;
 }
 
 const saveProgressOperationSchema = z.object({
@@ -54,7 +55,7 @@ function identity(storage: DurableObjectStorage): IdentityRow | undefined {
   return storage.sql
     .exec<IdentityRow>(
       `SELECT organization_id AS organizationId, name AS organizationName,
-        lifecycle_state AS lifecycleState
+        lifecycle_state AS lifecycleState, logo_file_id AS logoFileId
        FROM organization_metadata LIMIT 1`,
     )
     .toArray()
@@ -111,12 +112,13 @@ export function getSetupStateFromStore(
     .at(0);
   if (!row) {
     return Response.json({
-      organizationId,
-      organizationName: org.organizationName,
+      allModulesConfigured: false,
       completedSteps: [],
       currentStep: null,
-      allModulesConfigured: false,
       launched: false,
+      logoFileId: org.logoFileId ?? null,
+      organizationId,
+      organizationName: org.organizationName,
     });
   }
   const organizationName = row.organizationName.trim() || org.organizationName;
@@ -124,12 +126,13 @@ export function getSetupStateFromStore(
   const moduleConfig = parseModuleConfig(row.moduleConfig);
   const allModulesConfigured = Object.keys(moduleConfig).length > 0;
   return Response.json({
-    organizationId: row.organizationId,
-    organizationName,
+    allModulesConfigured,
     completedSteps,
     currentStep: row.currentStep,
-    allModulesConfigured,
     launched: row.launched === 1,
+    logoFileId: org.logoFileId ?? null,
+    organizationId: row.organizationId,
+    organizationName,
   });
 }
 
@@ -192,6 +195,16 @@ function saveProgressUpdate(
     now,
     operation.organizationId,
   );
+  if (operation.data && "logoFileId" in operation.data) {
+    const logoFileId =
+      typeof operation.data.logoFileId === "string" ? operation.data.logoFileId : null;
+    storage.sql.exec(
+      "UPDATE organization_metadata SET logo_file_id = ?, updated_at = ? WHERE organization_id = ?",
+      logoFileId,
+      now,
+      operation.organizationId,
+    );
+  }
 }
 
 function saveProgressInsert(
@@ -218,6 +231,16 @@ function saveProgressInsert(
     now,
     now,
   );
+  if (operation.data && "logoFileId" in operation.data) {
+    const logoFileId =
+      typeof operation.data.logoFileId === "string" ? operation.data.logoFileId : null;
+    storage.sql.exec(
+      "UPDATE organization_metadata SET logo_file_id = ?, updated_at = ? WHERE organization_id = ?",
+      logoFileId,
+      now,
+      operation.organizationId,
+    );
+  }
 }
 
 function saveProgress(

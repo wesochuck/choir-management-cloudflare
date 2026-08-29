@@ -34,6 +34,7 @@ import { manageResourceInStore } from "../resourceStore";
 import { manageSeatingInStore } from "../seatingStore";
 import { manageTicketingInStore } from "../ticketingStore";
 import { manageDonationsInStore } from "../donationStore";
+import { updateBrandingInStore } from "../brandingStore";
 import { manageSetupInStore } from "../setupStore";
 import { updatePaymentActivationInStore } from "../paymentSettingsStore";
 import { prepareAttendanceReportJobFromStore } from "../schedulingStore";
@@ -479,6 +480,12 @@ async function dispatchOperationalPostRequest(
       return updateMusicFolderReturnStatusInStore(storage, request);
     case "/internal/reports/music-folders/export":
       return exportMusicFolderReportFromStore(storage, request);
+    case "/internal/branding/manage": {
+      const url = new URL(request.url);
+      const orgId = url.searchParams.get("organizationId");
+      if (!orgId) return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+      return updateBrandingInStore(storage, orgId, request);
+    }
     default:
       return null;
   }

@@ -10,6 +10,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthApiError,
   getOrganizationAuthStatus,
+  getOrganizationBranding,
   getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
   signOut,
@@ -79,6 +80,10 @@ export function AuthenticatedShell({
   const [platformAvailable, setPlatformAvailable] = useState(false);
   const [baseHostname, setBaseHostname] = useState<string | null>(null);
   const [organizationPerformerLabel, setOrganizationPerformerLabel] = useState("Performer");
+  const [branding, setBranding] = useState<{
+    readonly logoFileId: string | null;
+    readonly organizationName: string;
+  } | null>(null);
 
   useEffect(() => {
     applyTheme(themePreference);
@@ -188,6 +193,13 @@ export function AuthenticatedShell({
       .catch(() => {
         // Account and Platform workspaces do not have an Organization roster to load.
       });
+    getOrganizationBranding(controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setBranding(data);
+      })
+      .catch(() => {
+        // Branding is optional / unavailable on Account or Platform workspaces.
+      });
     return () => {
       controller.abort();
     };
@@ -285,10 +297,29 @@ export function AuthenticatedShell({
             <span aria-hidden="true">☰</span>
           </button>
           <AppLink href={selectedWorkspaceHome} onNavigate={navigate}>
-            <span className="brand-mark" aria-hidden="true">
-              CM
+            {branding?.logoFileId ? (
+              <img
+                src={`/api/organization/files/${encodeURIComponent(branding.logoFileId)}`}
+                alt=""
+                className="brand-logo"
+              />
+            ) : (
+              <span className="brand-mark" aria-hidden="true">
+                {branding?.organizationName
+                  ? branding.organizationName
+                      .split(/\s+/)
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()
+                  : "CM"}
+              </span>
+            )}
+            <span>
+              {branding?.organizationName ??
+                (access.status === "ready" ? access.organizationName : null) ??
+                "Choir Management"}
             </span>
-            <span>Choir Management</span>
           </AppLink>
         </div>
         <div className="signed-in-header__actions">

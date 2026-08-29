@@ -1067,15 +1067,17 @@
     white-space: normal;
   }
 
-  .audition-tab-panel fieldset.form-stack {
+  .audition-tab-panel fieldset fieldset.form-stack {
     padding: var(--spacing-sm);
-    border: 1px solid transparent;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
   }
 
-  .audition-tab-panel fieldset.form-stack > legend {
+  .audition-tab-panel fieldset fieldset.form-stack > legend {
     padding-inline: var(--spacing-2xs);
-    margin-left: -var(--spacing-2xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
   }
 
   .audition-table__header {

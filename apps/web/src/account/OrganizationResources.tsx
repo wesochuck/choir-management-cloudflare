@@ -378,7 +378,11 @@ export function OrganizationResources({
     resources.findIndex(({ id }) => id === resource.id);
 
   return (
-    <section className="panel organization-resources" aria-label="Organization resources">
+    <fieldset className="surface-card organization-settings-panel organization-resources">
+      <legend>Resources</legend>
+      <div className="section-heading section-heading--compact">
+        <p className="section-description">Shared files and trusted links for this Organization.</p>
+      </div>
       {error && !dialogOpen ? (
         <p className="notice notice--error" role="alert">
           {error}
@@ -571,7 +575,7 @@ export function OrganizationResources({
           {confirmationDialog}
         </>
       ) : null}
-    </section>
+    </fieldset>
   );
 }
 

@@ -33,7 +33,7 @@ export function AuditionSlotsSection({
   readonly timezone: string;
 }) {
   return (
-    <fieldset className="form-stack">
+    <fieldset className="surface-card organization-settings-panel form-stack">
       <legend>Audition time slots</legend>
       <div className="form-grid form-grid--compact">
         <label className="field">

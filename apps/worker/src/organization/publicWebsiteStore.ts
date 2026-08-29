@@ -26,6 +26,7 @@ const operationSchema = z.discriminatedUnion("action", [
 
 interface IdentityRow {
   readonly [column: string]: SqlStorageValue;
+  readonly logoFileId: string | null;
   readonly name: string;
   readonly organizationId: string;
   readonly timezone: string;
@@ -85,7 +86,7 @@ interface PublicTicketBundleRow {
 function identity(storage: DurableObjectStorage): IdentityRow | undefined {
   return storage.sql
     .exec<IdentityRow>(
-      `SELECT organization_id AS organizationId, name, timezone
+      `SELECT organization_id AS organizationId, name, timezone, logo_file_id AS logoFileId
        FROM organization_metadata LIMIT 1`,
     )
     .toArray()
@@ -333,10 +334,11 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
         bundle.eventIds.length > 0 &&
         bundle.eventIds.every((eventId) => publicEventIds.has(eventId)),
     );
+  const effectiveLogoFileId = settings.logoFileId ?? organization.logoFileId;
   const mediaIds = new Set(
     [
       settings.heroFileId,
-      settings.logoFileId,
+      effectiveLogoFileId,
       ...performances.map(({ graphicFileId }) => graphicFileId),
     ].filter((fileId): fileId is string => fileId !== null),
   );
@@ -364,7 +366,7 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
         heroHeadline: settings.heroHeadline,
         heroSubtitle: settings.heroSubtitle,
         historyText: settings.historyText,
-        logoFileId: settings.logoFileId,
+        logoFileId: effectiveLogoFileId,
         showBrandingHeaderFooter: settings.showBrandingHeaderFooter,
       },
       ticketBundles,

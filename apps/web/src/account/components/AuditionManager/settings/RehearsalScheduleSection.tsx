@@ -45,8 +45,8 @@ export function RegularRehearsalScheduleSection({
   const venueNamesById = new Map(venues.map(({ id, name }) => [id, name]));
 
   return (
-    <fieldset className="form-stack">
-      <legend>Regular Rehearsal Schedule</legend>
+    <fieldset className="surface-card organization-settings-panel form-stack">
+      <legend>Regular rehearsal schedule</legend>
       <label className="field">
         Start Date / First Rehearsal Date
         <input

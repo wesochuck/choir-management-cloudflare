@@ -177,10 +177,10 @@ test("hides Stripe onboarding when the connected account is ready", async ({ pag
   await expect(
     page
       .locator('section[aria-label="Setup progress"]')
-      .getByRole("heading", { name: "Stripe Connect account" }),
+      .getByRole("group", { name: "Stripe Connect account" }),
   ).toBeVisible();
   await expect(
-    page.locator(".provider-status-card").getByRole("heading", { name: "Stripe Connect account" }),
+    page.locator(".provider-status-card").getByRole("group", { name: "Stripe Connect account" }),
   ).toHaveCount(0);
   await expect(page.getByText("Status: Ready", { exact: false })).toBeVisible();
   await expect(page.getByText("Stripe Connect is ready for payments.")).toBeVisible();

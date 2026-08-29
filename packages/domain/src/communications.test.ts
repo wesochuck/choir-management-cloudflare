@@ -5,6 +5,7 @@ import {
   communicationReach,
   maskCommunicationDestination,
   renderCommunicationTemplate,
+  renderOrganizationLogoPlaceholder,
   summarizeCommunicationDeliveries,
 } from "./communications";
 
@@ -43,6 +44,34 @@ describe("Organization communications", () => {
         eventTitle: "Spring Concert",
       }),
     ).toBe("Hello Ada Alto; Spring Concert");
+  });
+
+  it("renders organization logo placeholder with image, fallback text, or plain text for SMS", () => {
+    expect(
+      renderOrganizationLogoPlaceholder({
+        channel: "email",
+        logoUrl: "https://example.com/logo.png",
+        organizationName: "Seattle Chorale",
+      }),
+    ).toContain('<img src="https://example.com/logo.png" alt="Seattle Chorale"');
+
+    expect(
+      renderOrganizationLogoPlaceholder({
+        channel: "email",
+        logoUrl: null,
+        organizationName: "Seattle Chorale",
+      }),
+    ).toContain(
+      '<span style="font-size:18px;font-weight:bold;color:#1b4d3e;">Seattle Chorale</span>',
+    );
+
+    expect(
+      renderOrganizationLogoPlaceholder({
+        channel: "sms",
+        logoUrl: "https://example.com/logo.png",
+        organizationName: "Seattle Chorale",
+      }),
+    ).toBe("Seattle Chorale");
   });
 
   it("summarizes delivery state without exposing raw errors or destinations", () => {

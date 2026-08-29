@@ -85,6 +85,24 @@ export function renderCommunicationTemplate(
   );
 }
 
+export function renderOrganizationLogoPlaceholder({
+  channel,
+  logoUrl,
+  organizationName,
+}: {
+  readonly channel: DeliveryChannel;
+  readonly logoUrl?: string | null;
+  readonly organizationName: string;
+}): string {
+  if (channel === "sms") {
+    return organizationName;
+  }
+  if (logoUrl && logoUrl.trim().length > 0) {
+    return `<img src="${logoUrl}" alt="${organizationName}" style="max-width:200px;height:auto;display:block;" />`;
+  }
+  return `<span style="font-size:18px;font-weight:bold;color:#1b4d3e;">${organizationName}</span>`;
+}
+
 export function maskCommunicationDestination(
   destination: string,
   channel: DeliveryChannel,

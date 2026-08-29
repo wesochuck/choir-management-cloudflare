@@ -2150,7 +2150,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   );
 
   await page.goto("/admin/settings/invitations");
-  const invitationSection = page.getByRole("region", { name: "Invite a member" });
+  const invitationSection = page.getByRole("group", { name: "Invite a member" });
   await expect(invitationSection.getByLabel("Email address")).toBeVisible();
   await invitationSection.getByLabel("Email address").fill("future.member@example.test");
   await invitationSection
@@ -2162,7 +2162,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   ).toContainText("Invitation created for future.member@example.test");
 
   await page.goto("/admin/settings/setup-checklist");
-  const providerStatus = page.getByRole("region", { name: "Payments and email setup" });
+  const providerStatus = page.getByRole("group", { name: "Payments and email setup" });
   await expect(providerStatus.getByText("Platform-managed setup:")).toBeVisible();
   await expect(providerStatus.getByText("How platform setup works")).toHaveCount(0);
 

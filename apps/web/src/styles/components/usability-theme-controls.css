@@ -20,25 +20,6 @@
     padding: var(--spacing-3xs) var(--spacing-2xs);
   }
 
-  .signed-in-shell[data-theme="light"]
-    .account-section--roster-configuration
-    .form-stack
-    > fieldset {
-    min-width: 0;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    padding: var(--spacing-sm);
-  }
-
-  .signed-in-shell[data-theme="light"]
-    .account-section--roster-configuration
-    .form-stack
-    > fieldset
-    > legend {
-    padding-inline: var(--spacing-2xs);
-    color: var(--color-text-muted);
-  }
-
   /* Use a conventional two-pixel focus ring instead of the oversized orange outline used by
    the legacy light palette. The ring remains high-contrast without overwhelming the control. */
   .signed-in-shell[data-theme="light"] a:focus-visible,

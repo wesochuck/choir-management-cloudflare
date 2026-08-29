@@ -21,7 +21,7 @@ export function AdminNotificationsSection({
   readonly setRecipientEmail: (email: string) => void;
 }) {
   return (
-    <fieldset className="form-stack">
+    <fieldset className="surface-card organization-settings-panel form-stack">
       <legend>Administrator notifications</legend>
       <label className="checkbox-field">
         <input

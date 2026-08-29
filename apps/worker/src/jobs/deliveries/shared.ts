@@ -1,3 +1,4 @@
+import { organizationBrandingSchema } from "@choir/contracts";
 import { z } from "zod";
 import type { Env } from "../../env";
 import { issuePlayerToken } from "../../organization/organizationPlayerLinks";
@@ -337,7 +338,7 @@ export const scheduledReportMemberSchema = z.object({
   role: z.enum(["admin", "owner"]),
 });
 
-async function deliveryOrigin(
+export async function deliveryOrigin(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN"> & Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
   organizationId: string,
   delivery: { readonly unsubscribeUrl: string | null },
@@ -355,9 +356,10 @@ async function deliveryOrigin(
     if (row?.hostname) return `https://${row.hostname}`;
   }
   if (delivery.unsubscribeUrl) return new URL(delivery.unsubscribeUrl).origin;
-  return env.PRODUCT_BASE_DOMAIN === "localhost"
-    ? "http://localhost"
-    : `https://${env.PRODUCT_BASE_DOMAIN}`;
+  if (!env.PRODUCT_BASE_DOMAIN || env.PRODUCT_BASE_DOMAIN === "localhost") {
+    return "http://localhost";
+  }
+  return `https://${env.PRODUCT_BASE_DOMAIN}`;
 }
 
 export async function renderRsvpLinks(
@@ -512,5 +514,26 @@ export async function readOrganizationEmailSenderConfig(
     };
   } catch {
     return { fromName: null, replyTo: null, sendingDomain: null };
+  }
+}
+
+export async function readOrganizationBrandingConfig(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+): Promise<{
+  readonly logoFileId: string | null;
+  readonly organizationName: string;
+}> {
+  try {
+    const response = await readOrganizationStore(env, organizationId, "/internal/branding");
+    if (!response.ok) return { logoFileId: null, organizationName: "" };
+    const parsed = organizationBrandingSchema.safeParse(await response.json());
+    if (!parsed.success) return { logoFileId: null, organizationName: "" };
+    return {
+      logoFileId: parsed.data.logoFileId,
+      organizationName: parsed.data.organizationName,
+    };
+  } catch {
+    return { logoFileId: null, organizationName: "" };
   }
 }

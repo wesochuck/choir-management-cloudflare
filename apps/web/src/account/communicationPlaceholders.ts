@@ -11,6 +11,7 @@ export type CommunicationPlaceholderContext =
 
 type CommunicationPlaceholderCategory =
   | "Recipient"
+  | "Organization"
   | "Event"
   | "Poll"
   | "RSVP"
@@ -40,6 +41,21 @@ const communicationPlaceholders: readonly CommunicationPlaceholder[] = [
     description: "The name of the person receiving this message.",
     label: "Recipient name",
     tag: "{singerName}",
+  },
+  {
+    category: "Organization",
+    contexts: ["standard"],
+    description:
+      "Renders the organization logo in email messages, falling back to styled organization name.",
+    label: "Organization logo",
+    tag: "{organizationLogo}",
+  },
+  {
+    category: "Organization",
+    contexts: ["standard"],
+    description: "The organization name.",
+    label: "Organization name",
+    tag: "{organizationName}",
   },
   {
     audience: ["Members", "Ticket Buyers"],
