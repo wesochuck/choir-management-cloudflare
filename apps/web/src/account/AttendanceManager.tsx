@@ -4,26 +4,16 @@ import type {
   OrganizationEvent,
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import {
-  listOrganizationEventAttendance,
-  listOrganizationEvents,
-  listOrganizationVenues,
-  queryKeys,
-  updateOrganizationEventAttendance,
-} from "../api";
+  type AttendanceFilter,
+  type AttendanceGroup,
+  useAttendanceFiltering,
+  useAttendanceMutations,
+  useAttendanceQueries,
+} from "./components/AttendanceManager/hooks";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
-
-type AttendanceFilter = "All" | "Present" | "Absent" | "Pending";
-type AttendanceGroup = readonly [string, readonly OrganizationAttendanceRow[]];
-
-const nextAttendance: Record<OrganizationAttendanceStatus, OrganizationAttendanceStatus> = {
-  Absent: "Pending",
-  Pending: "Present",
-  Present: "Absent",
-};
 
 function attendanceLabel(status: OrganizationAttendanceStatus): string {
   if (status === "Present") return "Present";
@@ -38,39 +28,9 @@ function displayEventDate(value: string): string {
   }).format(new Date(value));
 }
 
-function closestFutureEvent(
-  events: readonly OrganizationEvent[],
-  now = Date.now(),
-): OrganizationEvent | undefined {
-  let closest: OrganizationEvent | undefined;
-  let closestStartsAt = Number.POSITIVE_INFINITY;
-  for (const event of events) {
-    const startsAt = Date.parse(event.startsAt);
-    if (!Number.isFinite(startsAt) || startsAt <= now || startsAt >= closestStartsAt) continue;
-    closest = event;
-    closestStartsAt = startsAt;
-  }
-  return closest;
-}
-
 function formatSyncTime(value: Date | null): string {
   if (!value) return "Waiting for updates";
   return `Updated ${value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-}
-
-function groupRowsByVoicePart(
-  rows: readonly OrganizationAttendanceRow[],
-): readonly AttendanceGroup[] {
-  const groups = new Map<string, OrganizationAttendanceRow[]>();
-  [...rows]
-    .sort((a, b) => a.displayName.localeCompare(b.displayName))
-    .forEach((row) => {
-      const label = row.voicePart || "Other";
-      const group = groups.get(label) ?? [];
-      group.push(row);
-      groups.set(label, group);
-    });
-  return [...groups.entries()];
 }
 
 interface AttendanceGroupProps {
@@ -81,7 +41,7 @@ interface AttendanceGroupProps {
   readonly savingIds: ReadonlySet<string>;
 }
 
-function AttendanceGroup({
+function AttendanceGroupComponent({
   bulkBusy,
   group,
   onChange,
@@ -183,185 +143,32 @@ function UnexpectedAttendanceDialog({
 
 export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const { partLabel, performerLabel, performerLabelPlural } = useOrganizationTerminology();
-  const queryClient = useQueryClient();
-
-  const { data: events = [] } = useQuery({
-    enabled,
-    queryFn: ({ signal }) => listOrganizationEvents(signal),
-    queryKey: queryKeys.organization.events,
-  });
-
-  const { data: venues = [] } = useQuery({
-    enabled,
-    queryFn: ({ signal }) => listOrganizationVenues(signal),
-    queryKey: queryKeys.organization.venues,
-  });
-
-  const defaultEventId = useMemo(
-    () => closestFutureEvent(events)?.id ?? events[0]?.id ?? "",
-    [events],
-  );
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-  const eventId = selectedEventId || defaultEventId;
-
-  const { data: rows = [], dataUpdatedAt } = useQuery({
-    enabled: enabled && Boolean(eventId),
-    queryFn: ({ signal }) => listOrganizationEventAttendance(eventId, signal),
-    queryKey: queryKeys.organization.attendance(eventId),
-    refetchInterval: 30_000,
-  });
-
   const [filter, setFilter] = useState<AttendanceFilter>("Pending");
   const [query, setQuery] = useState("");
-  const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
-  const [rescueCandidate, setRescueCandidate] = useState<OrganizationAttendanceRow | null>(null);
-  const [rescueBusy, setRescueBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
-  function markSaving(profileId: string, saving: boolean) {
-    setSavingIds((current) => {
-      const next = new Set(current);
-      if (saving) next.add(profileId);
-      else next.delete(profileId);
-      return next;
-    });
-  }
+  const { dataUpdatedAt, eventId, events, rows, setSelectedEventId, venues } =
+    useAttendanceQueries(enabled);
 
-  async function saveRow(
-    row: OrganizationAttendanceRow,
-    updates: Partial<OrganizationAttendanceRow>,
-  ) {
-    markSaving(row.profileId, true);
-    setMessage(null);
-    const nextValue = updates.attendance ?? row.attendance;
-    const previous = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
-      queryKeys.organization.attendance(eventId),
-    );
-    queryClient.setQueryData(
-      queryKeys.organization.attendance(eventId),
-      (current: readonly OrganizationAttendanceRow[] | undefined) =>
-        (current ?? []).map((candidate) =>
-          candidate.profileId === row.profileId
-            ? { ...candidate, attendance: nextValue }
-            : candidate,
-        ),
-    );
-    try {
-      const saved = await updateOrganizationEventAttendance(eventId, [
-        {
-          attendance: nextValue,
-          profileId: row.profileId,
-        },
-      ]);
-      const savedRow = saved.find((candidate) => candidate.profileId === row.profileId);
-      if (savedRow) {
-        queryClient.setQueryData(
-          queryKeys.organization.attendance(eventId),
-          (current: readonly OrganizationAttendanceRow[] | undefined) =>
-            (current ?? []).map((candidate) =>
-              candidate.profileId === row.profileId ? savedRow : candidate,
-            ),
-        );
-      }
-    } catch {
-      queryClient.setQueryData(queryKeys.organization.attendance(eventId), previous);
-      setMessage("That attendance update could not be saved. Try again.");
-      throw new Error("attendance_update_failed");
-    } finally {
-      markSaving(row.profileId, false);
-    }
-  }
+  const {
+    bulkBusy,
+    bulkConfirmOpen,
+    changeAttendance,
+    confirmUnexpectedAttendance,
+    markRemainingPresent,
+    message,
+    rescueBusy,
+    rescueCandidate,
+    savingIds,
+    setBulkConfirmOpen,
+    setRescueCandidate,
+  } = useAttendanceMutations({ eventId, rows });
 
-  async function applyAttendanceChange(
-    row: OrganizationAttendanceRow,
-    next: OrganizationAttendanceStatus,
-  ): Promise<boolean> {
-    try {
-      await saveRow(row, { attendance: next });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  function changeAttendance(profileId: string) {
-    const row = rows.find((candidate) => candidate.profileId === profileId);
-    if (!row || savingIds.has(profileId) || bulkBusy || rescueBusy) return;
-    const next = nextAttendance[row.attendance];
-    if (next === "Present" && row.rsvp !== "Yes") {
-      setRescueCandidate(row);
-      return;
-    }
-    void applyAttendanceChange(row, next);
-  }
-
-  async function confirmUnexpectedAttendance() {
-    const candidate = rescueCandidate;
-    if (!candidate || rescueBusy) return;
-    const row = rows.find((current) => current.profileId === candidate.profileId);
-    if (!row) {
-      setRescueCandidate(null);
-      return;
-    }
-    if (row.rsvp === "Yes") {
-      setRescueCandidate(null);
-      void applyAttendanceChange(row, "Present");
-      return;
-    }
-    setRescueBusy(true);
-    const saved = await applyAttendanceChange(row, "Present");
-    setRescueBusy(false);
-    if (saved) setRescueCandidate(null);
-  }
-
-  const markableRows = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          row.rsvp === "Yes" && row.attendance !== "Present" && !savingIds.has(row.profileId),
-      ),
-    [rows, savingIds],
-  );
-
-  async function markRemainingPresent() {
-    const targetRows = markableRows;
-    if (!eventId || targetRows.length === 0 || bulkBusy) return;
-    setBulkBusy(true);
-    setMessage(null);
-    const previous = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
-      queryKeys.organization.attendance(eventId),
-    );
-    const targetProfileIds = new Set(targetRows.map((row) => row.profileId));
-    queryClient.setQueryData(
-      queryKeys.organization.attendance(eventId),
-      (current: readonly OrganizationAttendanceRow[] | undefined) =>
-        (current ?? []).map((row) =>
-          targetProfileIds.has(row.profileId) ? { ...row, attendance: "Present" as const } : row,
-        ),
-    );
-    try {
-      const saved = await updateOrganizationEventAttendance(
-        eventId,
-        targetRows.map((row) => ({
-          attendance: "Present" as const,
-          profileId: row.profileId,
-        })),
-      );
-      const savedById = new Map(saved.map((row) => [row.profileId, row]));
-      queryClient.setQueryData(
-        queryKeys.organization.attendance(eventId),
-        (current: readonly OrganizationAttendanceRow[] | undefined) =>
-          (current ?? []).map((row) => savedById.get(row.profileId) ?? row),
-      );
-    } catch {
-      queryClient.setQueryData(queryKeys.organization.attendance(eventId), previous);
-      setMessage("The remaining attendance could not be saved. Try again.");
-    } finally {
-      setBulkBusy(false);
-    }
-  }
+  const { counts, groupedRows, markableRows } = useAttendanceFiltering({
+    filter,
+    query,
+    rows,
+    savingIds,
+  });
 
   const venueNameById = useMemo(
     () => new Map(venues.map((venue) => [venue.id, venue.name])),
@@ -370,39 +177,6 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   function eventLocationLabel(event: OrganizationEvent): string {
     return venueNameById.get(event.venueId ?? "") ?? event.location.trim();
   }
-
-  const counts = useMemo(() => {
-    const expected = rows.filter((row) => row.rsvp === "Yes");
-    return {
-      absent: expected.filter((row) => row.attendance === "Absent").length,
-      expected: expected.length,
-      pending: expected.filter((row) => row.attendance === "Pending").length,
-      present: expected.filter((row) => row.attendance === "Present").length,
-      presentTotal: expected.filter((row) => row.attendance === "Present").length,
-      roster: expected.length,
-    };
-  }, [rows]);
-
-  const groupedRows = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-    const filtered = rows.filter((row) => {
-      const matchesFilter =
-        filter === "All" ||
-        (filter === "Pending" && row.attendance === "Pending") ||
-        (filter === "Present" && row.attendance === "Present") ||
-        (filter === "Absent" && row.attendance === "Absent");
-      const matchesQuery =
-        !normalizedQuery ||
-        row.displayName.toLocaleLowerCase().includes(normalizedQuery) ||
-        row.voicePart.toLocaleLowerCase().includes(normalizedQuery);
-      const isSearchResult = normalizedQuery.length > 0;
-      return matchesFilter && matchesQuery && (isSearchResult || row.rsvp === "Yes");
-    });
-    return {
-      notRsvped: groupRowsByVoicePart(filtered.filter((row) => row.rsvp !== "Yes")),
-      rsvped: groupRowsByVoicePart(filtered.filter((row) => row.rsvp === "Yes")),
-    };
-  }, [filter, query, rows]);
 
   if (!enabled) return null;
   return (
@@ -415,7 +189,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           </p>
         </div>
         <div className="attendance-manager__count" aria-label="Attendance progress">
-          <strong>{counts.present}</strong> / {counts.expected}
+          <strong>{String(counts.present)}</strong> / {String(counts.expected)}
           <span>present</span>
         </div>
       </div>
@@ -449,51 +223,72 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             value={query}
           />
         </label>
-        <div className="attendance-manager__filter-group">
-          {(["Pending", "Present", "Absent", "All"] as const).map((candidate) => (
+      </div>
+
+      <div className="attendance-manager__toolbar">
+        <div className="attendance-filters" aria-label="Attendance filter" role="group">
+          {(
+            [
+              ["Pending", `Unmarked ${String(counts.pending)}`],
+              ["All", `All ${String(counts.roster)}`],
+              ["Present", `Present ${String(counts.presentTotal)}`],
+              ["Absent", `Absent ${String(counts.absent)}`],
+            ] as const
+          ).map(([value, label]) => (
             <button
-              className={`attendance-manager__filter-tab ${
-                filter === candidate ? "attendance-manager__filter-tab--active" : ""
-              }`}
-              key={candidate}
+              className={
+                filter === value
+                  ? "attendance-filter attendance-filter--active"
+                  : "attendance-filter"
+              }
+              key={value}
               onClick={() => {
-                setFilter(candidate);
+                setFilter(value);
               }}
               type="button"
             >
-              {candidate === "Pending"
-                ? `Pending (${String(counts.pending)})`
-                : candidate === "Present"
-                  ? `Present (${String(counts.present)})`
-                  : candidate === "Absent"
-                    ? `Absent (${String(counts.absent)})`
-                    : `All (${String(rows.length)})`}
+              {label}
             </button>
           ))}
         </div>
-        <div className="attendance-manager__bulk-actions">
-          <button
-            className="button button--secondary"
-            disabled={bulkBusy || markableRows.length === 0}
-            onClick={() => {
-              setBulkConfirmOpen(true);
-            }}
-            type="button"
-          >
-            Mark all pending ({markableRows.length}) present
-          </button>
-        </div>
+        <button
+          className="button button--primary attendance-manager__bulk"
+          disabled={bulkBusy || markableRows.length === 0}
+          onClick={() => {
+            setBulkConfirmOpen(true);
+          }}
+          type="button"
+        >
+          {bulkBusy ? "Saving…" : "Mark remaining present"}
+        </button>
+      </div>
+
+      <div
+        className="attendance-progress"
+        aria-label={`${String(counts.present)} of ${String(counts.expected)} present`}
+      >
+        <span
+          style={{
+            width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
+          }}
+        />
       </div>
 
       {message ? (
-        <p className="notice notice--warning" role="alert">
+        <p className="attendance-manager__message" role="alert">
           {message}
         </p>
       ) : null}
 
-      <div className="attendance-groups">
+      {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
+      {rows.length > 0 && groupedRows.rsvped.length + groupedRows.notRsvped.length === 0 ? (
+        <p className="attendance-manager__empty">
+          No {performerLabelPlural.toLowerCase()} match this filter.
+        </p>
+      ) : null}
+      <div className="attendance-list">
         {groupedRows.rsvped.map((group) => (
-          <AttendanceGroup
+          <AttendanceGroupComponent
             bulkBusy={bulkBusy}
             group={group}
             key={group[0]}
@@ -502,74 +297,26 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
             savingIds={savingIds}
           />
         ))}
-
         {groupedRows.notRsvped.length > 0 ? (
-          <div className="attendance-groups__unrsvped">
-            <h2>Not currently RSVP&apos;d {performerLabelPlural.toLowerCase()}</h2>
-            <p className="field-hint">
-              Tap any {performerLabel.toLowerCase()} to mark them Present and update their RSVP.
-            </p>
-            {groupedRows.notRsvped.map((group) => (
-              <AttendanceGroup
-                bulkBusy={bulkBusy}
-                group={group}
-                key={group[0]}
-                onChange={changeAttendance}
-                partLabel={partLabel}
-                savingIds={savingIds}
-              />
-            ))}
+          <div
+            aria-label="Not currently RSVP'd"
+            className="attendance-list__divider"
+            role="separator"
+          >
+            <span>Not currently RSVP&apos;d</span>
           </div>
         ) : null}
-
-        {groupedRows.rsvped.length === 0 && groupedRows.notRsvped.length === 0 ? (
-          <p className="empty-state">
-            {rows.length === 0
-              ? `No ${performerLabelPlural.toLowerCase()} found for this event.`
-              : "No matches for the selected filter and query."}
-          </p>
-        ) : null}
+        {groupedRows.notRsvped.map((group) => (
+          <AttendanceGroupComponent
+            bulkBusy={bulkBusy}
+            group={group}
+            key={`not-rsvped-${group[0]}`}
+            onChange={changeAttendance}
+            partLabel={partLabel}
+            savingIds={savingIds}
+          />
+        ))}
       </div>
-
-      <Dialog
-        description="This will set all expected performers who have not checked in to Present."
-        onClose={() => {
-          setBulkConfirmOpen(false);
-        }}
-        open={bulkConfirmOpen}
-        title="Mark all remaining present?"
-      >
-        <div className="form-stack">
-          <p>
-            Are you sure you want to mark all {markableRows.length} remaining RSVP&apos;d{" "}
-            {performerLabelPlural.toLowerCase()} as Present?
-          </p>
-          <div className="dialog__actions">
-            <button
-              className="button button--secondary"
-              disabled={bulkBusy}
-              onClick={() => {
-                setBulkConfirmOpen(false);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="button button--primary"
-              disabled={bulkBusy}
-              onClick={() => {
-                setBulkConfirmOpen(false);
-                void markRemainingPresent();
-              }}
-              type="button"
-            >
-              Confirm and check in
-            </button>
-          </div>
-        </div>
-      </Dialog>
-
       <UnexpectedAttendanceDialog
         busy={rescueBusy}
         candidate={rescueCandidate}
@@ -580,6 +327,45 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           void confirmUnexpectedAttendance();
         }}
       />
+      <Dialog
+        description="This action may be difficult to undo."
+        onClose={() => {
+          if (!bulkBusy) setBulkConfirmOpen(false);
+        }}
+        open={bulkConfirmOpen}
+        title="Mark remaining present?"
+      >
+        <div className="form-stack">
+          <p className="notice notice--warning" role="alert">
+            This will mark {String(markableRows.length)}{" "}
+            {markableRows.length === 1
+              ? performerLabel.toLowerCase()
+              : performerLabelPlural.toLowerCase()}{" "}
+            who RSVP&apos;d Yes and are not currently Present as Present.
+          </p>
+          <div className="dialog__actions">
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setBulkConfirmOpen(false);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="button button--danger"
+              onClick={() => {
+                setBulkConfirmOpen(false);
+                void markRemainingPresent(markableRows);
+              }}
+              type="button"
+            >
+              Mark remaining present
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </section>
   );
 }

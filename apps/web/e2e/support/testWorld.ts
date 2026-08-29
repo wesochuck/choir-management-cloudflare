@@ -111,7 +111,7 @@ export async function mockPlatformMfaStatus(
   page: Page,
   status = { enforced: false },
 ): Promise<void> {
-  await page.route("**/api/platform/mfa-status", async (route) => {
+  await page.route("**/api/platform/mfa/status", async (route) => {
     await fulfillJson(route, status);
   });
 }
