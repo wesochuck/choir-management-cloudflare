@@ -61,10 +61,10 @@ export function useMusicDerived({
     [piece.arranger, piece.composer, pieces],
   );
 
-  const selectedPieces = useMemo(
-    () => pieces.filter(({ id }) => selectedPieceIds.includes(id)),
-    [pieces, selectedPieceIds],
-  );
+  const selectedPieces = useMemo(() => {
+    const selectedIds = new Set(selectedPieceIds);
+    return pieces.filter(({ id }) => selectedIds.has(id));
+  }, [pieces, selectedPieceIds]);
 
   return {
     availableGenres,
