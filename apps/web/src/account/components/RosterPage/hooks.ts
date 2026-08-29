@@ -91,6 +91,12 @@ export function useRosterPageController({
   const [selectedProfileIds, setSelectedProfileIds] = useState<readonly string[]>([]);
   const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const emailByProfileId = useMemo(() => {
+    if (roster.status !== "ready") return new Map<string, string>();
+    return new Map(
+      roster.memberships.map((membership) => [membership.profileId, membership.email]),
+    );
+  }, [roster]);
   const [success, setSuccess] = useState<string | null>(null);
   const openedProfileFromRoute = useRef<string | null>(null);
 
@@ -130,9 +136,7 @@ export function useRosterPageController({
     setEditingId(candidate.id);
     setProfile(profileRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
-    setProfileEmail(
-      roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "",
-    );
+    setProfileEmail(emailByProfileId.get(candidate.id) ?? "");
     setProfileTab(initialProfileTab);
     setPerformanceHistory({ status: initialProfileTab === "performance" ? "loading" : "idle" });
     setProfileStatusHistory({ status: "loading" });
@@ -143,7 +147,7 @@ export function useRosterPageController({
     setError(null);
     setSuccess(null);
     setDialogOpen(true);
-  }, [enabled, initialProfileId, initialProfileTab, roster]);
+  }, [emailByProfileId, enabled, initialProfileId, initialProfileTab, roster]);
 
   useEffect(() => {
     if (!dialogOpen || !editingId || profileTab !== "performance") return;
@@ -247,7 +251,7 @@ export function useRosterPageController({
           candidate.displayName,
           candidate.phone,
           candidate.voicePart,
-          roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "",
+          emailByProfileId.get(candidate.id) ?? "",
         ]
           .join(" ")
           .toLocaleLowerCase()
@@ -259,7 +263,7 @@ export function useRosterPageController({
         profileMatchesVoiceFilters(candidate, roster.configuration, selectedVoiceFilters)
       );
     });
-  }, [query, roster, selectedVoiceFilters, statusFilter]);
+  }, [emailByProfileId, query, roster, selectedVoiceFilters, statusFilter]);
 
   function toggleVoiceFilter(filter: string): void {
     setSelectedVoiceFilters((current) =>
@@ -443,11 +447,7 @@ export function useRosterPageController({
     setProfileDeliveries({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
-    setProfileEmail(
-      roster.status === "ready"
-        ? (roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ?? "")
-        : "",
-    );
+    setProfileEmail(roster.status === "ready" ? (emailByProfileId.get(candidate.id) ?? "") : "");
     setResetFeedback(null);
     setError(null);
     setSuccess(null);
@@ -458,9 +458,7 @@ export function useRosterPageController({
   async function saveProfile() {
     const normalizedEmail = profileEmail.trim().toLowerCase();
     const linkedEmail =
-      editingId && roster.status === "ready"
-        ? (roster.memberships.find(({ profileId }) => profileId === editingId)?.email ?? "")
-        : "";
+      editingId && roster.status === "ready" ? (emailByProfileId.get(editingId) ?? "") : "";
     if (normalizedEmail && normalizedEmail !== linkedEmail) {
       const parsedInvitation = organizationInvitationRequestSchema.safeParse({
         email: normalizedEmail,
