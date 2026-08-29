@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "bin": {
+    "choir-deploy-production": "scripts/deploy-production-local.mjs",
     "choir-deploy-staging": "scripts/deploy-staging-local.mjs"
   },
   "engines": {
@@ -24,6 +25,7 @@
     "check:contracts:exports": "node scripts/check-contract-exports.mjs",
     "check:parity": "node scripts/check-parity-matrix.mjs",
     "check:spacing": "node scripts/check-spacing.mjs",
+    "deploy:production": "node scripts/deploy-production-local.mjs",
     "deploy:staging": "node scripts/deploy-staging-local.mjs",
     "qualify:staging": "node scripts/qualify-staging.mjs",
     "qualify:staging:auth": "node scripts/qualify-staging-auth.mjs",
