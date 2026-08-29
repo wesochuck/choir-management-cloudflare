@@ -127,8 +127,14 @@
   }
 
   .dialog__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
-    margin-top: var(--spacing-md);
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
   }
 
   .dialog__body a,

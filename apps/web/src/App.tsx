@@ -28,16 +28,15 @@ type SessionState =
 
 const moduleCards = [
   {
-    description:
-      "Profiles, invitations, part assignments, directory preferences, seasons, and dues.",
+    description: "Rosters, member profiles, voice parts, directory preferences, and dues tracking.",
     title: "People",
   },
   {
-    description: "Performances, rehearsals, RSVPs, attendance, calendars, reports, and seating.",
+    description: "Rehearsals, performances, attendance tracking, calendars, and seating charts.",
     title: "Events",
   },
   {
-    description: "Music, resources, messages, polls, auditions, tickets, and donations.",
+    description: "Music library, practice resources, communications, polls, and ticketing.",
     title: "Programs",
   },
 ] as const;
@@ -47,36 +46,30 @@ function HomeView({ signedIn }: { readonly signedIn: boolean }) {
     <main>
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero__copy">
-          <p className="eyebrow">The next home for your Organization</p>
-          <h1 id="hero-title">One calm place to keep a choir moving together.</h1>
+          <p className="eyebrow">Choir Management</p>
+          <h1 id="hero-title">One calm place to keep your choir moving together.</h1>
           <p className="hero__lede">
-            The Cloudflare rebuild is taking shape as a secure, accessible home for every rehearsal,
-            performance, person, and public experience.
+            A simple, secure platform for rehearsals, performances, roster coordination, and public
+            events.
           </p>
           <div className="hero__actions">
             <a className="button button--primary" href={signedIn ? "/account" : "/login"}>
               {signedIn ? "Open your account" : "Sign in"}
             </a>
-            <a className="button button--secondary" href="#foundation">
-              Explore the foundation
+            <a className="button button--secondary" href="#features">
+              Explore features
             </a>
           </div>
         </div>
-        <div className="hero__art" aria-label="Abstract layered choir risers">
-          <div className="voice voice--one">S</div>
-          <div className="voice voice--two">A</div>
-          <div className="voice voice--three">T</div>
-          <div className="voice voice--four">B</div>
-        </div>
       </section>
 
-      <section className="foundation" id="foundation" aria-labelledby="foundation-title">
+      <section className="foundation" id="features" aria-labelledby="features-title">
         <div className="section-heading">
-          <p className="eyebrow">Foundation first</p>
-          <h2 id="foundation-title">Built around each Organization.</h2>
+          <p className="eyebrow">Overview</p>
+          <h2 id="features-title">Designed for choral ensembles.</h2>
           <p>
-            Operational data stays inside its Organization boundary while the public site remains
-            fast at the edge.
+            Keep your singers, music, rehearsals, and performances organized in one dedicated
+            workspace.
           </p>
         </div>
         <div className="module-grid">
@@ -255,7 +248,7 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   return null;
 }
 
-function renderPublicOrProductRoute(pathname: string, productShell: ReactNode) {
+function renderPublicOrProductRoute(pathname: string, productShell: ReactNode, signedIn: boolean) {
   if (pathname === "/donate") {
     return <PublicDonationView />;
   }
@@ -266,7 +259,7 @@ function renderPublicOrProductRoute(pathname: string, productShell: ReactNode) {
     return <PublicTickets pathname={pathname} />;
   }
   return isPublicOrganizationRoute(pathname) ? (
-    <PublicOrganizationSite fallback={productShell} pathname={pathname} />
+    <PublicOrganizationSite fallback={productShell} pathname={pathname} signedIn={signedIn} />
   ) : (
     productShell
   );
@@ -380,5 +373,9 @@ export function App() {
       </footer>
     </div>
   );
-  return renderPublicOrProductRoute(pathname, productShell);
+  return renderPublicOrProductRoute(
+    pathname,
+    productShell,
+    sessionState.status === "authenticated",
+  );
 }

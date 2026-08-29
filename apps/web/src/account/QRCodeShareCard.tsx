@@ -176,7 +176,7 @@ export function QRCodeShareCard({
             onClick={() => void copyLink()}
             type="button"
           >
-            {copied ? "Copied" : "Copy link"}
+            {copied ? "✓ Copied!" : "Copy link"}
           </button>
         </div>
         <button

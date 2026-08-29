@@ -90,10 +90,14 @@ function PerformanceCards({
 
 export function OrganizationLayout({
   children,
+  pathname = "/",
   projection,
+  signedIn = false,
 }: {
   readonly children: ReactNode;
+  readonly pathname?: string | undefined;
   readonly projection: PublishedOrganizationProjection;
+  readonly signedIn?: boolean | undefined;
 }) {
   const { settings } = projection.payload;
   const navigation = [
@@ -119,12 +123,27 @@ export function OrganizationLayout({
           <span>{projection.payload.organizationName}</span>
         </a>
         <nav aria-label="Public website">
-          {navigation.map((item) => (
-            <a href={item.href} key={item.href}>
-              {item.label}
+          {navigation.map((item) => {
+            const isCurrent =
+              pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+            return (
+              <a
+                aria-current={isCurrent ? "page" : undefined}
+                className={isCurrent ? "is-active" : undefined}
+                href={item.href}
+                key={item.href}
+              >
+                {item.label}
+              </a>
+            );
+          })}
+          {signedIn ? (
+            <a className="back-to-workspace" href="/dashboard">
+              ← Workspace
             </a>
-          ))}
-          <a href="/login">Sign in</a>
+          ) : (
+            <a href="/login">Sign in</a>
+          )}
         </nav>
       </header>
       <main>{children}</main>
@@ -140,9 +159,13 @@ export function OrganizationLayout({
 }
 
 function OrganizationHome({
+  pathname,
   projection,
+  signedIn,
 }: {
+  readonly pathname: string;
   readonly projection: PublishedOrganizationProjection;
+  readonly signedIn?: boolean | undefined;
 }) {
   const { performances, settings } = projection.payload;
   const now = new Date(projection.generatedAt).getTime();
@@ -153,7 +176,7 @@ function OrganizationHome({
     .filter(({ startsAt }) => new Date(startsAt).getTime() < now)
     .slice(0, 3);
   return (
-    <OrganizationLayout projection={projection}>
+    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section
         className={`public-hero ${settings.heroFileId ? "public-hero--image" : ""}`}
         style={
@@ -194,12 +217,16 @@ function OrganizationHome({
 }
 
 function OrganizationHistory({
+  pathname,
   projection,
+  signedIn,
 }: {
+  readonly pathname: string;
   readonly projection: PublishedOrganizationProjection;
+  readonly signedIn?: boolean | undefined;
 }) {
   return (
-    <OrganizationLayout projection={projection}>
+    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section className="public-section public-section--narrow">
         <h1>Our History</h1>
         {projection.payload.settings.historyText ? (
@@ -213,12 +240,16 @@ function OrganizationHistory({
 }
 
 function OrganizationPerformances({
+  pathname,
   projection,
+  signedIn,
 }: {
+  readonly pathname: string;
   readonly projection: PublishedOrganizationProjection;
+  readonly signedIn?: boolean | undefined;
 }) {
   return (
-    <OrganizationLayout projection={projection}>
+    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section className="public-section">
         <h1>Performances</h1>
         {projection.payload.performances.length > 0 ? (
@@ -237,9 +268,11 @@ function OrganizationPerformances({
 export function PublicOrganizationSite({
   fallback,
   pathname,
+  signedIn,
 }: {
   readonly fallback: ReactNode;
   readonly pathname: string;
+  readonly signedIn?: boolean | undefined;
 }) {
   const [state, setState] = useState<ProjectionState>({ status: "loading" });
   useEffect(() => {
@@ -281,9 +314,19 @@ export function PublicOrganizationSite({
       </main>
     );
   }
-  if (pathname === "/history") return <OrganizationHistory projection={state.projection} />;
-  if (pathname === "/performances") {
-    return <OrganizationPerformances projection={state.projection} />;
+  if (pathname === "/history") {
+    return (
+      <OrganizationHistory pathname={pathname} projection={state.projection} signedIn={signedIn} />
+    );
   }
-  return <OrganizationHome projection={state.projection} />;
+  if (pathname === "/performances") {
+    return (
+      <OrganizationPerformances
+        pathname={pathname}
+        projection={state.projection}
+        signedIn={signedIn}
+      />
+    );
+  }
+  return <OrganizationHome pathname={pathname} projection={state.projection} signedIn={signedIn} />;
 }

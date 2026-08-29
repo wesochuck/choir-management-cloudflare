@@ -69,12 +69,13 @@
   }
 
   .hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
-    align-items: center;
-    gap: clamp(var(--spacing-2xl), 7vw, 6rem);
-    min-height: calc(100vh - 8rem);
-    padding-block: 4rem 7rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    max-width: 48rem;
+    min-height: calc(75vh - 8rem);
+    padding-block: 5rem 6rem;
   }
 
   .eyebrow {
@@ -103,8 +104,8 @@
   }
 
   h1 {
-    max-width: 13ch;
-    font-size: clamp(3rem, 8vw, 6.7rem);
+    max-width: 18ch;
+    font-size: clamp(2.8rem, 6.5vw, 5.2rem);
   }
 
   h2 {
@@ -187,54 +188,6 @@
 
   .button--danger:hover {
     background: color-mix(in srgb, var(--color-danger) 88%, var(--color-text));
-  }
-
-  .hero__art {
-    position: relative;
-    display: grid;
-    min-height: 26rem;
-    place-items: center;
-    border: 1px solid var(--color-border);
-    border-radius: 48% 48% 2rem 2rem;
-    background:
-      linear-gradient(180deg, transparent 49%, var(--color-surface) 49% 51%, transparent 51%),
-      linear-gradient(90deg, transparent 49%, var(--color-surface) 49% 51%, transparent 51%),
-      color-mix(in srgb, var(--color-surface) 70%, transparent);
-    box-shadow: var(--shadow-xl);
-  }
-
-  .voice {
-    position: absolute;
-    display: grid;
-    width: 5.2rem;
-    height: 5.2rem;
-    place-items: center;
-    border: 0.45rem solid var(--color-surface-raised);
-    border-radius: 50%;
-    background: var(--color-accent);
-    color: #fff;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: var(--font-size-4xl);
-    box-shadow: 0 0.75rem 2rem var(--color-shadow);
-  }
-
-  .voice--one {
-    transform: translate(-62%, -76%);
-  }
-
-  .voice--two {
-    transform: translate(62%, -76%);
-    background: #477b76;
-  }
-
-  .voice--three {
-    transform: translate(-62%, 76%);
-    background: #8071a8;
-  }
-
-  .voice--four {
-    transform: translate(62%, 76%);
-    background: #c29a4d;
   }
 
   .foundation {

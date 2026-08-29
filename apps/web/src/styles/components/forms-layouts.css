@@ -392,4 +392,21 @@
   .ticket-dashboard__will-call th:last-child {
     min-width: 10rem;
   }
+
+  /* === Sticky Form Actions Bar === */
+  .sticky-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--color-border);
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
+    margin-top: var(--spacing-lg);
+  }
 }

@@ -23,10 +23,8 @@ test("renders the accessible foundation at desktop and mobile widths", async ({ 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText("choir moving together");
-  await expect(page.getByRole("link", { name: "Explore the foundation" })).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Built around each Organization." }),
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Explore features" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Designed for choral ensembles." })).toBeVisible();
   await expect(page.getByLabel("Account").getByRole("link", { name: "Sign in" })).toBeVisible();
   await expect(page.getByRole("contentinfo")).toContainText("Choir Management");
 });

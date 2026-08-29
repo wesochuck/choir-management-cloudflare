@@ -207,6 +207,45 @@
     color: var(--color-primary);
     font-weight: var(--font-weight-bold);
     text-decoration: none;
+    transition:
+      color 140ms ease,
+      border-color 140ms ease,
+      opacity 140ms ease;
+  }
+
+  .public-site-header nav a:hover,
+  .public-section-heading a:hover,
+  .public-site-footer a:hover {
+    color: var(--color-primary-strong);
+    opacity: 0.9;
+  }
+
+  .public-site-header nav a[aria-current="page"],
+  .public-site-header nav a.is-active {
+    color: var(--color-accent);
+    border-bottom: 2px solid var(--color-accent);
+    padding-bottom: 0.15rem;
+  }
+
+  .public-site-header .back-to-workspace {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-3xs);
+    padding: var(--spacing-2xs) var(--spacing-sm);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    text-decoration: none;
+    transition:
+      background 140ms ease,
+      color 140ms ease;
+  }
+
+  .public-site-header .back-to-workspace:hover {
+    background: color-mix(in srgb, var(--color-primary) 22%, transparent);
+    color: var(--color-primary-strong);
   }
 
   .public-hero {

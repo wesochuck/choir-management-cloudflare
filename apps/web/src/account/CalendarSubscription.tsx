@@ -100,7 +100,7 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
                 }}
                 type="button"
               >
-                {copyState === "copied" ? "Copied" : "Copy address"}
+                {copyState === "copied" ? "✓ Copied!" : "Copy address"}
               </button>
             </div>
             <p className="field-help">
