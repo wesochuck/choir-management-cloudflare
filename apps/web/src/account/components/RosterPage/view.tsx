@@ -9,7 +9,7 @@ import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RosterPageModel } from "./hooks";
 
 type RosterSection = "roster" | "settings" | "automation";
@@ -88,6 +88,12 @@ export function RosterPageView({
     toggleVisibleProfileSelection,
     toggleVoiceFilter,
   } = model;
+  const membershipByProfileId = useMemo<Map<string, { readonly email: string }>>(() => {
+    if (roster.status !== "ready") return new Map();
+    return new Map(
+      roster.memberships.map((membership) => [membership.profileId, { email: membership.email }]),
+    );
+  }, [roster]);
   const selectAllVisibleRef = useRef<HTMLInputElement>(null);
   const [rosterPage, setRosterPage] = useState(1);
   const [rosterPageSize, setRosterPageSize] = useState(50);
@@ -378,14 +384,10 @@ export function RosterPageView({
                   header: "Email",
                   id: "email",
                   render: (candidate) => {
-                    const email = roster.memberships.find(
-                      ({ profileId }) => profileId === candidate.id,
-                    )?.email;
+                    const email = membershipByProfileId.get(candidate.id)?.email;
                     return email ? <a href={`mailto:${email}`}>{email}</a> : "Not linked";
                   },
-                  sortValue: (candidate) =>
-                    roster.memberships.find(({ profileId }) => profileId === candidate.id)?.email ??
-                    "",
+                  sortValue: (candidate) => membershipByProfileId.get(candidate.id)?.email ?? "",
                 },
                 {
                   header: partLabel,
