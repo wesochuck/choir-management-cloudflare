@@ -387,6 +387,37 @@ describe("Organization communications", () => {
         })
       ).status,
     ).toBe(409);
+
+    // Validation rule: mixed audience with member-only placeholder is rejected on send
+    const invalidContextSendResponse = await write(
+      "alpha.localhost",
+      "/api/organization/communications/send",
+      cookie,
+      {
+        audience: { ...audience, targetAudiences: ["Members", "Ticket Buyers"] },
+        channel: "Email",
+        contentMarkdown: "Please RSVP: {{RSVP_LINKS}}",
+        subject: "Mixed Audience Notice",
+      },
+    );
+    expect(invalidContextSendResponse.status).toBe(400);
+    expect(await invalidContextSendResponse.json()).toMatchObject({
+      code: "invalid_communication_context",
+    });
+
+    // Saving a draft with conflicting placeholders remains allowed
+    const draftWithConflictResponse = await write(
+      "alpha.localhost",
+      "/api/organization/communications/drafts",
+      cookie,
+      {
+        audience: { ...audience, targetAudiences: ["Members", "Ticket Buyers"] },
+        channel: "Email",
+        contentMarkdown: "Please RSVP: {{RSVP_LINKS}}",
+        subject: "Draft with conflict",
+      },
+    );
+    expect(draftWithConflictResponse.status).toBe(201);
   });
 
   it("deduplicates a retried manual communication request", async () => {

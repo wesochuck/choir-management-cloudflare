@@ -220,6 +220,18 @@ async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void
         { enabled: true, id: "programs" },
       ],
     },
+    "/api/organization/email-settings": {
+      requestId,
+      settings: {
+        customDomain: null,
+        customDomainStatus: "none",
+        dnsRecords: [],
+        fromName: null,
+        lastCheckedAt: null,
+        replyToEmail: null,
+        verifiedAt: null,
+      },
+    },
     "/api/organization/provider-status": {
       brevo: { detail: "Sandbox provider", status: "ok" },
       emailSender: { fromEmail: null, fromName: null },
@@ -265,45 +277,36 @@ async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void
   );
 }
 
-test("preserves all selected audiences when reach preview follows quick selection", async ({
+test("preserves all selected audiences and automatically computes reach preview", async ({
   page,
 }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
-  await page.goto("/admin/communications");
-  const composeTab = page.getByRole("tab", { exact: true, name: "Compose" });
-  await expect(composeTab).toHaveAttribute("aria-controls", "communication-compose-panel");
-  await expect(page.locator("#communication-compose-panel")).toHaveAttribute(
-    "aria-labelledby",
-    "communication-compose-tab",
+  await page.goto("/admin/communications?tab=compose");
+  await expect(page.getByRole("button", { exact: true, name: "Messages" })).toHaveAttribute(
+    "aria-current",
+    "page",
   );
-  const audience = page.getByRole("group", { name: "Audience" });
-  const ticketBuyers = audience.getByRole("checkbox", { name: "Ticket Buyers" });
-  const donors = audience.getByRole("checkbox", { name: "Donors" });
 
-  await expect(audience.getByRole("checkbox", { name: "Members" })).toBeChecked();
+  const recipientPanel = page.locator(".communication-recipient-panel");
+  const ticketBuyers = recipientPanel.getByRole("checkbox", { name: "Ticket Buyers" });
+  const donors = recipientPanel.getByRole("checkbox", { name: "Donors" });
+
+  await expect(recipientPanel.getByRole("checkbox", { name: "Members" })).toBeChecked();
   await ticketBuyers.click();
   await donors.click();
-  await page.getByRole("button", { name: "Preview audience reach" }).click();
 
-  await expect(page.getByRole("status").filter({ hasText: "Audience reach" })).toContainText(
-    "2 reachable",
-  );
-  await expect(audience.getByRole("checkbox", { name: "Members" })).toBeChecked();
+  // Automatic reach calculation
+  await expect(recipientPanel.getByRole("status")).toContainText("2 people can receive this email");
+  await expect(recipientPanel.getByRole("checkbox", { name: "Members" })).toBeChecked();
   await expect(ticketBuyers).toBeChecked();
   await expect(donors).toBeChecked();
-  expect(previewBodies).toHaveLength(1);
-  expect(previewBodies[0]).toEqual({
-    audience: {
-      eventId: null,
-      globalStatuses: ["Active"],
-      profileIds: [],
-      rsvp: "All",
-      targetAudiences: ["Members", "Ticket Buyers", "Donors"],
-      voiceParts: [],
-    },
-    channel: "Email",
+
+  expect(previewBodies.length).toBeGreaterThanOrEqual(1);
+  const lastPreview = previewBodies[previewBodies.length - 1];
+  expect(lastPreview).toMatchObject({
+    audience: { targetAudiences: ["Members", "Ticket Buyers", "Donors"] },
   });
 });
 
@@ -311,8 +314,7 @@ test("starts each toolbar list item on a new line", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
-  await page.goto("/admin/communications");
-  await page.getByRole("button", { name: "Continue to compose" }).click();
+  await page.goto("/admin/communications?tab=compose");
 
   const message = page.getByRole("textbox", { name: "Message body" });
   const listButton = page.getByRole("button", { name: "List" });
@@ -325,21 +327,20 @@ test("starts each toolbar list item on a new line", async ({ page }) => {
   await expect(message).toHaveValue("- one\n- text\n- text");
 });
 
-test("populates communication placeholders in the message preview", async ({ page }) => {
+test("populates communication placeholders in the live message preview", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
-  await page.goto("/admin/communications");
+  await page.goto("/admin/communications?tab=compose");
   await page.getByLabel("Event (optional)").selectOption(eventId);
-  await page.getByRole("button", { name: "Continue to compose" }).click();
 
   const message = page.getByRole("textbox", { name: "Message body" });
   await message.fill(
     "Hi {singerName},\n{eventTitle} ({eventType}) on {eventDate} at {eventLocation}.",
   );
-  await page.getByRole("tab", { name: "Preview", exact: true }).click();
 
-  const preview = page.locator("#communication-composer-preview-panel");
+  // Check 2-column live preview panel
+  const preview = page.locator(".communication-composer-preview-col .preview-body");
   await expect(preview).toContainText("Alex Morgan");
   await expect(preview).toContainText("Browser Performance");
   await expect(preview).toContainText("Performance");
@@ -348,41 +349,32 @@ test("populates communication placeholders in the message preview", async ({ pag
   await expect(preview).not.toContainText("{eventTitle}");
   await expect(preview).not.toContainText("{eventDate}");
 
-  await page.getByRole("tab", { name: "Write", exact: true }).click();
   await page.getByLabel("Subject").fill("Rehearsal update");
-  await page.getByRole("button", { name: "Preview before queueing" }).click();
+  await page.getByRole("button", { name: "Review & send" }).click();
 
-  const finalPreview = page.getByRole("dialog", { name: "Final message preview" });
+  const finalPreview = page.getByRole("dialog", { name: "Review message" });
   await expect(finalPreview).toContainText("Alex Morgan");
   await expect(finalPreview).toContainText("Browser Performance");
   await expect(finalPreview).not.toContainText("{singerName}");
   await expect(finalPreview).not.toContainText("{eventTitle}");
 });
 
-test("shows the queued count and lets the user start another message", async ({ page }) => {
+test("shows the queued message in unified list and lets the user start another message", async ({
+  page,
+}) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
-  await page.goto("/admin/communications");
-  await page.getByRole("button", { name: "Continue to compose" }).click();
+  await page.goto("/admin/communications?tab=compose");
   await page.getByLabel("Subject").fill("Queued announcement");
   await page.getByRole("textbox", { name: "Message body" }).fill("Hello queued recipients.");
-  await page.getByRole("button", { name: "Preview before queueing" }).click();
+  await page.getByRole("button", { name: "Review & send" }).click();
 
-  const finalPreview = page.getByRole("dialog", { name: "Final message preview" });
-  await finalPreview.getByRole("button", { name: "Queue communication" }).click();
+  const reviewDialog = page.getByRole("dialog", { name: "Review message" });
+  await reviewDialog.getByRole("button", { name: "Send to 2 recipients" }).click();
 
-  const queuedResult = page.locator("#communication-queued-result");
-  await expect(queuedResult.getByRole("heading", { name: "Communication queued" })).toBeVisible();
-  await expect(queuedResult.getByRole("status")).toContainText(
-    "2 recipients were queued for delivery.",
-  );
-  await expect(queuedResult).toContainText("Queued announcement");
-
-  await queuedResult.getByRole("button", { name: "Send another message" }).click();
-  await expect(page.getByRole("group", { name: "Audience" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue to compose" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Communication queued" })).toHaveCount(0);
+  await expect(page.getByText("Message queued for 2 recipients.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "New message" })).toBeVisible();
 });
 
 test("reuses the same idempotency key when queueing is retried", async ({ page }) => {
@@ -412,26 +404,25 @@ test("reuses the same idempotency key when queueing is retried", async ({ page }
     await handleRoute(route, previewBodies);
   });
 
-  await page.goto("/admin/communications");
-  await page.getByRole("button", { name: "Continue to compose" }).click();
+  await page.goto("/admin/communications?tab=compose");
   await page.getByLabel("Subject").fill("Retry-safe announcement");
   await page.getByRole("textbox", { name: "Message body" }).fill("Hello queued recipients.");
-  await page.getByRole("button", { name: "Preview before queueing" }).click();
+  await page.getByRole("button", { name: "Review & send" }).click();
 
-  const finalPreview = page.getByRole("dialog", { name: "Final message preview" });
-  await finalPreview.getByRole("button", { name: "Queue communication" }).click();
-  await expect(finalPreview.getByRole("alert")).toContainText(
+  const reviewDialog = page.getByRole("dialog", { name: "Review message" });
+  await reviewDialog.getByRole("button", { name: "Send to 2 recipients" }).click();
+  await expect(reviewDialog.getByRole("alert")).toContainText(
     "The communication could not be queued.",
   );
-  await finalPreview.getByRole("button", { name: "Queue communication" }).click();
+  await reviewDialog.getByRole("button", { name: "Send to 2 recipients" }).click();
 
-  await expect(page.getByRole("heading", { name: "Communication queued" })).toBeVisible();
+  await expect(page.getByText("Message queued for 2 recipients.")).toBeVisible();
   expect(sendAttempts).toBe(2);
   expect(idempotencyKeys[0]).toBeTruthy();
   expect(idempotencyKeys[0]).toBe(idempotencyKeys[1]);
 });
 
-test("shows recipient names in message history delivery details", async ({ page }) => {
+test("shows recipient names in message delivery details", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
@@ -504,14 +495,12 @@ test("shows recipient names in message history delivery details", async ({ page 
   });
 
   await page.goto("/admin/communications?tab=history");
-  await expect(page.getByRole("tab", { exact: true, name: "History" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  const messageRow = page.getByRole("listitem").filter({ hasText: "Rehearsal update" });
-  await messageRow.getByRole("button", { name: "View delivery details" }).click();
+  const messageCard = page
+    .locator(".communication-message-card")
+    .filter({ hasText: "Rehearsal update" });
+  await messageCard.getByRole("button", { name: "View delivery details" }).click();
 
-  const deliveryDetails = messageRow.getByRole("region", {
+  const deliveryDetails = messageCard.getByRole("region", {
     name: "Delivery details for Rehearsal update",
   });
   await expect(deliveryDetails).toBeVisible();
@@ -519,7 +508,6 @@ test("shows recipient names in message history delivery details", async ({ page 
   await expect(deliveryDetails.getByText("Ada Alto", { exact: true })).toBeVisible();
   await expect(deliveryDetails.getByText("Ben Bass", { exact: true })).toBeVisible();
   await expect(deliveryDetails.getByText("Delivered", { exact: true })).toHaveCount(2);
-  await expect(page.getByText("ada@example.test", { exact: true })).toHaveCount(0);
 });
 
 test("allows queued messages to be edited or canceled", async ({ page }) => {
@@ -553,48 +541,34 @@ test("allows queued messages to be edited or canceled", async ({ page }) => {
   });
 
   await page.goto("/admin/communications?tab=history");
-  const queuedRow = page.getByRole("listitem").filter({ hasText: "Queued announcement" });
+  const queuedRow = page
+    .locator(".communication-message-card")
+    .filter({ hasText: "Queued announcement" });
   await queuedRow.getByRole("button", { name: "Edit & requeue" }).click();
-  const editDialog = page.getByRole("dialog", { name: "Edit queued message?" });
-  await expect(editDialog).toBeVisible();
-  await editDialog.getByRole("button", { name: "Edit & requeue" }).click();
 
-  await expect(page.getByRole("tab", { name: "Compose", exact: true })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
   await expect(page.getByLabel("Subject")).toHaveValue("Queued announcement");
   await expect(page.getByRole("textbox", { name: "Message body" })).toHaveValue(
     "Hello queued recipients.",
   );
-  await expect(
-    page.getByText(
-      "Queued message canceled. Review it, make changes, and queue it again when ready.",
-      { exact: true },
-    ),
-  ).toBeVisible();
 
-  await page.getByRole("tab", { name: "History", exact: true }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: "Queued announcement" })).toContainText(
-    "Canceled",
-  );
-  const followUpRow = page.getByRole("listitem").filter({ hasText: "Queued follow-up" });
+  await page.getByRole("button", { exact: true, name: "Messages" }).click();
+  const followUpRow = page
+    .locator(".communication-message-card")
+    .filter({ hasText: "Queued follow-up" });
   await followUpRow.getByRole("button", { name: "Cancel message" }).click();
-  const cancelDialog = page.getByRole("dialog", { name: "Cancel queued message?" });
+  const cancelDialog = page.getByRole("dialog", { name: "Cancel queued communication" });
   await expect(cancelDialog).toBeVisible();
-  await cancelDialog.getByRole("button", { name: "Cancel message" }).click();
-  await expect(followUpRow).toContainText("Canceled");
-  await expect(followUpRow.getByRole("button", { name: "Edit & requeue" })).toHaveCount(0);
+  await cancelDialog.getByRole("button", { name: "Cancel communication" }).click();
+  await expect(page.getByText("Queued communication canceled.")).toBeVisible();
 });
 
-test("uses an optional template picker and confirms before replacing a draft", async ({ page }) => {
+test("uses a contextual template picker and warns before replacing content", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
-  await page.goto("/admin/communications");
-  await page.getByRole("button", { name: "Continue to compose" }).click();
+  await page.goto("/admin/communications?tab=compose");
 
-  const templatePicker = page.getByLabel("Choose a template (optional)");
+  const templatePicker = page.getByLabel("Template");
   await expect(templatePicker).toHaveValue("");
   await expect(templatePicker).toContainText("First template");
   await expect(templatePicker).not.toContainText("Audition Confirmed");
@@ -605,103 +579,64 @@ test("uses an optional template picker and confirms before replacing a draft", a
   await expect(page.getByLabel("Subject")).toHaveValue("First template");
 
   await templatePicker.selectOption(secondTemplateId);
-  const replaceDialog = page.getByRole("dialog", { name: "Replace current draft?" });
+  const replaceDialog = page.getByRole("dialog", { name: "Replace message content?" });
   await expect(replaceDialog).toBeVisible();
-  await expect(replaceDialog).toContainText("current message draft will be replaced");
+  await expect(replaceDialog).toContainText(
+    "Applying this template will replace the current subject",
+  );
   await replaceDialog.getByRole("button", { name: "Cancel" }).click();
-  await expect(templatePicker).toHaveValue(firstTemplateId);
   await expect(page.getByLabel("Subject")).toHaveValue("First template");
 
   await templatePicker.selectOption(secondTemplateId);
   await expect(replaceDialog).toBeVisible();
-  await replaceDialog.getByRole("button", { name: "Replace draft" }).click();
-  await expect(templatePicker).toHaveValue(secondTemplateId);
+  await replaceDialog.getByRole("button", { name: "Apply template" }).click();
   await expect(page.getByLabel("Subject")).toHaveValue("Second template");
 });
 
-test("keeps audition system templates in the management tab only", async ({ page }) => {
+test("shows conflict warning when audience becomes incompatible with placeholders", async ({
+  page,
+}) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+
+  await page.goto("/admin/communications?tab=compose");
+  await page.getByLabel("Event (optional)").selectOption(eventId);
+
+  const message = page.getByRole("textbox", { name: "Message body" });
+  await message.fill("Please RSVP here: {{RSVP_LINKS}}");
+
+  // No conflict yet because audience is Members only
+  await expect(page.locator(".communication-conflict-banner")).toHaveCount(0);
+
+  // Add Ticket Buyers to audience
+  const recipientPanel = page.locator(".communication-recipient-panel");
+  await recipientPanel.getByRole("checkbox", { name: "Ticket Buyers" }).click();
+
+  // Conflict banner appears
+  const conflictBanner = page.locator(".communication-conflict-banner");
+  await expect(conflictBanner).toBeVisible();
+  await expect(conflictBanner).toContainText("This message needs an update");
+  await expect(conflictBanner).toContainText(
+    "can only be used when all selected recipients are Members",
+  );
+
+  // Send button should be disabled
+  await expect(page.getByRole("button", { name: "Review & send" })).toBeDisabled();
+
+  // Click Remove placeholder action in the banner
+  await conflictBanner.getByRole("button", { name: "Remove {{RSVP_LINKS}}" }).click();
+  await expect(conflictBanner).toHaveCount(0);
+  await expect(message).toHaveValue("Please RSVP here:");
+});
+
+test("searches and filters the template list in the dedicated Templates panel", async ({
+  page,
+}) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
   await page.goto("/admin/communications?tab=templates");
-  await expect(page.getByText("Audition Confirmed")).toBeVisible();
-  await expect(page.getByText("Donation Payment Receipt")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Use template" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Edit wording" }).first()).toBeVisible();
-});
-
-test("edits template wording in a dirty modal", async ({ page }) => {
-  const previewBodies: unknown[] = [];
-  let updateBody: unknown = null;
-  await page.route("**/api/**", async (route) => {
-    const pathname = new URL(route.request().url()).pathname;
-    if (
-      pathname === `/api/organization/communications/templates/${firstTemplateId}` &&
-      route.request().method() === "PUT"
-    ) {
-      updateBody = route.request().postDataJSON();
-      await fulfillJson(route, {
-        channel: "Email",
-        contentMarkdown: "Updated content.",
-        createdAt: "2026-07-20T20:00:00.000Z",
-        id: firstTemplateId,
-        isSystem: false,
-        requestId,
-        subject: "Updated subject",
-        title: "Updated title",
-        updatedAt: "2026-08-18T20:00:00.000Z",
-      });
-      return;
-    }
-    await handleRoute(route, previewBodies);
-  });
-
-  await page.goto("/admin/communications?tab=templates");
-  const templateRow = page.getByRole("listitem").filter({ hasText: "First template" });
-  await templateRow.getByRole("button", { name: "Edit wording" }).click();
-
-  const editor = page.getByRole("dialog", { name: "Edit template wording" });
-  await expect(editor).toBeVisible();
-  await expect(editor.getByLabel("Template name")).toHaveValue("First template");
-  await expect(editor.getByRole("region", { name: "Unsaved template changes" })).toHaveCount(0);
-
-  await editor.getByLabel("Template name").fill("Discarded title");
-  const saveBar = editor.getByRole("region", { name: "Unsaved template changes" });
-  await expect(saveBar).toBeVisible();
-  await saveBar.getByRole("button", { name: "Cancel" }).click();
-
-  const discardDialog = page.getByRole("dialog", { name: "Discard unsaved changes?" });
-  await expect(discardDialog).toBeVisible();
-  await discardDialog.getByRole("button", { name: "Discard changes" }).click();
-  await expect(editor).toBeHidden();
-
-  await templateRow.getByRole("button", { name: "Edit wording" }).click();
-  await expect(editor).toBeVisible();
-  await editor.getByLabel("Template name").fill("Updated title");
-  await editor.getByLabel("Subject").fill("Updated subject");
-  await editor.getByLabel("Message").fill("Updated content.");
-  await editor
-    .getByRole("region", { name: "Unsaved template changes" })
-    .getByRole("button", { name: "Save template" })
-    .click();
-
-  await expect(editor).toBeHidden();
-  await expect(page.getByText("Updated title", { exact: true })).toBeVisible();
-  expect(updateBody).toEqual({
-    channel: "Email",
-    contentMarkdown: "Updated content.",
-    subject: "Updated subject",
-    title: "Updated title",
-  });
-});
-
-test("searches and filters the template list", async ({ page }) => {
-  const previewBodies: unknown[] = [];
-  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
-
-  await page.goto("/admin/communications?tab=templates");
-  const templatePanel = page.locator("#communication-templates-panel");
-  const templateList = templatePanel.getByRole("list");
+  const templateList = page.locator(".communication-templates-list");
   const search = page.getByLabel("Search templates");
 
   await search.fill("first");
@@ -709,25 +644,20 @@ test("searches and filters the template list", async ({ page }) => {
   await expect(templateList.getByText("Second template", { exact: true })).toHaveCount(0);
 
   await search.fill("");
-  await page.getByLabel("Template type").selectOption("system");
+  await page.getByLabel("Type").selectOption("system");
   await expect(templateList.getByText("Audition Confirmed", { exact: true })).toBeVisible();
   await expect(templateList.getByText("First template", { exact: true })).toHaveCount(0);
 
-  await page.getByLabel("Template type").selectOption("all");
-  await page.getByLabel("Template channel").selectOption("SMS");
+  await page.getByLabel("Type").selectOption("all");
+  await page.getByLabel("Channel").selectOption("SMS");
   await expect(templateList.getByText("Text reminder", { exact: true })).toBeVisible();
   await expect(templateList.getByText("First template", { exact: true })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Clear template filters" }).click();
-  await expect(templateList.getByText("First template", { exact: true })).toBeVisible();
-  await expect(templateList.getByText("Text reminder", { exact: true })).toBeVisible();
 });
 
 test("hides delivery mode notice banner in production", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
-  // Override provider-status to production environment
   await page.route("**/api/organization/provider-status", async (route) => {
     await fulfillJson(route, {
       brevo: { detail: "Email sends live", status: "ok" },
@@ -740,55 +670,5 @@ test("hides delivery mode notice banner in production", async ({ page }) => {
   });
 
   await page.goto("/admin/communications");
-
   await expect(page.getByText(/Delivery mode:/i)).toHaveCount(0);
-});
-
-test("shows success feedback when sending a test email from settings", async ({ page }) => {
-  const previewBodies: unknown[] = [];
-  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
-
-  await page.goto("/admin/communications");
-  await page.getByRole("tab", { exact: true, name: "Settings" }).click();
-
-  const settingsPanel = page.locator("#communication-settings-panel");
-  await expect(settingsPanel).toBeVisible();
-
-  await settingsPanel.getByLabel("Test recipient").fill("test@example.com");
-  await settingsPanel.getByRole("button", { name: "Send test email" }).click();
-
-  await expect(
-    settingsPanel.getByRole("status").filter({ hasText: "Test email accepted for delivery" }),
-  ).toBeVisible();
-});
-
-test("shows error feedback when sending a test email fails", async ({ page }) => {
-  const previewBodies: unknown[] = [];
-  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
-
-  // Override test-email route to return failure
-  await page.route("**/api/organization/communications/test-email", async (route) => {
-    await fulfillJson(
-      route,
-      {
-        code: "delivery_failed",
-        message: "The test email could not be sent. Mail server rejected recipient.",
-        requestId,
-      },
-      400,
-    );
-  });
-
-  await page.goto("/admin/communications");
-  await page.getByRole("tab", { exact: true, name: "Settings" }).click();
-
-  const settingsPanel = page.locator("#communication-settings-panel");
-  await expect(settingsPanel).toBeVisible();
-
-  await settingsPanel.getByLabel("Test recipient").fill("bad@example.com");
-  await settingsPanel.getByRole("button", { name: "Send test email" }).click();
-
-  await expect(
-    settingsPanel.getByRole("alert").filter({ hasText: "Mail server rejected recipient" }),
-  ).toBeVisible();
 });

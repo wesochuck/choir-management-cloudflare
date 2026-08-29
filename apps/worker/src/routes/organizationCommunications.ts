@@ -4,13 +4,23 @@ import {
   communicationSendRequestSchema,
   communicationTestEmailRequestSchema,
   communicationTemplateRequestSchema,
+  type CommunicationTestEmailRequest,
+  type OrganizationEvent,
   type ProblemDetails,
 } from "@choir/contracts";
-import { renderCommunicationTemplate } from "@choir/domain";
+import {
+  renderCommunicationTemplate,
+  renderOrganizationLogoPlaceholder,
+  validateCommunicationContext,
+} from "@choir/domain";
 import { z } from "zod";
 import { assertEmailProviderRecipientAvailable } from "../communications/emailFeedback";
 import { deliverOrganizationCommunication } from "../communications/provider";
-import { readOrganizationEmailSenderConfig } from "../jobs/deliveries/shared";
+import {
+  readOrganizationBrandingConfig,
+  readOrganizationEmailSenderConfig,
+} from "../jobs/deliveries/shared";
+import { listOrganizationEvents } from "../calendar/organizationCalendar";
 import {
   CommunicationRepositoryError,
   listOrganizationCommunications,
@@ -35,6 +45,125 @@ import type { WorkerHonoEnvironment } from "./helpers";
 import { authorizeCalendarRoute, communicationProblem } from "./helpers";
 
 const communicationIdempotencyKeySchema = z.string().trim().min(1).max(256);
+
+interface TestEmailTemplateOptions {
+  readonly baseDomain: string;
+  readonly branding: { readonly logoFileId: string | null; readonly organizationName: string };
+  readonly contentMarkdown: string;
+  readonly event: OrganizationEvent | null;
+  readonly fromName: string | null;
+  readonly subject: string;
+}
+
+function renderTestEmailPayload(options: TestEmailTemplateOptions): {
+  fromName: string | undefined;
+  templatedContent: string;
+  templatedSubject: string;
+} {
+  const testRecipientName = "Test recipient";
+  const trimmedOrgName = options.branding.organizationName.trim();
+  const orgName =
+    trimmedOrgName.length > 0 ? trimmedOrgName : (options.fromName ?? "Choir Management");
+  const logoUrl = options.branding.logoFileId
+    ? `https://${options.baseDomain || "localhost"}/api/public/logo`
+    : null;
+  const logoPlaceholder = renderOrganizationLogoPlaceholder({
+    channel: "email",
+    logoUrl,
+    organizationName: orgName,
+  });
+
+  const eventContext = options.event
+    ? {
+        eventCallTime: options.event.callTime,
+        eventDate: new Intl.DateTimeFormat("en-US", {
+          dateStyle: "long",
+          timeStyle: "short",
+          timeZone: "UTC",
+        }).format(new Date(options.event.startsAt)),
+        eventDetails: options.event.details,
+        eventId: options.event.id,
+        eventLocation: options.event.location,
+        eventTitle: options.event.title,
+        eventType: options.event.type,
+      }
+    : {};
+
+  const testRsvpLink = `[Open RSVP page](https://${options.baseDomain || "localhost"}/rsvp?sample=1)\n\n(No login required.)`;
+  const testPlayerLink = `[Open practice player](https://${options.baseDomain || "localhost"}/player?sample=1)\n\n(No login required.)`;
+
+  const preparedContent = options.contentMarkdown
+    .split("{{RSVP_LINKS}}")
+    .join(testRsvpLink)
+    .split("{{PLAYER_LINK}}")
+    .join(testPlayerLink);
+
+  const templatedContent = renderCommunicationTemplate(preparedContent, testRecipientName, {
+    organizationLogo: logoPlaceholder,
+    organizationName: orgName,
+    ...eventContext,
+  });
+
+  const templatedSubject = renderCommunicationTemplate(options.subject, testRecipientName, {
+    organizationName: orgName,
+    ...eventContext,
+  });
+
+  return {
+    fromName: options.fromName ?? undefined,
+    templatedContent,
+    templatedSubject,
+  };
+}
+
+async function handleTestEmailDelivery(
+  env: WorkerHonoEnvironment["Bindings"],
+  organizationId: string,
+  data: CommunicationTestEmailRequest,
+  idempotencyKey?: string,
+): Promise<void> {
+  await assertEmailProviderRecipientAvailable(env.CONTROL_DB, data.email);
+  const [senderConfig, branding, events] = await Promise.all([
+    readOrganizationEmailSenderConfig(env, organizationId),
+    readOrganizationBrandingConfig(env, organizationId),
+    data.audience?.eventId
+      ? listOrganizationEvents(env, organizationId).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
+  const selectedEvent = data.audience?.eventId
+    ? (events.find((e) => e.id === data.audience?.eventId) ?? null)
+    : null;
+
+  const { fromName, templatedContent, templatedSubject } = renderTestEmailPayload({
+    baseDomain: env.PRODUCT_BASE_DOMAIN || "localhost",
+    branding,
+    contentMarkdown: data.contentMarkdown,
+    event: selectedEvent,
+    fromName: senderConfig.fromName,
+    subject: data.subject,
+  });
+
+  const delivery = await deliverOrganizationCommunication(env, {
+    channel: "email",
+    contentMarkdown: templatedContent,
+    deliveryId: crypto.randomUUID(),
+    destination: data.email,
+    fromName,
+    messageId: crypto.randomUUID(),
+    organizationId,
+    recipientName: "Test recipient",
+    replyTo: senderConfig.replyTo ?? undefined,
+    sendingDomain: senderConfig.sendingDomain ?? undefined,
+    sourceId: idempotencyKey ?? crypto.randomUUID(),
+    sourceKind: "test_email",
+    subject: "[Test] " + templatedSubject,
+    unsubscribeUrl: null,
+  });
+  if (delivery.status === "suppressed") {
+    throw new Error(delivery.failureDetail || "Organization email delivery is disabled.");
+  }
+}
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/communications", async (context) => {
@@ -383,6 +512,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         } satisfies ProblemDetails,
         400,
       );
+    const validationIssues = validateCommunicationContext(body.data);
+    if (validationIssues.length > 0) {
+      return context.json(
+        {
+          code: "invalid_communication_context",
+          message: validationIssues[0]?.message ?? "Invalid communication context.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
     const idempotencyKey = communicationIdempotencyKeySchema
       .optional()
       .safeParse(context.req.header("idempotency-key"));
@@ -451,36 +591,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     try {
-      await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, body.data.email);
-      const testRecipientName = "Test recipient";
-      const senderConfig = await readOrganizationEmailSenderConfig(
+      await handleTestEmailDelivery(
         context.env,
         authorization.organizationId,
+        body.data,
+        idempotencyKey.data,
       );
-      const delivery = await deliverOrganizationCommunication(context.env, {
-        channel: "email",
-        contentMarkdown: renderCommunicationTemplate(body.data.contentMarkdown, testRecipientName),
-        deliveryId: crypto.randomUUID(),
-        destination: body.data.email,
-        fromName: senderConfig.fromName ?? undefined,
-        messageId: crypto.randomUUID(),
-        organizationId: authorization.organizationId,
-        recipientName: testRecipientName,
-        replyTo: senderConfig.replyTo ?? undefined,
-        sendingDomain: senderConfig.sendingDomain ?? undefined,
-        sourceId: idempotencyKey.data ?? crypto.randomUUID(),
-        sourceKind: "test_email",
-        subject: "[Test] " + renderCommunicationTemplate(body.data.subject, testRecipientName),
-        unsubscribeUrl: null,
-      });
-      if (delivery.status === "suppressed") {
-        throw new Error(delivery.failureDetail || "Organization email delivery is disabled.");
-      }
-      if (delivery.status === "failed") {
-        throw new Error(
-          delivery.failureDetail || "The Organization email provider rejected the test.",
-        );
-      }
       return context.json({ requestId: context.get("requestId"), sent: true as const }, 202);
     } catch (error: unknown) {
       const result = communicationProblem(

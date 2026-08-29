@@ -84,6 +84,7 @@ export const communicationSendRequestSchema = communicationDraftRequestSchema.su
 );
 
 export const communicationTestEmailRequestSchema = z.object({
+  audience: communicationAudienceRequestSchema.optional(),
   contentMarkdown: z.string().trim().min(1).max(100_000),
   email: z.email().max(320),
   subject: z.string().trim().min(1).max(300),

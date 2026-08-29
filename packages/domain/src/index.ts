@@ -130,6 +130,27 @@ export {
   type ReachableRecipient,
 } from "./communications";
 export {
+  communicationPlaceholderDefinitions,
+  determineCommunicationPlaceholderContext,
+  extractCommunicationPlaceholders,
+  findCommunicationPlaceholderDefinition,
+  hasEventDependentCommunicationPlaceholders,
+  isPlaceholderCompatibleWithAudience,
+  isPlaceholderCompatibleWithChannel,
+  removeCommunicationPlaceholder,
+  templateMatchesCommunicationContext,
+  validateCommunicationContext,
+  visibleCommunicationPlaceholders,
+  type CommunicationAudienceLike,
+  type CommunicationAudienceTarget,
+  type CommunicationChannel,
+  type CommunicationContextIssue,
+  type CommunicationPlaceholderCategory,
+  type CommunicationPlaceholderDefinition,
+  type CommunicationPlaceholderContext,
+  type CommunicationTemplateLike,
+} from "./communicationPlaceholders";
+export {
   canTransitionTicketPurchase,
   isValidTicketDiscountValue,
   normalizeDiscountCode,

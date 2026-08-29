@@ -3,55 +3,81 @@ import type {
   CommunicationChannel,
   CommunicationDeliverySummary,
   CommunicationMessage,
-  CommunicationReach,
   CommunicationScheduledMessage,
+  CommunicationTemplate,
   OrganizationEmailSettings,
   OrganizationEvent,
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { removeCommunicationPlaceholder, validateCommunicationContext } from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
-import {
-  defaultAudience,
-  defaultTestEmailContent,
-  defaultTestEmailSubject,
-  failureMessage,
-  communicationTabFromSearch,
-  audienceOptions,
-} from "./utils";
-import type { CommunicationStage, CommunicationTab } from "./types";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelOrganizationCommunication,
   deleteOrganizationCommunicationDraft,
+  deleteOrganizationCommunicationTemplate,
   getOrganizationCommunicationDeliverySummary,
   getOrganizationEmailSettings,
   getOrganizationProviderStatus,
-  listOrganizationCommunications,
   getOrganizationRosterConfiguration,
-  listOrganizationScheduledMessages,
+  listOrganizationCommunicationTemplates,
+  listOrganizationCommunications,
   listOrganizationEvents,
+  listOrganizationScheduledMessages,
   previewOrganizationCommunicationReach,
   retryOrganizationCommunicationDeliveries,
   saveOrganizationCommunicationDraft,
+  saveOrganizationCommunicationTemplate,
   sendOrganizationCommunication,
   sendOrganizationCommunicationTestEmail,
 } from "../../../auth/api";
+import type {
+  CommunicationCenterControllerModel,
+  CommunicationReachState,
+  CommunicationSection,
+  MessageFilter,
+  MessageWorkspaceMode,
+  UnifiedCommunicationItem,
+} from "./types";
+import {
+  audienceOptions,
+  defaultAudience,
+  failureMessage,
+  parseCommunicationSearch,
+  unifiedItemSortTimestamp,
+} from "./utils";
 
-export function useCommunicationCenterController({ enabled }: { readonly enabled: boolean }) {
-  const draftId = new URLSearchParams(window.location.search).get("draftId");
-  const requestedTab = communicationTabFromSearch(window.location.search);
+export type { CommunicationCenterControllerModel } from "./types";
+
+export function useCommunicationCenterController({
+  enabled,
+}: {
+  readonly enabled: boolean;
+}): CommunicationCenterControllerModel {
+  const initialNav = useMemo(
+    () => parseCommunicationSearch(typeof window !== "undefined" ? window.location.search : ""),
+    [],
+  );
+
+  const [activeSection, setActiveSection] = useState<CommunicationSection>(initialNav.section);
+  const [messageMode, setMessageMode] = useState<MessageWorkspaceMode>(initialNav.messageMode);
+  const [messageFilter, setMessageFilter] = useState<MessageFilter>(initialNav.messageFilter);
+
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
   const audienceRef = useRef<CommunicationAudienceRequest>(defaultAudience);
-  const audienceFieldsetRef = useRef<HTMLFieldSetElement | null>(null);
+  const [recipientsExpanded, setRecipientsExpanded] = useState(true);
+
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
   const [contentMarkdown, setContentMarkdown] = useState("");
   const [subject, setSubject] = useState("");
   const [voiceParts, setVoiceParts] = useState("");
+
   const [messages, setMessages] = useState<readonly CommunicationMessage[]>([]);
   const [scheduledMessages, setScheduledMessages] = useState<
     readonly CommunicationScheduledMessage[]
   >([]);
+  const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
     null,
@@ -59,21 +85,28 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
   const [emailSettings, setEmailSettings] = useState<OrganizationEmailSettings | null>(null);
   const [rosterConfiguration, setRosterConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
-  const [summary, setSummary] = useState<CommunicationDeliverySummary | null>(null);
-  const [loadingDeliveryId, setLoadingDeliveryId] = useState<string | null>(null);
-  const [reach, setReach] = useState<string | null>(null);
-  const [testEmail, setTestEmail] = useState("");
-  const [activeTab, setActiveTab] = useState<CommunicationTab>(
-    draftId ? "compose" : (requestedTab ?? "compose"),
+
+  const [reachState, setReachState] = useState<CommunicationReachState>({
+    data: null,
+    error: null,
+    loading: false,
+  });
+
+  const [deliverySummary, setDeliverySummary] = useState<CommunicationDeliverySummary | null>(null);
+  const [deliveryDetailsMessage, setDeliveryDetailsMessage] = useState<CommunicationMessage | null>(
+    null,
   );
-  const [stage, setStage] = useState<CommunicationStage>("audience");
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [loadingDeliveryId, setLoadingDeliveryId] = useState<string | null>(null);
+
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isTestEmailOpen, setIsTestEmailOpen] = useState(false);
+  const [isSaveTemplateOpen, setIsSaveTemplateOpen] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [queuedResult, setQueuedResult] = useState<CommunicationMessage | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+
   const [sendIdempotencyKey, setSendIdempotencyKey] = useState(() => crypto.randomUUID());
-  const [testEmailIdempotencyKey, setTestEmailIdempotencyKey] = useState(() => crypto.randomUUID());
   const { confirm, confirmationDialog } = useConfirmation();
 
   function replaceAudience(nextAudience: CommunicationAudienceRequest) {
@@ -95,30 +128,32 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
     setContentMarkdown(draft.contentMarkdown);
     setSubject(draft.subject);
     setVoiceParts(draft.audience.voiceParts.join(", "));
-    setStage("compose");
-    setActiveTab("compose");
-    setQueuedResult(null);
-    setSuccess("Draft loaded. Review the message and queue it when it is ready.");
+    setRecipientsExpanded(false);
+    setMessageMode("compose");
+    setActiveSection("messages");
+    setError(null);
+    setSuccessNotice("Draft loaded. Make your edits and send when ready.");
   }, []);
 
-  function startNewMessage() {
+  function openNewMessage() {
     setSendIdempotencyKey(crypto.randomUUID());
     replaceAudience(defaultAudience);
     setChannel("Email");
     setContentMarkdown("");
     setSubject("");
     setVoiceParts("");
-    setReach(null);
-    setSummary(null);
+    setReachState({ data: null, error: null, loading: false });
+    setDeliverySummary(null);
+    setDeliveryDetailsMessage(null);
     setLoadingDeliveryId(null);
     setError(null);
-    setSuccess(null);
-    setQueuedResult(null);
-    setPreviewOpen(false);
-    setStage("audience");
-    setActiveTab("compose");
+    setSuccessNotice(null);
+    setRecipientsExpanded(true);
+    setMessageMode("compose");
+    setActiveSection("messages");
   }
 
+  // Load initial data
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
@@ -126,428 +161,426 @@ export function useCommunicationCenterController({ enabled }: { readonly enabled
       listOrganizationCommunications(controller.signal),
       listOrganizationScheduledMessages(controller.signal),
       listOrganizationEvents(controller.signal),
+      listOrganizationCommunicationTemplates(controller.signal),
+      getOrganizationProviderStatus(controller.signal),
+      getOrganizationEmailSettings(controller.signal),
+      getOrganizationRosterConfiguration(controller.signal),
     ])
-      .then(([loadedMessages, loadedScheduledMessages, loadedEvents]) => {
-        setMessages(loadedMessages);
-        setScheduledMessages(loadedScheduledMessages);
-        setEvents(loadedEvents);
-        const draft = draftId
-          ? loadedMessages.find((message) => message.id === draftId && message.status === "Draft")
-          : null;
-        if (draft) {
-          resumeDraft(draft);
-        }
-      })
-      .catch((failure: unknown) => {
-        if (!controller.signal.aborted) setError(failureMessage(failure));
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [draftId, enabled, resumeDraft]);
+      .then(
+        ([
+          loadedMessages,
+          loadedScheduled,
+          loadedEvents,
+          loadedTemplates,
+          loadedStatus,
+          loadedEmailSettings,
+          loadedRosterConfig,
+        ]) => {
+          setMessages(loadedMessages);
+          setScheduledMessages(loadedScheduled);
+          setEvents(loadedEvents);
+          setTemplates(loadedTemplates);
+          setProviderStatus(loadedStatus);
+          setEmailSettings(loadedEmailSettings);
+          setRosterConfiguration(loadedRosterConfig);
 
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    getOrganizationRosterConfiguration(controller.signal)
-      .then((configuration) => {
-        if (!controller.signal.aborted) setRosterConfiguration(configuration);
-      })
-      .catch((failure: unknown) => {
-        if (!controller.signal.aborted) setError(failureMessage(failure));
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    getOrganizationProviderStatus(controller.signal)
-      .then((status) => {
-        if (!controller.signal.aborted) setProviderStatus(status);
-      })
-      .catch((failure: unknown) => {
-        if (!controller.signal.aborted) setError(failureMessage(failure));
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    getOrganizationEmailSettings(controller.signal)
-      .then((settings) => {
-        if (!controller.signal.aborted) setEmailSettings(settings);
-      })
-      .catch((failure: unknown) => {
-        if (!controller.signal.aborted) setError(failureMessage(failure));
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled]);
-
-  function composeRequest() {
-    return {
-      audience: composeAudienceRequest(),
-      channel,
-      contentMarkdown,
-      subject,
-    };
-  }
-
-  function audienceFromVisibleForm(): CommunicationAudienceRequest {
-    const fieldset = audienceFieldsetRef.current;
-    if (!fieldset) return audienceRef.current;
-    const checkedTargets = new Set(
-      Array.from(fieldset.querySelectorAll<HTMLInputElement>("[data-communication-audience]"))
-        .filter((input) => input.checked)
-        .map((input) => input.dataset.communicationAudience),
-    );
-    const targetAudiences = audienceOptions.filter((target) => checkedTargets.has(target));
-    if (targetAudiences.length === 0) return audienceRef.current;
-    const currentTargets = audienceRef.current.targetAudiences;
-    const targetsChanged =
-      currentTargets.length !== targetAudiences.length ||
-      currentTargets.some((target, index) => target !== targetAudiences[index]);
-    if (!targetsChanged) return audienceRef.current;
-    const nextAudience = { ...audienceRef.current, targetAudiences };
-    replaceAudience(nextAudience);
-    return nextAudience;
-  }
-
-  function composeAudienceRequest(): CommunicationAudienceRequest {
-    const currentAudience = audienceFromVisibleForm();
-    return {
-      ...currentAudience,
-      voiceParts: voiceParts
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean),
-    };
-  }
-
-  function formatReach(result: CommunicationReach): string {
-    return `${String(result.total)} reachable · ${String(result.email)} by email · ${String(result.sms)} by SMS · ${String(result.unreachable)} unreachable`;
-  }
-
-  async function previewReach() {
-    setBusy(true);
-    setError(null);
-    setReach(null);
-    try {
-      const result = await previewOrganizationCommunicationReach({
-        audience: composeAudienceRequest(),
-        channel,
-      });
-      setReach(formatReach(result));
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function openFinalPreview() {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await previewOrganizationCommunicationReach({
-        audience: composeAudienceRequest(),
-        channel,
-      });
-      setReach(formatReach(result));
-      setPreviewOpen(true);
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function sendTestEmail() {
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
-    const recipient = testEmail.trim();
-    const testSubject = subject.trim() || defaultTestEmailSubject;
-    const testContent = contentMarkdown.trim() || defaultTestEmailContent;
-    try {
-      await sendOrganizationCommunicationTestEmail(
-        {
-          contentMarkdown: testContent,
-          email: recipient,
-          subject: testSubject,
+          if (initialNav.draftId) {
+            const draft = loadedMessages.find(
+              (m) => m.id === initialNav.draftId && m.status === "Draft",
+            );
+            if (draft) {
+              resumeDraft(draft);
+            }
+          }
         },
-        testEmailIdempotencyKey,
-      );
-      setTestEmailIdempotencyKey(crypto.randomUUID());
-      setSuccess(`Test email accepted for delivery to ${recipient}.`);
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
-    } finally {
-      setBusy(false);
-    }
+      )
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) setError(failureMessage(err));
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [enabled, initialNav.draftId, resumeDraft]);
+
+  // Automatic debounced reach preview when audience or channel changes in compose mode
+  useEffect(() => {
+    if (!enabled || messageMode !== "compose") return;
+
+    const controller = new AbortController();
+
+    const timer = setTimeout(() => {
+      setReachState((prev) => ({ ...prev, loading: true, error: null }));
+      previewOrganizationCommunicationReach({ audience, channel }, controller.signal)
+        .then((data) => {
+          if (!controller.signal.aborted) {
+            setReachState({ data, error: null, loading: false });
+          }
+        })
+        .catch((err: unknown) => {
+          if (!controller.signal.aborted) {
+            setReachState({ data: null, error: failureMessage(err), loading: false });
+          }
+        });
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [audience, channel, enabled, messageMode]);
+
+  // Context issues computed in real-time
+  const contextIssues = useMemo(
+    () => validateCommunicationContext({ audience, channel, contentMarkdown, subject }),
+    [audience, channel, contentMarkdown, subject],
+  );
+
+  const selectedEvent = useMemo(
+    () => events.find((e) => e.id === audience.eventId) ?? null,
+    [events, audience.eventId],
+  );
+
+  function removeConflictingPlaceholder(tag: string) {
+    setContentMarkdown((prev) => removeCommunicationPlaceholder(prev, tag));
+    setSubject((prev) => removeCommunicationPlaceholder(prev, tag));
   }
 
-  async function saveDraft() {
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const message = await saveOrganizationCommunicationDraft(composeRequest());
-      setMessages((current) => [message, ...current]);
-      setSuccess("Draft saved.");
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
-    } finally {
-      setBusy(false);
-    }
-  }
+  // Unified messages list
+  const unifiedMessages: readonly UnifiedCommunicationItem[] = useMemo(() => {
+    const manualItems: UnifiedCommunicationItem[] = messages.map((message) => ({
+      automated: false,
+      channel: message.channel,
+      id: message.id,
+      kind: "manual",
+      message,
+      recipientCount: message.reach.total,
+      status: message.status,
+      timestamp: message.sentAt ?? message.createdAt,
+      title: message.subject.length > 0 ? message.subject : `${message.channel} message`,
+    }));
 
-  async function send() {
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const message = await sendOrganizationCommunication(composeRequest(), sendIdempotencyKey);
-      setMessages((current) => [message, ...current]);
-      setQueuedResult(message);
-      setContentMarkdown("");
-      setSubject("");
-      setReach(null);
-      setPreviewOpen(false);
-      setSendIdempotencyKey(crypto.randomUUID());
-      setSuccess(null);
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
-    } finally {
-      setBusy(false);
-    }
-  }
+    const scheduledItems: UnifiedCommunicationItem[] = scheduledMessages.map((scheduled) => ({
+      automated: true,
+      channel: "Email",
+      id: scheduled.id,
+      kind: "scheduled",
+      recipientCount: null,
+      scheduledMessage: scheduled,
+      status: scheduled.status,
+      timestamp: scheduled.scheduledAt,
+      title: scheduled.subject || scheduled.eventTitle || "Automated send",
+    }));
 
-  async function showDelivery(message: CommunicationMessage) {
-    setBusy(true);
-    setError(null);
-    setSummary(null);
+    const all = [...manualItems, ...scheduledItems].sort(
+      (a, b) => unifiedItemSortTimestamp(b) - unifiedItemSortTimestamp(a),
+    );
+
+    switch (messageFilter) {
+      case "drafts":
+        return all.filter((item) => item.status === "Draft");
+      case "scheduled":
+        return all.filter((item) => item.status === "Scheduled");
+      case "queued":
+        return all.filter((item) => item.status === "Queued");
+      case "sent":
+        return all.filter((item) => item.status === "Sent");
+      case "failed":
+        return all.filter((item) => item.status === "Failed");
+      case "automated":
+        return all.filter((item) => item.automated);
+      case "all":
+      default:
+        return all;
+    }
+  }, [messages, scheduledMessages, messageFilter]);
+
+  // Actions
+  const deleteDraftAction = useCallback(
+    async (messageId: string) => {
+      const ok = await confirm({
+        confirmLabel: "Delete draft",
+        description: "Delete this communication draft permanently?",
+        destructive: true,
+        title: "Delete draft",
+      });
+      if (!ok) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await deleteOrganizationCommunicationDraft(messageId);
+        setMessages((current) => current.filter((m) => m.id !== messageId));
+        setSuccessNotice("Draft deleted.");
+      } catch (err: unknown) {
+        setError(failureMessage(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [confirm],
+  );
+
+  const cancelQueuedAction = useCallback(
+    async (messageId: string) => {
+      const ok = await confirm({
+        confirmLabel: "Cancel communication",
+        description: "Cancel this queued communication? Pending recipients will not be delivered.",
+        destructive: true,
+        title: "Cancel queued communication",
+      });
+      if (!ok) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const canceled = await cancelOrganizationCommunication(messageId);
+        setMessages((current) =>
+          current.map((m) => (m.id === messageId ? { ...m, ...canceled } : m)),
+        );
+        setSuccessNotice("Queued communication canceled.");
+      } catch (err: unknown) {
+        setError(failureMessage(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [confirm],
+  );
+
+  const openDeliveryDetails = useCallback(async (message: CommunicationMessage) => {
     setLoadingDeliveryId(message.id);
+    setError(null);
     try {
-      setSummary(await getOrganizationCommunicationDeliverySummary(message.id));
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
+      const summary = await getOrganizationCommunicationDeliverySummary(message.id);
+      setDeliverySummary(summary);
+      setDeliveryDetailsMessage(message);
+    } catch (err: unknown) {
+      setError(failureMessage(err));
     } finally {
       setLoadingDeliveryId(null);
-      setBusy(false);
     }
-  }
+  }, []);
 
-  async function retryFailed() {
-    if (!summary) return;
+  const retryDeliveriesAction = useCallback(async (messageId: string) => {
     setBusy(true);
     setError(null);
     try {
-      const retried = await retryOrganizationCommunicationDeliveries(summary.messageId);
-      setSummary(null);
-      setSuccess(
-        `${String(retried)} failed ${retried === 1 ? "delivery" : "deliveries"} queued again.`,
-      );
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
+      const retried = await retryOrganizationCommunicationDeliveries(messageId);
+      const summary = await getOrganizationCommunicationDeliverySummary(messageId);
+      setDeliverySummary(summary);
+      setMessages(await listOrganizationCommunications());
+      setSuccessNotice(`Retried delivery for ${String(retried)} recipients.`);
+    } catch (err: unknown) {
+      setError(failureMessage(err));
     } finally {
       setBusy(false);
     }
-  }
+  }, []);
 
-  async function deleteDraft(message: CommunicationMessage) {
-    const shouldDelete = await confirm({
-      confirmLabel: "Delete draft",
-      description: "This will permanently remove the saved communication draft.",
-      destructive: true,
-      title: "Delete communication draft?",
-    });
-    if (!shouldDelete) return;
+  const saveDraftAction = useCallback(async () => {
     setBusy(true);
     setError(null);
+    setSuccessNotice(null);
     try {
-      await deleteOrganizationCommunicationDraft(message.id);
-      setMessages((current) => current.filter(({ id }) => id !== message.id));
-      setSuccess("Draft deleted.");
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
+      const saved = await saveOrganizationCommunicationDraft({
+        audience,
+        channel,
+        contentMarkdown,
+        subject,
+      });
+      setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
+      setSuccessNotice("Draft saved successfully.");
+    } catch (err: unknown) {
+      setError(failureMessage(err));
     } finally {
       setBusy(false);
     }
-  }
+  }, [audience, channel, contentMarkdown, subject]);
 
-  async function cancelQueuedMessage(message: CommunicationMessage) {
-    const shouldCancel = await confirm({
-      confirmLabel: "Cancel message",
-      description: "No more deliveries will be attempted for this queued message.",
-      destructive: true,
-      title: "Cancel queued message?",
-    });
-    if (!shouldCancel) return;
+  const saveTemplateAction = useCallback(
+    async (title: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const saved = await saveOrganizationCommunicationTemplate({
+          channel,
+          contentMarkdown,
+          subject,
+          title,
+        });
+        setTemplates((current) => [saved, ...current.filter((t) => t.id !== saved.id)]);
+        setIsSaveTemplateOpen(false);
+        setSuccessNotice(`Template "${title}" saved.`);
+      } catch (err: unknown) {
+        setError(failureMessage(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [channel, contentMarkdown, subject],
+  );
+
+  const deleteTemplateAction = useCallback(
+    async (templateId: string) => {
+      const ok = await confirm({
+        confirmLabel: "Delete template",
+        description: "Delete this communication template permanently?",
+        destructive: true,
+        title: "Delete template",
+      });
+      if (!ok) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await deleteOrganizationCommunicationTemplate(templateId);
+        setTemplates((current) => current.filter((t) => t.id !== templateId));
+        setSuccessNotice("Template deleted.");
+      } catch (err: unknown) {
+        setError(failureMessage(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [confirm],
+  );
+
+  const openReviewAndSend = useCallback(async () => {
+    if (contextIssues.length > 0) return;
     setBusy(true);
     setError(null);
     try {
-      const canceled = await cancelOrganizationCommunication(message.id);
-      setMessages((current) =>
-        current.map((candidate) => (candidate.id === message.id ? canceled : candidate)),
-      );
-      setSummary((current) => (current?.messageId === message.id ? null : current));
-      setSuccess("Queued message canceled.");
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
+      const freshReach = await previewOrganizationCommunicationReach({ audience, channel });
+      setReachState({ data: freshReach, error: null, loading: false });
+      if (freshReach.total === 0) {
+        setError("No reachable recipients found for the selected criteria.");
+        return;
+      }
+      setIsReviewOpen(true);
+    } catch (err: unknown) {
+      setError(failureMessage(err));
     } finally {
       setBusy(false);
     }
-  }
+  }, [audience, channel, contextIssues.length]);
 
-  async function editQueuedMessage(message: CommunicationMessage) {
-    const shouldEdit = await confirm({
-      confirmLabel: "Edit & requeue",
-      description:
-        "Editing cancels the queued copy and opens its contents for changes. Queue it again when it is ready.",
-      title: "Edit queued message?",
-    });
-    if (!shouldEdit) return;
+  const sendCommunicationAction = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
-      const canceled = await cancelOrganizationCommunication(message.id);
-      setMessages((current) =>
-        current.map((candidate) => (candidate.id === message.id ? canceled : candidate)),
+      const queued = await sendOrganizationCommunication(
+        { audience, channel, contentMarkdown, subject },
+        sendIdempotencyKey,
       );
-      audienceRef.current = canceled.audience;
-      setAudience(canceled.audience);
-      setChannel(canceled.channel);
-      setContentMarkdown(canceled.contentMarkdown);
-      setSubject(canceled.subject);
-      setVoiceParts(canceled.audience.voiceParts.join(", "));
-      setReach(null);
-      setSummary(null);
-      setQueuedResult(null);
+      setMessages((current) => [queued, ...current.filter((m) => m.id !== queued.id)]);
+      setIsReviewOpen(false);
+      setMessageMode("list");
+      setActiveSection("messages");
+      setSuccessNotice(`Message queued for ${String(queued.reach.total)} recipients.`);
+      // Reset composer
+      replaceAudience(defaultAudience);
+      setContentMarkdown("");
+      setSubject("");
+      setVoiceParts("");
       setSendIdempotencyKey(crypto.randomUUID());
-      setPreviewOpen(false);
-      setStage("compose");
-      setActiveTab("compose");
-      setSuccess(
-        "Queued message canceled. Review it, make changes, and queue it again when ready.",
-      );
-    } catch (failure: unknown) {
-      setError(failureMessage(failure));
+    } catch (err: unknown) {
+      setError(failureMessage(err));
     } finally {
       setBusy(false);
     }
-  }
+  }, [audience, channel, contentMarkdown, sendIdempotencyKey, subject]);
 
-  function toggleStatus(status: "Active" | "Idle" | "Inactive", checked: boolean) {
-    updateAudience((current) => ({
-      ...current,
-      globalStatuses: checked
-        ? [...new Set([...current.globalStatuses, status])]
-        : current.globalStatuses.filter((candidate) => candidate !== status),
-    }));
-  }
-
-  function toggleAudience(target: (typeof audienceOptions)[number], checked: boolean) {
-    updateAudience((current) => ({
-      ...current,
-      targetAudiences: checked
-        ? current.targetAudiences.includes(target)
-          ? current.targetAudiences
-          : [...current.targetAudiences, target]
-        : current.targetAudiences.filter((candidate) => candidate !== target),
-    }));
-    setReach(null);
-  }
-
-  function scheduledKindLabel(kind: CommunicationScheduledMessage["kind"]): string {
-    switch (kind) {
-      case "attendance_report":
-        return "Attendance report";
-      case "event_reminder":
-        return "Event reminder";
-      case "rsvp_follow_up":
-        return "RSVP follow-up";
-      case "audition_confirmation":
-        return "Audition confirmation";
-      case "audition_reminder":
-        return "Audition reminder";
-      case "ticket_confirmation":
-        return "Ticket confirmation";
-      case "ticket_reminder":
-        return "Ticket buyer reminder";
-    }
-  }
-
-  const draftMessages = messages.filter((message) => message.status === "Draft");
-  const historyMessages = messages.filter((message) => message.status !== "Draft");
-  const upcomingScheduledMessages = scheduledMessages.filter(
-    (message) => message.status === "Queued" || message.status === "Scheduled",
+  const sendTestEmailAction = useCallback(
+    async (email: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await sendOrganizationCommunicationTestEmail(
+          { audience, contentMarkdown, email, subject },
+          crypto.randomUUID(),
+        );
+        setIsTestEmailOpen(false);
+        setSuccessNotice(`Test email sent to ${email}.`);
+      } catch (err: unknown) {
+        setError(failureMessage(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [audience, contentMarkdown, subject],
   );
-  const scheduledMessageHistory = scheduledMessages.filter(
-    (message) => message.status === "Sent" || message.status === "Failed",
-  );
+
+  function formatVoiceParts(parts: readonly string[]): string {
+    if (!rosterConfiguration) return parts.join(", ");
+    return parts
+      .map((code) => {
+        const sec = rosterConfiguration.sections.find((s) => s.code === code);
+        return sec?.name ?? code;
+      })
+      .join(", ");
+  }
+
   return {
-    activeTab,
+    activeSection,
     audience,
-    audienceFieldsetRef,
+    audienceOptions,
     busy,
+    cancelQueuedMessage: cancelQueuedAction,
     channel,
-    cancelQueuedMessage,
-    contentMarkdown,
     confirmationDialog,
-    deleteDraft,
-    draftMessages,
-    editQueuedMessage,
+    contentMarkdown,
+    contextIssues,
+    deleteDraft: deleteDraftAction,
+    deleteTemplate: deleteTemplateAction,
+    deliveryDetailsMessage,
+    deliverySummary,
     emailSettings,
-    enabled,
     error,
     events,
-    historyMessages,
+    formatVoiceParts,
+    isReviewOpen,
+    isSaveTemplateOpen,
+    isTestEmailOpen,
     loadingDeliveryId,
-    messages,
-    openFinalPreview,
-    previewOpen,
-    previewReach,
+    messageFilter,
+    messageMode,
+    openDeliveryDetails,
+    openNewMessage,
+    openNewTemplateDialog: () => {
+      // Standalone new template dialog in templates panel
+    },
+    openReviewAndSend,
+    openSaveAsTemplate: () => {
+      setIsSaveTemplateOpen(true);
+    },
+    openTestEmail: () => {
+      setIsTestEmailOpen(true);
+    },
     providerStatus,
-    queuedResult,
-    reach,
+    reachState,
+    recipientsExpanded,
+    removeConflictingPlaceholder,
     resumeDraft,
-    retryFailed,
+    retryDeliveries: retryDeliveriesAction,
     rosterConfiguration,
-    saveDraft,
-    scheduledKindLabel,
-    scheduledMessageHistory,
-    send,
-    sendTestEmail,
-    setActiveTab,
-    updateAudience,
+    saveDraft: saveDraftAction,
+    saveTemplate: saveTemplateAction,
+    selectedEvent,
+    sendCommunication: sendCommunicationAction,
+    sendTestEmail: sendTestEmailAction,
+    setActiveSection,
     setChannel,
     setContentMarkdown,
-    setPreviewOpen,
-    setReach,
-    setStage,
+    setIsReviewOpen,
+    setIsSaveTemplateOpen,
+    setIsTestEmailOpen,
+    setMessageFilter,
+    setMessageMode,
+    setRecipientsExpanded,
     setSubject,
-    setTestEmail,
     setVoiceParts,
-    showDelivery,
-    stage,
-    startNewMessage,
     subject,
-    success,
-    summary,
-    testEmail,
-    toggleAudience,
-    toggleStatus,
-    upcomingScheduledMessages,
+    successNotice,
+    templates,
+    unifiedMessages,
+    updateAudience,
     voiceParts,
   };
 }
-
-export type CommunicationCenterModel = ReturnType<typeof useCommunicationCenterController>;
