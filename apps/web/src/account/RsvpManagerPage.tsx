@@ -279,22 +279,22 @@ export function RsvpManagerPage({
     });
     return values;
   }, [balanceRows, state]);
+  const sectionByVoicePart = useMemo(() => {
+    if (state.status !== "ready") return new Map<string, string>();
+    return new Map(state.roster.voiceParts.map(({ label, sectionCode }) => [label, sectionCode]));
+  }, [state]);
   const sectionCounts = useMemo(() => {
     const values = new Map<string, number>();
     if (state.status !== "ready") return values;
     reportableSections(state.roster).forEach(({ code }) => values.set(code, 0));
     balanceRows.forEach((row) => {
-      const voicePart = state.roster.voiceParts.find(({ label }) => label === row.voicePart);
-      if (voicePart && values.has(voicePart.sectionCode)) {
-        values.set(voicePart.sectionCode, (values.get(voicePart.sectionCode) ?? 0) + 1);
+      const sectionCode = sectionByVoicePart.get(row.voicePart);
+      if (sectionCode && values.has(sectionCode)) {
+        values.set(sectionCode, (values.get(sectionCode) ?? 0) + 1);
       }
     });
     return values;
-  }, [balanceRows, state]);
-  const sectionByVoicePart = useMemo(() => {
-    if (state.status !== "ready") return new Map<string, string>();
-    return new Map(state.roster.voiceParts.map(({ label, sectionCode }) => [label, sectionCode]));
-  }, [state]);
+  }, [balanceRows, sectionByVoicePart, state]);
   const visibleRows = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return activeRows
