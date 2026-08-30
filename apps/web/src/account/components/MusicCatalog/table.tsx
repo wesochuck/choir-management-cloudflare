@@ -9,6 +9,7 @@ import { composerText, durationText, genreKey } from "./utils";
 import { MusicTableTuttiPlayer } from "./performances";
 
 export function MusicCatalogTable({
+  defaultPageSize = 100,
   genreFilterMode,
   showUncategorized,
   onDeselectMany,
@@ -21,6 +22,7 @@ export function MusicCatalogTable({
   selectedIds,
   selectedGenres,
 }: {
+  readonly defaultPageSize?: number;
   readonly genreFilterMode: "and" | "or";
   readonly showUncategorized: boolean;
   readonly onDeselectMany: (pieceIds: readonly string[]) => void;
@@ -84,7 +86,12 @@ export function MusicCatalogTable({
     if (!includedIds.has(piece.id) && matchingIds.has(piece.id)) visiblePieces.push(piece);
   });
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync default page size from settings
+    setPageSize(defaultPageSize);
+  }, [defaultPageSize]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page on filter change
@@ -252,7 +259,7 @@ export function MusicCatalogTable({
           },
           page,
           pageSize,
-          pageSizeOptions: [25, 50, 100],
+          pageSizeOptions: [25, 50, 100, 250],
         }}
         rowLabel={(piece) => `Edit music piece ${piece.title}`}
         rows={visiblePieces}

@@ -38,6 +38,7 @@ export function MusicCatalogView({
     closeDialog,
     closeImportDialog,
     copiesInput,
+    defaultPageSize,
     deleteConfirm,
     deselectManyPieces,
     dialogOpen,
@@ -284,6 +285,7 @@ export function MusicCatalogView({
               </a>
             </div>
             <MusicCatalogTable
+              defaultPageSize={defaultPageSize}
               genreFilterMode={genreFilterMode}
               showUncategorized={showUncategorized}
               onEdit={selectPiece}

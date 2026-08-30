@@ -15,31 +15,57 @@ import { genreKey, uniqueGenreLabels } from "./components/MusicCatalog/utils";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useFloatingSaveAction } from "./useFloatingSaveAction";
 
-interface MusicPublisherSettingsProps {
+interface MusicCatalogSettingsProps {
   readonly busy: boolean;
+  readonly defaultPageSize: number;
+  readonly onDefaultPageSizeChange: (value: number) => void;
   readonly onSave: () => void;
   readonly onTemplateChange: (value: string) => void;
+  readonly savedDefaultPageSize: number;
   readonly savedTemplate: string;
   readonly template: string;
 }
 
-function MusicPublisherSettingsSection({
+function MusicCatalogSettingsSection({
   busy,
+  defaultPageSize,
+  onDefaultPageSizeChange,
   onSave,
   onTemplateChange,
+  savedDefaultPageSize,
   savedTemplate,
   template,
-}: MusicPublisherSettingsProps) {
+}: MusicCatalogSettingsProps) {
+  const dirty = template.trim() !== savedTemplate || defaultPageSize !== savedDefaultPageSize;
+
   return (
     <fieldset className="music-publisher-settings">
-      <legend>Catalog lookup link</legend>
+      <legend>Catalog table &amp; lookup settings</legend>
       <form
-        className="music-publisher-settings__form"
+        className="music-catalog-settings__form"
         onSubmit={(event) => {
           event.preventDefault();
           onSave();
         }}
       >
+        <label className="field">
+          Default rows per page
+          <select
+            aria-label="Default rows per page"
+            value={String(defaultPageSize)}
+            onChange={(event) => {
+              onDefaultPageSizeChange(Number(event.target.value));
+            }}
+          >
+            <option value="25">25 pieces</option>
+            <option value="50">50 pieces</option>
+            <option value="100">100 pieces (default)</option>
+            <option value="250">250 pieces</option>
+          </select>
+          <small className="field-help">
+            The initial page size used when opening the Music Catalog table.
+          </small>
+        </label>
         <label className="field">
           Publisher search URL template
           <input
@@ -55,12 +81,8 @@ function MusicPublisherSettingsSection({
             Leave blank to hide. Use <code>{"{catalogId}"}</code> where the catalog number belongs.
           </small>
         </label>
-        <button
-          className="button button--secondary"
-          disabled={busy || template.trim() === savedTemplate}
-          type="submit"
-        >
-          {busy ? "Saving…" : "Save catalog link"}
+        <button className="button button--secondary" disabled={busy || !dirty} type="submit">
+          {busy ? "Saving…" : "Save catalog settings"}
         </button>
       </form>
     </fieldset>
@@ -340,7 +362,10 @@ export function MusicLibrarySettingsPage({
     const nextSettings = {
       ...savedSettings,
       ...(section === "catalog"
-        ? { publisherSearchTemplate: settings.publisherSearchTemplate.trim() }
+        ? {
+            defaultPageSize: settings.defaultPageSize,
+            publisherSearchTemplate: settings.publisherSearchTemplate.trim(),
+          }
         : { practicePlayerLinkLifetimeDays: settings.practicePlayerLinkLifetimeDays }),
     };
     try {
@@ -350,16 +375,17 @@ export function MusicLibrarySettingsPage({
           ? {
               ...current,
               ...(section === "catalog"
-                ? { publisherSearchTemplate: saved.publisherSearchTemplate }
+                ? {
+                    defaultPageSize: saved.defaultPageSize,
+                    publisherSearchTemplate: saved.publisherSearchTemplate,
+                  }
                 : { practicePlayerLinkLifetimeDays: saved.practicePlayerLinkLifetimeDays }),
             }
           : saved,
       );
       setSavedSettings(saved);
       setSuccess(
-        section === "catalog"
-          ? "Catalog lookup settings updated."
-          : "Practice link settings updated.",
+        section === "catalog" ? "Catalog settings updated." : "Practice link settings updated.",
       );
     } catch (caught: unknown) {
       setError(
@@ -452,7 +478,8 @@ export function MusicLibrarySettingsPage({
   const catalogDirty =
     settings !== null &&
     savedSettings !== null &&
-    settings.publisherSearchTemplate.trim() !== savedSettings.publisherSearchTemplate;
+    (settings.publisherSearchTemplate.trim() !== savedSettings.publisherSearchTemplate ||
+      settings.defaultPageSize !== savedSettings.defaultPageSize);
 
   const practiceDirty =
     settings !== null &&
@@ -467,7 +494,11 @@ export function MusicLibrarySettingsPage({
       if (savedSettings) {
         setSettings((current) =>
           current
-            ? { ...current, publisherSearchTemplate: savedSettings.publisherSearchTemplate }
+            ? {
+                ...current,
+                defaultPageSize: savedSettings.defaultPageSize,
+                publisherSearchTemplate: savedSettings.publisherSearchTemplate,
+              }
             : null,
         );
         setError(null);
@@ -532,8 +563,30 @@ export function MusicLibrarySettingsPage({
       ) : null}
       {settings && savedSettings ? (
         <>
-          <MusicPublisherSettingsSection
+          <MusicGenreSettingsSection
+            busyLabel={genreBusy}
+            genreCounts={genreCounts}
+            genres={genres}
+            onAdd={(label) => {
+              void addGenre(label);
+            }}
+            onDelete={(label) => {
+              void removeGenre(label);
+            }}
+            onRename={(currentLabel, newLabel) => {
+              void renameGenre(currentLabel, newLabel);
+            }}
+          />
+          <MusicCatalogSettingsSection
             busy={busy}
+            defaultPageSize={settings.defaultPageSize}
+            onDefaultPageSizeChange={(value) => {
+              setSettings((current) =>
+                current ? { ...current, defaultPageSize: value } : current,
+              );
+              setError(null);
+              setSuccess(null);
+            }}
             onSave={() => void save("catalog")}
             onTemplateChange={(value) => {
               setSettings((current) =>
@@ -542,6 +595,7 @@ export function MusicLibrarySettingsPage({
               setError(null);
               setSuccess(null);
             }}
+            savedDefaultPageSize={savedSettings.defaultPageSize}
             savedTemplate={savedSettings.publisherSearchTemplate}
             template={settings.publisherSearchTemplate}
           />
@@ -557,20 +611,6 @@ export function MusicLibrarySettingsPage({
             }}
             onSave={() => void save("practice")}
             savedLifetimeDays={savedSettings.practicePlayerLinkLifetimeDays}
-          />
-          <MusicGenreSettingsSection
-            busyLabel={genreBusy}
-            genreCounts={genreCounts}
-            genres={genres}
-            onAdd={(label) => {
-              void addGenre(label);
-            }}
-            onDelete={(label) => {
-              void removeGenre(label);
-            }}
-            onRename={(currentLabel, newLabel) => {
-              void renameGenre(currentLabel, newLabel);
-            }}
           />
         </>
       ) : null}

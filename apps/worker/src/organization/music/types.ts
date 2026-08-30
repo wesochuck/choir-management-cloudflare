@@ -133,6 +133,7 @@ export function identityMatches(storage: DurableObjectStorage, organizationId: s
 }
 
 export const defaultMusicLibrarySettings: OrganizationMusicLibrarySettings = {
+  defaultPageSize: 100,
   genres: [],
   practicePlayerLinkLifetimeDays: 180,
   publisherSearchTemplate: "",

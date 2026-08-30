@@ -226,6 +226,7 @@ describe("Organization music catalog", () => {
       ).json(),
     );
     expect(initial.publisherSearchTemplate).toBe("");
+    expect(initial.defaultPageSize).toBe(100);
 
     const saved = organizationMusicLibrarySettingsResponseSchema.parse(
       await (
@@ -233,12 +234,16 @@ describe("Organization music catalog", () => {
           "alpha.localhost",
           "/api/organization/music-library-settings",
           cookie,
-          { publisherSearchTemplate: "https://publisher.example/catalog/{catalogId}" },
+          {
+            defaultPageSize: 50,
+            publisherSearchTemplate: "https://publisher.example/catalog/{catalogId}",
+          },
           "PUT",
         )
       ).json(),
     );
     expect(saved.publisherSearchTemplate).toBe("https://publisher.example/catalog/{catalogId}");
+    expect(saved.defaultPageSize).toBe(50);
 
     const bravo = organizationMusicLibrarySettingsResponseSchema.parse(
       await (
@@ -248,6 +253,7 @@ describe("Organization music catalog", () => {
       ).json(),
     );
     expect(bravo.publisherSearchTemplate).toBe("");
+    expect(bravo.defaultPageSize).toBe(100);
     expect(
       await write(
         "alpha.localhost",

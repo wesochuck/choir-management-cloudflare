@@ -27,6 +27,7 @@ export function useMusicData({
   const [venues, setVenues] = useState<readonly OrganizationVenue[]>([]);
   const [timezone, setTimezone] = useState("UTC");
   const [publisherSearchTemplate, setPublisherSearchTemplate] = useState("");
+  const [defaultPageSize, setDefaultPageSize] = useState(100);
 
   useEffect(() => {
     if (!enabled) return;
@@ -46,6 +47,7 @@ export function useMusicData({
         setVenues(nextVenues);
         setTimezone(calendarSettings.timezone);
         setPublisherSearchTemplate(musicSettings.publisherSearchTemplate);
+        setDefaultPageSize(musicSettings.defaultPageSize);
       })
       .catch((caught: unknown) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
@@ -58,6 +60,7 @@ export function useMusicData({
   }, [enabled, setError]);
 
   return {
+    defaultPageSize,
     events,
     pieces,
     publisherSearchTemplate,

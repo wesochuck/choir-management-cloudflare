@@ -23,18 +23,20 @@
     font-weight: var(--font-weight-semibold);
   }
 
-  .music-publisher-settings__form {
+  .music-publisher-settings__form,
+  .music-catalog-settings__form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-md);
   }
 
-  .music-publisher-settings__form .field {
+  .music-publisher-settings__form .field,
+  .music-catalog-settings__form .field {
     min-width: 0;
   }
 
-  .music-publisher-settings__form .button {
+  .music-publisher-settings__form .button,
+  .music-catalog-settings__form .button {
+    justify-self: start;
     white-space: nowrap;
   }
 

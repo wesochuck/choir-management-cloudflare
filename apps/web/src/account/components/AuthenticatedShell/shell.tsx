@@ -386,6 +386,9 @@ export function AuthenticatedShell({
             "signed-in-main",
             route.pathname === "/admin" ? "signed-in-main--admin-overview" : "",
             route.pathname === "/admin/attendance" ? "signed-in-main--attendance" : "",
+            route.pathname.startsWith("/admin/communications")
+              ? "signed-in-main--communications"
+              : "",
             workspace === "platform" ? "signed-in-main--platform" : "",
           ]
             .filter(Boolean)

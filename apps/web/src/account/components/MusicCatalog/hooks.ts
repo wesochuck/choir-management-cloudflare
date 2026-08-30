@@ -85,6 +85,7 @@ export function useMusicCatalogController({
     bulkError: bulk.bulkError,
     busy,
     childCount: derived.childCount,
+    defaultPageSize: data.defaultPageSize,
     deselectManyPieces: filters.deselectManyPieces,
     closeBulkDialog: bulk.closeBulkDialog,
     closeDialog: editor.closeDialog,

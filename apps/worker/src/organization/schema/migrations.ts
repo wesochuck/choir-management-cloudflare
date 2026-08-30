@@ -1289,6 +1289,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     version: 75,
     statements: ["ALTER TABLE organization_metadata ADD COLUMN logo_file_id TEXT"],
   },
+  {
+    version: 76,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN music_default_page_size INTEGER NOT NULL DEFAULT 100",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

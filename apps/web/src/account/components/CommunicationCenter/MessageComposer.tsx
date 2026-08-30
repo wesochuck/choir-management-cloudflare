@@ -20,6 +20,7 @@ import {
 } from "../../communicationMarkdown";
 import { RecipientContextPanel } from "./RecipientContextPanel";
 import type { CommunicationAudienceTarget, CommunicationReachState } from "./types";
+import { eventLabel } from "./utils";
 
 interface MessageComposerProps {
   readonly audience: CommunicationAudienceRequest;
@@ -173,18 +174,26 @@ function ConflictBanner({
 }
 
 function PersonalizeSection({
+  audience,
+  events,
   needsEvent,
   onInsert,
-  onToggleRecipientsExpanded,
+  onUpdateAudience,
   placeholderGroups,
+  selectedEvent,
 }: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly events: readonly OrganizationEvent[];
   readonly needsEvent: boolean;
   readonly onInsert: (tag: string) => void;
-  readonly onToggleRecipientsExpanded: (expanded: boolean) => void;
+  readonly onUpdateAudience: (
+    updater: (current: CommunicationAudienceRequest) => CommunicationAudienceRequest,
+  ) => void;
   readonly placeholderGroups: readonly (readonly [
     CommunicationPlaceholderDefinition["category"],
     CommunicationPlaceholderDefinition[],
   ])[];
+  readonly selectedEvent: OrganizationEvent | null;
 }) {
   return (
     <section aria-label="Personalize message" className="communication-personalize-section">
@@ -217,14 +226,54 @@ function PersonalizeSection({
             Choose an event to use event-specific personalization such as RSVP links, event dates,
             and practice links.
           </p>
+          {events.length > 0 ? (
+            <div className="communication-event-picker-row">
+              <label className="sr-only" htmlFor="communication-personalize-event-select">
+                Choose event
+              </label>
+              <select
+                id="communication-personalize-event-select"
+                onChange={(event) => {
+                  const eventId = event.target.value || null;
+                  onUpdateAudience((current) => ({
+                    ...current,
+                    eventId,
+                    rsvp: eventId ? current.rsvp : "All",
+                  }));
+                }}
+                value={audience.eventId ?? ""}
+              >
+                <option value="">Choose an event…</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {eventLabel(event)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <p className="field-help">
+              No events scheduled yet. Create an event in Events first to enable event placeholders.
+            </p>
+          )}
+        </div>
+      ) : selectedEvent ? (
+        <div className="communication-placeholders__event-active">
+          <span className="field-help">
+            Personalizing for: <strong>{selectedEvent.title}</strong>
+          </span>
           <button
             className="text-button"
             onClick={() => {
-              onToggleRecipientsExpanded(true);
+              onUpdateAudience((current) => ({
+                ...current,
+                eventId: null,
+                rsvp: "All",
+              }));
             }}
             type="button"
           >
-            Choose event
+            Clear event
           </button>
         </div>
       ) : null}
@@ -521,10 +570,13 @@ export function MessageComposer({
           </div>
 
           <PersonalizeSection
+            audience={audience}
+            events={events}
             needsEvent={needsEvent}
             onInsert={insert}
-            onToggleRecipientsExpanded={onToggleRecipientsExpanded}
+            onUpdateAudience={onUpdateAudience}
             placeholderGroups={placeholderGroups}
+            selectedEvent={selectedEvent}
           />
         </div>
 

@@ -25,6 +25,7 @@ const uniqueMusicLabelsSchema = z
   });
 
 const organizationMusicLibrarySettingsFieldsSchema = z.object({
+  defaultPageSize: z.number().int().min(10).max(500).default(100),
   genres: uniqueMusicLabelsSchema.default([]),
   practicePlayerLinkLifetimeDays: z.number().int().min(1).max(3_650).default(180),
   publisherSearchTemplate: z.string().trim().max(2_000).default(""),

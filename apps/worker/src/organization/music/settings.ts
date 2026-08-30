@@ -8,18 +8,21 @@ export function storedMusicLibrarySettings(storage: DurableObjectStorage) {
   try {
     const raw = storage.sql
       .exec<{
+        readonly defaultPageSize: number | null;
         readonly genresJson: string;
         readonly lifetimeDays: number;
         readonly template: string;
       }>(
         `SELECT music_genres_json AS genresJson,
            music_publisher_search_template AS template,
-           practice_player_link_lifetime_days AS lifetimeDays
+           practice_player_link_lifetime_days AS lifetimeDays,
+           music_default_page_size AS defaultPageSize
          FROM organization_metadata LIMIT 1`,
       )
       .toArray()
       .at(0);
     return organizationMusicLibrarySettingsRequestSchema.parse({
+      defaultPageSize: raw?.defaultPageSize ?? 100,
       genres: raw === undefined ? [] : (JSON.parse(raw.genresJson) as unknown),
       practicePlayerLinkLifetimeDays: raw?.lifetimeDays ?? 180,
       publisherSearchTemplate: raw?.template ?? "",
@@ -48,10 +51,13 @@ export function updateMusicLibrarySettings(
     storage.sql.exec(
       `UPDATE organization_metadata SET music_genres_json = ?,
          music_publisher_search_template = ?,
-         practice_player_link_lifetime_days = ?, updated_at = ?`,
+         practice_player_link_lifetime_days = ?,
+         music_default_page_size = ?,
+         updated_at = ?`,
       JSON.stringify(operation.settings.genres),
       operation.settings.publisherSearchTemplate,
       operation.settings.practicePlayerLinkLifetimeDays,
+      operation.settings.defaultPageSize,
       occurredAt,
     );
     storage.sql.exec(
@@ -65,6 +71,7 @@ export function updateMusicLibrarySettings(
       operation.organizationId,
       operation.requestId,
       JSON.stringify({
+        defaultPageSize: operation.settings.defaultPageSize,
         genres: operation.settings.genres,
         practicePlayerLinkLifetimeDays: operation.settings.practicePlayerLinkLifetimeDays,
         publisherSearchTemplate: operation.settings.publisherSearchTemplate,
