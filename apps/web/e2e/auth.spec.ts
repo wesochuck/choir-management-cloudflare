@@ -1868,7 +1868,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(
     linkedRsvpPage.locator(".rsvp-manager__balance").getByRole("combobox", { name: "Performance" }),
   ).toHaveValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-  await expect(linkedRsvpPage.getByRole("heading", { name: "RSVP roster" })).toBeVisible();
+  await expect(linkedRsvpPage.getByRole("group", { name: "RSVP roster" })).toBeVisible();
   await expect(
     linkedRsvpPage.getByText(/Administrators can still override responses\./),
   ).toBeVisible();
