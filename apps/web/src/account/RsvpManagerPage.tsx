@@ -584,13 +584,10 @@ export function RsvpManagerPage({
           {feedback}
         </p>
       ) : null}
-      <section
-        className="surface-card roster-balance rsvp-manager__balance"
-        aria-labelledby="rsvp-balance-title"
-      >
+      <fieldset className="surface-card roster-balance rsvp-manager__balance">
+        <legend id="rsvp-balance-title">{partLabel} RSVP balance</legend>
         <div className="roster-balance__header">
           <div>
-            <h2 id="rsvp-balance-title">{partLabel} RSVP balance</h2>
             <p className="field-help">
               Select a section or {partLabel.toLowerCase()} to filter the roster below.
             </p>
@@ -711,14 +708,11 @@ export function RsvpManagerPage({
             );
           })}
         </div>
-      </section>
+      </fieldset>
 
       <>
-        <section
-          className="surface-card rsvp-manager__roster"
-          aria-labelledby="rsvp-roster-title"
-          hidden={view !== "roster"}
-        >
+        <fieldset className="surface-card rsvp-manager__roster" hidden={view !== "roster"}>
+          <legend id="rsvp-roster-title">RSVP roster</legend>
           <div className="rsvp-manager__controls">
             <label className="field rsvp-manager__search">
               <span>Search active singers</span>
@@ -732,7 +726,6 @@ export function RsvpManagerPage({
             </label>
           </div>
           <div className="rsvp-manager__table-heading">
-            <h2 id="rsvp-roster-title">RSVP roster</h2>
             <span>{rowsLoading ? "Loading…" : `${String(visibleRows.length)} shown`}</span>
           </div>
           {selectedTargetCount > 0 ? (
@@ -794,7 +787,7 @@ export function RsvpManagerPage({
               rows={visibleRows}
             />
           )}
-        </section>
+        </fieldset>
         <section
           className="surface-card rsvp-manager__history"
           aria-labelledby="rsvp-history-title"

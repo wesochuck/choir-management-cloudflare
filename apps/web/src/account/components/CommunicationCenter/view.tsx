@@ -145,14 +145,14 @@ export function CommunicationCenterView({
         </aside>
       ) : null}
 
-      {/* Global Errors and Success Notices */}
-      {error ? (
+      {/* Global Errors and Success Notices (outside compose mode) */}
+      {error && messageMode !== "compose" ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
       ) : null}
 
-      {successNotice ? (
+      {successNotice && messageMode !== "compose" ? (
         <p className="notice notice--success" role="status">
           {successNotice}
         </p>
@@ -175,6 +175,16 @@ export function CommunicationCenterView({
                 </button>
                 <h2>New message</h2>
               </div>
+              {error ? (
+                <p className="notice notice--error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              {successNotice ? (
+                <p className="notice notice--success" role="status">
+                  {successNotice}
+                </p>
+              ) : null}
               <MessageComposer
                 audience={audience}
                 audienceOptions={audienceOptions}

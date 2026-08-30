@@ -199,7 +199,7 @@ function PersonalizeSection({
     <section aria-label="Personalize message" className="communication-personalize-section">
       <div className="communication-personalize-section__header">
         <h4>Personalize</h4>
-        <p className="field-help">Click a token to insert it at your cursor.</p>
+        <p className="field-help">Click a placeholder to insert it at your cursor.</p>
       </div>
       <div className="communication-personalize-section__grid">
         {placeholderGroups.map(([category, group]) => (
@@ -210,7 +210,7 @@ function PersonalizeSection({
                 <PlaceholderButton
                   key={placeholder.tag}
                   onInsert={() => {
-                    onInsert(placeholder.tag);
+                    onInsert(`${placeholder.tag} `);
                   }}
                   placeholder={placeholder}
                 />
@@ -300,23 +300,41 @@ function ComposerActionBar({
   readonly onOpenTestEmail: () => void;
   readonly onSaveDraft: () => void;
 }) {
+  const isTemplateDisabled = busy || contentMarkdown.trim().length === 0;
+  const isTestDisabled = busy || contentMarkdown.trim().length === 0;
+
   return (
     <div className="communication-composer-action-bar">
       <div className="action-bar-secondary">
-        <button disabled={busy} onClick={onSaveDraft} type="button">
-          Save draft
+        <button
+          className="button button--secondary"
+          disabled={busy}
+          onClick={onSaveDraft}
+          type="button"
+        >
+          {busy ? "Saving…" : "Save draft"}
         </button>
         <button
-          disabled={busy || contentMarkdown.trim().length === 0}
+          className="button button--secondary"
+          disabled={isTemplateDisabled}
           onClick={onOpenSaveTemplate}
+          title={
+            contentMarkdown.trim().length === 0
+              ? "Enter message body to save as template"
+              : undefined
+          }
           type="button"
         >
           Save as template
         </button>
         {channel !== "SMS" ? (
           <button
-            disabled={busy || contentMarkdown.trim().length === 0}
+            className="button button--secondary"
+            disabled={isTestDisabled}
             onClick={onOpenTestEmail}
+            title={
+              contentMarkdown.trim().length === 0 ? "Enter message body to send a test" : undefined
+            }
             type="button"
           >
             Send test

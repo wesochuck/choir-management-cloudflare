@@ -388,6 +388,19 @@
     gap: var(--spacing-lg);
   }
 
+  fieldset.rsvp-manager__balance,
+  fieldset.rsvp-manager__roster {
+    min-width: 0;
+  }
+
+  .rsvp-manager__balance > legend,
+  .rsvp-manager__roster > legend {
+    padding-inline: var(--spacing-xs);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text);
+  }
+
   .rsvp-manager__balance {
     margin: 0;
   }
@@ -486,7 +499,7 @@
   .rsvp-manager__table-heading {
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--spacing-md);
     margin: var(--spacing-md) 0 var(--spacing-xs);
   }
