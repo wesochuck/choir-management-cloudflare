@@ -5,6 +5,7 @@ import {
   disablePlatformOrganizationPublicDomain,
   listPlatformOrganizationPublicDomains,
   registerPlatformOrganizationPublicDomain,
+  removePlatformOrganizationPublicDomain,
 } from "../../../auth/api";
 import type { OrganizationDomainsState } from "./shared";
 
@@ -84,6 +85,28 @@ export function PlatformOrganizationDomains({
     }
   }
 
+  async function removeDomain(domainId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await removePlatformOrganizationPublicDomain(organizationId, domainId);
+      setState((current) =>
+        current.status === "ready"
+          ? {
+              domains: current.domains.filter((item) => item.domainId !== domainId),
+              status: "ready",
+            }
+          : current,
+      );
+    } catch (failure: unknown) {
+      setError(
+        failure instanceof AuthApiError ? failure.message : "The hostname could not be removed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <details
       className="platform-organization-domains"
@@ -146,18 +169,30 @@ export function PlatformOrganizationDomains({
                     </div>
                   ) : null}
                 </div>
-                {domain.status !== "disabled" ? (
+                <div className="platform-domain-list__actions">
+                  {domain.status !== "disabled" ? (
+                    <button
+                      className="button button--secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        void disableDomain(domain.domainId);
+                      }}
+                      type="button"
+                    >
+                      Disable
+                    </button>
+                  ) : null}
                   <button
                     className="button button--secondary"
                     disabled={busy}
                     onClick={() => {
-                      void disableDomain(domain.domainId);
+                      void removeDomain(domain.domainId);
                     }}
                     type="button"
                   >
-                    Disable
+                    Remove
                   </button>
-                ) : null}
+                </div>
               </li>
             ))}
           </ul>

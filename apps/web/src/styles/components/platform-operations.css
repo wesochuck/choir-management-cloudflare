@@ -241,6 +241,13 @@
     gap: var(--spacing-xs);
   }
 
+  .platform-domain-list__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+  }
+
   .platform-domain-list__details {
     display: grid;
     min-width: 0;

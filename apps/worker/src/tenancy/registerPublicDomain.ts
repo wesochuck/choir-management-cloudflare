@@ -363,3 +363,56 @@ export async function disablePublicDomain(
     ? success(toResponse(disabled))
     : failure("not_found", "The Public Website Domain was not found.");
 }
+
+export async function removePublicDomain(
+  env: Env,
+  input: {
+    readonly actorUserId: string;
+    readonly domainId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  now = new Date(),
+): Promise<DomainResult<{ readonly domainId: string }>> {
+  const domain = await readPublicDomain(env.CONTROL_DB, input);
+  if (!domain) {
+    return failure("not_found", "The Public Website Domain was not found.");
+  }
+
+  if (domain.providerHostnameId) {
+    try {
+      await deleteCustomHostname(env, domain.providerHostnameId);
+    } catch {
+      // Ignore provider cleanup errors if already deleted
+    }
+  }
+
+  const occurredAt = now.toISOString();
+  await env.CONTROL_DB.batch([
+    env.CONTROL_DB.prepare(
+      `DELETE FROM organization_domains
+       WHERE id = ? AND organization_id = ? AND kind = 'custom_public'`,
+    ).bind(input.domainId, input.organizationId),
+    env.CONTROL_DB.prepare(
+      `INSERT INTO platform_audit_events
+        (id, actor_user_id, organization_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, ?, ?, 'organization.public_domain.removed',
+         'public_website_domain', ?, ?, ?, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      input.actorUserId,
+      input.organizationId,
+      input.domainId,
+      input.requestId,
+      JSON.stringify({
+        hostname: domain.hostname,
+        previousStatus: domain.status,
+      }),
+      occurredAt,
+    ),
+  ]);
+  await env.ROUTING_CACHE.delete(`host:${domain.hostname}`);
+
+  return success({ domainId: input.domainId });
+}

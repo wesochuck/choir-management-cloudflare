@@ -50,6 +50,7 @@ import {
   type PlatformMfaStatusResponse,
   platformEmailSuppressionsResponseSchema,
 } from "@choir/contracts";
+import { z } from "zod";
 
 import { request } from "./client";
 
@@ -299,10 +300,26 @@ export async function disablePlatformOrganizationPublicDomain(
   domainId: string,
 ): Promise<PublicDomainResponse> {
   const response = await request(
-    `/api/platform/organizations/${encodeURIComponent(organizationId)}/public-domains/${encodeURIComponent(domainId)}`,
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/public-domains/${encodeURIComponent(domainId)}?action=disable`,
     { method: "DELETE" },
   );
   return publicDomainResponseSchema.parse(await response.json());
+}
+
+const removePlatformDomainResponseSchema = z.object({
+  domainId: z.string(),
+  ok: z.boolean(),
+});
+
+export async function removePlatformOrganizationPublicDomain(
+  organizationId: string,
+  domainId: string,
+): Promise<{ readonly domainId: string; readonly ok: boolean }> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/public-domains/${encodeURIComponent(domainId)}?action=remove`,
+    { method: "DELETE" },
+  );
+  return removePlatformDomainResponseSchema.parse(await response.json());
 }
 
 export async function listPlatformJobDeadLetters(

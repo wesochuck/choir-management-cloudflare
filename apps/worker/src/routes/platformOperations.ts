@@ -29,6 +29,7 @@ import {
   disablePublicDomain,
   listPublicDomains,
   registerPublicDomain,
+  removePublicDomain,
 } from "../tenancy/registerPublicDomain";
 
 import type { Context, Hono } from "hono";
@@ -371,30 +372,67 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
       const authorization = await authorizePlatformRead(context, requestUrl);
       if (authorization instanceof Response) return authorization;
+      const action = context.req.query("action");
+      if (action === "disable") {
+        try {
+          const disabled = await disablePublicDomain(context.env, {
+            actorUserId: authorization.userId,
+            domainId: domainId.data,
+            organizationId: organizationId.data,
+            requestId: context.get("requestId"),
+          });
+          if (!disabled.ok) {
+            return context.json(
+              {
+                code: disabled.error.code,
+                message: disabled.error.message,
+                requestId: context.get("requestId"),
+              } satisfies ProblemDetails,
+              404,
+            );
+          }
+          return context.json({ ...disabled.value, requestId: context.get("requestId") });
+        } catch {
+          return context.json(
+            {
+              code: "service_unavailable",
+              message:
+                "The custom hostname could not be disabled while its provider configuration is being removed.",
+              requestId: context.get("requestId"),
+            } satisfies ProblemDetails,
+            503,
+          );
+        }
+      }
+
       try {
-        const disabled = await disablePublicDomain(context.env, {
+        const removed = await removePublicDomain(context.env, {
           actorUserId: authorization.userId,
           domainId: domainId.data,
           organizationId: organizationId.data,
           requestId: context.get("requestId"),
         });
-        if (!disabled.ok) {
+        if (!removed.ok) {
           return context.json(
             {
-              code: disabled.error.code,
-              message: disabled.error.message,
+              code: removed.error.code,
+              message: removed.error.message,
               requestId: context.get("requestId"),
             } satisfies ProblemDetails,
             404,
           );
         }
-        return context.json({ ...disabled.value, requestId: context.get("requestId") });
+        return context.json({
+          domainId: domainId.data,
+          ok: true,
+          requestId: context.get("requestId"),
+        });
       } catch {
         return context.json(
           {
             code: "service_unavailable",
             message:
-              "The custom hostname could not be disabled while its provider configuration is being removed.",
+              "The custom hostname could not be removed while its provider configuration is being deleted.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           503,

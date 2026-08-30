@@ -7,7 +7,9 @@ import {
   platformEmailSuppressionsResponseSchema,
   platformEmailSuppressionReleaseResponseSchema,
   platformOrganizationContextResponseSchema,
+  platformOrganizationPublicDomainsResponseSchema,
   platformOrganizationsResponseSchema,
+  publicDomainResponseSchema,
 } from "@choir/contracts";
 import { introspectWorkflow, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -1094,5 +1096,90 @@ describe("Platform Administrator MFA", () => {
         .bind(validDeadLetterId, invalidDeadLetterId)
         .first<{ count: number }>(),
     ).resolves.toEqual({ count: 3 });
+  });
+
+  it("allows Platform Administrators to disable and permanently remove custom public domains", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+    await grantPlatformAdministratorForCurrentSession();
+
+    const organizationId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const domainId = "11111111-2222-4333-8444-555555555555";
+    const now = "2026-08-30T12:00:00.000Z";
+    await testEnv.CONTROL_DB.batch([
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO organizations
+          (id, name, slug, lifecycle_state, durable_object_key, operational_schema_version,
+           created_at, updated_at)
+         VALUES (?, 'Organization Test', 'org-test', 'active', ?, 1, ?, ?)`,
+      ).bind(organizationId, organizationId, now, now),
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO organization_domains
+          (id, organization_id, hostname, kind, status, routing_version,
+           provider_hostname_id, provider_status, validation_records_json, created_at, updated_at)
+         VALUES (?, ?, 'tickets.orgtest.org', 'custom_public', 'active', 1,
+           'cf-hostname-test', 'active', '[]', ?, ?)`,
+      ).bind(domainId, organizationId, now, now),
+    ]);
+    await testEnv.ROUTING_CACHE.put("host:tickets.orgtest.org", organizationId);
+
+    const listResponse = await fetchWorker(
+      authRequest(`/api/platform/organizations/${organizationId}/public-domains`, {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    expect(listResponse.status).toBe(200);
+    const listBody = platformOrganizationPublicDomainsResponseSchema.parse(
+      await listResponse.json(),
+    );
+    expect(listBody.domains).toHaveLength(1);
+    expect(listBody.domains[0]?.hostname).toBe("tickets.orgtest.org");
+
+    // Disable domain
+    const disableResponse = await fetchWorker(
+      authRequest(
+        `/api/platform/organizations/${organizationId}/public-domains/${domainId}?action=disable`,
+        { headers: { cookie: sessionCookie }, method: "DELETE" },
+      ),
+    );
+    expect(disableResponse.status).toBe(200);
+    const disableBody = publicDomainResponseSchema.parse(await disableResponse.json());
+    expect(disableBody.status).toBe("disabled");
+
+    // Permanently remove domain
+    const removeResponse = await fetchWorker(
+      authRequest(
+        `/api/platform/organizations/${organizationId}/public-domains/${domainId}?action=remove`,
+        { headers: { cookie: sessionCookie }, method: "DELETE" },
+      ),
+    );
+    expect(removeResponse.status).toBe(200);
+    const removeBody = z
+      .object({ domainId: z.string(), ok: z.boolean() })
+      .parse(await removeResponse.json());
+    expect(removeBody.ok).toBe(true);
+    expect(removeBody.domainId).toBe(domainId);
+
+    // Verify removed from D1
+    const d1Row = await testEnv.CONTROL_DB.prepare(
+      "SELECT * FROM organization_domains WHERE id = ?",
+    )
+      .bind(domainId)
+      .first();
+    expect(d1Row).toBeNull();
+
+    // Verify removed from KV routing cache
+    await expect(testEnv.ROUTING_CACHE.get("host:tickets.orgtest.org")).resolves.toBeNull();
+
+    // Verify empty list
+    const afterListResponse = await fetchWorker(
+      authRequest(`/api/platform/organizations/${organizationId}/public-domains`, {
+        headers: { cookie: sessionCookie },
+      }),
+    );
+    const afterListBody = platformOrganizationPublicDomainsResponseSchema.parse(
+      await afterListResponse.json(),
+    );
+    expect(afterListBody.domains).toHaveLength(0);
   });
 });
