@@ -364,7 +364,7 @@ export function TemplatesPanel() {
               value={newContent}
             />
           </div>
-          <div className="dialog-actions">
+          <div className="dialog__actions">
             <DialogClose asChild>
               <button className="button button--secondary" disabled={busy} type="button">
                 Cancel
@@ -430,7 +430,7 @@ export function TemplatesPanel() {
                 value={editingContent}
               />
             </div>
-            <div className="dialog-actions">
+            <div className="dialog__actions">
               <DialogClose asChild>
                 <button className="button button--secondary" disabled={busy} type="button">
                   Cancel

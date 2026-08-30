@@ -107,7 +107,7 @@ export function CommunicationReviewDialog({
           delivery settings.
         </p>
 
-        <div className="dialog-actions">
+        <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" disabled={busy} type="button">
               Back to edit

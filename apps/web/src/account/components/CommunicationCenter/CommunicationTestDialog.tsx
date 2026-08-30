@@ -58,7 +58,7 @@ export function CommunicationTestDialog({
           </p>
         </div>
 
-        <div className="dialog-actions">
+        <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" disabled={busy} type="button">
               Cancel
