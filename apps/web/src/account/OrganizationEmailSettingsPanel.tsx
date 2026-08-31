@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type SyntheticEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import type { OrganizationEmailDomainDnsRecord, OrganizationEmailSettings } from "@choir/contracts";
 import {
   AuthApiError,
@@ -6,6 +6,7 @@ import {
   updateOrganizationEmailSettings,
   verifyOrganizationEmailDomain,
 } from "../auth/api";
+import { usePersistedDraft } from "../persistence";
 
 function DnsRecordRow({
   copiedKey,
@@ -160,25 +161,44 @@ function DnsChecklist({
 }
 
 export function OrganizationEmailSettingsPanel() {
-  const [settings, setSettings] = useState<OrganizationEmailSettings | null>(null);
+  const [initialSettings, setInitialSettings] = useState<OrganizationEmailSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [verifyBusy, setVerifyBusy] = useState(false);
+  const [removeBusy, setRemoveBusy] = useState(false);
 
-  const [fromName, setFromName] = useState("");
-  const [replyToEmail, setReplyToEmail] = useState("");
-  const [customDomain, setCustomDomain] = useState("");
+  const {
+    draft: settings,
+    error: draftError,
+    replaceDraft,
+    saving,
+    updateField,
+  } = usePersistedDraft<OrganizationEmailSettings>({
+    initialValue: initialSettings,
+    normalize: (val) => ({
+      ...val,
+      customDomain: val.customDomain?.trim() || null,
+      fromName: val.fromName?.trim() || null,
+      replyToEmail: val.replyToEmail?.trim() || null,
+    }),
+    onSaveSuccess: () => {
+      setSuccess("Email settings saved successfully.");
+    },
+    resourceKey: "organization-email-settings",
+    save: (draftVal) =>
+      updateOrganizationEmailSettings({
+        customDomain: draftVal.customDomain?.trim() || null,
+        fromName: draftVal.fromName?.trim() || null,
+        replyToEmail: draftVal.replyToEmail?.trim() || null,
+      }),
+  });
 
   useEffect(() => {
     const controller = new AbortController();
     getOrganizationEmailSettings(controller.signal)
       .then((loaded) => {
-        setSettings(loaded);
-        setFromName(loaded.fromName ?? "");
-        setReplyToEmail(loaded.replyToEmail ?? "");
-        setCustomDomain(loaded.customDomain ?? "");
+        setInitialSettings(loaded);
         setLoading(false);
       })
       .catch((loadError: unknown) => {
@@ -197,32 +217,6 @@ export function OrganizationEmailSettingsPanel() {
     };
   }, []);
 
-  async function handleSaveSettings(event: SyntheticEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const updated = await updateOrganizationEmailSettings({
-        customDomain: customDomain.trim() ? customDomain.trim() : null,
-        fromName: fromName.trim() ? fromName.trim() : null,
-        replyToEmail: replyToEmail.trim() ? replyToEmail.trim() : null,
-      });
-      setSettings(updated);
-      setFromName(updated.fromName ?? "");
-      setReplyToEmail(updated.replyToEmail ?? "");
-      setCustomDomain(updated.customDomain ?? "");
-      setSuccess("Email settings saved successfully.");
-    } catch (saveError: unknown) {
-      setError(
-        saveError instanceof AuthApiError ? saveError.message : "Failed to save email settings.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleVerifyDns() {
     setVerifyBusy(true);
     setError(null);
@@ -231,7 +225,7 @@ export function OrganizationEmailSettingsPanel() {
     try {
       const result = await verifyOrganizationEmailDomain();
       if (settings) {
-        setSettings({
+        replaceDraft({
           ...settings,
           customDomainStatus: result.status,
           dnsRecords: result.dnsRecords,
@@ -258,7 +252,7 @@ export function OrganizationEmailSettingsPanel() {
   }
 
   async function handleRemoveCustomDomain() {
-    setBusy(true);
+    setRemoveBusy(true);
     setError(null);
     setSuccess(null);
 
@@ -266,8 +260,7 @@ export function OrganizationEmailSettingsPanel() {
       const updated = await updateOrganizationEmailSettings({
         customDomain: null,
       });
-      setSettings(updated);
-      setCustomDomain("");
+      replaceDraft(updated);
       setSuccess(
         "Custom domain removed. Outbound emails will use the platform sender with your Reply-To address.",
       );
@@ -278,9 +271,12 @@ export function OrganizationEmailSettingsPanel() {
           : "Failed to remove custom domain.",
       );
     } finally {
-      setBusy(false);
+      setRemoveBusy(false);
     }
   }
+
+  const busy = saving || removeBusy;
+  const effectiveError = error ?? draftError;
 
   return (
     <fieldset className="surface-card organization-settings-panel">
@@ -295,9 +291,9 @@ export function OrganizationEmailSettingsPanel() {
 
       {loading ? <p role="status">Loading email settings…</p> : null}
 
-      {error ? (
+      {effectiveError ? (
         <div className="notice notice--error" role="alert">
-          <p>{error}</p>
+          <p>{effectiveError}</p>
         </div>
       ) : null}
 
@@ -307,24 +303,20 @@ export function OrganizationEmailSettingsPanel() {
         </p>
       ) : null}
 
-      {!loading ? (
-        <form
-          className="form-stack settings-form"
-          onSubmit={(event) => {
-            void handleSaveSettings(event);
-          }}
-        >
+      {!loading && settings ? (
+        <div className="form-stack settings-form">
           <div className="field">
             <label htmlFor="email-from-name">Sender Display Name</label>
             <input
+              disabled={busy}
               id="email-from-name"
               maxLength={100}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                setFromName(e.target.value);
+                updateField("fromName", e.target.value);
               }}
               placeholder="e.g. Seattle Men's Chorus"
               type="text"
-              value={fromName}
+              value={settings.fromName ?? ""}
             />
             <p className="field-hint">
               The sender name displayed on event reminders, ticket receipts, and member
@@ -335,14 +327,15 @@ export function OrganizationEmailSettingsPanel() {
           <div className="field">
             <label htmlFor="email-reply-to">Reply-To Email Address</label>
             <input
+              disabled={busy}
               id="email-reply-to"
               maxLength={320}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                setReplyToEmail(e.target.value);
+                updateField("replyToEmail", e.target.value);
               }}
               placeholder="e.g. info@seattlechorus.org"
               type="email"
-              value={replyToEmail}
+              value={settings.replyToEmail ?? ""}
             />
             <p className="field-hint">
               Directs replies from members and ticket buyers to your organization's staff mailbox.
@@ -357,17 +350,18 @@ export function OrganizationEmailSettingsPanel() {
               style={{ alignItems: "center", display: "flex", gap: "0.5rem" }}
             >
               <input
+                disabled={busy}
                 id="email-custom-domain"
                 maxLength={253}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                  setCustomDomain(e.target.value);
+                  updateField("customDomain", e.target.value);
                 }}
                 placeholder="e.g. mail.seattlechorus.org"
                 style={{ flex: 1 }}
                 type="text"
-                value={customDomain}
+                value={settings.customDomain ?? ""}
               />
-              {settings?.customDomain ? (
+              {settings.customDomain ? (
                 <button
                   className="button button--secondary button--sm"
                   disabled={busy || verifyBusy}
@@ -386,13 +380,7 @@ export function OrganizationEmailSettingsPanel() {
             </p>
           </div>
 
-          <div className="actions" style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
-            <button className="button button--primary" disabled={busy} type="submit">
-              {busy ? "Saving…" : "Save Email Settings"}
-            </button>
-          </div>
-
-          {settings?.customDomain && settings.dnsRecords.length > 0 ? (
+          {settings.customDomain && settings.dnsRecords.length > 0 ? (
             <DnsChecklist
               dnsRecords={settings.dnsRecords}
               onVerify={() => {
@@ -402,7 +390,7 @@ export function OrganizationEmailSettingsPanel() {
               verifyBusy={verifyBusy}
             />
           ) : null}
-        </form>
+        </div>
       ) : null}
     </fieldset>
   );

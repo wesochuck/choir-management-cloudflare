@@ -14,6 +14,7 @@ import {
   uploadPrivateOrganizationFile,
 } from "../api";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
+import { usePersistedDraft } from "../persistence";
 
 type ProfilePhotoTarget = Pick<MemberProfile, "displayName" | "id" | "photoFileId">;
 
@@ -465,6 +466,12 @@ export function ProfilePhotoEditor({
   );
 }
 
+interface ProfileDraft {
+  displayName: string;
+  phone: string;
+  showInDirectory: boolean;
+}
+
 // eslint-disable-next-line complexity -- the editor coordinates Profile fields and the verified email-change request state.
 function MemberProfileEditor({
   enabled,
@@ -475,14 +482,46 @@ function MemberProfileEditor({
 }) {
   const { partLabel } = useOrganizationTerminology();
   const [state, setState] = useState<ProfileState>({ status: "loading" });
-  const [displayName, setDisplayName] = useState("");
+  const [initialDraft, setInitialDraft] = useState<ProfileDraft | null>(null);
   const [email, setEmail] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailMessage, setEmailMessage] = useState<EmailChangeMessage>(null);
-  const [phone, setPhone] = useState("");
-  const [showInDirectory, setShowInDirectory] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const {
+    draft,
+    error: draftError,
+    saving: busy,
+    updateField,
+  } = usePersistedDraft<ProfileDraft>({
+    initialValue: initialDraft,
+    onSaveSuccess: (saved) => {
+      setState((current) =>
+        current.status === "ready"
+          ? {
+              profile: {
+                ...current.profile,
+                displayName: saved.displayName,
+                phone: saved.phone,
+                showInDirectory: saved.showInDirectory,
+              },
+              status: "ready",
+            }
+          : current,
+      );
+      setMessage("Your Organization Profile was updated.");
+      onSaved();
+    },
+    resourceKey: "member-profile-editor",
+    save: async (currentDraft) => {
+      const updated = await updateMemberProfile(currentDraft);
+      return {
+        displayName: updated.displayName,
+        phone: updated.phone,
+        showInDirectory: updated.showInDirectory,
+      };
+    },
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -490,10 +529,12 @@ function MemberProfileEditor({
     getMemberProfile(controller.signal)
       .then((profile) => {
         setState({ profile, status: "ready" });
-        setDisplayName(profile.displayName);
         setEmail(profile.email);
-        setPhone(profile.phone);
-        setShowInDirectory(profile.showInDirectory);
+        setInitialDraft({
+          displayName: profile.displayName,
+          phone: profile.phone,
+          showInDirectory: profile.showInDirectory,
+        });
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -507,26 +548,6 @@ function MemberProfileEditor({
       controller.abort();
     };
   }, [enabled]);
-
-  async function save(): Promise<void> {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const profile = await updateMemberProfile({ displayName, phone, showInDirectory });
-      setState({ profile, status: "ready" });
-      setDisplayName(profile.displayName);
-      setPhone(profile.phone);
-      setShowInDirectory(profile.showInDirectory);
-      setMessage("Your Organization Profile was updated.");
-      onSaved();
-    } catch (error: unknown) {
-      setMessage(
-        error instanceof AuthApiError ? error.message : "Your Profile could not be updated.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function requestEmailChange(): Promise<void> {
     setEmailBusy(true);
@@ -550,6 +571,8 @@ function MemberProfileEditor({
     }
   }
 
+  const effectiveMessage = draftError ? draftError : message;
+
   return (
     <section className="account-section" aria-label="My Organization Profile">
       {!enabled || state.status === "loading" ? <p>Loading your Profile…</p> : null}
@@ -563,14 +586,8 @@ function MemberProfileEditor({
           Your Organization Profile could not be loaded.
         </p>
       ) : null}
-      {enabled && state.status === "ready" ? (
-        <form
-          className="form-stack member-profile-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save();
-          }}
-        >
+      {enabled && state.status === "ready" && draft ? (
+        <div className="form-stack member-profile-form">
           <div className="profile-facts" aria-label="Organization Profile details">
             <p>
               <strong>Current sign-in email:</strong> {state.profile.email}
@@ -627,11 +644,12 @@ function MemberProfileEditor({
           <label className="field">
             Display name
             <input
+              disabled={busy}
               maxLength={200}
               required
-              value={displayName}
+              value={draft.displayName}
               onChange={(event) => {
-                setDisplayName(event.target.value);
+                updateField("displayName", event.target.value);
               }}
             />
           </label>
@@ -639,19 +657,21 @@ function MemberProfileEditor({
             Phone
             <input
               autoComplete="tel"
+              disabled={busy}
               maxLength={50}
-              value={phone}
+              value={draft.phone}
               onChange={(event) => {
-                setPhone(event.target.value);
+                updateField("phone", event.target.value);
               }}
             />
           </label>
           <label className="checkbox-row">
             <input
-              checked={showInDirectory}
+              checked={draft.showInDirectory}
+              disabled={busy}
               type="checkbox"
               onChange={(event) => {
-                setShowInDirectory(event.target.checked);
+                updateField("showInDirectory", event.target.checked);
               }}
             />
             Show me in the Organization directory
@@ -660,20 +680,19 @@ function MemberProfileEditor({
             Organization managers control {partLabel.toLowerCase()} assignments and lifecycle
             status.
           </p>
-          <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Saving Profile…" : "Save my Profile"}
-          </button>
-          {message ? (
+          {effectiveMessage ? (
             <p
               className={
-                message.includes("updated") ? "notice notice--success" : "notice notice--error"
+                effectiveMessage.includes("updated")
+                  ? "notice notice--success"
+                  : "notice notice--error"
               }
               role="status"
             >
-              {message}
+              {effectiveMessage}
             </p>
           ) : null}
-        </form>
+        </div>
       ) : null}
     </section>
   );

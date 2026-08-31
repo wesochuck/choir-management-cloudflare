@@ -9,6 +9,7 @@ import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
+import { RosterConfigurationDraftProvider } from "../../RosterConfigurationDraftContext";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { startOrganizationImpersonation } from "../../../api";
 import type { RosterPageModel } from "./hooks";
@@ -127,7 +128,7 @@ export function RosterPageView({
     return <OrganizationMfaPrompt message="Verify Organization MFA to manage the roster." />;
   }
   return (
-    <>
+    <RosterConfigurationDraftProvider enabled={enabled}>
       <nav className="ticketing-tabs roster-page-tabs" aria-label="Roster sections" role="tablist">
         <button
           aria-controls="roster-directory-panel"
@@ -991,6 +992,6 @@ export function RosterPageView({
         open={importDialogOpen}
         title="Import roster CSV"
       />
-    </>
+    </RosterConfigurationDraftProvider>
   );
 }

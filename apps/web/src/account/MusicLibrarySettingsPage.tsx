@@ -9,45 +9,29 @@ import {
   renameOrganizationMusicGenre,
   updateOrganizationMusicLibrarySettings,
 } from "../auth/api";
+import { usePersistedDraft } from "../persistence";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { GenreChip } from "./components/MusicCatalog/shared";
 import { genreKey, uniqueGenreLabels } from "./components/MusicCatalog/utils";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
-import { useFloatingSaveAction } from "./useFloatingSaveAction";
 
 interface MusicCatalogSettingsProps {
-  readonly busy: boolean;
   readonly defaultPageSize: number;
   readonly onDefaultPageSizeChange: (value: number) => void;
-  readonly onSave: () => void;
   readonly onTemplateChange: (value: string) => void;
-  readonly savedDefaultPageSize: number;
-  readonly savedTemplate: string;
   readonly template: string;
 }
 
 function MusicCatalogSettingsSection({
-  busy,
   defaultPageSize,
   onDefaultPageSizeChange,
-  onSave,
   onTemplateChange,
-  savedDefaultPageSize,
-  savedTemplate,
   template,
 }: MusicCatalogSettingsProps) {
-  const dirty = template.trim() !== savedTemplate || defaultPageSize !== savedDefaultPageSize;
-
   return (
     <fieldset className="music-publisher-settings">
       <legend>Catalog table &amp; lookup settings</legend>
-      <form
-        className="music-catalog-settings__form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSave();
-        }}
-      >
+      <div className="music-catalog-settings__form form-stack">
         <label className="field">
           Default rows per page
           <select
@@ -81,39 +65,24 @@ function MusicCatalogSettingsSection({
             Leave blank to hide. Use <code>{"{catalogId}"}</code> where the catalog number belongs.
           </small>
         </label>
-        <button className="button button--secondary" disabled={busy || !dirty} type="submit">
-          {busy ? "Saving…" : "Save catalog settings"}
-        </button>
-      </form>
+      </div>
     </fieldset>
   );
 }
 
 interface MusicPracticeSettingsProps {
-  readonly busy: boolean;
-  readonly onLifetimeChange: (value: number) => void;
-  readonly onSave: () => void;
   readonly lifetimeDays: number;
-  readonly savedLifetimeDays: number;
+  readonly onLifetimeChange: (value: number) => void;
 }
 
 function MusicPracticeSettingsSection({
-  busy,
   lifetimeDays,
   onLifetimeChange,
-  onSave,
-  savedLifetimeDays,
 }: MusicPracticeSettingsProps) {
   return (
     <fieldset className="music-practice-settings">
       <legend>Public practice-player links</legend>
-      <form
-        className="music-practice-settings__form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSave();
-        }}
-      >
+      <div className="music-practice-settings__form form-stack">
         <label className="field">
           Link lifetime (days)
           <input
@@ -126,14 +95,7 @@ function MusicPracticeSettingsSection({
             }}
           />
         </label>
-        <button
-          className="button button--secondary"
-          disabled={busy || lifetimeDays === savedLifetimeDays}
-          type="submit"
-        >
-          {busy ? "Saving…" : "Save practice settings"}
-        </button>
-      </form>
+      </div>
     </fieldset>
   );
 }
@@ -295,15 +257,34 @@ export function MusicLibrarySettingsPage({
   readonly enabled: boolean;
   readonly navigate: (href: string) => void;
 }) {
-  const [settings, setSettings] = useState<OrganizationMusicLibrarySettings | null>(null);
-  const [savedSettings, setSavedSettings] = useState<OrganizationMusicLibrarySettings | null>(null);
+  const [initialSettings, setInitialSettings] = useState<OrganizationMusicLibrarySettings | null>(
+    null,
+  );
   const [pieces, setPieces] = useState<readonly OrganizationMusicPiece[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [genreBusy, setGenreBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const { confirm: requestConfirmation, confirmationDialog } = useConfirmation();
+
+  const {
+    draft: settings,
+    error: draftError,
+    persisted: savedSettings,
+    replaceDraft,
+    updateField,
+  } = usePersistedDraft<OrganizationMusicLibrarySettings>({
+    initialValue: initialSettings,
+    normalize: (item) => ({
+      ...item,
+      publisherSearchTemplate: item.publisherSearchTemplate.trim(),
+    }),
+    onSaveSuccess: () => {
+      setSuccess("Music library settings saved.");
+    },
+    resourceKey: "organization-music-library-settings",
+    save: updateOrganizationMusicLibrarySettings,
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -313,8 +294,7 @@ export function MusicLibrarySettingsPage({
       listOrganizationMusic(controller.signal),
     ])
       .then(([loaded, catalog]) => {
-        setSettings(loaded);
-        setSavedSettings(loaded);
+        setInitialSettings(loaded);
         setPieces(catalog);
         setLoading(false);
       })
@@ -342,6 +322,7 @@ export function MusicLibrarySettingsPage({
     }
     return counts;
   }, [pieces]);
+
   const genres = useMemo(() => {
     const labels = new Map<string, string>();
     for (const label of [
@@ -353,50 +334,6 @@ export function MusicLibrarySettingsPage({
     }
     return [...labels.values()].sort((left, right) => left.localeCompare(right));
   }, [pieces, settings]);
-
-  async function save(section: "catalog" | "practice"): Promise<void> {
-    if (!settings || !savedSettings) return;
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
-    const nextSettings = {
-      ...savedSettings,
-      ...(section === "catalog"
-        ? {
-            defaultPageSize: settings.defaultPageSize,
-            publisherSearchTemplate: settings.publisherSearchTemplate.trim(),
-          }
-        : { practicePlayerLinkLifetimeDays: settings.practicePlayerLinkLifetimeDays }),
-    };
-    try {
-      const saved = await updateOrganizationMusicLibrarySettings(nextSettings);
-      setSettings((current) =>
-        current
-          ? {
-              ...current,
-              ...(section === "catalog"
-                ? {
-                    defaultPageSize: saved.defaultPageSize,
-                    publisherSearchTemplate: saved.publisherSearchTemplate,
-                  }
-                : { practicePlayerLinkLifetimeDays: saved.practicePlayerLinkLifetimeDays }),
-            }
-          : saved,
-      );
-      setSavedSettings(saved);
-      setSuccess(
-        section === "catalog" ? "Catalog settings updated." : "Practice link settings updated.",
-      );
-    } catch (caught: unknown) {
-      setError(
-        caught instanceof AuthApiError
-          ? caught.message
-          : "Music library settings could not be saved.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function addGenre(label: string): Promise<void> {
     if (!settings || !savedSettings) return;
@@ -412,8 +349,7 @@ export function MusicLibrarySettingsPage({
         ...savedSettings,
         genres: [...savedSettings.genres, label].sort((left, right) => left.localeCompare(right)),
       });
-      setSettings(saved);
-      setSavedSettings(saved);
+      replaceDraft(saved);
       setSuccess("Genre added.");
     } catch (caught: unknown) {
       setError(caught instanceof AuthApiError ? caught.message : "The genre could not be added.");
@@ -437,8 +373,7 @@ export function MusicLibrarySettingsPage({
     try {
       const saved = await renameOrganizationMusicGenre({ currentLabel, newLabel });
       setPieces(saved.pieces);
-      setSettings(saved.settings);
-      setSavedSettings(saved.settings);
+      replaceDraft(saved.settings);
       setSuccess("Genre renamed.");
     } catch (caught: unknown) {
       setError(caught instanceof AuthApiError ? caught.message : "The genre could not be renamed.");
@@ -451,11 +386,11 @@ export function MusicLibrarySettingsPage({
     const count = genreCounts.get(genreKey(label)) ?? 0;
     const confirmed = await requestConfirmation({
       confirmLabel: "Remove genre",
-      destructive: true,
       description:
         count > 0
           ? `This removes ${label} from ${String(count)} catalog piece${count === 1 ? "" : "s"}.`
           : `This removes the ${label} genre label from your catalog.`,
+      destructive: true,
       title: `Remove ${label}?`,
     });
     if (!confirmed) return;
@@ -465,8 +400,7 @@ export function MusicLibrarySettingsPage({
     try {
       const saved = await deleteOrganizationMusicGenre({ label });
       setPieces(saved.pieces);
-      setSettings(saved.settings);
-      setSavedSettings(saved.settings);
+      replaceDraft(saved.settings);
       setSuccess("Genre removed.");
     } catch (caught: unknown) {
       setError(caught instanceof AuthApiError ? caught.message : "The genre could not be removed.");
@@ -475,57 +409,7 @@ export function MusicLibrarySettingsPage({
     }
   }
 
-  const catalogDirty =
-    settings !== null &&
-    savedSettings !== null &&
-    (settings.publisherSearchTemplate.trim() !== savedSettings.publisherSearchTemplate ||
-      settings.defaultPageSize !== savedSettings.defaultPageSize);
-
-  const practiceDirty =
-    settings !== null &&
-    savedSettings !== null &&
-    settings.practicePlayerLinkLifetimeDays !== savedSettings.practicePlayerLinkLifetimeDays;
-
-  useFloatingSaveAction({
-    busy,
-    dirty: catalogDirty,
-    id: "organization-music-library-catalog-settings",
-    onDiscard: () => {
-      if (savedSettings) {
-        setSettings((current) =>
-          current
-            ? {
-                ...current,
-                defaultPageSize: savedSettings.defaultPageSize,
-                publisherSearchTemplate: savedSettings.publisherSearchTemplate,
-              }
-            : null,
-        );
-        setError(null);
-      }
-    },
-    onSave: () => save("catalog"),
-  });
-
-  useFloatingSaveAction({
-    busy,
-    dirty: practiceDirty,
-    id: "organization-music-library-practice-settings",
-    onDiscard: () => {
-      if (savedSettings) {
-        setSettings((current) =>
-          current
-            ? {
-                ...current,
-                practicePlayerLinkLifetimeDays: savedSettings.practicePlayerLinkLifetimeDays,
-              }
-            : null,
-        );
-        setError(null);
-      }
-    },
-    onSave: () => save("practice"),
-  });
+  const effectiveError = error ?? draftError;
 
   if (!enabled) {
     return (
@@ -551,9 +435,9 @@ export function MusicLibrarySettingsPage({
       </nav>
       {confirmationDialog}
       {loading ? <p role="status">Loading music library settings…</p> : null}
-      {error ? (
+      {effectiveError ? (
         <p className="notice notice--error" role="alert">
-          {error}
+          {effectiveError}
         </p>
       ) : null}
       {success ? (
@@ -561,7 +445,7 @@ export function MusicLibrarySettingsPage({
           {success}
         </p>
       ) : null}
-      {settings && savedSettings ? (
+      {settings ? (
         <>
           <MusicGenreSettingsSection
             busyLabel={genreBusy}
@@ -578,39 +462,26 @@ export function MusicLibrarySettingsPage({
             }}
           />
           <MusicCatalogSettingsSection
-            busy={busy}
             defaultPageSize={settings.defaultPageSize}
             onDefaultPageSizeChange={(value) => {
-              setSettings((current) =>
-                current ? { ...current, defaultPageSize: value } : current,
-              );
+              updateField("defaultPageSize", value);
               setError(null);
               setSuccess(null);
             }}
-            onSave={() => void save("catalog")}
             onTemplateChange={(value) => {
-              setSettings((current) =>
-                current ? { ...current, publisherSearchTemplate: value } : current,
-              );
+              updateField("publisherSearchTemplate", value);
               setError(null);
               setSuccess(null);
             }}
-            savedDefaultPageSize={savedSettings.defaultPageSize}
-            savedTemplate={savedSettings.publisherSearchTemplate}
             template={settings.publisherSearchTemplate}
           />
           <MusicPracticeSettingsSection
-            busy={busy}
             lifetimeDays={settings.practicePlayerLinkLifetimeDays}
             onLifetimeChange={(value) => {
-              setSettings((current) =>
-                current ? { ...current, practicePlayerLinkLifetimeDays: value } : current,
-              );
+              updateField("practicePlayerLinkLifetimeDays", value);
               setError(null);
               setSuccess(null);
             }}
-            onSave={() => void save("practice")}
-            savedLifetimeDays={savedSettings.practicePlayerLinkLifetimeDays}
           />
         </>
       ) : null}

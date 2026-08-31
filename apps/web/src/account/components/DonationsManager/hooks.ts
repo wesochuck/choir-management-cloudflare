@@ -12,7 +12,7 @@ import {
   listOrganizationTicketOrders,
   queryKeys,
 } from "../../../api";
-import { useFloatingSaveAction } from "../../useFloatingSaveAction";
+import { usePersistedDraft } from "../../../persistence";
 import type { DonationSettingsState, DonationState, PatronState } from "./types";
 
 export function useDonationQueries(enabled: boolean) {
@@ -250,8 +250,12 @@ export function useDonationLevels({
   };
 }
 
+interface DonationPortalCopyDraft {
+  buttonText: string;
+  description: string;
+}
+
 export function useDonationPortalCopy({
-  busy,
   onSaveSettings,
   settings,
 }: {
@@ -259,48 +263,48 @@ export function useDonationPortalCopy({
   readonly onSaveSettings: (settings: DonationSettings) => Promise<void>;
   readonly settings: DonationSettings | undefined;
 }) {
-  const [buttonTextDraft, setButtonTextDraft] = useState<string | null>(null);
-  const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
+  const initialValue = useMemo<DonationPortalCopyDraft | null>(() => {
+    if (!settings) return null;
+    return {
+      buttonText: settings.buttonText,
+      description: settings.description,
+    };
+  }, [settings]);
 
-  const portalButtonText = buttonTextDraft ?? settings?.buttonText ?? "";
-  const portalDescription = descriptionDraft ?? settings?.description ?? "";
-
-  const portalCopyDirty = Boolean(
-    settings &&
-    ((buttonTextDraft !== null && buttonTextDraft !== settings.buttonText) ||
-      (descriptionDraft !== null && descriptionDraft !== settings.description)),
-  );
-
-  useFloatingSaveAction({
-    busy,
-    dirty: portalCopyDirty,
-    id: "organization-donation-portal-copy",
-    onDiscard: () => {
-      setButtonTextDraft(null);
-      setDescriptionDraft(null);
-    },
-    onSave: async () => {
-      if (!settings || !portalButtonText.trim()) return;
-      await onSaveSettings({
+  const {
+    draft,
+    save: saveDraft,
+    updateField,
+  } = usePersistedDraft<DonationPortalCopyDraft>({
+    initialValue,
+    normalize: (val) => ({
+      buttonText: val.buttonText.trim(),
+      description: val.description.trim(),
+    }),
+    resourceKey: "organization-donation-portal-copy",
+    save: async (currentDraft) => {
+      if (!settings || !currentDraft.buttonText.trim()) {
+        throw new Error("Button text is required.");
+      }
+      const updated: DonationSettings = {
         ...settings,
-        buttonText: portalButtonText.trim(),
-        description: portalDescription.trim(),
-      });
-      setButtonTextDraft(null);
-      setDescriptionDraft(null);
+        buttonText: currentDraft.buttonText.trim(),
+        description: currentDraft.description.trim(),
+      };
+      await onSaveSettings(updated);
+      return {
+        buttonText: updated.buttonText,
+        description: updated.description,
+      };
     },
   });
 
+  const portalButtonText = draft?.buttonText ?? settings?.buttonText ?? "";
+  const portalDescription = draft?.description ?? settings?.description ?? "";
+
   async function savePortalSettings(formEvent: SyntheticEvent<HTMLFormElement>): Promise<void> {
     formEvent.preventDefault();
-    if (!settings || !portalButtonText.trim()) return;
-    await onSaveSettings({
-      ...settings,
-      buttonText: portalButtonText.trim(),
-      description: portalDescription.trim(),
-    });
-    setButtonTextDraft(null);
-    setDescriptionDraft(null);
+    await saveDraft();
   }
 
   return {
@@ -308,10 +312,10 @@ export function useDonationPortalCopy({
     portalDescription,
     savePortalSettings,
     setPortalButtonText: (text: string) => {
-      setButtonTextDraft(text);
+      updateField("buttonText", text);
     },
     setPortalDescription: (desc: string) => {
-      setDescriptionDraft(desc);
+      updateField("description", desc);
     },
   };
 }

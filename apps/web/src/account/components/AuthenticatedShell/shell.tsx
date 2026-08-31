@@ -18,7 +18,7 @@ import {
   stopOrganizationImpersonation,
 } from "../../../api";
 import { signOut } from "../../../auth/api";
-import { FloatingSaveBarProvider } from "../../FloatingSaveBar";
+import { requestGlobalLeave, SaveBar, SaveCoordinatorProvider } from "../../../persistence";
 import { OrganizationTerminologyProvider } from "../../organizationTerminology";
 
 import {
@@ -246,14 +246,19 @@ export function AuthenticatedShell({
   const workspaceOptions = availableWorkspaces(canManage, platformAvailable);
 
   function switchWorkspace(next: Workspace) {
-    setSelectedWorkspace(next);
-    try {
-      window.localStorage.setItem(`choir-workspace:${window.location.hostname}`, next);
-    } catch {
-      // Restricted storage should not prevent switching workspaces.
-    }
-    navigate(workspaceHome(next));
-    setMobileNavOpen(false);
+    void requestGlobalLeave({
+      action: () => {
+        setSelectedWorkspace(next);
+        try {
+          window.localStorage.setItem(`choir-workspace:${window.location.hostname}`, next);
+        } catch {
+          // Restricted storage should not prevent switching workspaces.
+        }
+        navigate(workspaceHome(next));
+        setMobileNavOpen(false);
+      },
+      reason: "workspace-switch",
+    });
   }
 
   function collapseWorkspaceNavigation() {
@@ -281,198 +286,204 @@ export function AuthenticatedShell({
   const organizationName = organizationDisplayName(access, currentSession);
 
   return (
-    <div
-      className="signed-in-shell"
-      data-sidebar-pinned={sidebarPinned ? "true" : "false"}
-      data-theme={themePreference}
-    >
-      <a className="skip-link" href="#signed-in-main">
-        Skip to main content
-      </a>
-      <header className="signed-in-header">
-        <div className="signed-in-header__brand">
-          <button
-            className="mobile-nav-trigger"
-            onClick={() => {
-              setMobileNavOpen(true);
-            }}
-            ref={(element) => {
-              mobileNavTriggerRef.current = element;
-            }}
-            type="button"
-            aria-label="Open workspace navigation"
-            aria-expanded={mobileNavOpen}
-          >
-            <span aria-hidden="true">☰</span>
-          </button>
-          <AppLink href={selectedWorkspaceHome} onNavigate={navigate}>
-            {branding?.logoFileId ? (
-              <img
-                src={`/api/organization/files/${encodeURIComponent(branding.logoFileId)}`}
-                alt=""
-                className="brand-logo"
-              />
-            ) : (
-              <span className="brand-mark" aria-hidden="true">
-                {branding?.organizationName
-                  ? branding.organizationName
-                      .split(/\s+/)
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()
-                  : "CM"}
+    <SaveCoordinatorProvider>
+      <div
+        className="signed-in-shell"
+        data-sidebar-pinned={sidebarPinned ? "true" : "false"}
+        data-theme={themePreference}
+      >
+        <a className="skip-link" href="#signed-in-main">
+          Skip to main content
+        </a>
+        <header className="signed-in-header">
+          <div className="signed-in-header__brand">
+            <button
+              className="mobile-nav-trigger"
+              onClick={() => {
+                setMobileNavOpen(true);
+              }}
+              ref={(element) => {
+                mobileNavTriggerRef.current = element;
+              }}
+              type="button"
+              aria-label="Open workspace navigation"
+              aria-expanded={mobileNavOpen}
+            >
+              <span aria-hidden="true">☰</span>
+            </button>
+            <AppLink href={selectedWorkspaceHome} onNavigate={navigate}>
+              {branding?.logoFileId ? (
+                <img
+                  src={`/api/organization/files/${encodeURIComponent(branding.logoFileId)}`}
+                  alt=""
+                  className="brand-logo"
+                />
+              ) : (
+                <span className="brand-mark" aria-hidden="true">
+                  {branding?.organizationName
+                    ? branding.organizationName
+                        .split(/\s+/)
+                        .map((part) => part[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()
+                    : "CM"}
+                </span>
+              )}
+              <span>
+                {branding?.organizationName ??
+                  (access.status === "ready" ? access.organizationName : null) ??
+                  "Choir Management"}
               </span>
-            )}
-            <span>
-              {branding?.organizationName ??
-                (access.status === "ready" ? access.organizationName : null) ??
-                "Choir Management"}
-            </span>
-          </AppLink>
-        </div>
-        <div className="signed-in-header__actions">
-          <label className="workspace-switcher">
-            <span className="sr-only">Workspace</span>
-            <select
-              value={selectedWorkspace}
-              onChange={(event) => {
-                switchWorkspace(readWorkspace(event.target.value));
+            </AppLink>
+          </div>
+          <div className="signed-in-header__actions">
+            <label className="workspace-switcher">
+              <span className="sr-only">Workspace</span>
+              <select
+                value={selectedWorkspace}
+                onChange={(event) => {
+                  switchWorkspace(readWorkspace(event.target.value));
+                }}
+              >
+                {workspaceOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {workspaceLabel(item)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              aria-label={
+                themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"
+              }
+              className="theme-switcher"
+              title={themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              type="button"
+              onClick={() => {
+                setThemePreference((current) => (current === "dark" ? "light" : "dark"));
               }}
             >
-              {workspaceOptions.map((item) => (
-                <option key={item} value={item}>
-                  {workspaceLabel(item)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            aria-label={
-              themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"
-            }
-            className="theme-switcher"
-            title={themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            type="button"
-            onClick={() => {
-              setThemePreference((current) => (current === "dark" ? "light" : "dark"));
-            }}
-          >
-            <ThemeIcon preference={themePreference} />
-            <span className="sr-only">
-              {themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            </span>
-          </button>
-          <button
-            className="button button--secondary button--small"
-            onClick={() => {
-              void signOut().then(onSignedOut);
-            }}
-            type="button"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-      {impersonation?.active ? (
-        <aside aria-label="Impersonation status" className="impersonation-banner" role="status">
-          <div className="impersonation-banner__info">
-            <span aria-hidden="true" className="impersonation-banner__icon">
-              👁️
-            </span>
-            <span>
-              Viewing as <strong>{impersonation.impersonatedProfile?.displayName}</strong>
-              {impersonation.impersonatedProfile?.voicePart
-                ? ` (${impersonation.impersonatedProfile.voicePart})`
-                : ""}
-            </span>
+              <ThemeIcon preference={themePreference} />
+              <span className="sr-only">
+                {themePreference === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              </span>
+            </button>
+            <button
+              className="button button--secondary button--small"
+              onClick={() => {
+                void requestGlobalLeave({
+                  action: async () => {
+                    await signOut();
+                    onSignedOut();
+                  },
+                  reason: "sign-out",
+                });
+              }}
+              type="button"
+            >
+              Sign out
+            </button>
           </div>
-          <button
-            className="button button--secondary button--small impersonation-banner__exit-btn"
-            onClick={() => {
-              void handleExitImpersonation();
-            }}
-            type="button"
-          >
-            Exit Impersonation
-          </button>
-        </aside>
-      ) : null}
-      <div className="signed-in-body">
-        {sidebarPinned ? (
-          <aside className="signed-in-sidebar">
-            <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
-              <button
-                aria-label="Collapse workspace navigation"
-                className="sidebar-toolbar__button"
-                onClick={collapseWorkspaceNavigation}
-                ref={sidebarCollapseRef}
-                title="Collapse workspace navigation"
-                type="button"
-              >
-                <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                  <path d="m14 6-6 6 6 6" />
-                </svg>
-                <span className="sr-only">Collapse workspace navigation</span>
-              </button>
-              <button
-                aria-label="Unpin workspace navigation"
-                aria-pressed={sidebarPinned}
-                className="sidebar-toolbar__button sidebar-toolbar__button--pin"
-                onClick={unpinWorkspaceNavigation}
-                title="Unpin workspace navigation"
-                type="button"
-              >
-                <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                  <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
-                </svg>
-                <span className="sr-only">Unpin workspace navigation</span>
-              </button>
+        </header>
+        {impersonation?.active ? (
+          <aside aria-label="Impersonation status" className="impersonation-banner" role="status">
+            <div className="impersonation-banner__info">
+              <span aria-hidden="true" className="impersonation-banner__icon">
+                👁️
+              </span>
+              <span>
+                Viewing as <strong>{impersonation.impersonatedProfile?.displayName}</strong>
+                {impersonation.impersonatedProfile?.voicePart
+                  ? ` (${impersonation.impersonatedProfile.voicePart})`
+                  : ""}
+              </span>
             </div>
-            <div className="sidebar-context">
-              <span className="eyebrow">{workspaceLabel(selectedWorkspace)}</span>
-              <strong>{organizationName}</strong>
-            </div>
-            <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
+            <button
+              className="button button--secondary button--small impersonation-banner__exit-btn"
+              onClick={() => {
+                void handleExitImpersonation();
+              }}
+              type="button"
+            >
+              Exit Impersonation
+            </button>
           </aside>
         ) : null}
-        <main
-          className={[
-            "signed-in-main",
-            route.pathname === "/admin" ? "signed-in-main--admin-overview" : "",
-            route.pathname === "/admin/attendance" ? "signed-in-main--attendance" : "",
-            route.pathname.startsWith("/admin/communications")
-              ? "signed-in-main--communications"
-              : "",
-            workspace === "platform" ? "signed-in-main--platform" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          id="signed-in-main"
-        >
-          {route.pathname === "/admin" || route.pathname === "/admin/seating" ? null : (
-            <div className="page-heading">
-              <div>
-                <h1>{pageTitle(route.pathname)}</h1>
-                {pageDescription(route.pathname, route.search) ? (
-                  <p className="page-heading__description">
-                    {pageDescription(route.pathname, route.search)}
-                  </p>
-                ) : null}
+        <div className="signed-in-body">
+          {sidebarPinned ? (
+            <aside className="signed-in-sidebar">
+              <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
+                <button
+                  aria-label="Collapse workspace navigation"
+                  className="sidebar-toolbar__button"
+                  onClick={collapseWorkspaceNavigation}
+                  ref={sidebarCollapseRef}
+                  title="Collapse workspace navigation"
+                  type="button"
+                >
+                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                    <path d="m14 6-6 6 6 6" />
+                  </svg>
+                  <span className="sr-only">Collapse workspace navigation</span>
+                </button>
+                <button
+                  aria-label="Unpin workspace navigation"
+                  aria-pressed={sidebarPinned}
+                  className="sidebar-toolbar__button sidebar-toolbar__button--pin"
+                  onClick={unpinWorkspaceNavigation}
+                  title="Unpin workspace navigation"
+                  type="button"
+                >
+                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                    <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
+                  </svg>
+                  <span className="sr-only">Unpin workspace navigation</span>
+                </button>
               </div>
-            </div>
-          )}
-          {access.status === "error" ? (
-            <p className="notice notice--error" role="alert">
-              Workspace access could not be loaded. Refresh and try again.
-            </p>
+              <div className="sidebar-context">
+                <span className="eyebrow">{workspaceLabel(selectedWorkspace)}</span>
+                <strong>{organizationName}</strong>
+              </div>
+              <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
+            </aside>
           ) : null}
-          <OrganizationTerminologyProvider
-            onLabelChange={setOrganizationPerformerLabel}
-            performerLabel={organizationPerformerLabel}
+          <main
+            className={[
+              "signed-in-main",
+              route.pathname === "/admin" ? "signed-in-main--admin-overview" : "",
+              route.pathname === "/admin/attendance" ? "signed-in-main--attendance" : "",
+              route.pathname.startsWith("/admin/communications")
+                ? "signed-in-main--communications"
+                : "",
+              workspace === "platform" ? "signed-in-main--platform" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            id="signed-in-main"
           >
-            <Suspense fallback={<WorkspacePageLoading />}>
-              <FloatingSaveBarProvider>
+            {route.pathname === "/admin" || route.pathname === "/admin/seating" ? null : (
+              <div className="page-heading">
+                <div>
+                  <h1>{pageTitle(route.pathname)}</h1>
+                  {pageDescription(route.pathname, route.search) ? (
+                    <p className="page-heading__description">
+                      {pageDescription(route.pathname, route.search)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+            {access.status === "error" ? (
+              <p className="notice notice--error" role="alert">
+                Workspace access could not be loaded. Refresh and try again.
+              </p>
+            ) : null}
+            <OrganizationTerminologyProvider
+              onLabelChange={setOrganizationPerformerLabel}
+              performerLabel={organizationPerformerLabel}
+            >
+              <Suspense fallback={<WorkspacePageLoading />}>
                 <WorkspacePage
                   access={access}
                   currentSession={currentSession}
@@ -483,49 +494,50 @@ export function AuthenticatedShell({
                   route={route}
                   workspace={workspace}
                 />
-              </FloatingSaveBarProvider>
-            </Suspense>
-          </OrganizationTerminologyProvider>
-        </main>
-      </div>
-      <Sheet
-        onClose={() => {
-          setMobileNavOpen(false);
-        }}
-        open={mobileNavOpen}
-        restoreFocusRef={mobileNavTriggerRef}
-        title="Workspace navigation"
-      >
-        <div className="sheet__header sidebar-drawer__header">
-          <div className="sidebar-drawer__context">
-            <span className="eyebrow">Workspace</span>
-            <strong>{workspaceLabel(selectedWorkspace)}</strong>
-          </div>
-          {!sidebarPinned ? (
-            <button
-              aria-label="Pin navigation open"
-              aria-pressed="false"
-              className="sidebar-drawer__pin"
-              onClick={pinWorkspaceNavigation}
-              title="Pin navigation open"
-              type="button"
-            >
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
-              </svg>
-              <span className="sr-only">Pin navigation open</span>
-            </button>
-          ) : null}
+              </Suspense>
+              <SaveBar />
+            </OrganizationTerminologyProvider>
+          </main>
         </div>
-        <Navigation
-          groups={navGroups}
-          navigate={(href) => {
-            navigate(href);
+        <Sheet
+          onClose={() => {
             setMobileNavOpen(false);
           }}
-          pathname={route.pathname}
-        />
-      </Sheet>
-    </div>
+          open={mobileNavOpen}
+          restoreFocusRef={mobileNavTriggerRef}
+          title="Workspace navigation"
+        >
+          <div className="sheet__header sidebar-drawer__header">
+            <div className="sidebar-drawer__context">
+              <span className="eyebrow">Workspace</span>
+              <strong>{workspaceLabel(selectedWorkspace)}</strong>
+            </div>
+            {!sidebarPinned ? (
+              <button
+                aria-label="Pin navigation open"
+                aria-pressed="false"
+                className="sidebar-drawer__pin"
+                onClick={pinWorkspaceNavigation}
+                title="Pin navigation open"
+                type="button"
+              >
+                <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                  <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
+                </svg>
+                <span className="sr-only">Pin navigation open</span>
+              </button>
+            ) : null}
+          </div>
+          <Navigation
+            groups={navGroups}
+            navigate={(href) => {
+              navigate(href);
+              setMobileNavOpen(false);
+            }}
+            pathname={route.pathname}
+          />
+        </Sheet>
+      </div>
+    </SaveCoordinatorProvider>
   );
 }

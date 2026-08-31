@@ -1,15 +1,10 @@
-import type { OrganizationProfile, OrganizationRosterConfiguration } from "@choir/contracts";
+import type { OrganizationProfile } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import {
-  getOrganizationRosterConfiguration,
-  listOrganizationProfiles,
-  updateOrganizationProfile,
-  updateOrganizationRosterConfiguration,
-} from "../auth/api";
-import { useFloatingSaveAction } from "./useFloatingSaveAction";
+import { updateOrganizationProfile } from "../auth/api";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
+import { useRosterConfigurationDraft } from "./RosterConfigurationDraftContext";
 
 interface Props {
   readonly enabled: boolean;
@@ -23,10 +18,6 @@ function nextUniqueLabel(prefix: string, used: ReadonlySet<string>): string {
     suffix += 1;
   }
   return candidate;
-}
-
-function configurationKey(configuration: OrganizationRosterConfiguration | null): string {
-  return configuration ? JSON.stringify(configuration) : "";
 }
 
 function profileRequestFrom(profile: OrganizationProfile) {
@@ -49,67 +40,28 @@ function profileRequestFrom(profile: OrganizationProfile) {
 
 // eslint-disable-next-line complexity -- this editor coordinates sections, part assignments, and reassignment dialogs.
 export function RosterConfiguration({ enabled }: Props) {
-  const { partLabel, partLabelPlural, performerLabel, setPerformerLabel } =
-    useOrganizationTerminology();
+  const { partLabel, partLabelPlural, performerLabel } = useOrganizationTerminology();
   const partTerm = partLabel.toLowerCase();
-  const [configuration, setConfiguration] = useState<OrganizationRosterConfiguration | null>(null);
-  const [savedConfiguration, setSavedConfiguration] =
-    useState<OrganizationRosterConfiguration | null>(null);
-  const [profiles, setProfiles] = useState<readonly OrganizationProfile[]>([]);
+  const {
+    draft: configuration,
+    draftReturn,
+    error: contextError,
+    loading,
+    profiles,
+    refreshProfiles,
+    setProfiles,
+  } = useRosterConfigurationDraft();
+
   const [reassigningLabel, setReassigningLabel] = useState<string | null>(null);
   const [replacementVoicePart, setReplacementVoicePart] = useState("");
   const [reassignmentError, setReassignmentError] = useState<string | null>(null);
   const [assignmentMessage, setAssignmentMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [reassignBusy, setReassignBusy] = useState(false);
 
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    Promise.all([
-      getOrganizationRosterConfiguration(controller.signal),
-      listOrganizationProfiles(controller.signal),
-    ])
-      .then(([nextConfiguration, nextProfiles]) => {
-        setConfiguration(nextConfiguration);
-        setSavedConfiguration(nextConfiguration);
-        setPerformerLabel(nextConfiguration.performerLabel);
-        setProfiles(nextProfiles);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setError("Roster configuration could not be loaded.");
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled, setPerformerLabel]);
-
-  async function save(): Promise<void> {
-    if (!configuration) return;
-    setBusy(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const latest = await getOrganizationRosterConfiguration();
-      const nextConfiguration = await updateOrganizationRosterConfiguration({
-        ...latest,
-        performerLabel: configuration.performerLabel,
-        sections: configuration.sections,
-        voiceParts: configuration.voiceParts,
-      });
-      setConfiguration(nextConfiguration);
-      setSavedConfiguration(nextConfiguration);
-      setPerformerLabel(nextConfiguration.performerLabel);
-      setSaved(true);
-    } catch (caught: unknown) {
-      setError(
-        caught instanceof Error ? caught.message : "Roster configuration could not be saved.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
+  const busy = draftReturn.saving || reassignBusy;
+  const error = contextError ?? draftReturn.error;
+  const setConfiguration = draftReturn.setDraft;
+  const savedConfiguration = draftReturn.persisted;
 
   const assignedProfilesByLabel = useMemo(() => {
     const grouped = new Map<string, OrganizationProfile[]>();
@@ -135,7 +87,7 @@ export function RosterConfiguration({ enabled }: Props) {
       setReassigningLabel(null);
       return;
     }
-    setBusy(true);
+    setReassignBusy(true);
     setReassignmentError(null);
     try {
       const updatedProfiles = await Promise.all(
@@ -155,35 +107,20 @@ export function RosterConfiguration({ enabled }: Props) {
       );
       setReassigningLabel(null);
     } catch (caught: unknown) {
-      try {
-        setProfiles(await listOrganizationProfiles());
-      } catch {
-        // Keep the existing list if the recovery refresh is unavailable.
-      }
+      await refreshProfiles();
       setReassignmentError(
         caught instanceof Error
           ? `${caught.message} Some assignments may have changed; the roster was refreshed where possible.`
           : "Some Profile assignments could not be updated. The roster was refreshed where possible.",
       );
     } finally {
-      setBusy(false);
+      setReassignBusy(false);
     }
   }
 
-  const dirty = configurationKey(configuration) !== configurationKey(savedConfiguration);
   const reassigningProfileCount = reassigningLabel
     ? (assignedProfilesByLabel.get(reassigningLabel)?.length ?? 0)
     : 0;
-  useFloatingSaveAction({
-    busy,
-    dirty,
-    id: "organization-roster-configuration",
-    onDiscard: () => {
-      setConfiguration(savedConfiguration);
-      setSaved(false);
-    },
-    onSave: save,
-  });
 
   if (!enabled) return null;
 
@@ -207,17 +144,12 @@ export function RosterConfiguration({ enabled }: Props) {
           {error}
         </p>
       ) : null}
-      {saved && !dirty ? (
-        <p className="notice notice--success" role="status">
-          Roster configuration saved.
-        </p>
-      ) : null}
       {assignmentMessage ? (
         <p className="notice notice--success" role="status">
           {assignmentMessage}
         </p>
       ) : null}
-      {!configuration ? (
+      {loading || !configuration ? (
         <p role="status">Loading roster configuration…</p>
       ) : (
         <div className="settings-stack">
@@ -231,9 +163,9 @@ export function RosterConfiguration({ enabled }: Props) {
                 required
                 value={configuration.performerLabel}
                 onChange={(event) => {
-                  const performerLabel = event.target.value;
+                  const performerLabelValue = event.target.value;
                   setConfiguration((current) =>
-                    current ? { ...current, performerLabel } : current,
+                    current ? { ...current, performerLabel: performerLabelValue } : current,
                   );
                 }}
               />

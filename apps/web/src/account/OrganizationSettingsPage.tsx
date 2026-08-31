@@ -21,7 +21,7 @@ import type {
 } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
-import { useFloatingSaveAction } from "./useFloatingSaveAction";
+import { usePersistedDraft } from "../persistence";
 
 const fallbackTimeZones = [
   "UTC",
@@ -362,27 +362,44 @@ function OrganizationExportPanel() {
 }
 
 export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolean }) {
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [settingsLoadAttempt, setSettingsLoadAttempt] = useState(0);
   const [success, setSuccess] = useState<string | null>(null);
-  const [feeBusy, setFeeBusy] = useState(false);
-  const [feeError, setFeeError] = useState<string | null>(null);
   const [feeSuccess, setFeeSuccess] = useState<string | null>(null);
-  const [transactionFeeSettings, setTransactionFeeSettings] = useState<TransactionFeeSettings>({
-    fixedCents: 30,
-    passFeeToDonor: false,
-    percentage: 2.9,
+
+  const [initialTimezone, setInitialTimezone] = useState<string | null>(null);
+  const [initialFeeSettings, setInitialFeeSettings] = useState<TransactionFeeSettings | null>(null);
+  const [fixedFeeDraft, setFixedFeeDraft] = useState("0.30");
+
+  const {
+    draft: timezone,
+    error: timezoneError,
+    setDraft: setTimezone,
+  } = usePersistedDraft<string>({
+    initialValue: initialTimezone,
+    onSaveSuccess: () => {
+      setSuccess("Organization timezone updated.");
+    },
+    resourceKey: "organization-timezone",
+    save: async (nextTz) => (await updateOrganizationCalendarSettings(nextTz)).timezone,
   });
-  const [savedTransactionFeeSettings, setSavedTransactionFeeSettings] =
-    useState<TransactionFeeSettings>(transactionFeeSettings);
-  const [fixedFeeDraft, setFixedFeeDraft] = useState(
-    currencyDraftFromCents(transactionFeeSettings.fixedCents),
-  );
-  const [timezone, setTimezone] = useState("UTC");
-  const [savedTimezone, setSavedTimezone] = useState("UTC");
+
+  const {
+    draft: transactionFeeSettings,
+    error: feeError,
+    setDraft: setTransactionFeeSettings,
+  } = usePersistedDraft<TransactionFeeSettings>({
+    equals: transactionFeeSettingsEqual,
+    initialValue: initialFeeSettings,
+    onSaveSuccess: (saved) => {
+      setFixedFeeDraft(currencyDraftFromCents(saved.fixedCents));
+      setFeeSuccess("Transaction fee settings updated.");
+    },
+    resourceKey: "organization-transaction-fees",
+    save: (nextFees) => updateOrganizationTransactionFeeSettings(nextFees),
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -392,10 +409,8 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
       getOrganizationTransactionFeeSettings(controller.signal),
     ])
       .then(([calendarSettings, feeSettings]) => {
-        setTimezone(calendarSettings.timezone);
-        setSavedTimezone(calendarSettings.timezone);
-        setTransactionFeeSettings(feeSettings);
-        setSavedTransactionFeeSettings(feeSettings);
+        setInitialTimezone(calendarSettings.timezone);
+        setInitialFeeSettings(feeSettings);
         setFixedFeeDraft(currencyDraftFromCents(feeSettings.fixedCents));
         setSettingsLoaded(true);
         setLoading(false);
@@ -412,80 +427,14 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     };
   }, [enabled, settingsLoadAttempt]);
 
-  async function saveTimezone() {
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const settings = await updateOrganizationCalendarSettings(timezone);
-      setTimezone(settings.timezone);
-      setSavedTimezone(settings.timezone);
-      setSuccess("Organization timezone updated.");
-    } catch (saveError: unknown) {
-      setError(
-        saveError instanceof AuthApiError
-          ? saveError.message
-          : "The Organization timezone could not be updated.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveTransactionFees() {
-    const normalizedSettings = {
-      ...transactionFeeSettings,
-      fixedCents: currencyCentsFromDraft(fixedFeeDraft),
-    };
-    setTransactionFeeSettings(normalizedSettings);
-    setFixedFeeDraft(currencyDraftFromCents(normalizedSettings.fixedCents));
-    setFeeBusy(true);
-    setFeeError(null);
-    setFeeSuccess(null);
-    try {
-      const settings = await updateOrganizationTransactionFeeSettings(normalizedSettings);
-      setTransactionFeeSettings(settings);
-      setSavedTransactionFeeSettings(settings);
-      setFixedFeeDraft(currencyDraftFromCents(settings.fixedCents));
-      setFeeSuccess("Transaction fee settings updated.");
-    } catch (saveError: unknown) {
-      setFeeError(
-        saveError instanceof AuthApiError
-          ? saveError.message
-          : "Transaction fee settings could not be updated.",
-      );
-    } finally {
-      setFeeBusy(false);
-    }
-  }
-
-  useFloatingSaveAction({
-    busy,
-    dirty: timezone !== savedTimezone,
-    id: "organization-timezone",
-    onDiscard: () => {
-      setTimezone(savedTimezone);
-      setSuccess(null);
-    },
-    onSave: saveTimezone,
-  });
-  useFloatingSaveAction({
-    busy: feeBusy,
-    dirty:
-      !transactionFeeSettingsEqual(transactionFeeSettings, savedTransactionFeeSettings) ||
-      currencyCentsFromDraft(fixedFeeDraft) !== savedTransactionFeeSettings.fixedCents,
-    id: "organization-transaction-fees",
-    onDiscard: () => {
-      setTransactionFeeSettings(savedTransactionFeeSettings);
-      setFixedFeeDraft(currencyDraftFromCents(savedTransactionFeeSettings.fixedCents));
-      setFeeSuccess(null);
-    },
-    onSave: saveTransactionFees,
-  });
-
-  const exampleFeeCents = transactionProcessingFeeCents(1_000, transactionFeeSettings);
-  const examplePayerTotalCents =
-    1_000 + (transactionFeeSettings.passFeeToDonor ? exampleFeeCents : 0);
+  const currentFeeSettings: TransactionFeeSettings = transactionFeeSettings ?? {
+    fixedCents: 30,
+    passFeeToDonor: false,
+    percentage: 2.9,
+  };
+  const exampleFeeCents = transactionProcessingFeeCents(1_000, currentFeeSettings);
+  const examplePayerTotalCents = 1_000 + (currentFeeSettings.passFeeToDonor ? exampleFeeCents : 0);
+  const effectiveError = error ?? timezoneError;
 
   if (!enabled) {
     return (
@@ -515,7 +464,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
             {feeSuccess}
           </p>
         ) : null}
-        {settingsLoaded ? (
+        {settingsLoaded && transactionFeeSettings ? (
           <div className="form-stack settings-form">
             <div className="settings-grid">
               <label className="field" htmlFor="transaction-fee-percentage">
@@ -525,7 +474,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
                   min="0"
                   onChange={(event) => {
                     setTransactionFeeSettings((current) => ({
-                      ...current,
+                      ...(current ?? currentFeeSettings),
                       percentage: Number(event.target.value) || 0,
                     }));
                   }}
@@ -545,7 +494,10 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
                   onBlur={() => {
                     const cents = currencyCentsFromDraft(fixedFeeDraft);
                     setFixedFeeDraft(currencyDraftFromCents(cents));
-                    setTransactionFeeSettings((current) => ({ ...current, fixedCents: cents }));
+                    setTransactionFeeSettings((current) => ({
+                      ...(current ?? currentFeeSettings),
+                      fixedCents: cents,
+                    }));
                   }}
                   step="0.01"
                   type="text"
@@ -558,7 +510,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
                 checked={transactionFeeSettings.passFeeToDonor}
                 onChange={(event) => {
                   setTransactionFeeSettings((current) => ({
-                    ...current,
+                    ...(current ?? currentFeeSettings),
                     passFeeToDonor: event.target.checked,
                   }));
                 }}
@@ -579,9 +531,9 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
       <fieldset className="surface-card organization-settings-panel">
         <legend id="calendar-settings-title">Calendar settings</legend>
         {loading ? <p role="status">Loading calendar settings…</p> : null}
-        {error ? (
+        {effectiveError ? (
           <div className="notice notice--error" role="alert">
-            <p>{error}</p>
+            <p>{effectiveError}</p>
             {!settingsLoaded ? (
               <button
                 className="button button--secondary button--sm"
@@ -603,7 +555,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
             {success}
           </p>
         ) : null}
-        {settingsLoaded ? (
+        {settingsLoaded && timezone ? (
           <div className="form-stack settings-form">
             <div className="field">
               <label htmlFor="settings-timezone">IANA timezone</label>

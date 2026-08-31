@@ -10,7 +10,7 @@ import {
   uploadPrivateOrganizationFile,
 } from "../auth/api";
 import { publicWebsiteFontStacks, type PublicWebsiteFont } from "../public/publicWebsiteFonts";
-import { useFloatingSaveAction } from "./useFloatingSaveAction";
+import { useSaveRegistration } from "../persistence";
 
 type LoadState =
   | { readonly status: "error" }
@@ -240,11 +240,10 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     [draft, heroFile, loadState, logoFile],
   );
 
-  useFloatingSaveAction({
+  useSaveRegistration({
     busy,
     dirty,
-    id: "organization-public-website-settings",
-    onDiscard: () => {
+    discard: () => {
       if (loadState.status === "ready") {
         setDraft(requestFrom(loadState.settings));
         setHeroFile(null);
@@ -252,7 +251,12 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         setError(null);
       }
     },
-    onSave: save,
+    id: "organization-public-website-settings",
+    resourceKey: "organization-public-website-settings",
+    save: async () => {
+      await save();
+      return true;
+    },
   });
 
   if (!enabled) return null;

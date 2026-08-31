@@ -7,7 +7,7 @@ import type {
 } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { AuthApiError, createOrganizationVenue } from "../../../../auth/api";
-import { useFloatingSaveAction } from "../../../useFloatingSaveAction";
+import { usePersistedDraft } from "../../../../persistence";
 import { formatDate, slotUtcValue } from "../utils";
 import type { AdministratorRecipient } from "../types";
 import {
@@ -42,9 +42,6 @@ export function SettingsForm({
   readonly timezone: string;
   readonly venues: readonly OrganizationVenue[];
 }) {
-  const [draft, setDraft] = useState<OrganizationAuditionSettings>(initial);
-  const [savedDraft, setSavedDraft] = useState<OrganizationAuditionSettings>(initial);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [slotStart, setSlotStart] = useState(DEFAULT_SLOT_START);
   const [slotEnd, setSlotEnd] = useState(DEFAULT_SLOT_END);
@@ -62,6 +59,46 @@ export function SettingsForm({
   const [rehearsalEnd, setRehearsalEnd] = useState(DEFAULT_REHEARSAL_END);
   const [rehearsalError, setRehearsalError] = useState<string | null>(null);
   const [rehearsalVenueId, setRehearsalVenueId] = useState("");
+
+  const {
+    dirty,
+    draft,
+    error: draftError,
+    save: saveDraft,
+    saving: busy,
+    setDraft,
+  } = usePersistedDraft<OrganizationAuditionSettings>({
+    equals: (a, b) => auditionSettingsKey(a) === auditionSettingsKey(b),
+    initialValue: initial,
+    resourceKey: "organization-audition-settings",
+    save: async (currentDraft) => {
+      const isAudition = currentDraft.mode === "audition";
+      if (isAudition && !currentDraft.venueId) {
+        throw new Error("Choose an Organization venue for the auditions before saving.");
+      }
+      if (isAudition && currentDraft.slots.length === 0) {
+        throw new Error("Add at least one audition time slot before saving.");
+      }
+      const payload: OrganizationAuditionSettings = isAudition
+        ? currentDraft
+        : {
+            ...currentDraft,
+            defaultPerformanceId: null,
+            startDate: currentDraft.startDate ?? null,
+            venueId: null,
+          };
+      await onSave(payload);
+      return payload;
+    },
+  });
+
+  useEffect(() => {
+    onDirtyChange(dirty);
+    return () => {
+      onDirtyChange(false);
+    };
+  }, [dirty, onDirtyChange]);
+
   function addSlot() {
     setSlotError(null);
     const startsAt = slotUtcValue(slotDate, slotStart, timezone);
@@ -70,15 +107,20 @@ export function SettingsForm({
       setSlotError(`Enter a valid start and end time in ${timezone}.`);
       return;
     }
-    setDraft((current) => ({
-      ...current,
-      slots: [...current.slots, { endsAt, id: crypto.randomUUID(), startsAt }].toSorted((a, b) =>
-        a.startsAt.localeCompare(b.startsAt),
-      ),
-    }));
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            slots: [...current.slots, { endsAt, id: crypto.randomUUID(), startsAt }].toSorted(
+              (a, b) => a.startsAt.localeCompare(b.startsAt),
+            ),
+          }
+        : current,
+    );
     setSlotStart(DEFAULT_SLOT_START);
     setSlotEnd(DEFAULT_SLOT_END);
   }
+
   function generateSlots() {
     setSlotError(null);
     const startsAt = slotUtcValue(slotDate, slotStart, timezone);
@@ -109,16 +151,21 @@ export function SettingsForm({
         startsAt: new Date(cursor).toISOString(),
       });
     }
-    setDraft((current) => ({
-      ...current,
-      slots: [...current.slots, ...slots]
-        .filter(
-          (slot, index, values) =>
-            values.findIndex((candidate) => candidate.startsAt === slot.startsAt) === index,
-        )
-        .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
-    }));
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            slots: [...current.slots, ...slots]
+              .filter(
+                (slot, index, values) =>
+                  values.findIndex((candidate) => candidate.startsAt === slot.startsAt) === index,
+              )
+              .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
+          }
+        : current,
+    );
   }
+
   function addRehearsalSession() {
     setRehearsalError(null);
     if (!rehearsalStart || !rehearsalEnd || rehearsalStart >= rehearsalEnd) {
@@ -130,26 +177,32 @@ export function SettingsForm({
       setRehearsalError("Choose an Organization venue before adding this rehearsal day.");
       return;
     }
-    setDraft((current) => ({
-      ...current,
-      rehearsalSchedule: [
-        ...current.rehearsalSchedule,
-        {
-          dayOfWeek: rehearsalDay,
-          endTime: rehearsalEnd,
-          locationName: "",
-          startTime: rehearsalStart,
-          venueId: venue.id,
-        },
-      ],
-    }));
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            rehearsalSchedule: [
+              ...current.rehearsalSchedule,
+              {
+                dayOfWeek: rehearsalDay,
+                endTime: rehearsalEnd,
+                locationName: "",
+                startTime: rehearsalStart,
+                venueId: venue.id,
+              },
+            ],
+          }
+        : current,
+    );
   }
+
   function openNewVenueDialog() {
     setNewVenueAddress("");
     setNewVenueError(null);
     setNewVenueName("");
     setNewVenueOpen(true);
   }
+
   async function saveNewVenue() {
     const name = newVenueName.trim();
     const address = newVenueAddress.trim();
@@ -172,95 +225,50 @@ export function SettingsForm({
       setNewVenueBusy(false);
     }
   }
+
   function addRecipient() {
     const email = recipientEmail.trim().toLowerCase();
-    if (!email || !email.includes("@") || draft.adminNotifyUsers.includes(email)) return;
-    setDraft((current) => ({
-      ...current,
-      adminNotifyUsers: [...current.adminNotifyUsers, email],
-    }));
+    if (!email || !email.includes("@") || !draft || draft.adminNotifyUsers.includes(email)) return;
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            adminNotifyUsers: [...current.adminNotifyUsers, email],
+          }
+        : current,
+    );
     setRecipientEmail("");
   }
 
   function toggleAdministrator(recipient: AdministratorRecipient, checked: boolean) {
-    setDraft((current) => ({
-      ...current,
-      adminNotifyUsers: checked
-        ? [...new Set([...current.adminNotifyUsers, recipient.email])]
-        : current.adminNotifyUsers.filter((email) => email !== recipient.email),
-    }));
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            adminNotifyUsers: checked
+              ? [...new Set([...current.adminNotifyUsers, recipient.email])]
+              : current.adminNotifyUsers.filter((email) => email !== recipient.email),
+          }
+        : current,
+    );
   }
+
+  if (!draft) return null;
 
   const isAuditionMode = draft.mode === "audition";
-  const dirty = auditionSettingsKey(draft) !== auditionSettingsKey(savedDraft);
-
-  useEffect(() => {
-    onDirtyChange(dirty);
-    return () => {
-      onDirtyChange(false);
-    };
-  }, [dirty, onDirtyChange]);
-
-  function discardSettings(): void {
-    setDraft(savedDraft);
-    setError(null);
-    setRehearsalError(null);
-    setSlotError(null);
-  }
-
-  async function saveSettings(): Promise<void> {
-    if (isAuditionMode && !draft.venueId) {
-      setError("Choose an Organization venue for the auditions before saving.");
-      return;
-    }
-    if (isAuditionMode && draft.slots.length === 0) {
-      setError("Add at least one audition time slot before saving.");
-      return;
-    }
-    const payload: OrganizationAuditionSettings = isAuditionMode
-      ? draft
-      : {
-          ...draft,
-          defaultPerformanceId: null,
-          startDate: draft.startDate ?? null,
-          venueId: null,
-        };
-    setBusy(true);
-    setError(null);
-    try {
-      await onSave(payload);
-      setDraft(payload);
-      setSavedDraft(payload);
-    } catch (caught: unknown) {
-      setError(
-        caught instanceof AuthApiError
-          ? caught.message
-          : "Audition settings could not be saved. Check the settings and try again.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useFloatingSaveAction({
-    busy: busy || newVenueBusy,
-    dirty,
-    id: "organization-audition-settings",
-    onDiscard: discardSettings,
-    onSave: saveSettings,
-  });
+  const effectiveError = error ?? draftError;
 
   return (
     <form
       className="form-stack"
       onSubmit={(event) => {
         event.preventDefault();
-        void saveSettings();
+        void saveDraft();
       }}
     >
-      {error ? (
+      {effectiveError ? (
         <p className="notice notice--error" role="alert">
-          {error}
+          {effectiveError}
         </p>
       ) : null}
 

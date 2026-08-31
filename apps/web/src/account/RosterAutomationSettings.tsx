@@ -1,17 +1,11 @@
 import type {
   OrganizationProfile,
   OrganizationRosterAutomationPreviewResponse,
-  OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  getOrganizationRosterConfiguration,
-  listOrganizationProfiles,
-  previewOrganizationRosterAutomation,
-  updateOrganizationRosterConfiguration,
-} from "../auth/api";
-import { useFloatingSaveAction } from "./useFloatingSaveAction";
+import { previewOrganizationRosterAutomation } from "../auth/api";
+import { useRosterConfigurationDraft } from "./RosterConfigurationDraftContext";
 
 interface Props {
   readonly enabled: boolean;
@@ -45,43 +39,26 @@ function previewSummary(preview: OrganizationRosterAutomationPreviewResponse | n
 }
 
 export function RosterAutomationSettings({ enabled }: Props) {
-  const [configuration, setConfiguration] = useState<OrganizationRosterConfiguration | null>(null);
-  const [savedConfiguration, setSavedConfiguration] =
-    useState<OrganizationRosterConfiguration | null>(null);
-  const [profiles, setProfiles] = useState<readonly OrganizationProfile[]>([]);
+  const {
+    draft: configuration,
+    draftReturn,
+    error: contextError,
+    loading,
+    profiles,
+  } = useRosterConfigurationDraft();
+
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [preview, setPreview] = useState<OrganizationRosterAutomationPreviewResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+
+  const error = contextError ?? draftReturn.error;
+  const setConfiguration = draftReturn.setDraft;
 
   useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    void Promise.all([
-      getOrganizationRosterConfiguration(controller.signal),
-      listOrganizationProfiles(controller.signal),
-    ])
-      .then(([nextConfiguration, nextProfiles]) => {
-        setConfiguration(nextConfiguration);
-        setSavedConfiguration(nextConfiguration);
-        setProfiles(nextProfiles);
-        setSelectedProfileId(
-          nextProfiles.find((profile) => profile.voicePart.trim() !== "")?.id ?? null,
-        );
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setError("Roster automation settings could not be loaded.");
-          setLoading(false);
-        }
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled]);
+    if (!selectedProfileId && profiles.length > 0) {
+      const candidate = profiles.find((profile) => profile.voicePart.trim() !== "")?.id ?? null;
+      setSelectedProfileId(candidate);
+    }
+  }, [profiles, selectedProfileId]);
 
   useEffect(() => {
     if (!configuration || !enabled) return;
@@ -102,49 +79,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
   }, [configuration, enabled, selectedProfileId]);
 
   const selectedProfile = useMemo(() => preview?.selectedProfile ?? null, [preview]);
-  const dirty = JSON.stringify(configuration) !== JSON.stringify(savedConfiguration);
-
-  async function save(): Promise<void> {
-    if (!configuration) return;
-    setBusy(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const latest = await getOrganizationRosterConfiguration();
-      const nextConfiguration = await updateOrganizationRosterConfiguration({
-        ...latest,
-        onBreakTimeoutDays: configuration.onBreakTimeoutDays,
-        onBreakTimeoutEnabled: configuration.onBreakTimeoutEnabled,
-        rsvpExpiryEnabled: configuration.rsvpExpiryEnabled,
-        rsvpFollowUpEnabled: configuration.rsvpFollowUpEnabled,
-        rsvpFollowUpLeadHours: configuration.rsvpFollowUpLeadHours,
-        statusAutomationEnabled: configuration.statusAutomationEnabled,
-        statusAutomationMissThreshold: configuration.statusAutomationMissThreshold,
-        statusAutomationRecoveryEnabled: configuration.statusAutomationRecoveryEnabled,
-        attendanceReportWarningThreshold: configuration.attendanceReportWarningThreshold,
-      });
-      setConfiguration(nextConfiguration);
-      setSavedConfiguration(nextConfiguration);
-      setSaved(true);
-    } catch (caught: unknown) {
-      setError(
-        caught instanceof Error ? caught.message : "Roster automation settings could not be saved.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useFloatingSaveAction({
-    busy,
-    dirty,
-    id: "organization-roster-automation",
-    onDiscard: () => {
-      setConfiguration(savedConfiguration);
-      setSaved(false);
-    },
-    onSave: save,
-  });
 
   if (!enabled) return null;
 
@@ -154,11 +88,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}
-        </p>
-      ) : null}
-      {saved ? (
-        <p className="notice notice--success" role="status">
-          Roster automation settings saved.
         </p>
       ) : null}
       {configuration ? (

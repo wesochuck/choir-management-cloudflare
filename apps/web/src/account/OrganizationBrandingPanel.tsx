@@ -6,25 +6,50 @@ import {
   updateOrganizationBranding,
   uploadPrivateOrganizationFile,
 } from "../auth/api";
+import { usePersistedDraft } from "../persistence";
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
 export function OrganizationBrandingPanel() {
   const [branding, setBranding] = useState<OrganizationBranding | null>(null);
-  const [physicalAddress, setPhysicalAddress] = useState("");
+  const brandingRef = useRef<OrganizationBranding | null>(null);
+  brandingRef.current = branding;
+
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const {
+    draft: addressDraft,
+    error: addressError,
+    persisted: savedAddress,
+    saving: addressSaving,
+    setDraft: setAddressDraft,
+  } = usePersistedDraft<string>({
+    initialValue: branding ? (branding.physicalAddress ?? "") : null,
+    normalize: (addr) => addr.trim(),
+    onSaveSuccess: () => {
+      setSuccess("Organization address updated successfully.");
+    },
+    resourceKey: "organization-branding-address",
+    save: async (nextAddress) => {
+      const updated = await updateOrganizationBranding({
+        logoFileId: brandingRef.current?.logoFileId ?? null,
+        physicalAddress: nextAddress.trim() ? nextAddress.trim() : null,
+      });
+      setBranding(updated);
+      return updated.physicalAddress ?? "";
+    },
+  });
 
   useEffect(() => {
     const controller = new AbortController();
     getOrganizationBranding(controller.signal)
       .then((data) => {
         setBranding(data);
-        setPhysicalAddress(data.physicalAddress ?? "");
         setLoading(false);
       })
       .catch((loadError: unknown) => {
@@ -60,16 +85,18 @@ export function OrganizationBrandingPanel() {
 
     setError(null);
     setSuccess(null);
-    setBusy(true);
+    setLogoBusy(true);
 
     try {
       const uploadResult = await uploadPrivateOrganizationFile(file, file.name);
+      // Decouple from uncommitted address draft by persisting only already-saved address
+      const persistedPhysicalAddress =
+        savedAddress !== null ? savedAddress.trim() || null : (branding?.physicalAddress ?? null);
       const updated = await updateOrganizationBranding({
         logoFileId: uploadResult.id,
-        physicalAddress: physicalAddress.trim() ? physicalAddress.trim() : null,
+        physicalAddress: persistedPhysicalAddress,
       });
       setBranding(updated);
-      setPhysicalAddress(updated.physicalAddress ?? "");
       setSuccess("Organization logo updated successfully.");
     } catch (saveError: unknown) {
       setError(
@@ -78,7 +105,7 @@ export function OrganizationBrandingPanel() {
           : "Failed to upload or save organization logo.",
       );
     } finally {
-      setBusy(false);
+      setLogoBusy(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
@@ -86,15 +113,16 @@ export function OrganizationBrandingPanel() {
   async function handleRemoveLogo() {
     setError(null);
     setSuccess(null);
-    setBusy(true);
+    setLogoBusy(true);
 
     try {
+      const persistedPhysicalAddress =
+        savedAddress !== null ? savedAddress.trim() || null : (branding?.physicalAddress ?? null);
       const updated = await updateOrganizationBranding({
         logoFileId: null,
-        physicalAddress: physicalAddress.trim() ? physicalAddress.trim() : null,
+        physicalAddress: persistedPhysicalAddress,
       });
       setBranding(updated);
-      setPhysicalAddress(updated.physicalAddress ?? "");
       setSuccess("Organization logo removed successfully.");
     } catch (removeError: unknown) {
       setError(
@@ -103,33 +131,12 @@ export function OrganizationBrandingPanel() {
           : "Failed to remove organization logo.",
       );
     } finally {
-      setBusy(false);
+      setLogoBusy(false);
     }
   }
 
-  async function handleSaveAddress() {
-    setError(null);
-    setSuccess(null);
-    setBusy(true);
-
-    try {
-      const updated = await updateOrganizationBranding({
-        logoFileId: branding?.logoFileId ?? null,
-        physicalAddress: physicalAddress.trim() ? physicalAddress.trim() : null,
-      });
-      setBranding(updated);
-      setPhysicalAddress(updated.physicalAddress ?? "");
-      setSuccess("Organization address updated successfully.");
-    } catch (saveError: unknown) {
-      setError(
-        saveError instanceof AuthApiError
-          ? saveError.message
-          : "Failed to save organization address.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
+  const busy = logoBusy || addressSaving;
+  const effectiveError = error ?? addressError;
 
   const initials = branding?.organizationName
     ? branding.organizationName
@@ -150,9 +157,9 @@ export function OrganizationBrandingPanel() {
         </p>
       </div>
 
-      {error ? (
+      {effectiveError ? (
         <div className="notice notice--error" role="alert">
-          <p>{error}</p>
+          <p>{effectiveError}</p>
         </div>
       ) : null}
 
@@ -265,28 +272,16 @@ export function OrganizationBrandingPanel() {
               id="org-physical-address"
               maxLength={2000}
               onChange={(e) => {
-                setPhysicalAddress(e.target.value);
+                setAddressDraft(e.target.value);
               }}
               placeholder="e.g. 123 Main St, Suite 400&#10;Seattle, WA 98101"
               rows={3}
-              value={physicalAddress}
+              value={addressDraft ?? ""}
             />
             <p className="field-hint">
               The official physical mailing address or PO box of the Organization. Displayed in
               outbound email footers for CAN-SPAM and postal compliance.
             </p>
-            <div style={{ marginTop: "0.75rem" }}>
-              <button
-                className="button button--secondary button--sm"
-                disabled={busy}
-                onClick={() => {
-                  void handleSaveAddress();
-                }}
-                type="button"
-              >
-                {busy ? "Saving…" : "Save Address"}
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -25,10 +25,11 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 
 - Use repository-owned primitives from `@choir/ui`, built on Radix, for dialogs, confirmations,
   tables, and other shared interactions. Do not introduce Shoelace or Web Awesome implementations.
-- Full-page settings views, configuration forms, and editable entity pages must register with
-  `useFloatingSaveAction` with a computed `dirty` state, `onSave`, and `onDiscard` handlers so the
-  floating save bar appears and navigation away or tab closure is intercepted with a confirmation
-  prompt.
+- Full-page settings views, configuration forms, and editable entity pages must use
+  `usePersistedDraft` (or register with `SaveCoordinator` via `useSaveRegistration`) with explicit
+  baseline snapshotting, pure boolean `dirty` computation, and snapshot concurrency isolation so the
+  unified `SaveBar` appears and in-app navigation, tab switching, workspace switching, sign-out, and
+  window unload are guarded with accessible confirmation prompts before discarding unsaved edits.
 - Modal dialogs with editable form fields must use the `@choir/ui` `Dialog` component and pass
   `dirty` (or rely on `Dialog`'s built-in input dirty tracking). Cancel buttons inside dialogs must
   be wrapped in `<DialogClose asChild><button ... type="button">Cancel</button></DialogClose>`
